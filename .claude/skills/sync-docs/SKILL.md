@@ -15,7 +15,7 @@ this skill produces a diff first and applies it only after approval.
    regenerate the affected table's column list from the entity, respecting Payroll's
    class-name-verbatim rule), `FEATURE_MAP.md` (files per feature), `GAP_INVENTORY.md`
    (status changes, new IDs), `CONVENTIONS.md`, per-app `CLAUDE.md`, and
-   `docs/features/<slug>.md` for an approved plan being promoted.
+   `docs/target-state/features/<slug>.md` for an approved plan being promoted.
 3. Spawn **explorer** to confirm each fact you intend to write, with `path:line` evidence.
    Never write a path into a doc without confirming it exists on the live branch.
 4. Write the proposed change as a **unified diff** to `agents/outputs/<date>-docs-diff-<slug>.patch`

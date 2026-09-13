@@ -38,7 +38,7 @@ pre-existing wrapper changes (`mvnw`, `mvnw.cmd`, `.mvn/`, `CLAUDE.md`, and the 
 | Hook | Input | Result |
 |---|---|---|
 | guard-edit | `docs/legacy/ARCHITECTURE.md` (absolute) | exit 2, BLOCKED |
-| guard-edit | `docs/features/TEMPLATE.md` | exit 2, BLOCKED |
+| guard-edit | `docs/target-state/features/TEMPLATE.md` | exit 2, BLOCKED |
 | guard-edit | `Payroll-Bend-SBoot/src/main/resources/application-prod.properties` | exit 2, BLOCKED |
 | guard-edit | `Payroll-Fend-react/.env.production` | exit 2, BLOCKED |
 | guard-edit | `HRMS_Backend/scratch.txt`, `agents/active-work.md`, `.claude/settings.json` | exit 0, allowed |

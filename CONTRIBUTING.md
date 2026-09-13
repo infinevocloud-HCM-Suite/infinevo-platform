@@ -79,7 +79,7 @@ Look the rest up when you hit the question:
 
 | # | Step | Note |
 |---|---|---|
-| 1 | **Write the spec first** | `docs/features/W-nn-<slug>.md`, from `docs/features/TEMPLATE.md`. Flows, API surface, schema changes with Flyway script names, tests, acceptance criteria, rollback |
+| 1 | **Write the spec first** | `docs/target-state/features/W-nn-<slug>.md`, from `docs/target-state/features/TEMPLATE.md`. Flows, API surface, schema changes with Flyway script names, tests, acceptance criteria, rollback |
 | 2 | **Get it approved** | The only gate. No code before it. Half a page is often enough for a small item |
 | 3 | **Branch** | One branch per ticket, named for the work item |
 | 4 | **Build, with tests as you go** | Not afterwards |

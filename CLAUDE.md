@@ -47,7 +47,7 @@ describes code being replaced, not a rule for new code.
 |---|---|
 | Where we are going: decisions, work plan, build order | `@docs/target-state/README.md` |
 | Coding rules, `BigDecimal`, naming hazards | `@docs/CONVENTIONS.md` |
-| New feature spec | `@docs/features/TEMPLATE.md` |
+| New feature spec | `@docs/target-state/features/TEMPLATE.md` |
 | Current direction, in-flight, frozen | `@agents/active-work.md` |
 | Setup and the developer loop | `@CONTRIBUTING.md` |
 

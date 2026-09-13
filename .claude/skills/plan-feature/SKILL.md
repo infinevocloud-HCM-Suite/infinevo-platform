@@ -1,6 +1,6 @@
 ---
 name: plan-feature
-description: Turn a feature or fix request into a founder-reviewable implementation plan using docs/features/TEMPLATE.md. Stops before any code is written.
+description: Turn a feature or fix request into a founder-reviewable implementation plan using docs/target-state/features/TEMPLATE.md. Stops before any code is written.
 ---
 
 # plan-feature
@@ -15,9 +15,9 @@ Produces a plan; never produces code. Founder approval is the exit condition.
 3. Spawn **explorer** to map the current behaviour: entry points (controller / route), service
    methods, repository queries, tables (real names from `docs/legacy/DB_SCHEMA.md`), screens. Output
    to `agents/outputs/<date>-plan-<slug>-evidence.md`.
-4. Fill `docs/features/TEMPLATE.md` **into a new file in `agents/outputs/`** named
+4. Fill `docs/target-state/features/TEMPLATE.md` **into a new file in `agents/outputs/`** named
    `<date>-plan-<slug>.md` (not into `docs/` — the guard hook blocks that; the approved plan
-   is copied to `docs/features/` later via `sync-docs`). Sections: Problem, Scope (in/out),
+   is copied to `docs/target-state/features/` later via `sync-docs`). Sections: Problem, Scope (in/out),
    Flow, Backend changes, Frontend changes, DB changes (Flyway script name, `tenant_id`
    checklist), Tests to add, Verification commands, Risks, Rollback.
 5. Split the work into implementer tasks, **one app per task**, each with acceptance

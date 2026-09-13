@@ -37,8 +37,8 @@ the `CLAUDE.md` of whatever they are touching → their ticket's entry in `09` �
 About an hour. Nobody writes code before this.
 
 ### 2 — Spec first, code never first
-The developer drafts a spec into `docs/features/W-nn-<slug>.md` from
-`docs/features/TEMPLATE.md`, using the build detail in `09` §3 as the starting point.
+The developer drafts a spec into `docs/target-state/features/W-nn-<slug>.md` from
+`docs/target-state/features/TEMPLATE.md`, using the build detail in `09` §3 as the starting point.
 
 It states: the flows, the API surface, the schema changes with their Flyway script names, the
 tests to be written, the acceptance criteria, and the rollback.
@@ -175,4 +175,4 @@ the process holds through that ticket, it will hold.
 
 - What to assign: `10-scoping.md` · Build detail: `09-build-order.md`
 - Rules and conventions: `docs/CONVENTIONS.md` · Hard rules: root `CLAUDE.md`
-- Spec template: `docs/features/TEMPLATE.md`
+- Spec template: `docs/target-state/features/TEMPLATE.md`

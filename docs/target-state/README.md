@@ -35,6 +35,7 @@ Apps with an automated pipeline.
 | `09-build-order.md` | Waves, parallel tracks, and per-item build detail | About to start building something |
 | `10-scoping.md` | Sizes, skills, blockers, and what to assign first | Assigning work to people |
 | `11-ways-of-working.md` | What you assign, how a developer works a ticket, what done means | Starting development |
+| `features/` | The per-ticket specs. `TEMPLATE.md`, then one `W-nn-*.md` per item as it starts | Writing or approving a spec |
 
 **Start with `01`.** It is the shortest path to understanding the product.
 
@@ -61,13 +62,13 @@ spec → work item → capability → decision.
 ### Where a feature gets its own document
 
 **Not here.** `08` and `09` are the complete inventory and the build order. A feature earns a
-document of its own **only when it is about to be built**, written into `docs/features/`
-from `docs/features/TEMPLATE.md`, and named after its work item — `W-16-leave-engine.md`.
+document of its own **only when it is about to be built**, written into `docs/target-state/features/`
+from `docs/target-state/features/TEMPLATE.md`, and named after its work item — `W-16-leave-engine.md`.
 
 | Document | Written | Holds |
 |---|---|---|
 | `08` + `09` | **Now, once** | Every work item, its features, order, parallelism, build detail |
-| `docs/features/W-nn-*.md` | **Just before that item starts** | The full spec: flows, API, schema changes, tests, rollback |
+| `docs/target-state/features/W-nn-*.md` | **Just before that item starts** | The full spec: flows, API, schema changes, tests, rollback |
 
 Writing 72 specs up front would produce 60 stale documents. The build detail in `09` §3 is
 deliberately the level that survives — what to build, how you know it is done, and the trap

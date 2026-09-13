@@ -3,8 +3,8 @@
 > All 72 work items sized and skill-tagged, so they can be handed to people.
 > **Relative sizes, not dates.** `MANAGEMENT_SUMMARY_AND_PLAN.md` holds the calendar.
 >
-> Full specs are written **just before an item starts**, into `docs/features/W-nn-<slug>.md`
-> from `docs/features/TEMPLATE.md`. This document is what you assign from, not what you build from.
+> Full specs are written **just before an item starts**, into `docs/target-state/features/W-nn-<slug>.md`
+> from `docs/target-state/features/TEMPLATE.md`. This document is what you assign from, not what you build from.
 
 ---
 
@@ -263,7 +263,7 @@ No item is complete without all six.
 | 3 | Every new table carries `tenant_id` and a row-level security policy, unless it is in `reference` |
 | 4 | Every new endpoint is authenticated, or on the reviewed exception list |
 | 5 | Indexes added for the queries the item introduces |
-| 6 | Its `docs/features/W-nn-*.md` spec updated to match what was actually built |
+| 6 | Its `docs/target-state/features/W-nn-*.md` spec updated to match what was actually built |
 
 Items 3 and 4 are checked by the build once `W-07` and `W-57` exist. Until then they are
 checked by review, and they are the two most likely to be skipped under time pressure.
@@ -274,4 +274,4 @@ checked by review, and they are the two most likely to be skipped under time pre
 
 - Build order and per-item detail: `09` · Work items and features: `08`
 - Capabilities: `01` · Tables: `02` · Decisions: `07`
-- Spec template: `docs/features/TEMPLATE.md`
+- Spec template: `docs/target-state/features/TEMPLATE.md`

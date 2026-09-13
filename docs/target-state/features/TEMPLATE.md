@@ -1,6 +1,6 @@
 # Feature: <NAME>
 
-> Copy this file to `docs/features/<FEAT-ID>-<slug>.md` and fill it in.
+> Copy this file to `docs/target-state/features/<FEAT-ID>-<slug>.md` and fill it in.
 > Structure derived from the archived `FEATURE_DEVELOPMENT_TRACKER.md`.
 > One file per feature. Do not create a combined tracker.
 
