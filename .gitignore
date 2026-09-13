@@ -28,3 +28,9 @@ code/frontend/dist/
 
 # Local port overrides for the dev stack (each developer, never committed)
 infra/docker/.env
+
+# Session transcripts: the Stop hook rewrites these every turn, so they conflict on
+# every rebase and merge - three times on 2026-09-13 alone. The investigation findings
+# beside them stay tracked; a running commentary of one machine's session does not
+# need to be.
+.claude/outputs/*-session-*.md

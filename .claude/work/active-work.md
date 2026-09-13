@@ -1,7 +1,7 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-13**, after `W-01` merged.
+> Last refreshed: **2026-09-13**, after `W-02` merged.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -11,9 +11,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **93** — `#1` closed, `#3`–`#94` open |
-| Waves | 9. Wave 1 has 1 of 7 done |
-| Merged | `W-01` repository and module skeleton (PR #2) |
+| Tickets | **93** — `#1` and `#3` closed, 90 open |
+| Waves | 9. **Wave 1 has 2 of 7 done** |
+| Merged | `W-01` module skeleton (#2) · `W-02` local dev stack (#95) · process skills and merge gate (#96) |
 | Team | `developers`, Write access. Five invitations pending acceptance |
 
 ---
@@ -35,9 +35,10 @@ questions.** Start at `docs/target-state/README.md`.
 
 ### The three threads
 
-1. **The platform repository — done.** `W-01` merged 2026-09-13. Seven Maven modules
-   with the `hrms` ↔ `payroll` boundary enforced by `maven-enforcer`, the frontend
-   skeleton on Vite + Ant Design, `infra/` and `.github/` in place.
+1. **The platform repository and a runnable stack — done.** `W-01` gave seven Maven
+   modules with the `hrms` ↔ `payroll` boundary enforced by the build. `W-02` gave nine
+   containers from one command — `docker compose -f infra/docker/compose.yml up -d`,
+   all healthy in 114 seconds. `app` connects as `app_user` and is refused DDL.
 2. **Multi-tenancy — not started, the highest-value work in the project.** Payroll is
    org-scoped on 63 of 97 entities; HRMS on **none at all** (0 of 39, `BUG-002`).
    Target: `tenant_id` on every table outside `reference`, enforced by Postgres
@@ -53,14 +54,13 @@ production fixes or they are lost at cutover.
 
 ---
 
-## Ready to assign — 6 tickets
+## Ready to assign — 5 tickets
 
 Everything else is blocked on a dependency.
 
 | Issue | Ticket | Size | Skill |
 |---|---|---|---|
 | **#4** | `W-03` Build & test pipeline | S | INFRA |
-| #3 | `W-02` Local development stack | M | INFRA |
 | #5 | `W-04` Test foundation | M | BE |
 | #6 | `W-05` Postgres & four schemas | S | DATA |
 | #69 | `W-49` Containerisation | M | INFRA |
@@ -122,7 +122,9 @@ entities are authoritative, and whether the HRMS→Payroll leave integration car
 | | |
 |---|---|
 | **No branch protection** | GitHub refuses it on private repositories on the Free plan (`D-43`). `main` is convention, not enforcement, until the plan changes |
-| **No pipeline yet** | `W-03` builds it. Until then, evidence in the PR body is the only check |
+| **No pipeline yet** | `W-03` builds it. Until then the local nine-gate done-check is the only gate, and it runs on the merger's machine |
+| **`W-07` owes the two-tenant seed** | `W-02` shipped the loader; `core.tenant` does not exist yet. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
+| **Nobody has run the stack but me** | `W-02` done-when item 11 is unticked. Have a developer run `up -d` and `smoke.sh` |
 | **No tests outside `shared`** | `W-04` builds the foundation. `shared` has 21 |
 | **Toolchain** | Java 21, Maven 3.9.11 (`C:/Tools/apache-maven-3.9.11`), Node 24. `D-38`–`D-42` |
 
