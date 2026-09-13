@@ -1,11 +1,16 @@
 ---
 name: analyze
-description: Answer a "how does X work / where is X / what would Y touch" question about any of the four apps with cited evidence, without changing anything. Use before planning a feature or when a doc looks stale.
+description: Answer a "how does X work / where is X / what would Y touch" question with cited evidence, without changing anything. Covers the frozen system in legacy/ and the new platform in code/. Use before writing a spec, or when a doc looks stale.
 ---
 
 # analyze
 
 Read-only investigation. Produces a cited report; changes no code and no docs.
+
+Most questions are about **how the frozen system works today**, asked by someone about to
+port that logic. Always say whether a fact comes from `legacy/` (what is being replaced)
+or from `docs/target-state/` and `code/` (what is being built) — confusing the two is the
+failure mode that costs a rewrite.
 
 ## Steps
 1. Read `.claude/work/active-work.md` (hard rule 2) and the matching entries in

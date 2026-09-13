@@ -1,31 +1,58 @@
 ---
 name: plan-feature
-description: Turn a feature or fix request into a founder-reviewable implementation plan using docs/target-state/features/TEMPLATE.md. Stops before any code is written.
+description: Turn a product ticket into a founder-reviewable spec using docs/target-state/features/TEMPLATE.md. Stops before any code is written.
 ---
 
 # plan-feature
 
-Produces a plan; never produces code. Founder approval is the exit condition.
+Produces a spec; **never produces code.** Founder approval is the exit condition.
+
+Invoke as `/plan-feature W-nn`. For platform tickets (`skill-INFRA`, `skill-DATA`,
+`skill-SEC`) use `/infra-task` instead.
 
 ## Steps
-1. Read `.claude/work/active-work.md`. If the request touches something listed under **Frozen**
-   (HRMS apps, Payroll `main` branches, LOP integration), say so and stop.
-2. Read `legacy/docs/GAP_INVENTORY.md` and list every BUG/DEBT ID the request overlaps — the plan
-   must either fix them, explicitly defer them, or explain why they are unaffected.
-3. Spawn **explorer** to map the current behaviour: entry points (controller / route), service
-   methods, repository queries, tables (real names from `legacy/docs/DB_SCHEMA.md`), screens. Output
-   to `.claude/outputs/<date>-plan-<slug>-evidence.md`.
-4. Fill `docs/target-state/features/TEMPLATE.md` **into a new file in `.claude/outputs/`** named
-   `<date>-plan-<slug>.md` (not into `docs/` — the guard hook blocks that; the approved plan
-   is copied to `docs/target-state/features/` later via `sync-docs`). Sections: Problem, Scope (in/out),
-   Flow, Backend changes, Frontend changes, DB changes (Flyway script name, `tenant_id`
-   checklist), Tests to add, Verification commands, Risks, Rollback.
-5. Split the work into implementer tasks, **one app per task**, each with acceptance
-   criteria the **verifier** can run as a command.
-6. State the impact on the four hard constraints: no behaviour change to existing endpoints,
-   no `ddl-auto` reliance, `organizationId`/`tenant_id` scoping, no edits to `docs/` or
-   `*.properties`.
-7. Reply with the plan path, a ≤10-line summary, the task list, and the open decisions the
-   founder must make (as numbered questions).
-8. **STOP and wait for "approved".** Do not spawn **implementer**. Do not edit any file
-   outside `.claude/outputs/`.
+
+1. Read `.claude/work/active-work.md` for where the project stands, then the ticket's
+   GitHub issue for its features and blockers. **If the ticket is labelled `blocked`, say
+   which ticket it waits on and stop.** A spec written against a foundation that does not
+   exist is rewritten when it does.
+2. Read `docs/target-state/09-build-order.md` §3 for this item — what to build, how you
+   know it is done, and the trap to avoid. That is the spine of the spec.
+3. Read `docs/target-state/01-platform-shape.md` for the capability this delivers, and
+   `02-data-model.md` for the tables and schema it belongs in. **Which schema a table
+   lives in is a design decision already made — do not re-decide it.**
+4. Read `legacy/docs/GAP_INVENTORY.md` and list every BUG/DEBT ID the work overlaps. The
+   spec must fix them, explicitly defer them, or explain why they are unaffected.
+5. Spawn **explorer** to map how it works in the frozen system: entry points, service
+   methods, repository queries, real table names from `legacy/docs/DB_SCHEMA.md`, screens.
+   Evidence to `.claude/outputs/<date>-plan-<slug>-evidence.md`.
+6. Write the spec from `docs/target-state/features/TEMPLATE.md` into
+   `.claude/outputs/<date>-plan-<slug>.md` — **not** into `docs/`, which `guard-edit`
+   blocks. It moves to `docs/target-state/features/W-nn-<slug>.md` once approved.
+7. **Cite `legacy/` `file:line` for every piece of logic being ported**, so the reviewer
+   can check it was carried over rather than reinvented. This is the single most useful
+   thing in the spec.
+8. Split the work into implementer tasks, **one module per task** — `core`, `hrms`,
+   `payroll`, `shared` — each with acceptance criteria the **verifier** can run.
+9. State the impact on the standing rules:
+   - `tenant_id` and a row-level security policy on every new table outside `reference`
+   - Flyway script for every schema change. **Never `ddl-auto`**
+   - `Money` or `BigDecimal` for money. Never a floating-point type
+   - **No module references another module.** If the design seems to need it, the data
+     belongs in `core` — say so rather than proposing a workaround; the build rejects it
+   - Every new endpoint authenticated, or added to the reviewed exception list
+   - Nothing under `legacy/` or `docs/` is edited
+10. Reply with the spec path, a summary of 10 lines or fewer, the task list, and the
+    decisions the founder must make, as numbered questions.
+11. **STOP and wait for approval.** Do not spawn **implementer**. Do not write any file
+    outside `.claude/outputs/`.
+
+## What a good spec looks like
+
+Half a page for an `S` item; two pages for an `L`. If approval takes more than a few
+minutes, the spec is too vague or the ticket is too big — say so and propose a split
+rather than padding it.
+
+**Section 9, verification, is the part that matters.** It is what makes the ticket
+checkable rather than a matter of opinion. Write the commands and their expected output,
+not a description of testing.
