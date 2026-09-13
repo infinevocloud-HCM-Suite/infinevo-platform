@@ -1,0 +1,53 @@
+{
+  "pr": 95,
+  "status": "PASS",
+  "at": "2026-09-13T12:52:33.230Z",
+  "head": "cb5d7b0546be9622f047deb96eadf651fa6bffd6",
+  "gates": [
+    {
+      "name": "PR is open and links its issue",
+      "ok": true,
+      "detail": "#95 -> closes #3"
+    },
+    {
+      "name": "Approved spec exists",
+      "ok": true,
+      "detail": "W-02-local-stack.md"
+    },
+    {
+      "name": "No open High findings",
+      "ok": true,
+      "detail": "no reports"
+    },
+    {
+      "name": "legacy/ untouched",
+      "ok": true,
+      "detail": "22 files changed"
+    },
+    {
+      "name": "docs/ changed only for this ticket's spec",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ddl-auto set nowhere",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "No float or double money field",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Backend builds and tests pass",
+      "ok": true,
+      "detail": "BUILD SUCCESS"
+    },
+    {
+      "name": "Frontend lints and builds",
+      "ok": true,
+      "detail": "lint clean, build ok"
+    }
+  ]
+}
