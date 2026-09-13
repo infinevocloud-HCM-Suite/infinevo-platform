@@ -21,7 +21,8 @@ pushed to. Code is **ported deliberately, once** — there is no sync mechanism 
 
 ```
 infinevo-platform/
-├── backend/
+├── code/
+│   ├── backend/
 │   ├── core/                    Maven module — employee, leave, identity, workflow, audit
 │   ├── hrms/                    Maven module — attendance, overtime, projects, timesheets
 │   ├── payroll/                 Maven module — pay runs, tax, claims, statutory
@@ -39,11 +40,13 @@ infinevo-platform/
 │   ├── hrms/                    attendance, timesheets, projects
 │   ├── payroll/                 pay runs, tax, claims
 │   └── shared/                  design system, api client, auth
-├── keycloak/                    realm export, theme
-├── infra/                       Azure definitions (Bicep)
-├── docker/                      Dockerfiles, local compose stack
-├── .github/workflows/           build, test, deploy
-└── docs/                        this folder, plus schema and conventions
+├── infra/                       everything about running it - no application code
+│   ├── azure/                   Azure definitions (Bicep)
+│   ├── docker/                  Dockerfiles, local compose stack
+│   └── keycloak/                realm export, theme
+├── .github/workflows/           build, test, deploy (GitHub reads only this path)
+├── legacy/                      the four frozen applications, read-only
+└── docs/                        target-state/ and legacy/, plus conventions
 ```
 
 ---

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.infinevo</groupId>
+    <artifactId>infinevo-platform</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>migration</artifactId>
+  <name>Infinevo :: migration</name>
+  <description>
+    Flyway migration scripts, one tree per schema. Empty until W-06 adds the runner
+    and the conventions. Script order across schemas is reference, then core, then
+    the modules - see docs/target-state/09-build-order.md.
+  </description>
+</project>

@@ -1,0 +1,20 @@
+# Batch role.
+#
+# There is deliberately no spring.jpa.hibernate.ddl-auto here, and there must never be.
+# Schema is owned by Flyway (W-06). See CONVENTIONS.md rule 4.
+spring:
+  application:
+    name: infinevo-worker
+  main:
+    banner-mode: off
+    web-application-type: none
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true

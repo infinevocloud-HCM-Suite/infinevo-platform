@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // guard-edit.mjs — PreToolUse hook for Edit|Write.
-// Blocks writes to protected paths: docs/**, any application*.properties, any .env* file.
+// Blocks writes to protected paths: docs/**, legacy/**, any application*.properties, any .env* file.
 // Exit 2 = deny (Claude Code shows the stderr reason to the model). Exit 0 = allow.
 // Docs change only via the `sync-docs` skill with a founder-approved diff (root CLAUDE.md, hard rule 3).
 
@@ -27,6 +27,8 @@ const name = basename(abs);
 const reasons = [];
 if (rel === "docs" || rel.startsWith("docs/"))
   reasons.push("docs/ is read-only during feature work; propose changes via the sync-docs skill and get founder approval");
+if (rel === "legacy" || rel.startsWith("legacy/"))
+  reasons.push("legacy/ is frozen reference, not a working copy. Read it and port logic out of it; a change here is not deployed anywhere and will be deleted. If it is a genuine production defect, raise it with the founder (see legacy/README.md)");
 if (/^application.*\.properties$/i.test(name))
   reasons.push("application*.properties holds environment config and secrets; never edit from a task (hard rule 3)");
 if (/^\.env(\..*)?$/i.test(name))

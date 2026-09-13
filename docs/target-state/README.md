@@ -52,7 +52,7 @@ them, and each deep-dive analysis cites the feature it belongs to.
 | `HRMS-nn` | HRMS module capabilities | 10 | `01` §4 |
 | `PAY-nn` | Payroll module capabilities | 17 | `01` §5 |
 | `PLAT-nn` | Cross-cutting platform capabilities | 14 | `01` §6 |
-| `D-nn` | Decisions | 41 | `07` §1 |
+| `D-nn` | Decisions | 43 | `07` §1 |
 | `OQ-nn` | Open questions | **0 — design closed 2026-09-13** | `07` §2 |
 
 **Sixty-two capabilities in total**, delivered by **72 work items broken into 295 features**
@@ -116,9 +116,9 @@ are in `06` §5 with evidence.
 | Document | Holds |
 |---|---|
 | `MANAGEMENT_SUMMARY_AND_PLAN.md` | Phases, durations, team, exit gates |
-| `docs/legacy/DB_SCHEMA.md` | Today's 131 tables, verified against the live branches |
-| `docs/legacy/FEATURE_MAP.md` | Which files implement which feature today |
-| `docs/legacy/GAP_INVENTORY.md` | Known defects and debt |
+| `legacy/docs/DB_SCHEMA.md` | Today's 131 tables, verified against the live branches |
+| `legacy/docs/FEATURE_MAP.md` | Which files implement which feature today |
+| `legacy/docs/GAP_INVENTORY.md` | Known defects and debt |
 | `docs/CONVENTIONS.md` | Coding rules, money handling, naming hazards |
-| `agents/active-work.md` | Live project state, branches, in-flight work |
-| `agents/outputs/2026-09-11-*` | The investigations this design rests on |
+| `.claude/work/active-work.md` | Live project state, branches, in-flight work |
+| `.claude/outputs/2026-09-11-*` | The investigations this design rests on |

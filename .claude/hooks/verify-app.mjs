@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // verify-app.mjs — PostToolUse hook for Edit|Write.
-// Maps the edited file to ONE of the four apps and runs only that app's compile/lint.
+// Maps the edited file to backend/ or frontend/ and runs that side's compile or lint.
 // Informational only: always exits 0, never blocks. Result goes back to the model as
 // additionalContext and is echoed to stdout. Prints "SKIP <reason>" when the toolchain
 // or dependencies are missing, or when the same app was verified in the last 20 s.
@@ -15,12 +15,13 @@ const WIN = process.platform === "win32";
 const DEBOUNCE_MS = 20_000;
 const TIMEOUT_MS = 240_000;
 
-// app folder -> how to verify it (commands verified in each app's CLAUDE.md)
+// path prefix -> how to verify it.
+//
+// Only the platform is verified. legacy/ is frozen reference and is never built here:
+// nothing matches it, so an edit there is skipped - and guard-edit blocks it outright.
 const APPS = {
-  "HRMS_Backend":       { kind: "maven", label: "compile" },
-  "Payroll-Bend-SBoot": { kind: "maven", label: "compile" },
-  "HRMS_Frontend":      { kind: "npm",   label: "lint", cmd: ["npm", "run", "lint", "--silent"] },
-  "Payroll-Fend-react": { kind: "npm",   label: "lint", cmd: ["npx", "eslint", "src", "--ext", ".js,.jsx"] },
+  "code/backend":  { kind: "maven", label: "compile" },
+  "code/frontend": { kind: "npm",   label: "lint", cmd: ["npm", "run", "lint", "--silent"] },
 };
 
 function out(msg) {
@@ -39,15 +40,16 @@ const target = input?.tool_input?.file_path ?? input?.tool_input?.path;
 if (!target) out("SKIP no file_path in tool input");
 
 const rel = relative(ROOT, resolve(input.cwd ?? ROOT, target)).split(sep).join("/");
-const app = rel.split("/")[0];
-const spec = APPS[app];
-if (!spec) out(`SKIP ${rel} is not inside an app folder (harness/docs edit)`);
+// Keys are two segments deep (code/backend), so match the longest prefix.
+const app = Object.keys(APPS).find((k) => rel === k || rel.startsWith(k + "/"));
+const spec = app ? APPS[app] : undefined;
+if (!spec) out(`SKIP ${rel} is not inside a build folder (harness/docs/legacy edit)`);
 
 const appDir = join(ROOT, app);
 
 // debounce: many edits in a row should not trigger many compiles
-const stampDir = join(ROOT, "agents", "outputs", ".verify-cache");
-const stamp = join(stampDir, `${app}.last`);
+const stampDir = join(ROOT, ".claude", "outputs", ".verify-cache");
+const stamp = join(stampDir, `${app.replace("/", "-")}.last`);
 try {
   mkdirSync(stampDir, { recursive: true });
   if (existsSync(stamp) && Date.now() - Number(readFileSync(stamp, "utf8")) < DEBOUNCE_MS)

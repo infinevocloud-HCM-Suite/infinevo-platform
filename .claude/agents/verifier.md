@@ -19,7 +19,7 @@ finding.
 | `HRMS_Frontend` | `npm run lint` | none configured — report "no test runner" |
 | `Payroll-Fend-react` | `npx eslint src --ext .js,.jsx` | `npm test -- --watchAll=false` |
 
-Baseline to compare against: `agents/outputs/2026-09-11-build-baseline.md` (HRMS_Frontend has
+Baseline to compare against: `.claude/outputs/2026-09-11-build-baseline.md` (HRMS_Frontend has
 350 pre-existing lint errors; Payroll-Fend-react 833 warnings). Distinguish **new** failures
 from baseline noise: run the lint on the changed files alone as well as the whole app.
 

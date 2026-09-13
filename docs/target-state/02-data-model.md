@@ -245,7 +245,7 @@ product has today.
 | `ResidentialAddress` | Not a table — `@Embeddable`, columns inline |
 
 > ⚠️ **Do not delete any row in the "Retired" block on the strength of this document.**
-> Investigation (`agents/outputs/2026-09-11-hrms-duplicate-entities.md`) found that the
+> Investigation (`.claude/outputs/2026-09-11-hrms-duplicate-entities.md`) found that the
 > older leave request entity is still reachable via update and delete routes, and that
 > *both* timesheet systems are live. "No endpoints" does not prove an entity is dead — a
 > service can still write to it. Each retirement needs its own confirmation.
@@ -387,4 +387,4 @@ cannot escape it.
 ## Related
 
 - Capabilities: `01-platform-shape.md` · Migration narrative: `06-current-to-target.md`
-- Decisions: `07-decisions.md` · Today's schema: `docs/legacy/DB_SCHEMA.md`
+- Decisions: `07-decisions.md` · Today's schema: `legacy/docs/DB_SCHEMA.md`

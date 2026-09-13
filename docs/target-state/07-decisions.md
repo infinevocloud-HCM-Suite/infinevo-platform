@@ -50,7 +50,9 @@
 | `D-38` | 2026-09-13 | **Java 21** for the whole backend | `HRMS_Backend` is already on 21, Payroll on 17. 21 is LTS with support to 2031, and nothing in the frozen Payroll code blocks the move. One version across seven modules, chosen before any code exists | `03`, `W-01` |
 | `D-39` | 2026-09-13 | **Spring Boot 3.3.x**, latest patch | The frozen apps are on 3.2.4 and 3.2.5. Starting one minor ahead avoids a framework upgrade in month two, while staying close enough that ported code needs no rework | `03`, `W-01` |
 | `D-40` | 2026-09-13 | **Maven coordinates `com.infinevo` / `infinevo-platform`**, packages `com.infinevo.<module>.<feature>` | Neither frozen groupId carries forward. `com.phegondev` in `HRMS_Backend` is a template artefact and must not propagate into the new platform | `03`, `W-01` |
-| `D-41` | 2026-09-13 | **Node 20 LTS** for the frontend and the harness | Matches what Vite and the harness hooks expect, and is the version the pipeline will pin | `03`, `W-01` |
+| ~~`D-41`~~ | 2026-09-13 | ~~**Node 20 LTS**~~ — **superseded same day by `D-42`** | Node 20 reached end of life in April 2026. It was proposed and approved in error; an unsupported runtime receives no security patches | `03`, `W-01` |
+| `D-42` | 2026-09-13 | **Node 24 LTS** for the frontend and the harness | The current active LTS, maintained to 2028. **Supersedes `D-41`**, which named a runtime that was already end-of-life on the day it was approved | `03`, `W-01` |
+| `D-43` | 2026-09-13 | **Branch protection is convention, not enforcement, until the second developer joins** | GitHub refuses branch protection on private repositories on the Free plan. The options were to make the repository public, pay for Team, or rely on convention. A multi-tenant platform holding other companies' payroll data cannot be public, and paying per seat before there are seats is premature. Revisit when the team grows | `W-01` |
 
 ---
 
@@ -82,8 +84,9 @@ system are in §6.
 | Earlier recommendation: Payroll as its own service because pay runs are heavy | `D-01`, `D-02` | Heaviness is a batch concern, better solved by a worker |
 | Earlier recommendation: tax reference data fully shared, no overrides | `D-08` | Professional tax overrides already exist in the code |
 | `D-04` attendance is HRMS-only · `D-05` overtime is HRMS-only | `D-35` | Basic capture moves to Core. The differentiator becomes the request-and-approve experience, not the data |
+| `D-41` Node 20 LTS | `D-42` | Node 20 was already end-of-life when it was approved. Caught during the `W-01` build |
 | Earlier proposal: three schemas | `D-08` | A fourth, `reference`, isolates the tenant-column exception and makes it auditable |
-| `agents/active-work.md`: shared-schema MySQL on Azure Kubernetes | `D-09`, `D-10` | Predates this design work |
+| `.claude/work/active-work.md`: shared-schema MySQL on Azure Kubernetes | `D-09`, `D-10` | Predates this design work |
 | Plan: subtree migration + daily/weekly one-way sync from the four origin repos | `D-17` | No sync mechanism. The `sync-upstream` skill is cancelled |
 | Management summary: "weekly sync of prod fixes until a cutoff date" | `D-17` | Same. Post-cutoff fixes are tracked and re-applied by hand |
 
@@ -93,7 +96,7 @@ system are in §6.
 
 - `01`–`06` for the design these decisions produced
 - `MANAGEMENT_SUMMARY_AND_PLAN.md` for phases and estimates
-- `agents/active-work.md` for live project state
+- `.claude/work/active-work.md` for live project state
 
 ---
 
