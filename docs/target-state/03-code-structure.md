@@ -21,7 +21,8 @@ pushed to. Code is **ported deliberately, once** — there is no sync mechanism 
 
 ```
 infinevo-platform/
-├── backend/
+├── code/
+│   ├── backend/
 │   ├── core/                    Maven module — employee, leave, identity, workflow, audit
 │   ├── hrms/                    Maven module — attendance, overtime, projects, timesheets
 │   ├── payroll/                 Maven module — pay runs, tax, claims, statutory

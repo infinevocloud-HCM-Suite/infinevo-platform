@@ -23,9 +23,9 @@ Closes #
 <!-- Paste the real output. "It works" is not evidence. -->
 
 ```
-$ cd backend && ./mvnw -q verify
+$ cd code/backend && ./mvnw -q verify
 
-$ cd frontend && npm run lint && npm run build
+$ cd code/frontend && npm run lint && npm run build
 ```
 
 ## Definition of done

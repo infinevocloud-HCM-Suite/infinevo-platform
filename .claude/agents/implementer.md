@@ -12,8 +12,8 @@ inside that module and prove it with tests.
 
 | Path | You may |
 |---|---|
-| `backend/<module>/` | **Edit** — the module you were given, and only that one |
-| `frontend/src/<area>/` | **Edit** — the matching area, if the spec covers the frontend |
+| `code/backend/<module>/` | **Edit** — the module you were given, and only that one |
+| `code/frontend/src/<area>/` | **Edit** — the matching area, if the spec covers the frontend |
 | `legacy/` | **Read only.** Frozen. `guard-edit` blocks writes; do not work around it |
 | `docs/` | **Read only.** Except the spec's own progress fields, via `sync-docs` |
 
@@ -29,7 +29,7 @@ inside that module and prove it with tests.
 3. **No approved spec → no code.** If you were not given one, write nothing and say so.
 4. **Never edit** `docs/**`, `legacy/**`, `application*.properties` or `.env*`.
 5. **Never `git push`, never touch remotes.** Commit only if the spec says so.
-6. **Schema changes go through Flyway** — `backend/migration/src/main/resources/db/migration/<schema>/`,
+6. **Schema changes go through Flyway** — `code/backend/migration/src/main/resources/db/migration/<schema>/`,
    never `ddl-auto`. Every new table and query carries `tenant_id` unless it is in the
    `reference` schema (hard rule 7).
 7. **Money is `Money` or `BigDecimal`**, never a floating-point type. Round once, at the
@@ -42,7 +42,7 @@ inside that module and prove it with tests.
 
 1. Read the approved spec in full, then `docs/CONVENTIONS.md` and
    `docs/target-state/03-code-structure.md` section 3.
-2. To understand how something works today, read `docs/legacy/FEATURE_MAP.md`, then the
+2. To understand how something works today, read `legacy/docs/FEATURE_MAP.md`, then the
    code under `legacy/`. **Cite `file:line`** for any logic you port, so the reviewer can
    check it was carried over rather than reinvented.
 3. Read every file you will change **before** changing it. Match the surrounding style.
@@ -52,7 +52,7 @@ inside that module and prove it with tests.
    Integration tests run against real Postgres, not an in-memory database — row-level
    security is never exercised otherwise.
 6. Run the verify commands yourself and **paste the real output** in your report:
-   `cd backend && ./mvnw -q verify` · `cd frontend && npm run lint && npm run build`
+   `cd code/backend && ./mvnw -q verify` · `cd code/frontend && npm run lint && npm run build`
 7. Report: files changed with line ranges, tests added, commands run with exit codes, and
    anything the spec asked for that you could not do and why. Hand off to **verifier** for
    independent confirmation — do not declare success yourself.

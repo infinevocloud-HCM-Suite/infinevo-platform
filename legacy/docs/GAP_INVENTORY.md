@@ -2,7 +2,7 @@
 
 > ⚠️ **LEGACY — frozen reference.** This describes the four applications being
 > replaced, as frozen on 2026-09-13. It is **not** a specification for new work.
-> Build against `docs/target-state/`. See `docs/legacy/README.md`.
+> Build against `docs/target-state/`. See `legacy/docs/README.md`.
 
 > Derived from `MASTER_BUG_AND_PROGRESS_TRACKER.md` on 2026-09-11. Original archived.
 >

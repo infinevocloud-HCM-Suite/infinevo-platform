@@ -141,10 +141,10 @@ Not target-state matters. Present-tense problems, recorded so they are not lost.
 
 | Finding | Where |
 |---|---|
-| `POST /public/get-employee-leaves` on HRMS requires **no authentication**; CSRF disabled globally; `/register` is also open | `agents/outputs/2026-09-11-security-finding-public-endpoint.md` |
+| `POST /public/get-employee-leaves` on HRMS requires **no authentication**; CSRF disabled globally; `/register` is also open | `.claude/outputs/2026-09-11-security-finding-public-endpoint.md` |
 | The HRMS→Payroll leave integration is listed as frozen and superseded, but the controller is **live and reachable** | Same file. `OQ-03` |
-| Two complete timesheet systems run side by side, live | `agents/outputs/2026-09-11-hrms-duplicate-entities.md` |
-| Payroll has **no notification or email capability at all** | `agents/outputs/2026-09-11-core-boundary-payroll.md` |
+| Two complete timesheet systems run side by side, live | `.claude/outputs/2026-09-11-hrms-duplicate-entities.md` |
+| Payroll has **no notification or email capability at all** | `.claude/outputs/2026-09-11-core-boundary-payroll.md` |
 | Payroll stores attendance preferences for an attendance system it does not have | Same file |
 
 **The first row should be checked before anything else in this programme**, because whether

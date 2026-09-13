@@ -42,7 +42,7 @@ severity from critical to low. **Check the deployment before acting on this.**
 
 ## Context that makes it worse
 
-`agents/active-work.md` lists the HRMS→Payroll LOP integration as **frozen / superseded** by
+`.claude/work/active-work.md` lists the HRMS→Payroll LOP integration as **frozen / superseded** by
 Payroll's own leave tables. But this controller is live, reachable, and wired to the live
 `LeaveRequests` entity. So either:
 
@@ -65,7 +65,7 @@ Both readings argue for resolving it. This is **Open Question 4** in `active-wor
 
 - Payroll has a comparable issue: `/api/test/**` unguarded (existing GAP entry).
 - Proposed new GAP entry. Needs `sync-docs` with founder approval to land in
-  `docs/legacy/GAP_INVENTORY.md`, since the guard hook blocks direct edits.
+  `legacy/docs/GAP_INVENTORY.md`, since the guard hook blocks direct edits.
 
 ---
 

@@ -3,12 +3,12 @@
 # They are no longer cloned separately - CONTRIBUTING.md section 1.
 # ---------------------------------------------------------------------------
 
-# Agent working files.
+# Harness working files, under .claude/ with the harness itself.
 # Findings and session logs ARE tracked: docs/target-state/README.md cites them,
-# and active-work.md is the live project state every developer reads first.
+# and .claude/work/active-work.md is the live project state everyone reads first.
 # Only transient and duplicated material is ignored.
-agents/outputs/.verify-cache/
-agents/outputs/target-state/
+.claude/outputs/.verify-cache/
+.claude/outputs/target-state/
 
 # Dependencies
 node_modules/
@@ -17,6 +17,6 @@ node_modules/
 Trae-Setup-x64.exe
 
 # Build output
-backend/**/target/
-frontend/node_modules/
-frontend/dist/
+code/backend/**/target/
+code/frontend/node_modules/
+code/frontend/dist/

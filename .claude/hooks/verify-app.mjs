@@ -15,14 +15,13 @@ const WIN = process.platform === "win32";
 const DEBOUNCE_MS = 20_000;
 const TIMEOUT_MS = 240_000;
 
-// first path segment -> how to verify it.
+// path prefix -> how to verify it.
 //
 // Only the platform is verified. legacy/ is frozen reference and is never built here:
-// it resolves to "legacy", which is not a key, so an edit there is skipped. guard-edit
-// blocks such an edit outright anyway.
+// nothing matches it, so an edit there is skipped - and guard-edit blocks it outright.
 const APPS = {
-  "backend":  { kind: "maven", label: "compile" },
-  "frontend": { kind: "npm",   label: "lint", cmd: ["npm", "run", "lint", "--silent"] },
+  "code/backend":  { kind: "maven", label: "compile" },
+  "code/frontend": { kind: "npm",   label: "lint", cmd: ["npm", "run", "lint", "--silent"] },
 };
 
 function out(msg) {
@@ -41,15 +40,16 @@ const target = input?.tool_input?.file_path ?? input?.tool_input?.path;
 if (!target) out("SKIP no file_path in tool input");
 
 const rel = relative(ROOT, resolve(input.cwd ?? ROOT, target)).split(sep).join("/");
-const app = rel.split("/")[0];
-const spec = APPS[app];
-if (!spec) out(`SKIP ${rel} is not inside an app folder (harness/docs edit)`);
+// Keys are two segments deep (code/backend), so match the longest prefix.
+const app = Object.keys(APPS).find((k) => rel === k || rel.startsWith(k + "/"));
+const spec = app ? APPS[app] : undefined;
+if (!spec) out(`SKIP ${rel} is not inside a build folder (harness/docs/legacy edit)`);
 
 const appDir = join(ROOT, app);
 
 // debounce: many edits in a row should not trigger many compiles
-const stampDir = join(ROOT, "agents", "outputs", ".verify-cache");
-const stamp = join(stampDir, `${app}.last`);
+const stampDir = join(ROOT, ".claude", "outputs", ".verify-cache");
+const stamp = join(stampDir, `${app.replace("/", "-")}.last`);
 try {
   mkdirSync(stampDir, { recursive: true });
   if (existsSync(stamp) && Date.now() - Number(readFileSync(stamp, "utf8")) < DEBOUNCE_MS)

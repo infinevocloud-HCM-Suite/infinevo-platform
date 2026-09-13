@@ -8,12 +8,12 @@ description: Answer a "how does X work / where is X / what would Y touch" questi
 Read-only investigation. Produces a cited report; changes no code and no docs.
 
 ## Steps
-1. Read `agents/active-work.md` (hard rule 2) and the matching entries in
-   `docs/legacy/FEATURE_MAP.md` and `docs/legacy/GAP_INVENTORY.md` so known facts are not re-derived.
+1. Read `.claude/work/active-work.md` (hard rule 2) and the matching entries in
+   `legacy/docs/FEATURE_MAP.md` and `legacy/docs/GAP_INVENTORY.md` so known facts are not re-derived.
 2. Restate the question as 1–3 concrete sub-questions (e.g. "which controller", "which
    table", "which screen calls it").
 3. Spawn **explorer** with those sub-questions, the live branch names, and the output path
-   `agents/outputs/<YYYY-MM-DD>-analyze-<slug>.md`.
+   `.claude/outputs/<YYYY-MM-DD>-analyze-<slug>.md`.
 4. Read the explorer report. Spot-check **at least two** `path:line` citations yourself with
    Read; if one is wrong, send the explorer back with the correction.
 5. If the code contradicts a doc, record it in the report under "Doc drift" with both the doc

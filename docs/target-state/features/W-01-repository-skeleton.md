@@ -22,7 +22,7 @@
 ## 1. Problem
 
 The repository exists but holds only documents, the harness, and the frozen
-applications under `legacy/`. There is no `backend/`, no `frontend/`, no build.
+applications under `legacy/`. There is no `code/backend/`, no `code/frontend/`, no build.
 
 Every other work item depends on this one, and one property of it is the reason it
 must come first: **the module boundary between HRMS and Payroll has to be enforced
@@ -46,7 +46,7 @@ possible, and a tangle discovered in month four is not refactored, it is lived w
 - Maven multi-module backend: `shared`, `core`, `hrms`, `payroll`, `app`, `worker`, `migration`
 - The dependency graph declared in POMs, **and a build that fails when it is violated**
 - Package conventions under each module, layering carried forward from both frozen backends
-- `frontend/` skeleton: Vite + React + Ant Design, split `shell` / `core` / `hrms` / `payroll` / `shared`
+- `code/frontend/` skeleton: Vite + React + Ant Design, split `shell` / `core` / `hrms` / `payroll` / `shared`
 - `shared` module contents: tenant context holder, error envelope, money types
 - Empty but real directories under `infra/` (`azure/`, `infra/docker/`, `infra/keycloak/`) and `.github/workflows/`
 - Branch rules and the pull-request template
@@ -175,11 +175,11 @@ Skeleton only. No screen, no route, no API call.
 
 | Path | Holds | Empty? |
 |---|---|---|
-| `frontend/src/shell/` | Layout and navigation, later driven by entitlement | Yes — one placeholder route |
-| `frontend/src/core/` | Employee, leave, holidays, org setup | Yes |
-| `frontend/src/hrms/` | Attendance, timesheets, projects | Yes |
-| `frontend/src/payroll/` | Pay runs, tax, claims | Yes |
-| `frontend/src/shared/` | Design system, API client, auth | **No** — the API client stub and the Ant Design theme land here |
+| `code/frontend/src/shell/` | Layout and navigation, later driven by entitlement | Yes — one placeholder route |
+| `code/frontend/src/core/` | Employee, leave, holidays, org setup | Yes |
+| `code/frontend/src/hrms/` | Attendance, timesheets, projects | Yes |
+| `code/frontend/src/payroll/` | Pay runs, tax, claims | Yes |
+| `code/frontend/src/shared/` | Design system, API client, auth | **No** — the API client stub and the Ant Design theme land here |
 
 Vite (`D-30`), React 18, Ant Design 5 (`D-29`), Redux Toolkit.
 
@@ -206,7 +206,7 @@ The test that matters is the one proving the boundary cannot be crossed.
 
 | Type | File | Covers |
 |---|---|---|
-| Build | `backend/pom.xml` enforcer config | `bannedDependencies` — `hrms` ✗ `payroll`, `payroll` ✗ `hrms`, `core` ✗ both |
+| Build | `code/backend/pom.xml` enforcer config | `bannedDependencies` — `hrms` ✗ `payroll`, `payroll` ✗ `hrms`, `core` ✗ both |
 | Unit | `shared/src/test/.../TenantContextTest` | Set, read, clear; cleared after an exception |
 | Unit | `shared/src/test/.../MoneyTest` | Scale, rounding mode, equality; no floating-point type anywhere |
 | Manual, once | — | The deliberate-violation check in §9 |
@@ -219,22 +219,22 @@ Full test infrastructure is `W-04`. These three are all this item may assume exi
 
 ```bash
 # 1. Everything builds from clean
-cd backend && ./mvnw -q clean verify
+cd code/backend && ./mvnw -q clean verify
 
 # 2. The frontend builds
-cd frontend && npm ci && npm run build
+cd code/frontend && npm ci && npm run build
 
 # 3. THE ACCEPTANCE TEST — the boundary must be un-crossable.
-#    Temporarily add to backend/hrms/pom.xml:
+#    Temporarily add to code/backend/hrms/pom.xml:
 #        <dependency>
 #          <groupId>com.infinevo</groupId>
 #          <artifactId>payroll</artifactId>
 #        </dependency>
-cd backend && ./mvnw -q clean verify     # MUST FAIL, naming the banned dependency
-git checkout backend/hrms/pom.xml        # revert
+cd code/backend && ./mvnw -q clean verify     # MUST FAIL, naming the banned dependency
+git checkout code/backend/hrms/pom.xml        # revert
 
 # 4. No ddl-auto anywhere
-grep -rn "ddl-auto" backend/ ; echo "expect: no matches"
+grep -rn "ddl-auto" code/backend/ ; echo "expect: no matches"
 ```
 
 | # | Check | Expected | Result |
@@ -242,10 +242,10 @@ grep -rn "ddl-auto" backend/ ; echo "expect: no matches"
 | 1 | `mvnw clean verify` | BUILD SUCCESS, seven modules | ✅ 8 reactor entries green, 21 tests pass |
 | 2 | `npm run build` + `npm run lint` | Builds, Ant Design theme applied | ✅ 1443 modules, 432 kB, lint clean |
 | 3 | **Deliberate `hrms` → `payroll` dependency** | **BUILD FAILURE naming the banned dependency** | ✅ fails at `enforce-module-boundary`, message names both modules |
-| 4 | `grep -rn ddl-auto backend/` | No matches | ✅ none |
+| 4 | `grep -rn ddl-auto code/backend/` | No matches | ✅ none |
 | 5 | `infinevo-website` repository | Exists, private, empty | ✅ created |
 | 6 | `guard-edit` on `legacy/` | Exit 2, blocked | ✅ blocked with reason |
-| 7 | `verify-app` on `backend/` | Runs a compile | ✅ `PASS backend compile (3.3s) — clean` |
+| 7 | `verify-app` on `code/backend/` | Runs a compile | ✅ `PASS backend compile (3.3s) — clean` |
 | 8 | Branch protection on `main` | Pull request required | ❌ **refused — Free plan.** See `D-43` |
 
 **Check 3 is the definition of done.** If it passes the build, the item is not
@@ -280,7 +280,7 @@ Two harness changes, because once this merges the harness points at the wrong pl
 
 1. **`verify-app.mjs`** — its `APPS` map lists the four frozen application folders.
    Those now live under `legacy/` and resolve to no app, so **no compile check runs
-   on any edit today.** Repoint it at `backend/` (Maven) and `frontend/` (lint).
+   on any edit today.** Repoint it at `code/backend/` (Maven) and `code/frontend/` (lint).
 2. **`implementer` agent** — scoped to "one named app folder", which no longer
    describes anything editable. Rescope it to the module being worked in.
 

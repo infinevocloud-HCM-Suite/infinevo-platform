@@ -171,7 +171,7 @@ Fixed: `EmployeeLeaveAllocation→employee_leave_allocation`,
 **Final state (multi-line-aware, comment-stripped scan):** 131 real tables (95 Payroll + 39 HRMS,
 deduped) · 131 documented · 0 missing · 3 deliberately-labelled non-table entries
 (`ResidentialAddress` @Embeddable + the 2 disabled). Derived counts corrected in
-`ARCHITECTURE.md`, `GAP_INVENTORY.md` DEBT-015, root `CLAUDE.md`, `agents/active-work.md`.
+`ARCHITECTURE.md`, `GAP_INVENTORY.md` DEBT-015, root `CLAUDE.md`, `.claude/work/active-work.md`.
 
 **Caveat:** derived from JPA source, not from the live databases. `ddl-auto=update` never drops,
 so the real DBs may hold orphaned tables/columns from deleted entities. Confirm with

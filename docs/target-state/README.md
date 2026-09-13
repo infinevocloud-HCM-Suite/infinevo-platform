@@ -116,9 +116,9 @@ are in `06` §5 with evidence.
 | Document | Holds |
 |---|---|
 | `MANAGEMENT_SUMMARY_AND_PLAN.md` | Phases, durations, team, exit gates |
-| `docs/legacy/DB_SCHEMA.md` | Today's 131 tables, verified against the live branches |
-| `docs/legacy/FEATURE_MAP.md` | Which files implement which feature today |
-| `docs/legacy/GAP_INVENTORY.md` | Known defects and debt |
+| `legacy/docs/DB_SCHEMA.md` | Today's 131 tables, verified against the live branches |
+| `legacy/docs/FEATURE_MAP.md` | Which files implement which feature today |
+| `legacy/docs/GAP_INVENTORY.md` | Known defects and debt |
 | `docs/CONVENTIONS.md` | Coding rules, money handling, naming hazards |
-| `agents/active-work.md` | Live project state, branches, in-flight work |
-| `agents/outputs/2026-09-11-*` | The investigations this design rests on |
+| `.claude/work/active-work.md` | Live project state, branches, in-flight work |
+| `.claude/outputs/2026-09-11-*` | The investigations this design rests on |

@@ -4,9 +4,9 @@
 specification for anything being built.
 
 If you are implementing a ticket, the documents you build against are in
-[`../target-state/`](../target-state/) and [`../CONVENTIONS.md`](../CONVENTIONS.md).
+[`docs/target-state/`](../../docs/target-state/) and [`../CONVENTIONS.md`](../../docs/CONVENTIONS.md).
 You come here to answer *"how does it work today"* before porting logic out of
-[`legacy/`](../../legacy/).
+[the frozen code](../).
 
 ---
 
@@ -14,8 +14,8 @@ You come here to answer *"how does it work today"* before porting logic out of
 
 | | |
 |---|---|
-| [`../target-state/`](../target-state/) | **Where we are going.** Build against this |
-| `docs/legacy/` (here) | **How the frozen apps work.** Read, understand, port from. Never treat as a rule |
+| [`docs/target-state/`](../../docs/target-state/) | **Where we are going.** Build against this |
+| `legacy/docs/` (here) | **How the frozen apps work.** Read, understand, port from. Never treat as a rule |
 
 A concrete example of why this matters: `DB_SCHEMA.md` here documents 131 tables
 managed by `ddl-auto=update` across two MySQL databases. The target is 130 tables
@@ -39,12 +39,12 @@ correct-looking design for the wrong system.
 ## Where it is used
 
 Start at `FEATURE_MAP.md` when you need to find how something works today, then
-read the code under [`legacy/`](../../legacy/). Grepping blind is slower.
+read the code under [the frozen code](../). Grepping blind is slower.
 
 Three of these documents also carry warnings that still apply when reading the
 frozen code — the load-bearing package-name typos, the entities that look
 duplicated but are not, and the endpoints with no authentication. Those are
-summarised in [`../target-state/06-current-to-target.md`](../target-state/06-current-to-target.md) §5.
+summarised in [`../target-state/06-current-to-target.md`](../../docs/target-state/06-current-to-target.md) §5.
 
 ---
 

@@ -52,8 +52,8 @@ Three threads, in dependency order:
 
 | Item | Where | State |
 |---|---|---|
-| **Development harness** | root `.claude/`, `agents/`, per-app `CLAUDE.md` | Sections A–C complete. Toolchain gate cleared 2026-09-11: Microsoft OpenJDK 21.0.12.1 + Apache Maven 3.9.11 installed (`C:/Tools/apache-maven-3.9.11`, JAVA_HOME/MAVEN_HOME set at user level). Task 9 baseline done (`agents/outputs/2026-09-11-build-baseline.md`): both backends compile, Payroll FE 0 lint errors, HRMS FE 350 lint errors (code). Sections E–H complete 2026-09-11: hooks (`guard-edit`, `verify-app`, `session-log`) written, dry-run tested and wired in `.claude/settings.json`; agents explorer/implementer/verifier; skills analyze/plan-feature/infra-task/sync-docs/sync-upstream. Live proof: `agents/outputs/2026-09-11-harness-proof.md`. **Harness build DONE** — root repo still has no commit |
-| **Docs consolidation** | `docs/` | **Complete 2026-09-11.** 10 files → 5 top-level + `features/` + `_archive/`. `DB_SCHEMA.md` corrected (44 table names) and completed (52 tables added, now 131/131). `FEATURE_MAP.md` gained the missing Payroll Frontend section. Audit: `agents/outputs/2026-09-11-docs-audit.md` |
+| **Development harness** | root `.claude/`, `agents/`, per-app `CLAUDE.md` | Sections A–C complete. Toolchain gate cleared 2026-09-11: Microsoft OpenJDK 21.0.12.1 + Apache Maven 3.9.11 installed (`C:/Tools/apache-maven-3.9.11`, JAVA_HOME/MAVEN_HOME set at user level). Task 9 baseline done (`.claude/outputs/2026-09-11-build-baseline.md`): both backends compile, Payroll FE 0 lint errors, HRMS FE 350 lint errors (code). Sections E–H complete 2026-09-11: hooks (`guard-edit`, `verify-app`, `session-log`) written, dry-run tested and wired in `.claude/settings.json`; agents explorer/implementer/verifier; skills analyze/plan-feature/infra-task/sync-docs/sync-upstream. Live proof: `.claude/outputs/2026-09-11-harness-proof.md`. **Harness build DONE** — root repo still has no commit |
+| **Docs consolidation** | `docs/` | **Complete 2026-09-11.** 10 files → 5 top-level + `features/` + `_archive/`. `DB_SCHEMA.md` corrected (44 table names) and completed (52 tables added, now 131/131). `FEATURE_MAP.md` gained the missing Payroll Frontend section. Audit: `.claude/outputs/2026-09-11-docs-audit.md` |
 | **Target-state design** | `docs/target-state/` | **Complete 2026-09-11.** 8 files, 1,395 lines. 60 capabilities (`CORE`/`HRMS`/`PAY`/`PLAT`), 16 decisions, 10 open questions. Next step: generate the feature list from the capability IDs |
 | **Leave Allocation + Salary Deduction** | `Payroll-Bend-SBoot@taxation`, `Payroll-Fend-react@employee` | Merged 2026-08-28 → 2026-09-09. Now the source of truth for LOP, replacing the HRMS `fetchLeaves` path |
 
@@ -78,8 +78,8 @@ The three that block work right now:
 
 | # | Question | Blocks |
 |---|---|---|
-| `OQ-10` | **Is `POST /public/get-employee-leaves` on HRMS reachable from the public internet?** It requires no authentication. Decides whether the security finding is critical or minor | Nothing in the target state — it is a **live issue**. Check first. See `agents/outputs/2026-09-11-security-finding-public-endpoint.md` |
-| `OQ-01` | **Which timesheet system survives?** Two complete implementations are live, with separate controllers, services, repositories and DTOs | The entire HRMS module port. See `agents/outputs/2026-09-11-hrms-duplicate-entities.md` |
+| `OQ-10` | **Is `POST /public/get-employee-leaves` on HRMS reachable from the public internet?** It requires no authentication. Decides whether the security finding is critical or minor | Nothing in the target state — it is a **live issue**. Check first. See `.claude/outputs/2026-09-11-security-finding-public-endpoint.md` |
+| `OQ-01` | **Which timesheet system survives?** Two complete implementations are live, with separate controllers, services, repositories and DTOs | The entire HRMS module port. See `.claude/outputs/2026-09-11-hrms-duplicate-entities.md` |
 | `OQ-03` | **Is the HRMS→Payroll leave integration still authoritative?** Listed under Frozen above, but the controller is live and reachable | `CORE-07` leave merge, and the security finding |
 
 Also open, not yet blocking: `OQ-02` duplicate leave entities, `OQ-04` frontend component

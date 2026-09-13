@@ -107,7 +107,7 @@ Ten (two moved to Core). Only for tenants who bought HRMS.
 
 > ⚠️ **`HRMS-09` blocker.** Two complete timesheet systems are live today — separate
 > controllers, services, repositories and DTOs. One must be retired, with a data decision,
-> **before** this module is ported. See `agents/outputs/2026-09-11-hrms-duplicate-entities.md`.
+> **before** this module is ported. See `.claude/outputs/2026-09-11-hrms-duplicate-entities.md`.
 
 **What HRMS sells.** Time, attendance, overtime, project tracking and timesheets. Attendance
 and overtime are deliberately module-only so that a customer who needs them must buy HRMS

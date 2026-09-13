@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // session-log.mjs — Stop hook.
-// When the model finishes a turn, append one entry to agents/outputs/YYYY-MM-DD-session-<id>.md:
+// When the model finishes a turn, append one entry to .claude/outputs/YYYY-MM-DD-session-<id>.md:
 // timestamp, files edited/written this turn (from the transcript), and the first lines of the
 // final assistant message. Gives a durable, greppable trail of what each session touched.
 // Never blocks: always exits 0.
@@ -18,7 +18,7 @@ if (input.stop_hook_active) process.exit(0); // avoid loops
 const sid = String(input.session_id ?? "unknown").slice(0, 8);
 const now = new Date();
 const day = now.toISOString().slice(0, 10);
-const outDir = join(ROOT, "agents", "outputs");
+const outDir = join(ROOT, ".claude", "outputs");
 const file = join(outDir, `${day}-session-${sid}.md`);
 
 const edited = new Set();

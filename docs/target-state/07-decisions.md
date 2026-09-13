@@ -86,7 +86,7 @@ system are in §6.
 | `D-04` attendance is HRMS-only · `D-05` overtime is HRMS-only | `D-35` | Basic capture moves to Core. The differentiator becomes the request-and-approve experience, not the data |
 | `D-41` Node 20 LTS | `D-42` | Node 20 was already end-of-life when it was approved. Caught during the `W-01` build |
 | Earlier proposal: three schemas | `D-08` | A fourth, `reference`, isolates the tenant-column exception and makes it auditable |
-| `agents/active-work.md`: shared-schema MySQL on Azure Kubernetes | `D-09`, `D-10` | Predates this design work |
+| `.claude/work/active-work.md`: shared-schema MySQL on Azure Kubernetes | `D-09`, `D-10` | Predates this design work |
 | Plan: subtree migration + daily/weekly one-way sync from the four origin repos | `D-17` | No sync mechanism. The `sync-upstream` skill is cancelled |
 | Management summary: "weekly sync of prod fixes until a cutoff date" | `D-17` | Same. Post-cutoff fixes are tracked and re-applied by hand |
 
@@ -96,7 +96,7 @@ system are in §6.
 
 - `01`–`06` for the design these decisions produced
 - `MANAGEMENT_SUMMARY_AND_PLAN.md` for phases and estimates
-- `agents/active-work.md` for live project state
+- `.claude/work/active-work.md` for live project state
 
 ---
 
