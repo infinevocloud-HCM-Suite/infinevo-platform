@@ -21,9 +21,6 @@ code/backend/**/target/
 code/frontend/node_modules/
 code/frontend/dist/
 
-# Local port overrides for the dev stack (each developer, never committed)
-infra/docker/.env
-
 # Merge receipts: machine-local proof that check-done.mjs passed HERE, at this commit.
 # Never committed - a shared receipt would let one machine's pass unlock everyone
 # else's merge, which is the whole thing the gate exists to prevent.

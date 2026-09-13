@@ -17,9 +17,10 @@ spring:
       connection-timeout: 5000
   jpa:
     open-in-view: false
-    properties:
-      hibernate:
-        default_schema: core
+    # No default_schema. This design has four of them, so every entity declares its
+    # own - @Table(schema = "core" | "hrms" | "payroll" | "reference"). A default here
+    # would silently put an unqualified hrms or payroll entity into core, and the bug
+    # would not surface until someone queried the wrong schema.
   data:
     redis:
       host: ${REDIS_HOST:localhost}

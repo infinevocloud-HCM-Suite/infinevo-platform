@@ -31,7 +31,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/00-bootstrap.sql:/docker-entrypoint-initdb.d/00-bootstrap.sql:ro
-      - ./seed:/seed:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d infinevo"]
       interval: 5s
@@ -94,8 +93,10 @@ services:
     image: quay.io/keycloak/keycloak:25.0
     command: ["start-dev", "--import-realm", "--http-port=8081"]
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: local_keycloak_pw
+      # KEYCLOAK_ADMIN, not KC_BOOTSTRAP_ADMIN_* - that pair arrives in Keycloak 26
+      # and is silently ignored by 25, leaving no admin user and a 401 at the console.
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: local_keycloak_pw
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: postgres
@@ -134,7 +135,9 @@ services:
     ports: ["${APP_PORT:-8080}:8080"]
     depends_on:
       postgres: { condition: service_healthy }
-      redis:    { condition: service_healthy }
+      # Deliberately NOT waiting on redis. No code uses it until W-53, and the API
+      # should not fail to start because a cache is unavailable.
+      redis:    { condition: service_started }
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
       interval: 10s
@@ -177,6 +180,12 @@ services:
     ports: ["${WEB_PORT:-5173}:5173"]
     depends_on:
       - app
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
 
 volumes:
   pgdata:

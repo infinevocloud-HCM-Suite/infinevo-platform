@@ -19,10 +19,15 @@ for s in postgres redis queue blob mail keycloak app worker web; do
 done
 
 echo "── endpoints"
-check "app health is UP"      "curl -fsS http://localhost:8080/actuator/health | grep -q UP"
-check "web responds"          "curl -fsS http://localhost:5173"
-check "keycloak realm exists" "curl -fsS http://localhost:8081/realms/infinevo"
-check "mail catcher is up"    "curl -fsS http://localhost:8025"
+check "app health is UP"      "curl -fsS http://localhost:${APP_PORT:-8080}/actuator/health | grep -q UP"
+check "worker health is UP"   "curl -fsS http://localhost:${WORKER_PORT:-8082}/actuator/health | grep -q UP"
+check "web responds"          "curl -fsS http://localhost:${WEB_PORT:-5173}"
+check "keycloak realm exists" "curl -fsS http://localhost:${KEYCLOAK_PORT:-8081}/realms/infinevo"
+# The README documents these admin credentials, so prove they work. The realm importing
+# is independent of the admin user existing - checking only the realm hid a broken login.
+check "keycloak admin can sign in"   "curl -fsS -X POST http://localhost:${KEYCLOAK_PORT:-8081}/realms/master/protocol/openid-connect/token -d client_id=admin-cli -d username=admin -d password=local_keycloak_pw -d grant_type=password"
+check "seeded users can sign in"   "curl -fsS -X POST http://localhost:${KEYCLOAK_PORT:-8081}/realms/infinevo/protocol/openid-connect/token -d client_id=infinevo-web -d username=admin.acme -d password=local_dev_pw -d grant_type=password"
+check "mail catcher is up"    "curl -fsS http://localhost:${MAIL_UI_PORT:-8025}"
 
 echo "── database"
 for s in core hrms payroll reference; do
