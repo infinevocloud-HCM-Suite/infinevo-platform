@@ -1,0 +1,24 @@
+-- Seed: two tenants holding different module sets.
+--
+-- PENDING W-07. The core.tenant table does not exist yet, so there is nothing to
+-- insert into. See README.md in this folder and issue #3.
+--
+-- When W-07 lands, this file gets the two inserts below. They are written out here so
+-- the intent is not lost, and are deliberately commented rather than left as a note -
+-- the shape is already decided in docs/target-state/01-platform-shape.md section 7.
+--
+--   INSERT INTO core.tenant (slug, name, status) VALUES
+--       ('acme-payroll', 'Acme Manufacturing', 'active'),
+--       ('globex-full',  'Globex Corporation', 'active')
+--   ON CONFLICT (slug) DO NOTHING;
+--
+--   INSERT INTO core.subscription (tenant_id, module, status) VALUES
+--       ((SELECT id FROM core.tenant WHERE slug = 'acme-payroll'), 'payroll', 'active'),
+--       ((SELECT id FROM core.tenant WHERE slug = 'globex-full'),  'payroll', 'active'),
+--       ((SELECT id FROM core.tenant WHERE slug = 'globex-full'),  'hrms',    'active')
+--   ON CONFLICT DO NOTHING;
+--
+-- The point is the asymmetry: acme-payroll holds ONE module, globex-full holds BOTH.
+-- Do not "simplify" this by giving both tenants everything.
+
+SELECT 'seed 01-tenants: no-op until W-07 creates core.tenant' AS status;

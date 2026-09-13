@@ -20,8 +20,6 @@ Trae-Setup-x64.exe
 code/backend/**/target/
 code/frontend/node_modules/
 code/frontend/dist/
-<<<<<<< HEAD
-=======
 
 # Local port overrides for the dev stack (each developer, never committed)
 infra/docker/.env
@@ -30,4 +28,6 @@ infra/docker/.env
 # Never committed - a shared receipt would let one machine's pass unlock everyone
 # else's merge, which is the whole thing the gate exists to prevent.
 .claude/outputs/.merge-receipts/
->>>>>>> 83ebdc3 (Never commit merge receipts)
+
+# Local port overrides for the dev stack (each developer, never committed)
+infra/docker/.env

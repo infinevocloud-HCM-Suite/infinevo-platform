@@ -1,0 +1,16 @@
+# Development image. Runs Vite's dev server with hot module replacement.
+#
+# This is NOT the deployable image. W-49 writes that one: a production build served
+# by nginx. Do not promote this file.
+
+FROM node:24-alpine
+
+WORKDIR /app
+
+COPY code/frontend/package.json code/frontend/package-lock.json ./
+RUN npm ci
+
+COPY code/frontend/ .
+
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

@@ -1,0 +1,39 @@
+# Local profile, worker role — the docker compose stack (W-02).
+#
+# Values come from environment variables set in infra/docker/compose.yml. No secret
+# value is written here, and nothing in this file is used outside a developer machine.
+#
+# There is deliberately no spring.jpa.hibernate.ddl-auto, and there must never be.
+# Schema is owned by Flyway (W-06). See CONVENTIONS.md rule 4 and D-09.
+spring:
+  datasource:
+    # app_user, NEVER the owner. That single constraint is what makes row-level
+    # security a real boundary when W-07 lands, rather than a suggestion.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/infinevo}
+    username: ${DB_USERNAME:app_user}
+    password: ${DB_PASSWORD:local_app_pw}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: core
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      # Fails the health check if Postgres is unreachable, so `docker compose ps`
+      # tells the truth instead of reporting a container that started but cannot work.
+  health:
+    db:
+      enabled: true
