@@ -77,15 +77,30 @@ Look the rest up when you hit the question:
 
 **One ticket at a time.** Two open tickets finish neither.
 
-| # | Step | Note |
-|---|---|---|
-| 1 | **Write the spec first** | `docs/target-state/features/W-nn-<slug>.md`, from `docs/target-state/features/TEMPLATE.md`. Flows, API surface, schema changes with Flyway script names, tests, acceptance criteria, rollback |
-| 2 | **Get it approved** | The only gate. No code before it. Half a page is often enough for a small item |
-| 3 | **Branch** | One branch per ticket, named for the work item |
-| 4 | **Build, with tests as you go** | Not afterwards |
-| 5 | **Self-verify** | Compile, lint, tests — all green locally before you ask anyone to look |
-| 6 | **Pull request** | Link the ticket and the spec. It is reviewed against the spec's acceptance criteria |
-| 7 | **Merge** | Pipeline runs, deploys to dev. Close the ticket with evidence attached |
+| # | Step | Command | Note |
+|---|---|---|---|
+| 0 | Understand it | `/analyze <question>` | Optional. Cited evidence, changes nothing |
+| 1 | **Write the spec** | `/plan-feature W-nn` (product)<br>`/infra-task W-nn` (platform) | Stops before any code |
+| 2 | **Get it approved** | — | **The gate.** No code before it |
+| 3 | Build | `/develop W-nn` | Refuses without an approved spec. One module at a time |
+| 4 | Test | `/test W-nn` | Tests for what changed. Never changes code to make a test pass |
+| 5 | Verify | `/verify W-nn` | Runs everything. **Fixes nothing** - failures become findings |
+| 6 | Review | `/review <pr>` | Reads against the spec. **Fixes nothing** |
+| 7 | **Merge** | `/merge <pr>` | Nine gates. **Refuses if any fails** |
+| 8 | Docs | `/sync-docs` | Only if the build diverged from the documents |
+
+Which skill at step 1 is decided by the issue's label: `skill-INFRA`, `skill-DATA` and
+`skill-SEC` use `/infra-task`; `skill-BE` and `skill-FE` use `/plan-feature`.
+
+**Findings loop back.** `/verify` and `/review` write numbered findings; `/develop`
+picks up the OPEN ones, fixes each referencing its ID, and you verify again. A **High**
+finding blocks the merge until it is closed. Three rounds maximum, then it escalates.
+
+**Why the checkers cannot fix.** A checker that can fix has a reason to make things pass
+rather than tell you the truth, and a silent fix is unreviewed code reaching `main`
+through the one path with no gate. On `W-02` the smoke test reported 23 of 23 while the
+documented Keycloak admin login returned 401 - reporting that produced three extra
+checks and a recorded trap; fixing it quietly would have produced neither.
 
 Disagreements about approach belong at step 2, not step 6.
 
@@ -112,17 +127,39 @@ Rule 7 is enforced by the `guard-edit` hook if you use Claude Code.
 
 ## 5. Done means
 
-No ticket closes without all six.
+**Nine gates, checked by a script rather than by memory:**
 
-1. Merged, pipeline green — compile, lint, tests
-2. Tests written for what changed
-3. New tables carry `tenant_id` and a policy, unless in `reference`
-4. New endpoints authenticated, or on the exception list
-5. Indexes added for the queries introduced
-6. The spec updated to match what was actually built
+```bash
+node .claude/scripts/check-done.mjs <pr>
+```
 
-Item 6 matters more than it looks. A spec that drifts from the code is worse than
-no spec, because the next person trusts it.
+| | |
+|---|---|
+| 1 | The pull request is open and says `Closes #<issue>` |
+| 2 | An **approved** spec exists for this `W-nn` |
+| 3 | **No High finding is still OPEN** |
+| 4 | Nothing under `legacy/` was touched |
+| 5 | `docs/` changed only for this ticket's own spec |
+| 6 | `ddl-auto` is set nowhere |
+| 7 | No `double` or `float` on a money field |
+| 8 | Backend builds, tests pass |
+| 9 | Frontend lints and builds |
+
+A receipt is written **only if all nine pass**, and the merge command is refused without
+a fresh receipt for the current commit. Commit again and it is void - deliberately,
+since otherwise the check proves nothing about what is being merged.
+
+GitHub cannot enforce branch protection on a private repository on the Free plan
+(`D-43`), so this runs on your machine instead. **Do not work around a failing gate.**
+It is telling you the ticket is not finished. If a gate is itself wrong, fix
+`check-done.mjs` in the open with a reason - a gate people have learned to step around
+protects nothing.
+
+Two things the script cannot check, still yours: indexes for the queries you introduced,
+and the spec updated to match what you actually built.
+
+That second one matters more than it looks. A spec that drifts from the code is worse
+than no spec, because the next person trusts it.
 
 ---
 
