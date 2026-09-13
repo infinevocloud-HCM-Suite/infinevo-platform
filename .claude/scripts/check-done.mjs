@@ -85,7 +85,7 @@ gate("Approved spec exists", () => {
   // for it, because there is no work item. Requiring one would mean inventing a fake
   // ticket, and a gate people fake is worse than no gate.
   if (!item) {
-    const issue = /closes #(\d+)/i.exec(prData?.body ?? "");
+    const issue = /closes\s+#(\d+)/i.exec(prData?.body ?? "");
     return issue
       ? { ok: true, detail: `not a W-nn ticket; governed by issue #${issue[1]} instead` }
       : { ok: false, detail: `branch "${branch}" is not a W-nn ticket AND links no issue - one or the other is required` };
