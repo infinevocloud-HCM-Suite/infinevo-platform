@@ -1,0 +1,262 @@
+
+
+.loginPage {
+    background: linear-gradient(
+        rgba(11, 11, 11, 0.7),
+        rgba(10, 10, 10, 0.7)
+      ),
+      url('Images/employeems.jpeg');
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    color: white;
+  }
+  
+  .loginForm {
+    background-color: rgba(1, 32, 93, 0.8);
+    color: white;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+  }
+  
+  .loginForm h2 {
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  .text-danger {
+    font-size: 0.9rem;
+    font-weight: bold;
+  }
+  
+  a {
+    color: #ffc107;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+  }
+  
+
+  /* General styles for navigation links */
+.nav-link {
+  color: #fff;
+  font-size: 1rem;
+  padding: 6px 12px;
+  border-radius: 5px; /* Rounded corners for links */
+  transition: all 0.3s ease-in-out; /* Smooth transition for hover and active states */
+}
+
+/* Hover effect: Make links stand out */
+.nav-link:hover {
+  background-color: #e94f12; /* Darker grey background for hover */
+  color: #ffc107; /* Gold text color for hover */
+  font-weight: bold; /* Bold text */
+}
+
+/* Active state: Highlight the selected item */
+.nav-link.active {
+  background-color: #ffc107; /* Gold background for active link */
+  color: #063e75; /* Dark text for active link */
+  font-weight: bold; /* Bold text */
+  text-shadow: 1px 1px 2px #000; /* Subtle shadow for text */
+}
+
+/* Hover effect for icons */
+.nav-link i {
+  transition: transform 0.3s ease-in-out; /* Smooth scaling effect */
+}
+
+.nav-link:hover i {
+  transform: scale(1.2); /* Slightly enlarge icons on hover */
+}
+
+/* Add spacing between list items */
+#menu li {
+  margin-bottom: 10px; /* Space between navigation items */
+}
+
+/* Sidebar background styling */
+.bg-dark {
+  background-color: #212529 !important; /* Ensure dark background consistency */
+}
+
+/* Sidebar container styling */
+.min-vh-100 {
+  box-shadow: 2px 0 5px rgba(207, 12, 22, 0.2); /* Add a subtle shadow for depth */
+}
+
+
+.p-2.shadow h4 {
+  color: #495057; 
+  font-weight: 500;
+}
+
+/* Add focus outline for accessibility */
+.nav-link:focus {
+  outline: 2px solid #078fff; /* Gold outline for focused link */
+  outline-offset: 2px;
+}
+
+/* For ADD Employee.jss page */
+.nav-tabs .nav-link.active {
+  background-color: #078fff;
+  color: #212529;
+  /* font-weight: bold; */
+}
+.nav-tabs .nav-link {
+  color: #495057;
+  transition: all 0.3s;
+}
+.nav-tabs .nav-link:hover {
+  background-color: #f8f9fa;
+  color: #212529;
+}
+
+/* For dashboard home.jsx page */
+.dashboard-container {
+  padding: 20px;
+  background-color: #f9f9f9;
+}
+ 
+.text-center {
+  text-align: center;
+}
+ 
+/* Cards styling */
+.card {
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+ 
+/* Statistic cards */
+.stat-card {
+  text-align: center;
+  background-color: #ffffff;
+}
+ 
+.stat-card h5 {
+  font-size: 16px;
+  color: #666;
+}
+ 
+.stat-card h2 {
+  font-size: 28px;
+  font-weight: bold;
+  margin-top: 10px;
+}
+ 
+/* Check-in button */
+.checkin-button {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  height: 100%;
+  font-size: 18px;
+  font-weight: bold;
+  padding: 10px;
+}
+ 
+/* Data and chart cards */
+.data-card {
+  background-color: #ffffff;
+  margin-bottom: 20px;
+  min-height: 150px;
+}
+ 
+.chart-card {
+  padding: 15px;
+  height: 100%;
+}
+ 
+.chart-card h5 {
+  margin-bottom: 15px;
+}
+ 
+.card-header {
+  font-weight: bold;
+  font-size: 18px;
+  background-color: #2196f3;
+  color: white;
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px 8px 0 0;
+}
+ 
+/* Chart boxes alignment */
+.chart-box {
+  height: 300px;
+}
+ 
+.pie-chart,
+.bar-chart {
+  display: block;
+  margin: auto;
+  height: 100%;
+  width: 100%;
+}
+ 
+/* Align rows and columns */
+.mb-3 {
+  margin-bottom: 1rem !important;
+}
+ 
+.mt-3 {
+  margin-top: 1rem !important;
+}
+ 
+/* Flex utilities for better alignment */
+.row {
+  display: flex;
+  justify-content: space-between;
+}
+ 
+.col {
+  display: flex;
+  flex-direction: column;
+}
+ 
+/* Additional box styles */
+.additional-box {
+  text-align: center;
+  padding: 20px;
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+ 
+/* Responsive design */
+@media (max-width: 768px) {
+  .col {
+    margin-bottom: 15px;
+  }
+ 
+  .checkin-button {
+    font-size: 16px;
+  }
+ 
+  .card-header {
+    font-size: 16px;
+  }
+}
+
+/*for Attendence.jsx page*/
+.container {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+  color: #343a40;
+}
+
+.table th {
+  text-align: center;
+}
+
+.table td {
+  vertical-align: middle;
+}

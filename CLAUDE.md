@@ -1,8 +1,12 @@
 # Infinevo Cloud
 
-Four applications. Two Spring Boot backends, two React frontends, two databases,
-two auth systems. Root is a git repo holding docs + harness only; the four app
-folders are separate repos and are gitignored until the subtree migration.
+This is `infinevo-platform` — the repository the unified HCM platform is built in.
+It holds the target-state design, the agent harness, and the new codebase as it
+grows.
+
+The four applications it replaces — two Spring Boot backends, two React frontends,
+two databases, two auth systems — are **frozen snapshots in `legacy/`**. Read them,
+port logic out of them, never edit them. See `legacy/README.md`.
 
 ## Stack facts
 

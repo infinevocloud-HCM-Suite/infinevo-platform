@@ -1,0 +1,20 @@
+[33md380052[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtaxation[m[33m, [m[1;31morigin/taxation[m[33m)[m HEAD@{0}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m9165400[m HEAD@{1}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m4a5b112[m HEAD@{2}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m476e8e5[m HEAD@{3}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m181668d[m HEAD@{4}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m6cc2a73[m HEAD@{5}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m0f45d4a[m HEAD@{6}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m43bef58[m HEAD@{7}: commit: expiration time change
+[33m7c054c9[m HEAD@{8}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m5672585[m HEAD@{9}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m3030ad1[m HEAD@{10}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33m867e016[m HEAD@{11}: pull --ff --recurse-submodules --progress origin: Fast-forward
+[33mcf6480e[m HEAD@{12}: commit: TDS changes
+[33m2b60b46[m HEAD@{13}: pull --ff --recurse-submodules --progress origin: Merge made by the 'ort' strategy.
+[33m77b27dc[m HEAD@{14}: pull --ff --recurse-submodules --progress origin: Merge made by the 'ort' strategy.
+[33m0b0f9fb[m HEAD@{15}: revert: Reapply "Merge branch 'taxation' of https://github.com/infinevocloud-hrms/Payroll-Bend-SBoot into taxation"
+[33m42d7f46[m HEAD@{16}: revert: Revert "Merge branch 'taxation' of https://github.com/infinevocloud-hrms/Payroll-Bend-SBoot into taxation"
+[33m15ef71e[m HEAD@{17}: pull --ff --recurse-submodules --progress origin: Merge made by the 'ort' strategy.
+[33md36edfd[m HEAD@{18}: commit: config. changes
+[33m4f39b86[m HEAD@{19}: pull --ff --recurse-submodules --progress origin: Fast-forward

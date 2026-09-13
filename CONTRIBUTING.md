@@ -16,23 +16,24 @@ git clone https://github.com/<org>/infinevo-platform.git
 cd infinevo-platform
 ```
 
-### Clone the legacy repos inside it
+### The legacy applications are already here
 
-You need these to read the existing implementations. **Use these exact folder
-names** — `.gitignore` ignores these specific paths, and the `verify-app` hook
-identifies an app by its first path segment. Clone them under any other name and
-both stop working.
+You do **not** clone anything else. The four production applications this
+platform replaces are frozen snapshots in [`legacy/`](legacy/), committed to this
+repository:
 
-```bash
-git clone https://github.com/<org>/legacy-hrms-backend.git     HRMS_Backend
-git clone https://github.com/<org>/legacy-hrms-frontend.git    HRMS_Frontend
-git clone https://github.com/<org>/legacy-payroll-backend.git  Payroll-Bend-SBoot
-git clone https://github.com/<org>/legacy-payroll-frontend.git Payroll-Fend-react
+```
+legacy/HRMS_Backend/         legacy/Payroll-Bend-SBoot/
+legacy/HRMS_Frontend/        legacy/Payroll-Fend-react/
 ```
 
-> **The legacy repos are read-only.** You read them, you copy logic out of them,
-> you cite their `file:line` in your spec. You never push, branch or open a pull
-> request against them. They are live production. This is hard rule 5.
+> **Read them, never edit them.** They are a copy. A change under `legacy/` is not
+> deployed anywhere and will be deleted. You also never push to the original repos
+> — they are live production, and that is hard rule 5.
+
+Read logic out of them, port it into the new modules, and cite the `file:line` in
+your spec. [`legacy/README.md`](legacy/README.md) records which branch and commit
+each snapshot came from — note the two Payroll apps are **not** on `main`.
 
 ### Install
 
