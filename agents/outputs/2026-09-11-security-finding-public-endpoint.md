@@ -65,7 +65,7 @@ Both readings argue for resolving it. This is **Open Question 4** in `active-wor
 
 - Payroll has a comparable issue: `/api/test/**` unguarded (existing GAP entry).
 - Proposed new GAP entry. Needs `sync-docs` with founder approval to land in
-  `docs/GAP_INVENTORY.md`, since the guard hook blocks direct edits.
+  `docs/legacy/GAP_INVENTORY.md`, since the guard hook blocks direct edits.
 
 ---
 

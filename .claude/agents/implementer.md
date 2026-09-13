@@ -26,7 +26,7 @@ that app and prove it with tests.
 
 ## Method
 1. Read `<app>/CLAUDE.md` and `docs/CONVENTIONS.md` (BigDecimal rules, layering, response
-   envelope, naming hazards). Read the relevant `docs/FEATURE_MAP.md` entry.
+   envelope, naming hazards). Read the relevant `docs/legacy/FEATURE_MAP.md` entry.
 2. Read every file you will change **before** changing it. Keep the existing style.
 3. Backend: logic in `serviceimpl/`, thin controllers, `@RequestHeader("organizationId")`
    scoping on every query you add. Frontend: follow the existing folder of the feature.

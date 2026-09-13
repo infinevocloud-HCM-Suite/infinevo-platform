@@ -9,7 +9,7 @@ Read-only investigation. Produces a cited report; changes no code and no docs.
 
 ## Steps
 1. Read `agents/active-work.md` (hard rule 2) and the matching entries in
-   `docs/FEATURE_MAP.md` and `docs/GAP_INVENTORY.md` so known facts are not re-derived.
+   `docs/legacy/FEATURE_MAP.md` and `docs/legacy/GAP_INVENTORY.md` so known facts are not re-derived.
 2. Restate the question as 1–3 concrete sub-questions (e.g. "which controller", "which
    table", "which screen calls it").
 3. Spawn **explorer** with those sub-questions, the live branch names, and the output path

@@ -10,10 +10,10 @@ Produces a plan; never produces code. Founder approval is the exit condition.
 ## Steps
 1. Read `agents/active-work.md`. If the request touches something listed under **Frozen**
    (HRMS apps, Payroll `main` branches, LOP integration), say so and stop.
-2. Read `docs/GAP_INVENTORY.md` and list every BUG/DEBT ID the request overlaps — the plan
+2. Read `docs/legacy/GAP_INVENTORY.md` and list every BUG/DEBT ID the request overlaps — the plan
    must either fix them, explicitly defer them, or explain why they are unaffected.
 3. Spawn **explorer** to map the current behaviour: entry points (controller / route), service
-   methods, repository queries, tables (real names from `docs/DB_SCHEMA.md`), screens. Output
+   methods, repository queries, tables (real names from `docs/legacy/DB_SCHEMA.md`), screens. Output
    to `agents/outputs/<date>-plan-<slug>-evidence.md`.
 4. Fill `docs/features/TEMPLATE.md` **into a new file in `agents/outputs/`** named
    `<date>-plan-<slug>.md` (not into `docs/` — the guard hook blocks that; the approved plan

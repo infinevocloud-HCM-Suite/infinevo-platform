@@ -1,5 +1,9 @@
 # DB SCHEMA — Infinevo Cloud HRMS + Payroll Suite
 
+> ⚠️ **LEGACY — frozen reference.** This describes the four applications being
+> replaced, as frozen on 2026-09-13. It is **not** a specification for new work.
+> Build against `docs/target-state/`. See `docs/legacy/README.md`.
+
 > Last updated: 2026-08-12
 > Strategy: `spring.jpa.hibernate.ddl-auto=update` (Hibernate manages schema evolution)
 > No Flyway/Liquibase migration scripts — schema is code-first via JPA annotations.

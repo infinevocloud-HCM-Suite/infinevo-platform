@@ -69,7 +69,7 @@ Look the rest up when you hit the question:
 | Where does this class live? | `03-code-structure.md` |
 | Why is it built this way? | `07-decisions.md` |
 | What runs where? | `04-runtime-containers.md`, `05-azure-architecture.md` |
-| How does the old system do this? | `docs/FEATURE_MAP.md`, then the legacy clone |
+| How does the old system do this? | `docs/legacy/FEATURE_MAP.md`, then the legacy clone |
 
 ---
 

@@ -387,4 +387,4 @@ cannot escape it.
 ## Related
 
 - Capabilities: `01-platform-shape.md` · Migration narrative: `06-current-to-target.md`
-- Decisions: `07-decisions.md` · Today's schema: `docs/DB_SCHEMA.md`
+- Decisions: `07-decisions.md` · Today's schema: `docs/legacy/DB_SCHEMA.md`

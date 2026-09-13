@@ -54,7 +54,7 @@ commands.
 
 ## Reading them
 
-Start from [`docs/FEATURE_MAP.md`](../docs/FEATURE_MAP.md) — it maps a feature to
+Start from [`docs/legacy/FEATURE_MAP.md`](../docs/legacy/FEATURE_MAP.md) — it maps a feature to
 the files that implement it across all four apps. Going in cold and grepping is
 slower.
 

@@ -37,19 +37,33 @@ Keycloak realm `HRMS`, client `react-app`. Active branches: `main`, `main`,
 
 ## Where things are
 
+**`docs/target-state/` is where we are going. `docs/legacy/` is how the frozen
+applications work today.** Never mix them up: a statement from `docs/legacy/`
+describes code being replaced, not a rule for new code.
+
+### Target state — build against this
+
 | Need | Read |
 |---|---|
-| **Where we are going** (target state, decisions, open questions) | `@docs/target-state/README.md` |
-| System shape, ports, cross-service flow — **today** | `@docs/ARCHITECTURE.md` |
-| Tables and columns (all 131) | `@docs/DB_SCHEMA.md` |
-| Which files implement a feature (all 4 apps) | `@docs/FEATURE_MAP.md` |
-| Known defects and debt | `@docs/GAP_INVENTORY.md` |
+| Where we are going: decisions, work plan, build order | `@docs/target-state/README.md` |
 | Coding rules, `BigDecimal`, naming hazards | `@docs/CONVENTIONS.md` |
-| Current direction, in-flight, frozen | `@agents/active-work.md` |
 | New feature spec | `@docs/features/TEMPLATE.md` |
-| Superseded docs | `@docs/_archive/` |
+| Current direction, in-flight, frozen | `@agents/active-work.md` |
+| Setup and the developer loop | `@CONTRIBUTING.md` |
 
-Per-app conventions and build commands live in each app's own `CLAUDE.md`.
+### Legacy — read for reference only
+
+| Need | Read |
+|---|---|
+| System shape, ports, cross-service flow — **as frozen** | `@docs/legacy/ARCHITECTURE.md` |
+| Tables and columns (all 131, **the old schema**) | `@docs/legacy/DB_SCHEMA.md` |
+| Which files implement a feature in the 4 frozen apps | `@docs/legacy/FEATURE_MAP.md` |
+| Known defects and debt in the frozen system | `@docs/legacy/GAP_INVENTORY.md` |
+| Superseded docs | `@docs/legacy/_archive/` |
+| The frozen source itself | `legacy/` — see `legacy/README.md` |
+
+Per-app conventions and build commands live in each frozen app's own `CLAUDE.md`
+under `legacy/`.
 
 ## Working agreements
 

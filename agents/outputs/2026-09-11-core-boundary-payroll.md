@@ -106,5 +106,5 @@ Payslip
 - `Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/entity/` — all 97 @Entity classes
 - `Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/controller/` — 61 controllers listed in FEATURE_MAP.md
 - `Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/config/SecurityConfig.java:31-33` — Keycloak OAuth2 setup
-- `docs/DB_SCHEMA.md` (Appendix A) — 52 table definitions added 2026-09-11
-- `docs/FEATURE_MAP.md` (§26-27) — Leave Allocation and Deduction features
+- `docs/legacy/DB_SCHEMA.md` (Appendix A) — 52 table definitions added 2026-09-11
+- `docs/legacy/FEATURE_MAP.md` (§26-27) — Leave Allocation and Deduction features

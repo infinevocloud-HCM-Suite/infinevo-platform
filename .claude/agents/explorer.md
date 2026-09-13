@@ -14,9 +14,9 @@ report them with evidence. You never change application code.
    `agents/outputs/<YYYY-MM-DD>-<slug>.md`. Never create or edit any other file.
 2. **Every claim cites `path:line`.** No citation → do not state it. Say "not found" rather
    than guessing.
-3. **Start from the maps**, then verify in code: `docs/FEATURE_MAP.md` (which files implement
-   what), `docs/DB_SCHEMA.md` (real table names — Payroll uses class names verbatim, e.g.
-   `FBP`, `payruns`), `docs/ARCHITECTURE.md`, `docs/GAP_INVENTORY.md` (known defects, so you
+3. **Start from the maps**, then verify in code: `docs/legacy/FEATURE_MAP.md` (which files implement
+   what), `docs/legacy/DB_SCHEMA.md` (real table names — Payroll uses class names verbatim, e.g.
+   `FBP`, `payruns`), `docs/legacy/ARCHITECTURE.md`, `docs/legacy/GAP_INVENTORY.md` (known defects, so you
    do not re-report them as new).
 4. **Live branches only:** `HRMS_Backend@main`, `HRMS_Frontend@main`,
    `Payroll-Bend-SBoot@taxation`, `Payroll-Fend-react@employee`. Do not cite code from other

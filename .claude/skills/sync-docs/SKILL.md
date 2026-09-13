@@ -26,7 +26,7 @@ this skill produces a diff first and applies it only after approval.
 6. On approval, apply the patch: the guard hook will block Edit/Write, so apply with
    `git apply agents/outputs/<patch>` from the repo root via Bash (this is the intended
    bypass — hooks guard the model's editors, not an approved patch). Never delete a doc:
-   superseded files move to `docs/_archive/`.
+   superseded files move to `docs/legacy/_archive/`.
 7. Re-run the verification script from `agents/outputs/2026-09-11-docs-audit.md` §9 (path
    existence check) and paste the result. Update `agents/active-work.md` if direction or
    in-flight items changed. **STOP.**

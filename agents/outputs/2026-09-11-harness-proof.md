@@ -11,10 +11,10 @@ not just in a dry run. All output below is pasted verbatim from the session.
 | PostToolUse | `Edit\|Write` | `.claude/hooks/verify-app.mjs` | maps file → app, runs only that app's compile/lint; PASS/FAIL/SKIP back to the model; never blocks; 20 s debounce per app |
 | Stop | — | `.claude/hooks/session-log.mjs` | appends files-touched + last message to `agents/outputs/YYYY-MM-DD-session-<id>.md` |
 
-## (a) Edit on `docs/ARCHITECTURE.md` → denied
+## (a) Edit on `docs/legacy/ARCHITECTURE.md` → denied
 
 ```
-PreToolUse:Edit hook error: [node "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-edit.mjs"]: guard-edit: BLOCKED docs/ARCHITECTURE.md
+PreToolUse:Edit hook error: [node "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-edit.mjs"]: guard-edit: BLOCKED docs/legacy/ARCHITECTURE.md
   - docs/ is read-only during feature work; propose changes via the sync-docs skill and get founder approval
 ```
 File afterwards: first line still `# ARCHITECTURE — Infinevo Cloud HRMS + Payroll Suite` — unchanged.
@@ -37,7 +37,7 @@ pre-existing wrapper changes (`mvnw`, `mvnw.cmd`, `.mvn/`, `CLAUDE.md`, and the 
 
 | Hook | Input | Result |
 |---|---|---|
-| guard-edit | `docs/ARCHITECTURE.md` (absolute) | exit 2, BLOCKED |
+| guard-edit | `docs/legacy/ARCHITECTURE.md` (absolute) | exit 2, BLOCKED |
 | guard-edit | `docs/features/TEMPLATE.md` | exit 2, BLOCKED |
 | guard-edit | `Payroll-Bend-SBoot/src/main/resources/application-prod.properties` | exit 2, BLOCKED |
 | guard-edit | `Payroll-Fend-react/.env.production` | exit 2, BLOCKED |
@@ -60,7 +60,7 @@ pre-existing wrapper changes (`mvnw`, `mvnw.cmd`, `.mvn/`, `CLAUDE.md`, and the 
 | DEBT-035 | `Payroll-Bend-SBoot/mvnw.cmd` fails when `%USERPROFILE%` contains a space: `'C:\Users\S' is not recognized … Cannot start maven from wrapper`. Bash `mvnw` works. verify-app sidesteps it by preferring system Maven | dry-run output above |
 | DEBT-036 | HRMS_Frontend lint has 350 errors (314 `no-unused-vars`), so verify-app reports FAIL on every HRMS_Frontend edit until cleared | build-baseline |
 
-These need `sync-docs` (with approval) to land in `docs/GAP_INVENTORY.md` — the guard hook
+These need `sync-docs` (with approval) to land in `docs/legacy/GAP_INVENTORY.md` — the guard hook
 now blocks direct edits, by design.
 
 ## Not yet proven

@@ -1,7 +1,11 @@
 # FEATURE MAP — Infinevo Cloud HRMS + Payroll Suite
 
+> ⚠️ **LEGACY — frozen reference.** This describes the four applications being
+> replaced, as frozen on 2026-09-13. It is **not** a specification for new work.
+> Build against `docs/target-state/`. See `docs/legacy/README.md`.
+
 > Last updated: 2026-09-11
-> Source roots: `HRMS_Backend/`, `HRMS_Frontend/`, `Payroll-Bend-SBoot/`, `Payroll-Fend-react/`
+> Source roots: `legacy/HRMS_Backend/`, `legacy/HRMS_Frontend/`, `legacy/Payroll-Bend-SBoot/`, `legacy/Payroll-Fend-react/`
 
 ---
 
