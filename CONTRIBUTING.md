@@ -174,6 +174,7 @@ The harness in `.claude/` comes with the clone and works immediately.
 | `plan-feature` skill | Drafts the step-1 spec, and stops before writing code |
 | `explorer` agent | Answers "where is this" with cited evidence instead of guessing |
 | `implementer` agent | Confined to one app folder, required to add tests |
+| `reviewer` agent | Reads the diff against the spec. Has no edit tools, so findings cannot become quiet fixes |
 | `verifier` agent | Runs builds and tests independently. Has no edit tools, so it cannot quietly fix what it finds |
 
 Its value is not speed. It is that the rules in §4 are enforced by tooling rather

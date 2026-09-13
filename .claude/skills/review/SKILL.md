@@ -14,74 +14,32 @@ Both are needed. `W-02` passed 23 of 23 while its Keycloak admin login returned 
 the test checked the realm endpoint, which is independent of the admin user existing.
 Only reading the diff against the documentation found it.
 
-**This skill fixes nothing.** Findings go to `/develop`.
+**This skill fixes nothing.** The work runs through the **reviewer** agent, which has
+no edit tools — so that is enforced by its toolset, not by good intentions. Findings go
+to `/develop`.
 
 ---
 
 ## Steps
 
-1. `gh pr view <pr> --json title,body,files,headRefName` and `gh pr diff <pr>`.
-2. Read the ticket's spec. **Its §9 verification table and §13 done-when list are the
-   standard.** Not your taste — disagreements about approach belong at spec approval,
-   not here.
-3. Read the whole diff. Not the summary, the diff.
-4. Write the report and post a summary comment on the pull request.
-
----
-
-## What to look for, in order of how often it bites
-
-### 1. Does the documentation match the code?
-
-The highest-yield check, and the one automation misses. **Every credential, command,
-port and URL that a README or spec states, try it.** Documented-but-broken is worse
-than undocumented — someone will trust it.
-
-### 2. Does the spec's acceptance table actually hold?
-
-Walk §9 row by row. A row marked ✅ with no evidence beside it is not a pass.
-
-### 3. What did the tests not cover?
-
-- The negative case: unauthenticated, cross-tenant, empty, zero, null
-- **Does the new check catch a real violation?** A guard matching nothing reports green
-  forever. Look for evidence it was proven, not just written
-- Did a test get written to match the code's behaviour rather than the requirement?
-
-### 4. The standing rules
-
-| | |
-|---|---|
-| `tenant_id` and a policy on every new table outside `reference` | |
-| Flyway for every schema change. `ddl-auto` nowhere | |
-| `Money` or `BigDecimal` for money, never `double` or `float` | |
-| No module referencing another module | |
-| New endpoints authenticated, or on the exception list | |
-| Nothing under `legacy/` or `docs/` edited, except this ticket's spec | |
-
-### 5. Things that are correct today and wrong later
-
-The ones that cost most, because they surface months on:
-
-- A global default that will be wrong for a case that does not exist yet — a
-  `default_schema` in a four-schema design, a hardcoded tenant, a single-region assumption
-- Dead configuration: a mount nothing reads, a dependency nothing uses, an environment
-  variable nothing consumes
-- A dependency that couples startup without need — an API that will not start because a
-  cache is down
-- Version-specific configuration with no comment saying which version it needs
-
-### 6. Scope
-
-Did the pull request do only what the spec said? Extra work is not a bonus — it is
-unreviewed, unspecified change riding on an approval that did not cover it.
+1. Confirm the pull request exists and find its ticket:
+   `gh pr view <pr> --json title,body,files,headRefName`.
+2. Read the ticket's spec under `docs/target-state/features/W-nn-*.md`. **Its §9
+   verification table and §13 done-when list are the standard.** Not your taste —
+   disagreements about approach belong at spec approval, not here.
+3. Spawn **reviewer** with the pull request number, the spec path, and any `/verify`
+   report already written for this ticket. The agent's own instructions carry the
+   checklist — what to look for and in what order.
+4. Read the returned report. **Spot-check at least two `path:line` citations** yourself
+   with Read; if one is wrong, send the reviewer back with the correction.
+5. Write the report to `.claude/outputs/<date>-review-pr-<n>.md` and post a summary
+   comment on the pull request. The reviewer cannot write files — this step is yours.
 
 ---
 
 ## The report
 
-Write to `.claude/outputs/<date>-review-pr-<n>.md`, same finding format as `/verify`
-so `/develop` and `check-done.mjs` can read both.
+Same finding format as `/verify`, so `/develop` and `check-done.mjs` can read both.
 
 ```
 # Review — PR #<n> — W-nn — <date>
@@ -112,9 +70,10 @@ Cite `path:line` for every finding. A finding without a location is an opinion.
 
 ## Reviewing your own work
 
-You will often be reviewing something you wrote. **Reread the diff as though someone
-else wrote it, and go looking for what you would have got wrong** — the thing you did
-not test, the version you assumed, the documentation you wrote before the code changed.
+You will often be reviewing something you wrote. Running it through the **reviewer**
+agent is the point: it reads the diff without the memory of having written it. Tell it
+so — and **go looking for what you would have got wrong**: the thing you did not test,
+the version you assumed, the documentation you wrote before the code changed.
 
 Doing this on `W-02` found five defects in an hour, one of them a documented login that
 had never worked. Self-review is weaker than a second pair of eyes; it is far stronger
