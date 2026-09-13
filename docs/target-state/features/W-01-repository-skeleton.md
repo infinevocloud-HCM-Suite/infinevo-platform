@@ -9,11 +9,11 @@
 | **Blocked by** | — *(one of only two items that can start on day one)* |
 | **Blocks** | `W-02` `W-03` `W-04` `W-05` `W-49` — and transitively everything else |
 | **Capabilities** | — *(enabling item; delivers no customer-facing capability)* |
-| **Decisions** | `D-17` no upstream sync · `D-29` Ant Design · `D-30` Vite |
+| **Decisions** | `D-17` no upstream sync · `D-29` Ant Design · `D-30` Vite · `D-38`–`D-41` toolchain |
 | **Owner** | Founder / lead |
-| **Status** | **Draft — awaiting founder approval** |
-| **Approved by** | |
-| **Approved on** | |
+| **Status** | **Approved — ready to build** |
+| **Approved by** | Founder |
+| **Approved on** | 2026-09-13 |
 
 > Hard rule 1: no code is written until this spec is approved.
 
@@ -144,15 +144,14 @@ meaning belongs in `core`.
 
 ## 4. Decisions this item needs
 
-Four are not recorded anywhere yet and cannot be deferred past this item, because
-every module inherits them. **Founder to confirm at approval.**
+Four could not be deferred past this item, because every module inherits them. **Confirmed by the founder on 2026-09-13 at approval.**
 
-| # | Question | Proposed | Reason |
-|---|---|---|---|
-| 1 | Java version | **21 (LTS)** | `HRMS_Backend` is already on 21; Payroll is on 17. 21 is LTS with support to 2031, and nothing in the frozen Payroll code blocks it |
-| 2 | Spring Boot version | **3.3.x, latest patch** | Frozen apps are on 3.2.4 / 3.2.5. Starting one minor ahead avoids an upgrade in month two |
-| 3 | Maven coordinates | `com.infinevo` / `infinevo-platform` | Neither frozen groupId carries forward — `com.phegondev` is a template artefact |
-| 4 | Node version | **20 LTS** | Matches what the harness and Vite expect |
+| # | Question | **Confirmed** | Decision | Reason |
+|---|---|---|---|---|
+| 1 | Java version | **21 (LTS)** | `D-38` | `HRMS_Backend` is already on 21; Payroll is on 17. 21 is LTS with support to 2031, and nothing in the frozen Payroll code blocks it |
+| 2 | Spring Boot version | **3.3.x, latest patch** | `D-39` | Frozen apps are on 3.2.4 / 3.2.5. Starting one minor ahead avoids an upgrade in month two |
+| 3 | Maven coordinates | `com.infinevo` / `infinevo-platform` | `D-40` | Neither frozen groupId carries forward — `com.phegondev` is a template artefact |
+| 4 | Node version | **20 LTS** | `D-41` | Matches what the harness and Vite expect |
 
 ---
 

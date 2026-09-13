@@ -47,6 +47,10 @@
 | `D-35` | 2026-09-13 | **Basic capture of leave, attendance and overtime is Core. The employee request-and-approve experience is HRMS.** A Payroll-only tenant records these as administrator data entry | Moves the differentiator from *what data exists* to *who enters it and how*, which is how the market actually tiers these products. A payroll customer recording twelve absences a month should not have to buy a workflow. **Supersedes `D-04` and `D-05`** | `01`, `02`, `08`–`10` |
 | `D-36` | 2026-09-13 | **The approval engine stays in Core as infrastructure.** Which workflows it runs depends on the modules held | Reimbursement claims and investment proofs are Payroll features that need approvals, so the engine cannot be HRMS-only. HRMS gates three specific workflows — leave requests, attendance regularization, overtime requests — not the engine itself | `01`, `02` |
 | `D-37` | 2026-09-13 | **Reimbursement and investment-proof approvals are available to Payroll-only tenants**, employee-submitted and approved | Both are inherently employee-originated and meaningless without Payroll. Their approval must not depend on buying a second product | `01` |
+| `D-38` | 2026-09-13 | **Java 21** for the whole backend | `HRMS_Backend` is already on 21, Payroll on 17. 21 is LTS with support to 2031, and nothing in the frozen Payroll code blocks the move. One version across seven modules, chosen before any code exists | `03`, `W-01` |
+| `D-39` | 2026-09-13 | **Spring Boot 3.3.x**, latest patch | The frozen apps are on 3.2.4 and 3.2.5. Starting one minor ahead avoids a framework upgrade in month two, while staying close enough that ported code needs no rework | `03`, `W-01` |
+| `D-40` | 2026-09-13 | **Maven coordinates `com.infinevo` / `infinevo-platform`**, packages `com.infinevo.<module>.<feature>` | Neither frozen groupId carries forward. `com.phegondev` in `HRMS_Backend` is a template artefact and must not propagate into the new platform | `03`, `W-01` |
+| `D-41` | 2026-09-13 | **Node 20 LTS** for the frontend and the harness | Matches what Vite and the harness hooks expect, and is the version the pipeline will pin | `03`, `W-01` |
 
 ---
 
