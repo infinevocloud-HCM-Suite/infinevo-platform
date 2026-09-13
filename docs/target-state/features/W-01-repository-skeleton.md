@@ -80,8 +80,12 @@ infinevo-platform/
 │   ├── worker/                  Spring Boot batch role — depends on: core, hrms, payroll
 │   └── migration/               Flyway script tree (empty; W-06 fills it)
 │       ├── reference/  core/  hrms/  payroll/
-├── frontend/
-│   └── shell/  core/  hrms/  payroll/  shared/
+├── frontend/                    Vite root
+│   ├── vite.config.js  .eslintrc.cjs  index.html
+│   └── src/
+│       ├── shell/               AppShell, store, route registry
+│       ├── core/  hrms/  payroll/
+│       └── shared/              theme.js, api/client.js
 ├── keycloak/                    (empty — W-10)
 ├── infra/                       (empty — W-50)
 ├── docker/                      (empty — W-49)
@@ -151,7 +155,7 @@ Four could not be deferred past this item, because every module inherits them. *
 | 1 | Java version | **21 (LTS)** | `D-38` | `HRMS_Backend` is already on 21; Payroll is on 17. 21 is LTS with support to 2031, and nothing in the frozen Payroll code blocks it |
 | 2 | Spring Boot version | **3.3.x, latest patch** | `D-39` | Frozen apps are on 3.2.4 / 3.2.5. Starting one minor ahead avoids an upgrade in month two |
 | 3 | Maven coordinates | `com.infinevo` / `infinevo-platform` | `D-40` | Neither frozen groupId carries forward — `com.phegondev` is a template artefact |
-| 4 | Node version | **20 LTS** | `D-41` | Matches what the harness and Vite expect |
+| 4 | Node version | **24 LTS** | ~~`D-41`~~ → `D-42` | Node 20 was proposed and approved, then found to be **end-of-life since April 2026** during the build. Corrected to the current active LTS |
 
 ---
 
@@ -170,11 +174,11 @@ Skeleton only. No screen, no route, no API call.
 
 | Path | Holds | Empty? |
 |---|---|---|
-| `frontend/shell/` | Layout and navigation, later driven by entitlement | Yes — one placeholder route |
-| `frontend/core/` | Employee, leave, holidays, org setup | Yes |
-| `frontend/hrms/` | Attendance, timesheets, projects | Yes |
-| `frontend/payroll/` | Pay runs, tax, claims | Yes |
-| `frontend/shared/` | Design system, API client, auth | **No** — the API client stub and the Ant Design theme land here |
+| `frontend/src/shell/` | Layout and navigation, later driven by entitlement | Yes — one placeholder route |
+| `frontend/src/core/` | Employee, leave, holidays, org setup | Yes |
+| `frontend/src/hrms/` | Attendance, timesheets, projects | Yes |
+| `frontend/src/payroll/` | Pay runs, tax, claims | Yes |
+| `frontend/src/shared/` | Design system, API client, auth | **No** — the API client stub and the Ant Design theme land here |
 
 Vite (`D-30`), React 18, Ant Design 5 (`D-29`), Redux Toolkit.
 
@@ -234,11 +238,14 @@ grep -rn "ddl-auto" backend/ ; echo "expect: no matches"
 
 | # | Check | Expected | Result |
 |---|---|---|---|
-| 1 | `mvnw clean verify` | BUILD SUCCESS, seven modules | |
-| 2 | `npm run build` | Builds, Ant Design theme applied | |
-| 3 | **Deliberate `hrms` → `payroll` dependency** | **BUILD FAILURE naming the banned dependency** | |
-| 4 | `grep -rn ddl-auto backend/` | No matches | |
-| 5 | `infinevo-website` repository | Exists, private, empty | |
+| 1 | `mvnw clean verify` | BUILD SUCCESS, seven modules | ✅ 8 reactor entries green, 21 tests pass |
+| 2 | `npm run build` + `npm run lint` | Builds, Ant Design theme applied | ✅ 1443 modules, 432 kB, lint clean |
+| 3 | **Deliberate `hrms` → `payroll` dependency** | **BUILD FAILURE naming the banned dependency** | ✅ fails at `enforce-module-boundary`, message names both modules |
+| 4 | `grep -rn ddl-auto backend/` | No matches | ✅ none |
+| 5 | `infinevo-website` repository | Exists, private, empty | ✅ created |
+| 6 | `guard-edit` on `legacy/` | Exit 2, blocked | ✅ blocked with reason |
+| 7 | `verify-app` on `backend/` | Runs a compile | ✅ `PASS backend compile (3.3s) — clean` |
+| 8 | Branch protection on `main` | Pull request required | ❌ **refused — Free plan.** See `D-43` |
 
 **Check 3 is the definition of done.** If it passes the build, the item is not
 finished, however complete the folder tree looks.
@@ -291,7 +298,8 @@ And one guard gap worth closing here rather than later:
 4. `TenantContext`, `ApiError` and `Money` exist in `shared`, with tests
 5. `ddl-auto` appears in no configuration file
 6. `infinevo-website` exists, private and empty
-7. Branch rules and the pull-request template are in place
+7. ~~Branch rules and~~ the pull-request template are in place — **branch protection is not
+   possible on the Free plan for a private repository (`D-43`); it is convention for now**
 8. The three harness items in §12 are done
 9. This spec is updated to match what was actually built
 

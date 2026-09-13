@@ -22,3 +22,8 @@ node_modules/
 
 # Local tooling binaries (not project artifacts)
 Trae-Setup-x64.exe
+
+# Build output
+backend/**/target/
+frontend/node_modules/
+frontend/dist/

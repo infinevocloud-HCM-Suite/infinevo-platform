@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // verify-app.mjs — PostToolUse hook for Edit|Write.
-// Maps the edited file to ONE of the four apps and runs only that app's compile/lint.
+// Maps the edited file to backend/ or frontend/ and runs that side's compile or lint.
 // Informational only: always exits 0, never blocks. Result goes back to the model as
 // additionalContext and is echoed to stdout. Prints "SKIP <reason>" when the toolchain
 // or dependencies are missing, or when the same app was verified in the last 20 s.
@@ -15,12 +15,14 @@ const WIN = process.platform === "win32";
 const DEBOUNCE_MS = 20_000;
 const TIMEOUT_MS = 240_000;
 
-// app folder -> how to verify it (commands verified in each app's CLAUDE.md)
+// first path segment -> how to verify it.
+//
+// Only the platform is verified. legacy/ is frozen reference and is never built here:
+// it resolves to "legacy", which is not a key, so an edit there is skipped. guard-edit
+// blocks such an edit outright anyway.
 const APPS = {
-  "HRMS_Backend":       { kind: "maven", label: "compile" },
-  "Payroll-Bend-SBoot": { kind: "maven", label: "compile" },
-  "HRMS_Frontend":      { kind: "npm",   label: "lint", cmd: ["npm", "run", "lint", "--silent"] },
-  "Payroll-Fend-react": { kind: "npm",   label: "lint", cmd: ["npx", "eslint", "src", "--ext", ".js,.jsx"] },
+  "backend":  { kind: "maven", label: "compile" },
+  "frontend": { kind: "npm",   label: "lint", cmd: ["npm", "run", "lint", "--silent"] },
 };
 
 function out(msg) {
