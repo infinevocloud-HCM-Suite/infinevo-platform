@@ -1,0 +1,119 @@
+{
+  "realm": "infinevo",
+  "enabled": true,
+  "displayName": "Infinevo (local development)",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 1800,
+  "ssoSessionIdleTimeout": 28800,
+  "roles": {
+    "realm": [
+      {
+        "name": "platform-admin",
+        "description": "Internal administration. Admin console, support impersonation (PLAT-02)"
+      },
+      {
+        "name": "tenant-admin",
+        "description": "Administers one tenant: employees, setup, approvals"
+      },
+      {
+        "name": "employee",
+        "description": "Self-service. Whichever modules the tenant holds"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "infinevo-web",
+      "name": "Infinevo frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin.acme",
+      "email": "admin@acme-payroll.local",
+      "firstName": "Ana",
+      "lastName": "Acme",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local_dev_pw",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "tenant-admin"
+      ],
+      "attributes": {
+        "tenant": [
+          "acme-payroll"
+        ]
+      }
+    },
+    {
+      "username": "admin.globex",
+      "email": "admin@globex-full.local",
+      "firstName": "Gita",
+      "lastName": "Globex",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local_dev_pw",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "tenant-admin"
+      ],
+      "attributes": {
+        "tenant": [
+          "globex-full"
+        ]
+      }
+    },
+    {
+      "username": "employee.globex",
+      "email": "emp@globex-full.local",
+      "firstName": "Ravi",
+      "lastName": "Kumar",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local_dev_pw",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "employee"
+      ],
+      "attributes": {
+        "tenant": [
+          "globex-full"
+        ]
+      }
+    }
+  ]
+}

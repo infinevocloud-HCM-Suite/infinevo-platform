@@ -25,6 +25,18 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
+    <!-- W-02: the local stack proves app connects to Postgres as app_user, never as
+         owner. No entities yet - W-07 onward add those. Schema is owned by Flyway
+         (W-06); ddl-auto is banned permanently (D-09, DEBT-002). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
   </dependencies>
 
   <build>

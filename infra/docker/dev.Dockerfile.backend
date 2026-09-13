@@ -1,0 +1,30 @@
+# Development image. Runs the backend from source.
+#
+# This is NOT the deployable image. W-49 writes that one: multi-stage, slim runtime,
+# non-root user, no build tooling in the final layer. Do not promote this file.
+
+FROM maven:3.9-eclipse-temurin-21
+
+WORKDIR /build
+
+# POMs first, so a source change does not re-resolve every dependency.
+COPY code/backend/pom.xml .
+COPY code/backend/shared/pom.xml      shared/
+COPY code/backend/core/pom.xml        core/
+COPY code/backend/hrms/pom.xml        hrms/
+COPY code/backend/payroll/pom.xml     payroll/
+COPY code/backend/app/pom.xml         app/
+COPY code/backend/worker/pom.xml      worker/
+COPY code/backend/migration/pom.xml   migration/
+RUN mvn -B -q dependency:go-offline -DskipTests || true
+
+COPY code/backend/ .
+
+# Install every module into the local repository, so at runtime a single module can be
+# run on its own. Running with -am instead would include the parent, and spring-boot:run
+# against a packaging-pom project fails with "Unable to find a suitable main class".
+RUN mvn -B -q install -DskipTests
+
+EXPOSE 8080
+ENTRYPOINT ["mvn", "-B"]
+CMD ["-pl", "app", "spring-boot:run", "-Dspring-boot.run.profiles=local"]

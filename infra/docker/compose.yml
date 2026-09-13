@@ -1,0 +1,191 @@
+# Local development stack — W-02.
+#
+#   docker compose -f infra/docker/compose.yml up -d
+#
+# Nine containers locally against five in production, because the managed Azure
+# services need local stand-ins. What each one becomes in Azure is the comment
+# beside it, and docs/target-state/05-azure-architecture.md section 2.
+#
+# This is a DEVELOPMENT stack. The Dockerfiles here run the apps in dev mode and are
+# not deployable images - W-49 writes those. Do not promote this file.
+#
+# Minimal subset, when nine containers are too heavy:
+#   docker compose -f infra/docker/compose.yml up -d postgres app
+#
+# Host ports are overridable, because developers already run things. If 5432 or 6379
+# is taken on your machine, put the override in infra/docker/.env - see README.
+#   REDIS_PORT=6380
+
+name: infinevo
+
+services:
+
+  # ── data ────────────────────────────────────────────────────────────────────
+  postgres:                               # -> Azure Database for PostgreSQL
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local_postgres_pw
+      POSTGRES_DB: infinevo
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/00-bootstrap.sql:/docker-entrypoint-initdb.d/00-bootstrap.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d infinevo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:                                  # -> Azure Cache for Redis
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  queue:                                  # -> Azure Service Bus
+    # RabbitMQ stands in (spec Q2). W-52 builds the queue abstraction, so local and
+    # production differ by one adapter - which is the point of the abstraction.
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: infinevo
+      RABBITMQ_DEFAULT_PASS: local_queue_pw
+    ports:
+      - "${QUEUE_PORT:-5672}:5672"
+      - "${QUEUE_UI_PORT:-15672}:15672"     # management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  blob:                                   # -> Azure Blob Storage
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: ["azurite-blob", "--blobHost", "0.0.0.0", "--skipApiVersionCheck"]
+    ports: ["${BLOB_PORT:-10000}:10000"]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "10000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mail:                                   # -> nothing. A catcher, so mail is never sent
+    image: axllent/mailpit:latest
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "${MAIL_SMTP_PORT:-1025}:1025"       # SMTP
+      - "${MAIL_UI_PORT:-8025}:8025"        # web UI - read caught mail here
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── identity ────────────────────────────────────────────────────────────────
+  keycloak:                               # -> itself
+    # Minimal dev realm (spec Q3). W-10 replaces it with the real export and theme.
+    image: quay.io/keycloak/keycloak:25.0
+    command: ["start-dev", "--import-realm", "--http-port=8081"]
+    environment:
+      # KEYCLOAK_ADMIN, not KC_BOOTSTRAP_ADMIN_* - that pair arrives in Keycloak 26
+      # and is silently ignored by 25, leaving no admin user and a 401 at the console.
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: local_keycloak_pw
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: local_postgres_pw
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/dev-realm.json:/opt/keycloak/data/import/dev-realm.json:ro
+    ports: ["${KEYCLOAK_PORT:-8081}:8081"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8081 && echo -e 'GET /realms/infinevo HTTP/1.1\\nHost: localhost\\nConnection: close\\n\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  # ── application ─────────────────────────────────────────────────────────────
+  app:                                    # -> Container App 'app', web role
+    build:
+      context: ../..
+      dockerfile: infra/docker/dev.Dockerfile.backend
+    command: ["-pl", "app", "spring-boot:run", "-Dspring-boot.run.profiles=local"]
+    environment:
+      # app connects as app_user, NEVER as owner. That single constraint is what makes
+      # row-level security a real boundary when W-07 lands.
+      DB_URL: jdbc:postgresql://postgres:5432/infinevo
+      DB_USERNAME: app_user
+      DB_PASSWORD: local_app_pw
+      REDIS_HOST: redis
+      QUEUE_HOST: queue
+      BLOB_ENDPOINT: http://blob:10000/devstoreaccount1
+      MAIL_HOST: mail
+      MAIL_PORT: 1025
+      KEYCLOAK_ISSUER_URI: http://keycloak:8081/realms/infinevo
+    ports: ["${APP_PORT:-8080}:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      # Deliberately NOT waiting on redis. No code uses it until W-53, and the API
+      # should not fail to start because a cache is unavailable.
+      redis:    { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  worker:                                 # -> Container App 'worker', batch role
+    build:
+      context: ../..
+      dockerfile: infra/docker/dev.Dockerfile.backend
+    command: ["-pl", "worker", "spring-boot:run", "-Dspring-boot.run.profiles=local"]
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/infinevo
+      DB_USERNAME: app_user
+      DB_PASSWORD: local_app_pw
+      REDIS_HOST: redis
+      QUEUE_HOST: queue
+      BLOB_ENDPOINT: http://blob:10000/devstoreaccount1
+      MAIL_HOST: mail
+      MAIL_PORT: 1025
+    ports: ["${WORKER_PORT:-8082}:8082"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      queue:    { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  web:                                    # -> Container App 'web'
+    build:
+      context: ../..
+      dockerfile: infra/docker/dev.Dockerfile.frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
+      VITE_KEYCLOAK_URL: http://localhost:8081
+    ports: ["${WEB_PORT:-5173}:5173"]
+    depends_on:
+      - app
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+volumes:
+  pgdata:

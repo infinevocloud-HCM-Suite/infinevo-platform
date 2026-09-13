@@ -7,7 +7,12 @@ spring:
     name: infinevo-worker
   main:
     banner-mode: off
-    web-application-type: none
+    # NOT web-application-type: none. The worker serves a health endpoint and nothing
+    # else (03-code-structure.md section 4) - the orchestrator needs a liveness probe,
+    # and without HTTP the process has no non-daemon thread and exits immediately.
+
+server:
+  port: 8082
 
 management:
   endpoints:
