@@ -11,10 +11,10 @@ The backend image runs in two roles, so there are fewer files than containers.
 
 | Dockerfile | Produces | Runs as |
 |---|---|---|
-| `docker/backend.Dockerfile` | One Spring Boot jar containing Core, HRMS and Payroll | **`app`** and **`worker`** — two containers, one image |
-| `docker/frontend.Dockerfile` | The unified React bundle | `web` |
-| `docker/keycloak.Dockerfile` | Keycloak with realm and theme pre-built | `keycloak` |
-| `docker/gateway.Dockerfile` | API gateway | `gateway` — **deferred** (`D-11`) |
+| `infra/docker/backend.Dockerfile` | One Spring Boot jar containing Core, HRMS and Payroll | **`app`** and **`worker`** — two containers, one image |
+| `infra/docker/frontend.Dockerfile` | The unified React bundle | `web` |
+| `infra/docker/keycloak.Dockerfile` | Keycloak with realm and theme pre-built | `keycloak` |
+| `infra/docker/gateway.Dockerfile` | API gateway | `gateway` — **deferred** (`D-11`) |
 
 ---
 

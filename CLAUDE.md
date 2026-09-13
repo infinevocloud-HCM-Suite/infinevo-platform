@@ -8,6 +8,41 @@ The four applications it replaces — two Spring Boot backends, two React fronte
 two databases, two auth systems — are **frozen snapshots in `legacy/`**. Read them,
 port logic out of them, never edit them. See `legacy/README.md`.
 
+## The repository, in four pillars
+
+```
+infinevo-platform/
+│
+├── docs/        THE DESIGN        target-state/ (where we are going)
+│                                  legacy/ (how the frozen system works)
+│                                  CONVENTIONS.md (rules for new code)
+│
+├── backend/     THE CODE          shared core hrms payroll app worker migration
+├── frontend/                      src/{shell core hrms payroll shared}
+│
+├── infra/       HOW IT RUNS       azure/ (Bicep) · docker/ · keycloak/
+│                                  .github/workflows/ - must stay there, GitHub's rule
+│
+├── legacy/      THE FROZEN SYSTEM the four applications being replaced
+│
+└── .claude/     THE HARNESS       hooks · agents · skills   (working files in agents/)
+```
+
+**Only two pillars have a frozen twin.** `docs/` splits into `target-state/` and
+`legacy/`; the code splits into `backend/`+`frontend/` and `legacy/`. `infra/` does
+not — the four frozen applications contain one deployment file between them, so
+everything under `infra/` is new capability rather than a port.
+
+**`.github/workflows/` is the one thing that cannot live in `infra/`** — GitHub
+Actions reads workflows only from that path.
+
+| If you are | Read |
+|---|---|
+| New here | `CONTRIBUTING.md` |
+| Building something | `docs/target-state/README.md`, then your ticket's spec |
+| Asking how it works today | `docs/legacy/FEATURE_MAP.md`, then `legacy/` |
+| Deploying or containerising | `infra/README.md` |
+
 ## Stack facts
 
 | App | Language / build | Auth | Database | Port |

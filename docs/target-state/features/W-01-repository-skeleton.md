@@ -48,7 +48,7 @@ possible, and a tangle discovered in month four is not refactored, it is lived w
 - Package conventions under each module, layering carried forward from both frozen backends
 - `frontend/` skeleton: Vite + React + Ant Design, split `shell` / `core` / `hrms` / `payroll` / `shared`
 - `shared` module contents: tenant context holder, error envelope, money types
-- Empty but real directories for `infra/`, `docker/`, `keycloak/`, `.github/workflows/`
+- Empty but real directories under `infra/` (`azure/`, `infra/docker/`, `infra/keycloak/`) and `.github/workflows/`
 - Branch rules and the pull-request template
 - The `infinevo-website` repository, created empty
 
@@ -86,9 +86,10 @@ infinevo-platform/
 │       ├── shell/               AppShell, store, route registry
 │       ├── core/  hrms/  payroll/
 │       └── shared/              theme.js, api/client.js
-├── keycloak/                    (empty — W-10)
-├── infra/                       (empty — W-50)
-├── docker/                      (empty — W-49)
+├── infra/
+│   ├── azure/                   (empty — W-50)
+│   ├── docker/                  (empty — W-49)
+│   └── keycloak/                (empty — W-10)
 └── .github/
     ├── workflows/               (empty — W-03)
     └── pull_request_template.md

@@ -1,14 +1,7 @@
 # ---------------------------------------------------------------------------
-# Application repos
-# Today these are 4 independent git repos with their own .git directories.
-# They are ignored here so root git does not create gitlinks/submodules.
-# When the repo migration is scoped, these entries are removed and each app
-# is brought in with `git subtree add`. See .claude/skills/sync-upstream/
+# The four frozen applications live in legacy/ as committed snapshots.
+# They are no longer cloned separately - CONTRIBUTING.md section 1.
 # ---------------------------------------------------------------------------
-/HRMS_Backend/
-/HRMS_Frontend/
-/Payroll-Bend-SBoot/
-/Payroll-Fend-react/
 
 # Agent working files.
 # Findings and session logs ARE tracked: docs/target-state/README.md cites them,
