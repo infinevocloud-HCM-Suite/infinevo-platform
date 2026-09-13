@@ -23,23 +23,21 @@ pushed to. Code is **ported deliberately, once** — there is no sync mechanism 
 infinevo-platform/
 ├── code/
 │   ├── backend/
-│   ├── core/                    Maven module — employee, leave, identity, workflow, audit
-│   ├── hrms/                    Maven module — attendance, overtime, projects, timesheets
-│   ├── payroll/                 Maven module — pay runs, tax, claims, statutory
-│   ├── app/                     Spring Boot — web role
-│   ├── worker/                  Spring Boot — batch role
-│   ├── shared/                  cross-cutting: tenant context, error envelope, money types
-│   └── migration/               Flyway scripts
-│       ├── core/
-│       ├── hrms/
-│       ├── payroll/
-│       └── reference/
-├── frontend/
-│   ├── shell/                   layout, navigation driven by entitlement
-│   ├── core/                    employee, leave, holidays, org setup
-│   ├── hrms/                    attendance, timesheets, projects
-│   ├── payroll/                 pay runs, tax, claims
-│   └── shared/                  design system, api client, auth
+│   │   ├── shared/              cross-cutting: tenant context, error envelope, money types
+│   │   ├── core/                Maven module — employee, leave, identity, workflow, audit
+│   │   ├── hrms/                Maven module — attendance, overtime, projects, timesheets
+│   │   ├── payroll/             Maven module — pay runs, tax, claims, statutory
+│   │   ├── app/                 Spring Boot — web role
+│   │   ├── worker/              Spring Boot — batch role
+│   │   └── migration/           Flyway scripts, one tree per schema
+│   │       └── reference/ core/ hrms/ payroll/
+│   └── frontend/                Vite root
+│       └── src/
+│           ├── shell/           layout, navigation driven by entitlement
+│           ├── core/            employee, leave, holidays, org setup
+│           ├── hrms/            attendance, timesheets, projects
+│           ├── payroll/         pay runs, tax, claims
+│           └── shared/          design system, api client, auth
 ├── infra/                       everything about running it - no application code
 │   ├── azure/                   Azure definitions (Bicep)
 │   ├── docker/                  Dockerfiles, local compose stack
@@ -114,8 +112,8 @@ component libraries.
 
 | Concern | Decision |
 |---|---|
-| Build tool | Vite (from HRMS_Frontend). Payroll's Create React App setup is retired |
-| Component library | **Open — `OQ-04`.** Ant Design (Payroll, 158 routes) vs MUI (HRMS). Payroll has far more screens |
+| Build tool | **Vite** (`D-30`), from HRMS_Frontend. Create React App is deprecated and unmaintained, so it is retired even though Ant Design arrives from that side — the build tool and the component library are independent choices |
+| Component library | **Ant Design** (`D-29`). Payroll holds 158 routes and the most intricate forms, so keeping it ports the larger half intact and rewrites only the smaller HRMS surface. MUI is retired with the HRMS screens |
 | State | Redux Toolkit, from Payroll |
 | Routing | Route groups per module, registered only when the module is entitled |
 | API layer | **A real service layer.** Payroll frontend has none today — screens call axios directly with a global URL constant and read tenant from local storage |
