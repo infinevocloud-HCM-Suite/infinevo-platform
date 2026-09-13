@@ -80,6 +80,14 @@ Then:
    issue before you finish here, linked from the merge. This is the step that decides
    whether "deferred" meant scheduled or forgotten.
 4. `/sync-docs` if the build diverged from what the documents describe.
+5. **Clear what the ticket left behind.** `node .claude/scripts/prune-outputs.mjs` —
+   it prints a verdict per file in `.claude/outputs/` and deletes nothing on its own.
+   Run it **after** `/sync-docs`, which is what decides whether a report is still cited.
+   `ORPHAN` means nothing under `docs/`, `.claude/work/` or the skills points at it any
+   more. Read the list, then `--delete` if you agree. `REVIEW` rows name a ticket and
+   are never deleted by the flag — decide those yourself once the ticket is closed.
+   Left alone, this directory grows a shadow of the design: 180K of stale duplicate
+   `target-state/` sat here until 2026-09-13, seven decisions behind `docs/`.
 
 ---
 

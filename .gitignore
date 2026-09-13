@@ -6,9 +6,8 @@
 # Harness working files, under .claude/ with the harness itself.
 # Findings and session logs ARE tracked: docs/target-state/README.md cites them,
 # and .claude/work/active-work.md is the live project state everyone reads first.
-# Only transient and duplicated material is ignored.
+# Only transient machine-local material is ignored.
 .claude/outputs/.verify-cache/
-.claude/outputs/target-state/
 
 # Dependencies
 node_modules/
