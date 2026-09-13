@@ -30,7 +30,7 @@ One repository · one backend with three enforced modules (`core` / `hrms` / `pa
 > **Not AKS. Not MySQL. No subtree, no sync.** If a document or skill says otherwise it
 > is stale — the decisions are `D-09` Postgres, `D-10` Container Apps, `D-17` no sync.
 
-Design: `docs/target-state/` — 12 documents, **43 decisions (`D-01`–`D-43`), zero open
+Design: `docs/target-state/` — 12 documents, **44 decisions (`D-01`–`D-44`), zero open
 questions.** Start at `docs/target-state/README.md`.
 
 ### The three threads

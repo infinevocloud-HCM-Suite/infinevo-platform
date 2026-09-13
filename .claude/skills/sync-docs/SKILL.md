@@ -44,13 +44,17 @@ this skill produces a diff first and applies it only after approval.
    for b,d,f in os.walk('.'):
        d[:]=[x for x in d if x not in ('.git','node_modules','target','dist')]
        for n in f:
-           if not n.endswith('.md'): continue
+           if not n.endswith('.md') or '-session-' in n: continue   # session logs are untracked
            p=os.path.join(b,n)
            try: s=io.open(p,encoding='utf-8').read()
            except Exception: continue
            for m in re.finditer(r'\]\(([^)#\s]+?)(?:#[^)]*)?\)',s):
                t=m.group(1)
-               if t.startswith(('http','mailto')): continue
+               # Skip what is not a file path on disk:
+               #   http/mailto, and GitHub-relative links like ../../issues, which
+               #   resolve on github.com and nowhere else. Flagging them trains people
+               #   to ignore the check, and then it checks nothing.
+               if t.startswith(('http','mailto','../../')): continue
                if not os.path.exists(os.path.normpath(os.path.join(b,t))): bad.append(p+' -> '+t)
    print(len(bad),'broken'); [print(' ',x) for x in bad]"
    ```

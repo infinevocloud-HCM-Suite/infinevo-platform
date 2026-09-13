@@ -52,7 +52,7 @@ them, and each deep-dive analysis cites the feature it belongs to.
 | `HRMS-nn` | HRMS module capabilities | 10 | `01` §4 |
 | `PAY-nn` | Payroll module capabilities | 17 | `01` §5 |
 | `PLAT-nn` | Cross-cutting platform capabilities | 14 | `01` §6 |
-| `D-nn` | Decisions | 43 | `07` §1 |
+| `D-nn` | Decisions | 44 | `07` §1 |
 | `OQ-nn` | Open questions | **0 — design closed 2026-09-13** | `07` §2 |
 
 **Sixty-two capabilities in total**, delivered by **72 work items broken into 295 features**

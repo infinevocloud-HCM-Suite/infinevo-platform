@@ -117,7 +117,19 @@ Labels tell you the shape at a glance: `ready` means nothing blocks it;
 
 ## Status
 
-`W-01` is merged: the module skeleton, the build, and the boundary that the build
-enforces. Six tickets are `ready` now — `W-02` `W-03` `W-04` `W-05` `W-49` `W-66`.
+**Two of ninety-three tickets are done.**
 
-Everything else is waiting on a dependency. Nothing is in production.
+`W-01` gave the module skeleton and the boundary the build enforces. `W-02` gave a
+runnable platform — nine containers from one command:
+
+```bash
+docker compose -f infra/docker/compose.yml up -d
+infra/docker/smoke.sh
+```
+
+Five tickets are `ready` — `W-03` `W-04` `W-05` `W-49` `W-66`. Everything else waits on
+a dependency. **Nothing is in production.**
+
+Two things are owed and written down so they are not forgotten: `W-07` must finish the
+two-tenant seed, and nobody but the author has yet run the local stack on their own
+machine.

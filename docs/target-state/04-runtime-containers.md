@@ -9,6 +9,12 @@
 
 The backend image runs in two roles, so there are fewer files than containers.
 
+> **These are the deployable images, and they do not exist yet — `W-49` writes them.**
+> What exists today is `infra/docker/dev.Dockerfile.backend` and
+> `dev.Dockerfile.frontend` (`W-02`), which run the apps from source with the build
+> toolchain in the image and no non-root user. They are for the local stack only and
+> must not be promoted.
+
 | Dockerfile | Produces | Runs as |
 |---|---|---|
 | `infra/docker/backend.Dockerfile` | One Spring Boot jar containing Core, HRMS and Payroll | **`app`** and **`worker`** — two containers, one image |
@@ -103,23 +109,37 @@ which is why one build cannot serve two environments.
 One command brings up the whole platform. Nine containers locally against five in
 production, because managed services need local stand-ins.
 
-| Container | Stands in for |
+**Built and running — `W-02`.** `docker compose -f infra/docker/compose.yml up -d`,
+all nine healthy in about two minutes on a clean machine. Ports, credentials and
+troubleshooting are in `infra/docker/README.md`; they are not repeated here.
+
+| Container | Stands in for | Locally |
+|---|---|---|
+| `app`, `web`, `keycloak` | themselves | |
+| `worker` | itself | Serves **health only**, on its own port. Without HTTP the process has no non-daemon thread and exits |
+| `postgres` | Azure Database for PostgreSQL | Two databases, as in production: the platform's four schemas, and Keycloak's own |
+| `redis` | Azure Cache for Redis | |
+| `queue` | Azure Service Bus | **RabbitMQ.** No faithful emulator exists; `W-52`'s queue abstraction makes local and production differ by one adapter |
+| `blob` | Azure Blob Storage | **Azurite** |
+| `mail` | Nothing — a catcher | **Mailpit.** Notifications are visible and nothing can ever be sent |
+
+| Rule | Today |
 |---|---|
-| `app`, `worker`, `web`, `keycloak` | themselves |
-| `postgres` | Azure Database for PostgreSQL. Four schemas created at start |
-| `redis` | Azure Cache for Redis |
-| `queue` | Azure Service Bus |
-| `blob` | Azure Blob Storage (emulator) |
-| `mail` | A mail catcher, so notifications are visible and nothing is sent |
+| The application connects as `app_user` and **is refused DDL** | ✅ enforced, and `smoke.sh` fails if it ever succeeds |
+| No real secrets. No connection to any shared environment | ✅ |
+| `ddl-auto` set nowhere | ✅ checked |
+| Migrations run on start, so the database is always current | ⏳ **`W-06`.** Today a plain SQL bootstrap creates the four schemas and three roles — and **no tables**, so it cannot collide with Flyway later |
+| Seed data creates two tenants with different module sets | ⏳ **`W-07`.** The loader ships and works; `core.tenant` does not exist yet |
 
-| Rule |
-|---|
-| Migrations run on start, so the database is always current |
-| Seed data creates two tenants with different module sets, so entitlement is exercised locally |
-| No real secrets. No connection to any shared environment |
+**Seeding two tenants with different modules matters.** It is the only way entitlement
+bugs surface during development rather than after a customer buys one module. `W-02`
+shipped the mechanism with the inserts written out ready to uncomment — **`W-07` must
+finish it.**
 
-**Seeding two tenants with different modules matters.** It is the only way entitlement bugs
-surface during development rather than after a customer buys one module.
+**`app_user` is the one that is load-bearing.** The local stack creates the same three
+roles as production (`02` §9) and the application connects as the restricted one. That
+refusal is what makes row-level security a real boundary at `W-07` rather than a
+convention everyone agrees to respect.
 
 ---
 
