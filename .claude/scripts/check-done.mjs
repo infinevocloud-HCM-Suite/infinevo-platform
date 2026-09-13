@@ -80,7 +80,16 @@ gate("Approved spec exists", () => {
   if (!existsSync(dir)) return { ok: false, detail: "features folder missing" };
   const branch = prData?.headRefName ?? "";
   const item = /^(W-\d+)/.exec(branch)?.[1];
-  if (!item) return { ok: false, detail: `branch "${branch}" does not start with W-nn` };
+  // Not every change is a W-nn ticket from the plan. Harness, tooling and process work
+  // is real work and still needs an issue and every other gate - but there is no spec
+  // for it, because there is no work item. Requiring one would mean inventing a fake
+  // ticket, and a gate people fake is worse than no gate.
+  if (!item) {
+    const issue = /closes #(\d+)/i.exec(prData?.body ?? "");
+    return issue
+      ? { ok: true, detail: `not a W-nn ticket; governed by issue #${issue[1]} instead` }
+      : { ok: false, detail: `branch "${branch}" is not a W-nn ticket AND links no issue - one or the other is required` };
+  }
   const spec = readdirSync(dir).find((f) => f.startsWith(item + "-"));
   if (!spec) return { ok: false, detail: `no spec for ${item}` };
   const body = readFileSync(join(dir, spec), "utf8");
@@ -120,9 +129,15 @@ gate("legacy/ untouched", () => {
 
 gate("docs/ changed only for this ticket's spec", () => {
   const item = /^(W-\d+)/.exec(prData?.headRefName ?? "")?.[1] ?? "";
-  const bad = (prData?.files ?? [])
-    .map((f) => f.path)
-    .filter((f) => f.startsWith("docs/") && !f.includes(`features/${item}-`));
+  const docs = (prData?.files ?? []).map((f) => f.path).filter((f) => f.startsWith("docs/"));
+  if (!item) {
+    // Process work may legitimately change docs/, but it must go through sync-docs
+    // with an approved diff - so flag it for the reviewer rather than silently allowing.
+    return docs.length
+      ? { ok: false, detail: `non-ticket PR changes docs/: ${docs.slice(0, 3).join(", ")} - use sync-docs` }
+      : { ok: true, detail: "no docs/ change" };
+  }
+  const bad = docs.filter((f) => !f.includes(`features/${item}-`));
   return bad.length ? { ok: false, detail: bad.slice(0, 3).join(", ") } : { ok: true };
 });
 
