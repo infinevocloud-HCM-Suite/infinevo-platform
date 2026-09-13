@@ -125,10 +125,10 @@ Everything else moves, merges, or is deleted as duplicate.
 |---|---|---|
 | **Employee master merge** | Two different models, both with live data. Deduplication by email will not resolve every case | Written rules agreed before any row moves; reconciliation report; nothing deleted |
 | **Two loss-of-pay figures** | HRMS computes it from leave requests; Payroll from its own consumption tables. They may already disagree | Mismatch log reviewed by finance before cutover; per-tenant policy records which rule produced each figure (`CORE-09`) |
-| **Duplicate entities are live, not dead** | Investigation found the older leave request entity still reachable via update and delete routes, and **both** timesheet systems fully live | Each retirement confirmed individually. `OQ-01` blocks the HRMS module port |
+| **Duplicate entities are live, not dead** | Investigation found the older leave request entity still reachable via update and delete routes, and **both** timesheet systems fully live | Each retirement confirmed individually — nothing in the Retired list is deleted without its own check. Which timesheet system's data survives is settled at `W-67` |
 | **HRMS free text → master data** | Department, designation and location are free text in HRMS, entities in Payroll. No clean deduplication rule exists | Treated as its own feature, not absorbed into the employee merge |
 | **Tenancy retrofit volume** | 39 HRMS entities plus 34 Payroll entities lack tenant scoping | Repetitive but not difficult; automated checks that fail the build on an unscoped query |
-| **Upstream divergence** | Production repos keep changing while the new one is built | One-way sync until a hard cutoff, then manual porting. Cost grows with delay (`OQ-05`) |
+| **Upstream divergence** | Production kept changing; the snapshot in `legacy/` is from 2026-09-13 | **No sync, at all (`D-17`).** Code is ported deliberately, once, as each module is built. **Production fixes made after the freeze do not arrive automatically** — keep a list of them or they are lost at cutover |
 | **Configurable loss of pay** | Every combination affects real pay | Each combination tested; the pay run records which policy produced each figure |
 | **Cloudinary migration** | Every existing document reference must be rewritten | Scoped with the document store work, not assumed into the Azure setup |
 | **Tax area size** | Roughly a third of Payroll's tables, and the highest compliance exposure | Touched last, never first |
@@ -142,7 +142,7 @@ Not target-state matters. Present-tense problems, recorded so they are not lost.
 | Finding | Where |
 |---|---|
 | `POST /public/get-employee-leaves` on HRMS requires **no authentication**; CSRF disabled globally; `/register` is also open | `.claude/outputs/2026-09-11-security-finding-public-endpoint.md` |
-| The HRMS→Payroll leave integration is listed as frozen and superseded, but the controller is **live and reachable** | Same file. `OQ-03` |
+| The HRMS→Payroll leave integration is listed as frozen and superseded, but the controller is **live and reachable** | Same file. The integration does not exist in the target state (`D-23`); which leave data is authoritative for the migration is settled at `W-67` |
 | Two complete timesheet systems run side by side, live | `.claude/outputs/2026-09-11-hrms-duplicate-entities.md` |
 | Payroll has **no notification or email capability at all** | `.claude/outputs/2026-09-11-core-boundary-payroll.md` |
 | Payroll stores attendance preferences for an attendance system it does not have | Same file |

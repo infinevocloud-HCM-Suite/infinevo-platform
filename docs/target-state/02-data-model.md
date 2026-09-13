@@ -151,7 +151,9 @@ Present only when HRMS is bought.
 > ⚠️ **Timesheets are unresolved.** Two complete systems are live today (`timesheet` and
 > `timesheets`, with separate controllers, services, repositories and DTOs). The table list
 > above assumes **one** survives. Which one, and what happens to the other's data, is
-> `OQ-01` in `07-decisions.md` and must be settled before this module is ported.
+> settled at `W-67`, the migration rules ticket, before a single row moves. It is a
+> **data** question — whose history is authoritative — not a design one, so it does not
+> block building the HRMS module.
 
 ---
 

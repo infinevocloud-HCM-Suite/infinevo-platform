@@ -104,8 +104,9 @@ are in `06` §5 with evidence.
    administrative credentials are committed to the repository with a trivial password.
    **Operational actions on the running system, not target-state questions** — the target
    state removes both (`D-22`, `D-23`). Do not wait for this programme to act on them.
-2. **Two complete timesheet systems** are running side by side. `OQ-01` blocks the HRMS
-   module port.
+2. **Two complete timesheet systems** are running side by side. Which one's data
+   survives is settled at `W-67` before any row moves — a migration question, not a
+   blocker on building the HRMS module.
 3. Entities that look duplicate are **not all dead**. Nothing in the "Retired" list in `02`
    §7 should be deleted without its own confirmation.
 
