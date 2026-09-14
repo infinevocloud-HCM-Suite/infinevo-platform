@@ -1,7 +1,8 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-14**, after `W-03` merged.
+> Last refreshed: **2026-09-14**, after `W-03` (#4), the docs route (#100) and the
+> infra template merged.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -11,10 +12,10 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **96** — 4 closed, 92 open. GitHub is authoritative; this file is the summary |
+| Tickets | **97** — 5 closed, 92 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 has 3 of 7 done** |
-| Merged | `W-01` skeleton (issue #1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) |
-| Team | `developers`, Write access. Three members assigned: Gau318, BirenGit, SayInfi |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) |
+| Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 ---
 
@@ -62,17 +63,40 @@ Everything else is blocked on a dependency. **Check GitHub, not this table** —
 | Issue | Ticket | Size | Skill | Assignee |
 |---|---|---|---|---|
 | **#6** | `W-05` Postgres & schemas | S | DATA | Gau318 |
-| #5 | `W-04` Test foundation | M | BE | — |
+| #5 | `W-04` Test foundation | M | BE | SayInfi |
 | #69 | `W-49` Containerisation | M | INFRA | BirenGit |
-| #86 | `W-66` Marketing website | L | FE | — |
-| #100 | Docs route through the merge gate | S | INFRA | — |
-| #101 | Merge-gate hardening (3 defects from `W-03`) | S | INFRA | — |
+| #86 | `W-66` Marketing website | L | FE | **—** |
+| #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | **—** |
+| #104 | Three gate paths never executed; harness not in CI | S | INFRA | **—** |
 
-**Assign `#6` first.** It opens `W-06` → `W-07` → `W-08`, the tenancy chain that is
-the highest-value work in the project. `#5` and `#86` have no owner.
+**Assign `#6` first.** It opens `W-06` → `W-07` → `W-08`, the tenancy chain that is the
+highest-value work in the project. Three of the six have no owner.
 
-`W-49` (#69) **inherits the `images` job** from `W-03` and replaces its dev Dockerfile
-targets with the production ones. BirenGit needs telling.
+`W-49` (#69) **inherits the `images` job** from `W-03` and must replace its dev
+Dockerfile targets with the production ones. BirenGit needs telling — the two tickets
+were written by different people.
+
+---
+
+## What the gates found in themselves
+
+`W-03` built the pipeline; building it surfaced defects in the gates that were supposed
+to be checking the work. Recorded here because the pattern matters more than the items:
+**every one was found by verify or review, none by the person who wrote it.**
+
+| # | Open | What |
+|---|---|---|
+| #101 | yes | Gate 10's bootstrap fallback is dead code now `ci.yml` is on `main`; gate 10 checks the pushed PR head while gates 5-9 check the local tree; `guard-merge` diffs the current `HEAD` rather than the ref being pushed |
+| #104 | yes | The `legacy/` gate has never been proved, `images` has never been observed red, and the 62-case gate-5 harness is invoked by nothing |
+| #100 | closed | Gate 5 had no route for a `docs/` file that is not a ticket spec — and the first fix had four working bypasses, each reproduced before merge |
+
+The four bypasses in #100 are worth knowing about, because they are how a gate stops
+refusing: an approval that bound paths but not content; a marker hidden in a fenced code
+block, which made the skill's own template a passing approval file; a branch named
+`w-04-tenant` taking the permissive route on one lowercase letter; and the same hiding
+trick in markdown's other code syntax. Gate 5 now binds content by blob sha, requires the
+approval to be **added** by the pull request, and gates 2, 3 and 5 share one ticket
+matcher so no seam opens between them.
 
 ---
 
