@@ -31,7 +31,7 @@ Ten gates. A receipt is written **only if every one passes**:
 | Approved spec exists | No spec for the branch's `W-nn`, or not marked Approved |
 | **No open High findings** | Any `/verify` or `/review` report has a High finding still OPEN |
 | `legacy/` untouched | The diff changes a frozen file |
-| `docs/` changed only for this spec | The diff touches another document |
+| **`docs/` changed only by a recognised route** | The branch names a ticket (`W-nn` anywhere in it, any case) and the diff touches any document other than that ticket's own `features/W-nn-*` spec. Or the branch names no ticket and a `docs/` file is not listed — exact path, with the blob sha of its approved content — in an **approved** `.claude/outputs/<date>-docs-approval-<slug>.md` that this PR **adds**, the file `/sync-docs` writes on approval. Or the file changed after it was approved, so the sha at `HEAD` no longer matches. Or `gh` gave no branch name, in which case nothing can be classified and the gate refuses |
 | `ddl-auto` set nowhere | A real setting, not a comment |
 | No floating-point money | `double` or `float` on an amount, salary, pay, tax or deduction field |
 | Backend builds, tests pass | `./mvnw clean verify` fails |

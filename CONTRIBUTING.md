@@ -105,7 +105,7 @@ Look the rest up when you hit the question:
 | 4 | Test | `/test W-nn` | Tests for what changed. Never changes code to make a test pass |
 | 5 | Verify | `/verify W-nn` | Runs everything. **Fixes nothing** - failures become findings |
 | 6 | Review | `/review <pr>` | Reads against the spec. **Fixes nothing** |
-| 7 | **Merge** | `/merge <pr>` | Nine gates. **Refuses if any fails** |
+| 7 | **Merge** | `/merge <pr>` | Ten gates. **Refuses if any fails** |
 | 8 | Docs | `/sync-docs` | Only if the build diverged from the documents |
 
 Which skill at step 1 is decided by the issue's label: `skill-INFRA`, `skill-DATA` and
@@ -146,7 +146,7 @@ Rule 7 is enforced by the `guard-edit` hook if you use Claude Code.
 
 ## 5. Done means
 
-**Nine gates, checked by a script rather than by memory:**
+**Ten gates, checked by a script rather than by memory:**
 
 ```bash
 node .claude/scripts/check-done.mjs <pr>
@@ -158,13 +158,28 @@ node .claude/scripts/check-done.mjs <pr>
 | 2 | An **approved** spec exists for this `W-nn` |
 | 3 | **No High finding is still OPEN** |
 | 4 | Nothing under `legacy/` was touched |
-| 5 | `docs/` changed only for this ticket's own spec |
+| 5 | `docs/` changed only through a route the gate knows: on a branch naming a ticket (`W-nn` anywhere in it, any case), this ticket's own spec and nothing else; on any other branch, only files listed **exactly**, each with the blob sha of its approved content, in an approved `.claude/outputs/<date>-docs-approval-<slug>.md` that the same pull request **adds** |
 | 6 | `ddl-auto` is set nowhere |
 | 7 | No `double` or `float` on a money field |
 | 8 | Backend builds, tests pass |
 | 9 | Frontend lints and builds |
+| 10 | CI is green for the exact commit being merged |
 
-A receipt is written **only if all nine pass**, and the merge command is refused without
+**A `docs/` file that no ticket owns — a template, a `CONVENTIONS.md` rule, a README —
+still has a way in.** Run `/sync-docs`; on approval it writes
+`.claude/outputs/<date>-docs-approval-<slug>.md` listing the exact paths and, for each, the
+git blob sha of the content approved, and you send that file and the documents together as
+their own pull request. What gate 5 refuses is a `docs/` edit riding along with a feature,
+and it still refuses that — an approval file does not loosen a ticket branch.
+
+The sha is what stops an approval outliving the change it approved: edit the file after the
+approval was written and the gate refuses, and an approval that already reached `main`
+cannot be revived by touching it, because the pull request has to **add** it. It is a
+process gate, not a security boundary — anyone who can write an approval file can
+recompute a sha — and it is honest about that in `check-done.mjs` rather than in a
+footnote.
+
+A receipt is written **only if all ten pass**, and the merge command is refused without
 a fresh receipt for the current commit. Commit again and it is void - deliberately,
 since otherwise the check proves nothing about what is being merged.
 
