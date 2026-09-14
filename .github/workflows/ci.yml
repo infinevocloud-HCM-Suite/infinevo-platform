@@ -1,0 +1,158 @@
+# Continuous integration for infinevo-platform.
+#
+# Four jobs: backend, frontend and static run in parallel; images waits on the two
+# that produce something to package. Nothing here deploys and nothing is pushed to a
+# registry - W-50 owns the registry, W-54 the deployment.
+#
+# D-43: GitHub refuses branch protection on a private repository on the Free plan, so
+# this workflow reports but cannot block. .claude/scripts/check-done.mjs reads the run
+# conclusion for the exact HEAD commit and is the gate that actually enforces it.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Free-plan minutes: a push during a run cancels the superseded run rather than
+# burning two sets of minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ── compile + test + Spotless ───────────────────────────────────────────────
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'   # D-38
+          java-version: '21'        # D-38
+          cache: 'maven'
+
+      # Spotless runs as part of this command: spotless:check is bound to the
+      # validate phase in code/backend/pom.xml, so there is no separate lint step.
+      # No -DskipTests - the test run is the point of the gate.
+      - name: Build and test
+        working-directory: code/backend
+        run: ./mvnw -B clean verify
+
+      - name: Upload surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: code/backend/**/target/surefire-reports/*.xml
+          if-no-files-found: warn
+
+  # ── lint + build the SPA ────────────────────────────────────────────────────
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'        # D-42
+          cache: 'npm'
+          cache-dependency-path: code/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: code/frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: code/frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: code/frontend
+        run: npm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: code/frontend/dist
+
+  # ── cheap greps, mirrored from .claude/scripts/check-done.mjs:124-160 ────────
+  # The patterns below are copied verbatim from that file so the server-side gate
+  # and the local gate can never disagree.
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the legacy/ gate diffs against the pull request base
+
+      # check-done.mjs:124-128 - "legacy/ untouched".
+      # On a push to main this is a no-op: there is no base ref to diff against, and
+      # anything reaching main already passed this gate on its pull request.
+      - name: legacy/ untouched
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA" HEAD)
+          bad=$(printf '%s\n' "$changed" | grep -E '^legacy/' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::legacy/ is frozen - these files were changed:"
+            printf '%s\n' "$bad" | while read -r f; do echo "  $f"; done
+            exit 1
+          fi
+          echo "OK - no file under legacy/ was changed"
+
+      # check-done.mjs:145-149. The leading ^[^#]* is what distinguishes a real
+      # setting from a commented-out one: a line whose first # precedes ddl-auto
+      # cannot match.
+      - name: ddl-auto set nowhere
+        run: |
+          if git grep -nE '^[^#]*ddl-auto[[:space:]]*[:=]' -- code/ ; then
+            echo "::error::ddl-auto is set above - migrations go through Flyway (hard rule 4, DEBT-002)"
+            exit 1
+          fi
+          echo "OK - ddl-auto is set nowhere under code/"
+
+      # check-done.mjs:153-159.
+      - name: No float or double money field
+        run: |
+          if git grep -nE '(private|public|protected)[[:space:]]+(Double|Float|double|float)[[:space:]]+[a-zA-Z]*(amount|salary|pay|Pay|Amount|Salary|deduction|Deduction|tax|Tax)' -- code/ ; then
+            echo "::error::money field declared as a floating-point type above - use Money or BigDecimal (CONVENTIONS.md section 2)"
+            exit 1
+          fi
+          echo "OK - no floating-point money field under code/"
+
+  # ── provisional image gate ──────────────────────────────────────────────────
+  # PROVISIONAL. This job builds the two *development* Dockerfiles only, and pushes
+  # neither - there is no registry login and no docker push anywhere in this file.
+  # W-49 (#69) replaces these targets with the production Dockerfiles (multi-stage,
+  # slim runtime, non-root) and inherits this job; W-50 adds the registry push.
+  #
+  # Build context is the repository root for both files: they COPY paths beginning
+  # "code/backend/" and "code/frontend/" (dev.Dockerfile.backend:13,
+  # dev.Dockerfile.frontend:11), matching infra/docker/compose.yml:119-121 which
+  # builds them with "context: ../..".
+  images:
+    name: images (provisional)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend dev image
+        run: docker build -f infra/docker/dev.Dockerfile.backend -t infinevo-backend:dev .
+
+      - name: Build frontend dev image
+        run: docker build -f infra/docker/dev.Dockerfile.frontend -t infinevo-frontend:dev .

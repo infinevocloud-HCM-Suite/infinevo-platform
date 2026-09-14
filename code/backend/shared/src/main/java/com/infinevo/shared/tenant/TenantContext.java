@@ -31,8 +31,7 @@ public final class TenantContext {
 
     private static final ThreadLocal<UUID> CURRENT = new ThreadLocal<>();
 
-    private TenantContext() {
-    }
+    private TenantContext() {}
 
     /** Binds the tenant for this thread. Rejects null - an unbound tenant must fail loudly. */
     public static void set(UUID tenantId) {
@@ -51,9 +50,8 @@ public final class TenantContext {
     public static UUID require() {
         UUID id = CURRENT.get();
         if (id == null) {
-            throw new IllegalStateException(
-                    "No tenant bound to this thread. The request did not pass the tenant "
-                            + "binding filter, or a background job did not set one.");
+            throw new IllegalStateException("No tenant bound to this thread. The request did not pass the tenant "
+                    + "binding filter, or a background job did not set one.");
         }
         return id;
     }

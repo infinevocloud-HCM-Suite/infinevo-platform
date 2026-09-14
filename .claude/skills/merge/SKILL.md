@@ -23,7 +23,7 @@ before the command leaves it.
 node .claude/scripts/check-done.mjs <pr>
 ```
 
-Nine gates. A receipt is written **only if every one passes**:
+Ten gates. A receipt is written **only if every one passes**:
 
 | Gate | Refuses when |
 |---|---|
@@ -36,6 +36,7 @@ Nine gates. A receipt is written **only if every one passes**:
 | No floating-point money | `double` or `float` on an amount, salary, pay, tax or deduction field |
 | Backend builds, tests pass | `./mvnw clean verify` fails |
 | Frontend lints and builds | Either fails |
+| CI green for this commit | `ci.yml` has no run for the PR's HEAD commit, is still running, or did not conclude `success` |
 
 **Do not work around a failing gate.** It is telling you the ticket is not finished.
 Run `/develop` and come back.

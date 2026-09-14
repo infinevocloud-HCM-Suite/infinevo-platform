@@ -18,15 +18,10 @@ import java.util.Map;
  * @param timestamp   when the failure occurred
  */
 public record ApiErrorResponse(
-        String code,
-        String message,
-        Map<String, String> fieldErrors,
-        String traceId,
-        Instant timestamp) {
+        String code, String message, Map<String, String> fieldErrors, String traceId, Instant timestamp) {
 
     public static ApiErrorResponse of(ApiError error, String traceId) {
-        return new ApiErrorResponse(
-                error.code(), error.defaultMessage(), Map.of(), traceId, Instant.now());
+        return new ApiErrorResponse(error.code(), error.defaultMessage(), Map.of(), traceId, Instant.now());
     }
 
     public static ApiErrorResponse of(ApiError error, String message, String traceId) {

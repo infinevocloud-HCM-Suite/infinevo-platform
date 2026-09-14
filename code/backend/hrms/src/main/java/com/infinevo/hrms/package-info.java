@@ -1,8 +1,8 @@
 /**
  * HRMS module: the employee request-and-approve experience over attendance and
- overtime, plus projects and timesheets.
-
- hrms must not depend on payroll. The build enforces it.
+ * overtime, plus projects and timesheets.
+ *
+ * hrms must not depend on payroll. The build enforces it.
  *
  * <p>Package convention inside a feature:
  * {@code com.infinevo.hrms.<feature>.controller | service | serviceimpl | repository |

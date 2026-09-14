@@ -7,7 +7,6 @@ package com.infinevo.shared.error;
  * may be reworded or translated; codes are contract.
  */
 public enum ApiError {
-
     VALIDATION_FAILED("The request was not valid"),
     NOT_FOUND("The requested resource does not exist"),
     CONFLICT("The request conflicts with the current state"),

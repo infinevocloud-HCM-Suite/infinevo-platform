@@ -65,7 +65,9 @@ function firstError(out) {
 // ── 1. the PR exists, is open, and closes an issue ──────────────────────────
 let prData = null;
 gate("PR is open and links its issue", () => {
-  const r = sh("gh", ["pr", "view", pr, "--json", "state,title,body,headRefName,files"]);
+  // headRefOid is fetched here so gate 8 can pin the CI result to this exact commit
+  // without shelling out to gh a second time.
+  const r = sh("gh", ["pr", "view", pr, "--json", "state,title,body,headRefName,headRefOid,files"]);
   if (r.code !== 0) return { ok: false, detail: "gh pr view failed" };
   prData = JSON.parse(r.out);
   if (prData.state !== "OPEN") return { ok: false, detail: `state is ${prData.state}` };
@@ -183,6 +185,59 @@ gate("Frontend lints and builds", () => {
   return build.code === 0
     ? { ok: true, detail: "lint clean, build ok" }
     : { ok: false, detail: `build exit ${build.code}: ${lastLine(build.out)}` };
+});
+
+// ── 8. CI is green for the exact commit being merged ────────────────────────
+// GitHub refuses branch protection on a private repository on the Free plan (D-43), so
+// a red CI run cannot be a required check and cannot block the merge button. The
+// enforcement therefore lives here, next to every other gate: the receipt is written
+// only when ci.yml has completed successfully for the PR's HEAD commit. Pinning to the
+// SHA matters - a green run on an earlier commit says nothing about what is being
+// merged, which is the same reasoning guard-merge already uses to expire a receipt
+// after a new commit.
+gate("CI green for this commit", () => {
+  const sha = prData?.headRefOid;
+  if (!sha) return { ok: false, detail: "no HEAD sha from gh pr view - see gate 1" };
+  const short = sha.slice(0, 7);
+  const FIELDS = "status,conclusion,url,headSha,workflowName";
+  let r = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha,
+                    "--json", FIELDS, "--limit", "10"]);
+  let via = "ci.yml";
+  if (r.code !== 0 && /not found on the default branch/i.test(r.out)) {
+    // Bootstrap only: --workflow resolves against the DEFAULT branch, so on the very PR
+    // that introduces ci.yml the filter 404s even though the run exists. Fall back to
+    // every run for this SHA. The SHA pin is what does the work; dropping the workflow
+    // filter widens the gate, it does not weaken the commit guarantee.
+    r = sh("gh", ["run", "list", "--commit", sha, "--json", FIELDS, "--limit", "10"]);
+    via = "any workflow (ci.yml not yet on default branch)";
+  }
+  if (r.code !== 0) {
+    // gh missing, unauthenticated, or the API refused. All of those are a failure to
+    // prove CI, not a pass by default.
+    return { ok: false, detail: `gh run list failed: ${lastLine(r.out) || `exit ${r.code}`}`.slice(0, 160) };
+  }
+  let runs;
+  try {
+    runs = JSON.parse(r.out);
+  } catch {
+    return { ok: false, detail: `gh run list returned unparseable output: ${lastLine(r.out)}`.slice(0, 160) };
+  }
+  // Belt and braces: --commit is a server-side filter, but the gate is worthless if it
+  // ever credits a run from another commit, so check the SHA that came back too.
+  const mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === sha);
+  if (!mine.length) return { ok: false, detail: `no CI run for ${short} - push the branch and wait for ci.yml` };
+  // Every run for the commit must be finished and green. One green run alongside a red
+  // one is a red commit; gh lists the latest attempt per run, so a re-run that fixed a
+  // failure shows as success here rather than leaving the old failure behind.
+  const pending = mine.find((x) => x.status !== "completed");
+  if (pending) {
+    return { ok: false, detail: `CI still ${pending.status} for ${short}: ${pending.url ?? ""}`.slice(0, 160) };
+  }
+  const bad = mine.find((x) => x.conclusion !== "success" && x.conclusion !== "skipped");
+  if (bad) {
+    return { ok: false, detail: `CI ${bad.conclusion} for ${short}: ${bad.url ?? ""}`.slice(0, 160) };
+  }
+  return { ok: true, detail: `${mine.length} run(s) success for ${short} via ${via}`.slice(0, 160) };
 });
 
 // ── report ──────────────────────────────────────────────────────────────────
