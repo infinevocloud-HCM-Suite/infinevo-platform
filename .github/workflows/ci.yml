@@ -29,6 +29,7 @@ jobs:
   backend:
     name: backend
     runs-on: ubuntu-latest
+    timeout-minutes: 15   # warm run is ~1m30s; this is headroom, not patience
     steps:
       - uses: actions/checkout@v4
 
@@ -52,12 +53,15 @@ jobs:
         with:
           name: surefire-reports
           path: code/backend/**/target/surefire-reports/*.xml
-          if-no-files-found: warn
+          # error, not warn: a backend job that produced no surefire XML ran no
+          # tests, and a green run that proves nothing is worse than a red one.
+          if-no-files-found: error
 
   # ── lint + build the SPA ────────────────────────────────────────────────────
   frontend:
     name: frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 10   # warm run is ~50s
     steps:
       - uses: actions/checkout@v4
 
@@ -86,53 +90,102 @@ jobs:
           name: frontend-dist
           path: code/frontend/dist
 
-  # ── cheap greps, mirrored from .claude/scripts/check-done.mjs:124-160 ────────
-  # The patterns below are copied verbatim from that file so the server-side gate
-  # and the local gate can never disagree.
+  # ── cheap greps, mirrored from .claude/scripts/check-done.mjs:125-162 ────────
+  # The ddl-auto and money gates below are deliberately WIDER than their twins in
+  # that file (check-done.mjs:146-152, :154-162): they scan the whole repository
+  # rather than code/ only, and the ddl-auto pattern also matches the
+  # SPRING_JPA_HIBERNATE_DDL_AUTO environment-variable spelling - the form a
+  # container or an App Service setting would use. Done-when 6 says "any
+  # configuration file", and infra/ is where that setting would most plausibly
+  # appear. Until check-done.mjs is widened to the same two patterns, the local
+  # gate is the weaker of the two and this file is authoritative.
+  #
+  # legacy/ is excluded from the scan because it is frozen and really does set
+  # ddl-auto (legacy/HRMS_Backend/src/main/resources/application.properties:10,
+  # legacy/Payroll-Bend-SBoot/src/main/resources/application.properties:5); docs/
+  # and *.md are excluded because they discuss the setting in prose; .claude/ is
+  # excluded because it holds the twin patterns themselves.
+  #
+  # Every step runs even when an earlier one fails, so a branch that trips two
+  # gates is told about both in one run. Any failing step still fails the job.
   static:
     name: static
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # the legacy/ gate diffs against the pull request base
+          fetch-depth: 0   # the legacy/ gate diffs against a base commit
 
-      # check-done.mjs:124-128 - "legacy/ untouched".
-      # On a push to main this is a no-op: there is no base ref to diff against, and
-      # anything reaching main already passed this gate on its pull request.
+      # check-done.mjs:125-130 - "legacy/ untouched". That gate reads GitHub's PR
+      # file list; this one diffs git. Different inputs, so they can disagree.
+      #
+      # This runs on push to main too, and that is not redundant: guard-merge.mjs
+      # refuses a direct push to main only when files under code/ change (:127-147),
+      # so a direct push that edits legacy/ is permitted by the harness and would
+      # otherwise be checked by nothing server-side. On a push the base is
+      # github.event.before, which is all-zeroes on a first push and can be orphaned
+      # by a force-push; in that case the step falls back to HEAD's first parent, and
+      # if there is no parent either it says it could not check rather than passing
+      # silently as though it had.
       - name: legacy/ untouched
-        if: github.event_name == 'pull_request'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
-          changed=$(git diff --name-only "$BASE_SHA" HEAD)
-          bad=$(printf '%s\n' "$changed" | grep -E '^legacy/' || true)
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$PR_BASE"
+          else
+            base="$PUSH_BEFORE"
+          fi
+          case "$base" in
+            '' | *[!0]* ) ;;          # empty, or contains a non-zero: keep as is
+            * ) base='' ;;            # all zeroes - no such commit
+          esac
+          if [ -n "$base" ] && ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "::notice::base commit $base is not present in this checkout"
+            base=''
+          fi
+          if [ -z "$base" ] && git rev-parse -q --verify 'HEAD^' >/dev/null; then
+            base=$(git rev-parse 'HEAD^')
+            echo "::notice::no event base commit - diffing against HEAD^ ($base)"
+          fi
+          if [ -z "$base" ]; then
+            echo "::warning::no base commit to diff against - legacy/ was NOT checked on this run"
+            exit 0
+          fi
+          bad=$(git diff --name-only "$base" HEAD -- legacy/)
           if [ -n "$bad" ]; then
             echo "::error::legacy/ is frozen - these files were changed:"
             printf '%s\n' "$bad" | while read -r f; do echo "  $f"; done
             exit 1
           fi
-          echo "OK - no file under legacy/ was changed"
+          echo "OK - no file under legacy/ was changed since $base"
 
-      # check-done.mjs:145-149. The leading ^[^#]* is what distinguishes a real
-      # setting from a commented-out one: a line whose first # precedes ddl-auto
-      # cannot match.
+      # The leading ^[^#]* is what distinguishes a real setting from a commented-out
+      # one: a line whose first # precedes the match cannot match. The second
+      # alternative - a non-alphanumeric run to end of line - catches the Bicep and
+      # JSON app-setting form, where the name sits alone in quotes on its own line.
       - name: ddl-auto set nowhere
+        if: ${{ !cancelled() }}
         run: |
-          if git grep -nE '^[^#]*ddl-auto[[:space:]]*[:=]' -- code/ ; then
+          if git grep -nE '^[^#]*(ddl-auto|DDL_AUTO)([[:space:]]*[:=]|[^A-Za-z0-9]*$)' \
+               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).claude/' ':(exclude)*.md' ; then
             echo "::error::ddl-auto is set above - migrations go through Flyway (hard rule 4, DEBT-002)"
             exit 1
           fi
-          echo "OK - ddl-auto is set nowhere under code/"
+          echo "OK - ddl-auto is set nowhere outside legacy/"
 
-      # check-done.mjs:153-159.
       - name: No float or double money field
+        if: ${{ !cancelled() }}
         run: |
-          if git grep -nE '(private|public|protected)[[:space:]]+(Double|Float|double|float)[[:space:]]+[a-zA-Z]*(amount|salary|pay|Pay|Amount|Salary|deduction|Deduction|tax|Tax)' -- code/ ; then
+          if git grep -nE '(private|public|protected)[[:space:]]+(Double|Float|double|float)[[:space:]]+[a-zA-Z]*(amount|salary|pay|Pay|Amount|Salary|deduction|Deduction|tax|Tax)' \
+               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).claude/' ':(exclude)*.md' ; then
             echo "::error::money field declared as a floating-point type above - use Money or BigDecimal (CONVENTIONS.md section 2)"
             exit 1
           fi
-          echo "OK - no floating-point money field under code/"
+          echo "OK - no floating-point money field outside legacy/"
 
   # ── provisional image gate ──────────────────────────────────────────────────
   # PROVISIONAL. This job builds the two *development* Dockerfiles only, and pushes
@@ -147,6 +200,7 @@ jobs:
   images:
     name: images (provisional)
     runs-on: ubuntu-latest
+    timeout-minutes: 15   # two docker builds, ~1m30s warm
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4

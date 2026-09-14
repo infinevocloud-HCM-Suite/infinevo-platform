@@ -145,7 +145,14 @@ gate("docs/ changed only for this ticket's spec", () => {
 
 // ── 5. ddl-auto is set nowhere ──────────────────────────────────────────────
 gate("ddl-auto set nowhere", () => {
-  const r = sh("git", ["grep", "-nE", "^[^#]*ddl-auto[[:space:]]*[:=]", "--", "code/"]);
+  // Scope and pattern kept identical to ci.yml's static job (W-03, F-20) - if these two
+  // ever disagree, one of them is lying about the tree. legacy/ is excluded because the
+  // frozen apps really do set ddl-auto; docs/, .md and .claude/ because they discuss it
+  // in prose. Everything else - infra/, .github/, the repo root - is in scope, since
+  // DDL_AUTO as a container or App Service env var is exactly how it would come back.
+  const r = sh("git", ["grep", "-nE",
+    "^[^#]*(ddl-auto|DDL_AUTO)([[:space:]]*[:=]|[^A-Za-z0-9]*$)",
+    "--", ".", ":(exclude)legacy/", ":(exclude)docs/", ":(exclude).claude/", ":(exclude)*.md"]);
   return r.code === 0 && r.out.trim()
     ? { ok: false, detail: r.out.trim().split("\n")[0] }
     : { ok: true };
@@ -155,7 +162,7 @@ gate("ddl-auto set nowhere", () => {
 gate("No float or double money field", () => {
   const r = sh("git", ["grep", "-nE",
     "(private|public|protected)[[:space:]]+(Double|Float|double|float)[[:space:]]+[a-zA-Z]*(amount|salary|pay|Pay|Amount|Salary|deduction|Deduction|tax|Tax)",
-    "--", "code/"]);
+    "--", ".", ":(exclude)legacy/", ":(exclude)docs/", ":(exclude).claude/", ":(exclude)*.md"]);
   return r.code === 0 && r.out.trim()
     ? { ok: false, detail: r.out.trim().split("\n")[0] }
     : { ok: true };
@@ -200,16 +207,29 @@ gate("CI green for this commit", () => {
   if (!sha) return { ok: false, detail: "no HEAD sha from gh pr view - see gate 1" };
   const short = sha.slice(0, 7);
   const FIELDS = "status,conclusion,url,headSha,workflowName";
+  // The display name at the top of .github/workflows/ci.yml ("name: CI"). gh reports
+  // workflowName as that display name, never the filename, so this is what the fallback
+  // below has to compare against - and it must be kept in step with ci.yml if renamed.
+  const CI_WORKFLOW_NAME = "CI";
   let r = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha,
                     "--json", FIELDS, "--limit", "10"]);
   let via = "ci.yml";
+  let filterWorkflowLocally = false;
   if (r.code !== 0 && /not found on the default branch/i.test(r.out)) {
-    // Bootstrap only: --workflow resolves against the DEFAULT branch, so on the very PR
-    // that introduces ci.yml the filter 404s even though the run exists. Fall back to
-    // every run for this SHA. The SHA pin is what does the work; dropping the workflow
-    // filter widens the gate, it does not weaken the commit guarantee.
+    // ── BOOTSTRAP FALLBACK - DELETE ONCE ci.yml IS ON THE DEFAULT BRANCH ──────
+    // --workflow resolves against the DEFAULT branch, so on the very PR that introduces
+    // ci.yml the filter 404s even though the run exists. This branch exists solely for
+    // that one PR. It becomes dead code the moment a commit containing
+    // .github/workflows/ci.yml is on the default branch (main) - at which point the
+    // primary --workflow call can no longer 404, and this block must be removed rather
+    // than left to be re-interpreted by a future gh whose error wording differs. The
+    // trigger is a substring match on gh's message, which is not API-stable.
     r = sh("gh", ["run", "list", "--commit", sha, "--json", FIELDS, "--limit", "10"]);
-    via = "any workflow (ci.yml not yet on default branch)";
+    // Dropping --workflow widens the query to every workflow for the SHA, so the
+    // workflow identity has to be re-imposed here; otherwise a green run of some
+    // unrelated workflow would be credited as CI passing.
+    filterWorkflowLocally = true;
+    via = `${CI_WORKFLOW_NAME} (matched locally; ci.yml not yet on default branch)`;
   }
   if (r.code !== 0) {
     // gh missing, unauthenticated, or the API refused. All of those are a failure to
@@ -224,8 +244,16 @@ gate("CI green for this commit", () => {
   }
   // Belt and braces: --commit is a server-side filter, but the gate is worthless if it
   // ever credits a run from another commit, so check the SHA that came back too.
-  const mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === sha);
+  let mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === sha);
   if (!mine.length) return { ok: false, detail: `no CI run for ${short} - push the branch and wait for ci.yml` };
+  if (filterWorkflowLocally) {
+    // Fail closed: an entry with no workflowName cannot be shown to be CI, so it is
+    // discarded rather than given the benefit of the doubt.
+    mine = mine.filter((x) => x.workflowName === CI_WORKFLOW_NAME);
+    if (!mine.length) {
+      return { ok: false, detail: `no "${CI_WORKFLOW_NAME}" workflow run for ${short} - other workflows do not count` };
+    }
+  }
   // Every run for the commit must be finished and green. One green run alongside a red
   // one is a red commit; gh lists the latest attempt per run, so a re-run that fixed a
   // failure shows as success here rather than leaving the old failure behind.
@@ -233,9 +261,18 @@ gate("CI green for this commit", () => {
   if (pending) {
     return { ok: false, detail: `CI still ${pending.status} for ${short}: ${pending.url ?? ""}`.slice(0, 160) };
   }
-  const bad = mine.find((x) => x.conclusion !== "success" && x.conclusion !== "skipped");
+  // "skipped" is NOT a pass. A skipped run verified nothing about this commit, which is
+  // precisely what this gate exists to prevent - and it is indistinguishable from green
+  // in the Checks UI. ci.yml has no paths: filter today, but W-54 and W-59 are both
+  // expected to add conditions to it, and the day one lands a skipped run must block the
+  // merge and say so rather than quietly counting as proof.
+  const skipped = mine.find((x) => x.conclusion === "skipped");
+  if (skipped) {
+    return { ok: false, detail: `CI was SKIPPED for ${short} - it verified nothing: ${skipped.url ?? ""}`.slice(0, 160) };
+  }
+  const bad = mine.find((x) => x.conclusion !== "success");
   if (bad) {
-    return { ok: false, detail: `CI ${bad.conclusion} for ${short}: ${bad.url ?? ""}`.slice(0, 160) };
+    return { ok: false, detail: `CI ${bad.conclusion ?? "had no conclusion"} for ${short}: ${bad.url ?? ""}`.slice(0, 160) };
   }
   return { ok: true, detail: `${mine.length} run(s) success for ${short} via ${via}`.slice(0, 160) };
 });

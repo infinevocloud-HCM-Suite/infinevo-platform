@@ -184,6 +184,7 @@ node .claude/scripts/check-done.mjs <pr>
 | Free-plan Actions minutes exhausted by a build on every push | Low | Cache `~/.m2` and npm; `concurrency` cancels superseded runs |
 | Gates pass on the runner but fail locally, or the reverse | Low | CI runs the identical commands `check-done.mjs` runs — no CI-only flags |
 | `CONTRIBUTING.md:44` says Node 20, `D-42` says Node 24 | Certain | Pin CI to 24. Flag the doc for `sync-docs`; do **not** edit it in this ticket |
+| `*.java text eol=lf` breaks existing Windows checkouts silently | **Certain** | F-15. The clean filter still matches the index, so `git status` reads clean while the disk stays CRLF and Spotless fails on untouched files. `git add --renormalize .` fixes it; documented in `CONTRIBUTING.md` §1 |
 
 ## 8. Rollback
 

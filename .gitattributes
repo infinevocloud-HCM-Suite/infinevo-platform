@@ -13,7 +13,9 @@ mvnw    text eol=lf
 *.java  text eol=lf
 *.yml   text eol=lf
 *.yaml  text eol=lf
-Dockerfile* text eol=lf
+# Leading * on purpose: the files are named dev.Dockerfile.backend /
+# dev.Dockerfile.frontend, which a bare Dockerfile* pattern never matched.
+*Dockerfile* text eol=lf
 
 # Always CRLF — Windows batch files
 *.cmd   text eol=crlf
