@@ -41,7 +41,7 @@ each snapshot came from — note the two Payroll apps are **not** on `main`.
 |---|---|---|
 | JDK | **21** | Both backends |
 | Maven | **3.9+** | Backend builds |
-| Node.js | **20 LTS** | Frontends and the harness hooks |
+| Node.js | **24 LTS** | Frontends and the harness hooks |
 | Docker Desktop | current | The local stack |
 | `gh` (optional) | current | Issues and pull requests from the terminal |
 
