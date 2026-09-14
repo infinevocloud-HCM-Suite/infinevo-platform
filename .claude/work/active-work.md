@@ -1,7 +1,7 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-13**, after `W-02` merged.
+> Last refreshed: **2026-09-14**, after `W-03` merged.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -11,10 +11,10 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **93** — `#1` and `#3` closed, 90 open |
-| Waves | 9. **Wave 1 has 2 of 7 done** |
-| Merged | `W-01` module skeleton (#2) · `W-02` local dev stack (#95) · process skills and merge gate (#96) |
-| Team | `developers`, Write access. Five invitations pending acceptance |
+| Tickets | **96** — 4 closed, 92 open. GitHub is authoritative; this file is the summary |
+| Waves | 9. **Wave 1 has 3 of 7 done** |
+| Merged | `W-01` skeleton (issue #1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) |
+| Team | `developers`, Write access. Three members assigned: Gau318, BirenGit, SayInfi |
 
 ---
 
@@ -54,20 +54,25 @@ production fixes or they are lost at cutover.
 
 ---
 
-## Ready to assign — 5 tickets
+## Ready to assign — 6 tickets
 
-Everything else is blocked on a dependency.
+Everything else is blocked on a dependency. **Check GitHub, not this table** —
+`gh issue list --label ready`. This is a summary and goes stale.
 
-| Issue | Ticket | Size | Skill |
-|---|---|---|---|
-| **#4** | `W-03` Build & test pipeline | S | INFRA |
-| #5 | `W-04` Test foundation | M | BE |
-| #6 | `W-05` Postgres & four schemas | S | DATA |
-| #69 | `W-49` Containerisation | M | INFRA |
-| #86 | `W-66` Marketing website | M | FE |
+| Issue | Ticket | Size | Skill | Assignee |
+|---|---|---|---|---|
+| **#6** | `W-05` Postgres & schemas | S | DATA | Gau318 |
+| #5 | `W-04` Test foundation | M | BE | — |
+| #69 | `W-49` Containerisation | M | INFRA | BirenGit |
+| #86 | `W-66` Marketing website | L | FE | — |
+| #100 | Docs route through the merge gate | S | INFRA | — |
+| #101 | Merge-gate hardening (3 defects from `W-03`) | S | INFRA | — |
 
-**Assign `#4` first.** There is no pipeline, so a pull request has no automated check
-at all — the evidence pasted into the PR body is currently the only verification.
+**Assign `#6` first.** It opens `W-06` → `W-07` → `W-08`, the tenancy chain that is
+the highest-value work in the project. `#5` and `#86` have no owner.
+
+`W-49` (#69) **inherits the `images` job** from `W-03` and replaces its dev Dockerfile
+targets with the production ones. BirenGit needs telling.
 
 ---
 
@@ -122,10 +127,10 @@ entities are authoritative, and whether the HRMS→Payroll leave integration car
 | | |
 |---|---|
 | **No branch protection** | GitHub refuses it on private repositories on the Free plan (`D-43`). `main` is convention, not enforcement, until the plan changes |
-| **No pipeline yet** | `W-03` builds it. Until then the local ten-gate done-check is the only gate, and it runs on the merger's machine |
+| **Pipeline is advisory** | `W-03` merged 2026-09-14. Four jobs on every PR, but `D-43` means CI cannot be a *required* check — gate 10 of the ten-gate done-check enforces it locally instead |
 | **`W-07` owes the two-tenant seed** | `W-02` shipped the loader; `core.tenant` does not exist yet. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
 | **Nobody has run the stack but me** | `W-02` done-when item 11 is unticked. Have a developer run `up -d` and `smoke.sh` |
-| **No tests outside `shared`** | `W-04` builds the foundation. `shared` has 21 |
+| **No tests outside `shared`** | `W-04` (#5) builds the foundation. `shared` has 21 in 2 files; the test gate guards almost nothing until then |
 | **Toolchain** | Java 21, Maven 3.9.11 (`C:/Tools/apache-maven-3.9.11`), Node 24. `D-38`–`D-42` |
 
 ---
