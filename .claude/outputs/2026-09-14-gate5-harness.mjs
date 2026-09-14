@@ -17,6 +17,13 @@ import { fileURLToPath } from "node:url";
 const FILE = resolve(dirname(fileURLToPath(import.meta.url)), "..", "scripts", "check-done.mjs");
 const src = readFileSync(FILE, "utf8");
 
+// The repository this harness lives in, not whatever directory it was invoked from. The
+// live cases below shell out to git, and with the caller's cwd they were silently dropped
+// when run from anywhere else - leaving the same "N/N ... exit 0" headline for a smaller
+// run (F-64). Every git call is pinned here, and a missing live fixture is now an error
+// rather than a quiet subtraction, so the case count is invariant.
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
 function slice(startKey, endKey) {
   const start = src.indexOf(startKey);
   const end = src.indexOf(endKey, start + 1);
@@ -40,7 +47,8 @@ for (const [what, key] of [
   ["the ticketOf helper", "function ticketOf(branch)"],
   ["the shq helper", "const shq ="],
   ["the approval-file pattern", "const DOCS_APPROVAL_FILE ="],
-  ["the fence stripper", "function stripFences("],
+  ["the fence/comment/indent stripper", "function stripUnasserted("],
+  ["the stale-checkout check", "prData?.headRefOid"],
   ["the section scoper", "function pathsCoveredSection("],
   ["the path collector", "function approvedDocsPaths("],
   ["gate 5 itself", GATE_TITLE],
@@ -58,7 +66,12 @@ const NL = String.fromCharCode(10);
 // HEAD:<path>`.
 const THROWS = Symbol("unreadable");
 
-function run({ branch, files, disk = {}, head = {}, liveGit = false }) {
+// The sha this checkout reports, and the sha gh says the PR's head is. Equal in every
+// case that is not about F-65.
+const HEAD_OID = "1".repeat(40);
+
+function run({ branch, files, disk = {}, head = {}, liveGit = false,
+               headOid = HEAD_OID, headRefOid = headOid, gitHeadFails = false }) {
   let captured = null;
   let registered = 0;
   const gate = (_name, fn) => { captured = fn; registered++; };
@@ -73,13 +86,20 @@ function run({ branch, files, disk = {}, head = {}, liveGit = false }) {
   // else is a bug in the gate, not something to answer politely.
   const sh = (cmd, args) => {
     if (liveGit) {
-      // The real thing, including the shq quoting the gate applies on Windows. Two cases
-      // below use this against this repository's own HEAD, so the digest half is not
-      // proved against a stub alone.
-      const r = spawnSync(cmd, args, { encoding: "utf8", shell: process.platform === "win32" });
+      // The real thing, including the shq quoting the gate applies on Windows. Three
+      // cases below use this against this repository's own HEAD, so the digest half and
+      // the stale-checkout check are not proved against a stub alone. cwd is the
+      // repository, never the caller's directory (F-64).
+      const r = spawnSync(cmd, args, { cwd: REPO, encoding: "utf8", shell: process.platform === "win32" });
       return { code: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
     }
     const arg = String(args[1] ?? "").replace(/^"|"$/g, "");
+    // `git rev-parse HEAD` - the gate asking which commit this checkout is on (F-65).
+    if (cmd === "git" && args[0] === "rev-parse" && arg === "HEAD") {
+      return gitHeadFails
+        ? { code: 128, out: "fatal: not a git repository (or any of the parent directories): .git\n" }
+        : { code: 0, out: `${headOid}\n` };
+    }
     if (cmd !== "git" || args[0] !== "rev-parse" || !arg.startsWith("HEAD:")) {
       throw new Error(`harness: unexpected command ${cmd} ${args.join(" ")}`);
     }
@@ -90,6 +110,7 @@ function run({ branch, files, disk = {}, head = {}, liveGit = false }) {
   };
   const prData = {
     headRefName: branch,
+    headRefOid,
     files: files.map((f) => (typeof f === "string" ? { path: f, changeType: "ADDED" } : f)),
   };
   new Function("join", "existsSync", "readFileSync", "NL", "ROOT", "prData", "gate", "sh", "process", body)
@@ -118,6 +139,13 @@ const fencedApproval = (entries) =>
   `# Docs change approval - DRAFT, NOT YET APPROVED\n\n` +
   "```markdown\n" + approvalFile(entries) + "```\n" +
   `\nThis is only an example of what an approval would look like.\n`;
+
+// F-60: the header says draft; the marker and the bullets are shown as an indented
+// example, which is markdown's other code syntax and used to assert for real.
+const draftWithIndentedMarker = (entries) =>
+  `# Docs change approval - DRAFT, not yet approved\n\n` +
+  `An approval would look like this:\n\n` +
+  approvalFile(entries).split(NL).map((l) => (l ? `    ${l}` : l)).join(NL) + "\n";
 
 const at = (p) => `${ROOT}/${p}`;
 
@@ -281,6 +309,121 @@ const cases = [
     branch: "gap-100-docs-route", files: [T, C, APPROVAL],
     disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T], [C, SHA_C]]) }, head: { [T]: SHA_T, [C]: SHA_C } },
     "2 doc(s)"],
+
+  // ── F-60: the other two ways to show text without asserting it ────────────
+  // Indented blocks first. The proven bypass was an "example" bullet indented four
+  // spaces under a genuine "## Paths covered" heading: invisible as an approval to a
+  // reader, authoritative to the gate.
+  ["37 F-60 ONLY an indented example bullet under a real Paths covered heading", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([], { extra: "    - `" + T + "` @ `" + SHA_T + "`\n" }) },
+    head: { [T]: SHA_T } },
+    "is indented under \"Paths covered\""],
+  ["38 F-60 real approval for one path, indented example smuggling docs/EVIL.md", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, "docs/EVIL.md", APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]], { extra: "    - `docs/EVIL.md` @ `" + SHA_OTHER + "`\n" }) },
+    head: { [T]: SHA_T, "docs/EVIL.md": SHA_OTHER } },
+    "is indented under \"Paths covered\""],
+  ["39 F-60 bullet indented with a TAB rather than spaces", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([], { extra: "\t- `" + T + "` @ `" + SHA_T + "`\n" }) },
+    head: { [T]: SHA_T } },
+    "is indented under \"Paths covered\""],
+  ["40 F-60 DRAFT header, the Approved marker only on an indented line", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: draftWithIndentedMarker([[T, SHA_T]]) }, head: { [T]: SHA_T } },
+    "still a draft"],
+  // HTML comments: invisible in every rendered view, and they satisfied the marker.
+  ["41 F-60 the Approved marker only inside an HTML comment", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]], { approved: false })
+      .replace("Draft - awaiting approval", "Draft <!-- **Approved 2026-09-14** --> awaiting approval") },
+    head: { [T]: SHA_T } },
+    "still a draft"],
+  ["42 F-60 real approval, extra path hidden in an HTML comment in the section", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, C, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]], { extra: "<!--\n- `" + C + "` @ `" + SHA_C + "`\n-->\n" }) },
+    head: { [T]: SHA_T, [C]: SHA_C } },
+    "docs/CONVENTIONS.md not listed"],
+  ["43 F-60 an UNTERMINATED HTML comment swallows the rest and fails closed", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: "# Docs change approval\n\n<!-- note to self\n\n" + approvalFile([[T, SHA_T]]) },
+    head: { [T]: SHA_T } },
+    "still a draft"],
+
+  // ── F-63: an ABSENT changeType is not evidence of being newly added ───────
+  ["44 F-63 approval file in the diff with NO changeType field at all", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, { path: APPROVAL }],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]]) }, head: { [T]: SHA_T } },
+    "has no changeType"],
+  ["45 F-63 changeType present and ADDED still passes - the fix is not a blanket refusal", "PASS", {
+    branch: "gap-100-docs-route", files: [T, { path: APPROVAL, changeType: "ADDED" }],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]]) }, head: { [T]: SHA_T } },
+    "digests match"],
+
+  // ── F-65: this checkout must BE the PR's head commit ──────────────────────
+  ["46 F-65 checkout HEAD differs from the PR head sha - everything else valid", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]]) }, head: { [T]: SHA_T },
+    headOid: "2".repeat(40), headRefOid: "3".repeat(40) },
+    "check out the PR's head commit"],
+  ["47 F-65 the stale message names BOTH shas, not just \"content changed\"", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]]) }, head: { [T]: SHA_T },
+    headOid: "2".repeat(40), headRefOid: "3".repeat(40) },
+    "2222222222 but the PR's head is 3333333333"],
+  ["48 F-65 no headRefOid from gh pr view", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]]) }, head: { [T]: SHA_T }, headRefOid: null },
+    "no HEAD sha from gh pr view"],
+  ["49 F-65 git rev-parse HEAD itself fails", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]]) }, head: { [T]: SHA_T }, gitHeadFails: true },
+    "cannot tell whether this checkout is the PR's head commit"],
+
+  // ── F-61: branch names that dodged the ticket route ───────────────────────
+  ["50 F-61 branch myW-04-tenant smuggling docs/CONVENTIONS.md", "FAIL", {
+    branch: "myW-04-tenant", files: [C, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[C, SHA_C]]) }, head: { [C]: SHA_C } },
+    "is ticket W-04"],
+  ["51 F-61 branch W04-x, no hyphen, smuggling docs/CONVENTIONS.md", "FAIL", {
+    branch: "W04-x", files: [C, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[C, SHA_C]]) }, head: { [C]: SHA_C } },
+    "is ticket W-04"],
+  ["52 F-61 branch named exactly \"W-\" - ticket-shaped, names no ticket", "FAIL", {
+    branch: "W-", files: [C, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[C, SHA_C]]) }, head: { [C]: SHA_C } },
+    "names no ticket number"],
+  ["53 F-61 branch w-tenant - opens W- with no number behind it", "FAIL", {
+    branch: "w-tenant", files: [C, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[C, SHA_C]]) }, head: { [C]: SHA_C } },
+    "names no ticket number"],
+  ["54 F-61 the accepted false positive: show-04-fix reads as ticket W-04", "FAIL", {
+    branch: "show-04-fix", files: [C, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[C, SHA_C]]) }, head: { [C]: SHA_C } },
+    "is ticket W-04"],
+  ["55 F-61 an ordinary docs branch is NOT swept up by the wider match", "PASS", {
+    branch: "docs-template-infra", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]]) }, head: { [T]: SHA_T } },
+    "digests match"],
+
+  // ── F-62: deletions, which could not be approved at all ───────────────────
+  ["56 F-62 docs file DELETED by the PR, approved as `deleted`, absent at HEAD", "PASS", {
+    branch: "gap-100-docs-route", files: [{ path: T, changeType: "REMOVED" }, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, "deleted"]]) }, head: {} },
+    "1 doc(s)"],
+  ["57 F-62 approved as `deleted` but the file is still present at HEAD", "FAIL", {
+    branch: "gap-100-docs-route", files: [{ path: T, changeType: "REMOVED" }, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, "deleted"]]) }, head: { [T]: SHA_T } },
+    "approved as deleted but still exists at HEAD"],
+  ["58 F-62 a deletion approved with a sha still fails, and says what to do", "FAIL", {
+    branch: "gap-100-docs-route", files: [{ path: T, changeType: "REMOVED" }, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([[T, SHA_T]]) }, head: {} },
+    "approve it as `deleted` instead of a sha"],
+  ["59 F-62 `deleted` is only accepted for a docs/ path, not as a wildcard", "FAIL", {
+    branch: "gap-100-docs-route", files: [T, APPROVAL],
+    disk: { [at(APPROVAL)]: approvalFile([["docs/target-state/", "deleted"]]) }, head: { [T]: SHA_T } },
+    "not a plain docs/ file path"],
 ];
 
 // ── live: the same gate, the real git, this repository's own HEAD ───────────
@@ -288,24 +431,35 @@ const cases = [
 // synthetic, but the digest it claims is compared against a real blob in this checkout,
 // which is what exercises spawnSync, shq and the gate's actual command line.
 const liveDoc = "docs/CONVENTIONS.md";
-const liveSha = (() => {
-  const r = spawnSync("git", ["rev-parse", `HEAD:${liveDoc}`], { encoding: "utf8" });
+const git = (...args) => {
+  const r = spawnSync("git", args, { cwd: REPO, encoding: "utf8" });
   return r.status === 0 ? String(r.stdout).trim() : null;
-})();
-if (liveSha) {
-  cases.push(
-    ["L1 LIVE real git: approval digest matches HEAD for docs/CONVENTIONS.md", "PASS", {
-      branch: "docs-live-smoke", files: [liveDoc, APPROVAL], liveGit: true,
-      disk: { [at(APPROVAL)]: approvalFile([[liveDoc, liveSha]]) } },
-      "digests match"],
-    ["L2 LIVE real git: approval digest one character off", "FAIL", {
-      branch: "docs-live-smoke", files: [liveDoc, APPROVAL], liveGit: true,
-      disk: { [at(APPROVAL)]: approvalFile([[liveDoc, (liveSha[0] === "0" ? "1" : "0") + liveSha.slice(1)]]) } },
-      "content changed since approval"],
-  );
-} else {
-  console.log(`(skipped the two live cases: ${liveDoc} is not in HEAD here)`);
+};
+const liveSha = git("rev-parse", `HEAD:${liveDoc}`);
+const liveHead = git("rev-parse", "HEAD");
+// Dropping these when git says no used to leave the same headline over a shorter run
+// (F-64). cwd is pinned above, so a failure here is a real problem with the checkout and
+// is reported as one.
+if (!liveSha || !liveHead) {
+  console.error(`FATAL: cannot read ${liveDoc} or HEAD from ${REPO} - the live cases cannot be skipped silently`);
+  process.exit(1);
 }
+cases.push(
+  ["L1 LIVE real git: approval digest matches HEAD for docs/CONVENTIONS.md", "PASS", {
+    branch: "docs-live-smoke", files: [liveDoc, APPROVAL], liveGit: true, headRefOid: liveHead,
+    disk: { [at(APPROVAL)]: approvalFile([[liveDoc, liveSha]]) } },
+    "digests match"],
+  ["L2 LIVE real git: approval digest one character off", "FAIL", {
+    branch: "docs-live-smoke", files: [liveDoc, APPROVAL], liveGit: true, headRefOid: liveHead,
+    disk: { [at(APPROVAL)]: approvalFile([[liveDoc, (liveSha[0] === "0" ? "1" : "0") + liveSha.slice(1)]]) } },
+    "content changed since approval"],
+  // F-65 against real git: the digest is correct and the tree is honest, but gh says the
+  // PR's head is some other commit. This must NOT read as content drift.
+  ["L3 LIVE real git: correct digest, but the PR head is a different commit", "FAIL", {
+    branch: "docs-live-smoke", files: [liveDoc, APPROVAL], liveGit: true, headRefOid: "4".repeat(40),
+    disk: { [at(APPROVAL)]: approvalFile([[liveDoc, liveSha]]) } },
+    "check out the PR's head commit"],
+);
 
 let bad = 0;
 for (const [name, want, input, mustSay] of cases) {

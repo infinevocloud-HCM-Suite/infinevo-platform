@@ -61,17 +61,29 @@ const shq = (s) => (process.platform === "win32" ? `"${s}"` : s);
 // The old test was /^(W-\d+)/ - anchored and case-sensitive - so "w-04-tenant",
 // "feature/W-04-x" and "fix/W-04-x" were all classified as NOT a ticket and took the
 // permissive route in gate 5, which is the smuggle done-when 4 asks it to refuse
-// (F-38/F-51). A reference anywhere in the name, in any case, now counts. Erring towards
-// "this is a ticket" is the safe direction: it makes gate 5 stricter and gate 2 demand a
-// spec, so a false positive stops a merge rather than waving one through.
+// (F-38/F-51). Requiring a non-alphanumeric before the W left two more escapes:
+// "myW-04-tenant" and "W04-x" were still NOT tickets (F-61). The match is now entirely
+// unanchored and the separator optional, so W followed by up to four digits counts
+// wherever it appears, in any case.
+//
+// That deliberately over-matches: "show-04-fix" contains "w-04" and "flow12" contains
+// "w12", so both are read as tickets. The cost of that misfire is bounded and visible -
+// gate 5 tells the branch to carry only that ticket's own spec, and the fix is to rename
+// the branch - whereas the cost of under-matching is a smuggled docs/ edit nobody sees.
+// Erring towards "this is a ticket" stops a merge rather than waving one through.
 //
 // An unreadable branch name is its own answer. It used to mean "not a ticket", so the
 // least information bought the most permission; callers must handle unknown explicitly.
+// A name that opens "W-" with no number behind it - "W-", "W-tenant" - is ticket-shaped
+// but names no ticket, and is refused for the same reason rather than being read as a
+// non-ticket branch.
 function ticketOf(branch) {
   const b = String(branch ?? "").trim();
-  if (!b) return { item: null, unknown: true };
-  const m = /(?:^|[^A-Za-z0-9])(W-\d+)/i.exec(b);
-  return { item: m ? m[1].toUpperCase() : null, unknown: false };
+  if (!b) return { item: null, unknown: true, why: "no branch name from gh pr view" };
+  if (/(?:^|\/)w-(?!\d)/i.test(b))
+    return { item: null, unknown: true, why: `branch "${b}" starts "W-" but names no ticket number` };
+  const m = /w[-_. ]?(\d{1,4})/i.exec(b);
+  return { item: m ? `W-${m[1]}` : null, unknown: false };
 }
 
 // Pulling the useful line out of build output, without escape sequences that a
@@ -105,8 +117,8 @@ gate("Approved spec exists", () => {
   const dir = join(ROOT, "docs", "target-state", "features");
   if (!existsSync(dir)) return { ok: false, detail: "features folder missing" };
   const branch = prData?.headRefName ?? "";
-  const { item, unknown } = ticketOf(branch);
-  if (unknown) return { ok: false, detail: "no branch name from gh pr view - see gate 1" };
+  const { item, unknown, why } = ticketOf(branch);
+  if (unknown) return { ok: false, detail: `${why} - rename the branch W-nn-<slug> or drop the "W-" - see gate 1` };
   // Not every change is a W-nn ticket from the plan. Harness, tooling and process work
   // is real work and still needs an issue and every other gate - but there is no spec
   // for it, because there is no work item. Requiring one would mean inventing a fake
@@ -189,21 +201,60 @@ const DOCS_APPROVAL_FILE =
 // The whole path sits in backticks so a path containing a space can be approved at all
 // (F-39), and nothing else is allowed on the line. Exact match only: no prefix or directory matching, or one
 // bullet reading docs/target-state/ would sign off everything beneath it unread.
+//
+// The leading whitespace was `\s*`, which is what let an indented example bullet assert
+// a path (F-60). Three spaces is markdown's limit for a top-level block, so that is the
+// limit here; anything further indented is handled by the refusal in approvedDocsPaths
+// rather than by quietly failing to parse.
+//
+// `deleted` in place of the sha approves the REMOVAL of a docs/ file - see the drift
+// check below, which then insists the file really is gone at HEAD (F-62).
 const DOCS_APPROVAL_BULLET =
-  /^\s*[-*]\s+`([^`]+)`\s*(?:@|[:\u2013\u2014])\s*`([0-9a-f]{40}|[0-9a-f]{64})`\s*$/;
+  /^ {0,3}[-*]\s+`([^`]+)`\s*(?:@|[:\u2013\u2014])\s*`([0-9a-f]{40}|[0-9a-f]{64}|deleted)`\s*$/;
 
 // Markdown fences hide text from a reader's eye but not from a regex. Without this, the
 // example approval printed inside sync-docs/SKILL.md is itself a passing approval file,
 // and a document headed "DRAFT - not yet approved" passes because the marker and the
 // bullets sit in an illustrative block (F-50/E5). An unterminated fence swallows the
 // rest of the file, which fails closed.
-function stripFences(body) {
+//
+// Fences are not the only way to display text without asserting it (F-60). Two more:
+//
+//   HTML comments. `<!-- **Approved** -->` satisfied the marker while being invisible in
+//   every rendered view of the file - the worst possible combination. Stripped
+//   character-wise, since a comment can open and close inside a line; an unterminated
+//   one swallows the rest, which again fails closed.
+//
+//   Indented blocks. Four spaces is markdown's other code syntax, and the bullet pattern
+//   allowed any leading whitespace, so an "example" bullet indented under a real
+//   "## Paths covered" heading authorised its path for real.
+//
+// Whether an indented line is a code block or a lazy continuation of a list item depends
+// on the blank line before it and on the enclosing list - markdown's real rule, and not
+// one worth reimplementing inside a merge gate. So this does not try to decide: EVERY
+// line indented four spaces or more (or by a tab) is dropped from the text that can
+// assert anything, and approvedDocsPaths refuses outright - rather than silently
+// ignoring - an approval that indents anything under its Paths-covered heading. Both
+// directions fail closed, and neither depends on getting markdown exactly right.
+const INDENTED = /^(?: {4,}|\t)/;
+
+function stripUnasserted(body) {
+  // HTML comments first: a comment can contain a fence marker and vice versa, and
+  // stripping comments first means a commented-out fence cannot leave a fence open.
+  let s = String(body);
+  for (;;) {
+    const i = s.indexOf("<!--");
+    if (i < 0) break;
+    const j = s.indexOf("-->", i + 4);
+    s = j < 0 ? s.slice(0, i) : s.slice(0, i) + s.slice(j + 3);
+  }
   const out = [];
   let fence = "";
-  for (const line of body.split(NL)) {
+  for (const line of s.split(NL)) {
     const m = /^\s*(`{3,}|~{3,})/.exec(line);
     if (!fence) {
       if (m) { fence = m[1]; continue; }
+      if (INDENTED.test(line)) continue;
       out.push(line);
     } else if (m && m[1][0] === fence[0] && m[1].length >= fence.length && !line.slice(m[0].length).trim()) {
       fence = "";
@@ -256,8 +307,18 @@ function approvedDocsPaths(prFiles) {
     // content - the "authorises anything for ever after" failure this was meant to stop
     // (F-30). changeType comes from gh pr view and is relative to the base branch, so a
     // file added and then amended within the PR still reads ADDED.
-    if (f.changeType && f.changeType !== "ADDED") {
-      problems.push(`${rel} is ${String(f.changeType).toLowerCase()} by this PR, not added - an approval covers the change it shipped with, once`);
+    //
+    // An ABSENT changeType used to fall through to "treat it as added", which is the
+    // pre-fix behaviour restored by the day gh stops sending the field, on a field no
+    // test could notice going missing (F-63). Not knowing how the file got into the diff
+    // is not evidence that it is new, so it fails closed, exactly as an unknown branch
+    // name does.
+    if (f.changeType !== "ADDED") {
+      problems.push(
+        f.changeType
+          ? `${rel} is ${String(f.changeType).toLowerCase()} by this PR, not added - an approval covers the change it shipped with, once`
+          : `${rel} has no changeType in the PR diff, so it cannot be shown to be newly added - fails closed; re-run gh pr view --json files`,
+      );
       continue;
     }
     const abs = join(ROOT, rel);
@@ -274,10 +335,11 @@ function approvedDocsPaths(prFiles) {
       problems.push(`${rel} could not be read (${String(e.message ?? e).slice(0, 40)}) - unreadable fails closed`);
       continue;
     }
-    body = stripFences(body);
+    const raw = body;
+    body = stripUnasserted(body);
     // Same marker as gate 2, so there is one thing to remember rather than two.
     if (!/\*\*Approved/i.test(body) && !/Status\*\*.*Approved/i.test(body)) {
-      problems.push(`${rel} has no "**Approved" marker outside a code fence - it is still a draft`);
+      problems.push(`${rel} has no "**Approved" marker outside a code fence, HTML comment or indented block - it is still a draft`);
       continue;
     }
     const section = pathsCoveredSection(body);
@@ -285,9 +347,22 @@ function approvedDocsPaths(prFiles) {
       problems.push(`${rel} is approved but has no "## Paths covered" section - it authorises nothing`);
       continue;
     }
+    // Read from the UNSTRIPPED body on purpose: stripUnasserted has already dropped the
+    // indented lines, and dropping them silently is how an indented "example" bullet
+    // looked authoritative to a reader and inert to the gate - or, before the strip,
+    // inert to the reader and authoritative to the gate (F-60). Whether such a line is a
+    // code block or a list continuation is markdown's ambiguity to own; the gate refuses
+    // the whole file and says which line, so the author unindents it and the two readings
+    // agree again.
+    const rawSection = pathsCoveredSection(raw) ?? "";
+    const indented = rawSection.split(NL).find((l) => INDENTED.test(l) && l.trim());
+    if (indented) {
+      problems.push(`${rel}: "${indented.trim().slice(0, 40)}" is indented under "Paths covered" - indented text is a code block or a list continuation depending on context, so it authorises nothing and is refused outright; unindent it or move it out of the section`);
+      continue;
+    }
     let any = false;
     for (const line of section.split(NL)) {
-      if (!/^\s*[-*]\s+\S/.test(line)) continue;          // prose inside the section
+      if (!/^ {0,3}[-*]\s+\S/.test(line)) continue;       // prose inside the section
       const m = DOCS_APPROVAL_BULLET.exec(line);
       if (!m) {
         problems.push(`${rel}: cannot parse "${line.trim().slice(0, 50)}" - expected a path and a blob sha, both in backticks`);
@@ -308,12 +383,12 @@ function approvedDocsPaths(prFiles) {
 
 gate("docs/ changed only by a recognised route", () => {
   const branch = prData?.headRefName ?? "";
-  const { item, unknown } = ticketOf(branch);
+  const { item, unknown, why } = ticketOf(branch);
   const files = prData?.files ?? [];
   const docs = files.map((f) => f.path).filter((f) => f.startsWith("docs/"));
   // An unreadable branch name used to fall through to the permissive route, so the least
   // information bought the most permission (F-51). It fails closed instead.
-  if (unknown) return { ok: false, detail: "no branch name from gh pr view, so this PR cannot be classified - see gate 1" };
+  if (unknown) return { ok: false, detail: `${why}, so this PR cannot be classified - see gate 1` };
   if (item) {
     // A ticket PR stays strict, and an approval file does NOT widen it. The whole value
     // of this gate is that a feature branch cannot carry an unrelated docs/ edit along
@@ -326,6 +401,21 @@ gate("docs/ changed only by a recognised route", () => {
       : { ok: true, detail: docs.length ? `${docs.length} file(s), all ${item}'s own spec` : "no docs/ change" };
   }
   if (!docs.length) return { ok: true, detail: "no docs/ change" };
+  // Everything below reads this checkout - the approval body from the working tree, the
+  // approved content from HEAD - and is only about the pull request if this checkout IS
+  // the pull request's head commit. It was never checked (F-65), so a stale checkout and
+  // genuine content drift produced the same sentence: "re-run /sync-docs on what is
+  // actually being merged". Following that from a stale checkout re-approves the wrong
+  // bytes and hides the checkout problem underneath a fresh, honest-looking approval.
+  // Both shas are named here so it is obvious which one is behind.
+  const want = prData?.headRefOid;
+  if (!want) return { ok: false, detail: "no HEAD sha from gh pr view, so this checkout cannot be shown to be the PR's head commit - see gate 1" };
+  const here = sh("git", ["rev-parse", "HEAD"]);
+  const at = String(here.out || "").trim();
+  if (here.code !== 0 || !/^[0-9a-f]{40,64}$/.test(at))
+    return { ok: false, detail: `git rev-parse HEAD failed (${String(here.out || `exit ${here.code}`).trim().slice(0, 60)}) - cannot tell whether this checkout is the PR's head commit`.slice(0, 200) };
+  if (at !== want)
+    return { ok: false, detail: `this checkout is at ${at.slice(0, 10)} but the PR's head is ${String(want).slice(0, 10)} - check out the PR's head commit (gh pr checkout) and run again; approving from a stale tree approves the wrong bytes` };
   const { allowed, seen, problems } = approvedDocsPaths(files);
   // Five causes used to print one identical message, including the case where the file
   // exists, is in the diff and lists the path but is not approved - indistinguishable
@@ -340,11 +430,19 @@ gate("docs/ changed only by a recognised route", () => {
     const extra = problems.length ? ` (also: ${problems[0]})` : "";
     return { ok: false, detail: `${unlisted.slice(0, 3).join(", ")} not listed in ${seen.join(", ")}${extra}`.slice(0, 200) };
   }
+  // A docs/ file DELETED by the PR has no content at HEAD, so a sha could never be taken
+  // for it and "re-run /sync-docs" was advice that could not be followed - the archive
+  // move that sync-docs itself documents was unmergeable (F-62). The approval says
+  // `deleted` where a sha would go, and HEAD then has to agree the file is gone: absent
+  // is the content being approved, so it is checked exactly as a sha is.
   const drift = [];
   for (const f of docs) {
     const head = blobShaAtHead(f);
-    if (head === null) drift.push(`${f} is not readable at HEAD`);
-    else if (head !== allowed.get(f)) drift.push(`${f} is ${head.slice(0, 10)} at HEAD, approved as ${allowed.get(f).slice(0, 10)}`);
+    const approved = allowed.get(f);
+    if (approved === "deleted") {
+      if (head !== null) drift.push(`${f} is approved as deleted but still exists at HEAD (${head.slice(0, 10)})`);
+    } else if (head === null) drift.push(`${f} is not readable at HEAD - if this PR deletes it, approve it as \`deleted\` instead of a sha`);
+    else if (head !== approved) drift.push(`${f} is ${head.slice(0, 10)} at HEAD, approved as ${approved.slice(0, 10)}`);
   }
   if (drift.length) {
     return { ok: false, detail: `content changed since approval: ${drift.slice(0, 2).join("; ")} - re-run /sync-docs on what is actually being merged`.slice(0, 200) };
