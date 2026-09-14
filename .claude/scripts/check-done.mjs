@@ -129,18 +129,72 @@ gate("legacy/ untouched", () => {
   return bad.length ? { ok: false, detail: bad.slice(0, 3).join(", ") } : { ok: true, detail: `${files.length} files changed` };
 });
 
+// ── 4b. docs/ changed only through a route the gate recognises ──────────────
+// Two different questions, deliberately answered differently: "does this PR own a
+// ticket's spec" and "may this PR change docs/ at all". Conflating them left every
+// non-spec document - a template, a CONVENTIONS rule, a README - with no way in (#100).
+//
+// The non-ticket route is an approval file written by sync-docs into .claude/outputs/,
+// which must itself be part of the PR's diff. Its trust model is exactly gate 2's: a
+// marker in a file, recording that the founder approved the change. It proves a human
+// said yes at the time the patch was produced, and the reviewer can read it in the diff
+// alongside what it authorises. It proves nothing about who wrote the marker - anyone
+// who can edit check-done.mjs can edit an approval file. This is a process gate, not a
+// security boundary, and widening it into one would need signatures, not more regex.
+function approvedDocsPaths(prFiles) {
+  // Only files in THIS PR's diff count. A stale approval left on disk from an earlier
+  // change would otherwise authorise anything for ever after.
+  const approvals = prFiles.filter((f) =>
+    /^\.claude\/outputs\/[^/]*-docs-approval-[^/]*\.md$/.test(f),
+  );
+  const allowed = new Set();
+  const seen = [];
+  for (const rel of approvals) {
+    const abs = join(ROOT, rel);
+    if (!existsSync(abs)) continue;          // deleted in the diff: authorises nothing
+    let body;
+    try {
+      body = readFileSync(abs, "utf8");
+    } catch {
+      continue;                              // unreadable: fail closed, not open
+    }
+    // Same marker as gate 2, so there is one thing to remember rather than two.
+    if (!/\*\*Approved/i.test(body) && !/Status\*\*.*Approved/i.test(body)) continue;
+    for (const line of body.split(NL)) {
+      // `- \`docs/CONVENTIONS.md\`` - one path per bullet, whole path, nothing else on
+      // the line. Exact match only: no prefix or directory matching, or one bullet
+      // reading docs/target-state/ would sign off everything beneath it unread.
+      const m = /^\s*[-*]\s+`?([^`\s]+)`?\s*$/.exec(line);
+      if (m && m[1].startsWith("docs/")) allowed.add(m[1]);
+    }
+    seen.push(rel);
+  }
+  return { allowed, seen };
+}
+
 gate("docs/ changed only for this ticket's spec", () => {
   const item = /^(W-\d+)/.exec(prData?.headRefName ?? "")?.[1] ?? "";
-  const docs = (prData?.files ?? []).map((f) => f.path).filter((f) => f.startsWith("docs/"));
-  if (!item) {
-    // Process work may legitimately change docs/, but it must go through sync-docs
-    // with an approved diff - so flag it for the reviewer rather than silently allowing.
-    return docs.length
-      ? { ok: false, detail: `non-ticket PR changes docs/: ${docs.slice(0, 3).join(", ")} - use sync-docs` }
-      : { ok: true, detail: "no docs/ change" };
+  const files = (prData?.files ?? []).map((f) => f.path);
+  const docs = files.filter((f) => f.startsWith("docs/"));
+  if (item) {
+    // A W-nn PR stays strict, and an approval file does NOT widen it. The whole value of
+    // this gate is that a feature branch cannot carry an unrelated docs/ edit along with
+    // it; letting an approval waive that would hand every feature PR the exception.
+    // A docs-only change of its own goes to main as its own PR.
+    const bad = docs.filter((f) => !f.includes(`features/${item}-`));
+    return bad.length
+      ? { ok: false, detail: `${bad.slice(0, 3).join(", ")} - not this ticket's spec; send it as its own docs PR` }
+      : { ok: true };
   }
-  const bad = docs.filter((f) => !f.includes(`features/${item}-`));
-  return bad.length ? { ok: false, detail: bad.slice(0, 3).join(", ") } : { ok: true };
+  if (!docs.length) return { ok: true, detail: "no docs/ change" };
+  const { allowed, seen } = approvedDocsPaths(files);
+  if (!allowed.size) {
+    return { ok: false, detail: `non-ticket PR changes docs/: ${docs.slice(0, 3).join(", ")} - use sync-docs, which writes the approval file this gate reads` };
+  }
+  const bad = docs.filter((f) => !allowed.has(f));
+  return bad.length
+    ? { ok: false, detail: `not covered by ${seen.join(", ")}: ${bad.slice(0, 3).join(", ")}` }
+    : { ok: true, detail: `${docs.length} doc(s) approved by ${seen.join(", ")}` };
 });
 
 // ── 5. ddl-auto is set nowhere ──────────────────────────────────────────────

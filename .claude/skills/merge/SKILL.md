@@ -31,7 +31,7 @@ Ten gates. A receipt is written **only if every one passes**:
 | Approved spec exists | No spec for the branch's `W-nn`, or not marked Approved |
 | **No open High findings** | Any `/verify` or `/review` report has a High finding still OPEN |
 | `legacy/` untouched | The diff changes a frozen file |
-| `docs/` changed only for this spec | The diff touches another document |
+| `docs/` changed only for this spec | On a `W-nn` branch, the diff touches any document other than that ticket's own `features/W-nn-*` spec. On any other branch, a `docs/` file is not listed, path for exact path, in an **approved** `.claude/outputs/<date>-docs-approval-<slug>.md` **that is itself in the PR's diff** — the file `/sync-docs` writes on approval |
 | `ddl-auto` set nowhere | A real setting, not a comment |
 | No floating-point money | `double` or `float` on an amount, salary, pay, tax or deduction field |
 | Backend builds, tests pass | `./mvnw clean verify` fails |
