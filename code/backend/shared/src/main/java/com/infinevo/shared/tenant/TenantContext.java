@@ -70,3 +70,5 @@ public final class TenantContext {
         CURRENT.remove();
     }
 }
+
+class Ugly {   int x=1;  }
