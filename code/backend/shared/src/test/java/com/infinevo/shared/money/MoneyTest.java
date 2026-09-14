@@ -45,18 +45,15 @@ class MoneyTest {
 
         @Test
         void addsAndSubtracts() {
-            assertThat(Money.of("100.50").add(Money.of("49.50")).toAmount())
-                    .isEqualByComparingTo("150.00");
-            assertThat(Money.of("100.50").subtract(Money.of("0.50")).toAmount())
-                    .isEqualByComparingTo("100.00");
+            assertThat(Money.of("100.50").add(Money.of("49.50")).toAmount()).isEqualByComparingTo("150.00");
+            assertThat(Money.of("100.50").subtract(Money.of("0.50")).toAmount()).isEqualByComparingTo("100.00");
         }
 
         @Test
         @DisplayName("multiplies by a rate - the proration case")
         void multipliesByRate() {
             // 30000 a month, 12 of 30 days worked
-            Money prorated = Money.of("30000").multiply(new BigDecimal("12"))
-                    .divide(new BigDecimal("30"));
+            Money prorated = Money.of("30000").multiply(new BigDecimal("12")).divide(new BigDecimal("30"));
 
             assertThat(prorated.toAmount()).isEqualByComparingTo("12000.00");
         }
@@ -69,8 +66,7 @@ class MoneyTest {
         @Test
         @DisplayName("division by zero throws rather than producing infinity")
         void divisionByZeroThrows() {
-            assertThatThrownBy(() -> Money.of("10").divide(BigDecimal.ZERO))
-                    .isInstanceOf(ArithmeticException.class);
+            assertThatThrownBy(() -> Money.of("10").divide(BigDecimal.ZERO)).isInstanceOf(ArithmeticException.class);
         }
     }
 
@@ -115,8 +111,7 @@ class MoneyTest {
         @DisplayName("the classic 0.1 + 0.2 case is exact")
         void classicFloatingPointCaseIsExact() {
             // 0.1d + 0.2d == 0.30000000000000004
-            assertThat(Money.of("0.1").add(Money.of("0.2")).toAmount())
-                    .isEqualByComparingTo("0.30");
+            assertThat(Money.of("0.1").add(Money.of("0.2")).toAmount()).isEqualByComparingTo("0.30");
         }
 
         @Test
@@ -125,8 +120,7 @@ class MoneyTest {
             boolean hasFloatingPointFactory = java.util.Arrays.stream(Money.class.getMethods())
                     .filter(m -> m.getName().equals("of"))
                     .flatMap(m -> java.util.Arrays.stream(m.getParameterTypes()))
-                    .anyMatch(t -> t == double.class || t == float.class
-                            || t == Double.class || t == Float.class);
+                    .anyMatch(t -> t == double.class || t == float.class || t == Double.class || t == Float.class);
 
             assertThat(hasFloatingPointFactory)
                     .as("Money must not accept a floating-point value - CONVENTIONS.md section 2")

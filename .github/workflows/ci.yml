@@ -1,0 +1,212 @@
+# Continuous integration for infinevo-platform.
+#
+# Four jobs: backend, frontend and static run in parallel; images waits on the two
+# that produce something to package. Nothing here deploys and nothing is pushed to a
+# registry - W-50 owns the registry, W-54 the deployment.
+#
+# D-43: GitHub refuses branch protection on a private repository on the Free plan, so
+# this workflow reports but cannot block. .claude/scripts/check-done.mjs reads the run
+# conclusion for the exact HEAD commit and is the gate that actually enforces it.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Free-plan minutes: a push during a run cancels the superseded run rather than
+# burning two sets of minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ── compile + test + Spotless ───────────────────────────────────────────────
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15   # warm run is ~1m30s; this is headroom, not patience
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'   # D-38
+          java-version: '21'        # D-38
+          cache: 'maven'
+
+      # Spotless runs as part of this command: spotless:check is bound to the
+      # validate phase in code/backend/pom.xml, so there is no separate lint step.
+      # No -DskipTests - the test run is the point of the gate.
+      - name: Build and test
+        working-directory: code/backend
+        run: ./mvnw -B clean verify
+
+      - name: Upload surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: code/backend/**/target/surefire-reports/*.xml
+          # error, not warn: a backend job that produced no surefire XML ran no
+          # tests, and a green run that proves nothing is worse than a red one.
+          if-no-files-found: error
+
+  # ── lint + build the SPA ────────────────────────────────────────────────────
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10   # warm run is ~50s
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'        # D-42
+          cache: 'npm'
+          cache-dependency-path: code/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: code/frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: code/frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: code/frontend
+        run: npm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: code/frontend/dist
+
+  # ── cheap greps, mirrored from .claude/scripts/check-done.mjs:125-162 ────────
+  # The ddl-auto and money gates below are deliberately WIDER than their twins in
+  # that file (check-done.mjs:146-152, :154-162): they scan the whole repository
+  # rather than code/ only, and the ddl-auto pattern also matches the
+  # SPRING_JPA_HIBERNATE_DDL_AUTO environment-variable spelling - the form a
+  # container or an App Service setting would use. Done-when 6 says "any
+  # configuration file", and infra/ is where that setting would most plausibly
+  # appear. Until check-done.mjs is widened to the same two patterns, the local
+  # gate is the weaker of the two and this file is authoritative.
+  #
+  # legacy/ is excluded from the scan because it is frozen and really does set
+  # ddl-auto (legacy/HRMS_Backend/src/main/resources/application.properties:10,
+  # legacy/Payroll-Bend-SBoot/src/main/resources/application.properties:5); docs/
+  # and *.md are excluded because they discuss the setting in prose; .claude/ is
+  # excluded because it holds the twin patterns themselves.
+  #
+  # Every step runs even when an earlier one fails, so a branch that trips two
+  # gates is told about both in one run. Any failing step still fails the job.
+  static:
+    name: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the legacy/ gate diffs against a base commit
+
+      # check-done.mjs:125-130 - "legacy/ untouched". That gate reads GitHub's PR
+      # file list; this one diffs git. Different inputs, so they can disagree.
+      #
+      # This runs on push to main too, and that is not redundant: guard-merge.mjs
+      # refuses a direct push to main only when files under code/ change (:127-147),
+      # so a direct push that edits legacy/ is permitted by the harness and would
+      # otherwise be checked by nothing server-side. On a push the base is
+      # github.event.before, which is all-zeroes on a first push and can be orphaned
+      # by a force-push; in that case the step falls back to HEAD's first parent, and
+      # if there is no parent either it says it could not check rather than passing
+      # silently as though it had.
+      - name: legacy/ untouched
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$PR_BASE"
+          else
+            base="$PUSH_BEFORE"
+          fi
+          case "$base" in
+            '' | *[!0]* ) ;;          # empty, or contains a non-zero: keep as is
+            * ) base='' ;;            # all zeroes - no such commit
+          esac
+          if [ -n "$base" ] && ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "::notice::base commit $base is not present in this checkout"
+            base=''
+          fi
+          if [ -z "$base" ] && git rev-parse -q --verify 'HEAD^' >/dev/null; then
+            base=$(git rev-parse 'HEAD^')
+            echo "::notice::no event base commit - diffing against HEAD^ ($base)"
+          fi
+          if [ -z "$base" ]; then
+            echo "::warning::no base commit to diff against - legacy/ was NOT checked on this run"
+            exit 0
+          fi
+          bad=$(git diff --name-only "$base" HEAD -- legacy/)
+          if [ -n "$bad" ]; then
+            echo "::error::legacy/ is frozen - these files were changed:"
+            printf '%s\n' "$bad" | while read -r f; do echo "  $f"; done
+            exit 1
+          fi
+          echo "OK - no file under legacy/ was changed since $base"
+
+      # The leading ^[^#]* is what distinguishes a real setting from a commented-out
+      # one: a line whose first # precedes the match cannot match. The second
+      # alternative - a non-alphanumeric run to end of line - catches the Bicep and
+      # JSON app-setting form, where the name sits alone in quotes on its own line.
+      - name: ddl-auto set nowhere
+        if: ${{ !cancelled() }}
+        run: |
+          if git grep -nE '^[^#]*(ddl-auto|DDL_AUTO)([[:space:]]*[:=]|[^A-Za-z0-9]*$)' \
+               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).claude/' ':(exclude)*.md' ; then
+            echo "::error::ddl-auto is set above - migrations go through Flyway (hard rule 4, DEBT-002)"
+            exit 1
+          fi
+          echo "OK - ddl-auto is set nowhere outside legacy/"
+
+      - name: No float or double money field
+        if: ${{ !cancelled() }}
+        run: |
+          if git grep -nE '(private|public|protected)[[:space:]]+(Double|Float|double|float)[[:space:]]+[a-zA-Z]*(amount|salary|pay|Pay|Amount|Salary|deduction|Deduction|tax|Tax)' \
+               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).claude/' ':(exclude)*.md' ; then
+            echo "::error::money field declared as a floating-point type above - use Money or BigDecimal (CONVENTIONS.md section 2)"
+            exit 1
+          fi
+          echo "OK - no floating-point money field outside legacy/"
+
+  # ── provisional image gate ──────────────────────────────────────────────────
+  # PROVISIONAL. This job builds the two *development* Dockerfiles only, and pushes
+  # neither - there is no registry login and no docker push anywhere in this file.
+  # W-49 (#69) replaces these targets with the production Dockerfiles (multi-stage,
+  # slim runtime, non-root) and inherits this job; W-50 adds the registry push.
+  #
+  # Build context is the repository root for both files: they COPY paths beginning
+  # "code/backend/" and "code/frontend/" (dev.Dockerfile.backend:13,
+  # dev.Dockerfile.frontend:11), matching infra/docker/compose.yml:119-121 which
+  # builds them with "context: ../..".
+  images:
+    name: images (provisional)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15   # two docker builds, ~1m30s warm
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend dev image
+        run: docker build -f infra/docker/dev.Dockerfile.backend -t infinevo-backend:dev .
+
+      - name: Build frontend dev image
+        run: docker build -f infra/docker/dev.Dockerfile.frontend -t infinevo-frontend:dev .

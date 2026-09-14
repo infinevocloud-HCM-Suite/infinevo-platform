@@ -6,9 +6,16 @@
 *.mjs   text eol=lf
 *.sh    text eol=lf
 mvnw    text eol=lf
+# Spotless (W-03) resolves line endings via GIT_ATTRIBUTES. The dev image COPYs
+# code/backend/ without .git, so that policy cannot resolve inside the container
+# and falls back to platform-native LF - making a CRLF working tree fail
+# spotless:check on Windows only. Pinning LF fixes the cause.
+*.java  text eol=lf
 *.yml   text eol=lf
 *.yaml  text eol=lf
-Dockerfile* text eol=lf
+# Leading * on purpose: the files are named dev.Dockerfile.backend /
+# dev.Dockerfile.frontend, which a bare Dockerfile* pattern never matched.
+*Dockerfile* text eol=lf
 
 # Always CRLF — Windows batch files
 *.cmd   text eol=crlf

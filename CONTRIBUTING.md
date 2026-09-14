@@ -41,11 +41,30 @@ each snapshot came from — note the two Payroll apps are **not** on `main`.
 |---|---|---|
 | JDK | **21** | Both backends |
 | Maven | **3.9+** | Backend builds |
-| Node.js | **20 LTS** | Frontends and the harness hooks |
+| Node.js | **24 LTS** | Frontends and the harness hooks |
 | Docker Desktop | current | The local stack |
 | `gh` (optional) | current | Issues and pull requests from the terminal |
 
 Verify: `java -version` · `mvn -v` · `node -v` · `docker ps`
+
+### On Windows, after pulling `W-03`: run this once
+
+```bash
+git add --renormalize .
+```
+
+`W-03` added `*.java text eol=lf` to `.gitattributes`, because Spotless resolves line
+endings through `GIT_ATTRIBUTES` and the dev image copies `code/backend/` without a
+`.git` directory to resolve them against.
+
+**If you had a checkout before that landed, `./mvnw verify` will fail on files you never
+touched** — Spotless reports format violations across the tree while `git status` shows
+it clean, because the CRLF→LF clean filter still matches the index even though the files
+on disk are still CRLF. There is no message pointing at the cause; it looks like the
+build broke on its own.
+
+`git add --renormalize .` fixes it. A fresh clone is never affected, and neither is
+Linux, macOS, or CI.
 
 ---
 

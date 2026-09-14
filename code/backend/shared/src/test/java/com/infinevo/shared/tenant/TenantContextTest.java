@@ -45,8 +45,7 @@ class TenantContextTest {
     @Test
     @DisplayName("rejects a null tenant rather than binding nothing")
     void rejectsNull() {
-        assertThatThrownBy(() -> TenantContext.set(null))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> TenantContext.set(null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -79,7 +78,8 @@ class TenantContextTest {
         TenantContext.set(TENANT);
 
         var seenByOtherThread = new UUID[1];
-        var other = new Thread(() -> seenByOtherThread[0] = TenantContext.current().orElse(null));
+        var other =
+                new Thread(() -> seenByOtherThread[0] = TenantContext.current().orElse(null));
         other.start();
         other.join();
 
