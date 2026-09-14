@@ -1,149 +1,173 @@
-# Feature: W-04 — Test Foundation
-
-> Feature specification for `W-04` (`PLAT-11` / `DEBT-003`).
-> Prepared in accordance with `docs/target-state/features/TEMPLATE.md` and `CONTRIBUTING.md`.
+# W-04 — Test foundation
 
 | Field | Value |
 |---|---|
-| **Feature ID** | W-04 (`PLAT-11`, `DEBT-003`) |
-| **Owner** | Core / Backend Lead |
-| **Apps touched** | `infinevo-platform` (`code/backend/`, root `pom.xml`, `shared`, `core`, `hrms`, `payroll`, `app`, `worker`) |
-| **Related gaps** | `DEBT-003` (No test coverage), `DEBT-018` (Unindexed tenant queries), `DEBT-022` (Missing tenant security scope) |
-| **Status** | Draft |
+| **Work item** | `W-04` · issue [#5](https://github.com/infinevocloud-HCM-Suite/infinevo-platform/issues/5) |
+| **Kind** | **Infra** — test harness, base integration classes, coverage plugin |
+| **Stream / track** | Stream A — Foundation · Track P |
+| **Wave** | 1 — Foundations |
+| **Size / skill** | M · JAVA / INFRA |
+| **Owner** | SayInfi |
+| **Blocked by** | — (`W-01` merged) |
+| **Blocks** | `W-05`, `W-06`, `W-07`, and all feature implementation tickets |
+| **Capabilities** | — |
+| **Decisions** | `D-38` Java 21 |
+| **Gaps addressed** | `DEBT-003` no tests |
+| **Status** | **Draft — Pending Founder Approval** |
 | **Approved by** | Pending Founder Approval |
-| **Approved on** | |
+| **Approved on** | — |
+
+> Hard rule 1: no code is written until this spec is approved.
 
 ---
 
-## 1. Problem Statement & Current State Analysis
+## 1. Problem
 
-Today, backend automated testing infrastructure is severely lacking (`DEBT-003`).
-* **Current Unit Tests**: Only two basic unit tests exist (`TenantContextTest.java` and `MoneyTest.java` in `shared`). No unit tests exist in `core`, `hrms`, `payroll`, `app`, or `worker`.
-* **Current Integration Setup**: Zero integration test infrastructure exists. No `@SpringBootTest` or test suite harnesses are configured.
-* **Testcontainers & Database Testing**: Testcontainers is **not configured** in `pom.xml`. There is no PostgreSQL container test infrastructure.
-* **Row-Level Security Risk**: Without a real PostgreSQL test database, PostgreSQL Row-Level Security (RLS) policies on `tenant_id` cannot be tested or validated. In-memory databases like H2 do not support Postgres RLS rules and would mask tenant data leaks.
-* **Coverage Reporting**: JaCoCo (`jacoco-maven-plugin`) is **not configured** in root or module `pom.xml` files.
-* **Test Utilities**: No shared test data builders exist, forcing verbose setup across future tests.
+There is virtually no automated test infrastructure across the backend repository (`DEBT-003`). Today, `code/backend` contains only two unit tests in `shared` (`TenantContextTest.java` and `MoneyTest.java`). No integration test harness exists, no database testing container setup exists, and JaCoCo coverage reporting is unconfigured.
 
-## 2. Goal & Proposed Testing Architecture
+This creates four immediate risks:
+1. **No integration testing capability.** There is no base harness to run tests against a running Spring context or a database.
+2. **PostgreSQL Row-Level Security (RLS) testing cannot be executed on in-memory DBs.** Databases like H2 do not support PostgreSQL RLS policies (`CREATE POLICY ... ON ...`). RLS must be tested against a real PostgreSQL container.
+3. **Database owner RLS bypass risk.** In PostgreSQL, table owners and superusers bypass RLS policies by default (`02-data-model.md` §9, `05-azure-architecture.md` §5). If integration tests run as the database owner, RLS policies will be bypassed and data leaks will go undetected. Integration tests must connect using a non-owner application role (`app_user`).
+4. **No test data builder standards or module boundary rules.** Without a clear builder architecture, test helper utilities risk violating Maven module isolation rules.
 
-Establish a robust testing foundation for the platform monorepo:
-1. Standardize unit testing conventions using JUnit 5 and AssertJ across all backend Maven modules.
-2. Implement integration test infrastructure using **Testcontainers with real PostgreSQL** (never H2 or in-memory DBs) to validate multi-tenancy and RLS policies.
-3. Provide reusable test data builders (enabling tenant and employee creation in 3 lines of code).
-4. Configure JaCoCo code coverage reporting in Maven with minimum coverage thresholds.
+## 2. Scope
 
----
+**In scope**
 
-## 3. Scope
+- **Unit test foundation** — JUnit 5 (Jupiter), AssertJ, and Mockito conventions across all backend modules.
+- **Testcontainers PostgreSQL infrastructure** — Reusable Testcontainers PostgreSQL container setup using the platform database name (`infinevo`).
+- **Abstract integration test base** — `AbstractIntegrationTest` base class with non-owner database role configuration (`app_user`), ensuring RLS enforcement is preserved during test execution.
+- **Maven test-jar utility sharing** — Configuring `shared` module to produce a `test-jar` so common test utilities (e.g., base classes, context helpers) can be shared across modules without domain coupling.
+- **Domain builder placement rules** — Core builders live in `core`, HRMS builders in `hrms`, Payroll builders in `payroll`. `shared` never owns domain entity builders.
+- **JaCoCo coverage reporting** — `jacoco-maven-plugin` added to parent `pom.xml`, generating coverage reports during `./mvnw verify`.
 
-### In Scope
+**Out of scope**
 
-* **Maven Dependencies**: Add Testcontainers (`org.testcontainers:postgresql`, `org.testcontainers:junit-jupiter`) and JaCoCo plugin (`jacoco-maven-plugin`) to `code/backend/pom.xml`.
-* **Base Integration Test Setup**: Abstract base integration test class (`AbstractIntegrationTest`) using Testcontainers for PostgreSQL, managing shared container lifecycle across integration test runs.
-* **Test Data Builders**: Reusable builder classes (`TenantTestBuilder`, `EmployeeTestBuilder`) located in `shared` test utilities.
-* **JaCoCo Coverage Setup**: Maven JaCoCo plugin configuration for generating HTML coverage reports (`mvn jacoco:report`) and enforcing minimum coverage rules.
-* **Sample RLS Integration Test**: Verify multi-tenant RLS isolation with a real Postgres container test.
+- **Tenant or Employee entity implementation.** Owned by `W-07` and `W-13`.
+- **Flyway schema migrations.** Owned by `W-06`.
+- **Actual RLS policy validation tests.** Added in `W-07` when RLS policies are created.
+- **The "tenant + employee in three lines" test proof.** Implemented when `Tenant` (`W-07`) and `Employee` (`W-13`) entities exist.
+- **Frontend test runner setup.** Covered separately under frontend tooling.
 
-### Out of Scope
+## 3. Flow & Proposed Testing Architecture
 
-* End-to-end browser UI automation testing (Cypress/Playwright).
-* Performance, stress, or load testing infrastructure (`PLAT-14`).
-* Azure staging environment test runners (`W-54`).
+```
+[ Unit Tests (JUnit 5 + Mockito) ] ──► Instant in-memory execution (no Spring context)
 
----
+[ Integration Tests (@SpringBootTest) ]
+       │
+       ▼
+┌──────────────────────────────────────────────┐
+│          AbstractIntegrationTest             │
+│  (Testcontainers PostgreSQL 16 `infinevo` DB)│
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│  Non-Owner DB Role Connection (`app_user`)   │  ◄── Enforces Postgres RLS Policies
+└──────────────────────────────────────────────┘      (Owner BYPASSRLS prevented)
+```
 
-## 4. Proposed Implementation Detail
+### Module Builder & Test Utility Placement Rules
 
-### 4.1 Unit Testing Strategy
-* Standardize on **JUnit Jupiter 5** and **AssertJ** (`org.assertj.core.api.Assertions`).
-* Use **Mockito** (`@ExtendWith(MockitoExtension.class)`) for mocking dependencies in domain services (`serviceimpl`).
-* Unit tests execute in isolation without Spring application context overhead (`mvn test`).
+```
+shared/src/test/java/   ──► AbstractIntegrationTest, TenantContext helpers (No domain entities)
+                             [Exported via Maven test-jar]
+core/src/test/java/     ──► Core entity builders (e.g., DepartmentBuilder, LeaveTypeBuilder)
+hrms/src/test/java/     ──► HRMS entity builders (e.g., ClockSessionBuilder, TimesheetBuilder)
+payroll/src/test/java/  ──► Payroll entity builders (e.g., PayScheduleBuilder, PayrunBuilder)
+```
 
-### 4.2 PostgreSQL Integration Testing Strategy (Testcontainers)
-* **Real PostgreSQL Container**: Spin up a PostgreSQL 16 container via `org.testcontainers.containers.PostgreSQLContainer`.
-* **No In-Memory DBs**: In-memory databases like H2 are strictly prohibited because they do not support PostgreSQL RLS policies (`CREATE POLICY ... ON ...`).
-* **Base Test Class**:
-  ```java
-  @SpringBootTest
-  @Testcontainers
-  public abstract class AbstractIntegrationTest {
-      @Container
-      static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-              .withDatabaseName("infinevodb")
-              .withUsername("app_user")
-              .withPassword("secret");
-      
-      @DynamicPropertySource
-      static void configureProperties(DynamicPropertyRegistry registry) {
-          registry.add("spring.datasource.url", postgres::getJdbcUrl);
-          registry.add("spring.datasource.username", postgres::getUsername);
-          registry.add("spring.datasource.password", postgres::getPassword);
-      }
-  }
-  ```
-* **Tenant RLS Validation**: Tests verify that switching `TenantContext` prevents cross-tenant data leaks at the DB layer.
+`shared` does not own domain entities or application context; therefore, domain entity builders must live exclusively in their respective domain modules (`core`, `hrms`, `payroll`). Reusable test infrastructure in `shared` is exposed to other modules using Maven `<type>test-jar</type>`.
 
-### 4.3 Test Data Builder Strategy
-* Provide ergonomic, fluent builder classes to assemble test fixtures efficiently.
-* **Acceptance Standard**: Create a tenant and an employee in **3 lines of code**:
-  ```java
-  Tenant tenant = TenantTestBuilder.builder().withName("Acme Corp").buildAndSave(tenantRepository);
-  Employee employee = EmployeeTestBuilder.builder().withTenant(tenant).withEmail("alice@acme.com").buildAndSave(employeeRepository);
-  ```
+## 4. Backend changes
 
-### 4.4 Coverage Reporting Strategy (JaCoCo)
-* Configure `jacoco-maven-plugin` (v0.8.12) in `code/backend/pom.xml`.
-* Generate code coverage reports during `mvn verify` execution.
-* Target initial minimum coverage thresholds (e.g., 70% line coverage for new `serviceimpl` classes).
-
----
-
-## 5. Component Changes
-
-| Component | File / Path | Proposed Change |
+| Layer | File | Change |
 |---|---|---|
-| Parent POM | `code/backend/pom.xml` | Add Testcontainers & JaCoCo plugin management |
-| Shared Module | `code/backend/shared/pom.xml` | Add test utility exports for builders and test fixtures |
-| Integration Base | `code/backend/shared/src/test/java/com/infinevo/shared/test/AbstractIntegrationTest.java` | Base class for Testcontainers PostgreSQL integration tests |
-| Data Builders | `code/backend/shared/src/test/java/com/infinevo/shared/test/builder/*Builder.java` | Ergonomic data builders (`TenantTestBuilder`, `EmployeeTestBuilder`) |
-| JaCoCo Plugin | `code/backend/pom.xml` | Configure `jacoco-maven-plugin` execution goals |
+| Parent POM | `code/backend/pom.xml` | Add Testcontainers BOM (`org.testcontainers:testcontainers-bom`), `jacoco-maven-plugin`, and `maven-surefire-plugin` / `maven-failsafe-plugin` management |
+| Shared POM | `code/backend/shared/pom.xml` | Configure `maven-jar-plugin` `test-jar` execution to export test infrastructure |
+| Core / HRMS / Payroll POM | `code/backend/{core,hrms,payroll}/pom.xml` | Add `<type>test-jar</type>` dependency on `com.infinevo:shared` for test scope |
+| Test Base | `code/backend/shared/src/test/java/com/infinevo/shared/test/AbstractIntegrationTest.java` | Abstract base class establishing PostgreSQL container with non-owner `app_user` connection |
+| Test Property Source | `code/backend/shared/src/test/java/com/infinevo/shared/test/PostgresTestContainerInitializer.java` | Dynamic property registry initializer for Testcontainers PostgreSQL (`infinevo`) |
 
----
+**API contract**
 
-## 6. Database Changes
+> N/A — Infrastructure task. No HTTP API endpoints created or modified.
 
-> No production database schema changes. Testcontainers applies Flyway migrations (`code/backend/migration/`) dynamically during test container startup.
+## 5. Frontend changes
 
----
+| File | Change |
+|---|---|
+| — | N/A — Infrastructure task. Frontend test runner setup is out of scope. |
 
-## 7. Acceptance Criteria
+**Routes added**
 
-- [ ] Testcontainers PostgreSQL dependency (`org.testcontainers:postgresql`) configured in parent `pom.xml`.
-- [ ] JaCoCo plugin (`jacoco-maven-plugin`) configured in parent `pom.xml` producing execution reports.
-- [ ] `AbstractIntegrationTest` runs against a real PostgreSQL Docker container (H2 is prohibited).
-- [ ] Tenant data isolation can be verified via real PostgreSQL RLS execution in an integration test.
-- [ ] Test data builders allow creating a tenant and an employee in **3 lines of code**.
-- [ ] `./mvnw verify` runs unit tests, integration tests against Testcontainers, and generates JaCoCo coverage reports without error.
+| Path | Component | Guard / layout |
+|---|---|---|
+| — | N/A | N/A |
 
----
+## 6. Database changes
 
-## 8. Risks & Mitigations
+> Flyway only. Never `ddl-auto`. See `CONVENTIONS.md` rule 4.
+
+| Migration | Tables | Tenant-aware? | Reversible? |
+|---|---|---|---|
+| — | None | N/A | N/A |
+
+- [x] No schema changes in `W-04`. Testcontainers runs against the target PostgreSQL `infinevo` database structure.
+
+## 7. Tests
+
+| Type | File | Covers |
+|---|---|---|
+| Unit | `code/backend/shared/src/test/java/com/infinevo/shared/tenant/TenantContextTest.java` | Existing tenant context unit tests |
+| Unit | `code/backend/shared/src/test/java/com/infinevo/shared/money/MoneyTest.java` | Existing monetary precision unit tests |
+| Integration Base | `code/backend/shared/src/test/java/com/infinevo/shared/test/AbstractIntegrationTestTest.java` | Verification that `AbstractIntegrationTest` connects to Postgres as non-owner `app_user` |
+
+## 8. Verification
+
+Run by **verifier** on a clean checkout.
+
+```bash
+# 1 - Verify Testcontainers and JaCoCo plugins in Maven pom
+cd code/backend && ./mvnw dependency:tree | grep -i testcontainers
+
+# 2 - Run unit and integration tests with coverage reporting
+./mvnw clean verify
+
+# 3 - Verify JaCoCo report generation
+ls -la target/site/jacoco/index.html || find . -name "index.html" | grep jacoco
+```
+
+| Check | Expected | Result |
+|---|---|---|
+| `./mvnw clean verify` | Exit code 0, BUILD SUCCESS | |
+| Testcontainers PostgreSQL | Spins up PostgreSQL 16 container with database name `infinevo` | |
+| Non-owner role connection | Integration test connects as `app_user` (not DB owner) | |
+| JaCoCo HTML report | Generated at `target/site/jacoco/index.html` | |
+| Module isolation | `shared` has no domain entities; domain builders reside in domain modules | |
+
+## 9. Risks
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Slow Testcontainers startup on CI runners | Medium | Share a single static PostgreSQL container instance across integration test classes. |
-| Docker daemon unavailable on local developer machine | Low | Document Docker Desktop requirements in `CONTRIBUTING.md` and fail fast with clear instructions. |
-| In-memory DB fallback accidentally added by developer | Medium | Add Maven enforcer rule / code review checks banning `h2` dependency in `pom.xml`. |
+| Integration tests connect as DB owner, bypassing RLS | **High** | Explicitly configure Testcontainers and DataSource properties to connect as non-owner `app_user` (`02-data-model.md` §9). |
+| Slow Testcontainers startup delays local build loop | Medium | Use static single-instance container lifecycle pattern across integration tests. |
+| Domain entity builders placed in `shared` module | Medium | Enforce builder placement rules in review: `core` builders in `core`, `hrms` in `hrms`, `payroll` in `payroll`. |
+| Developers attempt to test RLS using H2 in-memory DB | Medium | Ban H2 dependency in `pom.xml` via `maven-enforcer-plugin`. |
 
----
+## 10. Rollback
 
-## 9. Validation Plan
+Revert commit. No database migrations, Azure resources, or external dependencies are deployed.
 
-1. **Verify Maven Dependency Resolution**: Run `./mvnw dependency:tree` to confirm Testcontainers and JaCoCo plugins resolve cleanly.
-2. **Verify 3-Line Data Builder Test**: Execute a test verifying tenant and employee creation in 3 lines:
-   ```bash
-   ./mvnw test -Dtest=EmployeeTestBuilderTest
-   ```
-3. **Verify PostgreSQL RLS Integration Test**: Run an integration test that attempts cross-tenant query execution and verifies PostgreSQL RLS blocks unauthorized rows.
-4. **Verify JaCoCo Report Generation**: Run `./mvnw verify` and inspect `target/site/jacoco/index.html` to confirm coverage report generation.
+## 11. Done when
+
+1. Testcontainers BOM (`org.testcontainers:testcontainers-bom`) and PostgreSQL module added to `code/backend/pom.xml`.
+2. `AbstractIntegrationTest` implemented in `shared` module, connecting to a PostgreSQL container with database name `infinevo`.
+3. Non-owner database role (`app_user`) configured for integration test connections so PostgreSQL RLS policies cannot be bypassed by owner privileges.
+4. Maven `test-jar` execution configured on `shared` module so test utilities can be imported across modules via `<type>test-jar</type>`.
+5. Builder placement rules documented: `core` entity builders live in `core`, `hrms` in `hrms`, `payroll` in `payroll`. `shared` owns zero domain entity builders.
+6. JaCoCo plugin (`jacoco-maven-plugin`) configured in root `pom.xml`, generating reports on `./mvnw verify`.
+7. Deferred items clearly documented: "tenant + employee in 3 lines" proof deferred to `W-07`/`W-13`; RLS policy validation tests deferred to `W-07`.
+8. `./mvnw clean verify` passes green across all backend modules.
