@@ -31,11 +31,26 @@ this skill produces a diff first and applies it only after approval.
    --no-index docs/<file> .claude/outputs/tmp-docs/<file>`). Do not touch `docs/` yet.
 5. Reply with the patch path, a table `| Doc | Lines | What changes | Evidence |`, and any
    entry you could not verify (marked so). **STOP; wait for "approved".**
-6. **On approval, record the approval before touching anything.** Write
-   `.claude/outputs/<date>-docs-approval-<slug>.md` — this is what gate 5 of the done
-   check reads, and a `docs/` change with no such file in its pull request cannot reach
-   `main`. Same shape and same trust model as an approved spec: a `**Approved` marker,
-   plus the **exact** paths it covers, one per bullet.
+6. **On approval, apply the patch first** — the approval file has to name a digest of
+   each file's approved content, so that content must exist before it can be written.
+   The guard hook blocks Edit/Write, so apply with `git apply .claude/outputs/<patch>`
+   from the repo root via Bash (this is the intended bypass — hooks guard the model's
+   editors, not an approved patch). Never delete a doc: superseded files move to
+   `legacy/docs/_archive/`.
+7. **Stage the docs, then take a blob sha for each one.** `git rev-parse :<path>` reads
+   the staged content, which is exactly what the commit will carry:
+
+   ```bash
+   git add docs/
+   git diff --cached --name-only -- docs/ | while read -r f; do
+     echo "- \`$f\` @ \`$(git rev-parse ":$f")\`"
+   done
+   ```
+
+8. **Write the approval file**, `.claude/outputs/<date>-docs-approval-<slug>.md`, using
+   those bullet lines verbatim. This is what gate 5 of the done check reads, and a
+   `docs/` change with no such file **newly added** in its pull request cannot reach
+   `main`.
 
    ```markdown
    # Docs change approval — <slug> — <date>
@@ -48,17 +63,24 @@ this skill produces a diff first and applies it only after approval.
 
    ## Paths covered
 
-   - `docs/target-state/features/TEMPLATE-INFRA.md`
-   - `docs/CONVENTIONS.md`
+   - `docs/target-state/features/TEMPLATE-INFRA.md` @ `<40 hex blob sha>`
+   - `docs/CONVENTIONS.md` @ `<40 hex blob sha>`
    ```
 
-   Every path is matched **exactly**. A directory (`docs/target-state/`) authorises
-   nothing — list each file, because the point is that a human read each file.
-7. Apply the patch: the guard hook will block Edit/Write, so apply with
-   `git apply .claude/outputs/<patch>` from the repo root via Bash (this is the intended
-   bypass — hooks guard the model's editors, not an approved patch). Never delete a doc:
-   superseded files move to `legacy/docs/_archive/`.
-8. Verify every markdown link still resolves, and paste the result:
+   Four things the gate insists on, each of them because it was got round once:
+
+   | Rule | Why |
+   |---|---|
+   | The path is matched **exactly** and must be a plain path under `docs/` | A directory (`docs/target-state/`) authorises nothing — list each file, because the point is that a human read each file. `..` segments, backslashes and quotes are refused outright |
+   | Backticks round the path, then `@`, then a full **40-hex blob sha**, in backticks too | The backticks are what let a path containing a space be approved at all. An abbreviated sha is refused |
+   | Only bullets under the `## Paths covered` heading count, and **nothing inside a fenced code block counts at all** | Otherwise the template printed above authorises `CONVENTIONS.md` the moment somebody pastes it unedited, and a path listed under a heading reading "Explicitly NOT approved" is approved anyway |
+   | The approval must be **added** by the pull request, never merely edited | Touching an approval that already reached `main` would re-open every path it lists, for brand-new content |
+
+   If the docs change after you take the shas — a review comment, a typo fix — **take
+   them again.** The gate compares each recorded sha against the file at `HEAD` and
+   refuses on any difference. That is the point: the approval is for those bytes, and
+   a fresh sha means a fresh look.
+9. Verify every markdown link still resolves, and paste the result:
 
    ```bash
    python -c "
@@ -82,8 +104,8 @@ this skill produces a diff first and applies it only after approval.
    print(len(bad),'broken'); [print(' ',x) for x in bad]"
    ```
 
-9. Update `.claude/work/active-work.md` if direction, ready tickets or in-flight work
-   changed. **STOP.**
+10. Update `.claude/work/active-work.md` if direction, ready tickets or in-flight work
+    changed. **STOP.**
 
 ---
 
@@ -93,7 +115,7 @@ Applying the patch locally changes nothing for anyone else — `docs/` reaches `
 the same way code does, through a pull request and `/merge`.
 
 ```bash
-git checkout -b docs-<slug>          # NOT W-nn-... - see below
+git checkout -b docs-<slug>          # no W-nn anywhere in the name - see below
 git add docs/ .claude/outputs/<date>-docs-approval-<slug>.md
 git commit -m "docs — <what changed> (approved <date>)"
 gh pr create --title "docs — <what changed>" --body "...
@@ -101,15 +123,28 @@ gh pr create --title "docs — <what changed>" --body "...
 Closes #<issue>"
 ```
 
-**The approval file must be in the pull request's own diff.** Gate 5 reads the diff, not
-the disk: an approval sitting in `.claude/outputs/` from a previous change authorises
-nothing, or the first one ever written would authorise every docs change after it.
+**The approval file must be ADDED by the pull request's own diff.** An approval sitting
+in `.claude/outputs/` from a previous change authorises nothing, and touching it does not
+revive it — otherwise the first one ever written would authorise every docs change after
+it.
 
-**Not on a `W-nn` branch.** On a branch starting `W-nn-`, gate 5 stays strict and allows only
-that ticket's own `docs/target-state/features/W-nn-*.md` — an approval file does **not**
-widen it. That is deliberate: the gate exists so nobody rewrites the design documents
-while shipping a feature. A docs change travels as its own pull request, reviewed for
+**Which half gate 5 reads from where.** The *filename* comes from the pull request's diff
+(`gh pr view --json files`, which also says whether the PR added it). The *body* is read
+from the working tree, and the approved content is checked against `git rev-parse
+HEAD:<path>` in that same checkout. So the check has to run **on the pull request's head
+commit** — which is what `/merge` does. Run it from any other checkout and it fails,
+loudly and spuriously; that is the price of being able to read the file at all.
+
+**No `W-nn` anywhere in the branch name.** If a ticket reference appears anywhere in the
+name, in any case — `W-04-x`, `w-04-x`, `feature/W-04-x`, `fix/W-04-x` — gate 5 reads the
+pull request as that ticket's, stays strict, and allows only that ticket's own
+`docs/target-state/features/W-nn-*.md` — an approval file does **not** widen it. That is
+deliberate: the gate exists so nobody rewrites the design documents while shipping a
+feature. A docs change travels as its own pull request, reviewed for
 what it says rather than waved through with a feature.
+
+A pull request with no branch name at all — which only happens when `gh pr view` failed
+— is refused outright rather than handed the permissive route.
 
 The one exception needs no approval file: a ticket promoting **its own** spec into
 `docs/target-state/features/W-nn-<slug>.md` on its own `W-nn` branch. That is the spec

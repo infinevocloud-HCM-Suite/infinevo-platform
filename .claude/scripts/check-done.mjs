@@ -50,6 +50,30 @@ function sh(cmd, args, opts = {}) {
   return { code: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
 
+// spawnSync goes through a shell on Windows only, so an argument containing a space has
+// to be quoted there and must NOT be quoted anywhere else.
+const shq = (s) => (process.platform === "win32" ? `"${s}"` : s);
+
+// Which work item, if any, a branch belongs to. Gates 2, 3 and 5 all ask this, and they
+// must answer it the same way: a branch that gate 5 treats as a ticket while gate 2 does
+// not is incoherent, and the disagreement is exactly where a smuggled change fits.
+//
+// The old test was /^(W-\d+)/ - anchored and case-sensitive - so "w-04-tenant",
+// "feature/W-04-x" and "fix/W-04-x" were all classified as NOT a ticket and took the
+// permissive route in gate 5, which is the smuggle done-when 4 asks it to refuse
+// (F-38/F-51). A reference anywhere in the name, in any case, now counts. Erring towards
+// "this is a ticket" is the safe direction: it makes gate 5 stricter and gate 2 demand a
+// spec, so a false positive stops a merge rather than waving one through.
+//
+// An unreadable branch name is its own answer. It used to mean "not a ticket", so the
+// least information bought the most permission; callers must handle unknown explicitly.
+function ticketOf(branch) {
+  const b = String(branch ?? "").trim();
+  if (!b) return { item: null, unknown: true };
+  const m = /(?:^|[^A-Za-z0-9])(W-\d+)/i.exec(b);
+  return { item: m ? m[1].toUpperCase() : null, unknown: false };
+}
+
 // Pulling the useful line out of build output, without escape sequences that a
 // generator can mangle. A gate that fails must say WHY, or it is indistinguishable
 // from a gate that is itself broken - which cost an hour on PR #95.
@@ -81,7 +105,8 @@ gate("Approved spec exists", () => {
   const dir = join(ROOT, "docs", "target-state", "features");
   if (!existsSync(dir)) return { ok: false, detail: "features folder missing" };
   const branch = prData?.headRefName ?? "";
-  const item = /^(W-\d+)/.exec(branch)?.[1];
+  const { item, unknown } = ticketOf(branch);
+  if (unknown) return { ok: false, detail: "no branch name from gh pr view - see gate 1" };
   // Not every change is a W-nn ticket from the plan. Harness, tooling and process work
   // is real work and still needs an issue and every other gate - but there is no spec
   // for it, because there is no work item. Requiring one would mean inventing a fake
@@ -104,7 +129,7 @@ gate("Approved spec exists", () => {
 gate("No open High findings", () => {
   const dir = join(ROOT, ".claude", "outputs");
   if (!existsSync(dir)) return { ok: true, detail: "no reports" };
-  const item = /^(W-\d+)/.exec(prData?.headRefName ?? "")?.[1] ?? "";
+  const item = ticketOf(prData?.headRefName).item ?? "";
   const reports = readdirSync(dir).filter(
     (f) => f.endsWith(".md") && (f.includes(`verify-${item}`) || f.includes(`review-pr-${pr}`)),
   );
@@ -134,67 +159,197 @@ gate("legacy/ untouched", () => {
 // ticket's spec" and "may this PR change docs/ at all". Conflating them left every
 // non-spec document - a template, a CONVENTIONS rule, a README - with no way in (#100).
 //
-// The non-ticket route is an approval file written by sync-docs into .claude/outputs/,
-// which must itself be part of the PR's diff. Its trust model is exactly gate 2's: a
-// marker in a file, recording that the founder approved the change. It proves a human
-// said yes at the time the patch was produced, and the reviewer can read it in the diff
-// alongside what it authorises. It proves nothing about who wrote the marker - anyone
-// who can edit check-done.mjs can edit an approval file. This is a process gate, not a
-// security boundary, and widening it into one would need signatures, not more regex.
+// The non-ticket route is an approval file written by sync-docs into .claude/outputs/.
+// It must be ADDED by this PR's diff, and for every path it covers it must name the git
+// blob sha of that file's content as approved.
+//
+// Its trust model is NOT gate 2's, and the comment here used to claim it was. The
+// difference is blast radius. Gate 2's marker authorises exactly one path, and WHICH
+// path is fixed outside the approving file, by the branch name. Gate 5's marker
+// authorises a list of paths chosen by the author, written in the very file that grants
+// itself the authority - scope and permission in one hand. The digest is what narrows
+// that: the permission is for specific bytes, not for a path for ever.
+//
+// What the digest proves: the docs/ content being merged is byte-identical to the
+// content that existed when the approval was written, and that the approval is new in
+// this PR rather than an old one touched to re-open the paths it lists. What it does
+// not prove: who wrote the marker, or the digest. Anyone who can edit an approval file
+// can recompute a digest, exactly as anyone who can edit check-done.mjs can delete this
+// gate. This is a process gate - it stops drift and accident, not an adversary - and
+// turning it into a security boundary needs signatures, not more regex.
+
+// The documented filename, including the date prefix. Without the date this matched a
+// file called only "docs-approval-.md", and any unrelated report whose name happened to
+// contain the token (F-40).
+const DOCS_APPROVAL_FILE =
+  /^\.claude\/outputs\/\d{4}-\d{2}-\d{2}-docs-approval-[A-Za-z0-9][A-Za-z0-9._-]*\.md$/;
+
+// One path per bullet, in the shape sync-docs writes:
+//     - <backtick>docs/CONVENTIONS.md<backtick> @ <backtick>40-hex blob sha<backtick>
+// The whole path sits in backticks so a path containing a space can be approved at all
+// (F-39), and nothing else is allowed on the line. Exact match only: no prefix or directory matching, or one
+// bullet reading docs/target-state/ would sign off everything beneath it unread.
+const DOCS_APPROVAL_BULLET =
+  /^\s*[-*]\s+`([^`]+)`\s*(?:@|[:\u2013\u2014])\s*`([0-9a-f]{40}|[0-9a-f]{64})`\s*$/;
+
+// Markdown fences hide text from a reader's eye but not from a regex. Without this, the
+// example approval printed inside sync-docs/SKILL.md is itself a passing approval file,
+// and a document headed "DRAFT - not yet approved" passes because the marker and the
+// bullets sit in an illustrative block (F-50/E5). An unterminated fence swallows the
+// rest of the file, which fails closed.
+function stripFences(body) {
+  const out = [];
+  let fence = "";
+  for (const line of body.split(NL)) {
+    const m = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (!fence) {
+      if (m) { fence = m[1]; continue; }
+      out.push(line);
+    } else if (m && m[1][0] === fence[0] && m[1].length >= fence.length && !line.slice(m[0].length).trim()) {
+      fence = "";
+    }
+  }
+  return out.join(NL);
+}
+
+// Only bullets under the heading sync-docs documents authorise anything. Harvesting the
+// whole body meant a path listed under "## Explicitly NOT approved" was approved
+// regardless (F-52/E10). Returns null when the section is absent, which is different
+// from present and empty and must read differently in the failure message.
+function pathsCoveredSection(body) {
+  const lines = body.split(NL);
+  const start = lines.findIndex((l) => /^\s{0,3}#{2,6}\s+paths\s+covered\s*$/i.test(l));
+  if (start < 0) return null;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((l) => /^\s{0,3}#{1,6}\s+\S/.test(l));
+  return (end < 0 ? rest : rest.slice(0, end)).join(NL);
+}
+
+// A bullet that is not a plain, literal repository path authorises nothing, and says so
+// rather than quietly entering the allowed set - where it would make the set non-empty
+// without covering anything and flip the diagnostic (F-43). Rejecting the double quote
+// also keeps shq() below safe.
+function plausibleDocsPath(p) {
+  if (!p.startsWith("docs/")) return false;
+  if (/["\\]/.test(p) || /[\u0000-\u001f]/.test(p)) return false;
+  return p.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
+}
+
+// The blob sha of the path as it exists in the commit that would be merged. Content
+// only - the same bytes hash the same in any checkout, which is what makes the approval
+// re-checkable by somebody else. null when the path is absent at HEAD.
+function blobShaAtHead(p) {
+  const r = sh("git", ["rev-parse", shq(`HEAD:${p}`)]);
+  const out = String(r.out || "").trim();
+  return r.code === 0 && /^[0-9a-f]{40,64}$/.test(out) ? out : null;
+}
+
 function approvedDocsPaths(prFiles) {
-  // Only files in THIS PR's diff count. A stale approval left on disk from an earlier
-  // change would otherwise authorise anything for ever after.
-  const approvals = prFiles.filter((f) =>
-    /^\.claude\/outputs\/[^/]*-docs-approval-[^/]*\.md$/.test(f),
-  );
-  const allowed = new Set();
-  const seen = [];
-  for (const rel of approvals) {
+  const allowed = new Map();   // docs/ path -> blob sha recorded as approved
+  const seen = [];             // approval files that authorised at least one path
+  const problems = [];         // why an approval file authorised less than it looks like
+  for (const f of prFiles.filter((x) => DOCS_APPROVAL_FILE.test(x.path))) {
+    const rel = f.path;
+    // Only files in THIS PR's diff count, and only ones it ADDS. Requiring merely that
+    // the approval appear in the diff meant an old approval already on main could be
+    // re-opened by touching it, re-authorising every path it lists for brand-new
+    // content - the "authorises anything for ever after" failure this was meant to stop
+    // (F-30). changeType comes from gh pr view and is relative to the base branch, so a
+    // file added and then amended within the PR still reads ADDED.
+    if (f.changeType && f.changeType !== "ADDED") {
+      problems.push(`${rel} is ${String(f.changeType).toLowerCase()} by this PR, not added - an approval covers the change it shipped with, once`);
+      continue;
+    }
     const abs = join(ROOT, rel);
-    if (!existsSync(abs)) continue;          // deleted in the diff: authorises nothing
+    // The diff supplies the filename; the body is read from this checkout. They are the
+    // same file only when the check runs on the PR's head commit, which /merge does.
+    if (!existsSync(abs)) {
+      problems.push(`${rel} is in the diff but absent from this checkout - run the check on the PR's head commit`);
+      continue;
+    }
     let body;
     try {
       body = readFileSync(abs, "utf8");
-    } catch {
-      continue;                              // unreadable: fail closed, not open
+    } catch (e) {
+      problems.push(`${rel} could not be read (${String(e.message ?? e).slice(0, 40)}) - unreadable fails closed`);
+      continue;
     }
+    body = stripFences(body);
     // Same marker as gate 2, so there is one thing to remember rather than two.
-    if (!/\*\*Approved/i.test(body) && !/Status\*\*.*Approved/i.test(body)) continue;
-    for (const line of body.split(NL)) {
-      // `- \`docs/CONVENTIONS.md\`` - one path per bullet, whole path, nothing else on
-      // the line. Exact match only: no prefix or directory matching, or one bullet
-      // reading docs/target-state/ would sign off everything beneath it unread.
-      const m = /^\s*[-*]\s+`?([^`\s]+)`?\s*$/.exec(line);
-      if (m && m[1].startsWith("docs/")) allowed.add(m[1]);
+    if (!/\*\*Approved/i.test(body) && !/Status\*\*.*Approved/i.test(body)) {
+      problems.push(`${rel} has no "**Approved" marker outside a code fence - it is still a draft`);
+      continue;
     }
-    seen.push(rel);
+    const section = pathsCoveredSection(body);
+    if (section === null) {
+      problems.push(`${rel} is approved but has no "## Paths covered" section - it authorises nothing`);
+      continue;
+    }
+    let any = false;
+    for (const line of section.split(NL)) {
+      if (!/^\s*[-*]\s+\S/.test(line)) continue;          // prose inside the section
+      const m = DOCS_APPROVAL_BULLET.exec(line);
+      if (!m) {
+        problems.push(`${rel}: cannot parse "${line.trim().slice(0, 50)}" - expected a path and a blob sha, both in backticks`);
+        continue;
+      }
+      if (!plausibleDocsPath(m[1])) {
+        problems.push(`${rel}: "${m[1].slice(0, 50)}" is not a plain docs/ file path - it authorises nothing`);
+        continue;
+      }
+      allowed.set(m[1], m[2]);
+      any = true;
+    }
+    if (any) seen.push(rel);
+    else problems.push(`${rel} is approved but lists no usable path under "Paths covered"`);
   }
-  return { allowed, seen };
+  return { allowed, seen, problems };
 }
 
-gate("docs/ changed only for this ticket's spec", () => {
-  const item = /^(W-\d+)/.exec(prData?.headRefName ?? "")?.[1] ?? "";
-  const files = (prData?.files ?? []).map((f) => f.path);
-  const docs = files.filter((f) => f.startsWith("docs/"));
+gate("docs/ changed only by a recognised route", () => {
+  const branch = prData?.headRefName ?? "";
+  const { item, unknown } = ticketOf(branch);
+  const files = prData?.files ?? [];
+  const docs = files.map((f) => f.path).filter((f) => f.startsWith("docs/"));
+  // An unreadable branch name used to fall through to the permissive route, so the least
+  // information bought the most permission (F-51). It fails closed instead.
+  if (unknown) return { ok: false, detail: "no branch name from gh pr view, so this PR cannot be classified - see gate 1" };
   if (item) {
-    // A W-nn PR stays strict, and an approval file does NOT widen it. The whole value of
-    // this gate is that a feature branch cannot carry an unrelated docs/ edit along with
-    // it; letting an approval waive that would hand every feature PR the exception.
+    // A ticket PR stays strict, and an approval file does NOT widen it. The whole value
+    // of this gate is that a feature branch cannot carry an unrelated docs/ edit along
+    // with it; letting an approval waive that would hand every feature PR the exception.
     // A docs-only change of its own goes to main as its own PR.
-    const bad = docs.filter((f) => !f.includes(`features/${item}-`));
+    const own = `docs/target-state/features/${item}-`;
+    const bad = docs.filter((f) => !f.startsWith(own));
     return bad.length
-      ? { ok: false, detail: `${bad.slice(0, 3).join(", ")} - not this ticket's spec; send it as its own docs PR` }
-      : { ok: true };
+      ? { ok: false, detail: `branch "${branch}" is ticket ${item}: only ${own}*.md may ride with it, but it changes ${bad.slice(0, 3).join(", ")} - send those as their own docs PR` }
+      : { ok: true, detail: docs.length ? `${docs.length} file(s), all ${item}'s own spec` : "no docs/ change" };
   }
   if (!docs.length) return { ok: true, detail: "no docs/ change" };
-  const { allowed, seen } = approvedDocsPaths(files);
-  if (!allowed.size) {
-    return { ok: false, detail: `non-ticket PR changes docs/: ${docs.slice(0, 3).join(", ")} - use sync-docs, which writes the approval file this gate reads` };
+  const { allowed, seen, problems } = approvedDocsPaths(files);
+  // Five causes used to print one identical message, including the case where the file
+  // exists, is in the diff and lists the path but is not approved - indistinguishable
+  // from a gate that is itself broken, which is what :53-55 of this file forbids (F-33).
+  if (!seen.length) {
+    return problems.length
+      ? { ok: false, detail: `docs/ changed, no approval holds: ${problems.join("; ")}`.slice(0, 200) }
+      : { ok: false, detail: `docs/ changed (${docs.slice(0, 3).join(", ")}) and this PR adds no .claude/outputs/<date>-docs-approval-<slug>.md - run /sync-docs` };
   }
-  const bad = docs.filter((f) => !allowed.has(f));
-  return bad.length
-    ? { ok: false, detail: `not covered by ${seen.join(", ")}: ${bad.slice(0, 3).join(", ")}` }
-    : { ok: true, detail: `${docs.length} doc(s) approved by ${seen.join(", ")}` };
+  const unlisted = docs.filter((f) => !allowed.has(f));
+  if (unlisted.length) {
+    const extra = problems.length ? ` (also: ${problems[0]})` : "";
+    return { ok: false, detail: `${unlisted.slice(0, 3).join(", ")} not listed in ${seen.join(", ")}${extra}`.slice(0, 200) };
+  }
+  const drift = [];
+  for (const f of docs) {
+    const head = blobShaAtHead(f);
+    if (head === null) drift.push(`${f} is not readable at HEAD`);
+    else if (head !== allowed.get(f)) drift.push(`${f} is ${head.slice(0, 10)} at HEAD, approved as ${allowed.get(f).slice(0, 10)}`);
+  }
+  if (drift.length) {
+    return { ok: false, detail: `content changed since approval: ${drift.slice(0, 2).join("; ")} - re-run /sync-docs on what is actually being merged`.slice(0, 200) };
+  }
+  return { ok: true, detail: `${docs.length} doc(s), digests match, approved by ${seen.join(", ")}` };
 });
 
 // ── 5. ddl-auto is set nowhere ──────────────────────────────────────────────
