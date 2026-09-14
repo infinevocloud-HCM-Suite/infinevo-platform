@@ -113,3 +113,7 @@ under `legacy/`.
   changes; `verifier` runs them. Do not claim something works without evidence.
 - Typos in package names are real and load-bearing: `timeshhet/`,
   `leaveAndAttedance/`, `EmployyePortalContoller.java`. Do not silently rename.
+- **Answer briefly, and lead with a table.** Any summary, audit, status report or
+  comparison opens with a compact table — findings, file lists, gate results,
+  drift checks. Prose only for what a table cannot hold: a causal explanation,
+  a recommendation, a trade-off. No preamble, no restating the question.
