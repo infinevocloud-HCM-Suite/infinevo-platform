@@ -1,0 +1,41 @@
+# Build context for both dev images is the repository root (infra/docker/compose.yml
+# uses `context: ../..`, and .github/workflows/ci.yml builds from `.`), because both
+# Dockerfiles COPY repo-root-relative paths. Without this file the whole repository -
+# legacy/, node_modules/, every target/, .git/ - is sent to the daemon.
+#
+# The dev images need exactly two trees:
+#   dev.Dockerfile.backend   code/backend/**  (POMs, then the whole module tree)
+#   dev.Dockerfile.frontend  code/frontend/** (package.json, package-lock.json, then src)
+# Nothing below may exclude any part of those two.
+
+# The four frozen applications. Never built, never run from this repo.
+legacy/
+
+# Version control, agent harness, target-state documentation.
+.git/
+.gitignore
+.gitattributes
+.github/
+.claude/
+docs/
+
+# Dependency and build output. Both images produce their own:
+# the frontend runs `npm ci`, the backend runs `mvn install`.
+node_modules/
+**/node_modules/
+**/target/
+**/dist/
+
+# Local tool state, never part of a build.
+**/.idea/
+**/.vscode/
+**/.DS_Store
+**/*.log
+
+# Installers and spreadsheets that happen to sit at the repository root.
+*.exe
+*.xlsx
+
+# Environment files. Secrets must never reach an image layer.
+**/.env
+**/.env.*

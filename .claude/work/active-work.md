@@ -122,7 +122,7 @@ entities are authoritative, and whether the HRMS→Payroll leave integration car
 | | |
 |---|---|
 | **No branch protection** | GitHub refuses it on private repositories on the Free plan (`D-43`). `main` is convention, not enforcement, until the plan changes |
-| **No pipeline yet** | `W-03` builds it. Until then the local nine-gate done-check is the only gate, and it runs on the merger's machine |
+| **No pipeline yet** | `W-03` builds it. Until then the local ten-gate done-check is the only gate, and it runs on the merger's machine |
 | **`W-07` owes the two-tenant seed** | `W-02` shipped the loader; `core.tenant` does not exist yet. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
 | **Nobody has run the stack but me** | `W-02` done-when item 11 is unticked. Have a developer run `up -d` and `smoke.sh` |
 | **No tests outside `shared`** | `W-04` builds the foundation. `shared` has 21 |
