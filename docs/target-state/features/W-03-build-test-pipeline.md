@@ -190,7 +190,7 @@ node .claude/scripts/check-done.mjs <pr>
 
 Nothing is in production and the pipeline deploys nothing, so rollback is total:
 `git revert` the merge commit. The workflow disappears, `check-done.mjs` and
-`guard-merge` are untouched and still enforce the nine gates locally, and no image,
+`guard-merge` are untouched and still enforce the other gates locally, and no image,
 registry, environment, or secret was created to clean up. A single misbehaving job can
 be disabled from the Actions tab without reverting the rest.
 
