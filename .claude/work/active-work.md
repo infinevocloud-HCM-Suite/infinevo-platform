@@ -92,7 +92,7 @@ How they work: `legacy/docs/` — `ARCHITECTURE.md`, `DB_SCHEMA.md`, `FEATURE_MA
 
 ---
 
-## Live issues on the running system
+## Incidents — the running system
 
 **These are operational, not target-state work.** Do not wait for this programme.
 
