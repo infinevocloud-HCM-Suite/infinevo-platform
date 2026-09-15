@@ -13,9 +13,9 @@
 | **Capabilities** | — |
 | **Decisions** | `D-38` Java 21 |
 | **Gaps addressed** | `DEBT-003` no tests |
-| **Status** | **Draft — Pending Founder Approval** |
-| **Approved by** | Pending Founder Approval |
-| **Approved on** | — |
+| **Status** | **Approved 2026-09-15 — implemented, pending merge** |
+| **Approved by** | Founder |
+| **Approved on** | 2026-09-15 |
 
 > Hard rule 1: no code is written until this spec is approved.
 
@@ -90,6 +90,8 @@ payroll/src/test/java/  ──► Payroll entity builders (e.g., PayScheduleBuil
 | Core / HRMS / Payroll POM | `code/backend/{core,hrms,payroll}/pom.xml` | Add `<type>test-jar</type>` dependency on `com.infinevo:shared` for test scope |
 | Test Base | `code/backend/shared/src/test/java/com/infinevo/shared/test/AbstractIntegrationTest.java` | Abstract base class establishing PostgreSQL container with non-owner `app_user` connection |
 | Test Property Source | `code/backend/shared/src/test/java/com/infinevo/shared/test/PostgresTestContainerInitializer.java` | Dynamic property registry initializer for Testcontainers PostgreSQL (`infinevo`) |
+
+**Founder decision, 2026-09-15.** The `app_user` role is created by `PostgresTestContainerInitializer` with plain SQL against the container owner, granted on the `public` schema only. It does not reuse `infra/docker/postgres/00-bootstrap.sql`. Accepted because `AbstractIntegrationTestTest` proves the role is neither superuser nor `BYPASSRLS`. `W-06` must switch the initializer to the bootstrap script when the four schemas arrive.
 
 **API contract**
 
