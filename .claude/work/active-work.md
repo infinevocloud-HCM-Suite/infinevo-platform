@@ -1,8 +1,7 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-14**, after `W-03` (#4), the docs route (#100) and the
-> infra template merged.
+> Last refreshed: **2026-09-15**, after `W-04` test foundation (#5, PR #105) merged.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -12,9 +11,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **97** — 5 closed, 92 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
-| Waves | 9. **Wave 1 has 3 of 7 done** |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) |
+| Tickets | **97** — 6 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
+| Waves | 9. **Wave 1 has 4 of 7 done** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 ---
@@ -55,7 +54,7 @@ production fixes or they are lost at cutover.
 
 ---
 
-## Ready to assign — 6 tickets
+## Ready to assign — 5 tickets
 
 Everything else is blocked on a dependency. **Check GitHub, not this table** —
 `gh issue list --label ready`. This is a summary and goes stale.
@@ -63,14 +62,13 @@ Everything else is blocked on a dependency. **Check GitHub, not this table** —
 | Issue | Ticket | Size | Skill | Assignee |
 |---|---|---|---|---|
 | **#6** | `W-05` Postgres & schemas | S | DATA | Gau318 |
-| #5 | `W-04` Test foundation | M | BE | SayInfi |
 | #69 | `W-49` Containerisation | M | INFRA | BirenGit |
 | #86 | `W-66` Marketing website | L | FE | **—** |
 | #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | **—** |
 | #104 | Three gate paths never executed; harness not in CI | S | INFRA | **—** |
 
 **Assign `#6` first.** It opens `W-06` → `W-07` → `W-08`, the tenancy chain that is the
-highest-value work in the project. Three of the six have no owner.
+highest-value work in the project. Three of the five have no owner. SayInfi is free.
 
 `W-49` (#69) **inherits the `images` job** from `W-03` and must replace its dev
 Dockerfile targets with the production ones. BirenGit needs telling — the two tickets
@@ -154,7 +152,7 @@ entities are authoritative, and whether the HRMS→Payroll leave integration car
 | **Pipeline is advisory** | `W-03` merged 2026-09-14. Four jobs on every PR, but `D-43` means CI cannot be a *required* check — gate 10 of the ten-gate done-check enforces it locally instead |
 | **`W-07` owes the two-tenant seed** | `W-02` shipped the loader; `core.tenant` does not exist yet. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
 | **Nobody has run the stack but me** | `W-02` done-when item 11 is unticked. Have a developer run `up -d` and `smoke.sh` |
-| **No tests outside `shared`** | `W-04` (#5) builds the foundation. `shared` has 21 in 2 files; the test gate guards almost nothing until then |
+| **Test foundation is in, coverage is not** | `W-04` merged 2026-09-15. `AbstractIntegrationTest` runs a real Postgres 16 as non-owner `app_user`; 24 tests, all in `shared`. Three things to know: integration tests are **skipped silently without Docker** (CI has it, laptops may not); the proof test is a `*Test`, so Failsafe's `*IT` pattern matches nothing yet; `app_user` is created by the initializer, not `00-bootstrap.sql` — `W-06` switches it when the four schemas arrive |
 | **Toolchain** | Java 21, Maven 3.9.11 (`C:/Tools/apache-maven-3.9.11`), Node 24. `D-38`–`D-42` |
 
 ---
