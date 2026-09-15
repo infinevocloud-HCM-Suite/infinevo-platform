@@ -92,9 +92,60 @@ Look the rest up when you hit the question:
 
 ---
 
-## 3. The loop
+## 3. Claiming a ticket
 
-**One ticket at a time.** Two open tickets finish neither.
+**Work is pulled, not handed out.** Nobody waits to be assigned; nobody is assigned
+ahead of time. GitHub is the queue and the lock, and `.github/workflows/tickets.yml`
+enforces the rules below (#107).
+
+| Rule | What it means |
+|---|---|
+| **Claimable** = `ready` label + no assignee | `gh issue list --label ready --no-assignee` |
+| **Claim** = assign yourself | `gh issue edit <n> --add-assignee @me`, then comment `claimed` |
+| **One owner, ever** | A second assignee is reverted automatically. The earlier one wins |
+| **WIP limit 2** | One in build, one in review. A third claim is reverted |
+| **`next` first, your `skill-*` only** | The founder marks what should go first. Don't reach past it |
+| **Blocked tickets free themselves** | When every `Blocked by` ticket closes, the label flips to `ready` |
+| **3 working days idle = released** | No branch, PR or comment: the claim returns to the queue |
+| **Founder can override** | An assignment made by an admin bypasses every check |
+
+Ownership is the assignee field and nothing else. There are no `owner-*` labels.
+
+### Developer: the steps
+
+1. Your current PR is open and review requested. You may now claim one more.
+2. `gh issue list --label next --no-assignee`, then `--label ready` if `next` is empty.
+   Take the top one that matches your `skill-*` label.
+3. `gh issue edit <n> --add-assignee @me` and comment `claimed`. If the bot reverts it,
+   read its comment and take the next one.
+4. Branch `W-nn-<slug>`, then step 1 of the loop below. The branch name is what tells
+   the stale sweep you have started.
+5. Blocked on something for more than a day? Say so in a comment. Silence is what gets
+   a claim released.
+6. Stuck for good or reprioritised? Unassign yourself, comment why, and claim the next.
+
+### Approver: the steps
+
+1. **Keep `next` populated.** Three to five tickets, in the order they should go.
+   `gh issue edit <n> --add-label next`. That is the only steering needed day to day.
+2. **Approve specs within a day.** Step 2 of the loop is the only place a developer
+   waits on you, so it is the only place idle time can come from.
+3. **Merge.** `/merge <pr>` is yours. `Closes #n` closes the ticket, and closing it
+   is what releases the tickets behind it.
+4. **Check the queue weekly.** `gh issue list --label ready --no-assignee` should never
+   be empty while a developer is free; `gh issue list --label blocked` shows what is
+   coming. If `ready` runs dry, split or unblock something.
+5. **Override when priorities change.** Assign directly; the guard stands aside for you.
+   Say why in a comment so the developer knows it was deliberate.
+6. **Never pre-assign.** A ticket that is `blocked` cannot be claimed and should not be
+   assigned. Ownership starts when work can start.
+
+---
+
+## 4. The loop
+
+**One ticket in build at a time.** The second one you hold is in review, not in
+progress. Two tickets in build finish neither.
 
 | # | Step | Command | Note |
 |---|---|---|---|
@@ -125,7 +176,7 @@ Disagreements about approach belong at step 2, not step 6.
 
 ---
 
-## 4. The rules that are never negotiable
+## 5. The rules that are never negotiable
 
 | # | Rule |
 |---|---|
@@ -144,7 +195,7 @@ Rule 7 is enforced by the `guard-edit` hook if you use Claude Code.
 
 ---
 
-## 5. Done means
+## 6. Done means
 
 **Ten gates, checked by a script rather than by memory:**
 
@@ -197,7 +248,7 @@ than no spec, because the next person trusts it.
 
 ---
 
-## 6. If you use Claude Code
+## 7. If you use Claude Code
 
 The harness in `.claude/` comes with the clone and works immediately.
 
@@ -211,5 +262,5 @@ The harness in `.claude/` comes with the clone and works immediately.
 | `reviewer` agent | Reads the diff against the spec. Has no edit tools, so findings cannot become quiet fixes |
 | `verifier` agent | Runs builds and tests independently. Has no edit tools, so it cannot quietly fix what it finds |
 
-Its value is not speed. It is that the rules in §4 are enforced by tooling rather
+Its value is not speed. It is that the rules in §5 are enforced by tooling rather
 than by memory.
