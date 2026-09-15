@@ -92,9 +92,71 @@ Look the rest up when you hit the question:
 
 ---
 
-## 3. The loop
+## 3. Claiming a ticket
 
-**One ticket at a time.** Two open tickets finish neither.
+**Work is pulled, not handed out.** Nobody waits to be assigned; nobody is assigned
+ahead of time. GitHub is the queue and the lock, and `.github/workflows/tickets.yml`
+enforces the rules below (#107).
+
+| Rule | What it means |
+|---|---|
+| **Claimable** = `ready` label + no assignee | `gh issue list --label ready --search "no:assignee"` |
+| **Claim** = assign yourself | `gh issue edit <n> --add-assignee @me`, then comment `claimed` |
+| **One owner, ever** | A second assignee is reverted automatically. The earlier one wins |
+| **WIP limit 2** | One in build, one in review. A third claim is reverted |
+| **`next` first, your `skill-*` only** | The founder marks what should go first. Don't reach past it |
+| **Blocked tickets free themselves** | When every `Blocked by` ticket closes, the label flips to `ready` |
+| **3 working days idle = released** | No branch, PR or comment: the claim returns to the queue |
+
+Ownership is the assignee field and nothing else. There are no `owner-*` labels.
+
+### Developer: the steps, claim to merge
+
+| # | Step | Command | Note |
+|---|---|---|---|
+| 1 | Check you may claim | `gh issue list --assignee @me` | Two open tickets means claim nothing until one merges |
+| 2 | Find the next one | `gh issue list --label next --search "no:assignee"` | Then `--label ready` if `next` is empty. Top one matching your `skill-*` |
+| 3 | **Claim it** | `gh issue edit <n> --add-assignee @me` | Comment `claimed`. If the bot reverts, read why and take the next |
+| 4 | Branch | `git checkout -b W-nn-<slug> main` | The `W-nn` in the name is what tells the stale sweep you started |
+| 5 | Understand it | `/analyze <question>` | Optional. Cited evidence, changes nothing |
+| 6 | **Write the spec** | `/plan-feature W-nn` (product)<br>`/infra-task W-nn` (platform) | `skill-INFRA`, `-DATA`, `-SEC` use `/infra-task`; `-BE`, `-FE` use `/plan-feature` |
+| 7 | **Get it approved** | — | **The gate.** No code before it. Say in a ticket comment that the spec is ready |
+| 8 | Build | `/develop W-nn` | Refuses without an approved spec. One module at a time |
+| 9 | Test | `/test W-nn` | Tests for what changed. Never changes code to make a test pass |
+| 10 | Verify | `/verify W-nn` | Runs everything. **Fixes nothing** - failures become findings for step 8 |
+| 11 | Open the PR | `gh pr create` | Body says `Closes #n`. Request review. **You may now claim one more** (steps 1-3) |
+| 12 | Review | `/review <pr>` | Reads against the spec. **Fixes nothing** - findings go back to step 8 |
+| 13 | Docs | `/sync-docs` | Only if the build diverged from the documents |
+| 14 | Merge | — | **The founder merges.** Closing the ticket frees the ones behind it |
+
+Blocked for more than a day? Say so in a ticket comment. Silence is what gets a claim
+released. Stuck for good or reprioritised? Unassign yourself, comment why, and claim
+the next.
+
+### Approver: the steps
+
+The founder never assigns a ticket. Developers claim; the founder steers the order.
+
+1. **Keep `next` populated.** Three to five tickets, in the order they should go.
+   `gh issue edit <n> --add-label next`. That is the only steering needed day to day.
+2. **Approve specs within a day.** Step 7 of the developer list is the only place a
+   developer waits on you, so it is the only place idle time can come from.
+3. **Merge.** `/merge <pr>` is yours. `Closes #n` closes the ticket, and closing it
+   is what releases the tickets behind it.
+4. **Check the queue weekly.** `gh issue list --label ready --search "no:assignee"` should never
+   be empty while a developer is free; `gh issue list --label blocked` shows what is
+   coming. If `ready` runs dry, split or unblock something.
+5. **Reprioritise with labels, not people.** Move `next` around. If a claimed ticket
+   must stop, comment on it and the developer unassigns themself and claims the next.
+6. **Never pre-assign.** Ownership starts when a developer claims. A `blocked` ticket
+   cannot be claimed, and every ticket sits unassigned until then.
+
+---
+
+## 4. The loop
+
+**One ticket in build at a time.** The second one you hold is in review, not in
+progress. Two tickets in build finish neither.
 
 | # | Step | Command | Note |
 |---|---|---|---|
@@ -125,7 +187,7 @@ Disagreements about approach belong at step 2, not step 6.
 
 ---
 
-## 4. The rules that are never negotiable
+## 5. The rules that are never negotiable
 
 | # | Rule |
 |---|---|
@@ -144,7 +206,7 @@ Rule 7 is enforced by the `guard-edit` hook if you use Claude Code.
 
 ---
 
-## 5. Done means
+## 6. Done means
 
 **Ten gates, checked by a script rather than by memory:**
 
@@ -197,7 +259,7 @@ than no spec, because the next person trusts it.
 
 ---
 
-## 6. If you use Claude Code
+## 7. If you use Claude Code
 
 The harness in `.claude/` comes with the clone and works immediately.
 
@@ -211,5 +273,5 @@ The harness in `.claude/` comes with the clone and works immediately.
 | `reviewer` agent | Reads the diff against the spec. Has no edit tools, so findings cannot become quiet fixes |
 | `verifier` agent | Runs builds and tests independently. Has no edit tools, so it cannot quietly fix what it finds |
 
-Its value is not speed. It is that the rules in §4 are enforced by tooling rather
+Its value is not speed. It is that the rules in §5 are enforced by tooling rather
 than by memory.

@@ -54,21 +54,22 @@ production fixes or they are lost at cutover.
 
 ---
 
-## Ready to assign — 5 tickets
+## The queue — claimed, not assigned (#107, 2026-09-15)
 
-Everything else is blocked on a dependency. **Check GitHub, not this table** —
-`gh issue list --label ready`. This is a summary and goes stale.
+Developers pull the next `ready` ticket themselves; `tickets.yml` enforces one owner,
+a WIP limit of 2, and releases blocked tickets when their blockers close. This file
+no longer tracks who holds what — **the assignee field on GitHub is the only truth**:
+`gh issue list --label ready --no-assignee` is the queue, `--label next` is its head.
 
-| Issue | Ticket | Size | Skill | Assignee |
+| Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
-| **#6** | `W-05` Postgres & schemas | S | DATA | Gau318 |
-| #69 | `W-49` Containerisation | M | INFRA | BirenGit |
-| #86 | `W-66` Marketing website | L | FE | **—** |
-| #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | **—** |
-| #104 | Three gate paths never executed; harness not in CI | S | INFRA | **—** |
+| **#6** | `W-05` Postgres & schemas | S | DATA | Opens `W-06` → `W-07` → `W-08`, the tenancy chain everything in Wave 3 waits on |
+| #69 | `W-49` Containerisation | M | INFRA | Inherits the `images` job from `W-03` |
+| #86 | `W-66` Marketing website | L | FE | Independent of the chain |
+| #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | Small, unblocks nothing but hardens `/merge` |
+| #104 | Three gate paths never executed; harness not in CI | S | INFRA | Same |
 
-**Assign `#6` first.** It opens `W-06` → `W-07` → `W-08`, the tenancy chain that is the
-highest-value work in the project. Three of the five have no owner. SayInfi is free.
+The founder steers by keeping the `next` label on three to five tickets, in order.
 
 `W-49` (#69) **inherits the `images` job** from `W-03` and must replace its dev
 Dockerfile targets with the production ones. BirenGit needs telling — the two tickets
