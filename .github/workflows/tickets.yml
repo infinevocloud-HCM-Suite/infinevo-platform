@@ -11,7 +11,9 @@
 #   stale-sweep    nightly - a claim with no branch, PR or comment for 3 working days
 #                  is released back to the queue.
 #
-# An assignment made by a repository admin (the founder) bypasses claim-guard.
+# An assignment made by a repository admin bypasses claim-guard. Not a workflow - the
+# founder does not assign tickets - but a safety valve so the guard can never lock
+# the repository owner out of correcting a mistake.
 # The default GITHUB_TOKEN is enough; nothing here touches code.
 
 name: Tickets

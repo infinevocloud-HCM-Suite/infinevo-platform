@@ -107,7 +107,6 @@ enforces the rules below (#107).
 | **`next` first, your `skill-*` only** | The founder marks what should go first. Don't reach past it |
 | **Blocked tickets free themselves** | When every `Blocked by` ticket closes, the label flips to `ready` |
 | **3 working days idle = released** | No branch, PR or comment: the claim returns to the queue |
-| **Founder can override** | An assignment made by an admin bypasses every check |
 
 Ownership is the assignee field and nothing else. There are no `owner-*` labels.
 
@@ -136,19 +135,21 @@ the next.
 
 ### Approver: the steps
 
+The founder never assigns a ticket. Developers claim; the founder steers the order.
+
 1. **Keep `next` populated.** Three to five tickets, in the order they should go.
    `gh issue edit <n> --add-label next`. That is the only steering needed day to day.
-2. **Approve specs within a day.** Step 2 of the loop is the only place a developer
-   waits on you, so it is the only place idle time can come from.
+2. **Approve specs within a day.** Step 7 of the developer list is the only place a
+   developer waits on you, so it is the only place idle time can come from.
 3. **Merge.** `/merge <pr>` is yours. `Closes #n` closes the ticket, and closing it
    is what releases the tickets behind it.
 4. **Check the queue weekly.** `gh issue list --label ready --no-assignee` should never
    be empty while a developer is free; `gh issue list --label blocked` shows what is
    coming. If `ready` runs dry, split or unblock something.
-5. **Override when priorities change.** Assign directly; the guard stands aside for you.
-   Say why in a comment so the developer knows it was deliberate.
-6. **Never pre-assign.** A ticket that is `blocked` cannot be claimed and should not be
-   assigned. Ownership starts when work can start.
+5. **Reprioritise with labels, not people.** Move `next` around. If a claimed ticket
+   must stop, comment on it and the developer unassigns themself and claims the next.
+6. **Never pre-assign.** Ownership starts when a developer claims. A `blocked` ticket
+   cannot be claimed, and every ticket sits unassigned until then.
 
 ---
 
