@@ -3,19 +3,19 @@
 | Field | Value |
 |---|---|
 | **Work item** | `W-05` · issue [#6](https://github.com/infinevocloud-HCM-Suite/infinevo-platform/issues/6) |
-| **Kind** | **Infra / Data** — database server, schema isolation, security roles |
+| **Kind** | **Data / Infra** — database server, schema isolation, security roles |
 | **Stream / track** | Stream A — Foundation · Track P |
 | **Wave** | 1 — Foundations |
 | **Size / skill** | S · DATA |
 | **Owner** | SayInfi |
 | **Blocked by** | — (`W-01` merged) |
 | **Blocks** | `W-06` Flyway migrations · `W-07` Tenant & RLS foundation · `W-08`–`W-13` feature tables |
-| **Capabilities** | `PLAT-05` database isolation & security |
+| **Capabilities** | `PLAT-11` build & deploy pipeline |
 | **Decisions** | `D-08` reference schema · `D-09` no ddl-auto / Flyway only · `D-38` Java 21 |
-| **Gaps addressed** | `DEBT-002` ddl-auto · `BUG-004` uncontrolled schema drift |
-| **Status** | **Draft — Pending Founder Approval** |
-| **Approved by** | Pending Founder Approval |
-| **Approved on** | — |
+| **Gaps addressed** | `DEBT-002` ddl-auto |
+| **Status** | **Approved 2026-09-15 by Founder** |
+| **Approved by** | Founder |
+| **Approved on** | 2026-09-15 |
 
 > Hard rule 1: no code is written until this spec is approved.
 
@@ -23,22 +23,25 @@
 
 ## 1. Problem
 
-In the legacy codebase, two MySQL databases (`HRMS_Backend` and `Payroll-Bend-SBoot`) are managed via Hibernate `spring.jpa.hibernate.ddl-auto=update` without database migration tooling (`DEBT-002`, `BUG-004`). Database connections execute as the superuser/owner account, exposing the entire database structure to application-level DDL queries and schema drift.
+In the legacy codebase, two MySQL databases (`HRMS_Backend` and `Payroll-Bend-SBoot`) ran with Hibernate `spring.jpa.hibernate.ddl-auto=update` without database migration tooling (`DEBT-002`). Applications connected as database superuser/owner, exposing table structures to application-level DDL queries and uncontrolled schema drift.
 
-This architecture presents four critical flaws:
-1. **Uncontrolled Schema Drift:** Hibernate auto-generates and alters tables on startup in all environments, resulting in schema variance between local, staging, and production environments without an audit trail or rollback mechanism.
-2. **Missing Schema Boundaries:** Domain models are split across separate database instances rather than logical schema boundaries within a unified platform database.
-3. **Privilege Over-Granting:** The application connects as database owner, allowing application bugs or SQL injection vulnerabilities to execute destructive DDL commands (`DROP TABLE`, `ALTER TABLE`).
-4. **Bypassed Row-Level Security (RLS) Controls:** In PostgreSQL, table owners and superusers bypass Row-Level Security policies by default (`BYPASSRLS`). Connecting the application as schema owner neutralises database-enforced multi-tenant isolation.
+Today, local development (`infra/docker/postgres/00-bootstrap.sql`, built in `W-02`) creates four schemas (`core`, `hrms`, `payroll`, `reference`) and three roles (`app_user`, `migration_user`, `readonly_user`).
 
-**Baseline, measured 2026-09-15 on local PostgreSQL:**
+However, four gaps remain to complete the data foundation:
+1. **Unconsolidated Bootstrap Scripts:** Bootstrap logic is embedded in local Docker compose initializers rather than a canonical, shared SQL script set usable by Testcontainers (`W-04`) and production deployment (`W-50`).
+2. **Keycloak Superuser Access:** Keycloak connects to its PostgreSQL database using superuser privileges instead of a dedicated non-superuser role (`keycloak_user`).
+3. **Implicit PUBLIC Privileges:** PostgreSQL's default `PUBLIC` role retains connection privileges on the `infinevo` database.
+4. **Missing Automated Privileges Test:** There is no integration test (`DatabasePrivilegesIT`) verifying that `app_user` is refused DDL, `readonly_user` is refused writes, and `migration_user` possesses schema ownership.
 
-| Check | Result |
-|---|---|
-| Platform database `infinevo` | Not provisioned / unstandardised |
-| Target schemas (`core`, `hrms`, `payroll`, `reference`) | Missing |
-| Database roles (`infinevo_owner`, `migration_user`, `app_user`) | Missing |
-| Application DDL boundary | Unenforced (`app_user` role absent) |
+**Baseline, measured 2026-09-15 on `main` at `infra/docker/postgres/00-bootstrap.sql`:**
+
+| Command / Check | Exit | Output / Result |
+|---|---|---|
+| Local Docker Postgres bootstrap (`00-bootstrap.sql`) | 0 | 4 schemas (`core`, `hrms`, `payroll`, `reference`), 3 roles (`app_user`, `migration_user`, `readonly_user`) created |
+| `app_user` DDL prohibition | 1 | `ERROR: permission denied for schema core` (verified in local Docker container) |
+| Shared SQL script location (`infra/postgres/`) | N/A | Missing — currently lives under `infra/docker/postgres/` |
+| `keycloak_user` dedicated DB role | N/A | Missing — Keycloak connects as Postgres superuser |
+| `DatabasePrivilegesIT` | N/A | Missing |
 
 ---
 
@@ -46,179 +49,156 @@ This architecture presents four critical flaws:
 
 **In scope**
 
-- **Database Provisioning Specification:** Standardization of PostgreSQL 16 server configuration and creation of the `infinevo` platform database.
-- **Four-Schema Architecture:** Creation and isolation of four distinct schemas: `core`, `hrms`, `payroll`, and `reference`.
-- **Three-Role Security Model:** Definition and creation of three distinct database roles: `infinevo_owner`, `migration_user`, and `app_user`.
-- **Strict Permission Hierarchy & DDL Block:** Configuration of explicit GRANT/REVOKE privileges ensuring `app_user` has DML access (SELECT, INSERT, UPDATE, DELETE) on tenant schemas and read-only access on `reference`, while being strictly denied DDL privileges (CREATE, ALTER, DROP, TRUNCATE).
-- **Default Privilege Automation:** Automated `ALTER DEFAULT PRIVILEGES` setup so future tables created by `migration_user` automatically inherit correct DML permissions for `app_user`.
+- **Canonical Postgres Script Organization:** Move and consolidate database initialization scripts into `infra/postgres/` for shared consumption by Docker Compose (`W-02`), Testcontainers (`W-04`), and Azure Flexible Server (`W-50`).
+- **Schema Ownership Model:** Assign `migration_user` as the explicit owner of the four platform schemas (`core`, `hrms`, `payroll`, `reference`).
+- **Dedicated Keycloak Security Role:** Create `keycloak_user` owning the `keycloak` database so Keycloak no longer operates as superuser.
+- **Revocation of PUBLIC Connection Privileges:** Revoke default `CONNECT` privileges on `infinevo` from `PUBLIC`.
+- **Testcontainers Initializer Integration:** Update `PostgresTestContainerInitializer` (`shared` module) to execute the canonical `infra/postgres/` SQL scripts during integration tests.
+- **Database Privileges Integration Test:** Add `DatabasePrivilegesIT` in `shared` module to assert that `app_user` is denied DDL, `readonly_user` is denied writes, and `migration_user` can execute DDL.
+- **W-50 Handoff Specification:** Record Azure PostgreSQL Flexible Server specifications (§3b) and post-deployment script handoff requirements for `W-50`.
 
 **Out of scope**
 
+- **Azure Infrastructure-as-Code (Bicep/Terraform).** Owned by `W-50`.
 - **Flyway runner configuration & migration scripts.** Owned by `W-06` (#7).
 - **Tenant entity, RLS policies, and session variables.** Owned by `W-07` (#8).
 - **Employee, Payroll, or HRMS table migrations.** Owned by `W-08` through `W-13`.
-- **Azure PostgreSQL Flexible Server IaC scripts.** Owned by `W-48` / `W-50`.
-- **Application source code modifications.** Owned by feature tickets.
 
 ---
 
-## 3. Database Architecture
+## 3. What Gets Built
 
-The target database architecture unifies platform data into a single PostgreSQL 16 database named `infinevo` divided into four logical schemas.
+### 3a. File Changes
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           Database: infinevo                                    │
-│                                                                                 │
-│ ┌───────────────────────────┐                 ┌───────────────────────────────┐ │
-│ │          core             │                 │             hrms              │ │
-│ │ Tenant, Subscription,     │                 │ Clock sessions, Projects,     │ │
-│ │ User, Employee master,    │                 │ Timesheets                    │ │
-│ │ Leave, Org Structure      │                 │                               │ │
-│ └───────────────────────────┘                 └───────────────────────────────┘ │
-│ ┌───────────────────────────┐                 ┌───────────────────────────────┐ │
-│ │         payroll           │                 │           reference           │ │
-│ │ Components, Pay runs,     │                 │ Shared National Rules         │ │
-│ │ Statutory overrides,      │                 │ Tax slabs, HRA, Lookups       │ │
-│ │ Tax declarations          │                 │ (NO tenant_id column)         │ │
-│ └───────────────────────────┘                 └───────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────────┘
+infra/postgres/
+  ├── 00-roles.sql         # Creates migration_user, app_user, readonly_user, keycloak_user
+  └── 01-schemas.sql       # Creates core, hrms, payroll, reference owned by migration_user
 ```
 
-### Schema Responsibilities & Ownership
+| File | Change |
+|---|---|
+| `infra/postgres/00-roles.sql` | **New.** Creates `migration_user`, `app_user`, `readonly_user`, and `keycloak_user`. Revokes `PUBLIC` connect. |
+| `infra/postgres/01-schemas.sql` | **New.** Creates `core`, `hrms`, `payroll`, `reference` owned by `migration_user` and sets default privileges. |
+| `infra/docker/postgres/00-bootstrap.sql` | **Modified.** Delegates to/imports `infra/postgres/` scripts for Docker Compose. |
+| `code/backend/shared/src/test/java/com/infinevo/shared/test/PostgresTestContainerInitializer.java` | **Modified.** Executes `infra/postgres/*.sql` scripts on container startup. |
+| `code/backend/shared/src/test/java/com/infinevo/shared/test/DatabasePrivilegesIT.java` | **New.** Integration test verifying `app_user`, `readonly_user`, and `migration_user` security boundaries. |
 
-| Schema | Purpose | Tenant Column Requirement | Ownership |
-|---|---|---|---|
-| `core` | Shared tenant master, user accounts, employee profiles, org structure, leave engine, platform audit logs | `tenant_id` mandatory on all tables | Owned by `infinevo_owner`; DDL by `migration_user` |
-| `hrms` | Time tracking, clock sessions, project assignments, timesheet entries | `tenant_id` mandatory on all tables | Owned by `infinevo_owner`; DDL by `migration_user` |
-| `payroll` | Salary structures, statutory configurations, pay runs, tax declarations, reimbursement claims | `tenant_id` mandatory on all tables | Owned by `infinevo_owner`; DDL by `migration_user` |
-| `reference` | Shared national statutory data (tax slabs, HRA rules, bank lookups, country codes) | **NO `tenant_id` column by design** (`D-08`) | Owned by `infinevo_owner`; DDL by `migration_user` |
+### 3b. Azure PostgreSQL Flexible Server Requirements (W-50 Handoff)
+
+> **Note:** Compute sizes (`B1ms` for dev, `D2ds_v5` for prod) are architectural suggestions; exact SKU selections and IaC deployment are owned by `W-50`.
+
+- **Engine:** PostgreSQL 16 Flexible Server.
+- **Database Name:** `infinevo` (Application) and `keycloak` (Identity).
+- **Post-Deploy Execution:** `W-50` pipeline executes `infra/postgres/00-roles.sql` and `01-schemas.sql` using Key Vault credentials after provisioning.
 
 ---
 
 ## 4. Database Roles & Security Boundaries
 
-Three database roles enforce strict separation of duties between server administration, schema migration, and application execution.
+Three application roles and one identity role enforce separation of duties.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                               DATABASE ROLES                                    │
 ├───────────────────┬───────────────────────────────┬─────────────────────────────┤
-│   infinevo_owner  │        migration_user         │          app_user           │
-│  (Database Owner) │      (Migration Engine)       │  (Application Runtime)      │
+│  migration_user   │           app_user            │        readonly_user        │
+│  (Schema Owner)   │     (Application Runtime)     │    (Reporting & Analytics)  │
 ├───────────────────┼───────────────────────────────┼─────────────────────────────┤
-│ • Superuser/Admin │ • Executed by Flyway CI/CD    │ • Executed by Web/Worker    │
-│ • Creates DB &    │ • Owns schema migrations      │ • DML only (SELECT, INSERT, │
-│   Schemas         │ • Runs CREATE/ALTER/DROP      │   UPDATE, DELETE)           │
-│ • Manages roles   │ • Bypasses RLS during DDL     │ • DENIED ALL DDL            │
-│                   │                               │ • RLS Enforced per tenant   │
-└───────────────────┴───────────────────────────────┴─────────────────────────────┤
+│ • Owns schemas    │ • Used by web/worker apps     │ • Read-only across all      │
+│ • Runs Flyway DDL │ • DML only on tenant schemas  │   four schemas              │
+│ • Bypasses RLS    │ • Read-only on reference      │ • DENIED DDL and writes     │
+│   during DDL      │ • DENIED ALL DDL              │ • RLS Enforced per tenant   │
+└───────────────────┴───────────────────────────────┴─────────────────────────────┘
 ```
 
 ### Role Specifications
 
-1. `infinevo_owner` **(Database Owner & Administrative Role)**
-   - **Responsibility:** Provisions the `infinevo` database, creates the four schemas, and configures role privileges.
-   - **Security Boundary:** Used exclusively during database provisioning and maintenance. Never embedded in application connection pools or pipeline secrets.
+1. `migration_user` **(Schema Owner & Migration Execution Role)**
+   - **Responsibility:** Owns `core`, `hrms`, `payroll`, and `reference` schemas. Executes Flyway DDL migrations in CI/CD (`W-06`).
+   - **Rights:** Full DDL (`CREATE`, `ALTER`, `DROP`) and DML privileges.
 
-2. `migration_user` **(Flyway Migration Execution Role)**
-   - **Responsibility:** Executes DDL migration scripts (`V1__...sql`) during CI/CD deployment pipelines (`W-06`).
-   - **Security Boundary:** Has full DDL privileges (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`) on all schemas. Bypasses RLS (`BYPASSRLS`) to perform structural alterations and data backfills.
+2. `app_user` **(Application Runtime Role)**
+   - **Responsibility:** Used by `app` (web), `worker` (batch), and integration tests.
+   - **Rights:** DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) on `core`, `hrms`, `payroll`; read-only (`SELECT`) on `reference`. Strictly **DENIED DDL**.
 
-3. `app_user` **(Application Runtime Role)**
-   - **Responsibility:** Used by `app` (web API), `worker` (batch processing), and integration test suites (`W-04`).
-   - **Security Boundary:** Denied all DDL permissions. Granted DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) on `core`, `hrms`, and `payroll` schemas, and read-only (`SELECT`) on `reference`. Subject to database RLS policies (`W-07`).
+3. `readonly_user` **(Reporting & Replica Role)**
+   - **Responsibility:** Read-only access for reporting services and database replicas.
+   - **Rights:** `SELECT` only across all four schemas. Strictly **DENIED DDL and DML writes**.
+
+4. `keycloak_user` **(Keycloak Identity Role)**
+   - **Responsibility:** Dedicated non-superuser role owning and managing the isolated `keycloak` database.
 
 ---
 
 ## 5. Permissions Matrix
 
-The following matrix specifies the exact privilege boundaries enforced across all four schemas:
-
-| Schema | Role | SELECT | INSERT | UPDATE | DELETE | CREATE (DDL) | ALTER (DDL) | DROP (DDL) | GRANT (DCL) |
-|---|---|---|---|---|---|---|---|---|---|
-| `core` | `infinevo_owner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `core` | `migration_user` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `core` | `app_user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `hrms` | `infinevo_owner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `hrms` | `migration_user` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `hrms` | `app_user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `payroll` | `infinevo_owner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `payroll` | `migration_user` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `payroll` | `app_user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `reference` | `infinevo_owner` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `reference` | `migration_user` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `reference` | `app_user` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Schema | Role | SELECT | INSERT | UPDATE | DELETE | CREATE (DDL) | ALTER (DDL) | DROP (DDL) |
+|---|---|---|---|---|---|---|---|---|
+| `core`, `hrms`, `payroll` | `migration_user` (Owner) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `core`, `hrms`, `payroll` | `app_user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `core`, `hrms`, `payroll` | `readonly_user` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `reference` | `migration_user` (Owner) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `reference` | `app_user` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `reference` | `readonly_user` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 ---
 
-## 6. Integration with Future Features
+## 6. Gap Disposition & Future Integrations
 
-```
-┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-│   W-05   │ ──► │   W-06   │ ──► │   W-07   │ ──► │   W-13   │
-│ Postgres │     │  Flyway  │     │ Tenant & │     │ Employee │
-│ Schemas  │     │ Runner   │     │   RLS    │     │ Entity   │
-└──────────┘     └──────────┘     └──────────┘     └──────────┘
-```
+### Gap Disposition
 
-1. **Relationship with `W-06` (Flyway Migrations):**
-   - `W-05` provisions the underlying database, schemas, and `migration_user` account.
-   - `W-06` attaches Flyway to `infinevo`, creating the `flyway_schema_history` table using `migration_user` and establishing SQL migration conventions (`db/migration/{schema}/`).
+| Gap | Disposition |
+|---|---|
+| `DEBT-002` ddl-auto | **Fixed forward.** `app_user` is refused DDL permanently; schema changes require Flyway (`W-06`). |
+| `DEBT-003` no tests | **Fixed forward in part.** `W-04` established test harness; `W-05` adds `DatabasePrivilegesIT`. |
+| `DEBT-004` secrets in properties | **Deferred to `W-50`.** Local credentials use placeholders; production credentials managed via Azure Key Vault. |
+| `DEBT-018` no indexes | **Discounted.** Legacy payroll debt; new schema indexes enforced starting in `W-07`. |
+| `DEBT-021` unlocked schedulers | **Discounted.** Legacy payroll scheduler debt; addressed in worker batch tasks. |
 
-2. **Relationship with `W-07` (Tenant & RLS Foundation):**
-   - `W-05` establishes the `app_user` non-owner role boundary.
-   - `W-07` applies PostgreSQL Row-Level Security policies (`CREATE POLICY ... ON ...`) to tables in `core`, `hrms`, and `payroll` for `app_user`, enforcing `tenant_id = current_setting('app.current_tenant_id')`.
+### Integration Roadmap
 
-3. **Relationship with `W-13` (Employee Master Migration):**
-   - `W-13` delivers the first major domain table migration (`core.employee`), executed by `migration_user` (`W-05`/`W-06`) and queried by `app_user` (`W-05`/`W-07`).
+- `W-06` (Flyway): Attaches Flyway migration runner using `migration_user`.
+- `W-07` (Tenant & RLS): Applies Row-Level Security policies to `core`, `hrms`, `payroll` for `app_user`.
+- `W-13` (Employee Entity): Migrates employee master tables into `core` schema using `migration_user`.
 
 ---
 
 ## 7. Proving the Security Boundaries
 
-To prove that the permission boundaries are real, the following deliberate failure scenarios must be verified on a throwaway test script:
+`DatabasePrivilegesIT` verifies the following privilege assertions against Testcontainers PostgreSQL:
 
-| # | Deliberate Action | Expected System Behavior |
+| # | Action / Execution | Expected Result |
 |---|---|---|
-| 1 | `app_user` executes `CREATE TABLE core.test_table (id INT);` | **FAILURE** — `ERROR: permission denied for schema core` |
-| 2 | `app_user` executes `ALTER TABLE core.tenant ADD COLUMN test TEXT;` | **FAILURE** — `ERROR: must be owner of table tenant` |
-| 3 | `app_user` executes `DROP SCHEMA hrms;` | **FAILURE** — `ERROR: must be owner of schema hrms` |
-| 4 | `app_user` executes `INSERT INTO reference.country VALUES ('XX', 'Test');` | **FAILURE** — `ERROR: permission denied for table country` |
-| 5 | `app_user` executes `SELECT * FROM core.tenant;` | **SUCCESS** — Query succeeds (returns zero rows before W-07 data migration) |
-| 6 | `migration_user` executes `CREATE TABLE core.test_migration (id INT);` | **SUCCESS** — Table created successfully |
+| 1 | `app_user` executes `CREATE TABLE core.test_ddl (id INT);` | **FAILURE** — `ERROR: permission denied for schema core` |
+| 2 | `app_user` executes `INSERT INTO reference.country VALUES ('XX', 'Test');` | **FAILURE** — `ERROR: permission denied for table country` |
+| 3 | `readonly_user` executes `INSERT INTO core.tenant VALUES ('t1');` | **FAILURE** — `ERROR: permission denied for table tenant` |
+| 4 | `migration_user` executes `CREATE TABLE core.test_migration (id INT); DROP TABLE core.test_migration;` | **SUCCESS** — Table created and dropped cleanly |
+
+> **Note on Local Execution:** `DatabasePrivilegesIT` uses `@EnabledIfDockerAvailable` (`W-04`) and skips silently on local machines without Docker Desktop. CI is authoritative because CI has Docker; a green local run without Docker proves nothing.
 
 ---
 
 ## 8. Verification
 
-Run by the **verifier** on a clean checkout or local PostgreSQL instance.
+Run by the **verifier** on a clean checkout with Docker active.
 
 ```bash
-# 1 - Verify database connection as infinevo_owner and inspect schemas
-psql -U infinevo_owner -d infinevo -c "\dn"
-# Expected output: core, hrms, payroll, reference schemas listed
+# 1 - Verify clean Maven build and integration test execution
+cd code/backend && ./mvnw clean verify -Dtest=DatabasePrivilegesIT
 
-# 2 - Verify app_user cannot run DDL on any schema (MUST FAIL with exit code 1)
-psql -U app_user -d infinevo -c "CREATE TABLE core.should_fail(id int);" || echo "DDL_BLOCKED_SUCCESS"
+# 2 - Verify local Docker Compose postgres bootstrap
+cd ../.. && docker compose -f infra/docker/compose.yml up -d postgres
+docker exec -it infinevo-postgres psql -U app_user -d infinevo -c "CREATE TABLE core.should_fail(id int);" || echo "DDL_BLOCKED_SUCCESS"
 # Expected output: ERROR: permission denied for schema core / DDL_BLOCKED_SUCCESS
-
-# 3 - Verify app_user cannot insert into reference schema (MUST FAIL with exit code 1)
-psql -U app_user -d infinevo -c "CREATE TABLE reference.should_fail(id int);" || echo "REF_DDL_BLOCKED_SUCCESS"
-# Expected output: ERROR: permission denied for schema reference / REF_DDL_BLOCKED_SUCCESS
-
-# 4 - Verify migration_user CAN run DDL on core schema (MUST SUCCEED)
-psql -U migration_user -d infinevo -c "CREATE TABLE core.verifier_test(id int); DROP TABLE core.verifier_test;"
-# Expected output: CREATE TABLE / DROP TABLE (exit code 0)
 ```
 
 | Check | Expected Output | Result |
 |---|---|---|
-| 4 Schemas Created | `core`, `hrms`, `payroll`, `reference` exist in `infinevo` DB | |
-| 3 Roles Provisioned | `infinevo_owner`, `migration_user`, `app_user` exist | |
-| `app_user` DDL Block | `ERROR: permission denied for schema core` (Exit 1) | |
-| `app_user` Read-Only `reference` | Write/DDL denied on `reference` schema | |
-| `migration_user` DDL Success | DDL executes cleanly for schema migrations | |
+| `DatabasePrivilegesIT` | Tests pass green when Docker available | |
+| `app_user` DDL Refusal | `ERROR: permission denied for schema core` | |
+| `readonly_user` Write Refusal | `ERROR: permission denied for table ...` | |
+| `keycloak_user` DB Isolation | Keycloak owns `keycloak` DB, non-superuser | |
 
 ---
 
@@ -226,28 +206,44 @@ psql -U migration_user -d infinevo -c "CREATE TABLE core.verifier_test(id int); 
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Developer or test harness attempts to connect as `infinevo_owner` | **Medium** | Enforce non-owner connection string checks in `AbstractIntegrationTest` (`W-04`) and Spring `application-local.yml` (`W-02`). |
-| New tables created by `migration_user` forget to grant DML to `app_user` | **Medium** | Execute `ALTER DEFAULT PRIVILEGES IN SCHEMA core, hrms, payroll GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;` during initial schema setup. |
-| Application attempts to write to national statutory tables in `reference` | **Low** | `app_user` is explicitly revoked `INSERT`, `UPDATE`, and `DELETE` on `reference` schema; write attempts throw SQL exceptions. |
+| SKU sizing specified in design docs treated as rigid requirements | Medium | Documented that `B1ms`/`D2ds_v5` compute sizes in §3b are suggestions; `W-50` owns cost and SKU decisions. |
+| Developer runs tests without Docker and assumes privileges are validated | Medium | Documented explicitly in §7 that local test skips without Docker; CI pipeline is authoritative. |
 
 ---
 
 ## 10. Rollback
 
-If database role or schema provisioning fails:
-1. Revoke privileges and drop database roles (`DROP ROLE IF EXISTS app_user, migration_user;`).
-2. Drop schemas (`DROP SCHEMA IF EXISTS core, hrms, payroll, reference CASCADE;`).
-3. Drop platform database (`DROP DATABASE IF EXISTS infinevo;`).
-No production data exists; rollback is completely non-destructive.
+If configuration or script changes fail:
+1. `git revert` the merge commit.
+2. Run `docker compose -f infra/docker/compose.yml down -v` locally to wipe volumes and re-bootstrap.
+No production database exists; rollback is non-destructive.
 
 ---
 
 ## 11. Done When
 
-1. Database `infinevo` is provisioned with four schemas: `core`, `hrms`, `payroll`, `reference`.
-2. Three database roles exist: `infinevo_owner`, `migration_user`, and `app_user`.
-3. `app_user` is granted DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) on `core`, `hrms`, `payroll`, and `SELECT` on `reference`.
-4. `app_user` is strictly denied DDL permissions (`CREATE`, `ALTER`, `DROP`) across all four schemas.
-5. `migration_user` is granted DDL permissions across all four schemas to support Flyway migrations (`W-06`).
-6. Default privileges (`ALTER DEFAULT PRIVILEGES`) are configured so future tables created by `migration_user` automatically grant DML to `app_user`.
-7. All 6 verification steps in §8 pass on a clean environment.
+1. Canonical SQL scripts created under `infra/postgres/00-roles.sql` and `01-schemas.sql`.
+2. `migration_user` owns schemas `core`, `hrms`, `payroll`, `reference`.
+3. `app_user` has DML on tenant schemas, read-only on `reference`, and is refused DDL.
+4. `readonly_user` has read-only access across all four schemas.
+5. `keycloak_user` created owning `keycloak` database (Keycloak off superuser).
+6. `PUBLIC` connect privilege revoked on `infinevo` database.
+7. `PostgresTestContainerInitializer` updated to use `infra/postgres/` scripts.
+8. `DatabasePrivilegesIT` added in `shared` module, passing green in CI.
+9. `./mvnw clean verify` passes green across all backend modules.
+
+---
+
+## 12. Decisions Needed Before Implementation
+
+### Q1 — Azure PostgreSQL Flexible Server provisioning → **(a) Defer to W-50**
+Record requirements in §3b; `W-05` delivers the canonical SQL scripts that `W-50` runs post-deployment.
+
+### Q2 — Schema ownership → **(a) migration_user owns all four schemas**
+`migration_user` owns `core`, `hrms`, `payroll`, `reference` to execute Flyway DDL migrations seamlessly.
+
+### Q3 — Keycloak database access → **(a) Add keycloak_user**
+Keycloak connects using dedicated `keycloak_user` owning `keycloak` DB, removing superuser connection requirement.
+
+### Q4 — Testcontainers script source → **(a) Shared infra/postgres/ scripts**
+`PostgresTestContainerInitializer` executes `infra/postgres/*.sql` scripts to guarantee identical security boundaries in tests and Docker Compose.
