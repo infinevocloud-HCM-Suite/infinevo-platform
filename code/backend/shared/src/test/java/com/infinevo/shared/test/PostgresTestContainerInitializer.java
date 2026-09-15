@@ -85,8 +85,6 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
                         "spring.datasource.username=" + APP_USER,
                         "spring.datasource.password=" + APP_USER_PASSWORD,
                         "spring.datasource.driver-class-name=org.postgresql.Driver",
-                        // W-04: ddl-auto=none — schema is owned by Flyway (W-06), never auto-generated
-                        "spring.jpa.hibernate.ddl-auto=none",
                         "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect")
                 .applyTo(ctx.getEnvironment());
     }
