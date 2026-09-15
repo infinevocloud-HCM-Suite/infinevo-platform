@@ -100,7 +100,7 @@ enforces the rules below (#107).
 
 | Rule | What it means |
 |---|---|
-| **Claimable** = `ready` label + no assignee | `gh issue list --label ready --no-assignee` |
+| **Claimable** = `ready` label + no assignee | `gh issue list --label ready --search "no:assignee"` |
 | **Claim** = assign yourself | `gh issue edit <n> --add-assignee @me`, then comment `claimed` |
 | **One owner, ever** | A second assignee is reverted automatically. The earlier one wins |
 | **WIP limit 2** | One in build, one in review. A third claim is reverted |
@@ -115,7 +115,7 @@ Ownership is the assignee field and nothing else. There are no `owner-*` labels.
 | # | Step | Command | Note |
 |---|---|---|---|
 | 1 | Check you may claim | `gh issue list --assignee @me` | Two open tickets means claim nothing until one merges |
-| 2 | Find the next one | `gh issue list --label next --no-assignee` | Then `--label ready` if `next` is empty. Top one matching your `skill-*` |
+| 2 | Find the next one | `gh issue list --label next --search "no:assignee"` | Then `--label ready` if `next` is empty. Top one matching your `skill-*` |
 | 3 | **Claim it** | `gh issue edit <n> --add-assignee @me` | Comment `claimed`. If the bot reverts, read why and take the next |
 | 4 | Branch | `git checkout -b W-nn-<slug> main` | The `W-nn` in the name is what tells the stale sweep you started |
 | 5 | Understand it | `/analyze <question>` | Optional. Cited evidence, changes nothing |
@@ -143,7 +143,7 @@ The founder never assigns a ticket. Developers claim; the founder steers the ord
    developer waits on you, so it is the only place idle time can come from.
 3. **Merge.** `/merge <pr>` is yours. `Closes #n` closes the ticket, and closing it
    is what releases the tickets behind it.
-4. **Check the queue weekly.** `gh issue list --label ready --no-assignee` should never
+4. **Check the queue weekly.** `gh issue list --label ready --search "no:assignee"` should never
    be empty while a developer is free; `gh issue list --label blocked` shows what is
    coming. If `ready` runs dry, split or unblock something.
 5. **Reprioritise with labels, not people.** Move `next` around. If a claimed ticket

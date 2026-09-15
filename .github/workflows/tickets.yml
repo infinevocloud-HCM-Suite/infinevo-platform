@@ -60,7 +60,7 @@ jobs:
             const revert = async (reason) => {
               await github.rest.issues.removeAssignees({ owner, repo, issue_number: issue.number, assignees: [who] });
               await github.rest.issues.createComment({ owner, repo, issue_number: issue.number,
-                body: `@${who} claim reverted: ${reason}\n\nPick the next ticket with \`gh issue list --label ready --no-assignee\`.` });
+                body: `@${who} claim reverted: ${reason}\n\nPick the next ticket with \`gh issue list --label ready --search "no:assignee"\`.` });
               core.setFailed(reason);
             };
 
