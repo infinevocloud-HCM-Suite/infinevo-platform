@@ -111,18 +111,28 @@ enforces the rules below (#107).
 
 Ownership is the assignee field and nothing else. There are no `owner-*` labels.
 
-### Developer: the steps
+### Developer: the steps, claim to merge
 
-1. Your current PR is open and review requested. You may now claim one more.
-2. `gh issue list --label next --no-assignee`, then `--label ready` if `next` is empty.
-   Take the top one that matches your `skill-*` label.
-3. `gh issue edit <n> --add-assignee @me` and comment `claimed`. If the bot reverts it,
-   read its comment and take the next one.
-4. Branch `W-nn-<slug>`, then step 1 of the loop below. The branch name is what tells
-   the stale sweep you have started.
-5. Blocked on something for more than a day? Say so in a comment. Silence is what gets
-   a claim released.
-6. Stuck for good or reprioritised? Unassign yourself, comment why, and claim the next.
+| # | Step | Command | Note |
+|---|---|---|---|
+| 1 | Check you may claim | `gh issue list --assignee @me` | Two open tickets means claim nothing until one merges |
+| 2 | Find the next one | `gh issue list --label next --no-assignee` | Then `--label ready` if `next` is empty. Top one matching your `skill-*` |
+| 3 | **Claim it** | `gh issue edit <n> --add-assignee @me` | Comment `claimed`. If the bot reverts, read why and take the next |
+| 4 | Branch | `git checkout -b W-nn-<slug> main` | The `W-nn` in the name is what tells the stale sweep you started |
+| 5 | Understand it | `/analyze <question>` | Optional. Cited evidence, changes nothing |
+| 6 | **Write the spec** | `/plan-feature W-nn` (product)<br>`/infra-task W-nn` (platform) | `skill-INFRA`, `-DATA`, `-SEC` use `/infra-task`; `-BE`, `-FE` use `/plan-feature` |
+| 7 | **Get it approved** | — | **The gate.** No code before it. Say in a ticket comment that the spec is ready |
+| 8 | Build | `/develop W-nn` | Refuses without an approved spec. One module at a time |
+| 9 | Test | `/test W-nn` | Tests for what changed. Never changes code to make a test pass |
+| 10 | Verify | `/verify W-nn` | Runs everything. **Fixes nothing** - failures become findings for step 8 |
+| 11 | Open the PR | `gh pr create` | Body says `Closes #n`. Request review. **You may now claim one more** (steps 1-3) |
+| 12 | Review | `/review <pr>` | Reads against the spec. **Fixes nothing** - findings go back to step 8 |
+| 13 | Docs | `/sync-docs` | Only if the build diverged from the documents |
+| 14 | Merge | — | **The founder merges.** Closing the ticket frees the ones behind it |
+
+Blocked for more than a day? Say so in a ticket comment. Silence is what gets a claim
+released. Stuck for good or reprioritised? Unassign yourself, comment why, and claim
+the next.
 
 ### Approver: the steps
 
