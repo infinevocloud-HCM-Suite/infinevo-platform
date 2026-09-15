@@ -100,6 +100,7 @@ BigDecimal perDay = monthlySalary.divide(
 | **Response shape** | Currently hand-built `Map` per controller with inconsistent keys (DEBT-008). New endpoints should use `status` / `message` / `data` until a shared wrapper exists |
 | **Table naming** | Payroll preserves class names verbatim (`PhysicalNamingStrategyStandardImpl`); HRMS converts CamelCase to snake_case. See `ARCHITECTURE.md` §9 |
 | **Indexes** | New entities must declare `@Index` on tenant and lookup columns. See DEBT-018 — there are currently zero |
+| **Tests** | `W-04`. Unit tests end in `Test` and run under Surefire with no Spring context. Integration tests end in `IT`, run under Failsafe, and extend `com.infinevo.shared.test.AbstractIntegrationTest` from the `shared` test-jar — a real PostgreSQL 16 Testcontainer, database `infinevo`, connected as the non-owner `app_user` so row-level security is exercised. **Never H2 or any in-memory database.** Test data builders live in the module that owns the entity (`core`, `hrms`, `payroll`); `shared` owns none |
 
 ## 4. Frontend conventions
 

@@ -42,7 +42,7 @@ each snapshot came from — note the two Payroll apps are **not** on `main`.
 | JDK | **21** | Both backends |
 | Maven | **3.9+** | Backend builds |
 | Node.js | **24 LTS** | Frontends and the harness hooks |
-| Docker Desktop | current | The local stack |
+| Docker Desktop | current | The local stack, **and the backend integration tests** — without a running daemon `./mvnw verify` still passes, but every test extending `AbstractIntegrationTest` is *skipped*, not run. CI has Docker; your laptop must too |
 | `gh` (optional) | current | Issues and pull requests from the terminal |
 
 Verify: `java -version` · `mvn -v` · `node -v` · `docker ps`

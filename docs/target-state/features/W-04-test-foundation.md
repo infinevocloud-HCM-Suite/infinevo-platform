@@ -13,7 +13,7 @@
 | **Capabilities** | — |
 | **Decisions** | `D-38` Java 21 |
 | **Gaps addressed** | `DEBT-003` no tests |
-| **Status** | **Approved 2026-09-15 — implemented, pending merge** |
+| **Status** | **Merged 2026-09-15 — #105** |
 | **Approved by** | Founder |
 | **Approved on** | 2026-09-15 |
 
