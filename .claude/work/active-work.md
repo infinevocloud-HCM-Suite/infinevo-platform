@@ -1,7 +1,8 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-16**, after `W-05` Postgres & schemas (#6, PR #110) merged.
+> Last refreshed: **2026-09-16**, after `W-05` Postgres & schemas (#6, PR #110) merged
+> and its `sync-docs` pass (#114, PR #113).
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -11,9 +12,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **99** — 8 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
+| Tickets | **100** — 9 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 has 5 of 7 done** |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 ---
@@ -74,7 +75,7 @@ no longer tracks who holds what — **the assignee field on GitHub is the only t
 | #86 | `W-66` Marketing website | L | FE | Independent of the chain |
 | #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | Small, unblocks nothing but hardens `/merge` |
 | #104 | Three gate paths never executed; harness not in CI | S | INFRA | Same |
-| #112 | `W-05` follow-ups — docs drift, CI never runs the stack | S | INFRA | Fold F-18 into #101/#104; CI runs neither `compose up` nor `smoke.sh` |
+| #112 | `W-05` follow-ups — test classpath, CI never runs the stack | S | INFRA | **`F-18` is the leverage item.** CI runs neither `compose up` nor `smoke.sh`, which is why three High defects that stopped Postgres booting passed gate 10 green. Fold into #101/#104 |
 
 The founder steers by keeping the `next` label on three to five tickets, in order.
 
