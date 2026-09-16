@@ -78,16 +78,13 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
     }
 
     /**
-     * Provisions the test container database by creating the platform roles and
-     * executing the canonical 02-schemas.sql and 03-grants.sql scripts over JDBC.
+     * Provisions the test container database by executing the canonical
+     * 01-roles.sql, 02-schemas.sql, and 03-grants.sql scripts over JDBC.
      */
     private static void provisionDatabase() {
         try (Connection conn =
                 DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
-            createRole(conn, APP_USER, APP_USER_PASSWORD);
-            createRole(conn, MIGRATION_USER, MIGRATION_USER_PASSWORD);
-            createRole(conn, READONLY_USER, READONLY_USER_PASSWORD);
-
+            executeSqlScriptWithVariables(conn, "db/provision/01-roles.sql");
             executeSqlScript(conn, "db/provision/02-schemas.sql");
             executeSqlScript(conn, "db/provision/03-grants.sql");
         } catch (SQLException e) {
@@ -95,18 +92,21 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         }
     }
 
-    private static void createRole(Connection conn, String roleName, String password) throws SQLException {
-        conn.createStatement()
-                .execute("DO $$\n"
-                        + "BEGIN\n"
-                        + "    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '" + roleName + "') THEN\n"
-                        + "        CREATE ROLE " + roleName
-                        + " WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD '" + password + "';\n"
-                        + "    ELSE\n"
-                        + "        ALTER ROLE " + roleName + " WITH NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;\n"
-                        + "    END IF;\n"
-                        + "END\n"
-                        + "$$;");
+    private static void executeSqlScriptWithVariables(Connection conn, String resourcePath) {
+        try (InputStream is =
+                PostgresTestContainerInitializer.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                throw new IllegalStateException("SQL provisioning script not found on classpath: " + resourcePath);
+            }
+            String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            sql = sql.replace(":'app_pw'", "'" + APP_USER_PASSWORD + "'")
+                    .replace(":'migration_pw'", "'" + MIGRATION_USER_PASSWORD + "'")
+                    .replace(":'readonly_pw'", "'" + READONLY_USER_PASSWORD + "'")
+                    .replace(":'keycloak_pw'", "'local_keycloak_pw'");
+            conn.createStatement().execute(sql);
+        } catch (IOException | SQLException e) {
+            throw new IllegalStateException("Failed to execute SQL script: " + resourcePath, e);
+        }
     }
 
     private static void executeSqlScript(Connection conn, String resourcePath) {
