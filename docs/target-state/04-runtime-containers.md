@@ -128,7 +128,7 @@ troubleshooting are in `infra/docker/README.md`; they are not repeated here.
 | The application connects as `app_user` and **is refused DDL** | ✅ enforced, and `smoke.sh` fails if it ever succeeds |
 | No real secrets. No connection to any shared environment | ✅ |
 | `ddl-auto` set nowhere | ✅ checked |
-| Migrations run on start, so the database is always current | ⏳ **`W-06`.** Today a plain SQL bootstrap creates the four schemas and three roles — and **no tables**, so it cannot collide with Flyway later |
+| Migrations run on start, so the database is always current | ⏳ **`W-06`.** `W-05` merged 2026-09-16: `infra/postgres/provision.sh` creates the four schemas and **four** roles — and **no tables**, so it cannot collide with Flyway later |
 | Seed data creates two tenants with different module sets | ⏳ **`W-07`.** The loader ships and works; `core.tenant` does not exist yet |
 
 **Seeding two tenants with different modules matters.** It is the only way entitlement

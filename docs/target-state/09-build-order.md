@@ -168,7 +168,7 @@ Watch: two tenants is not optional. One tenant means entitlement bugs surface on
 
 **`W-04` Test foundation** · Build: unit setup, integration tests against a real Postgres, data builders, coverage. Done when: a test can create a tenant and an employee in three lines. Watch: integration tests must run against real Postgres, not an in-memory database, or row-level security is never exercised.
 
-**`W-05` Postgres and schemas** · Build: server, four schemas, three roles. Done when: `app_user` cannot run DDL. Watch: the roles are the whole point; do not let the app connect as owner "just for now".
+**`W-05` Postgres and schemas** — **merged 2026-09-16 (#110).** Built: canonical `infra/postgres/` scripts, four schemas owned by `migration_user`, four roles. Done: `app_user` is refused DDL, proven by `DatabasePrivilegesIT`. Watch: the roles are the whole point; do not let the app connect as owner "just for now".
 
 **`W-06` Flyway** · Build: runner, script conventions, per-schema ordering, pipeline validation. Done when: `ddl-auto` is absent from every configuration file. Watch: script order across four schemas — `reference` first, then `core`, then modules.
 

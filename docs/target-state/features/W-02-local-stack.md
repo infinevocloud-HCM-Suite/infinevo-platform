@@ -68,7 +68,7 @@ infra/docker/
 ├── dev.Dockerfile.backend      dev-mode only; W-49 writes the real one
 ├── dev.Dockerfile.frontend     dev-mode only; W-49 writes the real one
 ├── postgres/
-│   └── 00-bootstrap.sql        four schemas, three roles, grants
+│   └── 00-bootstrap.sql        four schemas, three roles, grants  (replaced by 00-bootstrap.sh in W-05)
 ├── keycloak/
 │   └── dev-realm.json          minimal realm; W-10 replaces it
 └── seed/
@@ -132,6 +132,8 @@ reachable from a deployed environment.
 | Option | |
 |---|---|
 | **A. Plain SQL bootstrap now** *(recommended)* | `00-bootstrap.sql` mounted into the Postgres container's init directory. Creates schemas, roles, grants — no tables. `W-06` adds Flyway on top and the file shrinks to roles only |
+
+> **Superseded by `W-05` (#110, merged 2026-09-16).** `00-bootstrap.sql` no longer exists. The init directory now mounts `infra/docker/postgres/00-bootstrap.sh`, which delegates to the canonical `infra/postgres/provision.sh`. The decision recorded above is what `W-02` chose at the time; `W-05` kept the approach and moved the scripts.
 | B. Take `W-05` and `W-06` first | Strictly correct order, delays a usable stack by two tickets, and neither is blocked by this one anyway |
 
 A creates **no tables**, so it cannot conflict with Flyway later. Schemas and roles are
