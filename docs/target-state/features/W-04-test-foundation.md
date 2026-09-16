@@ -93,6 +93,8 @@ payroll/src/test/java/  ──► Payroll entity builders (e.g., PayScheduleBuil
 
 **Founder decision, 2026-09-15.** The `app_user` role is created by `PostgresTestContainerInitializer` with plain SQL against the container owner, granted on the `public` schema only. It does not reuse `infra/docker/postgres/00-bootstrap.sql`. Accepted because `AbstractIntegrationTestTest` proves the role is neither superuser nor `BYPASSRLS`. `W-06` must switch the initializer to the bootstrap script when the four schemas arrive.
 
+> **Done by `W-05` (#110, merged 2026-09-16), not `W-06`.** `PostgresTestContainerInitializer` now executes the canonical `infra/postgres/01-roles.sql`, `02-schemas.sql` and `03-grants.sql` over JDBC and creates no role in Java. The four schemas and the full privilege matrix are asserted by `DatabasePrivilegesIT`.
+
 **API contract**
 
 > N/A — Infrastructure task. No HTTP API endpoints created or modified.

@@ -13,7 +13,7 @@
 | **Capabilities** | `PLAT-11` build & deploy pipeline |
 | **Decisions** | `D-08` reference schema · `D-09` no ddl-auto / Flyway only · `D-38` Java 21 |
 | **Gaps addressed** | `DEBT-002` ddl-auto |
-| **Status** | **Approved 2026-09-15 by Founder** |
+| **Status** | **Merged 2026-09-16 — #110** |
 | **Approved by** | Founder |
 | **Approved on** | 2026-09-15 |
 
@@ -32,6 +32,10 @@ However, four gaps remain to complete the data foundation:
 2. **Keycloak Superuser Access:** Keycloak connects to its PostgreSQL database using superuser privileges instead of a dedicated non-superuser role (`keycloak_user`).
 3. **Implicit PUBLIC Privileges:** PostgreSQL's default `PUBLIC` role retains connection privileges on the `infinevo` database.
 4. **Missing Automated Privileges Test:** There is no integration test (`DatabasePrivilegesIT`) verifying that `app_user` is refused DDL, `readonly_user` is refused writes, and `migration_user` possesses schema ownership.
+
+> **Superseded by this ticket.** `00-bootstrap.sql` no longer exists — `W-05` replaced it with
+> `infra/docker/postgres/00-bootstrap.sh`, which delegates to `infra/postgres/provision.sh`.
+> The measurement below is the pre-`W-05` state, kept as the baseline it was taken as.
 
 **Baseline, measured 2026-09-15 on `main` at `infra/docker/postgres/00-bootstrap.sql`:**
 
@@ -72,16 +76,21 @@ However, four gaps remain to complete the data foundation:
 
 ```
 infra/postgres/
-  ├── 00-roles.sql         # Creates migration_user, app_user, readonly_user, keycloak_user
-  └── 01-schemas.sql       # Creates core, hrms, payroll, reference owned by migration_user
+  ├── provision.sh         # Runs the three scripts in order; the one entry point
+  ├── 01-roles.sql         # Creates migration_user, app_user, readonly_user, keycloak_user
+  ├── 02-schemas.sql       # Creates core, hrms, payroll, reference owned by migration_user
+  ├── 03-grants.sql        # Grants, default privileges, and an in-script security self-check
+  └── README.md            # What each script does and the order they run in
 ```
 
 | File | Change |
 |---|---|
-| `infra/postgres/00-roles.sql` | **New.** Creates `migration_user`, `app_user`, `readonly_user`, and `keycloak_user`. Revokes `PUBLIC` connect. |
-| `infra/postgres/01-schemas.sql` | **New.** Creates `core`, `hrms`, `payroll`, `reference` owned by `migration_user` and sets default privileges. |
-| `infra/docker/postgres/00-bootstrap.sql` | **Modified.** Delegates to/imports `infra/postgres/` scripts for Docker Compose. |
-| `code/backend/shared/src/test/java/com/infinevo/shared/test/PostgresTestContainerInitializer.java` | **Modified.** Executes `infra/postgres/*.sql` scripts on container startup. |
+| `infra/postgres/provision.sh` | **New.** The single entry point. Runs `01`, `02`, `03` in order, passing each role password as a psql variable. Omits `-h` unless `PGHOST` is set, so it works over the unix socket during container init. |
+| `infra/postgres/01-roles.sql` | **New.** Creates `migration_user`, `app_user`, `readonly_user`, and `keycloak_user`. Passwords are set by `ALTER ROLE` outside the `DO` block, where psql interpolates variables. |
+| `infra/postgres/02-schemas.sql` | **New.** Creates `core`, `hrms`, `payroll`, `reference` and sets ownership to `migration_user` idempotently. |
+| `infra/postgres/03-grants.sql` | **New.** Grants, default privileges, `PUBLIC` connect revocation, and a self-check that raises if any role is superuser or `BYPASSRLS`. |
+| `infra/docker/postgres/00-bootstrap.sh` | **Replaces `00-bootstrap.sql`.** Calls `provision.sh`, then creates the isolated `keycloak` database. The `.sql` file built in `W-02` is deleted. |
+| `code/backend/shared/src/test/java/com/infinevo/shared/test/PostgresTestContainerInitializer.java` | **Modified.** Executes `01-roles.sql`, `02-schemas.sql` and `03-grants.sql` over JDBC from the `db/provision/` test classpath; creates no role in Java. |
 | `code/backend/shared/src/test/java/com/infinevo/shared/test/DatabasePrivilegesIT.java` | **New.** Integration test verifying `app_user`, `readonly_user`, and `migration_user` security boundaries. |
 
 ### 3b. Azure PostgreSQL Flexible Server Requirements (W-50 Handoff)
@@ -90,7 +99,7 @@ infra/postgres/
 
 - **Engine:** PostgreSQL 16 Flexible Server.
 - **Database Name:** `infinevo` (Application) and `keycloak` (Identity).
-- **Post-Deploy Execution:** `W-50` pipeline executes `infra/postgres/00-roles.sql` and `01-schemas.sql` using Key Vault credentials after provisioning.
+- **Post-Deploy Execution:** `W-50` pipeline runs `infra/postgres/provision.sh` using Key Vault credentials after provisioning. It executes `01-roles.sql`, `02-schemas.sql` and `03-grants.sql` in that order; set `PGHOST` for a TCP connection to the Flexible Server.
 
 ---
 
@@ -185,11 +194,12 @@ Run by the **verifier** on a clean checkout with Docker active.
 
 ```bash
 # 1 - Verify clean Maven build and integration test execution
-cd code/backend && ./mvnw clean verify -Dtest=DatabasePrivilegesIT
+# -Dit.test, not -Dtest: Surefire excludes **/*IT.java and Failsafe owns ITs
+cd code/backend && ./mvnw clean verify -Dit.test=DatabasePrivilegesIT
 
 # 2 - Verify local Docker Compose postgres bootstrap
 cd ../.. && docker compose -f infra/docker/compose.yml up -d postgres
-docker exec -it infinevo-postgres psql -U app_user -d infinevo -c "CREATE TABLE core.should_fail(id int);" || echo "DDL_BLOCKED_SUCCESS"
+docker exec -it infinevo-postgres-1 psql -U app_user -d infinevo -c "CREATE TABLE core.should_fail(id int);" || echo "DDL_BLOCKED_SUCCESS"
 # Expected output: ERROR: permission denied for schema core / DDL_BLOCKED_SUCCESS
 ```
 
@@ -222,7 +232,7 @@ No production database exists; rollback is non-destructive.
 
 ## 11. Done When
 
-1. Canonical SQL scripts created under `infra/postgres/00-roles.sql` and `01-schemas.sql`.
+1. Canonical SQL scripts created under `infra/postgres/`: `01-roles.sql`, `02-schemas.sql`, `03-grants.sql`, run in order by `provision.sh`.
 2. `migration_user` owns schemas `core`, `hrms`, `payroll`, `reference`.
 3. `app_user` has DML on tenant schemas, read-only on `reference`, and is refused DDL.
 4. `readonly_user` has read-only access across all four schemas.
