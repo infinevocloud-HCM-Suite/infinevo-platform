@@ -7,6 +7,7 @@ Everything about running the platform. No application code here.
 | `azure/` | Bicep definitions - Container Apps, Postgres, Key Vault, networking | `W-50` |
 | `docker/` | Dockerfiles and the local compose stack | `W-49`, `W-02` |
 | `keycloak/` | Realm export and login theme | `W-10` |
+| `postgres/` | Canonical database initialization scripts (`01-roles.sql`, `02-schemas.sql`, `03-grants.sql`, `provision.sh`) | `W-05` |
 
 Pipelines live in `.github/workflows/` and cannot move here - GitHub Actions only
 reads workflows from that path.

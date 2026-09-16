@@ -31,17 +31,33 @@ check "mail catcher is up"    "curl -fsS http://localhost:${MAIL_UI_PORT:-8025}"
 
 echo "── database"
 for s in core hrms payroll reference; do
-  check "schema $s exists" \
-    "$C exec -T postgres psql -tAU postgres -d infinevo -c \"select 1 from information_schema.schemata where schema_name='$s'\" | grep -q 1"
+  check "schema $s exists and owned by migration_user" \
+    "$C exec -T postgres psql -tAU postgres -d infinevo -c \"select pg_get_userbyid(nspowner) from pg_namespace where nspname='$s'\" | grep -qx migration_user"
 done
 check "keycloak database exists" \
   "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_database where datname='keycloak'\" | grep -q 1"
+check "keycloak database owned by keycloak_user" \
+  "$C exec -T postgres psql -tAU postgres -c \"select pg_get_userbyid(datdba) from pg_database where datname='keycloak'\" | grep -qx keycloak_user"
 
 echo "── roles and privileges"
-for r in app_user migration_user readonly_user; do
+for r in app_user migration_user readonly_user keycloak_user; do
   check "role $r exists" \
     "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_roles where rolname='$r'\" | grep -q 1"
+  check "role $r has declared attributes (nosuper, nobypassrls)" \
+    "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_roles where rolname='$r' and rolsuper=false and rolbypassrls=false and rolcreatedb=false and rolcreaterole=false\" | grep -q 1"
 done
+
+# F-7: ask Postgres the question directly. The old form grepped datacl for
+# '=c/', which also matches "app_user=c/postgres", and grep -v on empty
+# input exits 1 - so it reported FAIL on a correct system.
+check "PUBLIC has no CONNECT on infinevo" \
+  "$C exec -T postgres psql -tAU postgres -c \"select has_database_privilege('public','infinevo','CONNECT')\" | grep -qx f"
+
+# F-8: the old form treated ANY nonzero psql exit as proof of refusal - a
+# password prompt or a nonexistent role passed it just as well. Asking
+# has_database_privilege fails loudly if the role is absent.
+check "readonly_user refused connection on keycloak db" \
+  "$C exec -T postgres psql -tAU postgres -c \"select has_database_privilege('readonly_user','keycloak','CONNECT')\" | grep -qx f"
 
 # The one that matters. If app_user CAN create a table, the roles are wrong and
 # row-level security will not be a boundary when W-07 lands.
