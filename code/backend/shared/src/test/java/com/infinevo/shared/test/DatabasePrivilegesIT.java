@@ -53,8 +53,16 @@ class DatabasePrivilegesIT extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("app_user is refused write operations on reference schema")
-    void appUserDeniedWriteOnReferenceSchema() {
+    void appUserDeniedWriteOnReferenceSchema() throws SQLException {
         String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        try (Connection conn = DriverManager.getConnection(
+                jdbcUrl,
+                PostgresTestContainerInitializer.MIGRATION_USER,
+                PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
+            conn.createStatement()
+                    .execute("CREATE TABLE IF NOT EXISTS reference.country (code VARCHAR(2), name VARCHAR(50))");
+        }
+
         SQLException ex = assertThrows(SQLException.class, () -> {
             try (Connection conn = DriverManager.getConnection(
                     jdbcUrl,
@@ -68,8 +76,15 @@ class DatabasePrivilegesIT extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("readonly_user is refused write operations on tenant schema")
-    void readonlyUserDeniedWriteOnTenantSchema() {
+    void readonlyUserDeniedWriteOnTenantSchema() throws SQLException {
         String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        try (Connection conn = DriverManager.getConnection(
+                jdbcUrl,
+                PostgresTestContainerInitializer.MIGRATION_USER,
+                PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
+            conn.createStatement().execute("CREATE TABLE IF NOT EXISTS core.tenant (id VARCHAR(50))");
+        }
+
         SQLException ex = assertThrows(SQLException.class, () -> {
             try (Connection conn = DriverManager.getConnection(
                     jdbcUrl,
@@ -147,13 +162,10 @@ class DatabasePrivilegesIT extends AbstractIntegrationTest {
                 jdbcUrl,
                 PostgresTestContainerInitializer.MIGRATION_USER,
                 PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
-            ResultSet rs =
-                    conn.createStatement().executeQuery("SELECT datacl FROM pg_database WHERE datname = 'infinevo'");
+            ResultSet rs = conn.createStatement()
+                    .executeQuery("SELECT has_database_privilege('public', 'infinevo', 'CONNECT')");
             assertTrue(rs.next());
-            String datacl = rs.getString("datacl");
-            assertTrue(
-                    datacl != null && !datacl.contains("=c/"),
-                    "PUBLIC should not have CONNECT privilege on infinevo database");
+            assertFalse(rs.getBoolean(1), "PUBLIC must not have CONNECT privilege on infinevo database");
         }
     }
 }
