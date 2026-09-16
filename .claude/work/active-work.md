@@ -1,7 +1,7 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-15**, after `W-04` test foundation (#5, PR #105) merged.
+> Last refreshed: **2026-09-16**, after `W-05` Postgres & schemas (#6, PR #110) merged.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -11,9 +11,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **97** — 6 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
-| Waves | 9. **Wave 1 has 4 of 7 done** |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) |
+| Tickets | **99** — 8 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
+| Waves | 9. **Wave 1 has 5 of 7 done** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 ---
@@ -39,7 +39,13 @@ questions.** Start at `docs/target-state/README.md`.
    modules with the `hrms` ↔ `payroll` boundary enforced by the build. `W-02` gave nine
    containers from one command — `docker compose -f infra/docker/compose.yml up -d`,
    all healthy in 114 seconds. `app` connects as `app_user` and is refused DDL.
-2. **Multi-tenancy — not started, the highest-value work in the project.** Payroll is
+   `W-05` made the database posture canonical: `infra/postgres/` holds the three SQL
+   scripts and `provision.sh` that local Docker, Testcontainers and (at `W-50`) Azure
+   all run, four schemas owned by `migration_user`, four roles none of which is
+   superuser or `BYPASSRLS`, and `DatabasePrivilegesIT` asserting the matrix in both
+   directions.
+2. **Multi-tenancy — the highest-value work in the project. `W-05` merged, so the
+   chain is unblocked and `W-06` Flyway (#7) is the next link.** Payroll is
    org-scoped on 63 of 97 entities; HRMS on **none at all** (0 of 39, `BUG-002`).
    Target: `tenant_id` on every table outside `reference`, enforced by Postgres
    row-level security (`D-09`). `W-06` → `W-07` → `W-08` is the one rigid chain.
@@ -63,11 +69,12 @@ no longer tracks who holds what — **the assignee field on GitHub is the only t
 
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
-| **#6** | `W-05` Postgres & schemas | S | DATA | Opens `W-06` → `W-07` → `W-08`, the tenancy chain everything in Wave 3 waits on |
+| **#7** | `W-06` Flyway migrations | M | DATA | `W-05` merged, so the chain is open. `W-06` → `W-07` → `W-08` is what Wave 3 waits on |
 | #69 | `W-49` Containerisation | M | INFRA | Inherits the `images` job from `W-03` |
 | #86 | `W-66` Marketing website | L | FE | Independent of the chain |
 | #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | Small, unblocks nothing but hardens `/merge` |
 | #104 | Three gate paths never executed; harness not in CI | S | INFRA | Same |
+| #112 | `W-05` follow-ups — docs drift, CI never runs the stack | S | INFRA | Fold F-18 into #101/#104; CI runs neither `compose up` nor `smoke.sh` |
 
 The founder steers by keeping the `next` label on three to five tickets, in order.
 
@@ -153,7 +160,7 @@ entities are authoritative, and whether the HRMS→Payroll leave integration car
 | **Pipeline is advisory** | `W-03` merged 2026-09-14. Four jobs on every PR, but `D-43` means CI cannot be a *required* check — gate 10 of the ten-gate done-check enforces it locally instead |
 | **`W-07` owes the two-tenant seed** | `W-02` shipped the loader; `core.tenant` does not exist yet. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
 | **Nobody has run the stack but me** | `W-02` done-when item 11 is unticked. Have a developer run `up -d` and `smoke.sh` |
-| **Test foundation is in, coverage is not** | `W-04` merged 2026-09-15. `AbstractIntegrationTest` runs a real Postgres 16 as non-owner `app_user`; 24 tests, all in `shared`. Three things to know: integration tests are **skipped silently without Docker** (CI has it, laptops may not); the proof test is a `*Test`, so Failsafe's `*IT` pattern matches nothing yet; `app_user` is created by the initializer, not `00-bootstrap.sql` — `W-06` switches it when the four schemas arrive |
+| **Test foundation is in, coverage is not** | `W-04` merged 2026-09-15. `AbstractIntegrationTest` runs a real Postgres 16 as non-owner `app_user`; 24 tests, all in `shared`. Three things to know: integration tests are **skipped silently without Docker** (CI has it, laptops may not); `W-05` gave Failsafe its first real match, `DatabasePrivilegesIT` (10 tests, green in CI); `app_user` was created by the initializer, not the bootstrap script — **`W-05` switched it**, so the initializer now runs the canonical `infra/postgres/` scripts |
 | **Toolchain** | Java 21, Maven 3.9.11 (`C:/Tools/apache-maven-3.9.11`), Node 24. `D-38`–`D-42` |
 
 ---
