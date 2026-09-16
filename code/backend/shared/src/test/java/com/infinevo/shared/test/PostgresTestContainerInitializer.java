@@ -62,8 +62,9 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         }
     }
 
-    /** Returns the JDBC URL of the running PostgreSQL Testcontainer. */
+    /** Returns the JDBC URL of the running PostgreSQL Testcontainer (starting container if needed). */
     static String getJdbcUrl() {
+        startIfNeeded();
         return POSTGRES.getJdbcUrl();
     }
 

@@ -11,6 +11,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.test.context.SpringBootTest;
 
 /**
  * W-05 — Database privileges and security boundaries integration test.
@@ -26,7 +28,13 @@ import org.junit.jupiter.api.Test;
  *   <li>PUBLIC role cannot connect to {@code infinevo} database</li>
  * </ul>
  */
+@SpringBootTest(classes = DatabasePrivilegesIT.TestApp.class)
 class DatabasePrivilegesIT extends AbstractIntegrationTest {
+
+    @SpringBootApplication
+    static class TestApp {
+        // Minimal Spring Boot context for testing database privileges in shared module.
+    }
 
     @Test
     @DisplayName("app_user is refused DDL execution")
