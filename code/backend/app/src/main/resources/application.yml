@@ -7,9 +7,14 @@ spring:
     name: infinevo-app
   main:
     banner-mode: off
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
 server:
   port: 8080
+  shutdown: graceful
 
 management:
   endpoints:

@@ -187,26 +187,25 @@ jobs:
           fi
           echo "OK - no floating-point money field outside legacy/"
 
-  # ── provisional image gate ──────────────────────────────────────────────────
-  # PROVISIONAL. This job builds the two *development* Dockerfiles only, and pushes
-  # neither - there is no registry login and no docker push anywhere in this file.
-  # W-49 (#69) replaces these targets with the production Dockerfiles (multi-stage,
-  # slim runtime, non-root) and inherits this job; W-50 adds the registry push.
+  # ── images ──────────────────────────────────────────────────────────────────
+  # W-49 (#69) builds the production Dockerfiles (multi-stage, slim runtime,
+  # non-root) and inherits this job; W-50 adds the registry push.
   #
-  # Build context is the repository root for both files: they COPY paths beginning
-  # "code/backend/" and "code/frontend/" (dev.Dockerfile.backend:13,
-  # dev.Dockerfile.frontend:11), matching infra/docker/compose.yml:119-121 which
-  # builds them with "context: ../..".
+  # Build context is the repository root: they COPY paths beginning
+  # "code/backend/", "code/frontend/", and "infra/docker/".
   images:
-    name: images (provisional)
+    name: images
     runs-on: ubuntu-latest
-    timeout-minutes: 15   # two docker builds, ~1m30s warm
+    timeout-minutes: 15   # three docker builds
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build backend dev image
-        run: docker build -f infra/docker/dev.Dockerfile.backend -t infinevo-backend:dev .
+      - name: Build backend production image
+        run: docker build -f infra/docker/backend.Dockerfile -t infinevo-backend:test .
 
-      - name: Build frontend dev image
-        run: docker build -f infra/docker/dev.Dockerfile.frontend -t infinevo-frontend:dev .
+      - name: Build frontend production image
+        run: docker build -f infra/docker/frontend.Dockerfile -t infinevo-frontend:test .
+
+      - name: Build keycloak production image
+        run: docker build -f infra/docker/keycloak.Dockerfile -t infinevo-keycloak:test .
