@@ -15,7 +15,7 @@
 | Tickets | **97** — 6 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 has 4 of 7 done** |
 | Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) |
-| Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
+| Team | `developers`, Write access. **Do not read holdings from this line** — `gh issue list --json number,assignees` is the only truth. As of 2026-09-16: BirenGit `#79` · KarmaveerM `#69`. Gau318 and SayInfi hold nothing open |
 
 ---
 
