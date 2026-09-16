@@ -48,6 +48,18 @@
   </dependencies>
 
   <build>
+    <testResources>
+      <testResource>
+        <directory>${project.basedir}/src/test/resources</directory>
+      </testResource>
+      <testResource>
+        <directory>${project.basedir}/../../../infra/postgres</directory>
+        <targetPath>db/provision</targetPath>
+        <includes>
+          <include>*.sql</include>
+        </includes>
+      </testResource>
+    </testResources>
     <plugins>
       <!--
         W-04: Export test classes as a test-jar so other modules can import

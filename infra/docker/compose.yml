@@ -27,10 +27,15 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: local_postgres_pw
       POSTGRES_DB: infinevo
+      APP_PW: local_app_pw
+      MIGRATION_PW: local_migration_pw
+      READONLY_PW: local_readonly_pw
+      KEYCLOAK_PW: local_keycloak_pw
     ports: ["${POSTGRES_PORT:-5432}:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./postgres/00-bootstrap.sql:/docker-entrypoint-initdb.d/00-bootstrap.sql:ro
+      - ../postgres:/provision:ro
+      - ./postgres/00-bootstrap.sh:/docker-entrypoint-initdb.d/00-bootstrap.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d infinevo"]
       interval: 5s
@@ -99,8 +104,8 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: local_keycloak_pw
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: postgres
-      KC_DB_PASSWORD: local_postgres_pw
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: local_keycloak_pw
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./keycloak/dev-realm.json:/opt/keycloak/data/import/dev-realm.json:ro

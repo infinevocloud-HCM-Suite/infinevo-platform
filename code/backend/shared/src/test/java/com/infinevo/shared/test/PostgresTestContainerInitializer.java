@@ -1,5 +1,8 @@
 package com.infinevo.shared.test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -29,6 +32,18 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
     /** Password for the {@code app_user} role. Test-only — not a secret. */
     static final String APP_USER_PASSWORD = "app_user_pass";
 
+    /** Migration user role owning schemas and running Flyway DDL. */
+    static final String MIGRATION_USER = "migration_user";
+
+    /** Password for the {@code migration_user} role. Test-only — not a secret. */
+    static final String MIGRATION_USER_PASSWORD = "migration_user_pass";
+
+    /** Readonly role for reporting and analytics. */
+    static final String READONLY_USER = "readonly_user";
+
+    /** Password for the {@code readonly_user} role. Test-only — not a secret. */
+    static final String READONLY_USER_PASSWORD = "readonly_user_pass";
+
     /** Database name matching the production schema. */
     static final String DATABASE_NAME = "infinevo";
 
@@ -47,33 +62,62 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         }
     }
 
-    /** Starts the container and creates the {@code app_user} role (idempotent). */
+    /** Returns the JDBC URL of the running PostgreSQL Testcontainer. */
+    static String getJdbcUrl() {
+        return POSTGRES.getJdbcUrl();
+    }
+
+    /** Starts the container and provisions roles, schemas, and grants (idempotent). */
     private static synchronized void startIfNeeded() {
         if (!started) {
             POSTGRES.start();
-            createAppUserRole();
+            provisionDatabase();
             started = true;
         }
     }
 
     /**
-     * Creates the {@code app_user} role inside the container using the owner
-     * connection. This mirrors the production setup where Flyway (owner) creates
-     * the schema and the application connects as {@code app_user}.
+     * Provisions the test container database by creating the platform roles and
+     * executing the canonical 02-schemas.sql and 03-grants.sql scripts over JDBC.
      */
-    private static void createAppUserRole() {
+    private static void provisionDatabase() {
         try (Connection conn =
                 DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
-            conn.createStatement().execute("CREATE ROLE " + APP_USER + " LOGIN PASSWORD '" + APP_USER_PASSWORD + "'");
-            conn.createStatement().execute("GRANT CONNECT ON DATABASE " + DATABASE_NAME + " TO " + APP_USER);
-            // Grant schema usage so app_user can see tables once they exist (W-06+)
-            conn.createStatement().execute("GRANT USAGE ON SCHEMA public TO " + APP_USER);
-            // Grant default privileges so future tables are accessible
-            conn.createStatement()
-                    .execute("ALTER DEFAULT PRIVILEGES IN SCHEMA public"
-                            + " GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + APP_USER);
+            createRole(conn, APP_USER, APP_USER_PASSWORD);
+            createRole(conn, MIGRATION_USER, MIGRATION_USER_PASSWORD);
+            createRole(conn, READONLY_USER, READONLY_USER_PASSWORD);
+
+            executeSqlScript(conn, "db/provision/02-schemas.sql");
+            executeSqlScript(conn, "db/provision/03-grants.sql");
         } catch (SQLException e) {
-            throw new IllegalStateException("Failed to create app_user role in test container", e);
+            throw new IllegalStateException("Failed to provision test container database", e);
+        }
+    }
+
+    private static void createRole(Connection conn, String roleName, String password) throws SQLException {
+        conn.createStatement()
+                .execute("DO $$\n"
+                        + "BEGIN\n"
+                        + "    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '" + roleName + "') THEN\n"
+                        + "        CREATE ROLE " + roleName
+                        + " WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD '" + password + "';\n"
+                        + "    ELSE\n"
+                        + "        ALTER ROLE " + roleName + " WITH NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;\n"
+                        + "    END IF;\n"
+                        + "END\n"
+                        + "$$;");
+    }
+
+    private static void executeSqlScript(Connection conn, String resourcePath) {
+        try (InputStream is =
+                PostgresTestContainerInitializer.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                throw new IllegalStateException("SQL provisioning script not found on classpath: " + resourcePath);
+            }
+            String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            conn.createStatement().execute(sql);
+        } catch (IOException | SQLException e) {
+            throw new IllegalStateException("Failed to execute SQL script: " + resourcePath, e);
         }
     }
 
