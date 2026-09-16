@@ -1,7 +1,8 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-15**, after `W-04` test foundation (#5, PR #105) merged.
+> Last refreshed: **2026-09-16**, after the `W-49` and `W-59` specs were approved and
+> `D-45` / `D-46` were taken.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -30,7 +31,7 @@ One repository · one backend with three enforced modules (`core` / `hrms` / `pa
 > **Not AKS. Not MySQL. No subtree, no sync.** If a document or skill says otherwise it
 > is stale — the decisions are `D-09` Postgres, `D-10` Container Apps, `D-17` no sync.
 
-Design: `docs/target-state/` — 12 documents, **44 decisions (`D-01`–`D-44`), zero open
+Design: `docs/target-state/` — 12 documents, **46 decisions (`D-01`–`D-46`), zero open
 questions.** Start at `docs/target-state/README.md`.
 
 ### The three threads
@@ -64,7 +65,8 @@ no longer tracks who holds what — **the assignee field on GitHub is the only t
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
 | **#6** | `W-05` Postgres & schemas | S | DATA | Opens `W-06` → `W-07` → `W-08`, the tenancy chain everything in Wave 3 waits on |
-| #69 | `W-49` Containerisation | M | INFRA | Inherits the `images` job from `W-03` |
+| #69 | `W-49` Containerisation | M | INFRA | Inherits the `images` job from `W-03`. **Spec approved 2026-09-16** (`f2f532d`) |
+| #79 | `W-59` Scanning | **M** | INFRA | **Spec approved 2026-09-16** (`fc99b7a`). Was `S`; the measured CVE backlog pulled a Spring Boot upgrade into it (`D-45`) |
 | #86 | `W-66` Marketing website | L | FE | Independent of the chain |
 | #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | Small, unblocks nothing but hardens `/merge` |
 | #104 | Three gate paths never executed; harness not in CI | S | INFRA | Same |
@@ -72,8 +74,10 @@ no longer tracks who holds what — **the assignee field on GitHub is the only t
 The founder steers by keeping the `next` label on three to five tickets, in order.
 
 `W-49` (#69) **inherits the `images` job** from `W-03` and must replace its dev
-Dockerfile targets with the production ones. BirenGit needs telling — the two tickets
-were written by different people.
+Dockerfile targets with the production ones. **`W-59` (#79) adds a container-scan step to
+that same job**, pointing at the `:dev` tags `W-49` is about to remove — so whichever
+merges second has to fix up the other. BirenGit owns both and was told on 2026-09-16
+(`#79` comment); sequence them deliberately rather than meeting it as a conflict.
 
 ---
 
@@ -155,6 +159,7 @@ entities are authoritative, and whether the HRMS→Payroll leave integration car
 | **Nobody has run the stack but me** | `W-02` done-when item 11 is unticked. Have a developer run `up -d` and `smoke.sh` |
 | **Test foundation is in, coverage is not** | `W-04` merged 2026-09-15. `AbstractIntegrationTest` runs a real Postgres 16 as non-owner `app_user`; 24 tests, all in `shared`. Three things to know: integration tests are **skipped silently without Docker** (CI has it, laptops may not); the proof test is a `*Test`, so Failsafe's `*IT` pattern matches nothing yet; `app_user` is created by the initializer, not `00-bootstrap.sql` — `W-06` switches it when the four schemas arrive |
 | **Toolchain** | Java 21, Maven 3.9.11 (`C:/Tools/apache-maven-3.9.11`), Node 24. `D-38`–`D-42` |
+| **Spring Boot moves to 3.5.x** | `D-45`, 2026-09-16, supersedes `D-39`. `code/backend` is still on 3.3.13, which carries **29 fixable HIGH/CRITICAL CVEs** — 6 CRITICAL, including `CVE-2026-40973` in `spring-boot` itself with no 3.3.x fix. `W-59` (#79) does the upgrade as its first commit. Until it lands, every backend build is on a vulnerable parent. Evidence: `.claude/outputs/2026-09-15-infra-w59-scan-raw.md` |
 
 ---
 
