@@ -47,11 +47,17 @@ for r in app_user migration_user readonly_user keycloak_user; do
     "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_roles where rolname='$r' and rolsuper=false and rolbypassrls=false and rolcreatedb=false and rolcreaterole=false\" | grep -q 1"
 done
 
+# F-7: ask Postgres the question directly. The old form grepped datacl for
+# '=c/', which also matches "app_user=c/postgres", and grep -v on empty
+# input exits 1 - so it reported FAIL on a correct system.
 check "PUBLIC has no CONNECT on infinevo" \
-  "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_database where datname='infinevo' and datacl::text like '%=c/%'\" | grep -v 1"
+  "$C exec -T postgres psql -tAU postgres -c \"select has_database_privilege('public','infinevo','CONNECT')\" | grep -qx f"
 
+# F-8: the old form treated ANY nonzero psql exit as proof of refusal - a
+# password prompt or a nonexistent role passed it just as well. Asking
+# has_database_privilege fails loudly if the role is absent.
 check "readonly_user refused connection on keycloak db" \
-  "! $C exec -T postgres psql -U readonly_user -d keycloak -c \"select 1\""
+  "$C exec -T postgres psql -tAU postgres -c \"select has_database_privilege('readonly_user','keycloak','CONNECT')\" | grep -qx f"
 
 # The one that matters. If app_user CAN create a table, the roles are wrong and
 # row-level security will not be a boundary when W-07 lands.

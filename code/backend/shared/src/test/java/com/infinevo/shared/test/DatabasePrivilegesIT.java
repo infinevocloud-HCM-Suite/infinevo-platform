@@ -21,6 +21,8 @@ import org.springframework.boot.test.context.SpringBootTest;
  * <ul>
  *   <li>{@code app_user} is refused DDL execution</li>
  *   <li>{@code app_user} is refused write access on reference schema</li>
+ *   <li>{@code app_user} CAN read and write tenant schemas, and CAN read reference (F-6)</li>
+ *   <li>{@code readonly_user} CAN read every platform schema (F-6)</li>
  *   <li>{@code readonly_user} is refused write access on tenant schemas</li>
  *   <li>{@code migration_user} can execute DDL (CREATE and DROP tables)</li>
  *   <li>Platform schemas (core, hrms, payroll, reference) exist and are owned by {@code migration_user}</li>
@@ -163,9 +165,83 @@ class DatabasePrivilegesIT extends AbstractIntegrationTest {
                 PostgresTestContainerInitializer.MIGRATION_USER,
                 PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
             ResultSet rs = conn.createStatement()
-                    .executeQuery("SELECT has_database_privilege('public', 'infinevo', 'CONNECT')");
+                    .executeQuery("SELECT has_database_privilege('public', current_database(), 'CONNECT')");
             assertTrue(rs.next());
             assertFalse(rs.getBoolean(1), "PUBLIC must not have CONNECT privilege on infinevo database");
+        }
+    }
+
+    /**
+     * F-6 positive control. Without this, every refusal test still passes when the
+     * ALTER DEFAULT PRIVILEGES block is deleted from 03-grants.sql - the boundary
+     * would be "app_user can do nothing", which is not what W-07 needs.
+     */
+    @Test
+    @DisplayName("app_user CAN insert, select, update and delete on every tenant schema")
+    void appUserAllowedDmlOnTenantSchemas() throws SQLException {
+        String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        for (String schema : new String[] {"core", "hrms", "payroll"}) {
+            String table = schema + ".dml_probe";
+            try (Connection conn = DriverManager.getConnection(
+                    jdbcUrl,
+                    PostgresTestContainerInitializer.MIGRATION_USER,
+                    PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
+                conn.createStatement().execute("CREATE TABLE IF NOT EXISTS " + table + " (id INT)");
+            }
+            try (Connection conn = DriverManager.getConnection(
+                    jdbcUrl,
+                    PostgresTestContainerInitializer.APP_USER,
+                    PostgresTestContainerInitializer.APP_USER_PASSWORD)) {
+                conn.createStatement().execute("INSERT INTO " + table + " VALUES (1)");
+                conn.createStatement().execute("UPDATE " + table + " SET id = 2 WHERE id = 1");
+                ResultSet rs = conn.createStatement().executeQuery("SELECT count(*) FROM " + table + " WHERE id = 2");
+                assertTrue(rs.next());
+                assertEquals(1, rs.getInt(1), "app_user must be able to read back its own write in " + schema);
+                conn.createStatement().execute("DELETE FROM " + table);
+            }
+        }
+    }
+
+    /** F-6 positive control: reference is read-only to app_user, not unreadable. */
+    @Test
+    @DisplayName("app_user CAN read the reference schema")
+    void appUserAllowedReadOnReferenceSchema() throws SQLException {
+        String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        try (Connection conn = DriverManager.getConnection(
+                jdbcUrl,
+                PostgresTestContainerInitializer.MIGRATION_USER,
+                PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
+            conn.createStatement().execute("CREATE TABLE IF NOT EXISTS reference.read_probe (code VARCHAR(2))");
+        }
+        try (Connection conn = DriverManager.getConnection(
+                jdbcUrl,
+                PostgresTestContainerInitializer.APP_USER,
+                PostgresTestContainerInitializer.APP_USER_PASSWORD)) {
+            ResultSet rs = conn.createStatement().executeQuery("SELECT count(*) FROM reference.read_probe");
+            assertTrue(rs.next(), "app_user must be able to SELECT from reference");
+        }
+    }
+
+    /** F-6 positive control: readonly_user is read-ONLY, not read-nothing. */
+    @Test
+    @DisplayName("readonly_user CAN read every platform schema")
+    void readonlyUserAllowedReadOnAllSchemas() throws SQLException {
+        String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        for (String schema : new String[] {"core", "hrms", "payroll", "reference"}) {
+            String table = schema + ".ro_probe";
+            try (Connection conn = DriverManager.getConnection(
+                    jdbcUrl,
+                    PostgresTestContainerInitializer.MIGRATION_USER,
+                    PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
+                conn.createStatement().execute("CREATE TABLE IF NOT EXISTS " + table + " (id INT)");
+            }
+            try (Connection conn = DriverManager.getConnection(
+                    jdbcUrl,
+                    PostgresTestContainerInitializer.READONLY_USER,
+                    PostgresTestContainerInitializer.READONLY_USER_PASSWORD)) {
+                ResultSet rs = conn.createStatement().executeQuery("SELECT count(*) FROM " + table);
+                assertTrue(rs.next(), "readonly_user must be able to SELECT from " + schema);
+            }
         }
     }
 }

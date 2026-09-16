@@ -6,8 +6,16 @@
 -- ---------------------------------------------------------------------------
 
 -- Database Level Connection Security
-REVOKE CONNECT ON DATABASE infinevo FROM PUBLIC;
-GRANT CONNECT ON DATABASE infinevo TO app_user, migration_user, readonly_user;
+-- F-11: provision.sh parameterises PGDATABASE, so the database name must not be
+-- hardcoded here. format()/current_database() works identically under psql and
+-- JDBC, where a psql variable would not.
+DO $$
+BEGIN
+    EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC', current_database());
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO app_user, migration_user, readonly_user',
+                   current_database());
+END
+$$;
 
 -- Schema Usage Grants
 GRANT USAGE, CREATE ON SCHEMA core, hrms, payroll, reference TO migration_user;
@@ -35,7 +43,7 @@ BEGIN
     FOR r IN
         SELECT rolname, rolsuper, rolbypassrls
         FROM pg_roles
-        WHERE rolname IN ('app_user', 'migration_user', 'readonly_user')
+        WHERE rolname IN ('app_user', 'migration_user', 'readonly_user', 'keycloak_user')
     LOOP
         IF r.rolsuper THEN
             RAISE EXCEPTION 'Security assertion failed: Role % must NOT be superuser', r.rolname;

@@ -5,6 +5,7 @@
 # Always LF — these are executed by tools that care
 *.mjs   text eol=lf
 *.sh    text eol=lf
+*.sql   text eol=lf
 mvnw    text eol=lf
 # Spotless (W-03) resolves line endings via GIT_ATTRIBUTES. The dev image COPYs
 # code/backend/ without .git, so that policy cannot resolve inside the container
