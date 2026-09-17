@@ -187,26 +187,129 @@ jobs:
           fi
           echo "OK - no floating-point money field outside legacy/"
 
-  # ── provisional image gate ──────────────────────────────────────────────────
-  # PROVISIONAL. This job builds the two *development* Dockerfiles only, and pushes
-  # neither - there is no registry login and no docker push anywhere in this file.
-  # W-49 (#69) replaces these targets with the production Dockerfiles (multi-stage,
-  # slim runtime, non-root) and inherits this job; W-50 adds the registry push.
+  # ── images ──────────────────────────────────────────────────────────────────
+  # W-49 (#69) builds the production Dockerfiles (multi-stage, slim runtime,
+  # non-root) and inherits this job; W-50 adds the registry push.
   #
-  # Build context is the repository root for both files: they COPY paths beginning
-  # "code/backend/" and "code/frontend/" (dev.Dockerfile.backend:13,
-  # dev.Dockerfile.frontend:11), matching infra/docker/compose.yml:119-121 which
-  # builds them with "context: ../..".
+  # Build context is the repository root: they COPY paths beginning
+  # "code/backend/", "code/frontend/", and "infra/docker/".
   images:
-    name: images (provisional)
+    name: images
     runs-on: ubuntu-latest
-    timeout-minutes: 15   # two docker builds, ~1m30s warm
+    timeout-minutes: 20   # three production builds, two dev builds, one image assertion
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build backend dev image
+      # `docker image inspect .Size` means DIFFERENT THINGS on different storage drivers.
+      # With the classic overlay2 driver it sums uncompressed layer diffs; with the
+      # containerd image store it reports content size - the compressed blobs that are
+      # actually pulled. The same backend image measures 291 MB the first way and 154 MB
+      # the second.
+      #
+      # The spec's thresholds (200 / 40 / 300 MB) and its 2026-09-15 baseline were taken
+      # on a containerd host, and compressed size is what matters for a Container Apps
+      # pull. So the runner is configured to match, rather than the thresholds being
+      # quietly raised to fit a measure nobody chose.
+      - name: Enable the containerd image store
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /etc/docker
+          echo '{"features":{"containerd-snapshotter":true}}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+          docker info --format 'driver={{.Driver}} status={{json .DriverStatus}}'
+
+      - name: Build backend production image
+        run: docker build -f infra/docker/backend.Dockerfile -t infinevo-backend:test .
+
+      - name: Build frontend production image
+        run: docker build -f infra/docker/frontend.Dockerfile -t infinevo-frontend:test .
+
+      - name: Build keycloak production image
+        run: docker build -f infra/docker/keycloak.Dockerfile -t infinevo-keycloak:test .
+
+      # The dev images are what `docker compose up` builds, and W-49's done-when 13 is
+      # "dev Dockerfiles and compose.yml are untouched - local dev still works". Dropping
+      # these builds meant nothing checked the second half of that: a break in either dev
+      # Dockerfile would only be found by the next developer to run compose (review F-9).
+      - name: Build dev backend image (local stack still builds)
         run: docker build -f infra/docker/dev.Dockerfile.backend -t infinevo-backend:dev .
 
-      - name: Build frontend dev image
+      - name: Build dev frontend image (local stack still builds)
         run: docker build -f infra/docker/dev.Dockerfile.frontend -t infinevo-frontend:dev .
+
+      # No secret may reach any image layer. This mirrors the spec's section 5 step 8
+      # (W-49-containerisation.md) and runs all three of its sub-checks.
+      #
+      # Only 8c was gated here at first, which left the pipeline blind to exactly the
+      # class of defect this ticket was fixed for: a credential arriving as a FILE under
+      # /app or /usr/share/nginx/html would have passed CI (verify re-run F-2).
+      - name: Assert no secrets in the production images
+        run: |
+          set -euo pipefail
+          for img in infinevo-backend:test infinevo-frontend:test infinevo-keycloak:test; do
+            # 8a - build INSTRUCTIONS. Env-var names like KC_DB_PASSWORD are expected;
+            # a literal value assignment is not. Matches a password VALUE, not the word
+            # "passwd": the Keycloak base image writes /etc/passwd in a RUN layer.
+            LAYERS=$(docker history "$img" --no-trunc --format '{{.CreatedBy}}')
+            if echo "$LAYERS" | grep -vE '(\$\{|ENV |ARG )' | grep -iE "passw(or)?d[[:space:]]*[=:][[:space:]]*['\"][^'\"]+['\"]|PASSWORD[[:space:]]+['\"][^'\"]+['\"]" >/dev/null 2>&1; then
+              echo "::error::literal secret value found in $img build instructions"
+              exit 1
+            fi
+
+            # 8b - file CONTENTS. docker history never shows what a COPY brought in.
+            HITS=$(docker run --rm --entrypoint sh "$img" -c \
+              'grep -rIl -E "local_dev_pw|BEGIN [A-Z ]*PRIVATE KEY" \
+                 /app /opt/keycloak/data /usr/share/nginx/html 2>/dev/null' || true)
+            if [ -n "$HITS" ]; then
+              echo "::error::credential found in $img file contents: $HITS"
+              exit 1
+            fi
+
+            # 8c - no realm ships in the production Keycloak image. W-10 supplies it.
+            if docker run --rm --entrypoint sh "$img" \
+                 -c 'ls -A /opt/keycloak/data/import/ 2>/dev/null | grep -q .'; then
+              echo "::error::a realm file is present in $img - W-10 supplies the production realm, and the dev realm must never ship"
+              docker run --rm --entrypoint ls "$img" -la /opt/keycloak/data/import/
+              exit 1
+            fi
+
+            echo "OK - no secrets in $img (instructions, file contents, import dir)"
+          done
+
+      # Section 5 step 9. Measure is `docker image inspect .Size` (content size);
+      # `docker images` prints a larger virtual size - do not compare the two.
+      - name: Assert image sizes are within thresholds
+        run: |
+          set -euo pipefail
+
+          # A threshold is only meaningful if the measure behind it is the one that was
+          # approved. If the image store is ever not containerd, `.Size` silently becomes
+          # uncompressed layer diffs and 200 MB starts meaning something else - which is
+          # how this step passed on one machine and failed on another. Refuse rather than
+          # measure the wrong thing quietly.
+          if ! docker info --format '{{json .DriverStatus}}' | grep -q 'io.containerd.snapshotter.v1'; then
+            echo "::error::containerd image store is not active, so docker image inspect .Size reports uncompressed layer diffs, not the content size the thresholds were set against"
+            docker info --format 'driver={{.Driver}} status={{json .DriverStatus}}'
+            exit 1
+          fi
+
+          # Measure everything and report it, THEN fail. Stopping at the first image over
+          # the line hides how the other two are doing, which is what you need to know.
+          failed=0
+          check_size() {
+            img="$1"; max_mb="$2"
+            size_bytes=$(docker image inspect "$img" --format '{{.Size}}')
+            size_mb=$((size_bytes / 1048576))
+            if [ "$size_mb" -gt "$max_mb" ]; then
+              echo "::error::$img is ${size_mb} MB, threshold is ${max_mb} MB"
+              failed=1
+            else
+              echo "OK - $img = ${size_mb} MB (< ${max_mb} MB)"
+            fi
+          }
+          check_size infinevo-backend:test  200
+          check_size infinevo-frontend:test  40
+          check_size infinevo-keycloak:test 300
+          exit "$failed"

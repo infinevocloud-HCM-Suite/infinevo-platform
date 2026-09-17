@@ -260,11 +260,23 @@ docker run -d --name w49-pg --network "$VERIFY_NET" \
   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=verify_pw \
   -e POSTGRES_DB=infinevo \
   postgres:16-alpine
-# Wait for Postgres to accept connections
-for i in $(seq 1 30); do
+# Wait for Postgres to accept connections.
+#
+# pg_isready returns true DURING the postgres:16-alpine init bootstrap, on the socket
+# the entrypoint uses before it restarts the server for real. The CREATE ROLE below then
+# died with "the database system is shutting down" and `set -e` aborted the whole script
+# at exit 2, so none of steps 1-10 ran on a clean checkout (verify F-1, 2 of 2 runs).
+# Wait for the init process to report complete FIRST, then for readiness.
+for i in $(seq 1 60); do
+  docker logs w49-pg 2>&1 | grep -q "PostgreSQL init process complete" && break
+  sleep 1
+done
+for i in $(seq 1 60); do
   docker exec w49-pg pg_isready -U postgres -d infinevo >/dev/null 2>&1 && break
   sleep 1
 done
+docker exec w49-pg pg_isready -U postgres -d infinevo >/dev/null 2>&1 \
+  || { echo "FAIL: postgres never became ready"; docker logs w49-pg; exit 1; }
 
 # Create non-owner application role (app_user) per 02-data-model.md §9:
 # "The application never connects as an owner."
@@ -355,6 +367,7 @@ docker rm -f w49-kc
 # like KEYCLOAK_ADMIN_PASSWORD (which are expected). It looks for strings that
 # would indicate a hardcoded credential rather than a placeholder.
 for img in infinevo-backend:test infinevo-frontend:test infinevo-keycloak:test; do
+  # ── 8a. Build INSTRUCTIONS ──────────────────────────────────────────────────
   LAYERS=$(docker history "$img" --no-trunc --format '{{.CreatedBy}}')
   # Check for actual secret values, not env-var names. Env-var names like
   # KC_DB_PASSWORD are expected; literal values like 'my_password' are not.
@@ -362,15 +375,45 @@ for img in infinevo-backend:test infinevo-frontend:test infinevo-keycloak:test; 
   # not the word "passwd": the Keycloak base image writes /etc/passwd in a RUN layer and
   # the previous pattern failed on it (review F-6).
   if echo "$LAYERS" | grep -vE '(\$\{|ENV |ARG )'        | grep -iE "passw(or)?d[[:space:]]*[=:][[:space:]]*['\"][^'\"]+['\"]|PASSWORD[[:space:]]+['\"][^'\"]+['\"]" >/dev/null 2>&1; then
-    echo "FAIL: literal secret value found in $img"; exit 1
+    echo "FAIL: literal secret value found in $img build instructions"; exit 1
   fi
-  echo "PASS: no secrets in $img"
+
+  # ── 8b. File CONTENTS ───────────────────────────────────────────────────────
+  # `docker history` shows the instructions that built each layer and never what a COPY
+  # brought IN. That is how infra/docker/keycloak/dev-realm.json — three accounts with
+  # the literal password local_dev_pw — reached the production Keycloak image and still
+  # scanned clean through every run of 8a (review F-1, F-2). 8a alone is a green-forever
+  # check for any credential that arrives as a file.
+  HITS=$(docker run --rm --entrypoint sh "$img" -c \
+    'grep -rIl -E "local_dev_pw|BEGIN [A-Z ]*PRIVATE KEY" \
+       /app /opt/keycloak/data /usr/share/nginx/html 2>/dev/null' || true)
+  if [ -n "$HITS" ]; then
+    echo "FAIL: credential found in $img file contents:"; echo "$HITS"; exit 1
+  fi
+
+  # ── 8c. No realm ships in the production Keycloak image ─────────────────────
+  # W-10 supplies the production realm. Anything sitting in the import directory is
+  # created on first boot against whatever database the image is pointed at.
+  if docker run --rm --entrypoint sh "$img" \
+       -c 'ls -A /opt/keycloak/data/import/ 2>/dev/null | grep -q .'; then
+    echo "FAIL: a realm is baked into $img"; exit 1
+  fi
+
+  echo "PASS: no secrets in $img (instructions, file contents, import dir)"
 done
 
 # ── 9. Image sizes — programmatic threshold comparison ───────────────────────
 # Measure is `docker image inspect .Size` (content size). `docker images` prints a
 # larger virtual size on this Docker; do not compare the two. Measured 2026-09-15 on
 # 263e36c: backend 154 MB, frontend 24 MB, keycloak 225 MB.
+#
+# This function was briefly replaced during implementation with one that read the
+# `docker images` columns positionally (review F-3, F-4). It was reverted. `sed 's/MB//'`
+# left a GB suffix intact, so `1.2GB` became `1` and an oversized image reported
+# "1 MB, PASS" — blind in exactly the failure mode this gate exists to catch — and the
+# positional read assumed a column layout that differs between storage drivers. Bytes
+# from `docker image inspect` need no unit parsing, and match done-when item 11 as the
+# founder approved it.
 check_size() {
   local img="$1" max_mb="$2"
   local size_bytes
@@ -398,6 +441,11 @@ echo "All checks passed."
 
 | Check | Expected | Result |
 |---|---|---|
+> The Result column was filled in from a run that predates the fixes for review F-1 to
+> F-13, and recorded "PASS on all three" for the secret check — a result step 8 could not
+> support, since it never read file contents. It is blank again, as approved, and
+> `/verify W-49` records the real results against the corrected images and checks.
+
 | Three images build | Exit 0 | |
 | Backend runs as non-root (`--entrypoint whoami`) | `infinevo` (uid 1000) | |
 | Frontend runs as non-root (`--entrypoint whoami`) | `nginx` (uid 101) | |
@@ -407,7 +455,7 @@ echo "All checks passed."
 | Frontend `env.js` generated with env value | Contains `API_BASE_URL` | |
 | Frontend `/health` endpoint | 200 (on 8080) | |
 | Keycloak `/health/ready` (port 9000) | 200 | |
-| No literal secret values in image layers | PASS on all three | |
+| No secret values in image layers — instructions, file contents, and an empty Keycloak import dir | PASS on all three | |
 | Image sizes within thresholds (`docker image inspect .Size`) | Backend < 200 MB, Frontend < 40 MB, Keycloak < 300 MB | |
 | `./mvnw clean verify` | BUILD SUCCESS | |
 | `npm run lint && npm run build` | Exit 0 | |

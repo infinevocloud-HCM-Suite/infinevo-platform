@@ -10,9 +10,22 @@ spring:
     # NOT web-application-type: none. The worker serves a health endpoint and nothing
     # else (03-code-structure.md section 4) - the orchestrator needs a liveness probe,
     # and without HTTP the process has no non-daemon thread and exits immediately.
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      # Smaller than the app's pool: the worker runs batches, not concurrent requests.
+      maximum-pool-size: 5
+      connection-timeout: 5000
+  jpa:
+    # See the app module's application.yml — these belong in the base, not only in the
+    # local profile (review F-6).
+    open-in-view: false
 
 server:
   port: 8082
+  shutdown: graceful
 
 management:
   endpoints:
@@ -23,3 +36,6 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    db:
+      enabled: true
