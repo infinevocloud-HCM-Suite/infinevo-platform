@@ -57,7 +57,22 @@ The most valuable check, because `/plan-feature` step 7 calls citing `legacy/`
 | Line does not exist (file is shorter) | **High** |
 | Line exists but holds unrelated code | **High** — drifted citation, the worst kind: it looks right |
 | Ported logic with no citation at all | **High** — reviewer cannot tell a port from a reinvention |
-| Table named that is not in `legacy/docs/DB_SCHEMA.md` | **High** |
+| A table being **ported** whose source is not in `legacy/docs/DB_SCHEMA.md` | **High** |
+| A **new or target** table not listed in `docs/target-state/02-data-model.md` §2-§5 | **High** — that is the authority for all 130 target tables and which schema each lives in |
+| A table placed in a different schema from the one `02-data-model.md` §2-§5 gives it | **High** — the schema is a decision already made (`D-09`, `02-data-model.md:14`), not one to settle in a migration |
+
+**Check which of those two documents applies before grading.** `legacy/docs/DB_SCHEMA.md`
+describes the **frozen MySQL** schema and its own header says it is "not a specification
+for new work" — so a genuinely new target table (`subscription`, `lop_policy`,
+`subscription_module`) will correctly be absent from it. Grading that as a fault is a
+false positive, and the reverse — accepting a ported table with no legacy source — lets a
+reinvention through as a port.
+
+**Neither rule applies to an object that never reaches a real database**: a test-only
+fixture created and destroyed inside a Testcontainer, or a tool's own bookkeeping table.
+Those are correctly absent from both documents. Require instead that the spec says
+plainly that they are test-only or infrastructural, and where they live — an object whose
+lifetime is not stated is the thing to query, not one that is missing from a table list.
 
 Typos in the frozen packages are real and load-bearing — `timeshhet/`,
 `leaveAndAttedance/`, `EmployyePortalContoller.java`. A citation carrying one is
@@ -65,8 +80,16 @@ Typos in the frozen packages are real and load-bearing — `timeshhet/`,
 
 ## Check 2 — template complete
 
-Against `docs/target-state/features/TEMPLATE.md`. A section left as its placeholder text
-is not filled in.
+Against `docs/target-state/features/TEMPLATE.md` — or, for a ticket labelled
+`skill-INFRA`, `skill-DATA` or `skill-SEC`, against `TEMPLATE-INFRA.md`, which has its
+own section numbering and deliberately drops Flow, Frontend changes and the API
+contract. **Check which template the ticket's label calls for before judging a section
+missing.** A section left as its placeholder text is not filled in.
+
+`TEMPLATE-INFRA.md:14-15` makes one section conditional: an infra ticket that creates
+**any** database object must carry a Database changes section, with the `V__` script
+names filled in. Missing it on a ticket that creates objects is a **Medium**; a
+`skill-DATA` ticket whose whole subject is the schema, a **High**.
 
 | Must carry | Section |
 |---|---|

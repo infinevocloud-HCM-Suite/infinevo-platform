@@ -15,7 +15,7 @@ Root `CLAUDE.md` restates them; this file is the authority.
 | 1 | **Founder approval before any implementation.** Plans are written and stopped on; code follows approval, never precedes it | `plan-feature` skill halts; review |
 | 2 | **Read `.claude/work/active-work.md` before starting** any task | Root `CLAUDE.md`; review |
 | 3 | **Never edit `docs/` or `*.properties` during feature work.** Docs change only via `sync-docs` with an approved diff | `guard-edit` hook (`PreToolUse`, blocks) |
-| 4 | **Flyway for migrations — never `ddl-auto`.** Once Flyway lands, `ddl-auto` moves to `validate` and every schema change is a versioned script | Review; see DEBT-002 |
+| 4 | **Flyway for migrations — never `ddl-auto`.** The property is never set, in any environment — Hibernate then defaults to `none` and Flyway owns the schema. Every schema change is a versioned script (`D-46`) | `ci.yml` "ddl-auto set nowhere"; `infra/docker/smoke.sh`; `check-done.mjs` gate 5; see DEBT-002 |
 | 5 | **Upstream remotes are read-only.** Never push to the four origin repos — they are production source. Changes flow one way, upstream → new repo | `sync-upstream` skill never pushes |
 | 6 | **Repo state beats chat memory.** If a conversation and the repo disagree, the repo is right. Verify before asserting | Review |
 | 7 | **`tenant_id` is mandatory on every new entity and query** once the tenant column lands. No exceptions, including lookup and reference tables | `tenant-audit` skill; review |
