@@ -117,7 +117,7 @@ troubleshooting are in `infra/docker/README.md`; they are not repeated here.
 |---|---|---|
 | `app`, `web`, `keycloak` | themselves | |
 | `worker` | itself | Serves **health only**, on its own port. Without HTTP the process has no non-daemon thread and exits |
-| `postgres` | Azure Database for PostgreSQL | Two databases, as in production: the platform's four schemas, and Keycloak's own |
+| `postgres` | Azure Database for PostgreSQL | Two databases, as in production: the platform's four application schemas plus `migration` (`D-45`), and Keycloak's own |
 | `redis` | Azure Cache for Redis | |
 | `queue` | Azure Service Bus | **RabbitMQ.** No faithful emulator exists; `W-52`'s queue abstraction makes local and production differ by one adapter |
 | `blob` | Azure Blob Storage | **Azurite** |

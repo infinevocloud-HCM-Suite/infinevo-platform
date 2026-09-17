@@ -11,7 +11,7 @@
 | # | Principle | Detail |
 |---|---|---|
 | 1 | **One database** | A single Postgres database. Keycloak keeps its own, separate. |
-| 2 | **Four schemas** | `core`, `hrms`, `payroll`, `reference`. The module boundary is visible in the schema name. |
+| 2 | **Four application schemas** | `core`, `hrms`, `payroll`, `reference`. The module boundary is visible in the schema name. A fifth schema, `migration`, holds Flyway's own bookkeeping and never application data (`D-45`) — see §5. |
 | 3 | **Tenant column everywhere** | Every table in `core`, `hrms` and `payroll` carries `tenant_id`. No exceptions. |
 | 4 | **`reference` is the one exception** | Shared national data. **No tenant column, by design.** Isolating the exception into its own schema is what makes rule 3 auditable: `SELECT` any table outside `reference` without `tenant_id` and it is a bug. |
 | 5 | **Row-level security** | Postgres policies on `tenant_id`. Isolation is enforced by the database, not by application care. |
@@ -192,17 +192,36 @@ overrides in `payroll`.
 
 ---
 
+### The `migration` schema — bookkeeping, not data
+
+**Not an application schema.** It holds one table, created and owned by Flyway's own
+runner, and exists so that rule 3 can stay absolute: `flyway_schema_history` records
+which migration scripts have run, which is not tenant data and cannot carry `tenant_id`.
+Keeping it out of `core`, `hrms` and `payroll` means the `W-07` build check needs no
+exemption list (`D-45`).
+
+| Table | Owner | Readable by | Notes |
+|---|---|---|---|
+| `flyway_schema_history` | `migration_user` | `migration_user` only | Created by Flyway on first run. **No** grant to `app_user` or `readonly_user` — neither role holds `USAGE` on the schema |
+
+The schema itself is created by provisioning (`infra/postgres/02-schemas.sql`), not by a
+migration: Flyway cannot create the schema that holds its own history table before it has
+run.
+
+---
+
 ## 6. Counts
 
 | | Today | Target |
 |---|---|---|
 | Databases | 2 | 1 (+1 for Keycloak) |
-| Schemas | — | 4 |
+| Schemas | — | 4 application (+1 `migration`, no application data) |
 | Tables | 131 | ~130 |
 | `core` | — | 46 |
 | `hrms` | — | 11 |
 | `payroll` | — | 58 |
 | `reference` | — | 15 |
+| `migration` | — | 1 (`flyway_schema_history`, not counted above) |
 | Duplicated concepts | employee, leave, holiday, roles, documents, timesheets | none |
 | Tables with a tenant column | 63 of 131 | 115 of 130 (all but `reference`) |
 | `core` / `hrms` / `payroll` / `reference` | — | 46 / 11 / 58 / 15 |

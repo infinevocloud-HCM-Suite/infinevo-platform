@@ -42,9 +42,18 @@ Invoke as `/plan-feature W-nn`. For platform tickets (`skill-INFRA`, `skill-DATA
      belongs in `core` — say so rather than proposing a workaround; the build rejects it
    - Every new endpoint authenticated, or added to the reviewed exception list
    - Nothing under `legacy/` or `docs/` is edited
-10. Reply with the spec path, a summary of 10 lines or fewer, the task list, and the
-    decisions the founder must make, as numbered questions.
-11. **STOP and wait for approval.** Do not spawn **implementer**. Do not write any file
+10. **Run `/review-spec <draft path>` and fix what it finds, before the founder sees the
+    draft.** It spawns its own reader and applies a different checklist — citations that
+    resolve, template complete, gaps covered, criteria the **verifier** can actually run
+    — so it finds what re-reading your own draft cannot. On `W-06` it returned 6 High on
+    the first draft and 3 on the second, none cosmetic. Skip it only for a genuinely
+    small ticket — one module, one or two files, no new table — and **say in step 11
+    whether you ran it and what it found.** `/review-spec` never edits the spec; it
+    hands back findings for this skill to fix. Running it is not approval and does not
+    substitute for it.
+11. Reply with the spec path, a summary of 10 lines or fewer, the task list, whether
+    `/review-spec` ran, and the decisions the founder must make, as numbered questions.
+12. **STOP and wait for approval.** Do not spawn **implementer**. Do not write any file
     outside `.claude/outputs/`.
 
 ## What a good spec looks like
