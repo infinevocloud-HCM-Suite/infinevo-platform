@@ -5,10 +5,11 @@
 -- Must execute identically via psql, Testcontainers JDBC, and Azure pipelines.
 -- ---------------------------------------------------------------------------
 
-CREATE SCHEMA IF NOT EXISTS core AUTHORIZATION migration_user;
-CREATE SCHEMA IF NOT EXISTS hrms AUTHORIZATION migration_user;
-CREATE SCHEMA IF NOT EXISTS payroll AUTHORIZATION migration_user;
+CREATE SCHEMA IF NOT EXISTS core      AUTHORIZATION migration_user;
+CREATE SCHEMA IF NOT EXISTS hrms      AUTHORIZATION migration_user;
+CREATE SCHEMA IF NOT EXISTS payroll   AUTHORIZATION migration_user;
 CREATE SCHEMA IF NOT EXISTS reference AUTHORIZATION migration_user;
+CREATE SCHEMA IF NOT EXISTS migration AUTHORIZATION migration_user;
 
 -- F-10: AUTHORIZATION only applies when the schema is created. Re-provisioning
 -- over a volume where these schemas already exist (a W-02-era volume owns them
@@ -17,8 +18,10 @@ ALTER SCHEMA core      OWNER TO migration_user;
 ALTER SCHEMA hrms      OWNER TO migration_user;
 ALTER SCHEMA payroll   OWNER TO migration_user;
 ALTER SCHEMA reference OWNER TO migration_user;
+ALTER SCHEMA migration OWNER TO migration_user;
 
 COMMENT ON SCHEMA core      IS 'Always on, whatever the tenant bought. Employee, leave, identity, approvals, audit.';
 COMMENT ON SCHEMA hrms      IS 'HRMS module. Attendance experience, overtime requests, projects, timesheets.';
 COMMENT ON SCHEMA payroll   IS 'Payroll module. Pay runs, tax, claims, statutory.';
 COMMENT ON SCHEMA reference IS 'Shared national data. NO tenant column, by design - the one exception.';
+COMMENT ON SCHEMA migration IS 'Flyway bookkeeping only. Owned by migration_user; app_user and readonly_user are granted nothing here.';
