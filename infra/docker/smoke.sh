@@ -34,6 +34,12 @@ for s in core hrms payroll reference; do
   check "schema $s exists and owned by migration_user" \
     "$C exec -T postgres psql -tAU postgres -d infinevo -c \"select pg_get_userbyid(nspowner) from pg_namespace where nspname='$s'\" | grep -qx migration_user"
 done
+check "schema migration exists and owned by migration_user" \
+  "$C exec -T postgres psql -tAU postgres -d infinevo -c \"select pg_get_userbyid(nspowner) from pg_namespace where nspname='migration'\" | grep -qx migration_user"
+check "flyway_schema_history exists in migration schema owned by migration_user" \
+  "$C exec -T postgres psql -tAU postgres -d infinevo -c \"select count(*)||'|'||schemaname||'/'||tableowner from pg_tables where tablename='flyway_schema_history' group by schemaname, tableowner\" | grep -qx '1|migration/migration_user'"
+check "app_user has no USAGE on migration schema" \
+  "$C exec -T postgres psql -tAU postgres -d infinevo -c \"select has_schema_privilege('app_user','migration','USAGE')\" | grep -qx f"
 check "keycloak database exists" \
   "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_database where datname='keycloak'\" | grep -q 1"
 check "keycloak database owned by keycloak_user" \
