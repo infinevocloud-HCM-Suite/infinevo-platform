@@ -6,3 +6,6 @@ CREATE TABLE reference.country_fixture (
     name text        NOT NULL,
     CONSTRAINT country_fixture_pk PRIMARY KEY (code)
 );
+
+INSERT INTO reference.country_fixture (code, name) VALUES ('IN', 'India');
+
