@@ -27,7 +27,7 @@ spring:
     create-schemas: false
 
     # Fail fast if a locations entry has no scripts directory on the classpath.
-    fail-on-missing-locations: false
+    fail-on-missing-locations: true
 
     validate-on-migrate: true
     clean-disabled: true

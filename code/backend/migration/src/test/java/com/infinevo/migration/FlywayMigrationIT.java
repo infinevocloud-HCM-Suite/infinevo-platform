@@ -14,17 +14,19 @@ import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.MigrationState;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ConfigurableApplicationContext;
 
 /**
  * W-06 — Integration test proving the migration mechanism.
  *
- * <p>Uses the shared Testcontainers container (provisioned with roles, schemas, and grants).
- * Runs Flyway against the test fixtures in {@code db/migration-test/} as {@code migration_user}.
- * The shipped script trees ({@code db/migration/}) stay empty — this proves the mechanism,
- * not the data model.
+ * <p>Uses the shared Testcontainers container (provisioned with roles, schemas, and grants). Boots
+ * {@link MigrationApplication} via its real {@code application.yml} so the test exercises the
+ * exact Spring Boot auto-configuration chain that ships. Overrides are supplied as command-line
+ * arguments (highest priority in Spring Boot's property hierarchy) so they beat the static YAML.
+ * Test fixture scripts ({@code db/migration-test/}) replace the empty shipped trees for this run.
  *
- * <p>Fixtures: V001 (reference), V002 (core), V003 (hrms), V004 (payroll).
- * All are destroyed with the container after the test run.
+ * <p>Fixtures: V001 (reference), V002 (core), V003 (hrms), V004 (payroll). All are destroyed with
+ * the container after the test run.
  */
 @EnabledIfDockerAvailable
 class FlywayMigrationIT {
@@ -36,25 +38,20 @@ class FlywayMigrationIT {
     static void runMigrations() {
         jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
 
-        flyway = Flyway.configure()
-                .dataSource(
-                        jdbcUrl,
-                        PostgresTestContainerInitializer.MIGRATION_USER,
-                        PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)
-                .defaultSchema("migration")
-                .schemas("migration", "reference", "core", "hrms", "payroll")
-                .locations(
-                        "classpath:db/migration-test/reference",
-                        "classpath:db/migration-test/core",
-                        "classpath:db/migration-test/hrms",
-                        "classpath:db/migration-test/payroll")
-                .createSchemas(false)
-                .validateOnMigrate(true)
-                .cleanDisabled(true)
-                .failOnMissingLocations(true)
-                .load();
+        // Pass overrides as CLI args (highest Spring Boot property priority) so they
+        // beat application.yml.  This is what proves the shipped Spring Boot
+        // auto-configuration chain works — not a hand-built Flyway instance.
+        ConfigurableApplicationContext context = MigrationApplication.launch(
+                "--DB_URL=" + jdbcUrl,
+                "--DB_MIGRATION_USERNAME=" + PostgresTestContainerInitializer.MIGRATION_USER,
+                "--DB_MIGRATION_PASSWORD=" + PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD,
+                "--spring.flyway.locations="
+                        + "classpath:db/migration-test/reference"
+                        + ",classpath:db/migration-test/core"
+                        + ",classpath:db/migration-test/hrms"
+                        + ",classpath:db/migration-test/payroll");
 
-        flyway.migrate();
+        flyway = context.getBean(Flyway.class);
     }
 
     // ── §6 criterion 1: flyway_schema_history exists, in migration schema, owned by migration_user
