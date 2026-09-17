@@ -220,15 +220,60 @@ jobs:
       - name: Build dev frontend image (local stack still builds)
         run: docker build -f infra/docker/dev.Dockerfile.frontend -t infinevo-frontend:dev .
 
-      # No realm may be baked into the production Keycloak image (review F-1). The image
-      # this job just built is the artifact W-50 deploys; a development realm inside it
-      # creates its placeholder accounts on first boot against a real database.
-      - name: Assert no realm is baked into the Keycloak image
+      # No secret may reach any image layer. This mirrors the spec's section 5 step 8
+      # (W-49-containerisation.md) and runs all three of its sub-checks.
+      #
+      # Only 8c was gated here at first, which left the pipeline blind to exactly the
+      # class of defect this ticket was fixed for: a credential arriving as a FILE under
+      # /app or /usr/share/nginx/html would have passed CI (verify re-run F-2).
+      - name: Assert no secrets in the production images
         run: |
-          if docker run --rm --entrypoint sh infinevo-keycloak:test \
-               -c 'ls -A /opt/keycloak/data/import/ 2>/dev/null | grep -q .'; then
-            echo "::error::a realm file is present in /opt/keycloak/data/import/ - W-10 supplies the production realm, and the dev realm must never ship"
-            docker run --rm --entrypoint ls infinevo-keycloak:test -la /opt/keycloak/data/import/
-            exit 1
-          fi
-          echo "OK - no realm baked into the Keycloak image"
+          set -euo pipefail
+          for img in infinevo-backend:test infinevo-frontend:test infinevo-keycloak:test; do
+            # 8a - build INSTRUCTIONS. Env-var names like KC_DB_PASSWORD are expected;
+            # a literal value assignment is not. Matches a password VALUE, not the word
+            # "passwd": the Keycloak base image writes /etc/passwd in a RUN layer.
+            LAYERS=$(docker history "$img" --no-trunc --format '{{.CreatedBy}}')
+            if echo "$LAYERS" | grep -vE '(\$\{|ENV |ARG )' | grep -iE "passw(or)?d[[:space:]]*[=:][[:space:]]*['\"][^'\"]+['\"]|PASSWORD[[:space:]]+['\"][^'\"]+['\"]" >/dev/null 2>&1; then
+              echo "::error::literal secret value found in $img build instructions"
+              exit 1
+            fi
+
+            # 8b - file CONTENTS. docker history never shows what a COPY brought in.
+            HITS=$(docker run --rm --entrypoint sh "$img" -c \
+              'grep -rIl -E "local_dev_pw|BEGIN [A-Z ]*PRIVATE KEY" \
+                 /app /opt/keycloak/data /usr/share/nginx/html 2>/dev/null' || true)
+            if [ -n "$HITS" ]; then
+              echo "::error::credential found in $img file contents: $HITS"
+              exit 1
+            fi
+
+            # 8c - no realm ships in the production Keycloak image. W-10 supplies it.
+            if docker run --rm --entrypoint sh "$img" \
+                 -c 'ls -A /opt/keycloak/data/import/ 2>/dev/null | grep -q .'; then
+              echo "::error::a realm file is present in $img - W-10 supplies the production realm, and the dev realm must never ship"
+              docker run --rm --entrypoint ls "$img" -la /opt/keycloak/data/import/
+              exit 1
+            fi
+
+            echo "OK - no secrets in $img (instructions, file contents, import dir)"
+          done
+
+      # Section 5 step 9. Measure is `docker image inspect .Size` (content size);
+      # `docker images` prints a larger virtual size - do not compare the two.
+      - name: Assert image sizes are within thresholds
+        run: |
+          set -euo pipefail
+          check_size() {
+            img="$1"; max_mb="$2"
+            size_bytes=$(docker image inspect "$img" --format '{{.Size}}')
+            size_mb=$((size_bytes / 1048576))
+            if [ "$size_mb" -gt "$max_mb" ]; then
+              echo "::error::$img is ${size_mb} MB, threshold is ${max_mb} MB"
+              exit 1
+            fi
+            echo "OK - $img = ${size_mb} MB (< ${max_mb} MB)"
+          }
+          check_size infinevo-backend:test  200
+          check_size infinevo-frontend:test  40
+          check_size infinevo-keycloak:test 300
