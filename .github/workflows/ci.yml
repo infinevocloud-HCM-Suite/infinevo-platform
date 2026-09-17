@@ -196,7 +196,7 @@ jobs:
   images:
     name: images
     runs-on: ubuntu-latest
-    timeout-minutes: 15   # three docker builds
+    timeout-minutes: 20   # three production builds, two dev builds, one image assertion
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
@@ -209,3 +209,26 @@ jobs:
 
       - name: Build keycloak production image
         run: docker build -f infra/docker/keycloak.Dockerfile -t infinevo-keycloak:test .
+
+      # The dev images are what `docker compose up` builds, and W-49's done-when 13 is
+      # "dev Dockerfiles and compose.yml are untouched - local dev still works". Dropping
+      # these builds meant nothing checked the second half of that: a break in either dev
+      # Dockerfile would only be found by the next developer to run compose (review F-9).
+      - name: Build dev backend image (local stack still builds)
+        run: docker build -f infra/docker/dev.Dockerfile.backend -t infinevo-backend:dev .
+
+      - name: Build dev frontend image (local stack still builds)
+        run: docker build -f infra/docker/dev.Dockerfile.frontend -t infinevo-frontend:dev .
+
+      # No realm may be baked into the production Keycloak image (review F-1). The image
+      # this job just built is the artifact W-50 deploys; a development realm inside it
+      # creates its placeholder accounts on first boot against a real database.
+      - name: Assert no realm is baked into the Keycloak image
+        run: |
+          if docker run --rm --entrypoint sh infinevo-keycloak:test \
+               -c 'ls -A /opt/keycloak/data/import/ 2>/dev/null | grep -q .'; then
+            echo "::error::a realm file is present in /opt/keycloak/data/import/ - W-10 supplies the production realm, and the dev realm must never ship"
+            docker run --rm --entrypoint ls infinevo-keycloak:test -la /opt/keycloak/data/import/
+            exit 1
+          fi
+          echo "OK - no realm baked into the Keycloak image"

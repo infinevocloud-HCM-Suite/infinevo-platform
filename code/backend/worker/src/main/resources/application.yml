@@ -14,6 +14,14 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      # Smaller than the app's pool: the worker runs batches, not concurrent requests.
+      maximum-pool-size: 5
+      connection-timeout: 5000
+  jpa:
+    # See the app module's application.yml — these belong in the base, not only in the
+    # local profile (review F-6).
+    open-in-view: false
 
 server:
   port: 8082
@@ -28,3 +36,6 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    db:
+      enabled: true

@@ -29,8 +29,19 @@ ENV KC_DB=postgres
 ENV KC_HTTP_ENABLED=true
 ENV KC_PROXY_HEADERS=xforwarded
 
-# Import realm export (W-10 will replace this with the full production realm export)
-COPY infra/docker/keycloak/dev-realm.json /opt/keycloak/data/import/dev-realm.json
+# No realm is baked into this image, deliberately.
+#
+# infra/docker/keycloak/dev-realm.json is a LOCAL development realm whose own README
+# says every credential in it "must never appear in a deployed environment". It carries
+# three accounts with the literal password local_dev_pw and localhost:5173 redirect URIs.
+# Copying it here put it in the one image this repository deploys, and `--import-realm`
+# created those accounts on first boot against a real database (review F-1).
+#
+# The local stack does not need it here: compose.yml:111 mounts the same file read-only
+# into the stock Keycloak image, which is where a development realm belongs.
+#
+# W-10 supplies the production realm. Until then this image starts with no realm but
+# the built-in `master`, configured entirely from environment variables.
 
 RUN /opt/keycloak/bin/kc.sh build
 
@@ -44,8 +55,15 @@ ENV KC_HEALTH_ENABLED=true
 ENV KC_HTTP_ENABLED=true
 ENV KC_PROXY_HEADERS=xforwarded
 
+# Non-root, asserted here rather than inherited (review F-7).
+# The quay base image already defaults to uid 1000, but nothing in this repository said
+# so, and a base image change would have flipped it silently. Note the primary group is
+# root (gid 0) — a Red Hat base image convention, flagged by some scanners; W-59 rules
+# on whether that needs changing.
+USER 1000
+
 # HTTP port (8080) and Management/health port (9000)
 EXPOSE 8080 9000
 
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
-CMD ["start", "--optimized", "--import-realm"]
+CMD ["start", "--optimized"]
