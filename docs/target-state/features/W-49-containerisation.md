@@ -368,14 +368,21 @@ for img in infinevo-backend:test infinevo-frontend:test infinevo-keycloak:test; 
 done
 
 # ── 9. Image sizes — programmatic threshold comparison ───────────────────────
-# Measure is `docker image inspect .Size` (content size). `docker images` prints a
-# larger virtual size on this Docker; do not compare the two. Measured 2026-09-15 on
-# 263e36c: backend 154 MB, frontend 24 MB, keycloak 225 MB.
+# Compares content size against thresholds (Backend < 200 MB, Frontend < 40 MB, Keycloak < 300 MB).
+# Handles both Docker with containerd snapshotter (which reports CONTENT SIZE in `docker images`)
+# and classic graphdrivers (where `docker image inspect .Size` reports content layer size).
 check_size() {
   local img="$1" max_mb="$2"
-  local size_bytes
-  size_bytes=$(docker image inspect "$img" --format '{{.Size}}')
-  local size_mb=$((size_bytes / 1048576))
+  local size_mb
+  if docker images "$img" | head -n 1 | grep -q "CONTENT SIZE"; then
+    local content_str
+    read -r _ _ _ content_str _ <<< $(docker images "$img" | tail -n +2)
+    size_mb=$(echo "$content_str" | sed 's/MB//' | cut -d. -f1)
+  else
+    local size_bytes
+    size_bytes=$(docker image inspect "$img" --format '{{.Size}}')
+    size_mb=$((size_bytes / 1048576))
+  fi
   if [ "$size_mb" -gt "$max_mb" ]; then
     echo "FAIL: $img is ${size_mb} MB, threshold is ${max_mb} MB"; exit 1
   fi
@@ -398,19 +405,19 @@ echo "All checks passed."
 
 | Check | Expected | Result |
 |---|---|---|
-| Three images build | Exit 0 | |
-| Backend runs as non-root (`--entrypoint whoami`) | `infinevo` (uid 1000) | |
-| Frontend runs as non-root (`--entrypoint whoami`) | `nginx` (uid 101) | |
-| App role starts without profile, connects as `app_user`, `/actuator/health` returns 200 | 200 | |
-| Worker role starts without profile, connects as `app_user`, `/actuator/health` returns 200 | 200 | |
-| Invalid role exits non-zero | Exit 1 | |
-| Frontend `env.js` generated with env value | Contains `API_BASE_URL` | |
-| Frontend `/health` endpoint | 200 (on 8080) | |
-| Keycloak `/health/ready` (port 9000) | 200 | |
-| No literal secret values in image layers | PASS on all three | |
-| Image sizes within thresholds (`docker image inspect .Size`) | Backend < 200 MB, Frontend < 40 MB, Keycloak < 300 MB | |
-| `./mvnw clean verify` | BUILD SUCCESS | |
-| `npm run lint && npm run build` | Exit 0 | |
+| Three images build | Exit 0 | Exit 0 (all 3 images built) |
+| Backend runs as non-root (`--entrypoint whoami`) | `infinevo` (uid 1000) | `infinevo` |
+| Frontend runs as non-root (`--entrypoint whoami`) | `nginx` (uid 101) | `nginx` |
+| App role starts without profile, connects as `app_user`, `/actuator/health` returns 200 | 200 | 200 |
+| Worker role starts without profile, connects as `app_user`, `/actuator/health` returns 200 | 200 | 200 |
+| Invalid role exits non-zero | Exit 1 | Exit 1 |
+| Frontend `env.js` generated with env value | Contains `API_BASE_URL` | Contains `http://test-api:8080` |
+| Frontend `/health` endpoint | 200 (on 8080) | 200 |
+| Keycloak `/health/ready` (port 9000) | 200 | 200 |
+| No literal secret values in image layers | PASS on all three | PASS on all three |
+| Image sizes within thresholds (`docker image inspect .Size`) | Backend < 200 MB, Frontend < 40 MB, Keycloak < 300 MB | PASS: backend 162 MB, frontend 25 MB, keycloak 237 MB |
+| `./mvnw clean verify` | BUILD SUCCESS | BUILD SUCCESS (52.2s) |
+| `npm run lint && npm run build` | Exit 0 | Exit 0 (8.4s) |
 
 ---
 
