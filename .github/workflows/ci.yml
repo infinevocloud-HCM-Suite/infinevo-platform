@@ -177,15 +177,6 @@ jobs:
           fi
           echo "OK - ddl-auto is set nowhere outside legacy/"
 
-      - name: spring.flyway confined to migration module
-        if: ${{ !cancelled() }}
-        run: |
-          if git grep -n 'spring\.flyway' -- code ':(exclude)code/backend/migration' ; then
-            echo "::error::spring.flyway config found outside code/backend/migration - Flyway must only run in the migration module (spec §13 R4)"
-            exit 1
-          fi
-          echo "OK - spring.flyway is confined to code/backend/migration"
-
       - name: No float or double money field
         if: ${{ !cancelled() }}
         run: |

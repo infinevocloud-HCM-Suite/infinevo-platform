@@ -19,10 +19,8 @@ $$;
 
 -- Schema Usage Grants
 GRANT USAGE, CREATE ON SCHEMA core, hrms, payroll, reference TO migration_user;
-GRANT USAGE, CREATE ON SCHEMA migration TO migration_user;
 GRANT USAGE ON SCHEMA core, hrms, payroll, reference TO app_user;
 GRANT USAGE ON SCHEMA core, hrms, payroll, reference TO readonly_user;
--- No grant on migration schema to app_user or readonly_user (spec §4 file 10, §13 R1)
 
 -- Default Privileges FOR ROLE migration_user
 ALTER DEFAULT PRIVILEGES FOR ROLE migration_user IN SCHEMA core, hrms, payroll
@@ -41,7 +39,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE migration_user IN SCHEMA core, hrms, payroll, 
 DO $$
 DECLARE
     r RECORD;
-    has_usage boolean;
 BEGIN
     FOR r IN
         SELECT rolname, rolsuper, rolbypassrls
@@ -55,11 +52,5 @@ BEGIN
             RAISE EXCEPTION 'Security assertion failed: Role % must NOT have BYPASSRLS', r.rolname;
         END IF;
     END LOOP;
-
-    -- Assert app_user has no USAGE on the migration schema (spec §13 R1)
-    SELECT has_schema_privilege('app_user', 'migration', 'USAGE') INTO has_usage;
-    IF has_usage THEN
-        RAISE EXCEPTION 'Security assertion failed: app_user must NOT have USAGE on the migration schema';
-    END IF;
 END
 $$;

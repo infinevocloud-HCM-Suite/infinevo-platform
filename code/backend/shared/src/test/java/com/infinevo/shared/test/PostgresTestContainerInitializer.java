@@ -27,25 +27,25 @@ import org.testcontainers.containers.PostgreSQLContainer;
 public class PostgresTestContainerInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
     /** Non-owner application role. RLS policies apply to this role. */
-    public static final String APP_USER = "app_user";
+    static final String APP_USER = "app_user";
 
     /** Password for the {@code app_user} role. Test-only — not a secret. */
-    public static final String APP_USER_PASSWORD = "app_user_pass";
+    static final String APP_USER_PASSWORD = "app_user_pass";
 
     /** Migration user role owning schemas and running Flyway DDL. */
-    public static final String MIGRATION_USER = "migration_user";
+    static final String MIGRATION_USER = "migration_user";
 
     /** Password for the {@code migration_user} role. Test-only — not a secret. */
-    public static final String MIGRATION_USER_PASSWORD = "migration_user_pass";
+    static final String MIGRATION_USER_PASSWORD = "migration_user_pass";
 
     /** Readonly role for reporting and analytics. */
-    public static final String READONLY_USER = "readonly_user";
+    static final String READONLY_USER = "readonly_user";
 
     /** Password for the {@code readonly_user} role. Test-only — not a secret. */
-    public static final String READONLY_USER_PASSWORD = "readonly_user_pass";
+    static final String READONLY_USER_PASSWORD = "readonly_user_pass";
 
     /** Database name matching the production schema. */
-    public static final String DATABASE_NAME = "infinevo";
+    static final String DATABASE_NAME = "infinevo";
 
     @SuppressWarnings("resource") // container lifecycle is managed by the JVM shutdown hook
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -63,7 +63,7 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
     }
 
     /** Returns the JDBC URL of the running PostgreSQL Testcontainer (starting container if needed). */
-    public static String getJdbcUrl() {
+    static String getJdbcUrl() {
         startIfNeeded();
         return POSTGRES.getJdbcUrl();
     }

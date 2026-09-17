@@ -119,23 +119,6 @@ services:
       retries: 30
       start_period: 40s
 
-  # ── migration ───────────────────────────────────────────────────────────────
-  migrate:                                # -> Container Apps job (W-54)
-    # Runs once, exits 0 on success. app and worker wait on service_completed_successfully.
-    # command overrides the Dockerfile CMD (which is hardwired to -pl app spring-boot:run).
-    # -pl alone works because dev.Dockerfile.backend:26 installs every module.
-    build:
-      context: ../..
-      dockerfile: infra/docker/dev.Dockerfile.backend
-    command: ["-pl", "migration", "spring-boot:run"]
-    environment:
-      DB_URL: jdbc:postgresql://postgres:5432/infinevo
-      DB_MIGRATION_USERNAME: migration_user
-      DB_MIGRATION_PASSWORD: local_migration_pw
-    restart: "no"
-    depends_on:
-      postgres: { condition: service_healthy }
-
   # ── application ─────────────────────────────────────────────────────────────
   app:                                    # -> Container App 'app', web role
     build:
@@ -160,7 +143,6 @@ services:
       # Deliberately NOT waiting on redis. No code uses it until W-53, and the API
       # should not fail to start because a cache is unavailable.
       redis:    { condition: service_started }
-      migrate:  { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
       interval: 10s
@@ -186,7 +168,6 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       queue:    { condition: service_healthy }
-      migrate:  { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health | grep -q UP"]
       interval: 10s
