@@ -201,6 +201,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # `docker image inspect .Size` means DIFFERENT THINGS on different storage drivers.
+      # With the classic overlay2 driver it sums uncompressed layer diffs; with the
+      # containerd image store it reports content size - the compressed blobs that are
+      # actually pulled. The same backend image measures 291 MB the first way and 154 MB
+      # the second.
+      #
+      # The spec's thresholds (200 / 40 / 300 MB) and its 2026-09-15 baseline were taken
+      # on a containerd host, and compressed size is what matters for a Container Apps
+      # pull. So the runner is configured to match, rather than the thresholds being
+      # quietly raised to fit a measure nobody chose.
+      - name: Enable the containerd image store
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /etc/docker
+          echo '{"features":{"containerd-snapshotter":true}}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+          docker info --format 'driver={{.Driver}} status={{json .DriverStatus}}'
+
       - name: Build backend production image
         run: docker build -f infra/docker/backend.Dockerfile -t infinevo-backend:test .
 
@@ -264,16 +283,33 @@ jobs:
       - name: Assert image sizes are within thresholds
         run: |
           set -euo pipefail
+
+          # A threshold is only meaningful if the measure behind it is the one that was
+          # approved. If the image store is ever not containerd, `.Size` silently becomes
+          # uncompressed layer diffs and 200 MB starts meaning something else - which is
+          # how this step passed on one machine and failed on another. Refuse rather than
+          # measure the wrong thing quietly.
+          if ! docker info --format '{{json .DriverStatus}}' | grep -q 'io.containerd.snapshotter.v1'; then
+            echo "::error::containerd image store is not active, so docker image inspect .Size reports uncompressed layer diffs, not the content size the thresholds were set against"
+            docker info --format 'driver={{.Driver}} status={{json .DriverStatus}}'
+            exit 1
+          fi
+
+          # Measure everything and report it, THEN fail. Stopping at the first image over
+          # the line hides how the other two are doing, which is what you need to know.
+          failed=0
           check_size() {
             img="$1"; max_mb="$2"
             size_bytes=$(docker image inspect "$img" --format '{{.Size}}')
             size_mb=$((size_bytes / 1048576))
             if [ "$size_mb" -gt "$max_mb" ]; then
               echo "::error::$img is ${size_mb} MB, threshold is ${max_mb} MB"
-              exit 1
+              failed=1
+            else
+              echo "OK - $img = ${size_mb} MB (< ${max_mb} MB)"
             fi
-            echo "OK - $img = ${size_mb} MB (< ${max_mb} MB)"
           }
           check_size infinevo-backend:test  200
           check_size infinevo-frontend:test  40
           check_size infinevo-keycloak:test 300
+          exit "$failed"
