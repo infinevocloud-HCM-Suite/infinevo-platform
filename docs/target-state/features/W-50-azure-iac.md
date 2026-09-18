@@ -12,7 +12,7 @@
 | **Blocks** | `W-51` networking & identity · `W-52` queue & worker · `W-53` caching · `W-54` deployment pipeline · `W-59` container scanning · `W-60` observability · `W-62` backup & DR |
 | **Capabilities** | `PLAT-12` — infrastructure as code; Azure defined in the repository |
 | **Decisions** | `D-10` Container Apps not Kubernetes · `D-11` API Gateway deferred · `D-18` India region (`centralindia`) · `D-19` 10 × 100 scale · `D-44` RabbitMQ local / Service Bus Azure · `D-02` worker on same image · `D-21` one Keycloak realm · `D-45` migration schema · `D-46` no ddl-auto |
-| **Gaps addressed** | `DEBT-004` secrets in properties — **partial**: Key Vault replaces the committed connection strings; the applications' consumption of those secrets via managed identity is `W-51`<br>`DEBT-011` Cloudinary document storage — full resolution: Azure Blob Storage with private containers |
+| **Gaps addressed** | `DEBT-004` secrets in properties — **partial**: Key Vault replaces the committed connection strings; the applications' consumption of those secrets via managed identity is `W-51`<br>`DEBT-011` Cloudinary document storage — **partial**: this ticket provisions the private Blob containers (`allowBlobPublicAccess: false`, every container `publicAccess: 'None'`). Moving the documents and repointing the application is a migration of its own (`05-azure-architecture.md:143`) and is not in this ticket |
 | **Status** | **Approved 2026-09-18 — ready for `/develop`** |
 | **Approved by** | Founder |
 | **Approved on** | 2026-09-18 |
@@ -171,7 +171,8 @@ infra/azure/
 │   ├── redis.bicep                     # Azure Cache for Redis
 │   ├── servicebus.bicep                # Service Bus Namespace & queues
 │   ├── storage.bicep                   # Storage Account (allowBlobPublicAccess: false) & containers
-│   └── managed-identities.bicep        # User-assigned managed identities per container role & AcrPull
+│   ├── managed-identities.bicep        # User-assigned managed identities per container role
+│   └── acr-role-assignment.bicep       # AcrPull, scoped to the registry resource
 ├── parameters/
 │   ├── dev.bicepparam                  # Dev parameters (minimal SKUs, scale-to-zero)
 │   ├── uat.bicepparam                  # UAT parameters (prod topology, scaled-down)
@@ -184,7 +185,7 @@ infra/azure/
 | File | Change |
 |---|---|
 | `infra/azure/main.bicep` | **New.** Root orchestrator accepting `environment`, `location`, and SKU overrides. Deploys shared RG and environment RG. |
-| `infra/azure/modules/registry.bicep` | **New.** Container Registry with admin user disabled; grants `AcrPull` to managed identities. |
+| `infra/azure/modules/registry.bicep` | **New.** Container Registry with admin user disabled. |
 | `infra/azure/modules/keyvault.bicep` | **New.** Key Vault with Azure RBAC authorization, soft-delete, and purge protection for prod. |
 | `infra/azure/modules/loganalytics.bicep` | **New.** Log Analytics workspace for platform container and diagnostic logging. |
 | `infra/azure/modules/containerapp-env.bicep` | **New.** Container Apps Environment connected to the Log Analytics workspace. |
@@ -193,7 +194,9 @@ infra/azure/
 | `infra/azure/modules/redis.bicep` | **New.** Azure Cache for Redis instance (Basic C0 in dev/uat, Standard C1 in prod). |
 | `infra/azure/modules/servicebus.bicep` | **New.** Service Bus Standard namespace with queues: `payrun`, `import`, `report`. |
 | `infra/azure/modules/storage.bicep` | **New.** Storage account with `allowBlobPublicAccess: false` and blob containers: `documents`, `payslips`, `proofs`. |
-| `infra/azure/modules/managed-identities.bicep` | **New.** Creates User-Assigned Managed Identities (`app`, `worker`, `web`, `keycloak`) with `AcrPull` bindings. |
+| `infra/azure/modules/managed-identities.bicep` | **New.** Creates User-Assigned Managed Identities (`app`, `worker`, `web`, `keycloak`). |
+| `infra/azure/modules/acr-role-assignment.bicep` | **New.** Grants each identity `AcrPull`, scoped to the registry resource rather than a resource group, with a deterministic `guid()` name so redeployment is idempotent. Separated from `registry.bicep` because the grant is made in the shared group against principals created in the environment group. |
+| `infra/azure/bicepconfig.json` | **New.** Raises `outputs-should-not-contain-secrets`, `secure-parameter-default`, `secure-secrets-in-params` and `no-hardcoded-env-urls` to `error`, so CI lint fails on them instead of printing a warning and exiting 0. |
 | `infra/azure/parameters/*.bicepparam` | **New.** Parameter files for `dev`, `uat`, and `prod`. |
 | `infra/azure/deploy.sh` | **New.** Generates secure Postgres admin password if absent, seeds Key Vault, and executes deployment. |
 | `infra/azure/teardown.sh` | **New.** Deletes environment resource group; strictly refuses `prod`. |
@@ -408,7 +411,7 @@ bash infra/azure/teardown.sh --env dev && bash infra/azure/deploy.sh --env dev
 | Gap | Disposition | Rationale |
 |---|---|---|
 | `DEBT-004` secrets in `application.properties` | **Fixed forward** | All credentials (Postgres, Redis, Service Bus) stored in Azure Key Vault. Applications consume credentials via User-Assigned Managed Identity (`W-51`), eliminating committed secrets. |
-| `DEBT-011` Cloudinary document storage | **Fixed forward** | Employee documents, payslips, and investment proofs moved to Azure Blob Storage with `allowBlobPublicAccess: false`. Private containers replace external Cloudinary. |
+| `DEBT-011` Cloudinary document storage | **Partially fixed** | The destination exists and is private: `documents`, `payslips` and `proofs` containers with `allowBlobPublicAccess: false`, `publicAccess: 'None'`, TLS 1.2 and HTTPS-only. Nothing is moved and no application code changes here - §2 puts application changes out of scope, and `05-azure-architecture.md:143` calls the move "a migration in its own right, not a configuration change". The exposure closes when that migration runs, not at this merge. |
 | `DEBT-020` in-process permission cache | **Deferred to `W-53`** | `W-50` provisions the Azure Cache for Redis instance; cache client abstraction and invalidation belong to `W-53`. |
 | `DEBT-021` unlocked `@Scheduled` jobs | **Deferred to `W-52`** | `W-50` provisions the Service Bus queues; queue dispatchers and ShedLock clustered locking belong to `W-52`. |
 
