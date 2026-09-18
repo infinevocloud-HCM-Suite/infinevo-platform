@@ -1,8 +1,8 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-18**, after `W-49` Containerisation (#69, PR #116) merged
-> as `c0a8643` and its `sync-docs` pass.
+> Last refreshed: **2026-09-18**, after the `W-06` close-out: its code was found already
+> on `main`, PR #118 closed unmerged, and the spec brought in line as built.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -14,7 +14,7 @@
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
 | Tickets | **100** — 9 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 has 5 of 7 done** |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-06` Flyway (#7) — **but see the note below on how it landed** |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 ---
@@ -34,13 +34,20 @@ One repository · one backend with three enforced modules (`core` / `hrms` / `pa
 Design: `docs/target-state/` — 12 documents, **49 decisions (`D-01`–`D-49`), zero open
 questions.** Start at `docs/target-state/README.md`.
 
-> **`W-06` Flyway is closed as a ticket but its code is NOT on `main`.** It merged as
-> `a0cdb2f` and was reverted by Sayeed as `ae761ed` on 2026-09-17; issue #7 is still
-> CLOSED. `main` carries only the empty `.gitkeep` migration directories from `W-01`.
-> The work is on `origin/W-06-flyway-migrations` at `ad3f3c6`. **This blocks the tenancy
-> chain** — `W-07` and `W-08` wait on `W-06`, and the ticket currently reads as done
-> while the code is absent. Needs a decision: re-merge, reopen #7, or record why it was
-> reverted.
+> **`W-06` Flyway is on `main` — and how it got there is the thing to know.** It merged
+> as `a0cdb2f`, was reverted as `ae761ed` on 2026-09-17, and then landed again inside
+> **`365a319` (PR #119), a documentation pull request whose body says "Documentation only.
+> No code changed."** That PR carried all fifteen W-06 files, `+1116` lines — backend code,
+> compose services, Postgres grants and a CI step — with no `/review` and no `/verify`
+> against them. The same body states that W-06's code is *not* on `main`.
+>
+> **The code itself is sound**: review and verify both passed it at `ad3f3c6`, and CI run
+> `35225300625` ran `FlywayMigrationIT` and `DatabasePrivilegesIT` 10 of 10 with none
+> skipped. That is luck, not a control. **The tenancy chain is unblocked** — `W-07` can
+> start. Two tickets are owed and not yet filed (`gh issue create` was denied in session):
+> the gate bypass, and eight W-06 review findings as fix-forward work. Bodies are ready in
+> `.claude/outputs/2026-09-18-tickets-to-file-W-06-closeout.md`. PR #118 is closed
+> unmerged — the branch had nothing left to deliver.
 
 ### The three threads
 
@@ -53,9 +60,8 @@ questions.** Start at `docs/target-state/README.md`.
    all run, four schemas owned by `migration_user`, four roles none of which is
    superuser or `BYPASSRLS`, and `DatabasePrivilegesIT` asserting the matrix in both
    directions.
-2. **Multi-tenancy — the highest-value work in the project. Blocked: see the `W-06`
-   note above — its code is not on `main`. `W-05` merged, so the
-   chain is unblocked and `W-06` Flyway (#7) is the next link.** Payroll is
+2. **Multi-tenancy — the highest-value work in the project. Unblocked: `W-06` is on
+   `main` (see the note above on how), so `W-07` tenant model is the next link.** Payroll is
    org-scoped on 63 of 97 entities; HRMS on **none at all** (0 of 39, `BUG-002`).
    Target: `tenant_id` on every table outside `reference`, enforced by Postgres
    row-level security (`D-09`). `W-06` → `W-07` → `W-08` is the one rigid chain.
@@ -86,7 +92,7 @@ no longer tracks who holds what — **the assignee field on GitHub is the only t
 
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
-| **#7** | `W-06` Flyway migrations | M | DATA | **Closed, but reverted off `main` — see the note above.** `W-06` → `W-07` → `W-08` is what Wave 3 waits on, so nothing in the chain can start until this is resolved |
+| **#8** | `W-07` Tenant model | L | DATA | **Newly unblocked** — `W-06` is on `main`, so the `W-06` → `W-07` → `W-08` chain Wave 3 waits on can start. Owes the two-tenant seed |
 | **#70** | `W-50` Azure infrastructure as code | L | INFRA | **Newly unblocked** — `W-49` merged 2026-09-17, so the images `W-50` deploys now exist |
 | #79 | `W-59` Scanning | M | INFRA | **Two inherited decisions have come due**: the container scan's "report-only until `W-49`" condition has expired, and the Keycloak image's primary group 0. Also modifies the same `images` job `W-49` just rewrote — read it before editing |
 | #86 | `W-66` Marketing website | L | FE | Independent of the chain |

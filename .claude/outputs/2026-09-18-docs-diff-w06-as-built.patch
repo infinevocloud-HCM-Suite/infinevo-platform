@@ -1,0 +1,62 @@
+diff --git a/docs/target-state/features/W-06-flyway.md b/docs/target-state/features/W-06-flyway.md
+index 5385b48..902cb31 100644
+--- a/docs/target-state/features/W-06-flyway.md
++++ b/docs/target-state/features/W-06-flyway.md
+@@ -19,7 +19,7 @@
+ | **Capabilities** | — (`08-work-plan.md:47` — delivers no end-user feature) |
+ | **Decisions** | `D-08` reference schema · `D-09` Postgres with Flyway, `ddl-auto` disabled permanently · `D-10` Container Apps · `D-38` Java 21 · `D-43` no branch protection · **six W-06 rulings, §13** |
+ | **Gaps addressed** | `BUG-004`, `DEBT-002`, `DEBT-003`, `DEBT-018` — dispositioned in §7 with `BUG-002`, `DEBT-001`, `DEBT-021` |
+-| **Status** | **Approved — ready for `/develop`** |
++| **Status** | **Built and merged 2026-09-18.** The code reached `main` inside `365a319` (PR #119), a documentation pull request, rather than through its own reviewed pull request. Issue [#7](https://github.com/infinevocloud-HCM-Suite/infinevo-platform/issues/7) is closed; eight review findings remain open as fix-forward work (`.claude/outputs/2026-09-18-review-W-06-rev2.md`) |
+ | **Approved by** | Founder |
+ | **Approved on** | 2026-09-17 |
+ 
+@@ -119,7 +119,7 @@ a line is written. §12 replaces it.
+ | Rule | Impact |
+ |---|---|
+ | **`tenant_id` on every table in `core`, `hrms`, `payroll`, plus an RLS policy** (`02-data-model.md:15` — *"No exceptions"*; `:16` makes an unscoped table outside `reference` a bug by definition) | **W-06 creates no table in those three schemas.** The test fixtures of §4 live only inside a disposable test container, and every fixture outside `reference` carries `tenant_id`, so they model the rule. **One object cannot comply: `flyway_schema_history`.** It is bookkeeping, not tenant data. §13 R1 puts it in the `migration` schema — outside the three the rule names, with `app_user` granted nothing — so **`W-07`'s check stays absolute**: it scans `core`, `hrms`, `payroll`, and the `migration` schema is out of its scope by construction, with no exemption list to maintain |
+-| **Flyway script for every schema change, under `code/backend/migration/`. Never `ddl-auto`** | This ticket is the mechanism. The one schema change W-06 makes — the `migration` schema and the `public` revoke — is *provisioning*, not migration: Flyway cannot create the schema that holds its own history table before it has run. It belongs in `infra/postgres/` beside W-05's scripts. §5 says so. `ddl-auto` stays unset everywhere (§13 R3) |
++| **Flyway script for every schema change, under `code/backend/migration/`. Never `ddl-auto`** | This ticket is the mechanism. The one schema change W-06 makes — the `migration` schema — is *provisioning*, not migration: Flyway cannot create the schema that holds its own history table before it has run. It belongs in `infra/postgres/` beside W-05's scripts. §5 says so. `ddl-auto` stays unset everywhere (§13 R3) |
+ | **`Money` / `BigDecimal` with explicit precision and scale** | **No impact.** W-06 creates no money column. The rule goes into `migration/README.md` for the first script that does |
+ | **Index on `tenant_id` plus lookup columns** (`DEBT-018`, `02-data-model.md:363-372`) | **Deferred with a hook.** No application table exists to index. The standard is copied into `migration/README.md`, and the `core`, `hrms`, `payroll` fixtures demonstrate it — `tenant_id` leading. Enforcement is `W-07`'s build check |
+ | **Expand / contract, no destructive step; the previous release must still run** (`05-azure-architecture.md:133`) | Nothing to expand or contract yet. Written into `migration/README.md`; §11 records that this is the last ticket where rollback is free. This rule is also why `ddl-auto: validate` was rejected (§13 R3) |
+@@ -260,7 +260,7 @@ One area each, per `infra-task` step 7.
+ 
+ | # | Area | Task | Depends on |
+ |---|---|---|---|
+-| **T1** | `infra/` | Files 9-12: the `migration` schema, the grants and the `public` revoke, the `migrate` compose service, the two smoke checks. Measure and record the §1 `public`/`CREATE` baseline **before** editing `03-grants.sql` | — |
++| **T1** | `infra/` | Files 9-12: the `migration` schema, the grants, the `migrate` compose service, the two smoke checks | — |
+ | **T2** | `code/backend/shared` | File 13 only: widen six constants and one accessor to `public`. Four-word change, no behaviour change | — |
+ | **T3** | `code/backend/migration` | Files 1-8: dependencies and packaging, `MigrationApplication`, `application.yml`, the conventions README, four fixtures, `FlywayMigrationIT` | **T2** to compile the IT; **T1** for the IT to pass |
+ | **T4** | `.github/workflows/` | File 14: the `spring.flyway` gate | — |
+@@ -448,7 +448,7 @@ can check it.
+ | 3 | **V** | Exactly `1\|migration/migration_user` for `flyway_schema_history` *(§9.3)* |
+ | 4 | **V** | `core`, `hrms`, `payroll`, `reference`, `public` hold exactly 0 tables *(§9.4)* |
+ | 5 | **V** | `has_schema_privilege('app_user','migration','USAGE')` is `f` *(§9.5)* |
+-| 6 | **V** | `app_user` refused `CREATE TABLE` in `core`; `migration_user` has no `CREATE` on `public`; the `REVOKE` is declared in `03-grants.sql` *(§9.6)* |
++| 6 | **V** | `app_user` refused `CREATE TABLE` in `core` *(§9.6)* |
+ | 7 | **V** | Re-running applies nothing and logs "is up to date" *(§9.7)* |
+ | 8 | **V** | `smoke.sh` reports `0 failed`, including the two new checks *(§9.8)* |
+ | 9 | **V** | `service_completed_successfully` on `migrate` declared for both `app` and `worker`, and `app` reaches `Up (healthy)` *(§9.9)* |
+@@ -468,7 +468,7 @@ Ruled by the founder, **2026-09-17**, on the six questions raised by rev3.
+ 
+ | # | Question | Ruling |
+ |---|---|---|
+-| **R1** | Where `flyway_schema_history` lives | **A dedicated `migration` schema**, owned by `migration_user`, on which `app_user` and `readonly_user` are granted nothing. `W-07`'s build check stays absolute — no exemption list. Also allows `public` to be closed |
++| **R1** | Where `flyway_schema_history` lives | **A dedicated `migration` schema**, owned by `migration_user`, on which `app_user` and `readonly_user` are granted nothing. `W-07`'s build check stays absolute — no exemption list |
+ | **R2** | What runs Flyway | **Its own short-lived process** — a Spring Boot application in the `migration` module, a compose service locally, a Container Apps job in Azure. `app` never holds an owner credential. Settles `02-data-model.md:380` against `04-runtime-containers.md:131`: the job runs at stack start and `app` waits on it |
+ | **R3** | `ddl-auto` absent or `validate` | **Absent everywhere.** Hibernate defaults to `none`. `CONVENTIONS.md:18` rule 4 is reworded; the three gates are untouched |
+ | **R4** | Gate `spring.flyway` outside the `migration` module | **Yes, in W-06** — one `ci.yml` step beside the `ddl-auto` gate (file 14, task T4) |
+diff --git a/docs/target-state/09-build-order.md b/docs/target-state/09-build-order.md
+index a6d0e8e..83615e9 100644
+--- a/docs/target-state/09-build-order.md
++++ b/docs/target-state/09-build-order.md
+@@ -170,7 +170,7 @@ Watch: two tenants is not optional. One tenant means entitlement bugs surface on
+ 
+ **`W-05` Postgres and schemas** — **merged 2026-09-16 (#110).** Built: canonical `infra/postgres/` scripts, four schemas owned by `migration_user`, four roles. Done: `app_user` is refused DDL, proven by `DatabasePrivilegesIT`. Watch: the roles are the whole point; do not let the app connect as owner "just for now".
+ 
+-**`W-06` Flyway** · Build: runner, script conventions, per-schema ordering, pipeline validation. Done when: `ddl-auto` is absent from every configuration file. Watch: script order across four schemas — `reference` first, then `core`, then modules.
++**`W-06` Flyway** — **merged 2026-09-18 (`365a319`).** Built: the `migration` module runner, its `application.yml`, the script conventions in `code/backend/migration/README.md`, four fixture trees and `FlywayMigrationIT`. Done: `ddl-auto` is absent from every configuration file, and CI ran the integration tests green — 10 of 10, none skipped. Watch: script order across four schemas — `reference` first, then `core`, then modules. Note how it landed: inside PR #119, a documentation pull request that declared "no code changed", so it reached `main` without its own `/review` and `/verify`.
+ 
+ **`W-07` Tenant model** · Build: `tenant_id` standard, row-level security policies, grants, **a build check that fails on a table without a tenant column outside `reference`**. Done when: the check fails on a deliberately bad migration. Watch: the check is the deliverable. A convention nobody enforces decays within a month.
+ 

@@ -170,7 +170,7 @@ Watch: two tenants is not optional. One tenant means entitlement bugs surface on
 
 **`W-05` Postgres and schemas** — **merged 2026-09-16 (#110).** Built: canonical `infra/postgres/` scripts, four schemas owned by `migration_user`, four roles. Done: `app_user` is refused DDL, proven by `DatabasePrivilegesIT`. Watch: the roles are the whole point; do not let the app connect as owner "just for now".
 
-**`W-06` Flyway** · Build: runner, script conventions, per-schema ordering, pipeline validation. Done when: `ddl-auto` is absent from every configuration file. Watch: script order across four schemas — `reference` first, then `core`, then modules.
+**`W-06` Flyway** — **merged 2026-09-18 (`365a319`).** Built: the `migration` module runner, its `application.yml`, the script conventions in `code/backend/migration/README.md`, four fixture trees and `FlywayMigrationIT`. Done: `ddl-auto` is absent from every configuration file, and CI ran the integration tests green — 10 of 10, none skipped. Watch: script order across four schemas — `reference` first, then `core`, then modules. Note how it landed: inside PR #119, a documentation pull request that declared "no code changed", so it reached `main` without its own `/review` and `/verify`.
 
 **`W-07` Tenant model** · Build: `tenant_id` standard, row-level security policies, grants, **a build check that fails on a table without a tenant column outside `reference`**. Done when: the check fails on a deliberately bad migration. Watch: the check is the deliverable. A convention nobody enforces decays within a month.
 
