@@ -65,6 +65,25 @@ public final class TenantContext {
         return CURRENT.get() != null;
     }
 
+    /**
+     * Executes {@code SET LOCAL app.current_tenant_id = ?} on the given JDBC connection.
+     * Sets the PostgreSQL session variable for the duration of the current transaction.
+     *
+     * @param conn the JDBC connection
+     * @throws java.sql.SQLException if a database access error occurs
+     * @throws IllegalStateException if no tenant is bound to the current thread
+     */
+    public static void setForConnection(java.sql.Connection conn) throws java.sql.SQLException {
+        if (conn == null) {
+            throw new IllegalArgumentException("conn must not be null");
+        }
+        UUID tenantId = require();
+        try (var stmt = conn.prepareStatement("SELECT set_config('app.current_tenant_id', ?, true)")) {
+            stmt.setString(1, tenantId.toString());
+            stmt.execute();
+        }
+    }
+
     /** Clears the binding. Call from a {@code finally} block, always. */
     public static void clear() {
         CURRENT.remove();

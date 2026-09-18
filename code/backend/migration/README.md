@@ -73,6 +73,36 @@ Every table in `core`, `hrms`, `payroll` must have a composite index with `tenan
 as the leading column, followed by the columns used in typical WHERE clauses
 (`02-data-model.md:363-372`).
 
+### Row-level security
+
+Every table in `core`, `hrms`, and `payroll` enables RLS and carries exactly one
+isolation policy. Add both in the same migration script that creates the table:
+
+```sql
+ALTER TABLE <schema>.<table> ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON <schema>.<table>
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+```
+
+`migration_user` owns the table and bypasses RLS automatically (PostgreSQL table-owner
+rule). `app_user` and `readonly_user` are subject to the policy; they see only rows
+where `tenant_id` matches the value set at transaction start by
+`SET LOCAL app.current_tenant_id = '<uuid>'`.
+
+The `true` flag in `current_setting(..., true)` makes the function return `NULL`
+(instead of raising) when the variable is not set. The `::uuid` cast then fails, and
+the USING clause evaluates to `NULL` — which PostgreSQL treats as `false`. A connection
+that never sets the variable sees zero rows. This is the intended fail-safe.
+
+**Reviewing a migration script?** For every `CREATE TABLE` outside `reference`,
+confirm `ENABLE ROW LEVEL SECURITY` and `CREATE POLICY tenant_isolation` appear in
+the same script, with the exact USING clause above.
+
+### One table creation per Flyway migration script
+
+Every Flyway migration script under `db/migration/` creates at most one table. (Multi-line DDL within a single script is evaluated as 1 table per script).
+
 ### Money columns
 
 Use `numeric(19,4)` or a named domain. Never `float`, `double`, or `real`.
