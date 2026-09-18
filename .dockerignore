@@ -3,10 +3,14 @@
 # Dockerfiles COPY repo-root-relative paths. Without this file the whole repository -
 # legacy/, node_modules/, every target/, .git/ - is sent to the daemon.
 #
-# The dev images need exactly two trees:
-#   dev.Dockerfile.backend   code/backend/**  (POMs, then the whole module tree)
-#   dev.Dockerfile.frontend  code/frontend/** (package.json, package-lock.json, then src)
-# Nothing below may exclude any part of those two.
+# Five images build from this context and need exactly three trees between them:
+#   dev.Dockerfile.backend    code/backend/**   (POMs, then the whole module tree)
+#   dev.Dockerfile.frontend   code/frontend/**  (package.json, package-lock.json, then src)
+#   backend.Dockerfile        code/backend/**   + infra/docker/backend-entrypoint.sh
+#   frontend.Dockerfile       code/frontend/**  + infra/docker/frontend-entrypoint.sh
+#                                               + infra/docker/nginx/default.conf
+#   keycloak.Dockerfile       nothing from the context — it builds from its base image
+# Nothing below may exclude any part of those three trees.
 
 # The four frozen applications. Never built, never run from this repo.
 legacy/

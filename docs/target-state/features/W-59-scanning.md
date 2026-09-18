@@ -125,6 +125,12 @@ falsifiable from day one rather than aspirational.
 **Containers** — `infra/docker/dev.Dockerfile.*` are development images: full JDK
 toolchain, root user. Unmeasured, and expected to be noisy. §2 handles this.
 
+**Since `W-49` merged (2026-09-17) there are also three production images to scan**, and
+they are the ones that matter — `infinevo-backend:test` (154 MB), `infinevo-frontend:test`
+(24 MB) and `infinevo-keycloak:test` (225 MB), all non-root, all built by the same
+`images` job. Baseline them separately from the dev images: a CVE in a slim JRE runtime
+is a real finding, where the same CVE in a full-JDK dev image is noise.
+
 ### Sizing
 
 The original **S** assumed configuring scanners against a clean tree. The measured
@@ -153,13 +159,24 @@ count"*). A job in any other workflow file cannot block a merge. `ci.yml:11` is 
 
 **(b) Container scan — inside the existing `images` job, report-only**
 
-`ci.yml:200-213` builds `infinevo-backend:dev` and `infinevo-frontend:dev` on an
-ephemeral runner. There is no registry login, no `docker push` and no
-`actions/upload-artifact` for the images anywhere in the file — `ci.yml:192` says so in a
-comment. GitHub Actions jobs are isolated, so **a separate job or workflow has no image
-to scan.** The scan therefore runs as a step inside `images`, immediately after
-`docker build`, with `continue-on-error: true` until `W-49` delivers hardened production
-images.
+The `images` job builds on an ephemeral runner. There is no registry login, no
+`docker push` and no `actions/upload-artifact` for the images anywhere in the file —
+`ci.yml:192` says so in a comment. GitHub Actions jobs are isolated, so **a separate job
+or workflow has no image to scan.** The scan therefore runs as a step inside `images`,
+immediately after `docker build`.
+
+**`W-49` merged on 2026-09-17, so the condition on `continue-on-error: true` has been
+met** — the hardened production images exist. Two consequences this ticket must now
+decide rather than inherit:
+
+1. **Whether the container scan blocks.** The "report-only until `W-49`" premise has
+   expired. The dev images stay noisy and should remain report-only; the three
+   production images are the candidates for blocking.
+2. **The `images` job is no longer a thin wrapper round two `docker build` calls.** It
+   now enables the containerd image store (`D-47`), builds five images, runs a
+   three-part secret scan and asserts size thresholds. Add the scan step without
+   disturbing those — in particular the containerd step must stay before every build,
+   and the size assertion refuses to run if that store is inactive.
 
 **(c) Daily rescan — `.github/workflows/security.yml`, informational only**
 
@@ -191,7 +208,7 @@ breaks survive the pull request.
 
 | | Owner |
 |---|---|
-| Blocking on container CVEs; hardened production images | `W-49` (#69, `08-work-plan.md`) |
+| Hardened production images | `W-49` (#69) — **delivered 2026-09-17**. Blocking on container CVEs is now this ticket's call |
 | Container scanning in the scheduled workflow (needs a registry) | `W-50` |
 | DAST / penetration testing | `W-64` (`08-work-plan.md:158`) |
 | Azure Key Vault runtime integration | `W-56` (`08-work-plan.md:150`) |
@@ -322,7 +339,7 @@ today checks 3 gives 72/30/30/3/3/3/3/0 across the eight POMs and 1 for the fron
 | **The Spring Boot 3.3 → 3.5 upgrade breaks the build or the 24 existing tests** — the largest risk in this ticket, and the reason it is no longer size S | Medium | Do it as the **first commit on the branch, alone**, so `mvnw clean verify` either passes or points at exactly one change. `code/backend` is 16 Java files with no ported domain logic. If it does not go cleanly, stop and re-scope rather than patching around it — Question 2 exists so this is the founder's call, not the implementer's |
 | Maven Central returns HTTP 429 and blocks the runner for 30 minutes | **High — already observed** | `actions/setup-java` with `cache: 'maven'`, `./mvnw dependency:resolve` before scanning, and Trivy with `--offline-scan` |
 | **`vite` 5 → 8 breaks `npm run build`, or trips `eslint --max-warnings 0`** — three majors, plus a forced `@vitejs/plugin-react` bump, in a pull request that also moves Spring Boot | Medium-High | Own commit, separate from the backend upgrade (§14 task 2), so a red build names which upgrade did it. The frontend is 10 tracked files and `vite.config.js` uses only stable options. Verification step 2 catches it before the pull request. If vite 8 does not go cleanly, fall back to `^6.4.3` — the scanner accepts it and the gate still goes green — and raise vite 8 as its own ticket rather than absorbing it here |
-| Dev images are noisy — full JDK, root user | High | Container scan is report-only until `W-49`. It reports; it never blocks |
+| Dev images are noisy — full JDK, root user | High | Keep the **dev** image scan report-only; it reports, it never blocks. The production images `W-49` delivered are slim and non-root, and are the ones worth gating |
 | Alert fatigue turns the gate into something people route around | Medium | `HIGH,CRITICAL` plus `--ignore-unfixed` only. Nothing blocks that has no published fix |
 | A new CVE lands overnight and fails an unrelated pull request | Medium | The daily rescan surfaces it against `main` first, so it is a known item rather than a surprise on someone's branch |
 | A scanner silently stops finding anything and every build goes green | Low | Fixture 5 in §7 — a clean fixture must pass *and* dirty fixtures must fail |
@@ -430,8 +447,15 @@ three recorded as follow-up tickets so they are sequenced rather than dropped:
 
 | Follow-up | Blocked by | Why not now |
 |---|---|---|
-| Block on container CVEs | `W-49` | The dev images are being replaced; gating artefacts on their way out buys nothing |
+| Block on container CVEs | **This ticket** | Was deferred to `W-49` on the grounds that the dev images were on their way out. They were replaced on 2026-09-17, so the deferral has expired and the decision lands here |
 | Licence scanning (GPL/AGPL/SSPL in a commercial product) | Needs an allowlist policy decision | Real commercial risk, but new scope and no recorded decision to hang it on |
+
+**Handed to this ticket by `W-49`:** the Keycloak container runs as uid 1000 with
+**primary group 0 (root)** — a Red Hat base image convention, not a choice `W-49` made.
+`infra/docker/keycloak.Dockerfile` says in a comment that `W-59` rules on whether it
+needs changing, and until this section existed that hand-off pointed nowhere. Scanners
+commonly flag a root primary group. Decide here: accept it as a base image property, or
+change it and carry the cost of diverging from the upstream image.
 | Lower the threshold to MEDIUM | This ticket proving quiet first | `09-build-order.md:285` — MEDIUM is where alert fatigue usually starts |
 
 ---

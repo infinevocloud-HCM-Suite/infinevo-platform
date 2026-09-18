@@ -9,17 +9,18 @@
 
 The backend image runs in two roles, so there are fewer files than containers.
 
-> **These are the deployable images, and they do not exist yet — `W-49` writes them.**
-> What exists today is `infra/docker/dev.Dockerfile.backend` and
-> `dev.Dockerfile.frontend` (`W-02`), which run the apps from source with the build
-> toolchain in the image and no non-root user. They are for the local stack only and
-> must not be promoted.
+> **These are the deployable images. `W-49` wrote them — merged 2026-09-17 (#116).**
+> `infra/docker/dev.Dockerfile.backend` and `dev.Dockerfile.frontend` (`W-02`) still
+> exist and are unchanged: they run the apps from source with the build toolchain in
+> the image and no non-root user, they serve the local stack only, and they must not be
+> promoted. CI builds both alongside the production images, so a break in either is
+> caught rather than discovered by the next developer to run compose.
 
 | Dockerfile | Produces | Runs as |
 |---|---|---|
-| `infra/docker/backend.Dockerfile` | One Spring Boot jar containing Core, HRMS and Payroll | **`app`** and **`worker`** — two containers, one image |
+| `infra/docker/backend.Dockerfile` | **Two** fat jars — `app.jar` and `worker.jar` — in one image, each containing Core, HRMS and Payroll (`D-48`) | **`app`** and **`worker`** — two containers, one image |
 | `infra/docker/frontend.Dockerfile` | The unified React bundle | `web` |
-| `infra/docker/keycloak.Dockerfile` | Keycloak with realm and theme pre-built | `keycloak` |
+| `infra/docker/keycloak.Dockerfile` | Keycloak, pre-built with `kc.sh build` and run `--optimized`. **No realm and no theme are baked in** — `W-10` supplies the production realm, and CI fails the build if any file appears in the import directory | `keycloak` |
 | `infra/docker/gateway.Dockerfile` | API gateway | `gateway` — **deferred** (`D-11`) |
 
 ---
@@ -44,7 +45,8 @@ command.
 
 | | `app` | `worker` |
 |---|---|---|
-| Spring profile | `web` | `worker` |
+| Selected by | `INFINEVO_ROLE=app` (the default) | `INFINEVO_ROLE=worker` |
+| Jar run | `app.jar` | `worker.jar` |
 | HTTP | full API | health endpoint only |
 | Queue consumer | no | yes |
 | `@Scheduled` jobs | **disabled** | enabled, with cluster locking |
@@ -74,8 +76,8 @@ Multi-stage, so the runtime image carries no build tooling.
 | Stage | Does |
 |---|---|
 | 1 — dependencies | Resolve Maven dependencies in a cached layer, so code changes do not re-download |
-| 2 — build | Compile and package the jar |
-| 3 — runtime | Slim JRE 21 base. Copy the jar. Non-root user. Expose the port. Health endpoint declared |
+| 2 — build | Compile and package the reactor. Resolve each fat jar to a fixed name, asserting exactly one match per module |
+| 3 — runtime | Slim JRE 21 base. Copy **both** jars. Non-root user `infinevo` (uid 1000). Expose 8080 (`app`) and 8082 (`worker`). Health endpoint declared. Entrypoint `exec`s, so `SIGTERM` reaches the JVM and graceful shutdown is real |
 
 | Runtime setting | Value |
 |---|---|
@@ -101,6 +103,14 @@ rebuild between environments means you are no longer testing what you ship.
 **Environment configuration is read at runtime, not baked at build**, so the same image
 serves every environment. Today's frontends hard-code an API URL in a global constant,
 which is why one build cannot serve two environments.
+
+Implemented by `W-49`: `frontend-entrypoint.sh` writes `/usr/share/nginx/html/env.js`
+at container start, `index.html` loads it before the app bundle, and the app reads
+`window.__ENV` with `import.meta.env` as the fallback for local Vite development.
+Values are escaped before interpolation — an unescaped `"` silently breaks
+`window.__ENV`, and an unescaped `</script>` is an injection into every page. Keycloak
+keys default to empty rather than to the local realm's names, so a missing variable
+fails visibly at `W-10` instead of quietly pointing at a development realm.
 
 ---
 

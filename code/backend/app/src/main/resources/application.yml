@@ -7,9 +7,24 @@ spring:
     name: infinevo-app
   main:
     banner-mode: off
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+  jpa:
+    # These sit beside the datasource in application-local.yml. Leaving them out of the
+    # base meant local development was correct and production — the profile nobody runs
+    # interactively — silently ran with open-in-view enabled (review F-6).
+    open-in-view: false
+    # No default_schema, deliberately. This design has four of them, so every entity
+    # declares its own. See application-local.yml for the full reasoning.
 
 server:
   port: 8080
+  shutdown: graceful
 
 management:
   endpoints:
@@ -20,3 +35,8 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    db:
+      # Fails the health check when Postgres is unreachable, so a Container Apps probe
+      # reports a replica that started but cannot work.
+      enabled: true
