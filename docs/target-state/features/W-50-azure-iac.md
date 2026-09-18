@@ -12,10 +12,10 @@
 | **Blocks** | `W-51` networking & identity · `W-52` queue & worker · `W-53` caching · `W-54` deployment pipeline · `W-59` container scanning · `W-60` observability · `W-62` backup & DR |
 | **Capabilities** | `PLAT-12` — infrastructure as code; Azure defined in the repository |
 | **Decisions** | `D-10` Container Apps not Kubernetes · `D-11` API Gateway deferred · `D-18` India region (`centralindia`) · `D-19` 10 × 100 scale · `D-44` RabbitMQ local / Service Bus Azure · `D-02` worker on same image · `D-21` one Keycloak realm · `D-45` migration schema · `D-46` no ddl-auto |
-| **Gaps addressed** | `DEBT-004` secrets in properties — full resolution: Key Vault replaces all connection strings<br>`DEBT-011` Cloudinary document storage — full resolution: Azure Blob Storage with private containers |
-| **Status** | **Draft — not approved** |
-| **Approved by** | |
-| **Approved on** | |
+| **Gaps addressed** | `DEBT-004` secrets in properties — **partial**: Key Vault replaces the committed connection strings; the applications' consumption of those secrets via managed identity is `W-51`<br>`DEBT-011` Cloudinary document storage — full resolution: Azure Blob Storage with private containers |
+| **Status** | **Approved 2026-09-18 — ready for `/develop`** |
+| **Approved by** | Founder |
+| **Approved on** | 2026-09-18 |
 
 > Hard rule 1: no code is written until this spec is approved.
 
@@ -74,7 +74,8 @@ Azure deployments require explicit subscription and identity configuration:
   - Log Analytics Workspace (`law-infinevo-shared`).
 - Per-environment resource groups (`rg-infinevo-{dev,uat,prod}`) containing:
   - Container Apps Managed Environment (`cae-infinevo-{env}`).
-  - Container Apps definitions (`app`, `worker`, `web`, `keycloak`) deployed with starter images and reaching active running state.
+  - Container Apps definitions (`app`, `worker`, `web`, `keycloak`) deployed with starter images and reaching active running state. Resource names follow `ca-infinevo-{env}-{role}`.
+- **Seeding the registry and proving `AcrPull` works.** `crinfinevo` is created empty; `deploy.sh` imports one image into it (`az acr import`) and repoints `ca-infinevo-{env}-app` at `crinfinevo.azurecr.io`, so the managed identity's `AcrPull` grant is **exercised**, not merely declared. A Container App running Microsoft's public starter image proves nothing about pulling from a private registry.
   - PostgreSQL 16 Flexible Server (`psql-infinevo-{env}`) hosting `infinevo` and `keycloak` databases with admin user `infinevo_admin`.
   - Azure Cache for Redis (`redis-infinevo-{env}`).
   - Azure Service Bus Namespace (`sb-infinevo-{env}`) with queues: `payrun`, `import`, `report`.
@@ -115,8 +116,10 @@ rg-infinevo-shared (Permanent, Central India)
 
 rg-infinevo-{dev|uat|prod} (Central India)
 ├── Container Apps Managed Environment  (cae-infinevo-{env})
-├── Container Apps                      (app, worker, web, keycloak)
-│   └── starter image: mcr.microsoft.com/k8se/quickstart:latest
+├── Container Apps                      (ca-infinevo-{env}-{app|worker|web|keycloak})
+│   ├── starter image: mcr.microsoft.com/k8se/quickstart:latest
+│   └── ca-infinevo-{env}-app is repointed at crinfinevo.azurecr.io/platform-smoke:latest
+│       after deploy, to exercise AcrPull against the private registry
 ├── PostgreSQL 16 Flexible Server       (psql-infinevo-{env})
 │   ├── administratorLogin: infinevo_admin (Bicep parameter)
 │   ├── database: infinevo
@@ -319,6 +322,30 @@ for app in app worker web keycloak; do
   echo "PASS: $app_name runningStatus = Running"
 done
 
+# ── 5b. Prove AcrPull actually works against the private registry ─────────────
+# The starter image comes from Microsoft's PUBLIC registry, so check 5 above proves
+# nothing about pulling from crinfinevo. Seed the registry, repoint one app at it,
+# and require the app to come back Running.
+az acr import --name crinfinevo \
+  --source mcr.microsoft.com/k8se/quickstart:latest \
+  --image platform-smoke:latest --force
+
+az acr repository show --name crinfinevo --image platform-smoke:latest >/dev/null \
+  || { echo "FAIL: crinfinevo holds no image — the registry was created but never seeded"; exit 1; }
+
+az containerapp update -g rg-infinevo-dev -n ca-infinevo-dev-app \
+  --image crinfinevo.azurecr.io/platform-smoke:latest >/dev/null
+
+for _ in $(seq 1 30); do
+  pull_state=$(az containerapp show -g rg-infinevo-dev -n ca-infinevo-dev-app \
+    --query "properties.runningStatus" -o tsv)
+  [ "$pull_state" = "Running" ] && break
+  sleep 10
+done
+[ "$pull_state" = "Running" ] || {
+  echo "FAIL: ca-infinevo-dev-app is '$pull_state' after repointing at crinfinevo — AcrPull is not working"; exit 1; }
+echo "PASS: ca-infinevo-dev-app pulled from crinfinevo via its managed identity"
+
 # ── 6. Run post-deploy DB bootstrap and verify all 5 schemas & ownership (F-2) ─
 bash infra/azure/post-deploy-db.sh --env dev
 
@@ -336,6 +363,23 @@ SCHEMA_COUNT=$(PGPASSWORD="$PGPASSWORD" psql -h "$PGHOST" -U infinevo_admin -d i
 [ "$SCHEMA_COUNT" = "5" ] || { echo "FAIL: Expected 5 schemas owned by migration_user, found $SCHEMA_COUNT"; exit 1; }
 echo "PASS: All 5 schemas exist and are owned by migration_user"
 
+# ── 6b. Connect as app_user with its GENERATED password ──────────────────────
+# Checking the Key Vault secret proves it was stored, not that it reached the database.
+# If post-deploy-db.sh failed to export APP_PW, the role carries the repository default
+# (infra/postgres/provision.sh:13) and this login is the only thing that notices.
+APP_PW=$(az keyvault secret show --vault-name kv-infinevo-shared --name psql-app-pw --query value -o tsv)
+who=$(PGPASSWORD="$APP_PW" psql -h "$PGHOST" -U app_user -d infinevo -t -A -c "SELECT current_user;")
+[ "$who" = "app_user" ] || {
+  echo "FAIL: app_user could not connect with its Key Vault password — the generated password never reached provision.sh"; exit 1; }
+echo "PASS: app_user connects with its generated password"
+
+# app_user must still be refused DDL, exactly as it is locally (04-runtime-containers.md:138)
+if PGPASSWORD="$APP_PW" psql -h "$PGHOST" -U app_user -d infinevo -c \
+     "CREATE TABLE core.should_not_exist(id int);" >/dev/null 2>&1; then
+  echo "FAIL: app_user was allowed to create a table — it is connecting as an owner"; exit 1
+fi
+echo "PASS: app_user is refused DDL"
+
 # ── 7. Rebuild-twice test ────────────────────────────────────────────────────
 bash infra/azure/teardown.sh --env dev && bash infra/azure/deploy.sh --env dev
 bash infra/azure/teardown.sh --env dev && bash infra/azure/deploy.sh --env dev
@@ -349,8 +393,11 @@ bash infra/azure/teardown.sh --env dev && bash infra/azure/deploy.sh --env dev
 | All 3 shared resources (`rg-infinevo-shared`) `provisioningState` | Every shared resource exists and is `Succeeded` | |
 | All 9 environment resources (`rg-infinevo-dev`) `provisioningState` | Every resource exists and is `Succeeded` | |
 | All 4 Container Apps `runningStatus` | Every app (`app`, `worker`, `web`, `keycloak`) is `Running` | |
+| **`AcrPull` exercised against `crinfinevo`** | `ca-infinevo-dev-app` returns to `Running` on an image pulled from the private registry | |
 | Key Vault database password check | Passwords dynamically generated, no `local_*_pw` literals | |
 | Postgres schema count & ownership query | Exactly `5` schemas owned by `migration_user` | |
+| **`app_user` login with its generated password** | `SELECT current_user` returns `app_user` | |
+| **`app_user` refused DDL** | `CREATE TABLE core.…` fails | |
 | Rebuild-twice test | Both redeployments exit 0 | |
 | CI `infra.yml` workflow | Green on PR | |
 
@@ -392,42 +439,33 @@ Nothing is live in production. If the PR is reverted:
 
 ## 9. Done when
 
-> **Repository cleanup required (Issue #6):** Branch `origin/W-50-azure-infra` contains a second, conflicting W-50 specification (`W-50-azure-infra.md`). The merge gate (`check-done.mjs:116`) finds specs by filename pattern — two W-50 files on overlapping branches is undefined behaviour. **This branch must be deleted by a repository administrator before the PR for `W-50-azure-iac` can be merged.** The command is `git push origin --delete W-50-azure-infra`; it cannot be run from within a feature branch per project rules. The local copy of that branch has been deleted.
+> **Repository cleanup required before merge:** Branch `origin/W-50-azure-infra` contains a second, conflicting W-50 specification (`W-50-azure-infra.md`). Gate 2 of the merge check (`check-done.mjs:116`) resolves a ticket's spec at `check-done.mjs:132` with `readdirSync(dir).find(f => f.startsWith("W-50-"))` — first match in directory order wins, silently. **This branch must be deleted by a repository administrator before the PR for `W-50-azure-iac` can be merged.** The command is `git push origin --delete W-50-azure-infra`; it cannot be run from within a feature branch per project rules. The local copy of that branch has been deleted.
 
 1. `infra/azure/main.bicep` and all module files pass both `az bicep build` (compilation) and `az bicep lint` (static analysis) with zero errors and zero warnings.
 2. `deploy.sh --env dev` provisions all resources from zero in a single command (exit 0).
 3. `teardown.sh --env dev` deletes `rg-infinevo-dev` (exit 0) and strictly refuses execution when `--env prod` is passed.
 4. Rebuild-twice test passes: dev is torn down and redeployed twice cleanly, with terminal output linked in the PR.
-5. All 4 Container Apps (`app`, `worker`, `web`, `keycloak`) reach running status with `AcrPull` role configured.
+5. All 4 Container Apps (`app`, `worker`, `web`, `keycloak`) reach `runningStatus` `Running`.
+5a. `crinfinevo` holds at least one image, and `ca-infinevo-dev-app` returns to `Running` after being repointed at `crinfinevo.azurecr.io` — proving `AcrPull` works, not just that it is assigned.
 6. `infra/azure/post-deploy-db.sh` executes against the Flexible Server and confirms all 5 schemas (`core`, `hrms`, `payroll`, `reference`, `migration`) exist and are owned by `migration_user`.
+6a. `app_user` connects to `infinevo` using its generated Key Vault password (`SELECT current_user` returns `app_user`) and is refused DDL — the same guarantee `DatabasePrivilegesIT` gives locally, proven on Azure.
 7. `parameters/prod.bicepparam` specifies zone-redundant HA Postgres, Standard Redis, and ZRS storage.
 8. `parameters/dev.bicepparam` and `uat.bicepparam` specify minimal SKUs with scale-to-zero.
 9. `.github/workflows/infra.yml` passes on pull requests changing Bicep definitions. The workflow runs both `az bicep build` and `az bicep lint` on all modules.
-10. Zero plain connection strings or secrets are committed, and neither `psql-admin-pw`, `psql-app-pw`, `psql-migration-pw`, `psql-readonly-pw`, nor `psql-keycloak-pw` in Azure Key Vault match local repo fallback literals (`local_*_pw`). Checkable via: `grep -rn "local_.*_pw" infra/azure/` returning 0 matches (exit 1).
+10. Zero plain connection strings or secrets are committed, and neither `psql-admin-pw`, `psql-app-pw`, `psql-migration-pw`, `psql-readonly-pw`, nor `psql-keycloak-pw` in Azure Key Vault match local repo fallback literals (`local_*_pw`). Checkable via §5 check 6b: `app_user` connecting with its Key Vault password is what proves the generated credentials reached the database. (A `grep` over `infra/azure/` would never match — the `local_*_pw` fallbacks live in `infra/postgres/provision.sh:13-16`, which this ticket does not touch.)
 11. PR description contains `Closes #70`.
 
 ---
 
-## 10. Decisions requiring founder confirmation
+## 10. Decisions — answered by the founder, 2026-09-18
 
-The following 5 design choices require confirmation from the founder on issue [#70](https://github.com/infinevocloud-HCM-Suite/infinevo-platform/issues/70):
+| # | Question | Answer |
+|---|---|---|
+| 1 | IaC tooling | **Bicep — already settled, not an open question.** `03-code-structure.md:42` records `infra/azure/` as "Azure definitions (Bicep)". Terraform was never a live option; asking would have re-opened a closed decision |
+| 2 | Dev Postgres SKU | **`Standard_B1ms`** — sufficient for `D-19` scale (10 tenants × 100 employees). One line in a `.bicepparam` if it ever proves too small |
+| 3 | Teardown protection | **Hard abort in `teardown.sh`** when `--env prod` is passed. Production teardown requires manual elevation |
+| 4 | ACR tiering | **Basic for `dev`/`uat`, Standard for `prod`** |
+| 5 | Key Vault topology | **Single shared vault** in `rg-infinevo-shared` (`05-azure-architecture.md:28`), with RBAC-scoped secret naming per environment |
 
-1. **IaC Tooling: Bicep or Terraform?**
-   - **(a) (Recommended)** Bicep — Azure-native, no state file management or locking risk, native `az` CLI integration (`D-10`).
-   - **(b)** Terraform — Multi-cloud portability, requires remote state storage backend in Blob Storage.
-
-2. **Dev Postgres SKU: `Standard_B1ms` or `Standard_B2ms`?**
-   - **(a) (Recommended)** `Standard_B1ms` (1 vCPU, 2 GiB RAM) — Cheapest burstable tier, sufficient for smoke tests and `D-19` scale.
-   - **(b)** `Standard_B2ms` (2 vCPU, 4 GiB RAM) — Higher throughput for concurrent developers.
-
-3. **Teardown Protection: Hard Script Guard or Separate Workflow?**
-   - **(a) (Recommended)** Hard abort in `teardown.sh` when `--env prod` is passed; production teardown requires manual Azure portal elevation.
-   - **(b)** Parameter confirmation prompt with countdown timer.
-
-4. **ACR Tiering for Dev/UAT: Basic or Standard?**
-   - **(a) (Recommended)** Basic for `dev`/`uat` (lowest cost); Standard for `prod` (higher webhook concurrency and throughput).
-   - **(b)** Standard across all environments.
-
-5. **Key Vault Topology: Single Shared or Per-Environment?**
-   - **(a) (Recommended)** Single shared Key Vault in `rg-infinevo-shared` per `05-azure-architecture.md:28`, with RBAC-scoped secret naming per environment.
-   - **(b)** Separate Key Vault per resource group (`kv-infinevo-dev`, `kv-infinevo-prod`).
+These are recorded here rather than left as questions because each is a one-line parameter
+change, reversible in minutes. None warranted holding the ticket.

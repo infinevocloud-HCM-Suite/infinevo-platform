@@ -24,8 +24,15 @@ const abs = resolve(input.cwd ?? ROOT, target);
 const rel = relative(ROOT, abs).split(sep).join("/");
 const name = basename(abs);
 
+// The one sanctioned docs/ write: a ticket's own spec. `review-spec` moves an approved
+// draft to docs/target-state/features/W-nn-<slug>.md and sets its Status, and
+// check-done.mjs:384 already allows a ticket's pull request to change docs/ only under
+// that prefix. Everything else in docs/ - including the two TEMPLATE files, which do not
+// match W-nn- - stays read-only and travels through `sync-docs`.
+const isTicketSpec = /^docs\/target-state\/features\/W-\d+-[^/]+\.md$/.test(rel);
+
 const reasons = [];
-if (rel === "docs" || rel.startsWith("docs/"))
+if ((rel === "docs" || rel.startsWith("docs/")) && !isTicketSpec)
   reasons.push("docs/ is read-only during feature work; propose changes via the sync-docs skill and get founder approval");
 if (rel === "legacy" || rel.startsWith("legacy/"))
   reasons.push("legacy/ is frozen reference, not a working copy. Read it and port logic out of it; a change here is not deployed anywhere and will be deleted. If it is a genuine production defect, raise it with the founder (see legacy/README.md)");
