@@ -1,0 +1,81 @@
+name: Azure Infrastructure CI
+
+on:
+  pull_request:
+    paths:
+      - 'infra/azure/**'
+      - '.github/workflows/infra.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/azure/**'
+      - '.github/workflows/infra.yml'
+
+permissions:
+  contents: read
+  # azure/login@v2 mints a federated token; without id-token: write it cannot, so the
+  # Azure half of this workflow would fail even once its `if:` conditions work (F-7).
+  id-token: write
+
+jobs:
+  validate-bicep:
+    name: Bicep Build & Lint Validation
+    runs-on: ubuntu-latest
+    # Job-level, so the steps' own `if:` conditions can see them. Set inside a step's
+    # env: block these are invisible to that same step's if:, which is why the login and
+    # what-if steps were permanently skipped (F-8).
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Azure CLI & Bicep
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az bicep install
+          az bicep version
+
+      - name: Compile root orchestrator (main.bicep)
+        run: |
+          az bicep build --file infra/azure/main.bicep
+
+      - name: Lint root orchestrator (main.bicep)
+        run: |
+          az bicep lint --file infra/azure/main.bicep
+
+      - name: Compile and lint all Bicep modules
+        run: |
+          for f in infra/azure/modules/*.bicep; do
+            echo "Building $f..."
+            az bicep build --file "$f"
+            echo "Linting $f..."
+            az bicep lint --file "$f"
+          done
+
+      - name: Azure Login via OIDC (if secrets configured)
+        if: env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run What-If on dev parameters (if authenticated)
+        if: env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != ''
+        run: |
+          az deployment sub what-if \
+            --location centralindia \
+            --template-file infra/azure/main.bicep \
+            --parameters infra/azure/parameters/dev.bicepparam
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
