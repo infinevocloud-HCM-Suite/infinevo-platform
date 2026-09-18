@@ -4,7 +4,6 @@ param environment = 'uat'
 param location = 'centralindia'
 
 param postgresAdminUsername = 'infinevo_admin'
-param postgresAdminPassword = 'Uat_Postgres_Password_2026!'
 
 param postgresSkuName = 'Standard_B1ms'
 param postgresSkuTier = 'Burstable'

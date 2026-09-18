@@ -4,7 +4,6 @@ param environment = 'prod'
 param location = 'centralindia'
 
 param postgresAdminUsername = 'infinevo_admin'
-param postgresAdminPassword = 'Prod_Postgres_Password_2026!'
 
 param postgresSkuName = 'Standard_D2ds_v5'
 param postgresSkuTier = 'GeneralPurpose'

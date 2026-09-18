@@ -16,7 +16,7 @@ param postgresAdminUsername string = 'infinevo_admin'
 
 @description('PostgreSQL server administrator password')
 @secure()
-param postgresAdminPassword string
+param postgresAdminPassword string = ''
 
 // SKU & Capacity overrides
 @description('PostgreSQL compute SKU')
