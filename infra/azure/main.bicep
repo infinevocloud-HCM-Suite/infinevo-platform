@@ -11,6 +11,9 @@ param environment string
 @description('Primary Azure region for all resources (D-18: Central India)')
 param location string = 'centralindia'
 
+@description('Object id of the principal running the deployment, granted Key Vault Secrets Officer (review F-5). deploy.sh supplies it from `az ad signed-in-user show`.')
+param deployerObjectId string = ''
+
 @description('PostgreSQL server administrator username')
 param postgresAdminUsername string = 'infinevo_admin'
 
@@ -20,6 +23,12 @@ param postgresAdminPassword string = ''
 
 // SKU & Capacity overrides
 @description('PostgreSQL compute SKU')
+@allowed([
+  'Standard_B1ms'
+  'Standard_B2s'
+  'Standard_D2ds_v5'
+  'Standard_D4ds_v5'
+])
 param postgresSkuName string = 'Standard_B1ms'
 
 @description('PostgreSQL compute tier')
@@ -42,9 +51,6 @@ param redisSkuCapacity int = 0
 
 @description('Storage Account SKU')
 param storageSkuName string = 'Standard_LRS'
-
-@description('ACR SKU tier')
-param acrSku string = 'Basic'
 
 @description('Container App CPU allocation')
 param containerAppCpu string = '0.25'
@@ -90,7 +96,10 @@ module registry 'modules/registry.bicep' = {
   params: {
     registryName: 'crinfinevo'
     location: location
-    sku: acrSku
+    // Fixed, NOT acrSku from the environment parameter file: this registry is shared by
+    // dev, uat and prod, so a dev deployment must not be able to re-submit it at a lower
+    // tier and downgrade production (review F-6).
+    sku: 'Standard'
     tags: defaultTags
   }
 }
@@ -102,6 +111,7 @@ module keyVault 'modules/keyvault.bicep' = {
     keyVaultName: 'kv-infinevo-shared'
     location: location
     enablePurgeProtection: enablePurgeProtection
+    deployerObjectId: deployerObjectId
     tags: defaultTags
   }
 }
@@ -150,7 +160,8 @@ module containerAppEnv 'modules/containerapp-env.bicep' = {
     environmentName: 'cae-infinevo-${environment}'
     location: location
     logAnalyticsCustomerId: logAnalytics.outputs.customerId
-    logAnalyticsSharedKey: logAnalytics.outputs.primarySharedKey
+    logAnalyticsWorkspaceName: logAnalytics.outputs.workspaceName
+    sharedResourceGroupName: sharedRg.name
     tags: defaultTags
   }
 }

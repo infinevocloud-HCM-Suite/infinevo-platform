@@ -15,7 +15,6 @@ param redisSkuName = 'Standard'
 param redisSkuCapacity = 1
 
 param storageSkuName = 'Standard_ZRS'
-param acrSku = 'Standard'
 
 param containerAppCpu = '0.5'
 param containerAppMemory = '1.0Gi'
