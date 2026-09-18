@@ -66,7 +66,7 @@ Azure deployments require explicit subscription and identity configuration:
 
 **In scope**
 
-- `infra/azure/` — Modular Bicep infrastructure templates for every resource in `05-azure-architecture.md` §3.
+- `infra/azure/` — Modular Bicep infrastructure templates for the resources specified in `05-azure-architecture.md` §3, except those explicitly listed as Out of Scope below (networking/VNet, Front Door, App Insights, and automated backups). Specifically builds: Resource Groups, Container Registry, Key Vault, Log Analytics Workspace, Container Apps Managed Environment, 4 Container Apps, Postgres Flexible Server, Redis Cache, Service Bus Namespace, and Blob Storage.
 - Three identical-topology environments: `dev`, `uat`, `prod` (differing only in SKU sizing and redundancy — `05` §2).
 - One shared resource group (`rg-infinevo-shared`) containing:
   - Azure Container Registry (`crinfinevo`) with admin user disabled.
@@ -75,15 +75,15 @@ Azure deployments require explicit subscription and identity configuration:
 - Per-environment resource groups (`rg-infinevo-{dev,uat,prod}`) containing:
   - Container Apps Managed Environment (`cae-infinevo-{env}`).
   - Container Apps definitions (`app`, `worker`, `web`, `keycloak`) deployed with starter images and reaching active running state.
-  - PostgreSQL 16 Flexible Server (`psql-infinevo-{env}`) hosting `infinevo` and `keycloak` databases.
+  - PostgreSQL 16 Flexible Server (`psql-infinevo-{env}`) hosting `infinevo` and `keycloak` databases with admin user `infinevo_admin`.
   - Azure Cache for Redis (`redis-infinevo-{env}`).
   - Azure Service Bus Namespace (`sb-infinevo-{env}`) with queues: `payrun`, `import`, `report`.
   - Azure Blob Storage Account (`stinfinevo{env}`) with private containers: `documents`, `payslips`, `proofs` (`allowBlobPublicAccess: false`).
   - User-Assigned Managed Identities (`id-{app,worker,web,keycloak}-{env}`) with `AcrPull` role assigned on `crinfinevo` so images can be pulled.
 - Idempotent orchestration scripts:
-  - `infra/azure/deploy.sh` — provisions a named environment (`--env dev|uat|prod`), auto-generating and storing secure Postgres admin password if absent.
+  - `infra/azure/deploy.sh` — provisions a named environment (`--env dev|uat|prod`), auto-generating and storing secure Postgres admin password and role credentials in Key Vault if absent.
   - `infra/azure/teardown.sh` — destroys an ephemeral environment (`rg-infinevo-{env}`) while guarding `prod`.
-  - `infra/azure/post-deploy-db.sh` — runs `infra/postgres/provision.sh` against the Flexible Server using Key Vault credentials.
+  - `infra/azure/post-deploy-db.sh` — exports `PGUSER=infinevo_admin` and `PGPASSWORD`, generates/stores all four role passwords in Key Vault (`psql-app-pw`, `psql-migration-pw`, `psql-readonly-pw`, `psql-keycloak-pw`), and passes them as `APP_PW`, `MIGRATION_PW`, `READONLY_PW`, `KEYCLOAK_PW` to `infra/postgres/provision.sh`.
 - CI validation workflow (`.github/workflows/infra.yml`) executing `az bicep build` and `az deployment sub what-if` on pull requests.
 
 **Out of scope**
@@ -118,6 +118,7 @@ rg-infinevo-{dev|uat|prod} (Central India)
 ├── Container Apps                      (app, worker, web, keycloak)
 │   └── starter image: mcr.microsoft.com/k8se/quickstart:latest
 ├── PostgreSQL 16 Flexible Server       (psql-infinevo-{env})
+│   ├── administratorLogin: infinevo_admin (Bicep parameter)
 │   ├── database: infinevo
 │   └── database: keycloak
 ├── Azure Cache for Redis               (redis-infinevo-{env})
@@ -140,11 +141,14 @@ rg-infinevo-{dev|uat|prod} (Central India)
 | **Container Registry** | Basic | Basic | Standard |
 | **Key Vault** | Standard (Shared) | Standard (Shared) | Standard (Shared) |
 | **PostgreSQL Flexible** | `Standard_B1ms` (Burstable) | `Standard_B1ms` (Burstable) | `Standard_D2ds_v5` (General Purpose, Zone-Redundant HA) |
+| **PostgreSQL Admin Login** | `infinevo_admin` (parameter) | `infinevo_admin` (parameter) | `infinevo_admin` (parameter) |
 | **PostgreSQL Storage** | 32 GiB, autogrow | 32 GiB, autogrow | 128 GiB, autogrow |
 | **Redis Cache** | Basic C0 (250 MB) | Basic C0 (250 MB) | Standard C1 (1 GB, Replicated) |
 | **Service Bus** | Standard | Standard | Standard |
 | **Blob Storage** | Standard LRS | Standard LRS | Standard ZRS |
 | **Container Apps** | 0.25-0.5 vCPU, min 0 / max 3 | 0.25-0.5 vCPU, min 0 / max 3 | 0.5-1.0 vCPU, min 2 / max 10 |
+
+> Note: Azure Database for PostgreSQL Flexible Server does not create a default `postgres` superuser. The admin username is declared as a Bicep parameter (`administratorLogin: 'infinevo_admin'`). In `post-deploy-db.sh`, `PGUSER=infinevo_admin` and `PGPASSWORD` (fetched from Key Vault `psql-admin-pw`) are exported so the bootstrap script connects successfully.
 
 ### 3c. File Inventory
 
@@ -182,7 +186,7 @@ infra/azure/
 | `infra/azure/modules/loganalytics.bicep` | **New.** Log Analytics workspace for platform container and diagnostic logging. |
 | `infra/azure/modules/containerapp-env.bicep` | **New.** Container Apps Environment connected to the Log Analytics workspace. |
 | `infra/azure/modules/containerapps.bicep` | **New.** Deploys `app`, `worker`, `web`, and `keycloak` Container Apps with starter images, ports, and probes. |
-| `infra/azure/modules/postgres.bicep` | **New.** Flexible Server 16, creates `infinevo` and `keycloak` databases; HA enabled on prod only. |
+| `infra/azure/modules/postgres.bicep` | **New.** Flexible Server 16, creates `infinevo` and `keycloak` databases; HA enabled on prod only. Declares `param postgresAdminUsername string = 'infinevo_admin'` and `@secure() param postgresAdminPassword string`; both sourced from Key Vault at deploy time. |
 | `infra/azure/modules/redis.bicep` | **New.** Azure Cache for Redis instance (Basic C0 in dev/uat, Standard C1 in prod). |
 | `infra/azure/modules/servicebus.bicep` | **New.** Service Bus Standard namespace with queues: `payrun`, `import`, `report`. |
 | `infra/azure/modules/storage.bicep` | **New.** Storage account with `allowBlobPublicAccess: false` and blob containers: `documents`, `payslips`, `proofs`. |
@@ -190,7 +194,7 @@ infra/azure/
 | `infra/azure/parameters/*.bicepparam` | **New.** Parameter files for `dev`, `uat`, and `prod`. |
 | `infra/azure/deploy.sh` | **New.** Generates secure Postgres admin password if absent, seeds Key Vault, and executes deployment. |
 | `infra/azure/teardown.sh` | **New.** Deletes environment resource group; strictly refuses `prod`. |
-| `infra/azure/post-deploy-db.sh` | **New.** Runs `infra/postgres/provision.sh` against Flexible Server using Key Vault admin credentials. |
+| `infra/azure/post-deploy-db.sh` | **New.** Fetches `postgresAdminUsername` (`infinevo_admin`) and `psql-admin-pw` from Key Vault; exports `PGUSER`, `PGHOST`, `PGPASSWORD`. Generates and stores all four role passwords (`psql-app-pw`, `psql-migration-pw`, `psql-readonly-pw`, `psql-keycloak-pw`) in Key Vault if absent. Calls `infra/postgres/provision.sh` with `APP_PW`, `MIGRATION_PW`, `READONLY_PW`, `KEYCLOAK_PW`. No password falls back to a `local_*_pw` literal. |
 | `.github/workflows/infra.yml` | **New.** GitHub Actions workflow running `az bicep build` and `what-if` validation on PRs. |
 
 **Untouched by this ticket:**
@@ -203,14 +207,18 @@ All code in `code/backend/`, `code/frontend/`, `infra/docker/`, `infra/postgres/
 Although this is an infrastructure ticket, it creates the cloud database foundation for all subsequent work items:
 
 1. **Server Provisioning**: Azure Database for PostgreSQL 16 Flexible Server (`psql-infinevo-{env}`).
+   - Bicep parameter in `modules/postgres.bicep`: `param postgresAdminUsername string = 'infinevo_admin'` and `@secure() param postgresAdminPassword string`.
+   - `post-deploy-db.sh` exports `PGUSER="$postgresAdminUsername"` (value: `infinevo_admin`), `PGHOST` (resolved via `az postgres flexible-server show ... --query fullyQualifiedDomainName`), and `PGPASSWORD` (from Key Vault secret `psql-admin-pw`).
+   - All verification commands use `-U infinevo_admin` consistently — no assumption of an Azure-created `postgres` superuser.
 2. **Databases Created**:
    - `infinevo` (application database for Core, HRMS, Payroll, and Reference).
    - `keycloak` (isolated database for Keycloak identity server).
 3. **Database Roles Created via `infra/postgres/provision.sh`**:
-   - `migration_user`: Owner of application schemas; executes Flyway DDL (`W-06`).
-   - `app_user`: Non-owner runtime role used by backend `app` and `worker` (`02-data-model.md §9`).
-   - `readonly_user`: Read-only reporting and audit role.
-   - `keycloak_user`: Dedicated non-superuser owner of the `keycloak` database.
+   - `migration_user`: Owner of application schemas; executes Flyway DDL (`W-06`). Password generated dynamically (`psql-migration-pw` in Key Vault).
+   - `app_user`: Non-owner runtime role used by backend `app` and `worker` (`02-data-model.md §9`). Password generated dynamically (`psql-app-pw` in Key Vault).
+   - `readonly_user`: Read-only reporting and audit role. Password generated dynamically (`psql-readonly-pw` in Key Vault).
+   - `keycloak_user`: Dedicated non-superuser owner of the `keycloak` database. Password generated dynamically (`psql-keycloak-pw` in Key Vault).
+   - `post-deploy-db.sh` exports `PGUSER=infinevo_admin` and `PGPASSWORD`, fetches all four role passwords from Key Vault, and passes them explicitly as `APP_PW`, `MIGRATION_PW`, `READONLY_PW`, and `KEYCLOAK_PW` to `infra/postgres/provision.sh`. None falls back to local repo defaults (`local_*_pw`).
 4. **Schemas Created via `infra/postgres/provision.sh`**:
    - `core`: Core capabilities (owned by `migration_user`).
    - `hrms`: HRMS module (owned by `migration_user`).
@@ -247,8 +255,15 @@ Exact commands the verifier runs on a clean checkout with authenticated Azure CL
 [ -n "$AZURE_SUBSCRIPTION_ID" ] || { echo "FAIL: AZURE_SUBSCRIPTION_ID must be set"; exit 1; }
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
-# ── 1. Bicep syntax & compilation validation (F-3) ───────────────────────────
+# ── 1a. Bicep compilation (F-3) ──────────────────────────────────────────────
+# Compiles all Bicep files to ARM JSON; fails on syntax errors.
 az bicep build --file infra/azure/main.bicep
+for f in infra/azure/modules/*.bicep; do az bicep build --file "$f"; done
+
+# ── 1b. Bicep lint (F-3) ──────────────────────────────────────────────────────
+# Static analysis for anti-patterns and rule violations (az CLI >= 2.47).
+az bicep lint --file infra/azure/main.bicep
+for f in infra/azure/modules/*.bicep; do az bicep lint --file "$f"; done
 
 # ── 2. Dry-run what-if on dev parameters ─────────────────────────────────────
 az deployment sub what-if \
@@ -258,31 +273,61 @@ az deployment sub what-if \
 
 # ── 3. Cold deployment from zero ─────────────────────────────────────────────
 az group delete --name rg-infinevo-dev --yes --no-wait 2>/dev/null || true
-sleep 10
+az group wait --deleted -n rg-infinevo-dev 2>/dev/null || true
 bash infra/azure/deploy.sh --env dev
 
 # ── 4. Verify each resource exists and provisioningState == Succeeded (F-1) ──
+# 4a. Shared resources in rg-infinevo-shared
+for res in \
+  "Microsoft.ContainerRegistry/registries crinfinevo" \
+  "Microsoft.KeyVault/vaults kv-infinevo-shared" \
+  "Microsoft.OperationalInsights/workspaces law-infinevo-shared"; do
+  read -r type name <<< "$res"
+  state=$(az resource show -g rg-infinevo-shared --resource-type "$type" -n "$name" --query "properties.provisioningState" -o tsv 2>/dev/null) || {
+    echo "FAIL: Shared resource $name ($type) not found in rg-infinevo-shared"; exit 1;
+  }
+  [ "$state" = "Succeeded" ] || { echo "FAIL: $name ($type) provisioningState is '$state' (expected Succeeded)"; exit 1; }
+  echo "PASS: $name ($type) = Succeeded"
+done
+
+# 4b. Environment resources in rg-infinevo-dev
 for res in \
   "Microsoft.DBforPostgreSQL/flexibleServers psql-infinevo-dev" \
   "Microsoft.Cache/redis redis-infinevo-dev" \
   "Microsoft.ServiceBus/namespaces sb-infinevo-dev" \
   "Microsoft.Storage/storageAccounts stinfinevodev" \
-  "Microsoft.App/managedEnvironments cae-infinevo-dev"; do
+  "Microsoft.App/managedEnvironments cae-infinevo-dev" \
+  "Microsoft.App/containerApps ca-infinevo-dev-app" \
+  "Microsoft.App/containerApps ca-infinevo-dev-worker" \
+  "Microsoft.App/containerApps ca-infinevo-dev-web" \
+  "Microsoft.App/containerApps ca-infinevo-dev-keycloak"; do
   read -r type name <<< "$res"
-  state=$(az resource show -g rg-infinevo-dev --resource-type "$type" -n "$name" --query "properties.provisioningState" -o tsv)
-  [ "$state" = "Succeeded" ] || { echo "FAIL: $name ($type) is $state"; exit 1; }
+  state=$(az resource show -g rg-infinevo-dev --resource-type "$type" -n "$name" --query "properties.provisioningState" -o tsv 2>/dev/null) || {
+    echo "FAIL: Resource $name ($type) not found in rg-infinevo-dev"; exit 1;
+  }
+  [ "$state" = "Succeeded" ] || { echo "FAIL: $name ($type) provisioningState is '$state' (expected Succeeded)"; exit 1; }
   echo "PASS: $name ($type) = Succeeded"
 done
 
 # ── 5. Verify Container Apps reach Running revision status (F-4) ─────────────
 for app in app worker web keycloak; do
   app_name="ca-infinevo-dev-$app"
-  rev_state=$(az containerapp show -g rg-infinevo-dev -n "$app_name" --query "properties.runningStatus" -o tsv 2>/dev/null || az containerapp show -g rg-infinevo-dev -n "$app_name" --query "properties.provisioningState" -o tsv)
-  echo "PASS: $app_name status = $rev_state"
+  status=$(az containerapp show -g rg-infinevo-dev -n "$app_name" --query "properties.runningStatus" -o tsv) \
+    || { echo "FAIL: $app_name not found or az command failed"; exit 1; }
+  [ -n "$status" ] || { echo "FAIL: $app_name returned empty runningStatus — app may not exist"; exit 1; }
+  [ "$status" = "Running" ] || { echo "FAIL: $app_name runningStatus is '$status' (expected Running)"; exit 1; }
+  echo "PASS: $app_name runningStatus = Running"
 done
 
 # ── 6. Run post-deploy DB bootstrap and verify all 5 schemas & ownership (F-2) ─
 bash infra/azure/post-deploy-db.sh --env dev
+
+# Verify no password in Key Vault matches local repository fallback literals
+for secret in psql-admin-pw psql-app-pw psql-migration-pw psql-readonly-pw psql-keycloak-pw; do
+  val=$(az keyvault secret show --vault-name kv-infinevo-shared --name "$secret" --query value -o tsv)
+  [[ "$val" =~ ^local_.*_pw$ ]] && { echo "FAIL: $secret uses local repository fallback default '$val'"; exit 1; }
+done
+echo "PASS: All database passwords dynamically generated (no local_*_pw literal)"
 
 PGHOST=$(az postgres flexible-server show -g rg-infinevo-dev -n psql-infinevo-dev --query fullyQualifiedDomainName -o tsv)
 PGPASSWORD=$(az keyvault secret show --vault-name kv-infinevo-shared --name psql-admin-pw --query value -o tsv)
@@ -298,11 +343,13 @@ bash infra/azure/teardown.sh --env dev && bash infra/azure/deploy.sh --env dev
 
 | Check | Expected | Result |
 |---|---|---|
-| `az bicep build` | Exit 0, 0 errors | |
+| `az bicep build` (all modules) | Exit 0, 0 errors | |
+| `az bicep lint` (all modules) | Exit 0, 0 lint violations | |
 | `az deployment sub what-if` | Exit 0, clean resource plan | |
-| Cold `deploy.sh --env dev` | Exit 0, all resources deployed | |
-| All 5 core resources `provisioningState` | Every resource `Succeeded` | |
-| All 4 Container Apps status | Every app `Running` / `Succeeded` | |
+| All 3 shared resources (`rg-infinevo-shared`) `provisioningState` | Every shared resource exists and is `Succeeded` | |
+| All 9 environment resources (`rg-infinevo-dev`) `provisioningState` | Every resource exists and is `Succeeded` | |
+| All 4 Container Apps `runningStatus` | Every app (`app`, `worker`, `web`, `keycloak`) is `Running` | |
+| Key Vault database password check | Passwords dynamically generated, no `local_*_pw` literals | |
 | Postgres schema count & ownership query | Exactly `5` schemas owned by `migration_user` | |
 | Rebuild-twice test | Both redeployments exit 0 | |
 | CI `infra.yml` workflow | Green on PR | |
@@ -345,7 +392,9 @@ Nothing is live in production. If the PR is reverted:
 
 ## 9. Done when
 
-1. `infra/azure/main.bicep` and all module files pass `az bicep build` with zero errors and zero warnings.
+> **Repository cleanup required (Issue #6):** Branch `origin/W-50-azure-infra` contains a second, conflicting W-50 specification (`W-50-azure-infra.md`). The merge gate (`check-done.mjs:116`) finds specs by filename pattern — two W-50 files on overlapping branches is undefined behaviour. **This branch must be deleted by a repository administrator before the PR for `W-50-azure-iac` can be merged.** The command is `git push origin --delete W-50-azure-infra`; it cannot be run from within a feature branch per project rules. The local copy of that branch has been deleted.
+
+1. `infra/azure/main.bicep` and all module files pass both `az bicep build` (compilation) and `az bicep lint` (static analysis) with zero errors and zero warnings.
 2. `deploy.sh --env dev` provisions all resources from zero in a single command (exit 0).
 3. `teardown.sh --env dev` deletes `rg-infinevo-dev` (exit 0) and strictly refuses execution when `--env prod` is passed.
 4. Rebuild-twice test passes: dev is torn down and redeployed twice cleanly, with terminal output linked in the PR.
@@ -353,8 +402,8 @@ Nothing is live in production. If the PR is reverted:
 6. `infra/azure/post-deploy-db.sh` executes against the Flexible Server and confirms all 5 schemas (`core`, `hrms`, `payroll`, `reference`, `migration`) exist and are owned by `migration_user`.
 7. `parameters/prod.bicepparam` specifies zone-redundant HA Postgres, Standard Redis, and ZRS storage.
 8. `parameters/dev.bicepparam` and `uat.bicepparam` specify minimal SKUs with scale-to-zero.
-9. `.github/workflows/infra.yml` passes on pull requests changing Bicep definitions.
-10. Zero plain connection strings or secrets are committed.
+9. `.github/workflows/infra.yml` passes on pull requests changing Bicep definitions. The workflow runs both `az bicep build` and `az bicep lint` on all modules.
+10. Zero plain connection strings or secrets are committed, and neither `psql-admin-pw`, `psql-app-pw`, `psql-migration-pw`, `psql-readonly-pw`, nor `psql-keycloak-pw` in Azure Key Vault match local repo fallback literals (`local_*_pw`). Checkable via: `grep -rn "local_.*_pw" infra/azure/` returning 0 matches (exit 1).
 11. PR description contains `Closes #70`.
 
 ---
