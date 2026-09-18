@@ -130,8 +130,8 @@ Can run in parallel with C, D and E from early on.
 
 | ID | Work item | Features | Delivers | Needs | Kind |
 |---|---|---|---|---|---|
-| `W-49` | Containerisation | Backend Dockerfile · Frontend Dockerfile · Keycloak image · **Web and worker profiles from one image** | — | `W-01` | Infra |
-| `W-50` | Azure infrastructure as code | Resource groups · Container Apps · Postgres · Redis · Service Bus · Blob · Registry | `PLAT-12` | `W-49` | Infra |
+| `W-49` | Containerisation — **merged 2026-09-17 (#116)** | Backend Dockerfile · Frontend Dockerfile · Keycloak image · **`app` and `worker` roles from one image, selected by `INFINEVO_ROLE`** (`D-48`) | — | `W-01` | Infra |
+| `W-50` | Azure infrastructure as code | Resource groups · Container Apps · Postgres · Redis · Service Bus · Blob · Registry | `PLAT-12` | `W-49` — **merged, so this is unblocked** | Infra |
 | `W-51` | Networking & identity | Front Door · Web application firewall · Private endpoints · Managed identity · Key Vault · **India region** | `PLAT-09` | `W-50` | Infra |
 | `W-52` | Queue & worker | Queue setup · Job dispatch · Job status and progress · **Scheduler locking so jobs stop firing twice** | `PLAT-04` | `W-50` | New |
 | `W-53` | Caching | Cache abstraction · Permission cache · Master data cache · Invalidation | `PLAT-05` | `W-50` | New |
@@ -203,8 +203,9 @@ Deliberately closed as target-state questions because they only affect what data
 | I — Migration | 6 | 22 | **Last** |
 | | **72** | **295** | |
 
-**Three things can start today** with no dependency: the repository skeleton (`W-01`), the
-infrastructure definitions (`W-49`, `W-50`), and the marketing website (`W-66`).
+**Three things could start on day one** with no dependency: the repository skeleton (`W-01`),
+the infrastructure definitions (`W-49`, `W-50`), and the marketing website (`W-66`). Of
+those, `W-01` and `W-49` are merged; `W-50` is unblocked and `W-66` is still open.
 
 **Two items carry most of the risk**, both merges: the employee master (`W-13`) and the leave
 engine (`W-16`). Everything downstream waits on them.

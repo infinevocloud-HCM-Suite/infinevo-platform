@@ -33,8 +33,8 @@ M                                                        ███   ███
 ```
 
 **Two items have no dependency at all and can start on day one:** `W-01` repository skeleton
-and `W-66` marketing website. `W-49` containerisation opens the moment `W-01` merges, so with
-three people that is the third assignment rather than the first.
+and `W-66` marketing website. `W-49` containerisation opened the moment `W-01` merged, so with
+three people it was the third assignment rather than the first. Both are now merged.
 
 ---
 
@@ -48,7 +48,7 @@ three people that is the third assignment rather than the first.
 | P | `W-01` repository skeleton | — |
 | P | `W-02` local dev stack · `W-03` build pipeline · `W-04` test foundation | **All three in parallel** after `W-01` |
 | P | `W-05` Postgres and four schemas | Parallel with `W-02`–`W-04` |
-| I | `W-49` containerisation | **Parallel from day one** |
+| I | `W-49` containerisation | **Parallel from day one** — merged 2026-09-17 |
 | W | `W-66` marketing website | **Fully independent, any time** |
 
 ### Wave 2 — Data platform
@@ -260,7 +260,7 @@ Watch: two tenants is not optional. One tenant means entitlement bugs surface on
 
 ### Track I — Infrastructure *(parallel from day one)*
 
-**`W-49` Containerisation** · Build: backend, frontend and Keycloak images; **web and worker profiles from one image**. Done when: the same image runs both roles. Watch: no secrets in images, ever.
+**`W-49` Containerisation** — **merged 2026-09-17 (#116).** Built: three production Dockerfiles, all non-root; `app` and `worker` run from one image, selected by `INFINEVO_ROLE` rather than a Spring profile (`D-48`); the frontend takes its configuration at container start, so one image serves every environment. Done: the same image runs both roles, proven on CI. Watch: no secrets in images, ever — and the check must read layer **contents**, not just build instructions. It did not, and a development realm carrying three live credentials shipped inside the Keycloak image and scanned clean. CI now runs all three parts of that scan.
 
 **`W-50` Azure infrastructure as code** · Build: resource groups, Container Apps, Postgres, Redis, Service Bus, Blob, registry. Done when: an environment is created from the repository, not a portal. Watch: build dev first and rebuild it twice. An environment you cannot recreate is not infrastructure as code.
 

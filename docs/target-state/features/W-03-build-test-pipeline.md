@@ -71,7 +71,7 @@ fix" (`09-build-order.md:167`).
 
 **Out of scope**
 
-- **Registry push.** `W-49` (#69) owns the production Dockerfiles, `W-50` the registry
+- **Registry push.** `W-49` (#69) owns the production Dockerfiles — **merged 2026-09-17**, and the `images` job builds them; `W-50` still owns the registry, and CI pushes nothing
 - **Deployment.** `W-54` needs `W-50` and this ticket — `09-build-order.md:63`
 - **Dependency and secret scanning.** `W-59` needs this ticket — `:64`
 - **Coverage thresholds.** `W-04` (#5) builds the test foundation. A threshold over two
@@ -90,7 +90,9 @@ push to main / pull_request
   |- backend   setup-java 21 (temurin) + cache ~/.m2 -> mvnw -B clean verify -> surefire XML
   |- frontend  setup-node 24 + cache npm -> npm ci -> npm run lint -> npm run build -> dist/
   |- static    grep gates: legacy/ untouched · no ddl-auto · no float/double money
-  |- images    docker build dev.Dockerfile.backend + dev.Dockerfile.frontend  [needs: backend, frontend]
+  |- images    enable containerd store; build 3 production + 2 dev images;     [needs: backend, frontend]
+  |            secret scan (instructions, file contents, empty import dir);
+  |            size thresholds 200/40/300 MB. Pushes nothing
 ```
 
 | File | Change |
@@ -141,6 +143,11 @@ npm run build                                        # expect exit 0, dist/ writ
 cd ../.. && docker build -f infra/docker/dev.Dockerfile.backend  -t infinevo-backend:dev  .
 docker build -f infra/docker/dev.Dockerfile.frontend -t infinevo-frontend:dev .
 
+# Since W-49 (merged 2026-09-17) the job also builds the three production images:
+docker build -f infra/docker/backend.Dockerfile  -t infinevo-backend:test  .
+docker build -f infra/docker/frontend.Dockerfile -t infinevo-frontend:test .
+docker build -f infra/docker/keycloak.Dockerfile -t infinevo-keycloak:test .
+
 # 3 - CI ran, and on this commit
 gh run list --workflow=ci.yml --limit 5
 gh run view --log-failed || echo "no failures"
@@ -180,7 +187,7 @@ node .claude/scripts/check-done.mjs <pr>
 |---|---|---|
 | CI reports but cannot block, so a red PR is merged anyway (`D-43`) | **High** | Decision 1. Until then `check-done.mjs` stays the real gate and CI is evidence |
 | A backend linter added now flags the whole tree at once | Medium | Pick a formatter with an apply mode; one formatting commit before the gate goes on |
-| The image gate duplicates or pre-empts `W-49` (#69) | Medium | Decision 3. Dev Dockerfiles only, never pushed, job named provisional |
+| The image gate duplicates or pre-empts `W-49` (#69) | **Closed** | Decision 3 held: dev Dockerfiles only, never pushed, job named provisional. `W-49` inherited the job on 2026-09-17, dropped the `(provisional)` label and added the production builds and their gates |
 | Free-plan Actions minutes exhausted by a build on every push | Low | Cache `~/.m2` and npm; `concurrency` cancels superseded runs |
 | Gates pass on the runner but fail locally, or the reverse | Low | CI runs the identical commands `check-done.mjs` runs — no CI-only flags |
 | `CONTRIBUTING.md:44` says Node 20, `D-42` says Node 24 | Certain | Pin CI to 24. Flag the doc for `sync-docs`; do **not** edit it in this ticket |
@@ -247,8 +254,14 @@ and a week at `W-20`.
 
 CI builds `infra/docker/dev.Dockerfile.backend` and `dev.Dockerfile.frontend` and
 pushes neither. The job is named to show it is provisional; `W-49` (#69) replaces the
-targets with the production Dockerfiles and the single web/worker image. This keeps the
-build-order *Watch* honest — the gate exists from the first commit.
+targets with the production Dockerfiles. This keeps the build-order *Watch* honest —
+the gate exists from the first commit.
+
+**As built (2026-09-17):** the inheritance happened. The job keeps both dev builds and
+adds the three production images, the three-part secret scan and the size thresholds,
+and still pushes nothing. Note the backend is not "the single web/worker image" by
+Spring profile — it is one image carrying two jars, selected by `INFINEVO_ROLE`
+(`D-48`).
 
 **Both tickets are `ready` and assigned to different people. SayInfi (#4) and BirenGit
 (#69) must be told together**, or `W-49` will not know it inherits this job.

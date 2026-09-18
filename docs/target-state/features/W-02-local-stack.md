@@ -45,7 +45,7 @@ normal state rather than the exception.
 
 | Not here | Belongs to |
 |---|---|
-| Dockerfiles for a *deployable* image (multi-stage, slim, non-root) | `W-49` |
+| Dockerfiles for a *deployable* image (multi-stage, slim, non-root) | `W-49` — **delivered 2026-09-17**, `infra/docker/{backend,frontend,keycloak}.Dockerfile` |
 | Flyway runner and migration conventions | `W-06` |
 | The managed Postgres server and its real roles | `W-05` |
 | The real Keycloak realm export and theme | `W-10` |
@@ -55,7 +55,8 @@ normal state rather than the exception.
 
 > This ticket makes things **run locally**. It does not make them **deployable**. Those
 > are `W-49` and `W-54`, and conflating them is how a compose file quietly becomes the
-> production build.
+> production build. `W-49` merged 2026-09-17 and wrote the deployable images without
+> touching anything here; `W-54` is still open.
 
 ---
 
@@ -65,8 +66,8 @@ normal state rather than the exception.
 infra/docker/
 ├── compose.yml                 nine services
 ├── README.md                   start · stop · reset · what each one is
-├── dev.Dockerfile.backend      dev-mode only; W-49 writes the real one
-├── dev.Dockerfile.frontend     dev-mode only; W-49 writes the real one
+├── dev.Dockerfile.backend      dev-mode only; backend.Dockerfile is the real one (W-49)
+├── dev.Dockerfile.frontend     dev-mode only; frontend.Dockerfile is the real one (W-49)
 ├── postgres/
 │   └── 00-bootstrap.sql        four schemas, three roles, grants  (replaced by 00-bootstrap.sh in W-05)
 ├── keycloak/
@@ -280,7 +281,7 @@ reverted with the merge.
 |---|---|---|
 | One seeded tenant, or two with identical modules | **Medium, and it is the stated trap** | Check 6 asserts the module sets differ |
 | `app` connects as owner "just to get it working" | **Medium** | Check 7 fails the build if it can run DDL |
-| The dev Dockerfiles drift into being the production build | Medium | Named `dev.Dockerfile.*` and documented as dev-only; `W-49` writes the real ones |
+| The dev Dockerfiles drift into being the production build | **Closed** | `W-49` wrote the real ones (merged 2026-09-17) and changed neither dev file. CI builds both kinds, so the production images are the promotion path and the dev images stay honest about being dev |
 | Nine containers too heavy on a developer laptop | Low | Roughly 2 GB. Document a `--profile minimal` for `postgres` + `app` only |
 | Compose works for the author only | Medium | Check 1 must be run by a second person before merge |
 
