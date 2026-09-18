@@ -37,7 +37,7 @@ With a lead and two part-time developers, this is the opening move. All three ar
 | Who | Item | Size | Why first |
 |---|---|---|---|
 | **Lead** | `W-01` Repository skeleton | M | Sets the module graph and conventions everyone else inherits. Nobody should write code before it exists |
-| **Dev-1** | `W-49` → `W-50` Containers, then Azure | M → L | Longest lead time, zero dependency on product decisions. **Opens the moment `W-01` merges**, not on day one |
+| **Dev-1** | `W-49` → `W-50` Containers, then Azure | M → L | Longest lead time, zero dependency on product decisions. `W-49` **merged 2026-09-17**; Dev-1 is on `W-50` |
 | **Dev-2** | `W-66` Marketing website | L | Fully independent, needs no platform knowledge, and is visible progress for you |
 
 **After `W-01` lands**, three more open at once: `W-02` local stack, `W-03` pipeline,
@@ -133,8 +133,8 @@ downstream depends on the gates being on early.
 
 | ID | Work item | Size | Skill | Blocked by | Ready |
 |---|---|---|---|---|---|
-| `W-49` | Containerisation | M | INFRA | `W-01` | |
-| `W-50` | Azure infrastructure as code | **L** | INFRA | `W-49` | |
+| `W-49` | Containerisation | M | INFRA | `W-01` | **Merged 2026-09-17 (#116)** |
+| `W-50` | Azure infrastructure as code | **L** | INFRA | `W-49` — merged | **Ready** |
 | `W-51` | Networking & identity | M | INFRA | `W-50` | |
 | `W-52` | Queue & worker | M | BE | `W-50` | |
 | `W-53` | Caching | M | BE | `W-50` | |

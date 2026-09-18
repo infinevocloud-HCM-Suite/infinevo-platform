@@ -1,8 +1,8 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-16**, after `W-05` Postgres & schemas (#6, PR #110) merged
-> and its `sync-docs` pass (#114, PR #113).
+> Last refreshed: **2026-09-18**, after `W-49` Containerisation (#69, PR #116) merged
+> as `c0a8643` and its `sync-docs` pass.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -31,8 +31,16 @@ One repository · one backend with three enforced modules (`core` / `hrms` / `pa
 > **Not AKS. Not MySQL. No subtree, no sync.** If a document or skill says otherwise it
 > is stale — the decisions are `D-09` Postgres, `D-10` Container Apps, `D-17` no sync.
 
-Design: `docs/target-state/` — 12 documents, **44 decisions (`D-01`–`D-44`), zero open
+Design: `docs/target-state/` — 12 documents, **49 decisions (`D-01`–`D-49`), zero open
 questions.** Start at `docs/target-state/README.md`.
+
+> **`W-06` Flyway is closed as a ticket but its code is NOT on `main`.** It merged as
+> `a0cdb2f` and was reverted by Sayeed as `ae761ed` on 2026-09-17; issue #7 is still
+> CLOSED. `main` carries only the empty `.gitkeep` migration directories from `W-01`.
+> The work is on `origin/W-06-flyway-migrations` at `ad3f3c6`. **This blocks the tenancy
+> chain** — `W-07` and `W-08` wait on `W-06`, and the ticket currently reads as done
+> while the code is absent. Needs a decision: re-merge, reopen #7, or record why it was
+> reverted.
 
 ### The three threads
 
@@ -45,12 +53,20 @@ questions.** Start at `docs/target-state/README.md`.
    all run, four schemas owned by `migration_user`, four roles none of which is
    superuser or `BYPASSRLS`, and `DatabasePrivilegesIT` asserting the matrix in both
    directions.
-2. **Multi-tenancy — the highest-value work in the project. `W-05` merged, so the
+2. **Multi-tenancy — the highest-value work in the project. Blocked: see the `W-06`
+   note above — its code is not on `main`. `W-05` merged, so the
    chain is unblocked and `W-06` Flyway (#7) is the next link.** Payroll is
    org-scoped on 63 of 97 entities; HRMS on **none at all** (0 of 39, `BUG-002`).
    Target: `tenant_id` on every table outside `reference`, enforced by Postgres
    row-level security (`D-09`). `W-06` → `W-07` → `W-08` is the one rigid chain.
-3. **Azure — not started.** `W-49` containerisation opens it, then `W-50`.
+3. **Azure — opened.** `W-49` containerisation **merged 2026-09-17 (#116)**: three
+   production images — backend carrying both `app.jar` and `worker.jar` selected by
+   `INFINEVO_ROLE` (`D-48`), unprivileged nginx on 8080 (`D-49`), and Keycloak with no
+   realm baked in. All non-root, no secrets, 154 / 24 / 225 MB, built and gated by CI
+   which pushes nothing. **`W-50` is now unblocked** and is the next Azure step.
+   Two things `W-49` left behind: the container scan's "report-only until `W-49`"
+   condition has expired, so `W-59` must now decide whether it blocks; and the Keycloak
+   image runs with primary group 0 (root), also handed to `W-59`.
 
 ### Code is ported, never synced
 
@@ -70,18 +86,22 @@ no longer tracks who holds what — **the assignee field on GitHub is the only t
 
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
-| **#7** | `W-06` Flyway migrations | M | DATA | `W-05` merged, so the chain is open. `W-06` → `W-07` → `W-08` is what Wave 3 waits on |
-| #69 | `W-49` Containerisation | M | INFRA | Inherits the `images` job from `W-03` |
+| **#7** | `W-06` Flyway migrations | M | DATA | **Closed, but reverted off `main` — see the note above.** `W-06` → `W-07` → `W-08` is what Wave 3 waits on, so nothing in the chain can start until this is resolved |
+| **#70** | `W-50` Azure infrastructure as code | L | INFRA | **Newly unblocked** — `W-49` merged 2026-09-17, so the images `W-50` deploys now exist |
+| #79 | `W-59` Scanning | M | INFRA | **Two inherited decisions have come due**: the container scan's "report-only until `W-49`" condition has expired, and the Keycloak image's primary group 0. Also modifies the same `images` job `W-49` just rewrote — read it before editing |
 | #86 | `W-66` Marketing website | L | FE | Independent of the chain |
+| #117 | Testcontainers does not detect Docker — `DatabasePrivilegesIT` skips silently | S | INFRA | Found by `/verify W-49`. 13 of 34 backend tests skip under a green build, including the whole owner-privilege suite. Every `verify` proves less than it appears to until this is fixed |
 | #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | Small, unblocks nothing but hardens `/merge` |
 | #104 | Three gate paths never executed; harness not in CI | S | INFRA | Same |
 | #112 | `W-05` follow-ups — test classpath, CI never runs the stack | S | INFRA | **`F-18` is the leverage item.** CI runs neither `compose up` nor `smoke.sh`, which is why three High defects that stopped Postgres booting passed gate 10 green. Fold into #101/#104 |
 
 The founder steers by keeping the `next` label on three to five tickets, in order.
 
-`W-49` (#69) **inherits the `images` job** from `W-03` and must replace its dev
-Dockerfile targets with the production ones. BirenGit needs telling — the two tickets
-were written by different people.
+`W-49` (#69) inherited the `images` job from `W-03` and replaced its dev Dockerfile
+targets with the production ones — **done, merged 2026-09-17**. The job now enables the
+containerd image store (`D-47`), builds three production and two dev images, runs a
+three-part secret scan and asserts size thresholds. **`W-59` (#79) edits the same job**
+and was written before any of that existed; whoever picks it up reads `ci.yml` first.
 
 ---
 

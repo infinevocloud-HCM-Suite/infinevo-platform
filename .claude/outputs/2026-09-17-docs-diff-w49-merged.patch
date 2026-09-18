@@ -1,0 +1,353 @@
+diff --git a/docs/target-state/04-runtime-containers.md b/.claude/outputs/tmp-docs/target-state/04-runtime-containers.md
+index 4e61c1f..aad3074 100644
+--- a/docs/target-state/04-runtime-containers.md
++++ b/docs/target-state/04-runtime-containers.md
+@@ -9,17 +9,18 @@
+ 
+ The backend image runs in two roles, so there are fewer files than containers.
+ 
+-> **These are the deployable images, and they do not exist yet — `W-49` writes them.**
+-> What exists today is `infra/docker/dev.Dockerfile.backend` and
+-> `dev.Dockerfile.frontend` (`W-02`), which run the apps from source with the build
+-> toolchain in the image and no non-root user. They are for the local stack only and
+-> must not be promoted.
++> **These are the deployable images. `W-49` wrote them — merged 2026-09-17 (#116).**
++> `infra/docker/dev.Dockerfile.backend` and `dev.Dockerfile.frontend` (`W-02`) still
++> exist and are unchanged: they run the apps from source with the build toolchain in
++> the image and no non-root user, they serve the local stack only, and they must not be
++> promoted. CI builds both alongside the production images, so a break in either is
++> caught rather than discovered by the next developer to run compose.
+ 
+ | Dockerfile | Produces | Runs as |
+ |---|---|---|
+-| `infra/docker/backend.Dockerfile` | One Spring Boot jar containing Core, HRMS and Payroll | **`app`** and **`worker`** — two containers, one image |
++| `infra/docker/backend.Dockerfile` | **Two** fat jars — `app.jar` and `worker.jar` — in one image, each containing Core, HRMS and Payroll (`D-48`) | **`app`** and **`worker`** — two containers, one image |
+ | `infra/docker/frontend.Dockerfile` | The unified React bundle | `web` |
+-| `infra/docker/keycloak.Dockerfile` | Keycloak with realm and theme pre-built | `keycloak` |
++| `infra/docker/keycloak.Dockerfile` | Keycloak, pre-built with `kc.sh build` and run `--optimized`. **No realm and no theme are baked in** — `W-10` supplies the production realm, and CI fails the build if any file appears in the import directory | `keycloak` |
+ | `infra/docker/gateway.Dockerfile` | API gateway | `gateway` — **deferred** (`D-11`) |
+ 
+ ---
+@@ -44,7 +45,8 @@ command.
+ 
+ | | `app` | `worker` |
+ |---|---|---|
+-| Spring profile | `web` | `worker` |
++| Selected by | `INFINEVO_ROLE=app` (the default) | `INFINEVO_ROLE=worker` |
++| Jar run | `app.jar` | `worker.jar` |
+ | HTTP | full API | health endpoint only |
+ | Queue consumer | no | yes |
+ | `@Scheduled` jobs | **disabled** | enabled, with cluster locking |
+@@ -74,8 +76,8 @@ Multi-stage, so the runtime image carries no build tooling.
+ | Stage | Does |
+ |---|---|
+ | 1 — dependencies | Resolve Maven dependencies in a cached layer, so code changes do not re-download |
+-| 2 — build | Compile and package the jar |
+-| 3 — runtime | Slim JRE 21 base. Copy the jar. Non-root user. Expose the port. Health endpoint declared |
++| 2 — build | Compile and package the reactor. Resolve each fat jar to a fixed name, asserting exactly one match per module |
++| 3 — runtime | Slim JRE 21 base. Copy **both** jars. Non-root user `infinevo` (uid 1000). Expose 8080 (`app`) and 8082 (`worker`). Health endpoint declared. Entrypoint `exec`s, so `SIGTERM` reaches the JVM and graceful shutdown is real |
+ 
+ | Runtime setting | Value |
+ |---|---|
+@@ -102,6 +104,14 @@ rebuild between environments means you are no longer testing what you ship.
+ serves every environment. Today's frontends hard-code an API URL in a global constant,
+ which is why one build cannot serve two environments.
+ 
++Implemented by `W-49`: `frontend-entrypoint.sh` writes `/usr/share/nginx/html/env.js`
++at container start, `index.html` loads it before the app bundle, and the app reads
++`window.__ENV` with `import.meta.env` as the fallback for local Vite development.
++Values are escaped before interpolation — an unescaped `"` silently breaks
++`window.__ENV`, and an unescaped `</script>` is an injection into every page. Keycloak
++keys default to empty rather than to the local realm's names, so a missing variable
++fails visibly at `W-10` instead of quietly pointing at a development realm.
++
+ ---
+ 
+ ## 6. Local development stack
+diff --git a/docs/target-state/07-decisions.md b/.claude/outputs/tmp-docs/target-state/07-decisions.md
+index 43217a1..6c42ef5 100644
+--- a/docs/target-state/07-decisions.md
++++ b/docs/target-state/07-decisions.md
+@@ -55,6 +55,9 @@
+ | `D-43` | 2026-09-13 | **Branch protection is convention, not enforcement, until the second developer joins** | GitHub refuses branch protection on private repositories on the Free plan. The options were to make the repository public, pay for Team, or rely on convention. A multi-tenant platform holding other companies' payroll data cannot be public, and paying per seat before there are seats is premature. Revisit when the team grows | `W-01` |
+ | `D-45` | 2026-09-17 | **Flyway's `flyway_schema_history` lives in its own `migration` schema**, owned by `migration_user`, with no grant to `app_user` or `readonly_user`. A fifth schema, holding no application data | The history table cannot carry `tenant_id`, and rule 3 of `02` §1 admits no exceptions inside `core`, `hrms` and `payroll`. Putting it outside those three lets `W-07`'s build check stay absolute rather than start life with an exemption list — and `09-build-order.md:175` says of that check, "the check is the deliverable" | `02` §1 §5 §6, `04` §5, `W-06` |
+ | `D-46` | 2026-09-17 | **`ddl-auto` is never set, in any environment.** Not `validate`, not `none` — absent. Supersedes the wording of `CONVENTIONS.md` rule 4, which said it would move to `validate` once Flyway landed | Hibernate defaults to `none` for a non-embedded datasource, which is the behaviour wanted. `validate` verifies nothing today (zero JPA entities) and from `W-13` on would refuse startup during the backward-compatible two-step deploys `05` §6 requires — add a column in one release, use it in the next. Keeping the property absent also leaves three existing gates absolute instead of teaching each to permit one value | `CONVENTIONS.md` rule 4, `D-09`, `W-06` |
++| `D-47` | 2026-09-17 | **Image size is measured as content size, with the containerd image store, and CI enables it explicitly.** `docker image inspect .Size` is the measure named by `W-49` §9 item 11; CI configures the containerd image store before building so that measure means the same thing everywhere, and the size step refuses to run if that store is not active | `.Size` reports uncompressed layer diffs under the classic overlay2 driver and content size — the compressed blobs actually pulled — under the containerd image store. The same backend image measured **291 MB** one way and **154 MB** the other, so the 200 MB threshold passed on a developer's laptop and failed on CI while nothing about the image had changed. Compressed size is what a Container Apps pull actually costs, and the approved 2026-09-15 baseline was taken that way. The alternative, raising the threshold to fit whatever the runner happened to report, would have made the number mean nothing. The refusal matters more than the number: a threshold is only meaningful if the measure behind it is the one that was approved | `04` §5, `W-49`, `W-59` |
++| `D-48` | 2026-09-15 | **Two jars in one backend image, selected by `INFINEVO_ROLE`** — not one fat jar toggled by a Spring profile. Supersedes the `Spring profile` row of `04` §3 | `code/backend/app` and `code/backend/worker` are separate Maven packaging modules that each produce a fat jar over the identical domain libraries. Both are copied into the same image and `backend-entrypoint.sh` runs the one named by `INFINEVO_ROLE`, defaulting to `app` and exiting non-zero on anything else. Consequence, and the reason it is worth recording: schedulers and batch work are **physically** isolated to `worker.jar`, so an `app` replica cannot run a scheduled job even by misconfiguration. `W-52` depends on this shape | `04` §1 §3, `D-02`, `W-49`, `W-52` |
++| `D-49` | 2026-09-15 | **The frontend runs unprivileged nginx on port 8080**, `nginxinc/nginx-unprivileged:alpine` as uid 101, rather than standard `nginx:alpine` on port 80 | Binding port 80 requires root. Moving to 8080 lets the whole container process run unprivileged, which is what makes "every container runs non-root" true without exception rather than true for two of three. `/usr/share/nginx/html` is chowned to 101 so the entrypoint can write `env.js` without privilege | `04` §1 §4, `W-49`, `W-59` |
+ | `D-44` | 2026-09-13 | **RabbitMQ stands in for Azure Service Bus in the local stack.** Production remains Service Bus (`D-10`) — this is a laptop substitute only | No faithful local emulator exists with acceptable licence terms. `W-52` builds a queue abstraction, so local and production differ by one adapter, which is the point of having the abstraction. The alternative, a Postgres-backed queue, tests nothing about real queue behaviour | `04` §6, `W-02` |
+ 
+ ---
+diff --git a/docs/target-state/08-work-plan.md b/.claude/outputs/tmp-docs/target-state/08-work-plan.md
+index 576a511..b264cc7 100644
+--- a/docs/target-state/08-work-plan.md
++++ b/docs/target-state/08-work-plan.md
+@@ -130,8 +130,8 @@ Can run in parallel with C, D and E from early on.
+ 
+ | ID | Work item | Features | Delivers | Needs | Kind |
+ |---|---|---|---|---|---|
+-| `W-49` | Containerisation | Backend Dockerfile · Frontend Dockerfile · Keycloak image · **Web and worker profiles from one image** | — | `W-01` | Infra |
+-| `W-50` | Azure infrastructure as code | Resource groups · Container Apps · Postgres · Redis · Service Bus · Blob · Registry | `PLAT-12` | `W-49` | Infra |
++| `W-49` | Containerisation — **merged 2026-09-17 (#116)** | Backend Dockerfile · Frontend Dockerfile · Keycloak image · **`app` and `worker` roles from one image, selected by `INFINEVO_ROLE`** (`D-48`) | — | `W-01` | Infra |
++| `W-50` | Azure infrastructure as code | Resource groups · Container Apps · Postgres · Redis · Service Bus · Blob · Registry | `PLAT-12` | `W-49` — **merged, so this is unblocked** | Infra |
+ | `W-51` | Networking & identity | Front Door · Web application firewall · Private endpoints · Managed identity · Key Vault · **India region** | `PLAT-09` | `W-50` | Infra |
+ | `W-52` | Queue & worker | Queue setup · Job dispatch · Job status and progress · **Scheduler locking so jobs stop firing twice** | `PLAT-04` | `W-50` | New |
+ | `W-53` | Caching | Cache abstraction · Permission cache · Master data cache · Invalidation | `PLAT-05` | `W-50` | New |
+@@ -203,8 +203,9 @@ Deliberately closed as target-state questions because they only affect what data
+ | I — Migration | 6 | 22 | **Last** |
+ | | **72** | **295** | |
+ 
+-**Three things can start today** with no dependency: the repository skeleton (`W-01`), the
+-infrastructure definitions (`W-49`, `W-50`), and the marketing website (`W-66`).
++**Three things could start on day one** with no dependency: the repository skeleton (`W-01`),
++the infrastructure definitions (`W-49`, `W-50`), and the marketing website (`W-66`). Of
++those, `W-01` and `W-49` are merged; `W-50` is unblocked and `W-66` is still open.
+ 
+ **Two items carry most of the risk**, both merges: the employee master (`W-13`) and the leave
+ engine (`W-16`). Everything downstream waits on them.
+diff --git a/docs/target-state/09-build-order.md b/.claude/outputs/tmp-docs/target-state/09-build-order.md
+index 781c971..a6d0e8e 100644
+--- a/docs/target-state/09-build-order.md
++++ b/docs/target-state/09-build-order.md
+@@ -33,8 +33,8 @@ M                                                        ███   ███
+ ```
+ 
+ **Two items have no dependency at all and can start on day one:** `W-01` repository skeleton
+-and `W-66` marketing website. `W-49` containerisation opens the moment `W-01` merges, so with
+-three people that is the third assignment rather than the first.
++and `W-66` marketing website. `W-49` containerisation opened the moment `W-01` merged, so with
++three people it was the third assignment rather than the first. Both are now merged.
+ 
+ ---
+ 
+@@ -48,7 +48,7 @@ three people that is the third assignment rather than the first.
+ | P | `W-01` repository skeleton | — |
+ | P | `W-02` local dev stack · `W-03` build pipeline · `W-04` test foundation | **All three in parallel** after `W-01` |
+ | P | `W-05` Postgres and four schemas | Parallel with `W-02`–`W-04` |
+-| I | `W-49` containerisation | **Parallel from day one** |
++| I | `W-49` containerisation | **Parallel from day one** — merged 2026-09-17 |
+ | W | `W-66` marketing website | **Fully independent, any time** |
+ 
+ ### Wave 2 — Data platform
+@@ -260,7 +260,7 @@ Watch: two tenants is not optional. One tenant means entitlement bugs surface on
+ 
+ ### Track I — Infrastructure *(parallel from day one)*
+ 
+-**`W-49` Containerisation** · Build: backend, frontend and Keycloak images; **web and worker profiles from one image**. Done when: the same image runs both roles. Watch: no secrets in images, ever.
++**`W-49` Containerisation** — **merged 2026-09-17 (#116).** Built: three production Dockerfiles, all non-root; `app` and `worker` run from one image, selected by `INFINEVO_ROLE` rather than a Spring profile (`D-48`); the frontend takes its configuration at container start, so one image serves every environment. Done: the same image runs both roles, proven on CI. Watch: no secrets in images, ever — and the check must read layer **contents**, not just build instructions. It did not, and a development realm carrying three live credentials shipped inside the Keycloak image and scanned clean. CI now runs all three parts of that scan.
+ 
+ **`W-50` Azure infrastructure as code** · Build: resource groups, Container Apps, Postgres, Redis, Service Bus, Blob, registry. Done when: an environment is created from the repository, not a portal. Watch: build dev first and rebuild it twice. An environment you cannot recreate is not infrastructure as code.
+ 
+diff --git a/docs/target-state/10-scoping.md b/.claude/outputs/tmp-docs/target-state/10-scoping.md
+index 925ae4b..185c32f 100644
+--- a/docs/target-state/10-scoping.md
++++ b/docs/target-state/10-scoping.md
+@@ -37,7 +37,7 @@ With a lead and two part-time developers, this is the opening move. All three ar
+ | Who | Item | Size | Why first |
+ |---|---|---|---|
+ | **Lead** | `W-01` Repository skeleton | M | Sets the module graph and conventions everyone else inherits. Nobody should write code before it exists |
+-| **Dev-1** | `W-49` → `W-50` Containers, then Azure | M → L | Longest lead time, zero dependency on product decisions. **Opens the moment `W-01` merges**, not on day one |
++| **Dev-1** | `W-49` → `W-50` Containers, then Azure | M → L | Longest lead time, zero dependency on product decisions. `W-49` **merged 2026-09-17**; Dev-1 is on `W-50` |
+ | **Dev-2** | `W-66` Marketing website | L | Fully independent, needs no platform knowledge, and is visible progress for you |
+ 
+ **After `W-01` lands**, three more open at once: `W-02` local stack, `W-03` pipeline,
+@@ -133,8 +133,8 @@ downstream depends on the gates being on early.
+ 
+ | ID | Work item | Size | Skill | Blocked by | Ready |
+ |---|---|---|---|---|---|
+-| `W-49` | Containerisation | M | INFRA | `W-01` | |
+-| `W-50` | Azure infrastructure as code | **L** | INFRA | `W-49` | |
++| `W-49` | Containerisation | M | INFRA | `W-01` | **Merged 2026-09-17 (#116)** |
++| `W-50` | Azure infrastructure as code | **L** | INFRA | `W-49` — merged | **Ready** |
+ | `W-51` | Networking & identity | M | INFRA | `W-50` | |
+ | `W-52` | Queue & worker | M | BE | `W-50` | |
+ | `W-53` | Caching | M | BE | `W-50` | |
+diff --git a/docs/target-state/features/W-02-local-stack.md b/.claude/outputs/tmp-docs/target-state/features/W-02-local-stack.md
+index d1985e3..7dca1ab 100644
+--- a/docs/target-state/features/W-02-local-stack.md
++++ b/docs/target-state/features/W-02-local-stack.md
+@@ -45,7 +45,7 @@ normal state rather than the exception.
+ 
+ | Not here | Belongs to |
+ |---|---|
+-| Dockerfiles for a *deployable* image (multi-stage, slim, non-root) | `W-49` |
++| Dockerfiles for a *deployable* image (multi-stage, slim, non-root) | `W-49` — **delivered 2026-09-17**, `infra/docker/{backend,frontend,keycloak}.Dockerfile` |
+ | Flyway runner and migration conventions | `W-06` |
+ | The managed Postgres server and its real roles | `W-05` |
+ | The real Keycloak realm export and theme | `W-10` |
+@@ -55,7 +55,8 @@ normal state rather than the exception.
+ 
+ > This ticket makes things **run locally**. It does not make them **deployable**. Those
+ > are `W-49` and `W-54`, and conflating them is how a compose file quietly becomes the
+-> production build.
++> production build. `W-49` merged 2026-09-17 and wrote the deployable images without
++> touching anything here; `W-54` is still open.
+ 
+ ---
+ 
+@@ -65,8 +66,8 @@ normal state rather than the exception.
+ infra/docker/
+ ├── compose.yml                 nine services
+ ├── README.md                   start · stop · reset · what each one is
+-├── dev.Dockerfile.backend      dev-mode only; W-49 writes the real one
+-├── dev.Dockerfile.frontend     dev-mode only; W-49 writes the real one
++├── dev.Dockerfile.backend      dev-mode only; backend.Dockerfile is the real one (W-49)
++├── dev.Dockerfile.frontend     dev-mode only; frontend.Dockerfile is the real one (W-49)
+ ├── postgres/
+ │   └── 00-bootstrap.sql        four schemas, three roles, grants  (replaced by 00-bootstrap.sh in W-05)
+ ├── keycloak/
+@@ -280,7 +281,7 @@ reverted with the merge.
+ |---|---|---|
+ | One seeded tenant, or two with identical modules | **Medium, and it is the stated trap** | Check 6 asserts the module sets differ |
+ | `app` connects as owner "just to get it working" | **Medium** | Check 7 fails the build if it can run DDL |
+-| The dev Dockerfiles drift into being the production build | Medium | Named `dev.Dockerfile.*` and documented as dev-only; `W-49` writes the real ones |
++| The dev Dockerfiles drift into being the production build | **Closed** | `W-49` wrote the real ones (merged 2026-09-17) and changed neither dev file. CI builds both kinds, so the production images are the promotion path and the dev images stay honest about being dev |
+ | Nine containers too heavy on a developer laptop | Low | Roughly 2 GB. Document a `--profile minimal` for `postgres` + `app` only |
+ | Compose works for the author only | Medium | Check 1 must be run by a second person before merge |
+ 
+diff --git a/docs/target-state/features/W-03-build-test-pipeline.md b/.claude/outputs/tmp-docs/target-state/features/W-03-build-test-pipeline.md
+index 84c4a94..5852234 100644
+--- a/docs/target-state/features/W-03-build-test-pipeline.md
++++ b/docs/target-state/features/W-03-build-test-pipeline.md
+@@ -71,7 +71,7 @@ fix" (`09-build-order.md:167`).
+ 
+ **Out of scope**
+ 
+-- **Registry push.** `W-49` (#69) owns the production Dockerfiles, `W-50` the registry
++- **Registry push.** `W-49` (#69) owns the production Dockerfiles — **merged 2026-09-17**, and the `images` job builds them; `W-50` still owns the registry, and CI pushes nothing
+ - **Deployment.** `W-54` needs `W-50` and this ticket — `09-build-order.md:63`
+ - **Dependency and secret scanning.** `W-59` needs this ticket — `:64`
+ - **Coverage thresholds.** `W-04` (#5) builds the test foundation. A threshold over two
+@@ -90,7 +90,9 @@ push to main / pull_request
+   |- backend   setup-java 21 (temurin) + cache ~/.m2 -> mvnw -B clean verify -> surefire XML
+   |- frontend  setup-node 24 + cache npm -> npm ci -> npm run lint -> npm run build -> dist/
+   |- static    grep gates: legacy/ untouched · no ddl-auto · no float/double money
+-  |- images    docker build dev.Dockerfile.backend + dev.Dockerfile.frontend  [needs: backend, frontend]
++  |- images    enable containerd store; build 3 production + 2 dev images;     [needs: backend, frontend]
++  |            secret scan (instructions, file contents, empty import dir);
++  |            size thresholds 200/40/300 MB. Pushes nothing
+ ```
+ 
+ | File | Change |
+@@ -141,6 +143,11 @@ npm run build                                        # expect exit 0, dist/ writ
+ cd ../.. && docker build -f infra/docker/dev.Dockerfile.backend  -t infinevo-backend:dev  .
+ docker build -f infra/docker/dev.Dockerfile.frontend -t infinevo-frontend:dev .
+ 
++# Since W-49 (merged 2026-09-17) the job also builds the three production images:
++docker build -f infra/docker/backend.Dockerfile  -t infinevo-backend:test  .
++docker build -f infra/docker/frontend.Dockerfile -t infinevo-frontend:test .
++docker build -f infra/docker/keycloak.Dockerfile -t infinevo-keycloak:test .
++
+ # 3 - CI ran, and on this commit
+ gh run list --workflow=ci.yml --limit 5
+ gh run view --log-failed || echo "no failures"
+@@ -180,7 +187,7 @@ node .claude/scripts/check-done.mjs <pr>
+ |---|---|---|
+ | CI reports but cannot block, so a red PR is merged anyway (`D-43`) | **High** | Decision 1. Until then `check-done.mjs` stays the real gate and CI is evidence |
+ | A backend linter added now flags the whole tree at once | Medium | Pick a formatter with an apply mode; one formatting commit before the gate goes on |
+-| The image gate duplicates or pre-empts `W-49` (#69) | Medium | Decision 3. Dev Dockerfiles only, never pushed, job named provisional |
++| The image gate duplicates or pre-empts `W-49` (#69) | **Closed** | Decision 3 held: dev Dockerfiles only, never pushed, job named provisional. `W-49` inherited the job on 2026-09-17, dropped the `(provisional)` label and added the production builds and their gates |
+ | Free-plan Actions minutes exhausted by a build on every push | Low | Cache `~/.m2` and npm; `concurrency` cancels superseded runs |
+ | Gates pass on the runner but fail locally, or the reverse | Low | CI runs the identical commands `check-done.mjs` runs — no CI-only flags |
+ | `CONTRIBUTING.md:44` says Node 20, `D-42` says Node 24 | Certain | Pin CI to 24. Flag the doc for `sync-docs`; do **not** edit it in this ticket |
+@@ -247,8 +254,14 @@ and a week at `W-20`.
+ 
+ CI builds `infra/docker/dev.Dockerfile.backend` and `dev.Dockerfile.frontend` and
+ pushes neither. The job is named to show it is provisional; `W-49` (#69) replaces the
+-targets with the production Dockerfiles and the single web/worker image. This keeps the
+-build-order *Watch* honest — the gate exists from the first commit.
++targets with the production Dockerfiles. This keeps the build-order *Watch* honest —
++the gate exists from the first commit.
++
++**As built (2026-09-17):** the inheritance happened. The job keeps both dev builds and
++adds the three production images, the three-part secret scan and the size thresholds,
++and still pushes nothing. Note the backend is not "the single web/worker image" by
++Spring profile — it is one image carrying two jars, selected by `INFINEVO_ROLE`
++(`D-48`).
+ 
+ **Both tickets are `ready` and assigned to different people. SayInfi (#4) and BirenGit
+ (#69) must be told together**, or `W-49` will not know it inherits this job.
+diff --git a/docs/target-state/features/W-59-scanning.md b/.claude/outputs/tmp-docs/target-state/features/W-59-scanning.md
+index 4e598e2..0919105 100644
+--- a/docs/target-state/features/W-59-scanning.md
++++ b/docs/target-state/features/W-59-scanning.md
+@@ -125,6 +125,12 @@ falsifiable from day one rather than aspirational.
+ **Containers** — `infra/docker/dev.Dockerfile.*` are development images: full JDK
+ toolchain, root user. Unmeasured, and expected to be noisy. §2 handles this.
+ 
++**Since `W-49` merged (2026-09-17) there are also three production images to scan**, and
++they are the ones that matter — `infinevo-backend:test` (154 MB), `infinevo-frontend:test`
++(24 MB) and `infinevo-keycloak:test` (225 MB), all non-root, all built by the same
++`images` job. Baseline them separately from the dev images: a CVE in a slim JRE runtime
++is a real finding, where the same CVE in a full-JDK dev image is noise.
++
+ ### Sizing
+ 
+ The original **S** assumed configuring scanners against a clean tree. The measured
+@@ -153,13 +159,24 @@ count"*). A job in any other workflow file cannot block a merge. `ci.yml:11` is
+ 
+ **(b) Container scan — inside the existing `images` job, report-only**
+ 
+-`ci.yml:200-213` builds `infinevo-backend:dev` and `infinevo-frontend:dev` on an
+-ephemeral runner. There is no registry login, no `docker push` and no
+-`actions/upload-artifact` for the images anywhere in the file — `ci.yml:192` says so in a
+-comment. GitHub Actions jobs are isolated, so **a separate job or workflow has no image
+-to scan.** The scan therefore runs as a step inside `images`, immediately after
+-`docker build`, with `continue-on-error: true` until `W-49` delivers hardened production
+-images.
++The `images` job builds on an ephemeral runner. There is no registry login, no
++`docker push` and no `actions/upload-artifact` for the images anywhere in the file —
++`ci.yml:192` says so in a comment. GitHub Actions jobs are isolated, so **a separate job
++or workflow has no image to scan.** The scan therefore runs as a step inside `images`,
++immediately after `docker build`.
++
++**`W-49` merged on 2026-09-17, so the condition on `continue-on-error: true` has been
++met** — the hardened production images exist. Two consequences this ticket must now
++decide rather than inherit:
++
++1. **Whether the container scan blocks.** The "report-only until `W-49`" premise has
++   expired. The dev images stay noisy and should remain report-only; the three
++   production images are the candidates for blocking.
++2. **The `images` job is no longer a thin wrapper round two `docker build` calls.** It
++   now enables the containerd image store (`D-47`), builds five images, runs a
++   three-part secret scan and asserts size thresholds. Add the scan step without
++   disturbing those — in particular the containerd step must stay before every build,
++   and the size assertion refuses to run if that store is inactive.
+ 
+ **(c) Daily rescan — `.github/workflows/security.yml`, informational only**
+ 
+@@ -191,7 +208,7 @@ breaks survive the pull request.
+ 
+ | | Owner |
+ |---|---|
+-| Blocking on container CVEs; hardened production images | `W-49` (#69, `08-work-plan.md`) |
++| Hardened production images | `W-49` (#69) — **delivered 2026-09-17**. Blocking on container CVEs is now this ticket's call |
+ | Container scanning in the scheduled workflow (needs a registry) | `W-50` |
+ | DAST / penetration testing | `W-64` (`08-work-plan.md:158`) |
+ | Azure Key Vault runtime integration | `W-56` (`08-work-plan.md:150`) |
+@@ -322,7 +339,7 @@ today checks 3 gives 72/30/30/3/3/3/3/0 across the eight POMs and 1 for the fron
+ | **The Spring Boot 3.3 → 3.5 upgrade breaks the build or the 24 existing tests** — the largest risk in this ticket, and the reason it is no longer size S | Medium | Do it as the **first commit on the branch, alone**, so `mvnw clean verify` either passes or points at exactly one change. `code/backend` is 16 Java files with no ported domain logic. If it does not go cleanly, stop and re-scope rather than patching around it — Question 2 exists so this is the founder's call, not the implementer's |
+ | Maven Central returns HTTP 429 and blocks the runner for 30 minutes | **High — already observed** | `actions/setup-java` with `cache: 'maven'`, `./mvnw dependency:resolve` before scanning, and Trivy with `--offline-scan` |
+ | **`vite` 5 → 8 breaks `npm run build`, or trips `eslint --max-warnings 0`** — three majors, plus a forced `@vitejs/plugin-react` bump, in a pull request that also moves Spring Boot | Medium-High | Own commit, separate from the backend upgrade (§14 task 2), so a red build names which upgrade did it. The frontend is 10 tracked files and `vite.config.js` uses only stable options. Verification step 2 catches it before the pull request. If vite 8 does not go cleanly, fall back to `^6.4.3` — the scanner accepts it and the gate still goes green — and raise vite 8 as its own ticket rather than absorbing it here |
+-| Dev images are noisy — full JDK, root user | High | Container scan is report-only until `W-49`. It reports; it never blocks |
++| Dev images are noisy — full JDK, root user | High | Keep the **dev** image scan report-only; it reports, it never blocks. The production images `W-49` delivered are slim and non-root, and are the ones worth gating |
+ | Alert fatigue turns the gate into something people route around | Medium | `HIGH,CRITICAL` plus `--ignore-unfixed` only. Nothing blocks that has no published fix |
+ | A new CVE lands overnight and fails an unrelated pull request | Medium | The daily rescan surfaces it against `main` first, so it is a known item rather than a surprise on someone's branch |
+ | A scanner silently stops finding anything and every build goes green | Low | Fixture 5 in §7 — a clean fixture must pass *and* dirty fixtures must fail |
+@@ -430,8 +447,15 @@ three recorded as follow-up tickets so they are sequenced rather than dropped:
+ 
+ | Follow-up | Blocked by | Why not now |
+ |---|---|---|
+-| Block on container CVEs | `W-49` | The dev images are being replaced; gating artefacts on their way out buys nothing |
++| Block on container CVEs | **This ticket** | Was deferred to `W-49` on the grounds that the dev images were on their way out. They were replaced on 2026-09-17, so the deferral has expired and the decision lands here |
+ | Licence scanning (GPL/AGPL/SSPL in a commercial product) | Needs an allowlist policy decision | Real commercial risk, but new scope and no recorded decision to hang it on |
++
++**Handed to this ticket by `W-49`:** the Keycloak container runs as uid 1000 with
++**primary group 0 (root)** — a Red Hat base image convention, not a choice `W-49` made.
++`infra/docker/keycloak.Dockerfile` says in a comment that `W-59` rules on whether it
++needs changing, and until this section existed that hand-off pointed nowhere. Scanners
++commonly flag a root primary group. Decide here: accept it as a base image property, or
++change it and carry the cost of diverging from the upstream image.
+ | Lower the threshold to MEDIUM | This ticket proving quiet first | `09-build-order.md:285` — MEDIUM is where alert fatigue usually starts |
+ 
+ ---
