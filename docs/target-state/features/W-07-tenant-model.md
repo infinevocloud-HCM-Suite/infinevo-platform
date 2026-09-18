@@ -51,8 +51,9 @@ That check is now owed.
 `legacy/Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/entity/organization/Organization.java:28`.
 In legacy Payroll, `Organization` stored both multi-tenant identity (`organizationId`, `organizationName`)
 and company metadata (`addressLine1`, `city`, `state`, `pinCode`, statutory details). In target architecture,
-`core.tenant` is stripped to pure root tenant identity (`id`, `tenant_id`, `name`, `created_at`, `created_by`, `updated_at`, `updated_by`),
-while organization address/tax metadata (GSTIN/PAN) is deferred to `core.organization_details` in Wave 3 (`W-13`).
+`core.tenant` is stripped to pure root tenant identity (`id`, `tenant_id`, `name`, `created_at`, `created_by`, `updated_at`, `updated_by`).
+Statutory tax registration details (GSTIN, PAN, TAN, ESI/EPF numbers) are ported into `payroll` statutory component tables
+(`payroll.epf`, `payroll.esi`, `payroll.income_tax_details`) and `core.tenant_setup_step` when domain tables land in Wave 3 (`W-13` onwards).
 
 **Baseline** — measured on `main` at commit `365a319`, 2026-09-18.
 
@@ -63,7 +64,7 @@ while organization address/tax metadata (GSTIN/PAN) is deferred to `core.organiz
 | `tenant_id` standard | **Present** | `code/backend/migration/README.md:52-72` | Documented in W-06; enforced here |
 | `TenantContext.java` | **Present** | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantContext.java:30` | Exists in `shared`; adding `setForConnection` method |
 | `TenantContextTest.java` | **Present** | `code/backend/shared/src/test/java/com/infinevo/shared/tenant/TenantContextTest.java` | Exists in `shared` tests |
-| CI Gate A & B | Absent | `.github/workflows/ci.yml` | Gates owed by W-06 §13 R7 |
+| CI Gates A, B & C | Absent | `.github/workflows/ci.yml` | Gates owed by W-06 §13 R7 |
 | `TenantIsolationIT` | Absent | `code/backend/migration/src/test/java/...` | Owed integration test |
 
 ---
@@ -83,14 +84,13 @@ while organization address/tax metadata (GSTIN/PAN) is deferred to `core.organiz
   pattern every future migration script must follow.
 - **`TenantContext` enhancement** — class `TenantContext.java` in `code/backend/shared`
   gains `setForConnection(Connection)` utility executing `SET LOCAL app.current_tenant_id = ?`.
-- **CI build check — two gates added to `.github/workflows/ci.yml`**:
-  1. Every `CREATE TABLE` in `db/migration/core/`, `db/migration/hrms/`, or
-     `db/migration/payroll/` must reference `tenant_id`. If any do not — fail.
-  2. Every `CREATE TABLE` in those same directories must name its schema (the table name
-     contains a `.`). If any do not — fail. (W-06 §13 R7 owed check.)
+- **CI build check — three gates added to `.github/workflows/ci.yml`**:
+  1. Every `CREATE TABLE` in `db/migration/core/`, `db/migration/hrms/`, or `db/migration/payroll/` must reference `tenant_id` (Gate A).
+  2. Every `CREATE TABLE` in those same directories must name its schema (Gate B, W-06 §13 R7).
+  3. Every file creating a table in those directories must include `ENABLE ROW LEVEL SECURITY` and `CREATE POLICY tenant_isolation` (Gate C).
 - **Integration test (`TenantIsolationIT`)** in the `migration` module: provisions a
   Testcontainer, seeds two tenants (Tenant A and Tenant B), runs `V001__tenant.sql`, and proves RLS isolation.
-- **`migration/README.md` additions**: append the row-level security section verbatim from §3a.
+- **`migration/README.md` additions**: append `#### Row-level security` verbatim from §3a (`tenant_id` standard already exists at README.md:52).
 
 **Out of scope**
 
@@ -188,10 +188,10 @@ Work is split across three distinct tasks (one module/area per task, adhering to
 **Task 2: Migration module (`code/backend/migration`)**
 - `code/backend/migration/src/main/resources/db/migration/core/V001__tenant.sql` — **New.** Creates `core.tenant`, unique index on `tenant_id`, composite index `(tenant_id, id)`, enables RLS, and creates isolation policy `tenant_isolation`.
 - `code/backend/migration/src/test/java/com/infinevo/migration/TenantIsolationIT.java` — **New.** Integration test. Provisions Testcontainer, seeds two tenants (Tenant A and Tenant B per `active-work.md:182`), runs `V001__tenant.sql`, and asserts RLS isolation probes (breaks 3, 4, 5).
-- `code/backend/migration/README.md` — **Modified.** Appends the row-level security section from §3a verbatim.
+- `code/backend/migration/README.md` — **Modified.** Appends `#### Row-level security` section verbatim from §3a (`tenant_id` column standard section is already present at line 52). Documents convention: **One table creation per Flyway migration script**.
 
 **Task 3: CI workflows (`.github/workflows`)**
-- `.github/workflows/ci.yml` — **Modified.** Two new `static` steps: `tenant_id present in all non-reference CREATE TABLE` and `schema qualifier present in all CREATE TABLE` (§3d).
+- `.github/workflows/ci.yml` — **Modified.** Three new `static` steps: Gate A (`tenant_id` present), Gate B (`schema qualifier` present), Gate C (`row-level security policy` present) (§3d).
 
 **Not touched.** `infra/postgres/` — roles, schemas, and grants are correct and complete from W-05 and W-06. `infra/docker/compose.yml` — no change.
 
@@ -235,7 +235,9 @@ CREATE POLICY tenant_isolation ON core.tenant
 
 ### 3d. CI check steps
 
-Both steps go in the `static` job in `.github/workflows/ci.yml`, beside the existing `ddl-auto set nowhere` and `spring.flyway confined to migration module` steps.
+All three steps go in the `static` job in `.github/workflows/ci.yml`, beside the existing `ddl-auto set nowhere` and `spring.flyway confined to migration module` steps.
+
+Convention enforced by CI: **Every Flyway migration script under `db/migration/` creates at most one table.** (Multi-line DDL within a single script is evaluated as 1 table per script).
 
 **Step A — tenant_id present in all non-reference CREATE TABLE statements**
 
@@ -265,13 +267,33 @@ Both steps go in the `static` job in `.github/workflows/ci.yml`, beside the exis
   run: |
     bad=$(find code/backend/migration/src/main/resources/db/migration/ \
           -name '*.sql' 2>/dev/null \
-        | xargs -r grep -nE 'CREATE[[:space:]]+TABLE([[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)?[[:space:]]+[a-zA-Z0-9_]+[[:space:](]' 2>/dev/null || true)
+        | xargs -r grep -inE 'CREATE[[:space:]]+TABLE([[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)?[[:space:]]+"?[a-zA-Z0-9_]+"?[[:space:](]' 2>/dev/null || true)
     if [ -n "$bad" ]; then
       echo "::error::Unqualified CREATE TABLE found — every table must be schema-qualified (W-06 §13 R7, W-07 CI gate):"
       echo "$bad"
       exit 1
     fi
     echo "OK - all CREATE TABLE statements are schema-qualified"
+```
+
+**Step C — row-level security policy present in all non-reference CREATE TABLE statements**
+
+```yaml
+- name: row-level security policy present in all non-reference CREATE TABLE statements
+  if: ${{ !cancelled() }}
+  run: |
+    bad=$(find code/backend/migration/src/main/resources/db/migration/core \
+               code/backend/migration/src/main/resources/db/migration/hrms \
+               code/backend/migration/src/main/resources/db/migration/payroll \
+          -name '*.sql' 2>/dev/null \
+        | xargs -r grep -lE 'CREATE[[:space:]]+TABLE' 2>/dev/null \
+        | xargs -r grep -LE 'ENABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY' 2>/dev/null || true)
+    if [ -n "$bad" ]; then
+      echo "::error::Migration script(s) create a table in core/hrms/payroll without ENABLE ROW LEVEL SECURITY (W-07 §row-level security):"
+      printf '%s\n' "$bad"
+      exit 1
+    fi
+    echo "OK - all non-reference CREATE TABLE statements include RLS policy"
 ```
 
 ---
@@ -285,10 +307,11 @@ The deliverable is a constraint. The tests that matter are the ones that break i
 | 1 | Add a script `core/V999__no_tenant.sql` containing `CREATE TABLE core.missing_tenant (id bigserial PRIMARY KEY)` — no tenant_id | CI Step A fails: "Migration script(s) create a table in core/hrms/payroll without tenant_id" |
 | 2 | Add a script `core/V999__unqualified.sql` containing `CREATE TABLE employee (id bigserial PRIMARY KEY, tenant_id uuid NOT NULL)` — no dot | CI Step B fails: "Unqualified CREATE TABLE found" |
 | 3 | Connect as `app_user` to test Testcontainer WITHOUT calling `TenantContext.setForConnection(conn)` and `SELECT * FROM core.tenant` | Returns 0 rows — the RLS policy's NULL cast evaluates to false |
-| 4 | Connect as `app_user`, call `setForConnection` with tenant UUID A, insert two rows for A and one for B (as migration_user), then SELECT | Returns exactly 2 rows — only tenant A's rows visible |
+| 4 | Connect as `app_user`, call `setForConnection` with tenant UUID A, insert 1 row for tenant A and 1 row for tenant B (as migration_user), then `SELECT * FROM core.tenant` | Returns exactly 1 row — only tenant A's row visible (`core.tenant` is a registry table with a UNIQUE index on `tenant_id`) |
 | 5 | Connect as `migration_user` and `SELECT * FROM core.tenant` with no SET LOCAL | Returns all rows — table owner bypasses RLS by PostgreSQL default |
+| 6 | Add a script `core/V999__no_rls.sql` containing `CREATE TABLE core.missing_rls (id bigserial PRIMARY KEY, tenant_id uuid NOT NULL)` — no RLS | CI Step C fails: "Migration script(s) create a table in core/hrms/payroll without ENABLE ROW LEVEL SECURITY" |
 
-Prove breaks 1 and 2 by running CI on a throwaway branch. Prove breaks 3–5 in `TenantIsolationIT`. Never merge the break branches.
+Prove breaks 1, 2, 6 by running CI scripts locally against break files. Prove breaks 3–5 in `TenantIsolationIT`. Never merge the break branches.
 
 ---
 
@@ -320,10 +343,10 @@ docker compose -f infra/docker/compose.yml exec -T postgres \
   -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='core' AND table_name='tenant'"
 # Expected: 1
 
-# 3 — confirm RLS is enabled on core.tenant
+# 3 — confirm RLS is enabled on core.tenant (relrowsecurity column on pg_class)
 docker compose -f infra/docker/compose.yml exec -T postgres \
   psql -tAU postgres -d infinevo \
-  -c "SELECT rowsecurity FROM pg_class WHERE relname='tenant' AND relnamespace='core'::regnamespace"
+  -c "SELECT relrowsecurity FROM pg_class WHERE relname='tenant' AND relnamespace='core'::regnamespace"
 # Expected: t
 
 # 4 — confirm app_user sees nothing without SET LOCAL (using SET ROLE via postgres superuser)
@@ -344,21 +367,41 @@ find code/backend/migration/src/main/resources/db/migration/core \
 # 6 — CI Step B clean on shipped scripts
 find code/backend/migration/src/main/resources/db/migration/ \
      -name '*.sql' 2>/dev/null \
-  | xargs -r grep -nE 'CREATE[[:space:]]+TABLE([[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)?[[:space:]]+[a-zA-Z0-9_]+[[:space:](]'
+  | xargs -r grep -inE 'CREATE[[:space:]]+TABLE([[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)?[[:space:]]+"?[a-zA-Z0-9_]+"?[[:space:](]'
 # Expected: no output
+
+# 7 — CI Step C clean on shipped scripts
+find code/backend/migration/src/main/resources/db/migration/core \
+     code/backend/migration/src/main/resources/db/migration/hrms \
+     code/backend/migration/src/main/resources/db/migration/payroll \
+     -name '*.sql' 2>/dev/null \
+  | xargs -r grep -lE 'CREATE[[:space:]]+TABLE' 2>/dev/null \
+  | xargs -r grep -LE 'ENABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY' 2>/dev/null
+# Expected: no output
+
+# 8 — README.md headers present
+grep -q 'tenant_id' code/backend/migration/README.md && grep -q 'Row-level security' code/backend/migration/README.md
+# Expected: exit 0
+
+# 9 — migration_user credential absent from app/worker
+git grep -n migration_user -- code/backend/app code/backend/worker || true
+# Expected: no output (exit 1 from grep)
+
+# 10 — ddl-auto set nowhere
+git grep -n 'ddl-auto' -- code/backend/
+# Expected: no output (exit 1 from grep)
 ```
 
 | Check | Expected |
 |---|---|
-| `TenantIsolationIT` passes | Breaks 3, 4, 5 from §4 pass as positive assertions (including two-tenant seed) |
+| `TenantIsolationIT` passes | Breaks 3, 4, 5 from §4 pass as positive assertions (including two-tenant seed, 1 row per tenant) |
 | `TenantContextTest` passes | Unit tests for ThreadLocal get/set/clear and setForConnection |
 | `core.tenant` exists | `count = 1` |
-| RLS enabled on `core.tenant` | `rowsecurity = t` |
+| RLS enabled on `core.tenant` | `relrowsecurity = t` |
 | `app_user` sees 0 rows without context | `count = 0` |
 | CI Step A passes on V001 | No output |
 | CI Step B passes on V001 | No output |
-| CI Step A fails on break 1 | Error message, exit 1 (linked from PR) |
-| CI Step B fails on break 2 | Error message, exit 1 (linked from PR) |
+| CI Step C passes on V001 | No output |
 
 ---
 
@@ -367,7 +410,7 @@ find code/backend/migration/src/main/resources/db/migration/ \
 | Gap | Disposition |
 |---|---|
 | `BUG-002` — HRMS carries no tenant column on any entity (`legacy/docs/GAP_INVENTORY.md:28`) | **Prerequisite fixed.** The enforcement mechanism (column standard + RLS + CI check) is delivered by W-07. The actual HRMS entities are ported by `W-13` onwards. BUG-002 is fully closed only when every table in `core`, `hrms`, and `payroll` exists and passes the CI check |
-| `DEBT-018` — Missing composite index on tenant_id plus lookup columns (`legacy/docs/GAP_INVENTORY.md:142`) | **Pattern established.** `V001__tenant.sql` adds composite index `(tenant_id, id)` and documents the composite indexing standard in `migration/README.md` |
+| `DEBT-018` — Missing composite index on tenant_id plus lookup columns (`legacy/docs/GAP_INVENTORY.md:68`) | **Pattern established.** `legacy/docs/GAP_INVENTORY.md:68` states *"Zero @Index declarations across all 99 entities"*. `V001__tenant.sql` adds composite index `(tenant_id, id)` and documents the composite indexing standard in `migration/README.md` |
 
 ---
 
@@ -376,7 +419,7 @@ find code/backend/migration/src/main/resources/db/migration/ \
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | `current_setting('app.current_tenant_id', true)` returns NULL on a connection that was not SET LOCAL'd — silent empty result instead of error | High — by design | Documented in §3a as the intended fail-safe. Break 3 of §4 proves it. Application filter (future ticket) must always call SET LOCAL |
-| CI grep for `CREATE TABLE` misses multi-line DDL | Low | Scripts are reviewed like code. CI is the first line; review the second |
+| CI grep for `CREATE TABLE` misses multi-line DDL | Low | Known limit documented in §3d. Scripts are reviewed like code; one table creation statement per Flyway script convention enforced |
 | A future script passes CI by naming the column `tenant_uuid` instead of `tenant_id` | Low | The grep is literal. Any deviation fails it. The README standard names the column |
 | `migration_user` accidentally used in application — bypasses RLS | Low | W-06 CI gate already blocks `migration_user` credential in `app`/`worker` (W-06 §12 item 16) |
 
@@ -403,16 +446,16 @@ Nothing is in production. Rollback is `git revert` of the pull request.
 |---|---|---|
 | 1 | `./mvnw clean verify -pl migration,shared -am` is BUILD SUCCESS and `TenantIsolationIT` ran with tests > 0 | §6 Command 1 |
 | 2 | `TenantContextTest` ran with tests > 0 | §6 Command 1 |
-| 3 | `core.tenant` exists in Docker Postgres with `rowsecurity = t` | §6 Commands 2 & 3 |
+| 3 | `core.tenant` exists in Docker Postgres with `relrowsecurity = t` | §6 Commands 2 & 3 |
 | 4 | `app_user` with no SET LOCAL sees 0 rows from `core.tenant` | §6 Command 4 |
-| 5 | `app_user` with `SET LOCAL app.current_tenant_id = '<uuid>'` sees only rows for that UUID | §6 Command 1 (`TenantIsolationIT`) |
-| 6 | CI Step A fails on a script without `tenant_id` — break 1 reproduced, output linked from PR, branch not merged | §6 Break 1 test |
-| 7 | CI Step B fails on an unqualified `CREATE TABLE` — break 2 reproduced, output linked from PR, branch not merged | §6 Break 2 test |
-| 8 | CI Step A passes on the shipped `V001__tenant.sql` | §6 Command 5 |
-| 9 | CI Step B passes on the shipped `V001__tenant.sql` | §6 Command 6 |
-| 10 | `migration/README.md` carries both sections from §3a verbatim — `grep -q 'tenant_id column standard'` and `grep -q 'Row-level security'` return 0 | §6 README check |
-| 11 | `git grep -n migration_user -- code/backend/app code/backend/worker` exits 1 | §6 Credential check |
-| 12 | `ddl-auto` set nowhere; `spring.flyway` nowhere outside the `migration` module — existing CI gates still green | §6 CI check |
+| 5 | `app_user` with `SET LOCAL app.current_tenant_id = '<uuid A>'` sees 1 row for tenant A | §6 Command 1 (`TenantIsolationIT`) |
+| 6 | CI Step A fails locally when run against a script without `tenant_id` (`V999__no_tenant.sql`) | §6 Step A break command |
+| 7 | CI Step B fails locally when run against an unqualified `CREATE TABLE` (`V999__unqualified.sql`) | §6 Step B break command |
+| 8 | CI Step C fails locally when run against a script without RLS policy (`V999__no_rls.sql`) | §6 Step C break command |
+| 9 | CI Steps A, B, C pass on the shipped `V001__tenant.sql` | §6 Commands 5, 6, 7 |
+| 10 | `migration/README.md` carries `tenant_id` standard and `Row-level security` section — `grep -q 'tenant_id'` and `grep -q 'Row-level security'` return 0 | §6 Command 8 |
+| 11 | `git grep -n migration_user -- code/backend/app code/backend/worker` exits 1 | §6 Command 9 |
+| 12 | `ddl-auto` set nowhere; `spring.flyway` nowhere outside the `migration` module — existing CI gates still green | §6 Command 10 |
 
 ---
 
