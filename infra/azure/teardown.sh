@@ -7,7 +7,9 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-ENV="dev"
+# No default. The prod guard below is solid, but the unguarded path was the one with no
+# argument at all: a bare `bash teardown.sh` deleted rg-infinevo-dev, unprompted (F-14).
+ENV=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -21,6 +23,12 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -z "$ENV" ]]; then
+  echo "ERROR: --env is required. Usage: bash infra/azure/teardown.sh --env dev|uat" >&2
+  echo "       This script deletes a resource group; it will not guess which one." >&2
+  exit 1
+fi
 
 if [[ "$ENV" == "prod" ]]; then
   echo "ERROR: prod teardown is forbidden. Production resources require manual elevation in the Azure portal." >&2

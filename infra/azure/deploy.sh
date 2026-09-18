@@ -7,6 +7,10 @@
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
+# Resolved from the script's own location so it runs from any working directory
+# (review F-15); post-deploy-db.sh already did this.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 ENV="dev"
 LOCATION="centralindia"
 
@@ -45,6 +49,19 @@ az account show >/dev/null 2>&1 || {
 SUB_ID=$(az account show --query id -o tsv)
 echo "Active Subscription: ${SUB_ID}"
 
+DEPLOYER_OID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)
+if [[ -z "$DEPLOYER_OID" ]]; then
+  # A service principal (CI) has no signed-in user; resolve its own object id instead.
+  DEPLOYER_OID=$(az ad sp show --id "$(az account show --query user.name -o tsv)" --query id -o tsv 2>/dev/null || true)
+fi
+if [[ -z "$DEPLOYER_OID" ]]; then
+  echo "ERROR: could not resolve the deploying principal object id. Without it the" >&2
+  echo "       template cannot grant Key Vault Secrets Officer and every secret write" >&2
+  echo "       later in this script would fail with 403 (review F-5)." >&2
+  exit 1
+fi
+echo "Deploying principal object id: ${DEPLOYER_OID}"
+
 SHARED_RG="rg-infinevo-shared"
 VAULT_NAME="kv-infinevo-shared"
 ADMIN_USER="infinevo_admin"
@@ -62,7 +79,25 @@ if [[ -z "$ADMIN_PW" ]]; then
   ADMIN_PW="${ADMIN_PW}Aa1!"
 fi
 
-PARAM_FILE="infra/azure/parameters/${ENV}.bicepparam"
+# The admin password is generated in memory and only reaches Key Vault after the
+# deployment returns. If anything in between fails, the Flexible Server exists with a
+# password nobody holds - so persist it on every exit path (review F-12).
+ADMIN_PW_STORED=0
+persist_admin_pw() {
+  if [[ "$ADMIN_PW_STORED" -eq 0 ]] && az keyvault show --name "$VAULT_NAME" >/dev/null 2>&1; then
+    echo "Persisting administrator password to Key Vault before exit..." >&2
+    if az keyvault secret set --vault-name "$VAULT_NAME" --name "psql-admin-pw" --value "$ADMIN_PW" >/dev/null 2>&1; then
+      ADMIN_PW_STORED=1
+    else
+      echo "WARNING: could not write psql-admin-pw to ${VAULT_NAME}. If a Flexible Server" >&2
+      echo "         was created in this run its administrator password is now lost and" >&2
+      echo "         must be reset with: az postgres flexible-server update --admin-password" >&2
+    fi
+  fi
+}
+trap persist_admin_pw EXIT
+
+PARAM_FILE="${SCRIPT_DIR}/parameters/${ENV}.bicepparam"
 if [[ ! -f "$PARAM_FILE" ]]; then
   echo "ERROR: Parameter file $PARAM_FILE not found." >&2
   exit 1
@@ -74,14 +109,16 @@ echo "Executing subscription deployment: ${DEPLOY_NAME}..."
 az deployment sub create \
   --name "$DEPLOY_NAME" \
   --location "$LOCATION" \
-  --template-file "infra/azure/main.bicep" \
+  --template-file "${SCRIPT_DIR}/main.bicep" \
   --parameters "$PARAM_FILE" \
+  --parameters deployerObjectId="$DEPLOYER_OID" \
   --parameters postgresAdminPassword="$ADMIN_PW" \
   --parameters postgresAdminUsername="$ADMIN_USER" \
   --output table
 
 echo "Deployment finished. Storing/updating administrator credentials in Key Vault..."
 az keyvault secret set --vault-name "$VAULT_NAME" --name "psql-admin-pw" --value "$ADMIN_PW" >/dev/null
+ADMIN_PW_STORED=1
 
 echo "Seeding ACR and exercising AcrPull against private registry (Check 5b)..."
 ACR_NAME="crinfinevo"
@@ -104,6 +141,7 @@ az containerapp update \
   --image "${ACR_LOGIN_SERVER}/${SMOKE_IMAGE}" >/dev/null
 
 echo "Waiting for ${APP_NAME} to reach Running status..."
+STATE=""
 for i in {1..30}; do
   STATE=$(az containerapp show -g "$APP_RG" -n "$APP_NAME" --query "properties.runningStatus" -o tsv 2>/dev/null || true)
   if [[ "$STATE" == "Running" ]]; then
@@ -112,6 +150,14 @@ for i in {1..30}; do
   fi
   sleep 5
 done
+
+# The loop used to fall through silently, so this reported green whatever happened and
+# the one test of AcrPull against the private registry could never fail (review F-4).
+if [[ "$STATE" != "Running" ]]; then
+  echo "FAIL: ${APP_NAME} runningStatus is ${STATE:-<empty>} after 150s, not Running." >&2
+  echo "      It could not pull ${ACR_LOGIN_SERVER}/${SMOKE_IMAGE} - AcrPull is not working." >&2
+  exit 1
+fi
 
 echo "================================================================="
 echo " Environment [${ENV}] successfully provisioned and ready!"

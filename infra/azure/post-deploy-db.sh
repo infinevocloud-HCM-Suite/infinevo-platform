@@ -40,7 +40,16 @@ RG_NAME="rg-infinevo-${ENV}"
 
 # 1. Resolve host and admin credentials
 echo "Resolving PostgreSQL server endpoint..."
-export PGHOST=$(az postgres flexible-server show -g "$RG_NAME" -n "$SERVER_NAME" --query fullyQualifiedDomainName -o tsv)
+# Declared before assignment on purpose: `export PGHOST=$(...)` returns export's exit
+# status, not the command's, so set -e never sees a failed lookup. An empty PGHOST makes
+# provision.sh drop -h and silently bootstrap localhost instead (review F-11).
+PGHOST=$(az postgres flexible-server show -g "$RG_NAME" -n "$SERVER_NAME" --query fullyQualifiedDomainName -o tsv)
+if [[ -z "$PGHOST" ]]; then
+  echo "ERROR: could not resolve ${SERVER_NAME} in ${RG_NAME}. Refusing to continue -" >&2
+  echo "       an empty PGHOST would bootstrap the local machine, not Azure." >&2
+  exit 1
+fi
+export PGHOST
 export PGPORT="5432"
 export PGDATABASE="infinevo"
 export PGUSER="infinevo_admin"
@@ -53,7 +62,37 @@ if [[ -z "$PGPASSWORD" ]]; then
   exit 1
 fi
 
-# 2. Generate and store role passwords in Key Vault if absent
+# 2. Open a temporary firewall rule for this machine
+# W-51 brings private endpoints; until then the server carries only the Azure-services
+# rule, so an operator running this script has no route to it at all (review F-2).
+# The rule is named for this run and revoked on every exit path, success or failure -
+# which is what the spec's risk table promised and the script did not do.
+FW_RULE_NAME="deploy-$(date +%Y%m%d%H%M%S)-$$"
+FW_RULE_CREATED=0
+
+revoke_firewall_rule() {
+  if [[ "$FW_RULE_CREATED" -eq 1 ]]; then
+    echo "Revoking temporary firewall rule ${FW_RULE_NAME}..." >&2
+    az postgres flexible-server firewall-rule delete --resource-group "$RG_NAME" --name "$SERVER_NAME" --rule-name "$FW_RULE_NAME" --yes >/dev/null 2>&1 || {
+      echo "WARNING: could not revoke ${FW_RULE_NAME}. Delete it by hand:" >&2
+      echo "  az postgres flexible-server firewall-rule delete -g ${RG_NAME} -n ${SERVER_NAME} --rule-name ${FW_RULE_NAME} --yes" >&2
+    }
+  fi
+}
+trap revoke_firewall_rule EXIT
+
+MY_IP=$(curl -s --max-time 10 https://api.ipify.org || true)
+if [[ ! "$MY_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: could not determine this machine's public IP, so no firewall rule can be" >&2
+  echo "       opened and psql cannot reach ${PGHOST}." >&2
+  exit 1
+fi
+
+echo "Authorising ${MY_IP} on ${SERVER_NAME} for the duration of this script..."
+az postgres flexible-server firewall-rule create --resource-group "$RG_NAME" --name "$SERVER_NAME" --rule-name "$FW_RULE_NAME" --start-ip-address "$MY_IP" --end-ip-address "$MY_IP" >/dev/null
+FW_RULE_CREATED=1
+
+# 3. Generate and store role passwords in Key Vault if absent
 declare -A ROLE_SECRETS=(
   ["APP_PW"]="psql-app-pw"
   ["MIGRATION_PW"]="psql-migration-pw"
@@ -88,7 +127,7 @@ done
 
 echo "PASS: All four role credentials dynamically generated and retrieved from Key Vault."
 
-# 3. Execute canonical provision.sh against Flexible Server
+# 4. Execute canonical provision.sh against Flexible Server
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROVISION_SCRIPT="${SCRIPT_DIR}/../postgres/provision.sh"
 
