@@ -5,6 +5,7 @@
 // Docs change only via the `sync-docs` skill with a founder-approved diff (root CLAUDE.md, hard rule 3).
 
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve, relative, sep, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,12 +25,27 @@ const abs = resolve(input.cwd ?? ROOT, target);
 const rel = relative(ROOT, abs).split(sep).join("/");
 const name = basename(abs);
 
-// The one sanctioned docs/ write: a ticket's own spec. `review-spec` moves an approved
-// draft to docs/target-state/features/W-nn-<slug>.md and sets its Status, and
-// check-done.mjs:384 already allows a ticket's pull request to change docs/ only under
-// that prefix. Everything else in docs/ - including the two TEMPLATE files, which do not
-// match W-nn- - stays read-only and travels through `sync-docs`.
-const isTicketSpec = /^docs\/target-state\/features\/W-\d+-[^/]+\.md$/.test(rel);
+// The one sanctioned docs/ write: THIS BRANCH'S OWN ticket spec. `review-spec` moves an
+// approved draft to docs/target-state/features/W-nn-<slug>.md and sets its Status, and
+// check-done.mjs allows a ticket's pull request to change docs/ only under `${item}-`.
+// Matching any W-nn- let a branch overwrite another ticket's approved spec, so the hook
+// was looser than the gate it cited (review F-1). It now resolves the branch's own
+// ticket and matches that alone. Everything else in docs/ - including the two TEMPLATE
+// files, which do not match W-nn- - stays read-only and travels through `sync-docs`.
+let ownTicket = "";
+try {
+  const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+  ownTicket = (/^(W-\d+)-/i.exec(branch) ?? [])[1]?.toUpperCase() ?? "";
+} catch {
+  ownTicket = ""; // no branch resolvable - fail closed, no spec is writable
+}
+const isTicketSpec =
+  ownTicket !== "" &&
+  new RegExp(`^docs/target-state/features/${ownTicket}-[^/]+\\.md$`, "i").test(rel);
 
 const reasons = [];
 if ((rel === "docs" || rel.startsWith("docs/")) && !isTicketSpec)
