@@ -22,8 +22,8 @@ infra/azure/
 │   ├── containerapps.bicep             # 4 Container Apps (app, worker, web, keycloak)
 │   ├── postgres.bicep                  # PostgreSQL 16 Flexible Server (psql-infinevo-{env})
 │   ├── redis.bicep                     # Azure Cache for Redis (redis-infinevo-{env})
-│   ├── servicebus.bicep                # Service Bus Namespace & queues (sb-infinevo-{env})
-│   └── storage.bicep                   # Storage Account & private containers (stinfinevo{env})
+│   ├── storage.bicep                   # Storage Account: private containers & queues (stinfinevo{env})
+│   └── frontdoor.bicep                 # Front Door Standard + WAF (afd-infinevo-shared)
 ├── parameters/
 │   ├── dev.bicepparam                  # Dev environment (burstable SKUs, scale-to-zero)
 │   ├── uat.bicepparam                  # UAT environment (acceptance testing topology)
@@ -39,14 +39,22 @@ infra/azure/
    - `crinfinevo`: Azure Container Registry (admin disabled).
    - `kv-infinevo-shared`: Key Vault (Azure RBAC authorization mode).
    - `law-infinevo-shared`: Log Analytics workspace.
+   - `afd-infinevo-shared`: Front Door Standard profile (`global`) — the only public entry
+     point. One endpoint `ep-infinevo-{env}` per environment, three origin groups
+     `og-{env}-{web,app,keycloak}`, routes `/*`, `/api/*`, `/auth/*`, and the rule set
+     `rsorigintag` stamping `X-Infinevo-Origin` on each response.
+   - `wafinfinevoshared`: Front Door WAF policy (`Standard_AzureFrontDoor`, Prevention) —
+     a 100-requests-per-minute-per-IP rate limit and a canary rule blocking
+     `?wafcanary=block`, associated to each endpoint by `sp-infinevo-{env}`.
 
 2. **`rg-infinevo-{env}` (Central India, Per Environment: `dev`, `uat`, `prod`)**:
    - `cae-infinevo-{env}`: Container Apps Managed Environment.
    - `ca-infinevo-{env}-{app,worker,web,keycloak}`: 4 Container Apps.
    - `psql-infinevo-{env}`: PostgreSQL 16 Flexible Server (`infinevo` and `keycloak` databases).
    - `redis-infinevo-{env}`: Azure Cache for Redis.
-   - `sb-infinevo-{env}`: Service Bus with queues `payrun`, `import`, `report`.
-   - `stinfinevo{env}`: Storage Account with private containers `documents`, `payslips`, `proofs`.
+   - `stinfinevo{env}`: Storage Account with private containers `documents`, `payslips`, `proofs`
+     and queues `payrun`, `import`, `report`. Storage Queue replaced Azure Service Bus
+     (founder decision 2026-09-19): Service Bus private endpoints are Premium-tier only.
    - `id-{app,worker,web,keycloak}-{env}`: User-Assigned Managed Identities with `AcrPull` on `crinfinevo`.
 
 ---
@@ -91,6 +99,27 @@ To destroy an ephemeral environment:
 bash infra/azure/teardown.sh --env dev
 ```
 *(Guarded: strictly refuses execution when `--env prod` is passed).*
+
+It removes the environment's Front Door endpoint, routes, origin groups and WAF
+association from `rg-infinevo-shared` first, then deletes `rg-infinevo-{env}` — which
+takes the VNet, private endpoints and private DNS zones with it. The shared WAF policy and
+rule set are removed only when the last endpoint has gone, so tearing down `dev` leaves
+`uat` protected.
+
+### 4.4 Custom domains — a manual step at the registrar
+
+DNS stays at the external registrar (founder decision 2026-09-19, `W-51` decision 1), so
+no Azure DNS zone exists and `deploy.sh` cannot create or validate these records. The
+platform runs entirely on the default `ep-infinevo-{env}-<hash>.z01.azurefd.net` endpoint,
+which needs no DNS at all; binding a friendly name is optional and changes no Bicep.
+
+To bind one — for example `dev.infinevo.cloud` — create two records at the registrar and
+then add the custom domain in the Front Door profile:
+
+| Record | Name | Value |
+|---|---|---|
+| `TXT` | `_dnsauth.dev` | the validation token shown by `az afd custom-domain show` |
+| `CNAME` | `dev` | the endpoint hostname from `az afd endpoint show --query hostName -o tsv` |
 
 ---
 

@@ -37,7 +37,9 @@ resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
     }
     enableNonSslPort: false
     minimumTlsVersion: '1.2'
-    publicNetworkAccess: 'Enabled'
+    // W-51 section 2.3: reached only through the private endpoint in snet-pe. No
+    // deployment-time data-plane call is made against Redis, so there is nothing to keep open.
+    publicNetworkAccess: 'Disabled'
   }
 }
 

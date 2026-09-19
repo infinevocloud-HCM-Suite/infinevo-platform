@@ -10,6 +10,9 @@ param enablePurgeProtection bool = false
 @description('Object id of the principal running the deployment. Granted Key Vault Secrets Officer so deploy.sh and post-deploy-db.sh can write secrets to an RBAC-authorised vault (review F-5). Empty skips the assignment.')
 param deployerObjectId string = ''
 
+@description('Transient IPv4 rules allowed through the network ACL, each an object with a value property holding a CIDR such as a single /32. Empty at rest; deploy.sh adds its own egress address for the length of one run and revokes it on exit (W-51 section 2.3). Section 5 step 2 fails if any rule survives.')
+param allowedIpRules array = []
+
 @description('Tags for the resource')
 param tags object = {}
 
@@ -30,7 +33,21 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
     enablePurgeProtection: enablePurgeProtection ? true : null
+    // Stays 'Enabled' on purpose, and is the one resource in W-51 that is not Disabled.
+    // deploy.sh:120 and post-deploy-db.sh:58,106,112 are Key Vault DATA-PLANE calls made
+    // from CI before anything exists inside the VNet; Disabled kills the endpoint outright
+    // and no ACL rule can reopen it, so the deployment that creates the vault could never
+    // write to it. The vault is closed by networkAcls below instead - defaultAction Deny
+    // leaves no open public surface at rest (W-51 section 2.3, founder-confirmed 2026-09-19).
     publicNetworkAccess: 'Enabled'
+    networkAcls: {
+      // AzureServices bypass covers the platform's own trusted services; the private
+      // endpoint in snet-pe is unaffected by these rules either way.
+      bypass: 'AzureServices'
+      defaultAction: 'Deny'
+      ipRules: allowedIpRules
+      virtualNetworkRules: []
+    }
   }
 }
 
