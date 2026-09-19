@@ -25,6 +25,35 @@ failure mode that costs a rewrite.
    line and the code line. Do **not** edit the doc — that is `sync-docs`.
 6. If a new defect surfaces that is not in `GAP_INVENTORY.md`, add a "Proposed GAP entry"
    block (next free ID, category BUG/DEBT, evidence) to the report.
-7. Reply to the founder with: answer (≤6 lines), evidence table, doc drift, proposed GAP
-   entries, and the report path.
+7. Reply with the summary below.
 8. **STOP.** No follow-on work without a new instruction.
+
+---
+
+## What the dev reads
+
+Most people run this to understand a ticket before writing its spec. So lead with the
+plain-English answer, not the evidence. No jargon, short sentences, and say what it
+means for the work rather than only what the code does.
+
+```
+W-nn in plain English
+
+What it is:      <one or two sentences. What a user gets, or what stops being broken>
+How it works today: <one or two sentences, or "it does not exist yet">
+What it touches: <the modules and screens, named plainly>
+The catch:       <the one thing that will bite - a load-bearing typo, a shared table,
+                  a legacy behaviour that must be kept. Or "nothing obvious">
+
+| Claim | Evidence |
+|---|---|
+| Leave requests are approved by the reporting manager | legacy/HRMS_Backend/.../LeaveController.java:88 |
+
+Doc drift: <doc + line, or "none">
+Proposed GAP entries: <or "none">
+Full report: .claude/outputs/<date>-analyze-<slug>.md
+Next: /plan-feature W-nn  (or /infra-task W-nn for platform work)
+```
+
+**Six lines of plain English, then the evidence.** Somebody who reads only the top must
+still understand the ticket well enough to talk about it.

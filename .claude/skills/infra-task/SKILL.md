@@ -123,9 +123,33 @@ it is where the tenant rule is stated, and step 5 below is how it reaches the sp
     two files, no new database object — and **say in step 12 whether you ran it and what
     it found.** `/review-spec` never edits the spec; it hands back findings for this
     skill to fix. Running it is not approval and does not substitute for it.
-12. Reply with the spec path, a summary of 10 lines or fewer, the task list, whether
-    `/review-spec` ran, and any decisions the founder must make, as numbered questions.
-    **STOP and wait for approval.**
+12. Reply with the summary below. **STOP and wait for approval.**
+
+### What the founder reads
+
+Plain English, no jargon. The founder is deciding whether to approve, so say what will
+exist afterwards and what could go wrong — not how it is wired.
+
+```
+W-nn — <title>: plan ready
+
+What gets built: <two or three sentences a non-engineer would follow>
+What it costs:   <money per month, or "nothing new">
+What could go wrong: <the honest risk, one sentence. Or "nothing unusual">
+
+| File or resource | New or changed | Why |
+|---|---|---|
+| infra/azure/network.bicep | new | The private network the database sits in |
+| .github/workflows/ci.yml | changed | Runs the new check on every push |
+
+/review-spec: ran, <n> blockers, all fixed   (or: skipped - small ticket)
+Spec: docs/target-state/features/W-nn-<slug>.md
+
+Decisions I need from you:
+1. <question>
+
+Approve and I start.
+```
 
 > The guard hook blocks writes to `docs/`. Write the spec to `.claude/outputs/` first and
 > copy it across once approved, or use `sync-docs`.
@@ -135,9 +159,10 @@ it is where the tenant rule is stated, and step 5 below is how it reaches the sp
 13. Spawn one **implementer** per task from step 7, confined to that task's single area.
 14. Spawn **verifier** with the verification commands from the spec. Attach its report
     verbatim; do not summarise away a failure.
-15. Update the spec to match what was actually built, then open a pull request saying
-    `Closes #<issue>` with the real command output in the body.
-16. Reply with the summary. **STOP.**
+15. Update the spec to match what was actually built, and commit on the ticket branch
+    with the real command output in the commit message.
+16. Reply with the same summary shape as step 12, saying what now exists rather than what
+    will. Then `/merge W-nn`. **STOP.**
 
 ## Standing constraints
 

@@ -27,7 +27,7 @@ const name = basename(abs);
 
 // The one sanctioned docs/ write: THIS BRANCH'S OWN ticket spec. `review-spec` moves an
 // approved draft to docs/target-state/features/W-nn-<slug>.md and sets its Status, and
-// check-done.mjs allows a ticket's pull request to change docs/ only under `${item}-`.
+// check-done.mjs allows a ticket's branch to change docs/ only under `${item}-`.
 // Matching any W-nn- let a branch overwrite another ticket's approved spec, so the hook
 // was looser than the gate it cited (review F-1). It now resolves the branch's own
 // ticket and matches that alone. Everything else in docs/ - including the two TEMPLATE

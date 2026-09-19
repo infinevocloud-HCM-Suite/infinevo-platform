@@ -51,10 +51,37 @@ Invoke as `/plan-feature W-nn`. For platform tickets (`skill-INFRA`, `skill-DATA
     whether you ran it and what it found.** `/review-spec` never edits the spec; it
     hands back findings for this skill to fix. Running it is not approval and does not
     substitute for it.
-11. Reply with the spec path, a summary of 10 lines or fewer, the task list, whether
-    `/review-spec` ran, and the decisions the founder must make, as numbered questions.
+11. Reply with the summary below.
 12. **STOP and wait for approval.** Do not spawn **implementer**. Do not write any file
     outside `.claude/outputs/`.
+
+---
+
+## What the founder reads
+
+Plain English, no jargon. The founder is deciding whether to approve, so say what will
+be built and what could go wrong — not how it is structured.
+
+```
+W-nn — <title>: spec ready
+
+What gets built: <two or three sentences a non-engineer would follow>
+What could go wrong: <the honest risk, one sentence. Or "nothing unusual">
+
+| File or area | New or changed | Why |
+|---|---|---|
+| code/backend/hrms/leave | new service | Works out remaining leave |
+| code/frontend/src/hrms | changed form | Shows the balance before you submit |
+
+/review-spec: ran, <n> blockers, all fixed   (or: skipped - small ticket, one file)
+Spec: docs/target-state/features/W-nn-<slug>.md
+
+Decisions I need from you:
+1. <question>
+2. <question>
+
+Approve and I start.
+```
 
 ## What a good spec looks like
 

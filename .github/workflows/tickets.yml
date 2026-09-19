@@ -8,7 +8,7 @@
 #                  that is not `ready`, or a claim by someone already holding 2.
 #   unblock        on every issue close - any `blocked` ticket whose blockers are all
 #                  closed becomes `ready`, so nobody has to notice.
-#   stale-sweep    nightly - a claim with no branch, PR or comment for 3 working days
+#   stale-sweep    nightly - a claim with no branch or comment for 3 working days
 #                  is released back to the queue.
 #
 # An assignment made by a repository admin bypasses claim-guard. Not a workflow - the
@@ -171,25 +171,24 @@ jobs:
               owner, repo, state: 'open', labels: 'ready', assignee: '*', per_page: 100 }))
               .filter(i => !i.pull_request && i.assignees.length > 0);
 
-            const prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
             const branches = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
 
             let released = 0;
             for (const t of claimed) {
               const who = t.assignees[0].login;
               const id = (t.title.match(/^W-\d{2}(?:\.\d+)?/) || [null])[0];
-              const ref = new RegExp(`(^|[^0-9])#${t.number}([^0-9]|$)`);
 
-              // Evidence of work, any of: an open PR that references the ticket, a
-              // branch that carries its W-id, or any activity on the issue itself.
-              const hasPr = prs.some(p => p.user.login === who && ref.test(`${p.title}\n${p.body || ''}`));
+              // Evidence of work: a branch that carries the ticket's W-id, or any
+              // activity on the ticket itself. There are no pull requests in this flow -
+              // a branch is squashed onto main by /merge - so the branch IS the evidence
+              // that somebody started, right up until it is merged and deleted.
               const hasBranch = id && branches.some(b => b.name.toLowerCase().includes(id.toLowerCase()));
               const idle = workingDaysSince(t.updated_at);
-              if (hasPr || hasBranch || idle < limitDays) continue;
+              if (hasBranch || idle < limitDays) continue;
 
               await github.rest.issues.removeAssignees({ owner, repo, issue_number: t.number, assignees: [who] });
               await github.rest.issues.createComment({ owner, repo, issue_number: t.number,
-                body: `Released back to the queue: @${who} claimed this but there has been no branch, PR or comment for ${idle} working days. Claim it again when you are ready to start.` });
+                body: `Released back to the queue: @${who} claimed this but there has been no branch or comment for ${idle} working days. Claim it again when you are ready to start.` });
               core.info(`#${t.number} released from ${who} after ${idle} working days.`);
               released++;
             }

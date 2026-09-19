@@ -1,28 +1,30 @@
 #!/usr/bin/env node
 // guard-merge.mjs — PreToolUse hook for Bash.
 //
-// Two things reach main, and both are guarded here:
+// One thing reaches main: a push. This decides whether it may.
 //
-//   1. a PR merge command   — refused unless check-done.mjs wrote a PASSING receipt
-//                             for that PR, at the commit currently on the branch
-//   2. `git push` to main   — refused when the push carries changes under code/
+//   a push to main carrying code/ or docs/  — refused unless check-done.mjs wrote a
+//                                             PASSING receipt for the exact content
+//                                             being pushed
+//   anything else                           — allowed
+//
+// There is no pull request in this flow. /merge squashes the ticket branch onto main
+// locally and pushes, so the push IS the merge and this is the only place to stand.
 //
 // Branch protection is unavailable on the GitHub Free plan (D-43), so main is otherwise
-// held by convention alone. This is the enforcement actually available to us: it runs
-// on the machine doing the merge, before the command leaves it.
+// held by convention alone. This is the enforcement actually available to us: it runs on
+// the machine doing the merge, before the command leaves it.
 //
 // Exit 2 = deny, with the reason on stderr. Exit 0 = allow.
 // Fails OPEN on malformed input - a broken hook must not block all work.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
 const RECEIPTS = join(ROOT, ".claude", "outputs", ".merge-receipts");
-const MAX_AGE_MS = 60 * 60 * 1000; // an hour. Long enough to be convenient, short
-                                   // enough that it cannot become a permanent pass.
 
 let input = {};
 try {
@@ -60,91 +62,66 @@ function git(args) {
   return (r.stdout ?? "").trim();
 }
 
-// ── 1. the PR merge command ─────────────────────────────────────────────────
-const MERGE = new RegExp("\\bgh\\s+pr\\s+merge(?:\\s+(\\d+))?");
-const merge = MERGE.exec(cmd);
-if (merge) {
-  const pr = merge[1];
-  if (!pr) {
-    deny([
-      "A PR merge without an explicit number is refused, so the done-check can be",
-      "  matched to the pull request it was run for. Name it: ... merge <number> --squash",
-    ]);
-  }
+// ── the push to main ────────────────────────────────────────────────────────
+if (!/\bgit\s+push\b/.test(cmd)) process.exit(0);
 
-  const path = join(RECEIPTS, `pr-${pr}.json`);
-  if (!existsSync(path)) {
-    deny([
-      `No done-check receipt for PR #${pr}.`,
-      "The definition of done has not been verified for this pull request.",
+const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+const targetsMain =
+  /\bgit\s+push\b[^|;&]*\bmain\b/.test(cmd) || (branch === "main" && !/\s-\S*[bu]\s/.test(cmd));
+if (!targetsMain) process.exit(0);
+
+// What this push would add to main. Only code/ and docs/ need a receipt - a harness or
+// tooling commit straight to main is routine and always has been.
+const changed = git(["diff", "--name-only", "origin/main..HEAD"]).split("\n").filter(Boolean);
+const guarded = changed.filter((f) => f.startsWith("code/") || f.startsWith("docs/"));
+if (!guarded.length) process.exit(0);
+
+// The receipt is matched on the TREE, not the commit. /merge squashes the ticket branch
+// onto main, so the commit is new even though the bytes are the ones that were checked.
+// The tree is exactly "what was checked", and it survives the squash - while a main that
+// moved underneath changes it, which correctly forces a re-check.
+const tree = git(["rev-parse", "HEAD^{tree}"]);
+
+let receipts = [];
+try {
+  receipts = readdirSync(RECEIPTS)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => {
+      try {
+        return { file: f, ...JSON.parse(readFileSync(join(RECEIPTS, f), "utf8")) };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+} catch {
+  receipts = [];
+}
+
+const match = receipts.find((r) => r.status === "PASS" && r.tree && tree && r.tree === tree);
+
+if (!match) {
+  const passing = receipts.filter((r) => r.status === "PASS");
+  const near = passing.find((r) => r.tree && r.tree !== tree);
+  deny(
+    [
+      `This push puts ${guarded.length} file(s) under code/ or docs/ onto main:`,
+      ...guarded.slice(0, 5).map((f) => `    ${f}`),
+      guarded.length > 5 ? `    ... and ${guarded.length - 5} more` : "",
       "",
-      `  Run:  node .claude/scripts/check-done.mjs ${pr}`,
+      near
+        ? `A passing check exists (${near.branch ?? near.file}) but it was written for different content.`
+        : "No passing done-check exists for this content.",
+      "Something changed after it was checked, or it was never run.",
+      "",
+      "  Run:  node .claude/scripts/check-done.mjs",
       "",
       "It checks the spec is approved, no High finding is open, legacy/ is untouched,",
-      "ddl-auto is set nowhere, money is not a floating-point type, and both builds pass.",
-      "A receipt is written only when every gate passes.",
-    ]);
-  }
-
-  let receipt;
-  try {
-    receipt = JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    deny([`Receipt for PR #${pr} is unreadable. Re-run: node .claude/scripts/check-done.mjs ${pr}`]);
-  }
-
-  if (receipt.status !== "PASS") {
-    deny([`Receipt for PR #${pr} records status ${receipt.status}, not PASS.`]);
-  }
-
-  const age = Date.now() - Date.parse(receipt.at);
-  if (!(age >= 0) || age > MAX_AGE_MS) {
-    deny([
-      `Receipt for PR #${pr} is ${Math.round(age / 60000)} minutes old (limit 60).`,
-      `Re-run: node .claude/scripts/check-done.mjs ${pr}`,
-    ]);
-  }
-
-  const head = git(["rev-parse", "HEAD"]);
-  if (receipt.head && head && receipt.head !== head) {
-    deny([
-      `The receipt for PR #${pr} was written for commit ${receipt.head.slice(0, 8)},`,
-      `  but HEAD is now ${head.slice(0, 8)}. Code changed after it was checked.`,
-      `Re-run: node .claude/scripts/check-done.mjs ${pr}`,
-    ]);
-  }
-
-  process.exit(0); // receipt is valid, fresh, and for this commit
+      "docs/ changed only by a recognised route, ddl-auto is set nowhere, money is not a",
+      "floating-point type, and CI is green for this exact commit. A receipt is written",
+      "only when every gate passes.",
+    ].filter(Boolean),
+  );
 }
 
-// ── 2. git push straight to main ────────────────────────────────────────────
-if (/\bgit\s+push\b/.test(cmd)) {
-  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const targetsMain =
-    /\bgit\s+push\b[^|;&]*\bmain\b/.test(cmd) || (branch === "main" && !/\s-\S*[bu]\s/.test(cmd));
-
-  if (targetsMain) {
-    // Only code needs a pull request. Docs and harness commits to main are routine.
-    const changed = git(["diff", "--name-only", "origin/main..HEAD"]).split("\n").filter(Boolean);
-    const code = changed.filter((f) => f.startsWith("code/"));
-    if (code.length) {
-      deny(
-        [
-          `This push puts ${code.length} file(s) under code/ straight onto main:`,
-          ...code.slice(0, 5).map((f) => `    ${f}`),
-          code.length > 5 ? `    ... and ${code.length - 5} more` : "",
-          "",
-          "Code reaches main through a reviewed pull request, never directly.",
-          "",
-          "  git checkout -b W-nn-<slug>",
-          "  git push -u origin W-nn-<slug>",
-          "  gh pr create --fill",
-          "",
-          "Docs and harness changes on main are fine - this only guards code/.",
-        ].filter(Boolean),
-      );
-    }
-  }
-}
-
-process.exit(0);
+process.exit(0); // receipt is passing, and for exactly this content

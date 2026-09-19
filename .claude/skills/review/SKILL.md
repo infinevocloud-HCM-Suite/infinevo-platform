@@ -1,11 +1,12 @@
 ---
 name: review
-description: Review a pull request against its spec's acceptance criteria. Reports numbered findings and fixes nothing. Reads for what verify cannot run.
+description: Review a branch against its spec's acceptance criteria. Reports numbered findings and fixes nothing. Reads for what verify cannot run.
 ---
 
 # review
 
-Invoke as `/review <pr-number>`.
+Invoke as `/review W-nn`, on the ticket's branch. Usually called by `/develop` rather
+than typed by hand.
 
 Answers a different question from `/verify`. Verify asks *does it work* by running
 things. **Review asks *is it right* by reading.**
@@ -22,18 +23,19 @@ to `/develop`.
 
 ## Steps
 
-1. Confirm the pull request exists and find its ticket:
-   `gh pr view <pr> --json title,body,files,headRefName`.
+1. Confirm the branch and its ticket. The diff under review is
+   `git diff main...HEAD` — everything this branch adds on top of main.
+   `git rev-parse --abbrev-ref HEAD` names the ticket.
 2. Read the ticket's spec under `docs/target-state/features/W-nn-*.md`. **Its §9
    verification table and §13 done-when list are the standard.** Not your taste —
    disagreements about approach belong at spec approval, not here.
-3. Spawn **reviewer** with the pull request number, the spec path, and any `/verify`
+3. Spawn **reviewer** with the branch diff, the spec path, and any `/verify`
    report already written for this ticket. The agent's own instructions carry the
    checklist — what to look for and in what order.
 4. Read the returned report. **Spot-check at least two `path:line` citations** yourself
    with Read; if one is wrong, send the reviewer back with the correction.
-5. Write the report to `.claude/outputs/<date>-review-pr-<n>.md` and post a summary
-   comment on the pull request. The reviewer cannot write files — this step is yours.
+5. Write the report to `.claude/outputs/<date>-review-W-nn.md`. The reviewer cannot
+   write files — this step is yours.
 
 ---
 
@@ -42,7 +44,7 @@ to `/develop`.
 Same finding format as `/verify`, so `/develop` and `check-done.mjs` can read both.
 
 ```
-# Review — PR #<n> — W-nn — <date>
+# Review — W-nn — <date>
 
 ## Verdict
 APPROVE / APPROVE WITH FINDINGS / CHANGES REQUIRED
@@ -81,5 +83,13 @@ than none.
 
 ## Finishing
 
-- **CHANGES REQUIRED** or any High finding → `/develop W-nn`
-- **APPROVE** → `/merge <pr>`
+Hand the report back to `/develop`, which fixes what is open and calls this skill again.
+This skill never fixes and never merges.
+
+- **CHANGES REQUIRED** or any High finding → `/develop W-nn` fixes them, then re-runs this
+- **APPROVE** → `/merge W-nn`
+
+**Say it in plain English too.** Whoever reads this is about to change code because of
+it, so after the report, one line per finding in ordinary words: what breaks, and for
+whom. "Leave balance shows a day too many when the year rolls over" beats "off-by-one in
+the accrual boundary condition".

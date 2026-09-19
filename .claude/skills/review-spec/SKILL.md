@@ -244,6 +244,40 @@ Cite the draft's **section and line** for every blocker. But note the pull that 
 locatable findings are easy to manufacture, and a report grows to fill the space it is
 given. **A short report of real blockers is the goal; a long one is the failure mode.**
 
+---
+
+## What the dev reads
+
+The report above is the record. This is what goes in the reply, and it is the part that
+decides whether the blocker gets understood or argued with.
+
+**Say every blocker as the trouble it causes, not as the rule it breaks.** The dev has
+to relate it to the thing they are building; a finding phrased as a convention violation
+reads as pedantry and gets waved off, and then the gate taught nobody anything.
+
+| Do not write | Write |
+|---|---|
+| §4 violates the tenancy standing rule | Any customer would be able to read another customer's payslips |
+| Acceptance criterion 3 is not falsifiable | Criterion 3 passes even when the feature is switched off, so it proves nothing |
+| Missing Flyway script for the new object | The table only exists on your laptop; it never appears in the real database |
+| Money field is `double` | Payroll totals drift by a few paise a month and nobody can say why |
+
+```
+W-nn spec — <verdict in three words>
+
+Must fix before this can be approved:
+1. <the trouble it causes, one sentence> — draft §4, line 61. Closed by: <what to change>
+2. ...
+
+Worth knowing, not blocking:
+- <one line each, or "nothing">
+
+Full report: .claude/outputs/<date>-review-spec-W-nn.md
+```
+
+If there are no blockers, the whole reply is one line saying so. Resist listing the
+notes to prove the run happened.
+
 ## Re-reviewing — grade the question, never the patch
 
 When a previous pass raised something, the temptation is to check whether the author did

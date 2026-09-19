@@ -39,7 +39,7 @@ enforced, not merely promised.
    explicitly in its brief.
 4. Run the standing checks below as well, whatever the spec says.
 5. **Break each guard the ticket ships, once.** See "Check the checks".
-6. Write the report. Post a summary as a comment on the pull request, if one is open.
+6. Write the report. Hand it back to `/develop`, which is what fixes the findings.
 
 ## What verify may not do without asking
 
@@ -143,7 +143,7 @@ run is information. Recording it as a pass is not.
 ## Finishing
 
 - Findings → `/develop W-nn` fixes them, then `/verify W-nn` again
-- Clean → `/review <pr>`, which asks the different question: *is it right?*
+- Clean → `/review W-nn`, which asks the different question: *is it right?*
 
 Verify running clean is not sufficient on its own. `W-02` passed 23 of 23 while its
 Keycloak admin login returned 401 — verify ran what it was told to run, and review
