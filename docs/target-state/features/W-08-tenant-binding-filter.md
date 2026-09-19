@@ -41,11 +41,19 @@ Without this filter and database session binding:
 
 **In scope**
 
-- **Token Claim Extraction & Header Security Rule (`TenantAuthenticationExtractor`)**:
-  - Extract active tenant UUID (`tenant_id` / `tid` claim from Spring Security JWT).
-  - `X-Tenant-Id` header fallback is strictly restricted to `dev`/`test` profiles. In production, if `X-Tenant-Id` is present, it MUST match a UUID in the authenticated user's JWT `tenants` membership claim array; otherwise, the request is rejected with `403 FORBIDDEN` to prevent header spoofing.
-- **Membership Verification**:
-  - Verify that the authenticated user principal holds membership in the target `tenant_id` (from JWT `tenants` array claim or principal attributes).
+- **Token & Header Tenant Claim Extraction (`TenantAuthenticationExtractor`)**:
+  - Extract user identity (`user_id` / subject `sub`) from Spring Security JWT.
+  - Extract active tenant UUID from JWT claim (`tenant_id`) or `X-Tenant-Id` HTTP request header.
+- **Database-Backed Membership Verification (`core.user_tenant`)**:
+  - No custom JWT `tenants` claim is assumed. Tenant membership is defined in the target database table `core.user_tenant` (`02-data-model.md:55`).
+  - Verify that the tuple `(user_id, target_tenant_id)` exists in `core.user_tenant` via `TenantMembershipService`.
+  - Reject unpermitted tenant requests with `403 FORBIDDEN` (`ApiError.FORBIDDEN`).
+- **Missing Tenant Handling (F-2)**:
+  - If request path is an exempt public path, pass through without binding tenant.
+  - If request path is protected and NO tenant is provided (missing from JWT claim and missing from `X-Tenant-Id` header):
+    - Check user's tenant memberships in `core.user_tenant`.
+    - If user belongs to **exactly 1 tenant**, auto-bind that single tenant.
+    - If user belongs to **0 tenants** or **multiple (>1) tenants** without specifying a tenant, reject with `401 Unauthorized` (`ApiError.TENANT_NOT_BOUND`).
 - **HTTP Request Binding Filter (`TenantContextFilter`)**:
   - Servlet filter registered in `code/backend/shared`.
   - Binds `TenantContext.set(tenantId)` prior to request execution.
@@ -58,10 +66,14 @@ Without this filter and database session binding:
   - Calls `TenantContext.setForConnection(conn)` executing `SELECT set_config('app.current_tenant_id', ?, true)` (`D-57`).
 - **Spring Auto-Configuration (`TenantBindingAutoConfiguration`)**:
   - Auto-configures the filter and DB session binding interceptor/proxy in the `shared` module for all backend services.
-- **Unit & Integration Tests**:
-  - `TenantContextFilterTest`: Tests token claim parsing, header fallback security rules, missing claim handling, membership failure, and `finally` cleanup.
-  - `TenantDatabaseInterceptorTest`: Tests session variable setting on transactional connections and refusal of auto-commit connections.
-  - `TenantBindingIT`: Spring Boot Testcontainers integration test running actual Spring Data JPA repository queries within `@Transactional` blocks against PostgreSQL with RLS enabled, verifying data separation, unbound query zero-row behavior, and failure handling.
+- **Real HTTP Integration & Security Tests (`TenantBindingIT`) (F-3)**:
+  - `TenantContextFilterTest`: Unit tests for claim parsing, header extraction, UUID validation, membership verification, and `finally` cleanup.
+  - `TenantDatabaseInterceptorTest`: Unit tests for session variable setting on transactional connections and refusal of auto-commit connections.
+  - `TenantBindingIT`: Spring Boot Testcontainers integration test executing **real HTTP requests via `MockMvc` / Spring HTTP client** through the full Spring Security filter chain:
+    1. Valid HTTP request with JWT + `X-Tenant-Id` matching `core.user_tenant` $\rightarrow$ `HTTP 200 OK`, `app.current_tenant_id` bound, query returns target tenant rows.
+    2. Header spoofing HTTP request with JWT + unpermitted `X-Tenant-Id` $\rightarrow$ `HTTP 403 Forbidden` (`ApiError.FORBIDDEN`).
+    3. Missing tenant HTTP request for multi-tenant user $\rightarrow$ `HTTP 401 Unauthorized` (`ApiError.TENANT_NOT_BOUND`).
+    4. Direct DB query without tenant bound $\rightarrow$ Returns 0 rows under PostgreSQL RLS (`D-56`).
 
 **Out of scope**
 
@@ -84,29 +96,32 @@ Without this filter and database session binding:
       │                                       │
       └─► No                                  ▼
             │                         [Business Controller]
-            ├─► Extract tenant_id claim / header
-            ├─► Validate UUID format & user membership
+            ├─► Extract user_id (sub) & target tenant_id
+            ├─► Tenant provided?
+            │      ├─► No ──► Query core.user_tenant:
+            │      │           ├─► Exactly 1 tenant ──► Auto-bind single tenant
+            │      │           └─► 0 or >1 tenants ──► Return ApiErrorResponse (401 TENANT_NOT_BOUND)
             │      │
-            │      ├─► Invalid / Unauthorized? ──► Return ApiErrorResponse (401/403/400)
-            │      │
-            │      └─► Valid ──► TenantContext.set(tenantId)
-            │                         │
-            │                         ▼
-            │                [Service Method @Transactional]
-            │                         │
-            │                         ▼ (Hibernate lazy connection acquisition)
-            │                [TenantAwareDataSourceProxy]
-            │                         │
-            │                         ├─► Intercepts physical Connection checkout
-            │                         ├─► Check conn.getAutoCommit() == false
-            │                         └─► TenantContext.setForConnection(conn)
-            │                                └─► SELECT set_config('app.current_tenant_id', ?, true)
-            │                                       │
-            │                                       ▼
-            │                               [Spring Data JPA / PostgreSQL Query with RLS]
-            │                                       │ (WHERE tenant_id = app.current_tenant_id)
-            │                                       ▼
-            │                               [Returns Target Tenant Rows]
+            │      └─► Yes ──► Check (user_id, tenant_id) in core.user_tenant:
+            │                   ├─► Not member ──► Return ApiErrorResponse (403 FORBIDDEN)
+            │                   └─► Member ──► TenantContext.set(tenantId)
+            │                                     │
+            │                                     ▼
+            │                            [Service Method @Transactional]
+            │                                     │
+            │                                     ▼ (Hibernate lazy connection acquisition)
+            │                            [TenantAwareDataSourceProxy]
+            │                                     │
+            │                                     ├─► Intercepts physical Connection checkout
+            │                                     ├─► Check conn.getAutoCommit() == false
+            │                                     └─► TenantContext.setForConnection(conn)
+            │                                            └─► SELECT set_config('app.current_tenant_id', ?, true)
+            │                                                   │
+            │                                                   ▼
+            │                                           [Spring Data JPA / PostgreSQL Query with RLS]
+            │                                                   │ (WHERE tenant_id = app.current_tenant_id)
+            │                                                   ▼
+            │                                           [Returns Target Tenant Rows]
             │
             └─► [finally block] ──► TenantContext.clear()
 ```
@@ -117,10 +132,11 @@ Without this filter and database session binding:
 
 | Layer | File | Change |
 |---|---|---|
-| Filter | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantContextFilter.java` | `[NEW]` Servlet filter extracting tenant claim, verifying membership, setting `TenantContext`, and ensuring cleanup in `finally` |
-| Security | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantAuthenticationExtractor.java` | `[NEW]` Helper interface & default implementation for extracting tenant ID and membership claims from Spring `Authentication` / `Jwt` |
+| Filter | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantContextFilter.java` | `[NEW]` Servlet filter extracting tenant claim/header, verifying `core.user_tenant` membership, auto-binding single-tenant users, setting `TenantContext`, and ensuring cleanup in `finally` |
+| Security | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantAuthenticationExtractor.java` | `[NEW]` Helper interface & default implementation for extracting user ID (`sub`) and target tenant UUID from Spring `Authentication` / `Jwt` or request header |
+| Membership | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantMembershipService.java` | `[NEW]` Service checking user tenant membership against `core.user_tenant` table (`02-data-model.md:55`) |
 | Database Binding Proxy | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantDatabaseInterceptor.java` | `[NEW]` DataSource proxy / TransactionSynchronization listener calling `TenantContext.setForConnection(conn)` on transactional JDBC connection checkout |
-| Auto-Configuration | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantBindingAutoConfiguration.java` | `[NEW]` Spring Boot AutoConfiguration for registering tenant filter and database DataSource proxy |
+| Auto-Configuration | `code/backend/shared/src/main/java/com/infinevo/shared/tenant/TenantBindingAutoConfiguration.java` | `[NEW]` Spring Boot AutoConfiguration for registering tenant filter, membership service, and database DataSource proxy |
 | Auto-Config Metadata | `code/backend/shared/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` | `[NEW]` Registers `TenantBindingAutoConfiguration` |
 
 **Exempt Public Endpoint Paths**
@@ -135,8 +151,8 @@ Without this filter and database session binding:
 **API Error Contract Usage**
 
 When tenant extraction or verification fails, `TenantContextFilter` returns standard `ApiErrorResponse`:
-- **Missing tenant header / claim**: `401 Unauthorized` with `ApiError.UNAUTHENTICATED` / `TENANT_NOT_BOUND`
-- **User not a member of target tenant / spoofed header**: `403 Forbidden` with `ApiError.FORBIDDEN`
+- **Missing tenant for multi-tenant user**: `401 Unauthorized` with `ApiError.TENANT_NOT_BOUND` / `UNAUTHENTICATED`
+- **User not a member in `core.user_tenant` / header spoofing**: `403 Forbidden` with `ApiError.FORBIDDEN`
 - **Malformed tenant UUID**: `400 Bad Request` with `ApiError.VALIDATION_FAILED`
 
 ---
@@ -149,7 +165,7 @@ None (Backend core filter and session binding foundation).
 
 ## 6. Database changes
 
-> Uses existing Flyway migration `V001__tenant.sql` from `W-07` and session variable `app.current_tenant_id`. No new database migrations required.
+> Uses existing Flyway migration `V001__tenant.sql` from `W-07`, `core.user_tenant` table (`02-data-model.md:55`), and session variable `app.current_tenant_id`. No new database migrations required.
 
 ---
 
@@ -157,9 +173,9 @@ None (Backend core filter and session binding foundation).
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `TenantContextFilterTest.java` | `[NEW]` Valid JWT claim binding, header fallback restriction, invalid UUID format, unauthenticated request rejection, forbidden tenant membership rejection, `finally` cleanup |
+| Unit | `TenantContextFilterTest.java` | `[NEW]` Token claim parsing, `core.user_tenant` membership validation, single-tenant auto-binding, multi-tenant missing claim rejection (401), invalid UUID format, unauthenticated request rejection, forbidden membership rejection (403), `finally` cleanup |
 | Unit | `TenantDatabaseInterceptorTest.java` | `[NEW]` Calling `setForConnection` on transactional connections, throwing `IllegalStateException` on auto-commit connections |
-| Integration | `TenantBindingIT.java` | `[NEW]` Full Spring Boot + Testcontainers integration test executing Spring Data JPA queries within `@Transactional` methods, verifying session variable binding, `unboundQuery_returnsZeroRows_underRLS`, and PostgreSQL RLS row isolation |
+| Integration | `TenantBindingIT.java` | `[NEW]` Full Spring Boot + Testcontainers integration test executing **real HTTP requests via `MockMvc`** through Spring Security filter chain: verifying valid HTTP request binding, header spoofing 403 rejection, missing tenant 401 rejection, Spring Data JPA `@Transactional` connection binding, and `unboundQuery_returnsZeroRows_underRLS`. |
 
 ---
 
@@ -174,7 +190,7 @@ Execute the full build and verification suite:
 # 2. Run explicit unit test suite
 (cd code/backend && ./mvnw test -Dtest=Tenant*Test)
 
-# 3. Run explicit integration test suite with Testcontainers
+# 3. Run explicit integration test suite with Testcontainers (real MockMvc HTTP requests)
 (cd code/backend && ./mvnw verify -Dtest=TenantBindingIT)
 
 # 4. Controller Parameter Audit (Must return 0 matches / exit code 1)
@@ -184,7 +200,7 @@ git grep -nE '@RequestParam.*(tenantId|organizationId)|@PathVariable.*(tenantId|
 | Check | Command / Target | Expected Output | Result |
 |---|---|---|---|
 | Unit Tests | `(cd code/backend && ./mvnw test -Dtest=Tenant*Test)` | `BUILD SUCCESS` (Passes all claim parsing, header security, and cleanup unit tests) | Pending |
-| Integration Tests | `(cd code/backend && ./mvnw verify -Dtest=TenantBindingIT)` | `BUILD SUCCESS` (Passes all Spring Data JPA transactional RLS isolation tests) | Pending |
+| Integration Tests (Real HTTP Requests) | `(cd code/backend && ./mvnw verify -Dtest=TenantBindingIT)` | `BUILD SUCCESS` (Passes MockMvc HTTP requests testing 200 OK, 401 TENANT_NOT_BOUND, 403 FORBIDDEN, and JPA transactional RLS isolation) | Pending |
 | Unbound Query Behavior | `TenantBindingIT#unboundQuery_returnsZeroRows_underRLS` | Test passes: Unbound query returns zero rows under PostgreSQL RLS | Pending |
 | Controller Parameter Audit | `git grep -nE '@RequestParam.*(tenantId\|organizationId)...'` | Exit code 1 / 0 lines returned (Zero endpoints take explicit tenant parameters) | Pending |
 
@@ -197,10 +213,10 @@ git grep -nE '@RequestParam.*(tenantId|organizationId)|@PathVariable.*(tenantId|
 | `ThreadLocal` leak across pooled web container threads | Low | Enforced `finally TenantContext.clear()` in `TenantContextFilter`. |
 | Session variable persistence across pooled database connections | Low | `TenantContext.setForConnection` uses `is_local = true` (`SELECT set_config(..., true)`), which automatically resets the variable at transaction completion. |
 | Auto-commit connection silent empty query results | Low | `TenantContext.setForConnection` checks `conn.getAutoCommit() == false` and throws `IllegalStateException` if auto-commit mode is detected (`D-57`). |
-| Header spoofing via `X-Tenant-Id` | Low | Restricted to `dev`/`test` profiles; in production, validated against token `tenants` membership claim list. |
+| Header spoofing via `X-Tenant-Id` | Low | Membership verified against `core.user_tenant` DB table for every request. Mismatched/unpermitted tenants return `403 FORBIDDEN`. |
 
 ---
 
 ## 10. Rollback
 
-Revert the commits adding `TenantContextFilter`, `TenantAuthenticationExtractor`, `TenantDatabaseInterceptor`, and `TenantBindingAutoConfiguration`.
+Revert the commits adding `TenantContextFilter`, `TenantAuthenticationExtractor`, `TenantMembershipService`, `TenantDatabaseInterceptor`, and `TenantBindingAutoConfiguration`.
