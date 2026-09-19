@@ -39,14 +39,15 @@ rehearsal that runs in acceptance therefore means something for production.
 
 | Azure service | Purpose | Replaces today |
 |---|---|---|
-| Container Apps Environment | Runs the five containers | Manual deploys on DigitalOcean |
+| Virtual network, per environment | `snet-cae` for the Container Apps environment, `snet-pe` for five private endpoints — Postgres, Redis, Blob, Queue, Key Vault (`W-51`) | Nothing — every data service is on a public endpoint today |
+| Container Apps Environment | Runs the five containers, injected into `snet-cae` | Manual deploys on DigitalOcean |
 | Database for PostgreSQL, Flexible Server | One server. Two databases: platform (4 schemas) and Keycloak | Two MySQL databases |
 | Cache for Redis | Permissions, master data, tenant config, sessions | The in-process cache that breaks with two instances |
 | Storage Queue | Pay run, report and import job queue (`D-50`). Three queues — `payrun`, `import`, `report` — in the same storage account as Blob, reached over its own private endpoint | Nothing — everything is synchronous today |
 | Blob Storage | Employee documents, payslips, investment proofs | **Cloudinary**, which is outside Azure |
 | Key Vault (shared) | Every secret | Passwords in `application.properties`, committed |
 | Container Registry (shared) | Built images | Nothing |
-| Front Door + WAF (shared) | Entry, TLS, certificates, attack filtering | Nothing |
+| Front Door + WAF (shared) | Entry, TLS, certificates, attack filtering. **Standard** SKU (`D-51`), so custom WAF rules only. No custom domains yet — DNS stays at the registrar, so environments are reached on the default `*.azurefd.net` endpoint | Nothing |
 | Application Insights | Traces, metrics, live dashboards | Nothing |
 | Log Analytics (shared) | Central logs across environments | Server-local log files |
 | Managed identity, per container | Authenticates to database, vault and storage without passwords | Connection strings in files |
@@ -72,8 +73,8 @@ Front Door + WAF ──────► Container Apps Environment
 
 | Rule |
 |---|
-| Only Front Door is public. Nothing else has a public endpoint |
-| Containers reach data services over private endpoints inside the virtual network |
+| Only Front Door is public. Nothing else has a public endpoint — **with one recorded exception, `D-53`: Key Vault keeps its endpoint enabled and is closed by `networkAcls.defaultAction: 'Deny'` instead, because the deployment writes secrets to it from outside the virtual network** |
+| Containers reach data services over private endpoints inside the virtual network. Postgres included, by private endpoint rather than delegated-subnet integration (`D-52`) |
 | No connection string anywhere. Each container has a managed identity with least-privilege access |
 | Key Vault holds what cannot be an identity: third-party keys, signing secrets |
 | TLS everywhere, terminated at Front Door and re-established inward |
