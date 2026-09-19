@@ -1,8 +1,8 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-18**, after `W-49` Containerisation (#69, PR #116) merged
-> as `c0a8643` and its `sync-docs` pass.
+> Last refreshed: **2026-09-19**, after `W-51` Networking & identity (#71, PR #128) merged
+> as `7e6e58e`, and the `D-50` docs change (#127, PR #126) merged as `789f7cb`.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -14,7 +14,21 @@
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
 | Tickets | **100** — 9 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 has 5 of 7 done** |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · **`W-51` networking & identity (#71)** · `D-50` Storage Queue (#127) |
+
+> **`W-51` merged 2026-09-19 — and nothing in it has ever been deployed.** The Bicep
+> builds and lints clean and the scripts parse, but no live check has run: not Front Door
+> routing, not the WAF, not the six private-path probes, not the 16 role assignments, not
+> the migration job. It is verified as code and not as an environment. **#129** is the
+> follow-up and should be treated as part of `W-51`, not as polish. This is the same shape
+> as `W-50`'s `AcrPull`, which was declared and never exercised through four clean gate
+> passes (#124).
+
+> **`D-50`: the job queue is Azure Storage Queue, not Service Bus.** A private endpoint on
+> Service Bus is Premium-tier only, roughly ten times Standard, which `D-19` scale does not
+> justify. `D-44` is superseded. Consequences that outlive this ticket: **`W-52` must
+> handle idempotency in code**, since Storage Queue does not guarantee ordering, and the
+> local stand-in moves from RabbitMQ to Azurite's queue service.
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 ---
