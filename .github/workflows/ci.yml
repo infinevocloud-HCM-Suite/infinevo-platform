@@ -189,12 +189,15 @@ jobs:
       - name: tenant_id present in all non-reference CREATE TABLE statements
         if: ${{ !cancelled() }}
         run: |
+          # Case-insensitive throughout: SQL keywords are case-insensitive, so a lowercase
+          # `create table` is still a table. Without -i the selector matched nothing and the
+          # whole gate passed silently on it (verify F-2).
           bad=$(find code/backend/migration/src/main/resources/db/migration/core \
                      code/backend/migration/src/main/resources/db/migration/hrms \
                      code/backend/migration/src/main/resources/db/migration/payroll \
                 -name '*.sql' 2>/dev/null \
-              | xargs -r grep -lE 'CREATE[[:space:]]+TABLE' 2>/dev/null \
-              | xargs -r grep -LE 'tenant_id' 2>/dev/null || true)
+              | xargs -r grep -liE 'CREATE[[:space:]]+TABLE' 2>/dev/null \
+              | xargs -r grep -LiE 'tenant_id' 2>/dev/null || true)
           if [ -n "$bad" ]; then
             echo "::error::Migration script(s) create a table in core/hrms/payroll without tenant_id (W-07 §tenant_id column standard):"
             printf '%s\n' "$bad"
@@ -205,9 +208,17 @@ jobs:
       - name: schema qualifier present in all CREATE TABLE statements
         if: ${{ !cancelled() }}
         run: |
+          # `IF NOT EXISTS` is stripped before matching. Left in, the optional group let the
+          # regex backtrack and read the literal word IF as an unqualified table name, so a
+          # legal `CREATE TABLE IF NOT EXISTS core.foo (` failed this gate (verify F-3).
+          # Case-insensitive for the same reason as gates A and C.
           bad=$(find code/backend/migration/src/main/resources/db/migration/ \
                 -name '*.sql' 2>/dev/null \
-              | xargs -r grep -inE 'CREATE[[:space:]]+TABLE([[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)?[[:space:]]+"?[a-zA-Z0-9_]+"?[[:space:](]' 2>/dev/null || true)
+              | while IFS= read -r f; do
+                  sed -E 's/(CREATE[[:space:]]+TABLE)[[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS/\1/Ig' "$f" \
+                    | grep -inE 'CREATE[[:space:]]+TABLE[[:space:]]+"?[a-zA-Z0-9_]+"?[[:space:](]' \
+                    | sed "s|^|$f:|"
+                done || true)
           if [ -n "$bad" ]; then
             echo "::error::Unqualified CREATE TABLE found — every table must be schema-qualified (W-06 §13 R7, W-07 CI gate):"
             echo "$bad"
@@ -218,17 +229,18 @@ jobs:
       - name: row-level security policy present in all non-reference CREATE TABLE statements
         if: ${{ !cancelled() }}
         run: |
+          # Case-insensitive throughout - see the note on gate A (verify F-2).
           tables=$(find code/backend/migration/src/main/resources/db/migration/core \
                         code/backend/migration/src/main/resources/db/migration/hrms \
                         code/backend/migration/src/main/resources/db/migration/payroll \
                    -name '*.sql' 2>/dev/null \
-                 | xargs -r grep -lE 'CREATE[[:space:]]+TABLE' 2>/dev/null || true)
+                 | xargs -r grep -liE 'CREATE[[:space:]]+TABLE' 2>/dev/null || true)
           # Pass 1 - RLS switched on.
           missing_rls=$(printf '%s\n' "$tables" | sed '/^$/d' \
-              | xargs -r grep -LE 'ENABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY' 2>/dev/null || true)
+              | xargs -r grep -LiE 'ENABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY' 2>/dev/null || true)
           # Pass 2 - the isolation policy actually created. The switch alone isolates nothing.
           missing_policy=$(printf '%s\n' "$tables" | sed '/^$/d' \
-              | xargs -r grep -LE 'CREATE[[:space:]]+POLICY[[:space:]]+tenant_isolation' 2>/dev/null || true)
+              | xargs -r grep -LiE 'CREATE[[:space:]]+POLICY[[:space:]]+tenant_isolation' 2>/dev/null || true)
           bad=$(printf '%s\n%s\n' "$missing_rls" "$missing_policy" | sed '/^$/d' | sort -u)
           if [ -n "$bad" ]; then
             echo "::error::Migration script(s) create a table in core/hrms/payroll without ENABLE ROW LEVEL SECURITY or without CREATE POLICY tenant_isolation (W-07 §row-level security):"
