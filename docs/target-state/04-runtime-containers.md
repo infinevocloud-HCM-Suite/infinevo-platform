@@ -129,7 +129,7 @@ troubleshooting are in `infra/docker/README.md`; they are not repeated here.
 | `worker` | itself | Serves **health only**, on its own port. Without HTTP the process has no non-daemon thread and exits |
 | `postgres` | Azure Database for PostgreSQL | Two databases, as in production: the platform's four application schemas plus `migration` (`D-45`), and Keycloak's own |
 | `redis` | Azure Cache for Redis | |
-| `queue` | Azure Service Bus | **RabbitMQ.** No faithful emulator exists; `W-52`'s queue abstraction makes local and production differ by one adapter |
+| `queue` | Azure Storage Queue (`D-50`) | **Azurite** — the emulator already serving `blob`, with its queue service switched on. Local and production then run the same API rather than differing by an adapter, which `D-44` accepted only because Service Bus has no faithful emulator. `compose.yml:73` starts Azurite as `azurite-blob` today; enabling the queue service and retiring the RabbitMQ container is `W-52`'s work |
 | `blob` | Azure Blob Storage | **Azurite** |
 | `mail` | Nothing — a catcher | **Mailpit.** Notifications are visible and nothing can ever be sent |
 
