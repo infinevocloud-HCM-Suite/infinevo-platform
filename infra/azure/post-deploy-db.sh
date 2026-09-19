@@ -62,35 +62,18 @@ if [[ -z "$PGPASSWORD" ]]; then
   exit 1
 fi
 
-# 2. Open a temporary firewall rule for this machine
-# W-51 brings private endpoints; until then the server carries only the Azure-services
-# rule, so an operator running this script has no route to it at all (review F-2).
-# The rule is named for this run and revoked on every exit path, success or failure -
-# which is what the spec's risk table promised and the script did not do.
-FW_RULE_NAME="deploy-$(date +%Y%m%d%H%M%S)-$$"
-FW_RULE_CREATED=0
-
-revoke_firewall_rule() {
-  if [[ "$FW_RULE_CREATED" -eq 1 ]]; then
-    echo "Revoking temporary firewall rule ${FW_RULE_NAME}..." >&2
-    az postgres flexible-server firewall-rule delete --resource-group "$RG_NAME" --name "$SERVER_NAME" --rule-name "$FW_RULE_NAME" --yes >/dev/null 2>&1 || {
-      echo "WARNING: could not revoke ${FW_RULE_NAME}. Delete it by hand:" >&2
-      echo "  az postgres flexible-server firewall-rule delete -g ${RG_NAME} -n ${SERVER_NAME} --rule-name ${FW_RULE_NAME} --yes" >&2
-    }
-  fi
-}
-trap revoke_firewall_rule EXIT
-
-MY_IP=$(curl -s --max-time 10 https://api.ipify.org || true)
-if [[ ! "$MY_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "ERROR: could not determine this machine's public IP, so no firewall rule can be" >&2
-  echo "       opened and psql cannot reach ${PGHOST}." >&2
-  exit 1
-fi
-
-echo "Authorising ${MY_IP} on ${SERVER_NAME} for the duration of this script..."
-az postgres flexible-server firewall-rule create --resource-group "$RG_NAME" --name "$SERVER_NAME" --rule-name "$FW_RULE_NAME" --start-ip-address "$MY_IP" --end-ip-address "$MY_IP" >/dev/null
-FW_RULE_CREATED=1
+# 2. No firewall rule is opened. W-51 replaced it.
+# The block that used to sit here added the operator's public IP to psql-infinevo-{env} for
+# the length of this script and revoked it on exit. It exists no longer because the server
+# now runs publicNetworkAccess: 'Disabled' behind a private endpoint in snet-pe - there is
+# no public listener for a firewall rule to admit, so the rule would grant nothing and the
+# comment that named this ticket as the thing that retires it has been honoured.
+#
+# WHAT RUNS provision.sh NOW: caj-db-migration-{env}, from inside snet-cae, started and
+# gated by deploy.sh (W-51 section 3e). This script keeps its Key Vault reads and its
+# privilege checks, but every psql call below needs a route INTO THE VNET, so it only
+# succeeds from inside it or through the break-glass procedure in W-51 section 8c. Run it
+# to re-verify privileges after a break-glass session, not as part of a normal deployment.
 
 # 3. Generate and store role passwords in Key Vault if absent
 declare -A ROLE_SECRETS=(

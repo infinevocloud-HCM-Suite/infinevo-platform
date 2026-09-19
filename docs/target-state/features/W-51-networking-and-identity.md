@@ -50,7 +50,7 @@ endpoint behind a firewall rule, and the only public entry point the target desi
 — Front Door — does not exist.
 
 1. **Every data service has a public endpoint.** `infra/azure/modules/keyvault.bicep:33`
-   sets `publicNetworkAccess: 'Enabled'`, and Postgres, Redis, Service Bus and Storage
+   sets `publicNetworkAccess: 'Enabled'`, and Postgres, Redis and Storage
    are provisioned the same way. `docs/target-state/05-azure-architecture.md:75` states
    the target rule plainly: *"Only Front Door is public. Nothing else has a public
    endpoint."* Today nothing meets it.
@@ -61,7 +61,7 @@ endpoint behind a firewall rule, and the only public entry point the target desi
    (`docs/target-state/05-azure-architecture.md:63-75`).
 3. **Managed identities exist but reach nothing.** `W-50` created the four UAMIs and gave
    them `AcrPull` (`infra/azure/modules/acr-role-assignment.bicep`). They hold no data-plane
-   role on Key Vault, Storage or Service Bus, so an application has no way to authenticate
+   role on Key Vault or Storage, so an application has no way to authenticate
    except a connection string — which is the exposure `DEBT-004` records
    (`legacy/docs/GAP_INVENTORY.md:42`).
 4. **The database bootstrap depends on opening the firewall.**
@@ -78,7 +78,7 @@ endpoint behind a firewall rule, and the only public entry point the target desi
 |---|---|---|
 | `az postgres flexible-server show -g rg-infinevo-dev -n psql-infinevo-dev --query network.publicNetworkAccess -o tsv` | 0 | `Enabled` |
 | `az redis show -g rg-infinevo-dev -n redis-infinevo-dev --query publicNetworkAccess -o tsv` | 0 | `Enabled` |
-| `az servicebus namespace show -g rg-infinevo-dev -n sb-infinevo-dev --query publicNetworkAccess -o tsv` | 0 | `Enabled` |
+| `az storage queue list --account-name stinfinevodev --auth-mode login -o tsv` | 0 | *(empty — no queues; the job queue was a Service Bus namespace before `D-50`)* |
 | `az storage account show -g rg-infinevo-dev -n stinfinevodev --query publicNetworkAccess -o tsv` | 0 | `Enabled` |
 | `az keyvault show --vault-name kv-infinevo-shared --query properties.networkAcls.defaultAction -o tsv` | 0 | `Allow` |
 | `az afd profile show -g rg-infinevo-shared -n afd-infinevo-shared --query name -o tsv` | 3 | `ResourceNotFound` |
@@ -115,7 +115,7 @@ endpoint behind a firewall rule, and the only public entry point the target desi
      there; §2.2 removes the need for it and the range is reserved rather than reused.
 2. **Private endpoints and private DNS zones**, all five in `snet-pe`, each zone linked to
    `vnet-infinevo-{env}`: `privatelink.redis.cache.windows.net`,
-   `privatelink.servicebus.windows.net`, `privatelink.blob.core.windows.net`,
+   `privatelink.blob.core.windows.net`, `privatelink.queue.core.windows.net`,
    `privatelink.vaultcore.azure.net` and `privatelink.postgres.database.azure.com`.
 
    **Postgres uses a private endpoint, not delegated-subnet VNet integration.** The two
@@ -137,7 +137,7 @@ endpoint behind a firewall rule, and the only public entry point the target desi
    | Resource | Setting | Why not simply `Disabled` |
    |---|---|---|
    | PostgreSQL Flexible Server | `publicNetworkAccess: 'Disabled'` + private endpoint in `snet-pe` | Reached only from inside the VNet, and retires the transient firewall rule at `post-deploy-db.sh:70-93`. Unlike the other four this one is **reversible by the subscription Owner** without recreating anything (§8c) |
-   | Redis · Service Bus · Storage | `publicNetworkAccess: 'Disabled'` | No deployment-time data-plane access is needed |
+   | Redis · Storage (blob **and** queue) | `publicNetworkAccess: 'Disabled'` | No deployment-time data-plane access is needed. Blob and queue are separate sub-resources and each needs its own private endpoint |
    | **Key Vault** | `publicNetworkAccess: 'Enabled'` with `networkAcls.defaultAction: 'Deny'`, `bypass: 'AzureServices'`, plus a private endpoint | **See F-3 below.** `deploy.sh:120` and `post-deploy-db.sh:58,106,112` are Key Vault *data-plane* calls made from CI, before anything exists inside the VNet. `defaultAction: Deny` closes the vault to everyone; `deploy.sh` adds its own egress IP as a transient `ipRule` and removes it on every exit path, reusing the trap pattern already proven at `post-deploy-db.sh:70-93`. The vault has no open public endpoint at rest — **question 2 asks the founder to confirm this reading of `05-azure-architecture.md:75`** |
 4. **Shared Front Door Standard + WAF** in `rg-infinevo-shared`:
    - One `Standard_AzureFrontDoor` profile `afd-infinevo-shared`
@@ -229,7 +229,7 @@ endpoint behind a firewall rule, and the only public entry point the target desi
 │                          ▼                                             │
 │ ┌────────────────────────────────────────────────────────────────┐     │
 │ │ snet-pe .3.0/24                                                │     │
-│ │ postgres · redis · servicebus · blob · vault                   │     │
+│ │ postgres · redis · blob · queue · vault                        │     │
 │ │ all five publicNetworkAccess: Disabled                         │     │
 │ └────────────────────────────────────────────────────────────────┘     │
 └────────────────────────────────────────────────────────────────────────┘
@@ -245,7 +245,7 @@ endpoint behind a firewall rule, and the only public entry point the target desi
 | `infra/azure/modules/private-dns.bicep` | **New** — five zones and VNet links, Postgres included | T1 |
 | `infra/azure/modules/private-endpoint.bicep` | **New** — generic PE + DNS zone group | T1 |
 | `infra/azure/modules/postgres.bicep` | Update — `publicNetworkAccess: 'Disabled'` and drop the `allowAzureIps` firewall rule at `:88-89`. **No `delegatedSubnetResourceId`** — the private endpoint is a separate resource, so the server is converted in place | T1 |
-| `infra/azure/modules/redis.bicep` · `servicebus.bicep` · `storage.bicep` | Update — `publicNetworkAccess: 'Disabled'` | T1 |
+| `infra/azure/modules/redis.bicep` · `storage.bicep` | Update — `publicNetworkAccess: 'Disabled'`; `storage.bicep` also gains three queues (`payrun`, `import`, `report`) and a second private endpoint for the `queue` sub-resource (`D-50`). `servicebus.bicep` is **deleted** | T1 |
 | `infra/azure/modules/keyvault.bicep` | Update — add `networkAcls` (`defaultAction: 'Deny'`, `bypass: 'AzureServices'`, parameterised `ipRules`). `publicNetworkAccess` stays `'Enabled'` at `:33`; the `deployerObjectId` grant at `:39-46` stays exactly as it is — it is the RBAC half of the same problem | T1 |
 | `infra/azure/modules/containerapp-env.bicep` | Update — add `vnetConfiguration.infrastructureSubnetId`. The resource at `:25-39` has no `vnetConfiguration` today and the property is immutable, so this **recreates** the environment (§8a) | T2 |
 | `infra/azure/modules/containerapps.bicep` | Update — add `ipSecurityRestrictions` to all four `ingress` blocks (`:49-54` and the three that follow at `:148`, `:206`); `starterImage` at `:14` is unchanged | T2 |
@@ -291,11 +291,11 @@ the existing script unchanged), and everything under `legacy/`.
 |---|---|---|---|
 | `id-app-{env}` | `kv-infinevo-shared` | `Key Vault Secrets User` | §5 step 6c |
 | `id-app-{env}` | `stinfinevo{env}` | `Storage Blob Data Contributor` | §5 step 6d |
-| `id-app-{env}` | `sb-infinevo-{env}` | `Azure Service Bus Data Sender` | §5 step 6e |
+| `id-app-{env}` | `stinfinevo{env}` | `Storage Queue Data Message Sender` | §5 step 6e |
 | `id-worker-{env}` | `kv-infinevo-shared` | `Key Vault Secrets User` | control plane only |
 | `id-worker-{env}` | `stinfinevo{env}` | `Storage Blob Data Contributor` | control plane only |
-| `id-worker-{env}` | `sb-infinevo-{env}` | `Azure Service Bus Data Receiver` | §5 step 6e |
-| `id-worker-{env}` | `sb-infinevo-{env}` | `Azure Service Bus Data Sender` | control plane only |
+| `id-worker-{env}` | `stinfinevo{env}` | `Storage Queue Data Message Processor` | §5 step 6e |
+| `id-worker-{env}` | `stinfinevo{env}` | `Storage Queue Data Message Sender` | control plane only |
 | `id-web-{env}` | `kv-infinevo-shared` | `Key Vault Secrets User` | control plane only |
 | `id-keycloak-{env}` | `kv-infinevo-shared` | `Key Vault Secrets User` | control plane only |
 | `id-migration-{env}` | `kv-infinevo-shared` | `Key Vault Secrets User` | §5 step 6a |
@@ -344,7 +344,6 @@ echo "PASS 1: bicep build and lint clean"
 for item in \
   "PostgreSQL:az postgres flexible-server show -g $RG_ENV -n psql-infinevo-$ENV --query network.publicNetworkAccess -o tsv" \
   "Redis:az redis show -g $RG_ENV -n redis-infinevo-$ENV --query publicNetworkAccess -o tsv" \
-  "ServiceBus:az servicebus namespace show -g $RG_ENV -n sb-infinevo-$ENV --query publicNetworkAccess -o tsv" \
   "Storage:az storage account show -g $RG_ENV -n stinfinevo$ENV --query publicNetworkAccess -o tsv"; do
   name="${item%%:*}"; val=$(eval "${item#*:}")
   [ "$val" = "Disabled" ] || { echo "FAIL 2: $name = '$val'"; exit 1; }
@@ -401,8 +400,8 @@ echo "PASS 4: routes resolve to the correct origins; WAF blocks the canary and r
 
 # ── 5. Role assignments exist (--all: every role in 3f is resource-scoped) ────
 declare -A EXPECTED_ROLES=(
-  ["id-app-${ENV}"]="Key Vault Secrets User|Storage Blob Data Contributor|Azure Service Bus Data Sender|AcrPull"
-  ["id-worker-${ENV}"]="Key Vault Secrets User|Storage Blob Data Contributor|Azure Service Bus Data Receiver|Azure Service Bus Data Sender|AcrPull"
+  ["id-app-${ENV}"]="Key Vault Secrets User|Storage Blob Data Contributor|Storage Queue Data Message Sender|AcrPull"
+  ["id-worker-${ENV}"]="Key Vault Secrets User|Storage Blob Data Contributor|Storage Queue Data Message Processor|Storage Queue Data Message Sender|AcrPull"
   ["id-keycloak-${ENV}"]="Key Vault Secrets User|AcrPull"
   ["id-web-${ENV}"]="Key Vault Secrets User|AcrPull"
   ["id-migration-${ENV}"]="Key Vault Secrets User|AcrPull"
@@ -425,7 +424,9 @@ echo "PASS 5: all role assignments present"
 #   6b  Postgres   - provision.sh connects over the Postgres private endpoint
 #   6c  Key Vault  - id-app reads a secret (proves the app identity's KV role)
 #   6d  Storage    - id-app writes and reads back a probe blob
-#   6e  Service Bus- id-app sends a probe message, id-worker receives it
+#   6e  Queue      - id-app sends a probe message to the payrun queue over the queue
+#                    private endpoint, id-worker receives it. Queue and blob are separate
+#                    data planes: Storage Blob Data Contributor does NOT cover queues.
 #   6f  Redis      - redis-cli PING over the private endpoint (TLS, 6380)
 #
 # WAIVED, founder decision 2026-09-19 (review finding F-6,
@@ -433,7 +434,7 @@ echo "PASS 5: all role assignments present"
 # log, so a probe that prints "OK" without connecting passes, as does one that reached a
 # public endpoint instead. The private path is therefore CONFIRMED BY THE JOB, NOT PROVEN
 # INDEPENDENTLY. Accepted knowingly. Do not re-raise at /verify or /review; the first
-# genuine exercise of these paths is W-52 (Service Bus) and W-53 (Redis).
+# genuine exercise of these paths is W-52 (queue) and W-53 (Redis).
 # Every probe first asserts the name resolves into 10.x, so a public-endpoint
 # fallback cannot make this pass.
 job="caj-db-migration-${ENV}"
@@ -449,7 +450,7 @@ while :; do
 done
 az containerapp job logs show -g "$RG_ENV" -n "$job" --execution "$exec_name" --tail 200 \
   | tee /tmp/w51-job.log
-for probe in PROBE-KV-MIGRATION PROBE-PG PROBE-KV-APP PROBE-BLOB PROBE-SB PROBE-REDIS; do
+for probe in PROBE-KV-MIGRATION PROBE-PG PROBE-KV-APP PROBE-BLOB PROBE-QUEUE PROBE-REDIS; do
   grep -Fq "${probe}: OK" /tmp/w51-job.log \
     || { echo "FAIL 6: ${probe} did not report OK"; exit 1; }
 done
@@ -458,7 +459,11 @@ echo "PASS 6: provision.sh ran privately and all six private-path probes passed"
 # ── 7. Data residency (D-18) ─────────────────────────────────────────────────
 bad=$(az resource list -g "$RG_ENV" --query "[?location!='centralindia'].name" -o tsv)
 [ -z "$bad" ] || { echo "FAIL 7: outside centralindia: $bad"; exit 1; }
-bad=$(az resource list -g "$RG_SHARED" --query "[?location!='centralindia' && location!='global'].name" -o tsv)
+# Case-insensitive on purpose: az returns 'Global' (capital G) for the Front Door WAF
+# policy, and a case-sensitive JMESPath comparison against 'global' reports it as a
+# residency breach that is not one.
+shared_rows=$(az resource list -g "$RG_SHARED" --query "[?location!='centralindia'].[name,location]" -o tsv)
+bad=$(echo "$shared_rows" | awk 'NF && tolower($2) != "global" { print $1 }')
 [ -z "$bad" ] || { echo "FAIL 7: outside centralindia: $bad"; exit 1; }
 echo "PASS 7: all regional resources in centralindia"
 
@@ -478,7 +483,7 @@ echo "PASS 8: direct origin access refused for all three ingress apps"
 | Check | Expected |
 |---|---|
 | 1 Bicep build and lint | Exit 0, zero violations |
-| 2 Postgres · Redis · Service Bus · Storage `publicNetworkAccess` | `Disabled` |
+| 2 Postgres · Redis · Storage `publicNetworkAccess` | `Disabled` |
 | 2 Key Vault `networkAcls.defaultAction`, transient rules revoked | `Deny`, `ipRules` length `0` |
 | 3 Environment VNet injection | `infrastructureSubnetId` ends `/snet-cae` |
 | 4a Routes reachable through Front Door | `200` on `/`, `/api/`, `/auth/` |
@@ -597,7 +602,7 @@ Re-running §5 step 2 afterwards is what confirms the environment is closed agai
 2. `deploy.sh --env dev` provisions the VNet, subnets, private endpoints, DNS zones,
    Front Door, migration job and role assignments, and exits 0 — including the Key Vault
    data-plane write at `deploy.sh:120`, which proves §2.3's ACL mechanism works.
-3. Postgres, Redis, Service Bus and Storage report `publicNetworkAccess: Disabled`;
+3. Postgres, Redis and Storage report `publicNetworkAccess: Disabled`;
    Key Vault reports `networkAcls.defaultAction: Deny` with zero surviving `ipRules`.
 4. `cae-infinevo-dev` reports an `infrastructureSubnetId` ending `/snet-cae`.
 5. A request through Front Door reaches each of the three origins, and the response
@@ -606,8 +611,8 @@ Re-running §5 step 2 afterwards is what confirms the environment is closed agai
 6. The WAF returns `403` for the canary request, and blocks at least one request in a
    150-request burst.
 7. The migration job runs `provision.sh` against the private server and emits six
-   `PROBE-*: OK` lines covering Key Vault (twice), Postgres, Blob, Service Bus and Redis,
-   each having first resolved a `10.x` address.
+   `PROBE-*: OK` lines covering Key Vault (twice), Postgres, Blob, Queue and Redis, each
+   having first resolved a `10.x` address.
 8. All 16 role assignments in §3f are present under `az role assignment list --all`.
 9. A direct request to each Container App FQDN from outside Front Door returns `403`.
 10. Every resource is in `centralindia`, the Front Door profile excepted as `global`.
@@ -625,7 +630,7 @@ by §8a: nothing can be verified until T1 and T2 are both in place.
 
 | # | Task | Files | Depends on |
 |---|---|---|---|
-| **T1** | VNet, subnets, private DNS, private endpoints, and the five lockdown changes including the Key Vault ACL | `vnet.bicep`, `private-dns.bicep`, `private-endpoint.bicep`, `postgres.bicep`, `redis.bicep`, `servicebus.bicep`, `storage.bicep`, `keyvault.bicep`, `main.bicep`, three `.bicepparam` | — |
+| **T1** | VNet, subnets, private DNS, private endpoints, and the five lockdown changes including the Key Vault ACL | `vnet.bicep`, `private-dns.bicep`, `private-endpoint.bicep`, `postgres.bicep`, `redis.bicep`, `storage.bicep`, `keyvault.bicep`, `main.bicep`, three `.bicepparam` | — |
 | **T2** | Environment VNet injection and ingress IP restrictions | `containerapp-env.bicep`, `containerapps.bicep` | T1 |
 | **T3** | Front Door, WAF, `rs-origin-tag`, teardown | `frontdoor.bicep`, `teardown.sh`, `main.bicep` | T2 |
 | **T4** | Migration runner image, job, RBAC, deploy orchestration | `migration-runner.Dockerfile`, `db-migration-job.bicep`, `managed-identities.bicep`, `rbac.bicep`, `deploy.sh`, `post-deploy-db.sh` | T2 |

@@ -200,6 +200,10 @@ module acrRoleAssignment 'modules/acr-role-assignment.bicep' = {
       managedIdentities.outputs.workerIdentityPrincipalId
       managedIdentities.outputs.webIdentityPrincipalId
       managedIdentities.outputs.keycloakIdentityPrincipalId
+      // W-51 section 3f, last row: all five identities hold AcrPull. id-migration needs it
+      // to pull migration-runner:latest - without it caj-db-migration-{env} cannot start
+      // and the failure surfaces as an image-pull error, not as a missing role.
+      managedIdentities.outputs.migrationIdentityPrincipalId
     ]
   }
 }
@@ -388,6 +392,103 @@ module keyVaultPrivateEndpoint 'modules/private-endpoint.bicep' = {
   }
 }
 
+// ── 6. Front Door ────────────────────────────────────────────────────────────
+// Deployed at sharedRg scope, not envRg: the profile is shared by dev, uat and prod and
+// rg-infinevo-shared is the permanent group (05-azure-architecture.md:28). Only the
+// endpoint, origin groups, routes and security policy inside it are per environment.
+//
+// Consuming the three ingress FQDNs from containerApps above is what orders this after the
+// apps exist - an origin cannot be created against a host name that has not been assigned
+// yet. The worker has no ingress and therefore no origin (W-51 section 3a).
+module frontDoor 'modules/frontdoor.bicep' = {
+  name: 'deploy-frontdoor-${environment}'
+  scope: sharedRg
+  params: {
+    profileName: 'afd-infinevo-shared'
+    environment: environment
+    webOriginHostName: containerApps.outputs.webFqdn
+    appOriginHostName: containerApps.outputs.appFqdn
+    keycloakOriginHostName: containerApps.outputs.keycloakFqdn
+    tags: defaultTags
+  }
+}
+
+// ── 7. Data-plane RBAC (W-51 section 3f) ─────────────────────────────────────
+// The matrix spans both resource groups: the vault is shared and the storage account is
+// per environment.
+// Two instantiations of one file, because a role assignment only compiles at the scope of
+// the resource it grants (BCP139) and the vault and the storage account are in different
+// resource groups. rbac.bicep guards each block on which target it was given.
+module keyVaultRbac 'modules/rbac.bicep' = {
+  name: 'assign-rbac-keyvault-${environment}'
+  scope: sharedRg
+  params: {
+    environment: environment
+    keyVaultName: keyVault.outputs.keyVaultName
+    appPrincipalId: managedIdentities.outputs.appIdentityPrincipalId
+    workerPrincipalId: managedIdentities.outputs.workerIdentityPrincipalId
+    webPrincipalId: managedIdentities.outputs.webIdentityPrincipalId
+    keycloakPrincipalId: managedIdentities.outputs.keycloakIdentityPrincipalId
+    migrationPrincipalId: managedIdentities.outputs.migrationIdentityPrincipalId
+  }
+}
+
+module storageRbac 'modules/rbac.bicep' = {
+  name: 'assign-rbac-storage-${environment}'
+  scope: envRg
+  params: {
+    environment: environment
+    storageAccountName: storage.outputs.storageAccountName
+    appPrincipalId: managedIdentities.outputs.appIdentityPrincipalId
+    workerPrincipalId: managedIdentities.outputs.workerIdentityPrincipalId
+    webPrincipalId: managedIdentities.outputs.webIdentityPrincipalId
+    keycloakPrincipalId: managedIdentities.outputs.keycloakIdentityPrincipalId
+    migrationPrincipalId: managedIdentities.outputs.migrationIdentityPrincipalId
+  }
+}
+
+// ── 8. In-VNet migration runner (W-51 section 3e) ────────────────────────────
+// Last, and it has to be. The job cannot exist before the VNet-injected environment
+// (section 8a step 4), and starting it before dataPlaneRbac would fail probe 6a - so the
+// dependsOn below is on the RBAC module, not merely on the endpoints.
+module dbMigrationJob 'modules/db-migration-job.bicep' = {
+  name: 'deploy-db-migration-job-${environment}'
+  scope: envRg
+  params: {
+    environment: environment
+    location: location
+    environmentId: containerAppEnv.outputs.environmentId
+    acrLoginServer: registry.outputs.loginServer
+    migrationIdentityId: managedIdentities.outputs.migrationIdentityId
+    migrationIdentityClientId: managedIdentities.outputs.migrationIdentityClientId
+    appIdentityId: managedIdentities.outputs.appIdentityId
+    appIdentityClientId: managedIdentities.outputs.appIdentityClientId
+    workerIdentityId: managedIdentities.outputs.workerIdentityId
+    workerIdentityClientId: managedIdentities.outputs.workerIdentityClientId
+    keyVaultName: keyVault.outputs.keyVaultName
+    storageAccountName: storage.outputs.storageAccountName
+    blobEndpoint: storage.outputs.primaryBlobEndpoint
+    queueEndpoint: storage.outputs.primaryQueueEndpoint
+    redisHostName: redis.outputs.hostName
+    postgresFqdn: postgres.outputs.fullyQualifiedDomainName
+    postgresAdminUsername: postgresAdminUsername
+    tags: defaultTags
+  }
+  // The private endpoints carry no output this module consumes, so nothing else would
+  // order the job after them - and a job that starts before the Postgres or Key Vault
+  // endpoint exists resolves a PUBLIC address and fails the 10.x assertion in every probe.
+  dependsOn: [
+    keyVaultRbac
+    storageRbac
+    acrRoleAssignment
+    postgresPrivateEndpoint
+    keyVaultPrivateEndpoint
+    storageBlobPrivateEndpoint
+    storageQueuePrivateEndpoint
+    redisPrivateEndpoint
+  ]
+}
+
 // ── Outputs ──────────────────────────────────────────────────────────────────
 output sharedResourceGroup string = sharedRgName
 output environmentResourceGroup string = envRgName
@@ -403,6 +504,14 @@ output storageQueueEndpoint string = storage.outputs.primaryQueueEndpoint
 output webAppFqdn string = containerApps.outputs.webFqdn
 output apiAppFqdn string = containerApps.outputs.appFqdn
 output keycloakFqdn string = containerApps.outputs.keycloakFqdn
+// The public entry point. There is no custom domain (W-51 decision 1, founder 2026-09-19),
+// so this *.azurefd.net name is the only address the platform answers on, and it is what
+// W-51 section 5 step 4 drives every Front Door check through.
+output frontDoorEndpointHostName string = frontDoor.outputs.endpointHostName
+output frontDoorEndpointName string = frontDoor.outputs.endpointName
+output frontDoorProfileName string = frontDoor.outputs.profileName
+output frontDoorWafPolicyName string = frontDoor.outputs.wafPolicyName
 output vnetId string = vnet.outputs.vnetId
 output caeSubnetId string = vnet.outputs.caeSubnetId
 output peSubnetId string = vnet.outputs.peSubnetId
+output migrationJobName string = dbMigrationJob.outputs.jobName
