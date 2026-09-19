@@ -24,32 +24,83 @@ enforced, not merely promised.
 
 ## Steps
 
-1. Read the ticket's spec, particularly **§9 Verification** — it lists the exact
-   commands and their expected output. That table is the test plan.
-2. Spawn **verifier** with those commands.
-3. Run the standing checks below as well, whatever the spec says.
-4. Write the report. Post a summary as a comment on the pull request, if one is open.
+1. Read the ticket's spec, particularly **its verification section** — it lists the exact
+   commands and their expected output. That table is the test plan. **Check which
+   template the ticket used before reading a section number**: verification is **§9** in
+   `TEMPLATE.md` and **§5** in `TEMPLATE-INFRA.md`, where §9 is *Done when* instead. Read
+   the wrong one on an infra ticket and the test plan becomes a checklist of outcomes
+   with no commands in it.
+2. **Get the branch's files in front of you.** `git worktree add --detach <dir> <branch>`
+   is the clean way. On Windows it can fail with `Filename too long` inside `legacy/` —
+   when it does, extract only what the branch changes:
+   `git archive <branch> <paths> | tar -x -C <short dir>` (`/c/<name>`, not a deep temp
+   path), and say in the report where the checks ran.
+3. Spawn **verifier** with those commands, and with the authorisation limit below stated
+   explicitly in its brief.
+4. Run the standing checks below as well, whatever the spec says.
+5. **Break each guard the ticket ships, once.** See "Check the checks".
+6. Write the report. Post a summary as a comment on the pull request, if one is open.
 
-## Standing checks — always, on every ticket
+## What verify may not do without asking
+
+**Verify never creates, modifies or deletes a live or billable resource on the founder's
+say-so alone** — a cloud deployment, a resource group, a registry push, a DNS record, a
+production database. The founder authorises it **in the session where it runs**, and an
+approval given for one run does not carry to the next.
+
+Without that go-ahead those rows are `NOT CHECKED — requires creating billable
+resources, not authorised for this run`. That is a complete, honest result, not a gap to
+apologise for: `W-50`'s verification section deploys a Postgres Flexible Server, Redis,
+Service Bus, a registry, a vault and four Container Apps, then deletes two resource
+groups and does it twice more. Running that because a skill said "run the spec's
+commands" spends real money on the founder's subscription without being asked.
+
+Read-only cloud calls need no approval — `az account show`, `az group list`,
+`az bicep build`, `az bicep lint`, `az deployment ... what-if`.
+
+## Standing checks
+
+Two are unconditional, because they cost a second and catch the things nobody re-reads:
 
 ```bash
-cd code/backend  && ./mvnw -B clean verify          # build + tests
-cd code/frontend && npm run lint && npm run build
-git grep -nE '^[^#]*ddl-auto[[:space:]]*[:=]' -- code/     # expect nothing
-git diff --name-only origin/main..HEAD | grep -E '^legacy/' # expect nothing
-cd code/backend && ./mvnw -B dependency:tree | grep -E 'com.infinevo:(hrms|payroll)'
+git grep -nE '^[^#]*ddl-auto[[:space:]]*[:=]' -- code/        # expect nothing
+git diff --name-only origin/main...HEAD | grep -E '^legacy/'  # expect nothing
 ```
 
-The last one: `hrms` must not appear under `payroll`, nor the reverse. The build should
-fail first, but verify rather than assume.
+Three depend on the ticket touching code at all:
+
+```bash
+git diff --name-only origin/main...HEAD -- code/   # the gate for the three below
+cd code/backend  && ./mvnw -B clean verify         # build + tests
+cd code/frontend && npm run lint && npm run build
+cd code/backend  && ./mvnw -B dependency:tree | grep -E 'com.infinevo:(hrms|payroll)'
+```
+
+**If that first command prints nothing, skip the three and record the command and its
+empty output in the report as the justification.** An infra-only branch re-running a full
+Maven verify proves that `main` still equals `main`, at seven minutes a go — and `/merge`
+builds `main` itself before it lands anything, so the coverage is not lost. A skip with
+evidence is a result; a silent omission is not. Note the diff is **three-dot**: two-dot
+against a branch behind `main` reports `main`'s own files as the branch's.
+
+The dependency check: `hrms` must not appear under `payroll`, nor the reverse. The build
+should fail first, but verify rather than assume.
 
 If the ticket touches the local stack, also `infra/docker/smoke.sh`.
 
 ## Check the checks, not just the code
 
-A check that passes because it matches nothing reports green forever. When a guard is
-part of the ticket, **break the thing it guards once, deliberately, and watch it fail**,
-then put it back. `smoke.sh` passed its `ddl-auto` check on a comment for an hour.
+A check that passes because it matches nothing reports green forever. `smoke.sh` passed
+its `ddl-auto` check on a comment for an hour.
+
+So when the ticket ships a guard — a lint rule, a CI gate, a refusal, a privilege denial:
+
+1. Copy the thing the guard protects; never edit the original.
+2. Break the copy deliberately, in the way the spec's "Proving it" table names.
+3. Run the guard and record that it failed, with the error output quoted.
+4. Delete the copy.
+
+A guard only ever observed passing has not been tested.
 
 ---
 
@@ -63,7 +114,7 @@ Write to `.claude/outputs/<date>-verify-W-nn.md`.
 ## Commands
 | Check | Command | Exit | Verdict | Evidence (last lines) |
 
-## Spec acceptance — section 9
+## Spec acceptance — <the spec's verification section: §9 TEMPLATE.md, §5 TEMPLATE-INFRA.md>
 | # | Check | Expected | Actual | PASS / FAIL / NOT CHECKED |
 
 ## Findings
