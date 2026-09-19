@@ -82,7 +82,13 @@ isolation policy. Add both in the same migration script that creates the table:
 ALTER TABLE <schema>.<table> ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY tenant_isolation ON <schema>.<table>
-    USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+    USING (
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
+    );
 ```
 
 `migration_user` owns the table and bypasses RLS automatically (PostgreSQL table-owner
@@ -90,14 +96,33 @@ rule). `app_user` and `readonly_user` are subject to the policy; they see only r
 where `tenant_id` matches the value set at transaction start by
 `SET LOCAL app.current_tenant_id = '<uuid>'`.
 
-The `true` flag in `current_setting(..., true)` makes the function return `NULL`
-(instead of raising) when the variable is not set. The `::uuid` cast then fails, and
-the USING clause evaluates to `NULL` — which PostgreSQL treats as `false`. A connection
-that never sets the variable sees zero rows. This is the intended fail-safe.
+**Why the `CASE`, and not the shorter `USING (tenant_id = current_setting(...)::uuid)`.**
+The session variable has two distinct "unset" states, and they behave differently:
+
+| State | `current_setting(..., true)` returns | Plain `::uuid` cast |
+|---|---|---|
+| Never set on this connection | `NULL` | `NULL` — harmless |
+| Set earlier, then the transaction ended | **`''`** (empty string) | **raises `22P02 invalid input syntax for type uuid: ""`** |
+
+The second row is the normal case for a **pooled** connection: `SET LOCAL` and
+`set_config(..., true)` are transaction-local, and when the transaction ends the variable
+reverts to its session value — which is the empty string, not unset. The short form
+therefore throws an error on the second and every later use of a pooled connection. The
+`CASE` maps both states to `NULL`, so `tenant_id = NULL` evaluates to `NULL`, which
+PostgreSQL treats as `false`: a connection with no tenant bound sees zero rows instead of
+erroring. **That is the intended fail-safe, and it is why the `CASE` form is mandatory.**
+
+Note the mechanism: a failing cast *raises*, it does not yield `NULL`. The fail-safe works
+because the `CASE` never attempts the cast in the first place, not because the cast fails
+quietly.
 
 **Reviewing a migration script?** For every `CREATE TABLE` outside `reference`,
 confirm `ENABLE ROW LEVEL SECURITY` and `CREATE POLICY tenant_isolation` appear in
-the same script, with the exact USING clause above.
+the same script, with the exact USING clause above — including the `CASE`. A policy
+using the short cast form is a defect even though CI accepts it: the gate checks that a
+policy named `tenant_isolation` exists, not what is inside it.
+
+`core.tenant` in `V001__tenant.sql` is the worked reference — copy that.
 
 ### One table creation per Flyway migration script
 

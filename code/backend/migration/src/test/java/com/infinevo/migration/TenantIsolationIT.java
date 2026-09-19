@@ -111,6 +111,46 @@ class TenantIsolationIT {
         }
     }
 
+    /**
+     * Review F-2 / F-8 — the pooled-connection case, and the reason the policy uses a
+     * {@code CASE} rather than a bare {@code current_setting(...)::uuid}.
+     *
+     * <p>The binding is transaction-local, so when the transaction ends the variable does
+     * not revert to unset — it reverts to the empty string. A connection handed back to the
+     * pool and reused must therefore see zero rows, <strong>not</strong> raise
+     * {@code 22P02 invalid input syntax for type uuid: ""}. The short policy form documented
+     * before this fix did raise; nothing in the suite noticed because every other test opens
+     * a fresh connection.
+     */
+    @Test
+    void reusedConnectionAfterTransactionSeesZeroRowsRatherThanErroring() throws SQLException {
+        try (Connection conn = appUserConnection()) {
+            conn.setAutoCommit(false);
+            TenantContext.set(TENANT_A);
+            try {
+                TenantContext.setForConnection(conn);
+                try (ResultSet rs = conn.createStatement().executeQuery("SELECT count(*) FROM core.tenant")) {
+                    assertThat(rs.next()).isTrue();
+                    assertThat(rs.getInt(1))
+                            .as("bound transaction sees tenant A")
+                            .isEqualTo(1);
+                }
+            } finally {
+                TenantContext.clear();
+            }
+            conn.commit(); // transaction ends; app.current_tenant_id reverts to ''
+
+            // Same connection, no rebinding — exactly what a pool hands to the next caller.
+            try (ResultSet rs = conn.createStatement().executeQuery("SELECT count(*) FROM core.tenant")) {
+                assertThat(rs.next()).isTrue();
+                assertThat(rs.getInt(1))
+                        .as("reused connection with the variable back to '' must be fail-closed, not an error")
+                        .isZero();
+            }
+            conn.rollback();
+        }
+    }
+
     // ── §4 Break 4 / Done-when 5: app_user with Tenant A context sees only Tenant A's row
 
     @Test
