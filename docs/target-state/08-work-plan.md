@@ -45,8 +45,8 @@ no reference either. `Merge` is where the project can go wrong. `Infra` is well-
 |---|---|---|---|---|---|
 | `W-05` | Postgres & schemas | Server provisioning · Four schemas · Three database roles | — | `W-01` | New |
 | `W-06` | Flyway | Migration runner · Script conventions · Per-schema ordering · Pipeline validation | — | `W-05` | New |
-| `W-07` | Tenant model | `tenant_id` standard · Row-level security policies · Role grants · **Build check failing on an unscoped table** | `CORE-01` | `W-06` | New |
-| `W-08` | Tenant binding filter | Token claim extraction · Membership verification · Database session binding · Failure handling | `CORE-01` | `W-07` | New |
+| `W-07` | Tenant model — **merged 2026-09-19 (#131)** | `tenant_id` standard · Row-level security policies · Role grants · **Build check failing on an unscoped table** | `CORE-01` | `W-06` | New |
+| `W-08` | Tenant binding filter | Token claim extraction · Membership verification · Database session binding · Failure handling | `CORE-01` | `W-07` — **merged, so this is unblocked** | New |
 | `W-09` | Reference schema & seed | Generic lookups · Tax master tables · Seed scripts · Annual update process | `CORE-15`, `PAY-10` | `W-06` | Port |
 
 > `W-08` is small and high-leverage. An endpoint that forgets the tenant returns **nothing**

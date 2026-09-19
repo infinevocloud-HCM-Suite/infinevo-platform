@@ -139,7 +139,7 @@ troubleshooting are in `infra/docker/README.md`; they are not repeated here.
 | No real secrets. No connection to any shared environment | ✅ |
 | `ddl-auto` set nowhere | ✅ checked |
 | Migrations run on start, so the database is always current | ⏳ **`W-06`.** `W-05` merged 2026-09-16: `infra/postgres/provision.sh` creates the four schemas and **four** roles — and **no tables**, so it cannot collide with Flyway later |
-| Seed data creates two tenants with different module sets | ⏳ **`W-07`.** The loader ships and works; `core.tenant` does not exist yet |
+| Seed data creates two tenants with different module sets | ⏳ **`W-08` / `W-09`.** The loader ships and works, and `W-07` created `core.tenant` — but the seed is still a no-op, and its commented inserts name `slug`, `status` and `core.subscription`, none of which the shipped table has |
 
 **Seeding two tenants with different modules matters.** It is the only way entitlement
 bugs surface during development rather than after a customer buys one module. `W-02`

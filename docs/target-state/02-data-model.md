@@ -403,6 +403,44 @@ Minimum standard for the target schema:
 row-level security a real boundary rather than a suggestion — a bug in the application
 cannot escape it.
 
+### The policy, and the shape every table copies
+
+`core.tenant` is the root table and the worked reference, shipped by `W-07`
+(`code/backend/migration/src/main/resources/db/migration/core/V001__tenant.sql`). Every
+table in `core`, `hrms` and `payroll` carries the same two statements in the migration
+script that creates it:
+
+```sql
+ALTER TABLE <schema>.<table> ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON <schema>.<table>
+    USING (
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
+    );
+```
+
+The session variable is `app.current_tenant_id` and the policy is always named
+`tenant_isolation`. The application sets the variable per transaction, through
+`TenantContext.setForConnection` in the `shared` module.
+
+**Three things about that policy are load-bearing, and each was got wrong once:**
+
+| | |
+|---|---|
+| The `CASE` is not decoration | After a transaction ends the variable reverts to the **empty string**, not to unset, and `''::uuid` raises. The short form breaks on the second use of a pooled connection (`D-56`) |
+| There is no `WITH CHECK`, deliberately | With no `FOR` and no `TO` clause the policy is `FOR ALL TO PUBLIC`, and PostgreSQL reuses `USING` as the check — so a cross-tenant `INSERT` is rejected too. Narrow it to `FOR SELECT` and reads stay correct while writes leak |
+| Unbound means empty, not everything | A connection that never sets the variable sees zero rows. That is the intended fail-safe, and `W-08` must still always bind |
+
+Three CI gates in `.github/workflows/ci.yml` refuse a migration that creates a table in
+`core`, `hrms` or `payroll` without `tenant_id`, without a schema qualifier, or without
+both `ENABLE ROW LEVEL SECURITY` and `CREATE POLICY tenant_isolation`. They match per
+**file**, so a script creating two tables can still ship the second unprotected — one
+table per migration script is the rule that keeps them sound (#137).
+
 ---
 
 ## Related
