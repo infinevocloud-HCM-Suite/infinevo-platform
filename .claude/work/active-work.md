@@ -1,8 +1,10 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-19**, after `W-51` Networking & identity (#71, PR #128) merged
-> as `7e6e58e`, and the `D-50` docs change (#127, PR #126) merged as `789f7cb`.
+> Last refreshed: **2026-09-19**, after **`W-07` Tenant model (#8, PR #131) merged as
+> `c1cb5ee`** — the second link in the tenancy chain, and the first real Flyway migration
+> on `main`. Earlier the same day: `W-51` Networking & identity (#71, PR #128) as
+> `7e6e58e`, and the `D-50` docs change (#127, PR #126) as `789f7cb`.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -12,9 +14,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **100** — 9 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
-| Waves | 9. **Wave 1 has 5 of 7 done** |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · **`W-51` networking & identity (#71)** · `D-50` Storage Queue (#127) |
+| Tickets | **104** — 10 closed, 94 open. Four new on 2026-09-19 (#136 #137 #138 #139), all `W-07` follow-ups or gate defects it exposed. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
+| Waves | 9. **Wave 1 has 5 of 7 done · Wave 2 tenancy chain is 2 of 3** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · **`W-07` tenant model (#8)** |
 
 > **`W-51` merged 2026-09-19 — and nothing in it has ever been deployed.** The Bicep
 > builds and lints clean and the scripts parse, but no live check has run: not Front Door
@@ -48,13 +50,19 @@ One repository · one backend with three enforced modules (`core` / `hrms` / `pa
 Design: `docs/target-state/` — 12 documents, **49 decisions (`D-01`–`D-49`), zero open
 questions.** Start at `docs/target-state/README.md`.
 
-> **`W-06` Flyway is closed as a ticket but its code is NOT on `main`.** It merged as
-> `a0cdb2f` and was reverted by Sayeed as `ae761ed` on 2026-09-17; issue #7 is still
-> CLOSED. `main` carries only the empty `.gitkeep` migration directories from `W-01`.
-> The work is on `origin/W-06-flyway-migrations` at `ad3f3c6`. **This blocks the tenancy
-> chain** — `W-07` and `W-08` wait on `W-06`, and the ticket currently reads as done
-> while the code is absent. Needs a decision: re-merge, reopen #7, or record why it was
-> reverted.
+> **`W-06` Flyway is on `main` — the earlier note in this file saying otherwise was
+> wrong, and was corrected on 2026-09-19.** It did merge as `a0cdb2f` and was reverted as
+> `ae761ed` on 2026-09-17, but it came back: `git ls-tree -r --name-only origin/main --
+> code/backend/migration` returns all 13 files. **The tenancy chain was never actually
+> blocked** — `W-07` built on it and merged clean.
+>
+> **How it came back is the part that needs attention (#139).** The code arrived in
+> `365a319`, titled *"docs — W-49 as built"*, whose body says "Documentation only. No code
+> changed." while its diffstat adds `MigrationApplication.java`, `FlywayMigrationIT.java`,
+> `application.yml`, four fixtures, `pom.xml` (+85), `ci.yml` (+9) and two
+> `infra/postgres/` scripts. A pull request approved as docs-only carried a whole module
+> onto `main` and nothing noticed. `check-done.mjs` polices `docs/` changes tightly but
+> does not check the reverse.
 
 ### The three threads
 
@@ -67,12 +75,24 @@ questions.** Start at `docs/target-state/README.md`.
    all run, four schemas owned by `migration_user`, four roles none of which is
    superuser or `BYPASSRLS`, and `DatabasePrivilegesIT` asserting the matrix in both
    directions.
-2. **Multi-tenancy — the highest-value work in the project. Blocked: see the `W-06`
-   note above — its code is not on `main`. `W-05` merged, so the
-   chain is unblocked and `W-06` Flyway (#7) is the next link.** Payroll is
-   org-scoped on 63 of 97 entities; HRMS on **none at all** (0 of 39, `BUG-002`).
-   Target: `tenant_id` on every table outside `reference`, enforced by Postgres
-   row-level security (`D-09`). `W-06` → `W-07` → `W-08` is the one rigid chain.
+2. **Multi-tenancy — the highest-value work in the project. Two of three links done.
+   `W-06` Flyway and `W-07` tenant model are both on `main`; `W-08` is next and is
+   unblocked.** `W-07` merged 2026-09-19 as `c1cb5ee` (#8, PR #131): `core.tenant`, the
+   `tenant_id uuid NOT NULL` standard, row-level security keyed on
+   `app.current_tenant_id`, and three CI gates that refuse a table skipping any of it.
+   Proven twice — the CI suite ran 8 of 8 green and every spec §4 break was also
+   reproduced by hand against live Postgres 16.15, including both cross-tenant **write**
+   rejections. Payroll is org-scoped on 63 of 97 entities; HRMS on **none at all**
+   (0 of 39, `BUG-002`). Target: `tenant_id` on every table outside `reference`,
+   enforced by Postgres RLS (`D-09`). `W-06` → `W-07` → `W-08` is the one rigid chain.
+
+   > **The enforcement is real but not airtight, and `W-13` onwards inherits it.** The
+   > three gates grep per *file*, not per `CREATE TABLE`, so one script creating two
+   > tables still ships the second with no `tenant_id` and no policy (**#137**). No test
+   > runs `V001` through Flyway (**#136**). And a stale image makes the migrate job exit 0
+   > having applied nothing (**#138**). Two High findings — a README teaching a policy form
+   > that raises `22P02` on a pooled connection, and `setForConnection` silently binding
+   > nothing under auto-commit — were found by `/review` and fixed before merge.
 3. **Azure — opened.** `W-49` containerisation **merged 2026-09-17 (#116)**: three
    production images — backend carrying both `app.jar` and `worker.jar` selected by
    `INFINEVO_ROLE` (`D-48`), unprivileged nginx on 8080 (`D-49`), and Keycloak with no
@@ -100,11 +120,14 @@ no longer tracks who holds what — **the assignee field on GitHub is the only t
 
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
-| **#7** | `W-06` Flyway migrations | M | DATA | **Closed, but reverted off `main` — see the note above.** `W-06` → `W-07` → `W-08` is what Wave 3 waits on, so nothing in the chain can start until this is resolved |
-| **#70** | `W-50` Azure infrastructure as code | L | INFRA | **Newly unblocked** — `W-49` merged 2026-09-17, so the images `W-50` deploys now exist |
+| **#9** | `W-08` Tenant binding and enforcement | L | DATA | **Newly unblocked — the head of the chain.** `W-07` merged 2026-09-19 as `c1cb5ee`, so `core.tenant`, the RLS pattern and `TenantContext.setForConnection` all exist. `W-08` is what wires the filter that reads the tenant from the Keycloak JWT and calls it — explicitly deferred out of `W-07` §2. Read `TenantContext`'s javadoc first: the binding is transaction-local and the method now **refuses** an auto-commit connection |
+| **#136** | `W-07` follow-up — no test runs `V001` through Flyway | S | DATA | The shipped migration location is exercised by no test; `TenantIsolationIT` applies the SQL by hand and skips setup if the table exists. Cheap, and it closes a real blind spot before `W-13` adds ~115 tables |
+| **#137** | `W-07` follow-up — gates are per-file greps | S | DATA | A two-table script still ships the second table with no `tenant_id` and no policy. Fix before `W-13`, not after |
+| **#138** | Migrate job exits 0 having applied nothing | S | INFRA | A stale image makes Flyway find no scripts and the container still succeed. Matters at `W-54`, not just locally |
+| **#139** | Gate question — code reached `main` in a docs-only commit | S | INFRA | `365a319` said "Documentation only. No code changed." and carried the whole migration module. Fold into #101/#104 |
 | #79 | `W-59` Scanning | M | INFRA | **Two inherited decisions have come due**: the container scan's "report-only until `W-49`" condition has expired, and the Keycloak image's primary group 0. Also modifies the same `images` job `W-49` just rewrote — read it before editing |
 | #86 | `W-66` Marketing website | L | FE | Independent of the chain |
-| #117 | Testcontainers does not detect Docker — `DatabasePrivilegesIT` skips silently | S | INFRA | Found by `/verify W-49`. 13 of 34 backend tests skip under a green build, including the whole owner-privilege suite. Every `verify` proves less than it appears to until this is fixed |
+| #117 | Testcontainers does not detect Docker on Windows | S | INFRA | **Re-scoped 2026-09-19: CI is fine — all suites run there with 0 skips. Only local Windows is broken**, by a stale `~/.testcontainers.properties` pinning the wrong npipe strategy, which overrides `DOCKER_HOST`. Deleting that one file fixes it. Still matters: a local `/verify` reports `BUILD SUCCESS` with the whole integration suite skipped, which nearly produced a false High on `W-07` |
 | #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | Small, unblocks nothing but hardens `/merge` |
 | #104 | Three gate paths never executed; harness not in CI | S | INFRA | Same |
 | #112 | `W-05` follow-ups — test classpath, CI never runs the stack | S | INFRA | **`F-18` is the leverage item.** CI runs neither `compose up` nor `smoke.sh`, which is why three High defects that stopped Postgres booting passed gate 10 green. Fold into #101/#104 |
@@ -193,7 +216,7 @@ entities are authoritative, and whether the HRMS→Payroll leave integration car
 |---|---|
 | **No branch protection** | GitHub refuses it on private repositories on the Free plan (`D-43`). `main` is convention, not enforcement, until the plan changes |
 | **Pipeline is advisory** | `W-03` merged 2026-09-14. Four jobs on every PR, but `D-43` means CI cannot be a *required* check — gate 10 of the ten-gate done-check enforces it locally instead |
-| **`W-07` owes the two-tenant seed** | `W-02` shipped the loader; `core.tenant` does not exist yet. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
+| **The two-tenant seed is still owed — now by `W-08`/`W-09`, not `W-07`** | `W-02` shipped the loader and `W-07` shipped `core.tenant`, so the blocker is gone. But `W-07` seeds two tenants only inside `TenantIsolationIT`; no dev or local stack seed exists. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
 | **Nobody has run the stack but me** | `W-02` done-when item 11 is unticked. Have a developer run `up -d` and `smoke.sh` |
 | **Test foundation is in, coverage is not** | `W-04` merged 2026-09-15. `AbstractIntegrationTest` runs a real Postgres 16 as non-owner `app_user`; 24 tests, all in `shared`. Three things to know: integration tests are **skipped silently without Docker** (CI has it, laptops may not); `W-05` gave Failsafe its first real match, `DatabasePrivilegesIT` (10 tests, green in CI); `app_user` was created by the initializer, not the bootstrap script — **`W-05` switched it**, so the initializer now runs the canonical `infra/postgres/` scripts |
 | **Toolchain** | Java 21, Maven 3.9.11 (`C:/Tools/apache-maven-3.9.11`), Node 24. `D-38`–`D-42` |
