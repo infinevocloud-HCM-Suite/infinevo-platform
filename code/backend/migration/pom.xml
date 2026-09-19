@@ -58,6 +58,11 @@
     <dependency>
       <groupId>com.infinevo</groupId>
       <artifactId>shared</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.infinevo</groupId>
+      <artifactId>shared</artifactId>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
