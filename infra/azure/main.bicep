@@ -9,6 +9,13 @@ targetScope = 'subscription'
 param environment string
 
 @description('Primary Azure region for all resources (D-18: Central India)')
+// Single-valued on purpose. D-18 puts Indian payroll data under the DPDP Act, so a
+// deployment to any other region is a compliance breach, not a configuration choice.
+// W-51 deliberate break 7 is `--location eastus` being rejected here, before anything
+// is created.
+@allowed([
+  'centralindia'
+])
 param location string = 'centralindia'
 
 @description('Object id of the principal running the deployment, granted Key Vault Secrets Officer (review F-5). deploy.sh supplies it from `az ad signed-in-user show`.')
@@ -67,6 +74,22 @@ param containerAppMaxReplicas int = 3
 @description('Key Vault purge protection enabled')
 param enablePurgeProtection bool = false
 
+// ── Networking (W-51) ────────────────────────────────────────────────────────
+@description('VNet address space, 10.{octet}.0.0/16 - dev 10.10, uat 10.20, prod 10.30')
+param vnetAddressPrefix string
+
+@description('Address prefix for snet-cae, the Container Apps environment subnet (a /23)')
+param caeSubnetPrefix string
+
+@description('Address prefix for snet-pe, the private endpoint subnet (a /24)')
+param peSubnetPrefix string
+
+@description('Transient Key Vault network ACL ip rules, each an object with a value property holding a CIDR. Empty at rest - deploy.sh adds and revokes its own egress address within one run (W-51 section 2.3)')
+param keyVaultAllowedIpRules array = []
+
+@description('AzureFrontDoor.Backend IP prefixes (CIDR strings) allowed to reach Container Apps ingress. Empty at rest - deploy.sh resolves the service tag at deploy time, and an empty list means ingress denies everything (W-51 section 2.5)')
+param frontDoorBackendPrefixes array = []
+
 var sharedRgName = 'rg-infinevo-shared'
 var envRgName = 'rg-infinevo-${environment}'
 
@@ -112,6 +135,7 @@ module keyVault 'modules/keyvault.bicep' = {
     location: location
     enablePurgeProtection: enablePurgeProtection
     deployerObjectId: deployerObjectId
+    allowedIpRules: keyVaultAllowedIpRules
     tags: defaultTags
   }
 }
@@ -127,7 +151,34 @@ module logAnalytics 'modules/loganalytics.bicep' = {
   }
 }
 
-// ── 3. Environment Group Resources ───────────────────────────────────────────
+// ── 3. Environment Network ───────────────────────────────────────────────────
+// Deployed before the Container Apps environment and before every private endpoint:
+// snet-cae has to exist before cae-infinevo-{env} can be injected into it (T2), and a
+// private endpoint cannot be created without its subnet or resolve without its zone.
+module vnet 'modules/vnet.bicep' = {
+  name: 'deploy-vnet-${environment}'
+  scope: envRg
+  params: {
+    vnetName: 'vnet-infinevo-${environment}'
+    location: location
+    vnetAddressPrefix: vnetAddressPrefix
+    caeSubnetPrefix: caeSubnetPrefix
+    peSubnetPrefix: peSubnetPrefix
+    tags: defaultTags
+  }
+}
+
+module privateDns 'modules/private-dns.bicep' = {
+  name: 'deploy-private-dns-${environment}'
+  scope: envRg
+  params: {
+    vnetId: vnet.outputs.vnetId
+    vnetName: vnet.outputs.vnetName
+    tags: defaultTags
+  }
+}
+
+// ── 4. Environment Group Resources ───────────────────────────────────────────
 module managedIdentities 'modules/managed-identities.bicep' = {
   name: 'deploy-identities-${environment}'
   scope: envRg
@@ -162,8 +213,13 @@ module containerAppEnv 'modules/containerapp-env.bicep' = {
     logAnalyticsCustomerId: logAnalytics.outputs.customerId
     logAnalyticsWorkspaceName: logAnalytics.outputs.workspaceName
     sharedResourceGroupName: sharedRg.name
+    infrastructureSubnetId: vnet.outputs.caeSubnetId
     tags: defaultTags
   }
+  // No explicit dependsOn: consuming vnet.outputs.caeSubnetId above already forces the
+  // ordering section 8a requires - network first, environment second - and the linter
+  // rejects the redundant entry (no-unnecessary-dependson). The subnet id is immutable
+  // once the environment exists, so this ordering is not merely a convenience.
 }
 
 module postgres 'modules/postgres.bicep' = {
@@ -195,17 +251,11 @@ module redis 'modules/redis.bicep' = {
   }
 }
 
-module serviceBus 'modules/servicebus.bicep' = {
-  name: 'deploy-servicebus-${environment}'
-  scope: envRg
-  params: {
-    namespaceName: 'sb-infinevo-${environment}'
-    location: location
-    skuName: 'Standard'
-    tags: defaultTags
-  }
-}
-
+// No Service Bus namespace. Founder decision 2026-09-19: queueing moves to Azure Storage
+// Queues on stinfinevo{env} below, because a private endpoint on Service Bus requires the
+// Premium tier (~10x Standard) and D-19 scale does not justify it. Storage Queue takes a
+// private endpoint on the Standard account that already exists, so the perimeter rule at
+// docs/target-state/05-azure-architecture.md:75 holds at near-zero cost.
 module storage 'modules/storage.bicep' = {
   name: 'deploy-storage-${environment}'
   scope: envRg
@@ -249,11 +299,93 @@ module containerApps 'modules/containerapps.bicep' = {
     minReplicas: containerAppMinReplicas
     maxReplicas: containerAppMaxReplicas
     identities: identityMap
+    frontDoorBackendPrefixes: frontDoorBackendPrefixes
     tags: defaultTags
   }
   dependsOn: [
     acrRoleAssignment
   ]
+}
+
+// ── 5. Private Endpoints ─────────────────────────────────────────────────────
+// All five land in snet-pe - postgres, redis, storage blob, storage queue and the shared
+// vault. Each pairs with the zone group inside private-endpoint.bicep,
+// which is what writes the A record that makes the public FQDN resolve to a 10.x address.
+module postgresPrivateEndpoint 'modules/private-endpoint.bicep' = {
+  name: 'deploy-pe-postgres-${environment}'
+  scope: envRg
+  params: {
+    privateEndpointName: 'pe-psql-infinevo-${environment}'
+    location: location
+    subnetId: vnet.outputs.peSubnetId
+    targetResourceId: postgres.outputs.serverId
+    groupId: 'postgresqlServer'
+    privateDnsZoneId: privateDns.outputs.postgresZoneId
+    tags: defaultTags
+  }
+}
+
+module redisPrivateEndpoint 'modules/private-endpoint.bicep' = {
+  name: 'deploy-pe-redis-${environment}'
+  scope: envRg
+  params: {
+    privateEndpointName: 'pe-redis-infinevo-${environment}'
+    location: location
+    subnetId: vnet.outputs.peSubnetId
+    targetResourceId: redis.outputs.redisId
+    groupId: 'redisCache'
+    privateDnsZoneId: privateDns.outputs.redisZoneId
+    tags: defaultTags
+  }
+}
+
+module storageBlobPrivateEndpoint 'modules/private-endpoint.bicep' = {
+  name: 'deploy-pe-storage-blob-${environment}'
+  scope: envRg
+  params: {
+    privateEndpointName: 'pe-st-blob-infinevo-${environment}'
+    location: location
+    subnetId: vnet.outputs.peSubnetId
+    targetResourceId: storage.outputs.storageAccountId
+    groupId: 'blob'
+    privateDnsZoneId: privateDns.outputs.blobZoneId
+    tags: defaultTags
+  }
+}
+
+// Second endpoint on the same storage account. Blob and queue are distinct private link
+// sub-resources with distinct DNS zones, so the blob endpoint above does not reach the
+// queues - without this one, publicNetworkAccess: 'Disabled' would leave payrun, import
+// and report unreachable from anywhere.
+module storageQueuePrivateEndpoint 'modules/private-endpoint.bicep' = {
+  name: 'deploy-pe-storage-queue-${environment}'
+  scope: envRg
+  params: {
+    privateEndpointName: 'pe-st-queue-infinevo-${environment}'
+    location: location
+    subnetId: vnet.outputs.peSubnetId
+    targetResourceId: storage.outputs.storageAccountId
+    groupId: 'queue'
+    privateDnsZoneId: privateDns.outputs.queueZoneId
+    tags: defaultTags
+  }
+}
+
+// The vault itself is shared and lives in rg-infinevo-shared, but snet-pe is per
+// environment, so the endpoint is an environment resource pointing across groups. Each
+// environment gets its own route to the same vault.
+module keyVaultPrivateEndpoint 'modules/private-endpoint.bicep' = {
+  name: 'deploy-pe-keyvault-${environment}'
+  scope: envRg
+  params: {
+    privateEndpointName: 'pe-kv-infinevo-shared-${environment}'
+    location: location
+    subnetId: vnet.outputs.peSubnetId
+    targetResourceId: keyVault.outputs.keyVaultId
+    groupId: 'vault'
+    privateDnsZoneId: privateDns.outputs.vaultZoneId
+    tags: defaultTags
+  }
 }
 
 // ── Outputs ──────────────────────────────────────────────────────────────────
@@ -263,8 +395,14 @@ output registryLoginServer string = registry.outputs.loginServer
 output keyVaultUri string = keyVault.outputs.keyVaultUri
 output postgresFqdn string = postgres.outputs.fullyQualifiedDomainName
 output redisHostName string = redis.outputs.hostName
-output serviceBusEndpoint string = serviceBus.outputs.endpoint
 output storageBlobEndpoint string = storage.outputs.primaryBlobEndpoint
+// Replaces the former serviceBusEndpoint output. W-52 consumes this to build the queue
+// client; there is no connection string to emit, and none is wanted - access is by
+// managed identity (W-51 section 3f).
+output storageQueueEndpoint string = storage.outputs.primaryQueueEndpoint
 output webAppFqdn string = containerApps.outputs.webFqdn
 output apiAppFqdn string = containerApps.outputs.appFqdn
 output keycloakFqdn string = containerApps.outputs.keycloakFqdn
+output vnetId string = vnet.outputs.vnetId
+output caeSubnetId string = vnet.outputs.caeSubnetId
+output peSubnetId string = vnet.outputs.peSubnetId

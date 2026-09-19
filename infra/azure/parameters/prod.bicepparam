@@ -21,4 +21,9 @@ param containerAppMemory = '1.0Gi'
 param containerAppMinReplicas = 2
 param containerAppMaxReplicas = 10
 
+// Networking (W-51 section 2.1). 10.30.0.0/16; 10.30.2.0/24 is left unallocated.
+param vnetAddressPrefix = '10.30.0.0/16'
+param caeSubnetPrefix = '10.30.0.0/23'
+param peSubnetPrefix = '10.30.3.0/24'
+
 param enablePurgeProtection = true

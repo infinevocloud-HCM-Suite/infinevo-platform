@@ -22,8 +22,7 @@ infra/azure/
 │   ├── containerapps.bicep             # 4 Container Apps (app, worker, web, keycloak)
 │   ├── postgres.bicep                  # PostgreSQL 16 Flexible Server (psql-infinevo-{env})
 │   ├── redis.bicep                     # Azure Cache for Redis (redis-infinevo-{env})
-│   ├── servicebus.bicep                # Service Bus Namespace & queues (sb-infinevo-{env})
-│   └── storage.bicep                   # Storage Account & private containers (stinfinevo{env})
+│   └── storage.bicep                   # Storage Account: private containers & queues (stinfinevo{env})
 ├── parameters/
 │   ├── dev.bicepparam                  # Dev environment (burstable SKUs, scale-to-zero)
 │   ├── uat.bicepparam                  # UAT environment (acceptance testing topology)
@@ -45,8 +44,9 @@ infra/azure/
    - `ca-infinevo-{env}-{app,worker,web,keycloak}`: 4 Container Apps.
    - `psql-infinevo-{env}`: PostgreSQL 16 Flexible Server (`infinevo` and `keycloak` databases).
    - `redis-infinevo-{env}`: Azure Cache for Redis.
-   - `sb-infinevo-{env}`: Service Bus with queues `payrun`, `import`, `report`.
-   - `stinfinevo{env}`: Storage Account with private containers `documents`, `payslips`, `proofs`.
+   - `stinfinevo{env}`: Storage Account with private containers `documents`, `payslips`, `proofs`
+     and queues `payrun`, `import`, `report`. Storage Queue replaced Azure Service Bus
+     (founder decision 2026-09-19): Service Bus private endpoints are Premium-tier only.
    - `id-{app,worker,web,keycloak}-{env}`: User-Assigned Managed Identities with `AcrPull` on `crinfinevo`.
 
 ---

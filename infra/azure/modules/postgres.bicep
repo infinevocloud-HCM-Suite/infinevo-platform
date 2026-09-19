@@ -33,9 +33,6 @@ param storageSizeGB int = 32
 ])
 param highAvailabilityMode string = 'Disabled'
 
-@description('Whether to allow Azure services and resources access to this server')
-param allowAzureIps bool = true
-
 @description('Tags for the resource')
 param tags object = {}
 
@@ -60,7 +57,15 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-30' =
     }
     backup: {
       backupRetentionDays: 7
+      // D-18: no geo-replication, so the backup stays in centralindia with the primary.
       geoRedundantBackup: 'Disabled'
+    }
+    // W-51 section 2.2. No delegatedSubnetResourceId: the server stays in public-access
+    // mode - the only mode eligible for a private endpoint - and the endpoint is a
+    // separate resource in main.bicep. That keeps this switch reversible (section 8c
+    // break-glass) and converts psql-infinevo-{env} in place rather than recreating it.
+    network: {
+      publicNetworkAccess: 'Disabled'
     }
   }
 }
@@ -85,15 +90,9 @@ resource keycloakDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-12
   }
 }
 
-// Optional firewall rule to allow Azure-internal traffic for Container Apps and initial provisioning
-resource firewallAzure 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-12-30' = if (allowAzureIps) {
-  parent: postgresServer
-  name: 'allow-azure-internal'
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '0.0.0.0'
-  }
-}
+// The allow-azure-internal firewall rule is deliberately gone (W-51 section 2.3). With
+// publicNetworkAccess Disabled a firewall rule grants nothing, and the rule was the last
+// route from outside the VNet - post-deploy-db.sh:65-93 leaned on it and T4 removes that too.
 
 output serverId string = postgresServer.id
 output serverName string = postgresServer.name
