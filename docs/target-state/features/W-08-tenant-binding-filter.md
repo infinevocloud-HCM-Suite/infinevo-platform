@@ -23,14 +23,15 @@
 
 `W-07` delivered the `core.tenant` table and row-level security (RLS) policies (`ENABLE ROW LEVEL SECURITY`, `CREATE POLICY tenant_isolation`) based on the PostgreSQL session variable `app.current_tenant_id`. It also provided `TenantContext.java` in `code/backend/shared` with `set(UUID)`, `require()`, and `setForConnection(Connection)`.
 
-However, the application runtime lacks the boundary filter and database transaction hooks to:
-1. Extract the active tenant identity from incoming HTTP authentication tokens or request headers.
-2. Verify that the authenticated principal is a permitted member of that tenant.
-3. Bind `TenantContext` to the executing HTTP thread for the duration of the request.
-4. Bind `app.current_tenant_id` to open PostgreSQL database connections when a transaction opens.
-5. Reliably clear `TenantContext` in a `finally` block at request completion to prevent `ThreadLocal` leaks.
+However, the application runtime lacks the boundary filter, membership table, and database transaction hooks to:
+1. Store and query user-tenant membership relationships in PostgreSQL.
+2. Extract the active tenant identity from incoming HTTP authentication tokens or request headers.
+3. Verify that the authenticated principal is a permitted member of that tenant against the database.
+4. Bind `TenantContext` to the executing HTTP thread for the duration of the request.
+5. Bind `app.current_tenant_id` to open PostgreSQL database connections when a transaction opens.
+6. Reliably clear `TenantContext` in a `finally` block at request completion to prevent `ThreadLocal` leaks.
 
-Without this filter and database session binding:
+Without this filter, database membership table, and database session binding:
 - Queries executing against PostgreSQL run with no tenant bound. Under RLS (`D-56`), such queries evaluate to `NULL` / false and return zero rows.
 - Developers risk falling back to legacy patterns of threading `organizationId` / `tenantId` manually as a method parameter across 270+ controller methods.
 - Requests with invalid, missing, or unauthorized tenant claims are not intercepted uniformly at the edge, risking unauthenticated or cross-tenant access attempts.
@@ -41,12 +42,15 @@ Without this filter and database session binding:
 
 **In scope**
 
+- **User-Tenant Membership Table (`V002__user_tenant.sql`)**:
+  - Bring `core.user_tenant` table creation into `W-08` (`02-data-model.md:55`) via Flyway migration script `V002__user_tenant.sql`.
+  - Includes `tenant_id` column, foreign key constraint to `core.tenant`, unique index on `(user_id, tenant_id)`, and RLS isolation policy `CREATE POLICY tenant_isolation` using the 3-branch `CASE` (`D-56`).
 - **Token & Header Tenant Claim Extraction (`TenantAuthenticationExtractor`)**:
   - Extract user identity (`user_id` / subject `sub`) from Spring Security JWT.
   - Extract active tenant UUID from JWT claim (`tenant_id`) or `X-Tenant-Id` HTTP request header.
 - **Database-Backed Membership Verification (`core.user_tenant`)**:
-  - No custom JWT `tenants` claim is assumed. Tenant membership is defined in the target database table `core.user_tenant` (`02-data-model.md:55`).
-  - Verify that the tuple `(user_id, target_tenant_id)` exists in `core.user_tenant` via `TenantMembershipService`.
+  - Tenant membership is verified against the newly created database table `core.user_tenant` (`02-data-model.md:55`) via `TenantMembershipService`.
+  - Verify that the tuple `(user_id, target_tenant_id)` exists in `core.user_tenant`.
   - Reject unpermitted tenant requests with `403 FORBIDDEN` (`ApiError.FORBIDDEN`).
 - **Missing Tenant Handling (F-2)**:
   - If request path is an exempt public path, pass through without binding tenant.
@@ -78,7 +82,7 @@ Without this filter and database session binding:
 **Out of scope**
 
 - Keycloak server realm setup & user management (`W-10` Identity).
-- Domain entity migrations beyond `core.tenant` (`W-13` onwards).
+- Domain entity migrations beyond `core.tenant` and `core.user_tenant` (`W-13` onwards).
 - Frontend tenant switcher component (`W-11`).
 
 ---
@@ -165,7 +169,42 @@ None (Backend core filter and session binding foundation).
 
 ## 6. Database changes
 
-> Uses existing Flyway migration `V001__tenant.sql` from `W-07`, `core.user_tenant` table (`02-data-model.md:55`), and session variable `app.current_tenant_id`. No new database migrations required.
+| Migration | Tables | Tenant-aware? | Reversible? |
+|---|---|---|---|
+| `V002__user_tenant.sql` | `core.user_tenant` | yes | yes |
+
+- [x] `tenant_id` present on every new table (`CONVENTIONS.md` rule 7)
+- [x] Index on `tenant_id` plus lookup columns (`idx_user_tenant_tenant_id`, `idx_user_tenant_user_id`, `idx_user_tenant_unique` - `DEBT-018`)
+- [x] RLS enabled with `CREATE POLICY tenant_isolation` using 3-branch `CASE` (`D-56`)
+
+Flyway migration file to be created under `code/backend/migration/src/main/resources/db/migration/core/V002__user_tenant.sql`:
+
+```sql
+CREATE TABLE core.user_tenant (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id),
+    user_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100) NOT NULL DEFAULT 'system',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100) NOT NULL DEFAULT 'system'
+);
+
+CREATE INDEX idx_user_tenant_tenant_id ON core.user_tenant(tenant_id);
+CREATE INDEX idx_user_tenant_user_id ON core.user_tenant(user_id);
+CREATE UNIQUE INDEX idx_user_tenant_unique ON core.user_tenant(user_id, tenant_id);
+
+ALTER TABLE core.user_tenant ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON core.user_tenant
+    USING (
+        CASE
+            WHEN current_setting('app.current_tenant_id', true) IS NULL THEN false
+            WHEN current_setting('app.current_tenant_id', true) = '' THEN false
+            ELSE tenant_id = current_setting('app.current_tenant_id', true)::uuid
+        END
+    );
+```
 
 ---
 
@@ -175,7 +214,7 @@ None (Backend core filter and session binding foundation).
 |---|---|---|
 | Unit | `TenantContextFilterTest.java` | `[NEW]` Token claim parsing, `core.user_tenant` membership validation, single-tenant auto-binding, multi-tenant missing claim rejection (401), invalid UUID format, unauthenticated request rejection, forbidden membership rejection (403), `finally` cleanup |
 | Unit | `TenantDatabaseInterceptorTest.java` | `[NEW]` Calling `setForConnection` on transactional connections, throwing `IllegalStateException` on auto-commit connections |
-| Integration | `TenantBindingIT.java` | `[NEW]` Full Spring Boot + Testcontainers integration test executing **real HTTP requests via `MockMvc`** through Spring Security filter chain: verifying valid HTTP request binding, header spoofing 403 rejection, missing tenant 401 rejection, Spring Data JPA `@Transactional` connection binding, and `unboundQuery_returnsZeroRows_underRLS`. |
+| Integration | `TenantBindingIT.java` | `[NEW]` Full Spring Boot + Testcontainers integration test executing `V002__user_tenant.sql` migration, inserting test membership rows, executing **real HTTP requests via `MockMvc`** through Spring Security filter chain: verifying valid HTTP request binding, header spoofing 403 rejection, missing tenant 401 rejection, Spring Data JPA `@Transactional` connection binding, and `unboundQuery_returnsZeroRows_underRLS`. |
 
 ---
 
@@ -200,7 +239,7 @@ git grep -nE '@RequestParam.*(tenantId|organizationId)|@PathVariable.*(tenantId|
 | Check | Command / Target | Expected Output | Result |
 |---|---|---|---|
 | Unit Tests | `(cd code/backend && ./mvnw test -Dtest=Tenant*Test)` | `BUILD SUCCESS` (Passes all claim parsing, header security, and cleanup unit tests) | Pending |
-| Integration Tests (Real HTTP Requests) | `(cd code/backend && ./mvnw verify -Dtest=TenantBindingIT)` | `BUILD SUCCESS` (Passes MockMvc HTTP requests testing 200 OK, 401 TENANT_NOT_BOUND, 403 FORBIDDEN, and JPA transactional RLS isolation) | Pending |
+| Integration Tests (Real HTTP Requests) | `(cd code/backend && ./mvnw verify -Dtest=TenantBindingIT)` | `BUILD SUCCESS` (Runs V002__user_tenant.sql migration, passes MockMvc HTTP requests testing 200 OK, 401 TENANT_NOT_BOUND, 403 FORBIDDEN, and JPA transactional RLS isolation) | Pending |
 | Unbound Query Behavior | `TenantBindingIT#unboundQuery_returnsZeroRows_underRLS` | Test passes: Unbound query returns zero rows under PostgreSQL RLS | Pending |
 | Controller Parameter Audit | `git grep -nE '@RequestParam.*(tenantId\|organizationId)...'` | Exit code 1 / 0 lines returned (Zero endpoints take explicit tenant parameters) | Pending |
 
@@ -213,10 +252,10 @@ git grep -nE '@RequestParam.*(tenantId|organizationId)|@PathVariable.*(tenantId|
 | `ThreadLocal` leak across pooled web container threads | Low | Enforced `finally TenantContext.clear()` in `TenantContextFilter`. |
 | Session variable persistence across pooled database connections | Low | `TenantContext.setForConnection` uses `is_local = true` (`SELECT set_config(..., true)`), which automatically resets the variable at transaction completion. |
 | Auto-commit connection silent empty query results | Low | `TenantContext.setForConnection` checks `conn.getAutoCommit() == false` and throws `IllegalStateException` if auto-commit mode is detected (`D-57`). |
-| Header spoofing via `X-Tenant-Id` | Low | Membership verified against `core.user_tenant` DB table for every request. Mismatched/unpermitted tenants return `403 FORBIDDEN`. |
+| Header spoofing via `X-Tenant-Id` | Low | Membership verified against `core.user_tenant` DB table created by `V002__user_tenant.sql` for every request. Mismatched/unpermitted tenants return `403 FORBIDDEN`. |
 
 ---
 
 ## 10. Rollback
 
-Revert the commits adding `TenantContextFilter`, `TenantAuthenticationExtractor`, `TenantMembershipService`, `TenantDatabaseInterceptor`, and `TenantBindingAutoConfiguration`.
+Revert the commits adding `TenantContextFilter`, `TenantAuthenticationExtractor`, `TenantMembershipService`, `TenantDatabaseInterceptor`, `TenantBindingAutoConfiguration`, and `V002__user_tenant.sql`.
