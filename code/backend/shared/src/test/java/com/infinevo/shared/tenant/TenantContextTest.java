@@ -116,4 +116,40 @@ class TenantContextTest {
         org.mockito.Mockito.verify(stmt).setString(1, TENANT.toString());
         org.mockito.Mockito.verify(stmt).execute();
     }
+
+    /**
+     * Review F-1. The binding is transaction-local, so on an auto-commit connection it is
+     * discarded the instant the call returns and every later query silently returns zero
+     * rows under RLS. Refusing is the only honest outcome; before the fix this bound
+     * nothing and reported success.
+     */
+    @Test
+    @DisplayName("setForConnection refuses an auto-commit connection instead of binding nothing")
+    void setForConnectionRefusesAutoCommit() throws Exception {
+        TenantContext.set(TENANT);
+        var conn = org.mockito.Mockito.mock(java.sql.Connection.class);
+        org.mockito.Mockito.when(conn.getAutoCommit()).thenReturn(true);
+
+        assertThatThrownBy(() -> TenantContext.setForConnection(conn))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("auto-commit");
+
+        org.mockito.Mockito.verify(conn, org.mockito.Mockito.never())
+                .prepareStatement(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    @DisplayName("setForConnection binds when auto-commit is disabled")
+    void setForConnectionBindsWhenTransactional() throws Exception {
+        TenantContext.set(TENANT);
+        var conn = org.mockito.Mockito.mock(java.sql.Connection.class);
+        var stmt = org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        org.mockito.Mockito.when(conn.getAutoCommit()).thenReturn(false);
+        org.mockito.Mockito.when(conn.prepareStatement(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(stmt);
+
+        TenantContext.setForConnection(conn);
+
+        org.mockito.Mockito.verify(stmt).execute();
+    }
 }

@@ -66,18 +66,45 @@ public final class TenantContext {
     }
 
     /**
-     * Executes {@code SET LOCAL app.current_tenant_id = ?} on the given JDBC connection.
-     * Sets the PostgreSQL session variable for the duration of the current transaction.
+     * Binds the current thread's tenant to {@code conn} for the duration of the
+     * <strong>open transaction</strong>, by executing
+     * {@code SELECT set_config('app.current_tenant_id', ?, true)}. This is the
+     * transaction-local equivalent of {@code SET LOCAL}, which cannot take a bind parameter.
      *
-     * @param conn the JDBC connection
+     * <p><strong>The connection must have auto-commit disabled.</strong> The binding is
+     * transaction-local ({@code is_local = true}), so on an auto-commit connection every
+     * statement is its own transaction and the value is discarded the instant this call
+     * returns - the next query would run with no tenant bound and, under the row-level
+     * security policies, quietly return zero rows. This method refuses that case rather
+     * than appearing to succeed:
+     *
+     * <pre>{@code
+     * conn.setAutoCommit(false);
+     * TenantContext.setForConnection(conn);
+     * // ... queries in this transaction see only this tenant's rows ...
+     * conn.commit();
+     * }</pre>
+     *
+     * <p>Once the transaction ends the variable does not revert to unset - it reverts to
+     * the empty string. The RLS policies in {@code db/migration/} handle both states; see
+     * {@code migration/README.md} section "Row-level security".
+     *
+     * @param conn an open JDBC connection with auto-commit disabled
      * @throws java.sql.SQLException if a database access error occurs
-     * @throws IllegalStateException if no tenant is bound to the current thread
+     * @throws IllegalArgumentException if {@code conn} is null
+     * @throws IllegalStateException if no tenant is bound to the current thread, or if
+     *         {@code conn} is in auto-commit mode
      */
     public static void setForConnection(java.sql.Connection conn) throws java.sql.SQLException {
         if (conn == null) {
             throw new IllegalArgumentException("conn must not be null");
         }
         UUID tenantId = require();
+        if (conn.getAutoCommit()) {
+            throw new IllegalStateException("connection is in auto-commit mode: the tenant binding is "
+                    + "transaction-local and would be discarded immediately, leaving every subsequent "
+                    + "query to return zero rows under RLS. Call conn.setAutoCommit(false) first.");
+        }
         try (var stmt = conn.prepareStatement("SELECT set_config('app.current_tenant_id', ?, true)")) {
             stmt.setString(1, tenantId.toString());
             stmt.execute();
