@@ -56,7 +56,7 @@ three people it was the third assignment rather than the first. Both are now mer
 
 | Track | Items | Parallel? |
 |---|---|---|
-| P | `W-06` Flyway → `W-07` tenant model → `W-08` tenant binding filter | **Strictly sequential.** Each needs the previous |
+| P | `W-06` Flyway → `W-07` tenant model → `W-08` tenant binding filter | **Strictly sequential.** Each needs the previous — `W-06` and `W-07` merged 2026-09-19 |
 | P | `W-09` reference schema and seed | Parallel with `W-07`–`W-08` |
 | I | `W-50` Azure infrastructure as code | Parallel |
 | I | `W-51` networking and identity · `W-52` queue and worker · `W-53` caching | **All three in parallel** after `W-50` |
@@ -172,7 +172,7 @@ Watch: two tenants is not optional. One tenant means entitlement bugs surface on
 
 **`W-06` Flyway** · Build: runner, script conventions, per-schema ordering, pipeline validation. Done when: `ddl-auto` is absent from every configuration file. Watch: script order across four schemas — `reference` first, then `core`, then modules.
 
-**`W-07` Tenant model** · Build: `tenant_id` standard, row-level security policies, grants, **a build check that fails on a table without a tenant column outside `reference`**. Done when: the check fails on a deliberately bad migration. Watch: the check is the deliverable. A convention nobody enforces decays within a month.
+**`W-07` Tenant model** — **merged 2026-09-19 (#131).** Built: `core.tenant`, the `tenant_id uuid NOT NULL` standard, a row-level security policy keyed on `app.current_tenant_id`, and three build checks over the migration scripts. Done: each check was broken deliberately and observed failing, and the cross-tenant insert and update are both rejected. Watch: **the checks grep per file, not per `CREATE TABLE`** — a script creating two tables still ships the second unprotected (#137). The convention held; the enforcement is narrower than it reads.
 
 **`W-08` Tenant binding filter** · Build: extract tenant from token, verify membership, set on the database session, handle failure. Done when: a query with no tenant set returns zero rows, not all rows. Watch: this replaces passing an organisation id into 270 methods. Resist any endpoint that takes a tenant as a parameter.
 
