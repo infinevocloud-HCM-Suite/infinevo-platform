@@ -23,9 +23,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -74,11 +79,26 @@ class TenantBindingIT extends AbstractIntegrationTest {
     @SpringBootApplication(scanBasePackages = "com.infinevo.shared")
     static class TestApp {
 
+        /**
+         * A plain JDBC transaction manager, so {@code @Transactional} below binds the very
+         * connection {@link JdbcTemplate} then uses. The tenant binding is transaction-local
+         * (D-57), so the endpoint must genuinely run inside a transaction.
+         */
+        @Bean
+        PlatformTransactionManager transactionManager(DataSource dataSource) {
+            return new DataSourceTransactionManager(dataSource);
+        }
+
+        @Bean
+        JdbcTemplate jdbcTemplate(DataSource dataSource) {
+            return new JdbcTemplate(dataSource);
+        }
+
         @RestController
         static class TestController {
 
             @Autowired
-            private DataSource dataSource;
+            private JdbcTemplate jdbcTemplate;
 
             @GetMapping("/actuator/health")
             public String health() {
@@ -86,18 +106,15 @@ class TenantBindingIT extends AbstractIntegrationTest {
             }
 
             @GetMapping("/v1/test-protected")
-            public Map<String, Object> testProtected() throws Exception {
+            @Transactional
+            public Map<String, Object> testProtected() {
                 UUID boundTenant = TenantContext.current().orElse(null);
-                int count = 0;
-                try (Connection conn = dataSource.getConnection()) {
-                    try (Statement stmt = conn.createStatement();
-                            ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.tenant")) {
-                        if (rs.next()) {
-                            count = rs.getInt(1);
-                        }
-                    }
-                }
-                return Map.of("boundTenant", boundTenant != null ? boundTenant.toString() : "none", "rowCount", count);
+                Integer count = jdbcTemplate.queryForObject("SELECT count(*) FROM core.tenant", Integer.class);
+                return Map.of(
+                        "boundTenant",
+                        boundTenant != null ? boundTenant.toString() : "none",
+                        "rowCount",
+                        count == null ? 0 : count);
             }
         }
     }
