@@ -72,29 +72,38 @@ public class TenantContextFilter extends OncePerRequestFilter {
         Optional<UUID> requestedTenantId = extractionResult.tenantId();
 
         UUID tenantToBind;
-        if (requestedTenantId.isPresent()) {
-            UUID targetTenantId = requestedTenantId.get();
-            if (!membershipService.isUserMemberOfTenant(userId, targetTenantId)) {
-                writeErrorResponse(
-                        response,
-                        HttpStatus.FORBIDDEN,
-                        ApiError.FORBIDDEN,
-                        "User is not a member of the requested tenant");
-                return;
-            }
-            tenantToBind = targetTenantId;
-        } else {
-            List<UUID> userTenants = membershipService.getUserTenants(userId);
-            if (userTenants.size() == 1) {
-                tenantToBind = userTenants.get(0);
+        try {
+            if (requestedTenantId.isPresent()) {
+                UUID targetTenantId = requestedTenantId.get();
+                if (!membershipService.isUserMemberOfTenant(userId, targetTenantId)) {
+                    writeErrorResponse(
+                            response,
+                            HttpStatus.FORBIDDEN,
+                            ApiError.FORBIDDEN,
+                            "User is not a member of the requested tenant");
+                    return;
+                }
+                tenantToBind = targetTenantId;
             } else {
-                writeErrorResponse(
-                        response,
-                        HttpStatus.UNAUTHORIZED,
-                        ApiError.TENANT_NOT_BOUND,
-                        "No tenant bound to request. Specify X-Tenant-Id or tenant_id claim");
-                return;
+                List<UUID> userTenants = membershipService.getUserTenants(userId);
+                if (userTenants.size() == 1) {
+                    tenantToBind = userTenants.get(0);
+                } else {
+                    writeErrorResponse(
+                            response,
+                            HttpStatus.UNAUTHORIZED,
+                            ApiError.TENANT_NOT_BOUND,
+                            "No tenant bound to request. Specify X-Tenant-Id or tenant_id claim");
+                    return;
+                }
             }
+        } catch (TenantMembershipService.TenantMembershipAccessException e) {
+            writeErrorResponse(
+                    response,
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    ApiError.INTERNAL,
+                    "Database infrastructure error during tenant verification");
+            return;
         }
 
         TenantContext.set(tenantToBind);

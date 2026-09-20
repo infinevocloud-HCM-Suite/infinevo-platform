@@ -7,9 +7,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.shared.test.AbstractIntegrationTest;
+import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,14 +38,27 @@ class TenantBindingIT extends AbstractIntegrationTest {
         @RestController
         static class TestController {
 
+            @Autowired
+            private DataSource dataSource;
+
             @GetMapping("/actuator/health")
             public String health() {
                 return "{\"status\":\"UP\"}";
             }
 
             @GetMapping("/v1/test-protected")
-            public String testProtected() {
-                return "{\"status\":\"ok\"}";
+            public Map<String, Object> testProtected() throws Exception {
+                UUID boundTenant = TenantContext.current().orElse(null);
+                int count = 0;
+                try (Connection conn = dataSource.getConnection()) {
+                    try (Statement stmt = conn.createStatement();
+                            ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.tenant")) {
+                        if (rs.next()) {
+                            count = rs.getInt(1);
+                        }
+                    }
+                }
+                return Map.of("boundTenant", boundTenant != null ? boundTenant.toString() : "none", "rowCount", count);
             }
         }
     }
@@ -63,18 +79,19 @@ class TenantBindingIT extends AbstractIntegrationTest {
     @BeforeEach
     void setUpDatabase() throws Exception {
         TenantContext.clear();
-        try (Connection conn = dataSource.getConnection()) {
+        String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        try (Connection conn = DriverManager.getConnection(
+                jdbcUrl,
+                PostgresTestContainerInitializer.MIGRATION_USER,
+                PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
             boolean originalAutoCommit = conn.getAutoCommit();
             try {
                 conn.setAutoCommit(false);
                 try (Statement stmt = conn.createStatement()) {
-                    // Seed tenants in core.tenant
                     stmt.execute("INSERT INTO core.tenant (tenant_id, name) VALUES ('" + tenantA
                             + "', 'Tenant A') ON CONFLICT DO NOTHING");
                     stmt.execute("INSERT INTO core.tenant (tenant_id, name) VALUES ('" + tenantB
                             + "', 'Tenant B') ON CONFLICT DO NOTHING");
-
-                    // Seed user membership in core.user_tenant for tenantA only
                     stmt.execute("INSERT INTO core.user_tenant (user_id, tenant_id) VALUES ('" + userId + "', '"
                             + tenantA + "') ON CONFLICT DO NOTHING");
                 }
@@ -93,12 +110,15 @@ class TenantBindingIT extends AbstractIntegrationTest {
 
     @Test
     @WithMockUser(username = "11111111-1111-1111-1111-111111111111")
-    @DisplayName("Real HTTP request with valid tenant header returns 200 OK and binds tenant context")
+    @DisplayName(
+            "Real HTTP request with valid tenant header returns 200 OK, binds tenant context, and session binder executes DB query under RLS")
     void validTenantRequest_returns200() throws Exception {
-        mockMvc.perform(get("/actuator/health")
+        mockMvc.perform(get("/v1/test-protected")
                         .header("X-Tenant-Id", tenantA.toString())
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.boundTenant").value(tenantA.toString()))
+                .andExpect(jsonPath("$.rowCount").value(1));
     }
 
     @Test

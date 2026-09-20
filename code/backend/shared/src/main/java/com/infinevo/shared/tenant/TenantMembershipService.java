@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import javax.sql.DataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -12,8 +14,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 public class TenantMembershipService {
 
+    private static final Logger log = LoggerFactory.getLogger(TenantMembershipService.class);
+
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
+
+    public static class TenantMembershipAccessException extends RuntimeException {
+        public TenantMembershipAccessException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
 
     public TenantMembershipService(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
@@ -57,7 +67,13 @@ public class TenantMembershipService {
                 conn.setAutoCommit(originalAutoCommit);
             }
         } catch (Exception e) {
-            return false;
+            log.error(
+                    "Database infrastructure error during membership verification for user {} and tenant {}",
+                    userId,
+                    tenantId,
+                    e);
+            throw new TenantMembershipAccessException(
+                    "Database infrastructure failure during tenant membership lookup", e);
         }
     }
 
@@ -75,7 +91,9 @@ public class TenantMembershipService {
                     (rs, rowNum) -> rs.getObject("tenant_id", UUID.class),
                     userId);
         } catch (Exception e) {
-            return List.of();
+            log.error("Database infrastructure error during tenant retrieval for user {}", userId, e);
+            throw new TenantMembershipAccessException(
+                    "Database infrastructure failure during user tenant retrieval", e);
         }
     }
 }
