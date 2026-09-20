@@ -25,7 +25,7 @@ import org.springframework.context.ConfigurableApplicationContext;
  * arguments (highest priority in Spring Boot's property hierarchy) so they beat the static YAML.
  * Test fixture scripts ({@code db/migration-test/}) replace the empty shipped trees for this run.
  *
- * <p>Fixtures: V001 (reference), V002 (core), V003 (hrms), V004 (payroll). All are destroyed with
+ * <p>Fixtures: V001 (reference), V005 (core), V003 (hrms), V004 (payroll). All are destroyed with
  * the container after the test run.
  */
 @EnabledIfDockerAvailable
