@@ -5,8 +5,11 @@ import javax.sql.DataSource;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +22,9 @@ import org.springframework.security.web.SecurityFilterChain;
  * and default security filter chain.
  */
 @AutoConfiguration
-@ConditionalOnClass(FilterRegistrationBean.class)
+@AutoConfigureAfter(DataSourceAutoConfiguration.class)
+@ConditionalOnClass({FilterRegistrationBean.class, DataSource.class})
+@ConditionalOnBean(DataSource.class)
 public class TenantBindingAutoConfiguration {
 
     @Bean

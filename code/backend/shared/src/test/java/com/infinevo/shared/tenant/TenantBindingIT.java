@@ -15,6 +15,7 @@ import java.sql.Statement;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,44 @@ import org.springframework.web.bind.annotation.RestController;
 @SpringBootTest(classes = TenantBindingIT.TestApp.class)
 @AutoConfigureMockMvc
 class TenantBindingIT extends AbstractIntegrationTest {
+
+    @BeforeAll
+    static void applyMigrations() throws Exception {
+        String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        try (Connection conn = DriverManager.getConnection(
+                jdbcUrl,
+                PostgresTestContainerInitializer.MIGRATION_USER,
+                PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
+            boolean tenantExists = false;
+            try (ResultSet rs = conn.createStatement()
+                    .executeQuery("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = 'tenant'")) {
+                tenantExists = rs.next();
+            }
+
+            if (!tenantExists) {
+                executeSqlScript(conn, "db/migration/core/V001__tenant.sql");
+            }
+
+            boolean userTenantExists = false;
+            try (ResultSet rs = conn.createStatement()
+                    .executeQuery("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = 'user_tenant'")) {
+                userTenantExists = rs.next();
+            }
+
+            if (!userTenantExists) {
+                executeSqlScript(conn, "db/migration/core/V002__user_tenant.sql");
+            }
+        }
+    }
+
+    private static void executeSqlScript(Connection conn, String resourcePath) throws Exception {
+        try (var is = TenantBindingIT.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is != null) {
+                String sql = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                conn.createStatement().execute(sql);
+            }
+        }
+    }
 
     @SpringBootApplication(scanBasePackages = "com.infinevo.shared")
     static class TestApp {

@@ -84,7 +84,7 @@ class DatabasePrivilegesIT extends AbstractIntegrationTest {
                 jdbcUrl,
                 PostgresTestContainerInitializer.MIGRATION_USER,
                 PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
-            conn.createStatement().execute("CREATE TABLE IF NOT EXISTS core.tenant (id VARCHAR(50))");
+            conn.createStatement().execute("CREATE TABLE IF NOT EXISTS core.readonly_write_probe (id INT)");
         }
 
         SQLException ex = assertThrows(SQLException.class, () -> {
@@ -92,7 +92,7 @@ class DatabasePrivilegesIT extends AbstractIntegrationTest {
                     jdbcUrl,
                     PostgresTestContainerInitializer.READONLY_USER,
                     PostgresTestContainerInitializer.READONLY_USER_PASSWORD)) {
-                conn.createStatement().execute("INSERT INTO core.tenant VALUES ('t1')");
+                conn.createStatement().execute("INSERT INTO core.readonly_write_probe VALUES (1)");
             }
         });
         assertEquals("42501", ex.getSQLState(), "SQLState must be 42501 (insufficient_privilege)");
