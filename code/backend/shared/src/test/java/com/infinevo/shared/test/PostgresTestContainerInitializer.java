@@ -90,6 +90,14 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to provision test container database", e);
         }
+
+        try (Connection conn =
+                DriverManager.getConnection(POSTGRES.getJdbcUrl(), MIGRATION_USER, MIGRATION_USER_PASSWORD)) {
+            executeSqlScriptIfPresent(conn, "db/migration/core/V001__tenant.sql");
+            executeSqlScriptIfPresent(conn, "db/migration/core/V002__user_tenant.sql");
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to apply schema migrations to test container database", e);
+        }
     }
 
     private static void executeSqlScriptWithVariables(Connection conn, String resourcePath) {
@@ -117,6 +125,18 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
             }
             String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
             conn.createStatement().execute(sql);
+        } catch (IOException | SQLException e) {
+            throw new IllegalStateException("Failed to execute SQL script: " + resourcePath, e);
+        }
+    }
+
+    private static void executeSqlScriptIfPresent(Connection conn, String resourcePath) {
+        try (InputStream is =
+                PostgresTestContainerInitializer.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is != null) {
+                String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                conn.createStatement().execute(sql);
+            }
         } catch (IOException | SQLException e) {
             throw new IllegalStateException("Failed to execute SQL script: " + resourcePath, e);
         }

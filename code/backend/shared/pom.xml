@@ -76,6 +76,13 @@
           <include>*.sql</include>
         </includes>
       </testResource>
+      <testResource>
+        <directory>${project.basedir}/../migration/src/main/resources/db/migration</directory>
+        <targetPath>db/migration</targetPath>
+        <includes>
+          <include>**/*.sql</include>
+        </includes>
+      </testResource>
     </testResources>
     <plugins>
       <!--
