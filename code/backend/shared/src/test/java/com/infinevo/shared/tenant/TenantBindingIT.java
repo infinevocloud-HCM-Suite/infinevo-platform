@@ -16,15 +16,36 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-@SpringBootTest
+@SpringBootTest(classes = TenantBindingIT.TestApp.class)
 @AutoConfigureMockMvc
 class TenantBindingIT extends AbstractIntegrationTest {
+
+    @SpringBootApplication(scanBasePackages = "com.infinevo.shared")
+    static class TestApp {
+
+        @RestController
+        static class TestController {
+
+            @GetMapping("/actuator/health")
+            public String health() {
+                return "{\"status\":\"UP\"}";
+            }
+
+            @GetMapping("/v1/test-protected")
+            public String testProtected() {
+                return "{\"status\":\"ok\"}";
+            }
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;
