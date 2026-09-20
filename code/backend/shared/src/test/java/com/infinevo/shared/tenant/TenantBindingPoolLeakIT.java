@@ -17,7 +17,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -51,7 +50,18 @@ class TenantBindingPoolLeakIT extends AbstractIntegrationTest {
     /** Distinct from the tenants used by {@link TenantBindingIT} — the container is shared. */
     private static final UUID TENANT_A = UUID.fromString("c3333333-3333-3333-3333-333333333333");
 
-    @SpringBootApplication(scanBasePackages = "com.infinevo.shared", exclude = HibernateJpaAutoConfiguration.class)
+    /**
+     * The whole autoconfiguration stack, exactly as {@link TenantBindingIT} starts it. Excluding
+     * only {@code HibernateJpaAutoConfiguration} left {@code JpaRepositoriesAutoConfiguration}
+     * — still active, because {@code spring-boot-starter-data-jpa} is a test dependency of this
+     * module — registering the shared-EntityManager holder {@code jpaSharedEM_entityManagerFactory},
+     * which then had no {@code entityManagerFactory} to point at and the context failed to load.
+     *
+     * <p>JPA is simply unused here: the test talks to the database through {@link JdbcTemplate}
+     * over the {@link DataSourceTransactionManager} declared below, which wins over the JPA
+     * transaction manager because that one is {@code @ConditionalOnMissingBean}.
+     */
+    @SpringBootApplication(scanBasePackages = "com.infinevo.shared")
     static class TestApp {
 
         @Bean
