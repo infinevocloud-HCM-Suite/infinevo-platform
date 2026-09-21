@@ -57,15 +57,32 @@ four clean gate reports.
    one did, this is a **re-review: report blockers only.** Do not re-sweep a draft that
    has already been swept. Notes from the earlier pass stay closed whether or not they
    were acted on; the founder saw them once.
-4. Run the four checks below, in order.
-5. **Only if the draft cites `legacy/`**, spawn **explorer** with those citations and ask
+4. **Apply the size cap first — it blocks before any other check is worth running.**
+
+   | Axis | Limit |
+   |---|---|
+   | Backend module (`core`, `hrms`, `payroll`, `shared`) | 1 |
+   | Flyway migration | 1 |
+   | Externally testable behaviour | 1 |
+   | Frontend area | 1 |
+
+   Crossing two on any line is a **Blocker**, and the finding names the split. This is
+   not a style preference: W-08 crossed all four, took five spec reviews and three code
+   review rounds, and merged with 13 findings open. Every other check in this skill
+   improves a spec; this one is the only one that shrinks it, and scope is what the
+   rounds were spent on.
+
+   A spec blocked here is not sent back for polish. It is sent back to be two tickets.
+
+5. Run the four checks below, in order.
+6. **Only if the draft cites `legacy/`**, spawn **explorer** with those citations and ask
    whether each file and line exists and what it holds. Evidence to
    `.claude/outputs/<date>-review-spec-<slug>-citations.md`, and spot-check at least two
    yourself — explorer runs on `haiku`, and a citation check that is itself wrong is worse
    than none. **A draft that cites no `legacy/` path gets no sweep**: the check exists to
    catch a port pointing at the wrong line, and greenfield work has nothing to port. Read
    its handful of design-doc citations yourself instead.
-6. Write the report to `.claude/outputs/<date>-review-spec-W-nn.md`. Hand the founder the
+7. Write the report to `.claude/outputs/<date>-review-spec-W-nn.md`. Hand the founder the
    verdict and the blockers in chat — not the whole report.
 
 ---
@@ -115,19 +132,29 @@ missing.** A section left as its placeholder text is not filled in.
 names filled in. Missing it on a ticket that creates objects is a Note; a
 `skill-DATA` ticket whose whole subject is the schema, a **Blocker**.
 
-| Must carry | Section |
-|---|---|
-| A problem with evidence, not a solution | §1 |
-| Explicit **out of scope** list | §2 |
-| Every layer named that the change touches | §4 |
-| Flyway migration named, `V__` filled in | §6 |
-| Unit **and** integration rows | §7 |
-| Runnable commands with expected output | §8 |
-| At least one real risk | §9 |
-| A rollback that is more than "revert" | §10 |
+**The two templates number their sections differently. Read the right column.** Grading
+an infra spec against `TEMPLATE.md`'s numbers is how a section gets called missing when
+it is present, and how a present one goes unread.
+
+| Must carry | `TEMPLATE.md` | `TEMPLATE-INFRA.md` |
+|---|---|---|
+| A problem with evidence, not a solution | §1 | §1 |
+| Explicit **out of scope** list | §2 | §2 |
+| Every layer named that the change touches | §4 | §3 |
+| Something that uses the thing being built | — | §4 |
+| Runnable commands with expected output | §8 | §5 |
+| Flyway migration named, `V__` filled in | §6 | Database changes, when it creates one |
+| Unit **and** integration rows | §7 | — |
+| At least one real risk | §9 | §7 |
+| A rollback that is more than "revert" | §10 | §8 |
+| A numbered, checkable done-when list | — | §9 |
 
 An empty §2 out-of-scope list is a **Blocker** every time. Scope that is not bounded on
 paper gets bounded by whoever implements it.
+
+An empty §4 on an infra spec is a **Note, not a Blocker** — see Check 4. What blocks is a
+spec where nothing uses the resource it creates, and that is graded there, on the
+substance. Never on the section being blank.
 
 ## Check 3 — gaps and standing rules
 
@@ -184,9 +211,27 @@ which was created empty and never read from. It would first have been exercised 
 three tickets later.
 
 The pattern generalises. A role granted but never used. A secret stored but never read
-back. A constraint declared but never violated on purpose. A queue created but never sent
-to. **Where §1 names a problem, find the command that proves that problem is solved.** If
-there is none, that is the blocker, and it outranks everything else in the report.
+back. A queue created but never sent to. **Where §1 names a problem, find the command
+that proves that problem is solved.** If there is none, that is the blocker, and it
+outranks everything else in the report.
+
+### What this does not ask for
+
+**A deliberate break is not a condition of approval.** If the spec creates the resource
+and something uses it, that is the intent met, and the verdict is ready — whether or not
+§4 lists a break. Report what is actually wrong with the spec. Do not send the author
+away to design a failure case, write a break script, or prove a gate rejects.
+
+| Do not write | Write |
+|---|---|
+| §4 lists no deliberate break — add one | *(nothing — not a finding)* |
+| Add a test that revokes the role and expects a failure | Nothing in the spec ever pulls from the registry, so an empty one would pass |
+| Prove the constraint rejects a bad row | *(only if the ticket's whole subject is that the constraint rejects)* |
+
+The one place a break still earns a blocker is where **rejecting is the deliverable** — a
+CI gate, a policy, a security control whose entire job is to say no. A gate observed only
+passing has not been observed at all. Everywhere else, asking for a break is asking the
+author to write tests at spec time, which is not this gate's business.
 
 ---
 
@@ -203,6 +248,7 @@ READY TO APPROVE / APPROVE WITH CONDITIONS / NOT READY
 
 ## Checks
 | # | Check | Result | Notes |
+| 0 | Size cap | 1 module, 1 migration, 1 behaviour, 1 frontend area | Blocker names the split if any axis is crossed twice |
 | 1 | Citations resolve | 14 of 16 | 2 High |
 | 2 | Template complete | 8 of 10 sections | |
 | 3 | Gaps and standing rules | | |

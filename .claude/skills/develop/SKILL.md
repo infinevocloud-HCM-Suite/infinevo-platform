@@ -37,9 +37,23 @@ build  ->  /test  ->  /verify  ->  /review  ->  findings?
                                     yes -> fix them, round += 1, back to /test
 ```
 
-**Three rounds maximum.** Round 4 never starts. If findings survive three rounds, stop
-and hand it to the founder with what was tried each time — something is wrong with the
-approach, not the code.
+**Two rounds maximum. Round 3 never starts.** When round 2 ends with findings still open,
+the answer is not another round — it is a smaller ticket:
+
+1. **Split at the module boundary where the findings cluster.** They usually do; open
+   findings are not evenly spread.
+2. **Merge the half that passes**, under the normal gates, with its own conditions.
+3. **Open a ticket for the other half**, carrying the open findings verbatim as its
+   acceptance criteria.
+
+A stall becomes a decision instead of a fourth opinion. W-08 ran three rounds and still
+ended with 13 findings open; 9 of them sat in one file, `TenantBindingDataSourceProxy`.
+Under this rule its filter and migration would have merged after round 2 and the proxy
+would have been its own ticket.
+
+The reason a third round does not help: each round's fixes manufacture the next round's
+findings. W-08's F-1 fix produced F-10 and F-11, both High; fixing F-10 produced F-19 and
+F-20. Rounds do not converge on their own, so something has to stop them.
 
 ### Round 1 — build
 
@@ -88,12 +102,16 @@ Then:
    `Fix F-1: Keycloak admin variables are 26-only, silently ignored by 25`.
 2. Add a test that would have caught it, wherever a test can.
 3. Mark each finding `FIXED` in its report, with the commit hash.
-4. Go back to `/test`. That is round 2.
+4. Go back to `/test`. That is round 2. **There is no round 3** — see the split rule above.
 
 **A finding that reappears after being marked FIXED is escalated to High.** A wrong fix
 is worse than the original defect, because it consumed a round of everyone's attention.
 A High finding still open blocks the merge, so a loop that ran out of rounds cannot ship
 anyway.
+
+**A Medium may be discharged as a Condition rather than a fix** when the review says so —
+see `review`, "Approve with conditions". Conditions go into the merge commit message and
+are closed by the next ticket touching that file. A High is never a Condition.
 
 ---
 

@@ -10,8 +10,31 @@ Produces a spec; **never produces code.** Founder approval is the exit condition
 Invoke as `/plan-feature W-nn`. For platform tickets (`skill-INFRA`, `skill-DATA`,
 `skill-SEC`) use `/infra-task` instead.
 
+## The size cap — check this before writing a word
+
+**A spec crosses at most one of each axis. If it crosses two on any line, it is two
+tickets. Split it and say so before writing.**
+
+| Axis | Limit |
+|---|---|
+| Backend module (`core`, `hrms`, `payroll`, `shared`) | 1 |
+| Flyway migration | 1 |
+| Externally testable behaviour | 1 |
+| Frontend area | 1 |
+
+This is the cheapest correction available. W-08 crossed all four — a servlet filter, a
+DataSource proxy, a migration, an RLS policy, a `SECURITY DEFINER` function, a Spring
+Security chain and 34 integration tests in one ticket. It took five spec reviews and
+three code review rounds and still merged with 13 findings open. A 13-finding tail is
+the arithmetic of that scope, not a failure of review.
+
+Splitting costs one ticket each time. Not splitting costs rounds, and rounds are where
+the weeks went.
+
 ## Steps
 
+0. **Apply the size cap above.** If the ticket as written breaks it, propose the split to
+   the founder and stop. Do not write a spec you already know is too big.
 1. Read `.claude/work/active-work.md` for where the project stands, then the ticket's
    GitHub issue for its features and blockers. **If the ticket is labelled `blocked`, say
    which ticket it waits on and stop.** A spec written against a foundation that does not

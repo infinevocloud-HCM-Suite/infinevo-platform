@@ -113,7 +113,13 @@ under `legacy/`.
   changes; `verifier` runs them. Do not claim something works without evidence.
 - Typos in package names are real and load-bearing: `timeshhet/`,
   `leaveAndAttedance/`, `EmployyePortalContoller.java`. Do not silently rename.
-- **Answer briefly, and lead with a table.** Any summary, audit, status report or
-  comparison opens with a compact table — findings, file lists, gate results,
-  drift checks. Prose only for what a table cannot hold: a causal explanation,
-  a recommendation, a trade-off. No preamble, no restating the question.
+- **Answer briefly, and lead with a table — in chat and in every file you write.**
+  Any summary, audit, status report or comparison opens with a compact table —
+  findings, file lists, gate results, drift checks. Prose only for what a table
+  cannot hold: a causal explanation, a recommendation, a trade-off. No preamble,
+  no restating the question.
+- **A report file is an answer.** A gate report written to `.claude/outputs/` follows
+  the same rule as a reply: one plain sentence per finding, `file:line` citations
+  listed beneath it, never packed inside it. If a table cell runs past a line, the
+  content belongs in prose under the table. A long report is the failure mode, not
+  the thorough one.

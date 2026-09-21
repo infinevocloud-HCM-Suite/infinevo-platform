@@ -30,6 +30,16 @@ enforced, not merely promised.
    `TEMPLATE.md` and **§5** in `TEMPLATE-INFRA.md`, where §9 is *Done when* instead. Read
    the wrong one on an infra ticket and the test plan becomes a checklist of outcomes
    with no commands in it.
+1b. **Work out whether this is a re-verify.** Look in `.claude/outputs/` for the newest
+   `*-verify-W-nn*.md`. If one exists, read its `Verified at: <sha>` line: the scope of
+   this run is `git diff <that sha>..HEAD` plus the specific findings being re-checked.
+   Run the full command set again — commands are cheap and a regression elsewhere must
+   still be caught — but **do not go hunting for new defects in code that has not moved
+   since the last report.** That is what turned W-08 into three rounds: each pass found
+   things the previous pass had not reached, so the list never emptied.
+
+   Open the report with `Verified at: <sha>`.
+
 2. **Get the branch's files in front of you.** `git worktree add --detach <dir> <branch>`
    is the clean way. On Windows it can fail with `Filename too long` inside `legacy/` —
    when it does, extract only what the branch changes:
@@ -110,6 +120,7 @@ Write to `.claude/outputs/<date>-verify-W-nn.md`.
 
 ```
 # Verify — W-nn — <date time>
+Verified at: <sha>
 
 ## Commands
 | Check | Command | Exit | Verdict | Evidence (last lines) |
