@@ -45,5 +45,32 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(az monitor log-analytics query *)",
+      "Bash(az containerapp revision list *)",
+      "Bash(az containerapp revision show *)",
+      "Bash(az containerapp job execution list *)",
+      "Bash(az containerapp job execution show *)",
+      "Bash(az containerapp job show *)",
+      "Bash(az containerapp job list *)",
+      "Bash(az containerapp logs show *)",
+      "Bash(az containerapp list *)",
+      "Bash(az containerapp show *)",
+      "Bash(az deployment operation sub list *)",
+      "Bash(az deployment sub list *)",
+      "Bash(az deployment group list *)",
+      "Bash(az deployment group show *)",
+      "Bash(az postgres flexible-server show *)",
+      "Bash(az role assignment list *)",
+      "Bash(az resource list *)",
+      "Bash(az account show *)",
+      "Bash(az bicep lint *)",
+      "Bash(az cognitiveservices account list-models *)",
+      "Bash(gh run watch *)",
+      "Bash(docker system df)",
+      "Bash(npm run typecheck)"
+    ]
   }
 }
