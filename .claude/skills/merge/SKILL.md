@@ -73,11 +73,13 @@ lists achievements is how "we'll fix it next ticket" disappears.
 
 ## Step 3 — after
 
-```bash
-cd code/backend && ./mvnw -B clean verify     # main itself still builds
-```
+**Do not rebuild.** This step used to run `./mvnw -B clean verify` on main, which is the
+third full build of bytes CI already proved: once on the branch, once on the push to
+main, once here. The receipt makes the duplication provable rather than likely — it
+matches on the *tree*, so the content that lands on main is by construction the content
+CI went green on. If main had moved, the receipt would be void and the push refused.
 
-Then:
+Step 1 above already makes this argument. It was worth following.
 
 1. **Confirm the ticket closed.** `gh issue view <issue>` — it should be CLOSED. If the
    `Closes #` was malformed it will still be open; close it with a comment pointing at

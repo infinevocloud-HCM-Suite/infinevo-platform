@@ -84,7 +84,14 @@ const head = sh("git", ["rev-parse", "HEAD"]).out.trim();
 // never match the push it is meant to authorise. The tree is what was actually checked,
 // and it survives the squash. If main moved underneath, the tree differs and the check
 // has to run again, which is correct: those are different bytes.
-const tree = sh("git", ["rev-parse", "HEAD^{tree}"]).out.trim();
+//
+// `show -s --format=%T`, not `rev-parse HEAD^{tree}`. sh() spawns with shell: true, and
+// on Windows cmd.exe eats the `^` as its escape character, so git received `HEAD{tree}`
+// and answered "fatal: ambiguous argument". That error string was then written into the
+// receipt as the tree, and guard-merge - which computes the tree correctly - could never
+// match it. Every merge was refused with "written for different content", no matter how
+// many times the check passed. %T asks for the same value with no character cmd rewrites.
+const tree = sh("git", ["show", "-s", "--format=%T", "HEAD"]).out.trim();
 const { item, unknown, why } = ticketOf(branch);
 
 // Everything this branch adds on top of main. The three-dot form is against the merge
@@ -122,9 +129,31 @@ gate("No open High findings", () => {
   const dir = join(ROOT, ".claude", "outputs");
   if (!existsSync(dir)) return { ok: true, detail: "no reports" };
   if (!item) return { ok: true, detail: "not a W-nn ticket; no findings to match" };
-  const reports = readdirSync(dir).filter(
-    (f) => f.endsWith(".md") && (f.includes(`verify-${item}`) || f.includes(`review-${item}`)),
-  );
+  // Only the NEWEST review and the NEWEST verify count. Each round restates what it
+  // inherited - round 2 of W-08 carried F-6, F-8 and F-9 forward by name - so the latest
+  // report of each kind IS the current verdict.
+  //
+  // Reading every round made this gate unpassable. Nothing rewrites a historical report,
+  // so round 1's "F-1 | High | OPEN" line survives the fix and the close. W-08 sat
+  // blocked on twelve such lines while its own round 3 read "no High finding remains
+  // open, so the merge is not blocked". A gate that cannot be passed by finishing the
+  // work teaches people to step around it, and then it guards nothing.
+  //
+  // The assumption, stated so it can be checked: a reviewer carries an unfixed finding
+  // into the next round. If one is ever dropped silently, this no longer catches it.
+  // That is a review-discipline problem and this is the wrong place to fix it.
+  const NAME = new RegExp(`^(\\d{4}-\\d{2}-\\d{2})-(review|verify)-${item}(?:-rev(\\d+))?\\.md$`, "i");
+  const latest = new Map(); // kind -> { file, date, rev }
+  for (const f of readdirSync(dir)) {
+    const m = NAME.exec(f);
+    if (!m) continue; // review-spec-* is a different artefact and never matches
+    const kind = m[2].toLowerCase();
+    const cur = { file: f, date: m[1], rev: m[3] ? Number(m[3]) : 1 };
+    const prev = latest.get(kind);
+    if (!prev || cur.date > prev.date || (cur.date === prev.date && cur.rev > prev.rev))
+      latest.set(kind, cur);
+  }
+  const reports = [...latest.values()].map((x) => x.file);
   const open = [];
   for (const f of reports) {
     for (const line of readFileSync(join(dir, f), "utf8").split(NL)) {
