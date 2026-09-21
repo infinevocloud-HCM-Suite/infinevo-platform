@@ -30,13 +30,6 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
     private static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
-    private static Connection adminConnection() throws SQLException {
-        return DriverManager.getConnection(
-                PostgresTestContainerInitializer.getJdbcUrl(),
-                PostgresTestContainerInitializer.POSTGRES_USER,
-                PostgresTestContainerInitializer.POSTGRES_PASSWORD);
-    }
-
     private static Connection migrationUserConnection() throws SQLException {
         return DriverManager.getConnection(
                 PostgresTestContainerInitializer.getJdbcUrl(),
