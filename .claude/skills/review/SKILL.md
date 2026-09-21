@@ -105,10 +105,10 @@ A **Medium** may be discharged as a Condition instead of a fix. All three must h
 A Condition is carried into the merge commit message and closed by the next ticket to
 touch that file. **A High is never a Condition.**
 
-This is not new. It is how W-08's spec review escaped a five-round loop: rev5 converted
-three findings into C-1 to C-3 and approved in one pass
-(`.claude/outputs/2026-09-20-review-spec-W-08-rev5.md:26-29`). That worked, nobody wrote
-it down, and the code review then looped three more rounds without it.
+This is not new. It is how W-08's spec review escaped a five-round loop: its fifth
+revision converted three findings into C-1 to C-3 and approved in one pass, after four
+revisions had failed to. That worked, nobody wrote it down, and the code review then
+looped three more rounds without it.
 
 The test of a Condition is whether you would still write it if you knew nobody would read
 it again. If the answer is no, it is not a Condition — it is a Low, and it gets a ticket.
