@@ -2,18 +2,6 @@ package com.infinevo.core.queue;
 
 /**
  * Interface for consuming background jobs from queues.
+ * Inherits from com.infinevo.shared.queue.QueueConsumer.
  */
-public interface QueueConsumer<T> {
-
-    /**
-     * Target queue name consumed by this listener.
-     */
-    String getQueueName();
-
-    /**
-     * Processes incoming queue message.
-     *
-     * @param message standard message envelope
-     */
-    void onMessage(QueueMessage<T> message);
-}
+public interface QueueConsumer<T> extends com.infinevo.shared.queue.QueueConsumer<T> {}
