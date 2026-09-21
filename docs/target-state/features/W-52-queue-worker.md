@@ -16,11 +16,11 @@
 | **Capabilities** | `PLAT-04` — asynchronous job queue and worker subsystem |
 | **Decisions** | `D-02` (Worker on same image, isolated role) · `D-10` (Azure Container Apps) · `D-18` (India region) · `D-19` (10 × 100 scale) · `D-48` (Unified backend image) · `D-50` (Azure Storage Queue replaces Service Bus) · `D-46` (No `ddl-auto`) |
 | **Gaps addressed** | `DEBT-021` (Two `@Scheduled` cron jobs with no distributed lock — `ITDeclarationAutoLockScheduler`, `POIReminderScheduler`; duplicate execution on multiple replicas) |
-| **Status** | **Draft — not approved** |
-| **Approved by** | *(founder approval is required before implementation — `GEMINI.md` rule 1)* |
-| **Approved on** | |
+| **Status** | **Approved** |
+| **Approved by** | Founder |
+| **Approved on** | 2026-09-21 |
 
-> **Hard rule 1:** No code is written until this spec is approved by the founder.
+> **Hard rule 1:** No code is written until this spec is approved by the founder. (Approved 2026-09-21)
 
 ---
 
