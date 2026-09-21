@@ -115,4 +115,27 @@ class JobServiceTest {
         assertEquals(JobState.RUNNING, dto.get().status());
         assertEquals(60, dto.get().progressPercentage());
     }
+
+    @Test
+    void shouldNotMarkRunningIfAlreadyCompleted() {
+        String jobId = "job-done";
+        JobStatus job = new JobStatus(jobId, UUID.randomUUID(), "payrun", JobState.COMPLETED);
+        when(repository.findById(jobId)).thenReturn(Optional.of(job));
+
+        jobService.markRunning(jobId);
+
+        assertEquals(JobState.COMPLETED, job.getStatus());
+    }
+
+    @Test
+    void shouldReturnEmptyWhenTenantMismatch() {
+        String jobId = "job-123";
+        UUID tenantA = UUID.randomUUID();
+        UUID tenantB = UUID.randomUUID();
+
+        when(repository.findByJobIdAndTenantId(jobId, tenantB)).thenReturn(Optional.empty());
+
+        Optional<JobStatusResponseDTO> dto = jobService.getJobStatus(jobId, tenantB);
+        assertTrue(dto.isEmpty());
+    }
 }

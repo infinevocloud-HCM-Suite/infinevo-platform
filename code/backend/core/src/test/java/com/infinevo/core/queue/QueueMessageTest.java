@@ -70,4 +70,22 @@ class QueueMessageTest {
                 PayloadTooLargeException.class, () -> QueueMessage.of("job-1", tenantId, "payrun", oversizedString));
         assertTrue(ex.getMessage().contains("exceeds limit"));
     }
+
+    @Test
+    void shouldEnforceMaxPayloadSizeOnByteArray() {
+        UUID tenantId = UUID.randomUUID();
+        byte[] oversizedBytes = new byte[49 * 1024];
+
+        PayloadTooLargeException ex = assertThrows(
+                PayloadTooLargeException.class, () -> QueueMessage.of("job-1", tenantId, "payrun", oversizedBytes));
+        assertTrue(ex.getMessage().contains("exceeds limit"));
+    }
+
+    @Test
+    void shouldRejectNullMandatoryFields() {
+        UUID tenantId = UUID.randomUUID();
+        assertThrows(NullPointerException.class, () -> QueueMessage.of(null, tenantId, "payrun", "data"));
+        assertThrows(NullPointerException.class, () -> QueueMessage.of("job-1", null, "payrun", "data"));
+        assertThrows(NullPointerException.class, () -> QueueMessage.of("job-1", tenantId, null, "data"));
+    }
 }
