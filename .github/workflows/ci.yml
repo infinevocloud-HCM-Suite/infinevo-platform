@@ -10,10 +10,14 @@
 
 name: CI
 
+# Every branch, not just main, and not via pull_request. The develop loop has no pull
+# requests (de14751), so a `pull_request` trigger never fired on a ticket branch, and
+# check-done.mjs gate 8 - "CI green for this commit" - could never be satisfied: CI ran
+# only on main, and nothing reached main without CI having run. Triggering on the branch
+# push breaks that circle.
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: ['**']
 
 # Free-plan minutes: a push during a run cancels the superseded run rather than
 # burning two sets of minutes.
@@ -25,10 +29,64 @@ permissions:
   contents: read
 
 jobs:
+  # ── what changed ────────────────────────────────────────────────────────────
+  # Deleting two markdown reports used to build five Docker images and run the whole
+  # backend suite - about five minutes to prove nothing. This job costs a few seconds
+  # and lets the expensive ones sit out when they cannot be affected.
+  #
+  # `static` deliberately has no condition. It is the only check a direct push to main
+  # ever gets - guard-merge.mjs waves through anything that is not code/ or docs/ - and
+  # a run whose every job skipped concludes `skipped`, which check-done.mjs gate 8
+  # refuses. One always-running job keeps the run green rather than skipped.
+  scope:
+    name: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+      frontend: ${{ steps.f.outputs.frontend }}
+      images: ${{ steps.f.outputs.images }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify the changed files
+        id: f
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          # First push of a branch, or a force-push that orphaned the old tip, leaves no
+          # usable base. Build everything rather than guess - a wrong skip here is a
+          # green run that tested nothing.
+          if [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            echo "no usable base ($PUSH_BEFORE) - running everything"
+            changed=""
+            all=1
+          else
+            changed=$(git diff --name-only "$PUSH_BEFORE" HEAD)
+            all=0
+          fi
+          echo "--- changed ---"; echo "$changed"; echo "---------------"
+
+          match() { [ "$all" = "1" ] && return 0; echo "$changed" | grep -qE "$1"; }
+
+          match '^(code/backend/|pom\.xml$|code/pom\.xml$)'     && b=true || b=false
+          match '^code/frontend/'                               && f=true || f=false
+          match '^(code/|infra/docker/)'                        && i=true || i=false
+
+          echo "backend=$b"  >> "$GITHUB_OUTPUT"
+          echo "frontend=$f" >> "$GITHUB_OUTPUT"
+          echo "images=$i"   >> "$GITHUB_OUTPUT"
+          echo "backend=$b frontend=$f images=$i"
+
   # ── compile + test + Spotless ───────────────────────────────────────────────
   backend:
     name: backend
     runs-on: ubuntu-latest
+    needs: scope
+    if: needs.scope.outputs.backend == 'true'
     timeout-minutes: 15   # warm run is ~1m30s; this is headroom, not patience
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +119,8 @@ jobs:
   frontend:
     name: frontend
     runs-on: ubuntu-latest
+    needs: scope
+    if: needs.scope.outputs.frontend == 'true'
     timeout-minutes: 10   # warm run is ~50s
     steps:
       - uses: actions/checkout@v4
@@ -269,7 +329,16 @@ jobs:
     name: images
     runs-on: ubuntu-latest
     timeout-minutes: 20   # three production builds, two dev builds, one image assertion
-    needs: [backend, frontend]
+    needs: [scope, backend, frontend]
+    # `!cancelled()` and explicit result checks, not a bare condition: GitHub skips a job
+    # whose dependency skipped, so a backend-only change would have skipped `frontend`
+    # and taken the image build with it. A skipped dependency is fine here; a failed one
+    # is not, and only the second should stop the images being built.
+    if: >-
+      ${{ !cancelled()
+          && needs.backend.result != 'failure'
+          && needs.frontend.result != 'failure'
+          && needs.scope.outputs.images == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
