@@ -253,9 +253,9 @@ git grep -nE '@RequestParam.*(tenantId|organizationId)|@PathVariable.*(tenantId|
 
 | Check | Command / Target | Expected Output | Result |
 |---|---|---|---|
-| Unit Tests | `(cd code/backend && ./mvnw test -Dtest=Tenant*Test)` | `BUILD SUCCESS` (Passes all claim parsing, header security, and cleanup unit tests) | Pass — 21 of 21, locally and on CI run 35514060022 |
-| Integration Tests (Real HTTP Requests) | `(cd code/backend && ./mvnw verify -Dtest=TenantBindingIT)` | `BUILD SUCCESS` (Runs V002__user_tenant.sql migration, passes MockMvc HTTP requests testing 200 OK, 401 TENANT_NOT_BOUND, 403 FORBIDDEN, and JPA transactional RLS isolation) | Pass — 5 of 5 executed, 0 skipped, CI run 35514060022; skipped locally, Docker unreachable from the Maven JVM |
-| Unbound Query Behavior | `TenantBindingIT#unboundQuery_returnsZeroRows_underRLS` | Test passes: Unbound query returns zero rows under PostgreSQL RLS | Pass — inside the 5 of 5, CI run 35514060022 |
+| Unit Tests | `(cd code/backend && ./mvnw test -Dtest=Tenant*Test)` | `BUILD SUCCESS` (Passes all claim parsing, header security, and cleanup unit tests) | Pass — 32 of 32, locally and on CI run 35515945676 |
+| Integration Tests (Real HTTP Requests) | `(cd code/backend && ./mvnw verify -Dtest=TenantBindingIT)` | `BUILD SUCCESS` (Runs V002__user_tenant.sql migration, passes MockMvc HTTP requests testing 200 OK, 401 TENANT_NOT_BOUND, 403 FORBIDDEN, and JPA transactional RLS isolation) | Pass — 5 of 5 executed, 0 skipped, CI run 35515945676; skipped locally, Docker unreachable from the Maven JVM. `TenantBindingPoolLeakIT` additionally proves the binding does not survive the connection's return to the pool |
+| Unbound Query Behavior | `TenantBindingIT#unboundQuery_returnsZeroRows_underRLS` | Test passes: Unbound query returns zero rows under PostgreSQL RLS | Pass — inside the 5 of 5, CI run 35515945676 |
 | Controller Parameter Audit | `git grep -nE '@RequestParam.*(tenantId\|organizationId)...'` | Exit code 1 / 0 lines returned (Zero endpoints take explicit tenant parameters) | Pass — exit 1, 0 lines |
 
 ---
