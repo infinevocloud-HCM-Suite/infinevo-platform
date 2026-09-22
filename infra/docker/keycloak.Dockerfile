@@ -19,6 +19,11 @@
 # Proxy & TLS settings:
 #   Front Door terminates TLS (05-azure-architecture.md:49,79).
 #   KC_HTTP_ENABLED=true and KC_PROXY_HEADERS=xforwarded enable HTTP ingress behind Front Door.
+#
+# Served under /auth, baked in at build time (:37-47). Everything - the admin console,
+# the realm endpoints, OIDC discovery - is one level down:
+#   http://<host>:8080/auth/realms/<realm>/.well-known/openid-configuration
+# Health and metrics are NOT: they stay at /health/ready and /metrics on port 9000.
 
 # ── Stage 1: build optimized image ───────────────────────────────────────────
 FROM quay.io/keycloak/keycloak:25.0 AS builder
@@ -28,6 +33,24 @@ ENV KC_METRICS_ENABLED=true
 ENV KC_DB=postgres
 ENV KC_HTTP_ENABLED=true
 ENV KC_PROXY_HEADERS=xforwarded
+
+# Front Door routes /auth/* to this container (infra/azure/modules/frontdoor.bicep:379)
+# and rewrites nothing, so the origin receives the prefix intact. Keycloak has to believe
+# it lives under /auth or every path it serves - and every issuer, JWKS and redirect URL
+# it mints - is one level too high, and the route 404s (review F-6/F-8).
+#
+# This is BAKED IN, not passed at runtime. http-relative-path is a build-time option
+# (`kc.sh build --help-all` lists it under Build time; the help even uses /auth as its
+# example), and :97 starts with --optimized, which reads build-time options only from
+# what this stage persisted. A runtime KC_HTTP_RELATIVE_PATH is ignored with a warning -
+# which is exactly how the previous attempt looked correct while doing nothing.
+ENV KC_HTTP_RELATIVE_PATH=/auth
+
+# The management interface (port 9000: health, metrics) inherits http-relative-path unless
+# told otherwise, which would drag /health/ready to /auth/health/ready. That port is private
+# - it is never behind Front Door - so it has no reason to follow the public prefix. Pinned
+# to / so probes stay at a fixed path whatever the public routing does.
+ENV KC_HTTP_MANAGEMENT_RELATIVE_PATH=/
 
 # No realm is baked into this image, deliberately.
 #
@@ -54,6 +77,11 @@ ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 ENV KC_HTTP_ENABLED=true
 ENV KC_PROXY_HEADERS=xforwarded
+
+# KC_HTTP_RELATIVE_PATH is deliberately absent here. It came across in the COPY above,
+# baked by the builder stage; repeating it as a runtime variable would achieve nothing
+# under --optimized and would suggest the deployment can change it. It cannot - moving
+# the prefix means rebuilding the image.
 
 # Non-root, asserted here rather than inherited (review F-7).
 # The quay base image already defaults to uid 1000, but nothing in this repository said

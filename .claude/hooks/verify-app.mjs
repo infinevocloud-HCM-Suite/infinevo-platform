@@ -19,8 +19,12 @@ const TIMEOUT_MS = 240_000;
 //
 // Only the platform is verified. legacy/ is frozen reference and is never built here:
 // nothing matches it, so an edit there is skipped - and guard-edit blocks it outright.
+//
+// `code/backend` used to be here, running a Maven compile after every Java edit. Even
+// debounced, that is minutes of waiting inside an edit loop to learn something the
+// `./mvnw -B clean verify` in /develop step 2 learns anyway, on the finished module
+// rather than on a half-written one. Frontend lint stays: it takes about a second.
 const APPS = {
-  "code/backend":  { kind: "maven", label: "compile" },
   "code/frontend": { kind: "npm",   label: "lint", cmd: ["npm", "run", "lint", "--silent"] },
 };
 

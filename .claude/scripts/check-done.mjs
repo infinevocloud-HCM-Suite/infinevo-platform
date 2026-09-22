@@ -124,51 +124,16 @@ gate("Approved spec exists", () => {
   return { ok: true, detail: spec };
 });
 
-// ── 3. no High finding left open ────────────────────────────────────────────
-gate("No open High findings", () => {
-  const dir = join(ROOT, ".claude", "outputs");
-  if (!existsSync(dir)) return { ok: true, detail: "no reports" };
-  if (!item) return { ok: true, detail: "not a W-nn ticket; no findings to match" };
-  // Only the NEWEST review and the NEWEST verify count. Each round restates what it
-  // inherited - round 2 of W-08 carried F-6, F-8 and F-9 forward by name - so the latest
-  // report of each kind IS the current verdict.
-  //
-  // Reading every round made this gate unpassable. Nothing rewrites a historical report,
-  // so round 1's "F-1 | High | OPEN" line survives the fix and the close. W-08 sat
-  // blocked on twelve such lines while its own round 3 read "no High finding remains
-  // open, so the merge is not blocked". A gate that cannot be passed by finishing the
-  // work teaches people to step around it, and then it guards nothing.
-  //
-  // The assumption, stated so it can be checked: a reviewer carries an unfixed finding
-  // into the next round. If one is ever dropped silently, this no longer catches it.
-  // That is a review-discipline problem and this is the wrong place to fix it.
-  const NAME = new RegExp(`^(\\d{4}-\\d{2}-\\d{2})-(review|verify)-${item}(?:-rev(\\d+))?\\.md$`, "i");
-  const latest = new Map(); // kind -> { file, date, rev }
-  for (const f of readdirSync(dir)) {
-    const m = NAME.exec(f);
-    if (!m) continue; // review-spec-* is a different artefact and never matches
-    const kind = m[2].toLowerCase();
-    const cur = { file: f, date: m[1], rev: m[3] ? Number(m[3]) : 1 };
-    const prev = latest.get(kind);
-    if (!prev || cur.date > prev.date || (cur.date === prev.date && cur.rev > prev.rev))
-      latest.set(kind, cur);
-  }
-  const reports = [...latest.values()].map((x) => x.file);
-  const open = [];
-  for (const f of reports) {
-    for (const line of readFileSync(join(dir, f), "utf8").split(NL)) {
-      // | F-1 | High | ... | OPEN |
-      if (/^\|\s*`?F-\d+/.test(line) && /\bHigh\b/i.test(line) && /\bOPEN\b/.test(line)) {
-        open.push(`${f}: ${(/`?(F-\d+)/.exec(line) ?? [])[1]}`);
-      }
-    }
-  }
-  return open.length
-    ? { ok: false, detail: open.join(", ") }
-    : { ok: true, detail: reports.length ? `${reports.length} report(s), none High/OPEN` : "no reports" };
-});
-
-// ── 4. nothing frozen was edited ────────────────────────────────────────────
+// ── 3. nothing frozen was edited ────────────────────────────────────────────
+//
+// There was a gate here that refused a merge while any `/verify` or `/review` report
+// still carried a High finding marked OPEN. Both of those skills are gone: checking now
+// happens inside `/develop`, which fixes what it finds in the commit that caused it, and
+// `/merge` runs one independent read that it fixes before pushing. Neither writes a
+// report, so this gate had nothing left to read and would have passed unconditionally.
+//
+// A gate that always passes is worse than no gate, because the table still prints it
+// green. It is deleted rather than stubbed.
 gate("legacy/ untouched", () => {
   const bad = changed.filter((f) => f.startsWith("legacy/"));
   return bad.length
@@ -257,9 +222,67 @@ gate("CI green for this commit", () => {
   const sha = head;
   if (!sha) return { ok: false, detail: "cannot resolve HEAD" };
   const short = sha.slice(0, 7);
+
+  // ci.yml ignores docs/, .claude/, legacy/ and *.md, so a branch that touches only
+  // those produces no run at all - and demanding one would make a docs branch
+  // unmergeable. This is scoping, not credit by default: the gate still refuses unless
+  // it can name a reason CI had nothing to verify.
+  //
+  // The list MUST stay in step with `paths-ignore` in .github/workflows/ci.yml. If a
+  // path is ignored there but not here, a docs branch hangs waiting for a run that
+  // never starts; ignored here but not there, CI runs and this gate skips reading it.
+  const IGNORED = (f) =>
+    f.startsWith("docs/") || f.startsWith(".claude/") || f.startsWith("legacy/") || f.endsWith(".md");
+  if (changed.length && changed.every(IGNORED)) {
+    return { ok: true, detail: `${changed.length} file(s) changed, none CI covers - no run expected` };
+  }
+  // A commit whose own push touched only ignored paths starts no run, because ci.yml's
+  // `paths-ignore` is evaluated PER PUSH while the check above is evaluated over the
+  // whole branch diff. A branch that ends with a docs-only commit - amending its own
+  // spec, which is the normal last step of a ticket - therefore has code in its diff,
+  // no run for HEAD, and could never merge. That is a gap between the two mechanisms,
+  // not a fact about the code.
+  //
+  // So: if HEAD has no run, fall back to the newest ancestor that does, and accept it
+  // ONLY when every path CI covers is byte-identical between the two. If any covered
+  // file differs the fallback is refused, which keeps the original guarantee - a green
+  // run on an earlier commit must say something about what is being merged.
+  const coveredUnchangedSince = (anc) => {
+    const d = sh("git", ["diff", "--name-only", `${anc}`, sha]);
+    if (d.code !== 0) return false;
+    const files = d.out.split("\n").map((x) => x.trim()).filter(Boolean);
+    return files.every(IGNORED);
+  };
   const FIELDS = "status,conclusion,url,headSha,workflowName";
-  const r = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha,
+  let r = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha,
                       "--json", FIELDS, "--limit", "10"]);
+  let creditedSha = sha;
+  let creditedNote = "";
+  if (r.code === 0) {
+    let probe;
+    try { probe = JSON.parse(r.out); } catch { probe = null; }
+    const direct = (Array.isArray(probe) ? probe : []).filter((x) => x.headSha === sha);
+    if (!direct.length) {
+      const anc = sh("git", ["rev-list", "--max-count=25", `${sha}^`]);
+      const candidates = anc.code === 0
+        ? anc.out.split("\n").map((x) => x.trim()).filter(Boolean)
+        : [];
+      for (const c of candidates) {
+        if (!coveredUnchangedSince(c)) break;   // stop at the first commit that changed code
+        const cr = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", c,
+                             "--json", FIELDS, "--limit", "10"]);
+        if (cr.code !== 0) continue;
+        let cruns;
+        try { cruns = JSON.parse(cr.out); } catch { continue; }
+        if ((Array.isArray(cruns) ? cruns : []).some((x) => x.headSha === c)) {
+          r = cr;
+          creditedSha = c;
+          creditedNote = ` (no run for ${short}; credited ${c.slice(0, 7)}, nothing CI covers changed since)`;
+          break;
+        }
+      }
+    }
+  }
   if (r.code !== 0) {
     // gh missing, unauthenticated, or the API refused. All of those are a failure to
     // prove CI, not a pass by default.
@@ -273,7 +296,7 @@ gate("CI green for this commit", () => {
   }
   // Belt and braces: --commit is a server-side filter, but the gate is worthless if it
   // ever credits a run from another commit, so check the SHA that came back too.
-  const mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === sha);
+  const mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === creditedSha);
   if (!mine.length) return { ok: false, detail: `no CI run for ${short} - push the branch and wait for ci.yml` };
   // Every run for the commit must be finished and green. One green run alongside a red
   // one is a red commit; gh lists the latest attempt per run, so a re-run that fixed a
@@ -293,7 +316,7 @@ gate("CI green for this commit", () => {
   if (bad) {
     return { ok: false, detail: `CI ${bad.conclusion ?? "had no conclusion"} for ${short}: ${bad.url ?? ""}`.slice(0, 160) };
   }
-  return { ok: true, detail: `${mine.length} run(s) success for ${short} - backend, frontend and static all green` };
+  return { ok: true, detail: `${mine.length} run(s) success for ${creditedSha.slice(0, 7)} - backend, frontend and static all green${creditedNote}` };
 });
 
 // ── report ──────────────────────────────────────────────────────────────────

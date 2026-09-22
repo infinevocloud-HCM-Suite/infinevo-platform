@@ -112,35 +112,34 @@ Ownership is the assignee field and nothing else. There are no `owner-*` labels.
 
 ### Developer: the steps, claim to merge
 
-**One ticket in build at a time.** Six commands, in order. Each one ends by telling you
-the next, in plain English.
+**One ticket in build at a time.** Each command ends by telling you the next, in plain
+English. Same steps for a feature and for platform work.
 
 | # | Step | Command | What comes back |
 |---|---|---|---|
 | 1 | **Claim it** | `gh issue edit <n> --add-assignee @me` | Comment `claimed`. If the bot reverts, read why and take the next |
 | 2 | Branch | `git checkout -b W-nn-<slug> main` | The `W-nn` in the name is what tells the stale sweep you started |
 | 3 | Understand it | `/analyze W-nn` | The ticket in plain English: what it is, what it touches, the one thing that will bite |
-| 4 | **Write the spec** | `/plan-feature W-nn` (product)<br>`/infra-task W-nn` (platform) | What will be built and what could go wrong. It stops here |
-| 5 | **Get it approved** | — | **The gate.** No code before it. `/review-spec` runs inside step 4 and names any gap as the trouble it would cause |
-| 6 | **Build** | `/develop W-nn` | Builds, then runs `/test`, `/verify` and `/review` itself, fixes what they find, repeats. **Three rounds maximum.** Ends with the files it changed and why |
-| 7 | **Merge** | `/merge W-nn` | Eight gates, then squashed onto main and pushed. One line: pushed successfully |
-| 8 | Docs | `/sync-docs` | Always, after the merge. Names any document the change made untrue, or says nothing drifted |
+| 4 | **Write the spec** | `/plan-feature W-nn` | What will be built and what could go wrong. It stops here |
+| 5 | **Get it approved** | — | **The one gate before code.** One draft, one answer |
+| 6 | **Build** | `/develop W-nn` | Builds, runs its own checks, fixes what it finds, pushes the branch. One pass |
+| 7 | **Merge** | `/merge W-nn` | Seven gates, one independent read, then squashed onto main. One line: pushed successfully |
+| 8 | Docs | `/sync-docs` | Only if the ticket made a document untrue |
 
 There is no pull request. The branch is squashed onto `main` by `/merge`, and everything
 a pull request used to prove — what changed, that CI was green for it — the done check
 proves from the branch itself.
 
-**The checkers never fix.** `/verify` and `/review` run through agents with no edit tools.
-They report; `/develop` fixes and runs them again. A checker that can fix has a reason to
-make things pass rather than tell you the truth, and a silent fix is unreviewed code
-reaching `main` through the one path with no gate. On `W-02` the smoke test reported 23 of
-23 while the documented Keycloak admin login returned 401 — reporting that produced three
-extra checks and a recorded trap; fixing it quietly would have produced neither.
+**Checks run inside the build, and defects are fixed on the spot.** No finding numbers,
+no report files, no rounds. Earlier this was three separate checking skills that could
+only write reports, and a fourth that read them back and fixed — which is how W-08 spent
+three rounds and still merged with 13 findings open, each round's fixes producing the
+next round's findings.
 
-**Three rounds, then it stops.** If findings survive three attempts, `/develop` hands it
-back rather than looping. A finding that reappears after being marked FIXED is escalated
-to High, and a High finding blocks the merge — so a loop that ran out of rounds cannot
-ship anyway.
+**One independent read survives, at `/merge`.** It runs once, through an agent with no
+edit tools. It is there because running things is not the same as reading them: on `W-02`
+the smoke test reported 23 of 23 while the documented Keycloak admin login returned 401 —
+the test hit the realm endpoint, which works whether or not the admin user exists.
 
 Disagreements about approach belong at step 5, not step 6.
 

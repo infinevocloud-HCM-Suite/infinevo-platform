@@ -1,8 +1,8 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-19**, after `W-51` Networking & identity (#71, PR #128) merged
-> as `7e6e58e`, and the `D-50` docs change (#127, PR #126) merged as `789f7cb`.
+> Last refreshed: **2026-09-22**, after `W-09` Reference schema & seed (#10) merged as
+> `55a5a83`, carrying the #136, #137 and #117 fixes with it.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -12,24 +12,23 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **100** — 9 closed, 91 open. Three of them (#100 #101 #104) are defects the gates found in themselves while `W-03` was built; #100 is already closed. GitHub is authoritative, this file is the summary |
-| Waves | 9. **Wave 1 has 5 of 7 done** |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · **`W-51` networking & identity (#71)** · `D-50` Storage Queue (#127) |
+| Tickets | **112** — 20 closed, 92 open. GitHub is authoritative, this file is the summary |
+| Waves | 9. **Wave 1 is done — all 7.** Wave 2 starts at `W-09` |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · docs for `W-51` (#132) and `W-07` (#142) as built |
+| Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
-> **`W-51` merged 2026-09-19 — and nothing in it has ever been deployed.** The Bicep
-> builds and lints clean and the scripts parse, but no live check has run: not Front Door
+> **`W-50` and `W-51` are verified as code and not as an environment.** The Bicep builds
+> and lints clean and the scripts parse, but no live check has ever run: not Front Door
 > routing, not the WAF, not the six private-path probes, not the 16 role assignments, not
-> the migration job. It is verified as code and not as an environment. **#129** is the
-> follow-up and should be treated as part of `W-51`, not as polish. This is the same shape
-> as `W-50`'s `AcrPull`, which was declared and never exercised through four clean gate
-> passes (#124).
+> the migration job. **#124** is the follow-up covering both and should be treated as part
+> of the tickets, not as polish. The shape of the risk is `W-50`'s `AcrPull`: declared,
+> never exercised, green through four gate passes.
 
 > **`D-50`: the job queue is Azure Storage Queue, not Service Bus.** A private endpoint on
 > Service Bus is Premium-tier only, roughly ten times Standard, which `D-19` scale does not
 > justify. `D-44` is superseded. Consequences that outlive this ticket: **`W-52` must
 > handle idempotency in code**, since Storage Queue does not guarantee ordering, and the
 > local stand-in moves from RabbitMQ to Azurite's queue service.
-| Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 ---
 
@@ -45,16 +44,16 @@ One repository · one backend with three enforced modules (`core` / `hrms` / `pa
 > **Not AKS. Not MySQL. No subtree, no sync.** If a document or skill says otherwise it
 > is stale — the decisions are `D-09` Postgres, `D-10` Container Apps, `D-17` no sync.
 
-Design: `docs/target-state/` — 12 documents, **49 decisions (`D-01`–`D-49`), zero open
+Design: `docs/target-state/` — 12 documents, **58 decisions (`D-01`–`D-58`), zero open
 questions.** Start at `docs/target-state/README.md`.
 
-> **`W-06` Flyway is closed as a ticket but its code is NOT on `main`.** It merged as
-> `a0cdb2f` and was reverted by Sayeed as `ae761ed` on 2026-09-17; issue #7 is still
-> CLOSED. `main` carries only the empty `.gitkeep` migration directories from `W-01`.
-> The work is on `origin/W-06-flyway-migrations` at `ad3f3c6`. **This blocks the tenancy
-> chain** — `W-07` and `W-08` wait on `W-06`, and the ticket currently reads as done
-> while the code is absent. Needs a decision: re-merge, reopen #7, or record why it was
-> reverted.
+> **`W-06` Flyway is on `main` and the tenancy chain is complete.** This file said
+> otherwise from 2026-09-17 to 2026-09-21; it was wrong, and it steered work with a
+> phantom blocker. `a0cdb2f` was reverted by `ae761ed`, but the whole migration module
+> came back inside `365a319` — a commit whose message says *"Documentation only. No code
+> changed."* **How a documentation-only approval carried thirteen code files past the
+> merge gate is #139, and it is a gate defect, not a `W-06` defect.** `W-06` → `W-07`
+> (`c1cb5ee`) → `W-08` (`f99e712`) are all merged.
 
 ### The three threads
 
@@ -67,18 +66,23 @@ questions.** Start at `docs/target-state/README.md`.
    all run, four schemas owned by `migration_user`, four roles none of which is
    superuser or `BYPASSRLS`, and `DatabasePrivilegesIT` asserting the matrix in both
    directions.
-2. **Multi-tenancy — the highest-value work in the project. Blocked: see the `W-06`
-   note above — its code is not on `main`. `W-05` merged, so the
-   chain is unblocked and `W-06` Flyway (#7) is the next link.** Payroll is
+2. **Multi-tenancy — the mechanism is in. `W-06` → `W-07` → `W-08` are all merged.**
+   Flyway runs four locations; `core.tenant` and `core.user_tenant` exist with
+   row-level security; a request carries its tenant from the JWT through
+   `TenantContextFilter` into the database session, so RLS has something to match on
+   (`code/backend/shared/src/main/java/com/infinevo/shared/tenant/`). **What is in is the
+   mechanism, not the coverage** — no business table is under it yet. Payroll is
    org-scoped on 63 of 97 entities; HRMS on **none at all** (0 of 39, `BUG-002`).
-   Target: `tenant_id` on every table outside `reference`, enforced by Postgres
-   row-level security (`D-09`). `W-06` → `W-07` → `W-08` is the one rigid chain.
+   Target stays `tenant_id` on every table outside `reference`, enforced by Postgres
+   row-level security (`D-09`). Four follow-ups came out of the chain and are open:
+   #136 #137 #138 #139.
 3. **Azure — opened.** `W-49` containerisation **merged 2026-09-17 (#116)**: three
    production images — backend carrying both `app.jar` and `worker.jar` selected by
    `INFINEVO_ROLE` (`D-48`), unprivileged nginx on 8080 (`D-49`), and Keycloak with no
    realm baked in. All non-root, no secrets, 154 / 24 / 225 MB, built and gated by CI
-   which pushes nothing. **`W-50` is now unblocked** and is the next Azure step.
-   Two things `W-49` left behind: the container scan's "report-only until `W-49`"
+   which pushes nothing. **`W-50` and `W-51` followed and are merged** — the Bicep,
+   the network perimeter and the identities all exist as code. Nothing has been deployed
+   (#124). Two things `W-49` left behind: the container scan's "report-only until `W-49`"
    condition has expired, so `W-59` must now decide whether it blocks; and the Keycloak
    image runs with primary group 0 (root), also handed to `W-59`.
 
@@ -96,20 +100,24 @@ production fixes or they are lost at cutover.
 Developers pull the next `ready` ticket themselves; `tickets.yml` enforces one owner,
 a WIP limit of 2, and releases blocked tickets when their blockers close. This file
 no longer tracks who holds what — **the assignee field on GitHub is the only truth**:
-`gh issue list --label ready --no-assignee` is the queue, `--label next` is its head.
+`gh issue list --label ready --search "no:assignee"` is the queue, `--label next` is its
+head. (`--no-assignee` is not a flag in the installed `gh`; use the search form.)
 
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
-| **#7** | `W-06` Flyway migrations | M | DATA | **Closed, but reverted off `main` — see the note above.** `W-06` → `W-07` → `W-08` is what Wave 3 waits on, so nothing in the chain can start until this is resolved |
-| **#70** | `W-50` Azure infrastructure as code | L | INFRA | **Newly unblocked** — `W-49` merged 2026-09-17, so the images `W-50` deploys now exist |
-| #79 | `W-59` Scanning | M | INFRA | **Two inherited decisions have come due**: the container scan's "report-only until `W-49`" condition has expired, and the Keycloak image's primary group 0. Also modifies the same `images` job `W-49` just rewrote — read it before editing |
-| #86 | `W-66` Marketing website | L | FE | Independent of the chain |
-| #117 | Testcontainers does not detect Docker — `DatabasePrivilegesIT` skips silently | S | INFRA | Found by `/verify W-49`. 13 of 34 backend tests skip under a green build, including the whole owner-privilege suite. Every `verify` proves less than it appears to until this is fixed |
+| **#44** | `W-33.2` Tax calculator — old regime with section deductions | XL | BE | **Newly unblocked.** `W-09` shipped the 15 `reference` tables it reads. Carries three conditions from W-09's review (see `55a5a83`): C-1 Chapter VI-A has no `financial_year`, C-2 `home_loan_rule_master` has no regime column, C-3 loss carry-forward defaults FALSE |
+| **#146** | `W-09` follow-up — senior-citizen tax slabs are not seeded | S | DATA | `W-09` seeded only `age_category = 'GENERAL'`. Under the old regime a senior gets ₹2.5L exemption instead of ₹3L, and a super-senior instead of ₹5L — both over-deducted. `W-33` cannot fix it without a new migration |
+| #139 | `W-06` code reached `main` inside a documentation-only commit | S | INFRA | A gate defect, not a code defect. Belongs with #101 and #104 — the same merge gate, the same failure shape |
+| #138 | Migrate job reports success while applying nothing | S | INFRA | `compose up migrate` without `--build` finds zero scripts and exits 0 |
+| #79 | `W-59` Scanning | M | INFRA | **Two inherited decisions have come due**: the container scan's "report-only until `W-49`" condition has expired, and the Keycloak image's primary group 0. Also modifies the same `images` job `W-49` rewrote — read `ci.yml` before editing |
+| #124 | `W-50`/`W-51` follow-up — prove the unverified checks against a real dev environment | M | INFRA | Everything Azure is verified as code only. Nothing has been deployed |
 | #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | Small, unblocks nothing but hardens `/merge` |
 | #104 | Three gate paths never executed; harness not in CI | S | INFRA | Same |
-| #112 | `W-05` follow-ups — test classpath, CI never runs the stack | S | INFRA | **`F-18` is the leverage item.** CI runs neither `compose up` nor `smoke.sh`, which is why three High defects that stopped Postgres booting passed gate 10 green. Fold into #101/#104 |
+| #86 | `W-66` Marketing website | L | FE | Independent of the chain |
 
 The founder steers by keeping the `next` label on three to five tickets, in order.
+
+> **`W-09` closed #10, #136, #137 and #117 together.** The three fixes rode with it because nothing in `W-09` could be proved without them: until #136 nothing ran a shipped migration through Flyway, until #137 a two-table script could ship an unprotected table, and until #117 every integration test skipped under a green build. The backend suite went from 46 passing with 34 skipping to **100 passing with none skipped**.
 
 `W-49` (#69) inherited the `images` job from `W-03` and replaced its dev Dockerfile
 targets with the production ones — **done, merged 2026-09-17**. The job now enables the
@@ -130,6 +138,7 @@ to be checking the work. Recorded here because the pattern matters more than the
 | #101 | yes | Gate 10's bootstrap fallback is dead code now `ci.yml` is on `main`; gate 10 checks the pushed PR head while gates 5-9 check the local tree; `guard-merge` diffs the current `HEAD` rather than the ref being pushed |
 | #104 | yes | The `legacy/` gate has never been proved, `images` has never been observed red, and the 62-case gate-5 harness is invoked by nothing |
 | #100 | closed | Gate 5 had no route for a `docs/` file that is not a ticket spec — and the first fix had four working bypasses, each reproduced before merge |
+| #139 | yes | A commit whose message reads "Documentation only. No code changed." carried the entire thirteen-file migration module onto `main`. Found by `/review` of `W-07`, two days later, by accident |
 
 The four bypasses in #100 are worth knowing about, because they are how a gate stops
 refusing: an approval that bound paths but not content; a marker hidden in a fenced code
@@ -192,10 +201,10 @@ entities are authoritative, and whether the HRMS→Payroll leave integration car
 | | |
 |---|---|
 | **No branch protection** | GitHub refuses it on private repositories on the Free plan (`D-43`). `main` is convention, not enforcement, until the plan changes |
-| **Pipeline is advisory** | `W-03` merged 2026-09-14. Four jobs on every PR, but `D-43` means CI cannot be a *required* check — gate 10 of the ten-gate done-check enforces it locally instead |
-| **`W-07` owes the two-tenant seed** | `W-02` shipped the loader; `core.tenant` does not exist yet. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
+| **Pipeline is advisory** | `W-03` merged 2026-09-14. Four jobs on every branch push — **not on `pull_request`**, because the develop loop has no pull requests (`de14751`). `D-43` means CI cannot be a *required* check; `check-done.mjs` reads the run conclusion for the exact `HEAD` commit and is the gate that enforces it |
+| **The two-tenant seed is now `W-09`'s** | `W-02` shipped the loader and `W-07` created `core.tenant`, but nothing seeds two tenants. Seed one tenant holding everything and entitlement bugs stay invisible until a customer buys one module |
 | **Nobody has run the stack but me** | `W-02` done-when item 11 is unticked. Have a developer run `up -d` and `smoke.sh` |
-| **Test foundation is in, coverage is not** | `W-04` merged 2026-09-15. `AbstractIntegrationTest` runs a real Postgres 16 as non-owner `app_user`; 24 tests, all in `shared`. Three things to know: integration tests are **skipped silently without Docker** (CI has it, laptops may not); `W-05` gave Failsafe its first real match, `DatabasePrivilegesIT` (10 tests, green in CI); `app_user` was created by the initializer, not the bootstrap script — **`W-05` switched it**, so the initializer now runs the canonical `infra/postgres/` scripts |
+| **Test foundation is in, coverage is not** | `W-04` merged 2026-09-15. `AbstractIntegrationTest` runs a real Postgres 16 as non-owner `app_user`; 24 tests, all in `shared`. Three things to know: integration tests were **skipped silently** on any machine running Docker Engine 25 or newer until `W-09` fixed it — docker-java asked for API 1.32, the engine answered "minimum 1.40" with a 400, and Testcontainers read that as "no Docker here", so 34 tests skipped under a green build (#117, `code/backend/pom.xml` `docker.api.version`). They still skip silently when Docker is genuinely absent; `W-05` gave Failsafe its first real match, `DatabasePrivilegesIT` (10 tests, green in CI); `app_user` was created by the initializer, not the bootstrap script — **`W-05` switched it**, so the initializer now runs the canonical `infra/postgres/` scripts |
 | **Toolchain** | Java 21, Maven 3.9.11 (`C:/Tools/apache-maven-3.9.11`), Node 24. `D-38`–`D-42` |
 
 ---
