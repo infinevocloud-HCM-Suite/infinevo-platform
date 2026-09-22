@@ -14,6 +14,7 @@ param targetResourceId string
 @allowed([
   'postgresqlServer'
   'redisCache'
+  'redisEnterprise'
   'blob'
   'queue'
   'vault'

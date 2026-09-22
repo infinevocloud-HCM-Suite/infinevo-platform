@@ -3,7 +3,11 @@ package com.infinevo.worker.scheduler;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.infinevo.shared.test.AbstractIntegrationTest;
+import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.worker.InfinevoWorkerApplication;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
@@ -16,6 +20,7 @@ import net.javacrumbs.shedlock.core.LockConfiguration;
 import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.core.LockingTaskExecutor;
 import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,17 +33,26 @@ class SchedulerLockIT extends AbstractIntegrationTest {
     @Autowired
     private DataSource dataSource;
 
+    @BeforeAll
+    static void initSchema() throws Exception {
+        try (Connection conn = DriverManager.getConnection(
+                        PostgresTestContainerInitializer.getJdbcUrl(),
+                        PostgresTestContainerInitializer.MIGRATION_USER,
+                        PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD);
+                Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE TABLE IF NOT EXISTS core.shedlock ("
+                    + "name VARCHAR(64) NOT NULL PRIMARY KEY, "
+                    + "lock_until TIMESTAMPTZ NOT NULL, "
+                    + "locked_at TIMESTAMPTZ NOT NULL, "
+                    + "locked_by VARCHAR(255) NOT NULL);"
+                    + "GRANT SELECT, INSERT, UPDATE, DELETE ON core.shedlock TO app_user;");
+        }
+    }
+
     @Test
     @DisplayName("Concurrency proof: Exactly 1 of 2 concurrent worker threads acquires the lock and runs")
     void testConcurrentSchedulerLocking() throws InterruptedException {
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
-
-        // Ensure shedlock table exists
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS core.shedlock ("
-                + "name VARCHAR(64) NOT NULL PRIMARY KEY, "
-                + "lock_until TIMESTAMPTZ NOT NULL, "
-                + "locked_at TIMESTAMPTZ NOT NULL, "
-                + "locked_by VARCHAR(255) NOT NULL)");
 
         LockProvider lockProvider = new JdbcTemplateLockProvider(JdbcTemplateLockProvider.Configuration.builder()
                 .withJdbcTemplate(jdbcTemplate)

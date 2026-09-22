@@ -1,4 +1,4 @@
--- Migration: V003__job_status_and_shedlock.sql
+-- Migration: V006__job_status_and_shedlock.sql
 -- Schema: core
 -- Purpose: Job tracking and distributed scheduler locking (W-52)
 

@@ -48,7 +48,7 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
     static void applyMigrations() throws Exception {
         try (Connection conn = migrationUserConnection()) {
             executeSqlResource(conn, "db/migration/core/V001__tenant.sql");
-            executeSqlResource(conn, "db/migration/core/V003__job_status_and_shedlock.sql");
+            executeSqlResource(conn, "db/migration/core/V006__job_status_and_shedlock.sql");
         }
     }
 

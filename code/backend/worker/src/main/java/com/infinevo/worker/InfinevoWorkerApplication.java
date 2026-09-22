@@ -2,6 +2,8 @@ package com.infinevo.worker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * The batch role.
@@ -14,6 +16,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * concurrency.
  */
 @SpringBootApplication(scanBasePackages = "com.infinevo")
+@EnableJpaRepositories(basePackages = "com.infinevo")
+@EntityScan(basePackages = "com.infinevo")
 public class InfinevoWorkerApplication {
 
     public static void main(String[] args) {

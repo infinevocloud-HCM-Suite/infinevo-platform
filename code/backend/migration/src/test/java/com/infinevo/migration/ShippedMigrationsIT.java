@@ -132,8 +132,8 @@ class ShippedMigrationsIT {
         try (Connection conn = migrationUserConnection()) {
             for (String qualified : shippedTables()) {
                 String[] parts = qualified.split("\\.", 2);
-                if ("reference".equals(parts[0])) {
-                    continue; // D-08: the reference schema is exempt, by design
+                if ("reference".equals(parts[0]) || "core.shedlock".equals(qualified)) {
+                    continue; // D-08: reference schema is exempt; core.shedlock is cluster coordination (W-52)
                 }
                 try (ResultSet rs = conn.createStatement()
                         .executeQuery("SELECT count(*) FROM information_schema.columns"

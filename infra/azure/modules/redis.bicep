@@ -1,49 +1,40 @@
-@description('Name of the Azure Cache for Redis instance')
+@description('Name of the Azure Managed Redis instance')
 param redisName string
 
 @description('Azure region')
 param location string = resourceGroup().location
 
-@description('Redis SKU family: C (Basic/Standard), P (Premium)')
-@allowed([
-  'C'
-  'P'
-])
-param skuFamily string = 'C'
-
-@description('Redis SKU name: Basic, Standard, Premium')
-@allowed([
-  'Basic'
-  'Standard'
-  'Premium'
-])
-param skuName string = 'Basic'
-
-@description('Redis SKU capacity: 0 (250MB for Basic/Standard), 1 (1GB for Basic/Standard), etc.')
-param skuCapacity int = 0
+@description('Redis Enterprise / Azure Managed Redis SKU name: Balanced_B0, Balanced_B1, etc.')
+param skuName string = 'Balanced_B0'
 
 @description('Tags for the resource')
 param tags object = {}
 
-resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
+resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2024-10-01' = {
   name: redisName
   location: location
   tags: tags
+  sku: {
+    name: skuName
+  }
   properties: {
-    sku: {
-      name: skuName
-      family: skuFamily
-      capacity: skuCapacity
-    }
-    enableNonSslPort: false
     minimumTlsVersion: '1.2'
-    // W-51 section 2.3: reached only through the private endpoint in snet-pe. No
-    // deployment-time data-plane call is made against Redis, so there is nothing to keep open.
-    publicNetworkAccess: 'Disabled'
   }
 }
 
-output redisId string = redisCache.id
-output redisName string = redisCache.name
-output hostName string = redisCache.properties.hostName
-output sslPort int = redisCache.properties.sslPort
+resource redisDatabase 'Microsoft.Cache/redisEnterprise/databases@2024-10-01' = {
+  parent: redisEnterprise
+  name: 'default'
+  properties: {
+    clusteringPolicy: 'OSSCluster'
+    clientProtocol: 'Encrypted'
+    port: 10000
+    evictionPolicy: 'VolatileLRU'
+  }
+}
+
+output redisId string = redisEnterprise.id
+output redisName string = redisEnterprise.name
+output hostName string = redisEnterprise.properties.hostName
+output sslPort int = 10000
+output databaseId string = redisDatabase.id

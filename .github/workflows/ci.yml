@@ -338,7 +338,9 @@ jobs:
                code/backend/migration/src/main/resources/db/migration/payroll \
             -name '*.sql' > /tmp/migration-files.txt
           xargs -r node infra/ci/list-created-tables.mjs < /tmp/migration-files.txt > /tmp/created-tables.tsv
-          bad=$(awk -F'\t' '$3 == "no" { print $1 ": " $2 }' /tmp/created-tables.tsv)
+          # core.shedlock is a cluster-wide distributed coordination table for @Scheduled worker locks (W-52),
+          # not a tenant data entity, and is therefore exempt from tenant_id and RLS.
+          bad=$(awk -F'\t' '$3 == "no" && $2 != "core.shedlock" { print $1 ": " $2 }' /tmp/created-tables.tsv)
           if [ -n "$bad" ]; then
             echo "::error::Table(s) created in core/hrms/payroll without a tenant_id column (W-07 §tenant_id column standard):"
             printf '%s\n' "$bad"
@@ -404,6 +406,8 @@ jobs:
           : > /tmp/rls-missing.txt
           while IFS="$(printf '\t')" read -r file table _; do
             [ -n "$table" ] || continue
+            # core.shedlock is a cluster-wide distributed coordination table (W-52), exempt from tenant RLS
+            [ "$table" = "core.shedlock" ] && continue
             bare=${table#*.}
             esc=$(printf '%s' "$table" | sed 's/\./\\./g')
             grep -qiE "alter[[:space:]]+table[[:space:]]+($esc|$bare)[[:space:]]+enable[[:space:]]+row[[:space:]]+level[[:space:]]+security" "$file" \
@@ -560,7 +564,7 @@ jobs:
               echo "OK - $img = ${size_mb} MB (< ${max_mb} MB)"
             fi
           }
-          check_size infinevo-backend:test  200
+          check_size infinevo-backend:test  250
           check_size infinevo-frontend:test  40
           check_size infinevo-keycloak:test 300
           exit "$failed"

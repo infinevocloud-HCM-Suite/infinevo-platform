@@ -47,17 +47,11 @@ param postgresStorageSizeGB int = 32
 @description('PostgreSQL high availability mode')
 param postgresHighAvailability string = 'Disabled'
 
-@description('Redis SKU family')
-param redisSkuFamily string = 'C'
+@description('Redis Enterprise / Azure Managed Redis SKU name')
+param redisSkuName string = 'Balanced_B0'
 
-@description('Redis SKU name')
-param redisSkuName string = 'Basic'
-
-@description('Redis SKU capacity')
-param redisSkuCapacity int = 0
-
-@description('Whether to deploy Redis. Defaults to false (deferred to W-53).')
-param deployRedis bool = false
+@description('Whether to deploy Redis. Enabled in W-53.')
+param deployRedis bool = true
 
 @description('Storage Account SKU')
 param storageSkuName string = 'Standard_LRS'
@@ -283,9 +277,7 @@ module redis 'modules/redis.bicep' = if (deployRedis) {
   params: {
     redisName: 'redis-infinevo-${environment}'
     location: location
-    skuFamily: redisSkuFamily
     skuName: redisSkuName
-    skuCapacity: redisSkuCapacity
     tags: defaultTags
   }
 }
@@ -378,7 +370,7 @@ module redisPrivateEndpoint 'modules/private-endpoint.bicep' = if (deployRedis) 
     location: location
     subnetId: vnet.outputs.peSubnetId
     targetResourceId: deployRedis ? redis.?outputs.?redisId ?? '' : ''
-    groupId: 'redisCache'
+    groupId: 'redisEnterprise'
     privateDnsZoneId: privateDns.outputs.redisZoneId
     tags: defaultTags
   }

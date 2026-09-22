@@ -2,6 +2,8 @@ package com.infinevo.app;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * The web role.
@@ -15,6 +17,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * a solved problem - see {@code docs/target-state/03-code-structure.md} section 4.
  */
 @SpringBootApplication(scanBasePackages = "com.infinevo")
+@EnableJpaRepositories(basePackages = "com.infinevo")
+@EntityScan(basePackages = "com.infinevo")
 public class InfinevoApplication {
 
     public static void main(String[] args) {

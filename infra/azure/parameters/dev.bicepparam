@@ -10,9 +10,8 @@ param postgresSkuTier = 'Burstable'
 param postgresStorageSizeGB = 32
 param postgresHighAvailability = 'Disabled'
 
-param redisSkuFamily = 'C'
-param redisSkuName = 'Basic'
-param redisSkuCapacity = 0
+param redisSkuName = 'Balanced_B0'
+param deployRedis = true
 
 param storageSkuName = 'Standard_LRS'
 

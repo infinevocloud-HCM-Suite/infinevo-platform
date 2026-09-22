@@ -246,7 +246,8 @@ if [[ -z "$REDIS_HOST" ]]; then
   echo "--- PROBE-REDIS: SKIPPED (Redis deferred to W-53)"
   echo "PROBE-REDIS: OK"
 else
-  echo "--- PROBE-REDIS: redis-cli PING over TLS on ${REDIS_HOST}:6380"
+  REDIS_PORT="${REDIS_PORT:-10000}"
+  echo "--- PROBE-REDIS: redis-cli PING over TLS on ${REDIS_HOST}:${REDIS_PORT}"
   if assert_private_address "REDIS" "$REDIS_HOST"; then
     REDIS_KEY=""
     if login_as "id-migration" "$MIGRATION_CLIENT_ID"; then
@@ -255,9 +256,9 @@ else
     fi
 
     if [[ -n "$REDIS_KEY" ]]; then
-      REDIS_REPLY="$(redis-cli --tls -h "$REDIS_HOST" -p 6380 -a "$REDIS_KEY" --no-auth-warning PING 2>&1)"
+      REDIS_REPLY="$(redis-cli --tls -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_KEY" --no-auth-warning PING 2>&1)"
     else
-      REDIS_REPLY="$(redis-cli --tls -h "$REDIS_HOST" -p 6380 PING 2>&1)"
+      REDIS_REPLY="$(redis-cli --tls -h "$REDIS_HOST" -p "$REDIS_PORT" PING 2>&1)"
     fi
 
     case "$REDIS_REPLY" in
