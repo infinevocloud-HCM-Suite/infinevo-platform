@@ -138,15 +138,13 @@ troubleshooting are in `infra/docker/README.md`; they are not repeated here.
 | The application connects as `app_user` and **is refused DDL** | ✅ enforced, and `smoke.sh` fails if it ever succeeds |
 | No real secrets. No connection to any shared environment | ✅ |
 | `ddl-auto` set nowhere | ✅ checked |
-| Migrations run on start, so the database is always current | ✅ **`W-06` merged, and `W-07`–`W-09` filled it.** Five scripts ship — `core/V001__tenant.sql`, `core/V002__user_tenant.sql` and `reference/V003`–`V005` — and `ShippedMigrationsIT` runs that exact tree through Flyway rather than a fixture |
-| Seed data creates two tenants with different module sets | ⏳ **half done, `W-12` owes the rest.** `W-09` made the seed real: `infra/docker/seed/01-tenants.sql` inserts Acme and Globex with fixed UUIDs, idempotently. The **module asymmetry** is still missing — it needs `core.subscription`, which `W-12` creates, so both tenants currently hold the same nothing |
+| Migrations run on start, so the database is always current | ⏳ **`W-06`.** `W-05` merged 2026-09-16: `infra/postgres/provision.sh` creates the four schemas and **four** roles — and **no tables**, so it cannot collide with Flyway later |
+| Seed data creates two tenants with different module sets | ⏳ **`W-08` / `W-09`.** The loader ships and works, and `W-07` created `core.tenant` — but the seed is still a no-op, and its commented inserts name `slug`, `status` and `core.subscription`, none of which the shipped table has |
 
 **Seeding two tenants with different modules matters.** It is the only way entitlement
 bugs surface during development rather than after a customer buys one module. `W-02`
-shipped the loader, `W-09` made it insert two real tenants — but **the part that catches
-entitlement bugs is the asymmetry, and that is still missing.** Until `W-12` creates
-`core.subscription`, the two tenants are indistinguishable in what they have bought and
-an entitlement check has nothing to fail against.
+shipped the mechanism with the inserts written out ready to uncomment — **`W-07` must
+finish it.**
 
 **`app_user` is the one that is load-bearing.** The local stack creates the same three
 roles as production (`02` §9) and the application connects as the restricted one. That

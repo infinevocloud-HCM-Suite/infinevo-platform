@@ -81,14 +81,12 @@ that it **fails when it should**. A gate only ever observed passing has not been
 |---|---|---|
 | | | |
 
-Prove these on a throwaway branch, paste the evidence into the merge commit message,
-never merge the breaks.
+Prove these on a throwaway branch, link the evidence from the pull request, never merge
+the breaks.
 
 ## 5. Verification
 
-Exact commands `/develop` can run on a clean checkout, with expected output. For a Bicep
-ticket that means `az bicep build` and `az bicep lint` — deploying it is the founder's
-step, not a check the harness runs.
+Exact commands the **verifier** can run on a clean checkout, with expected output.
 No "check that it works".
 
 ```bash

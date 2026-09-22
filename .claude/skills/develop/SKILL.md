@@ -1,105 +1,156 @@
 ---
 name: develop
-description: Build an approved ticket end to end - writes the code, runs the checks itself, fixes what it finds, and pushes the branch. Refuses to start without an approved spec.
+description: Build an approved ticket end to end - writes the code, runs test, verify and review itself, fixes what they find, and stops after three rounds. Refuses to start without an approved spec.
 ---
 
 # develop
 
-Invoke as `/develop W-nn`. Works the same for a feature ticket and a platform ticket
-(Bicep, Docker, CI, Flyway) — only the checks in step 2 differ.
+Invoke as `/develop W-nn`.
 
-**One pass. Checks run inside the build and defects are fixed on the spot.** There are no
-rounds, no finding numbers and no report files. A defect found is a defect fixed in the
-commit that caused it.
+**The only skill that writes application code, and the only one the developer runs
+after approval.** It builds, then checks its own work by calling `/test`, `/verify` and
+`/review`, fixes what they report, and repeats until clean or until three rounds are
+spent.
+
+The dev types one command. Everything below happens inside it.
 
 ---
 
-## Before anything
+## Before anything — the gate
 
-1. Read `.claude/work/active-work.md`.
+1. Read `.claude/work/active-work.md` (hard rule 2).
 2. Find the spec: `docs/target-state/features/W-nn-<slug>.md`.
-3. **If it does not exist, or its status is not Approved, stop** and say so. That is the
-   one approval gate before merge; do not write code to get a head start.
+3. **If it does not exist, stop.** Say so and point at `/plan-feature` or `/infra-task`.
+4. **If its status is not Approved, stop.** Hard rule 1: no code before founder approval.
+   Print the status and wait.
 
-## Step 1 — build
-
-1. Read the spec in full, then `docs/CONVENTIONS.md`.
-2. Branch `W-nn-<slug>`, if not already on one.
-3. **One module at a time.** Spawn **implementer** confined to `code/backend/<module>`,
-   `code/frontend/src/<area>`, `infra/` or `.github/workflows/`. Finish one before
-   spawning the next — never one agent across two.
-4. Porting from the frozen system: read it under `legacy/` and **cite its `file:line` in
-   the commit message**, so the merge review can confirm it was carried over rather than
-   reinvented.
-5. Tests as you go.
-
-## Step 2 — check it, and fix what you find
-
-Run the checks for what the ticket touched. **Fix each failure immediately, in the commit
-that caused it.** Do not write it down first.
-
-| Ticket touches | Run |
-|---|---|
-| `code/backend/` | `./mvnw -B clean verify` from `code/backend` (Spotless is bound to `validate`) |
-| `code/frontend/` | `npm run lint && npm run build` from `code/frontend` |
-| `infra/azure/` | `az bicep build` and `az bicep lint` on each changed template |
-| `infra/docker/` | `docker compose config` |
-| anything | `git grep -nE '^[^#]*ddl-auto[[:space:]]*[:=]' -- code/` — expect nothing |
-| anything | `git diff --name-only origin/main...HEAD \| grep -E '^legacy/'` — expect nothing |
-
-**Break each guard the ticket ships, once.** A check that has never failed has not been
-shown to work.
-
-### What this skill may not do without asking
-
-**Never create, modify or delete a live or billable resource** — a cloud deployment, a
-resource group, a registry push, a DNS record, a production database. Read-only cloud
-calls are fine: `az account show`, `az group list`, `az bicep build`, `az bicep lint`,
-`az deployment ... what-if`.
-
-Deploying the Bicep is the founder's step, not a check this skill runs. `az bicep build`
-plus lint plus CI is what proves the template here.
-
-## Step 3 — push
-
-Commit in meaningful steps and push the branch. **Never push to `main`** — code reaches
-main only through `/merge`, which is also where the one independent read happens.
+Never write code to "get started while approval comes through".
 
 ---
 
-## The rules the build enforces
-
-These are checked by `maven-enforcer`, CI and the `guard-edit` hook. They are listed
-here so you know what will reject you, not as prose to comply with by hand.
-
-| Rule | Enforced by |
-|---|---|
-| `tenant_id` and an RLS policy on every new table outside `reference` | CI, `check-done.mjs` |
-| Flyway script for every schema change; `ddl-auto` set nowhere | CI, `check-done.mjs` |
-| `Money` or `BigDecimal` for money, never `double` or `float` | CI, `check-done.mjs` |
-| No module references another module — only `core` | `maven-enforcer` |
-| Nothing under `legacy/`, `docs/` (except this ticket's spec), `*.properties`, `.env*` | `guard-edit` hook |
-
-If the design seems to need a cross-module dependency, **the data belongs in `core`**.
-Say so and stop — the build rejects the workaround anyway.
-
----
-
-## Finishing
-
-Reply with this and nothing longer.
+## The loop
 
 ```
-W-nn — <title>: built and pushed
+build  ->  /test  ->  /verify  ->  /review  ->  findings?
+                                                  |
+                                    no -> done, print the summary
+                                    yes -> fix them, round += 1, back to /test
+```
+
+**Two rounds maximum. Round 3 never starts.** When round 2 ends with findings still open,
+the answer is not another round — it is a smaller ticket:
+
+1. **Split at the module boundary where the findings cluster.** They usually do; open
+   findings are not evenly spread.
+2. **Merge the half that passes**, under the normal gates, with its own conditions.
+3. **Open a ticket for the other half**, carrying the open findings verbatim as its
+   acceptance criteria.
+
+A stall becomes a decision instead of a fourth opinion. W-08 ran three rounds and still
+ended with 13 findings open; 9 of them sat in one file, `TenantBindingDataSourceProxy`.
+Under this rule its filter and migration would have merged after round 2 and the proxy
+would have been its own ticket.
+
+The reason a third round does not help: each round's fixes manufacture the next round's
+findings. W-08's F-1 fix produced F-10 and F-11, both High; fixing F-10 produced F-19 and
+F-20. Rounds do not converge on their own, so something has to stop them.
+
+### Round 1 — build
+
+1. Read the spec in full, then `docs/CONVENTIONS.md` and
+   `docs/target-state/03-code-structure.md` §3.
+2. Branch, if not already on one: `W-nn-<slug>`.
+3. **One module at a time.** Spawn **implementer** confined to `code/backend/<module>`
+   or `code/frontend/src/<area>`. If the spec needs a second, finish the first and
+   spawn again — never one agent across two modules.
+4. To port logic from the frozen system, read it under `legacy/` and **cite its
+   `file:line` in the commit message**, so the review can confirm it was carried over
+   rather than reinvented.
+5. Tests as you go, not afterwards.
+6. Commit in meaningful steps and push the branch.
+
+### Then — check the work
+
+Run all three, in this order, and read every report:
+
+| | Asks | Writes |
+|---|---|---|
+| `/test W-nn` | Is what changed covered? | tests under the module |
+| `/verify W-nn` | Does it work, when run? | `.claude/outputs/<date>-verify-W-nn.md` |
+| `/review W-nn` | Is it right, when read? | `.claude/outputs/<date>-review-W-nn.md` |
+
+**The checkers never fix.** `/verify` and `/review` run through the **verifier** and
+**reviewer** agents, which have no edit tools at all — so this is enforced by their
+toolset, not by good intentions. They report; this skill fixes. That separation is why
+`W-02` was caught reporting 23 of 23 passing while its documented Keycloak admin login
+returned 401: reporting it produced three extra checks and a recorded trap, and a quiet
+fix would have produced neither.
+
+### Then — fix what they found
+
+Collect every finding whose status is `OPEN`. For each, decide:
+
+| Disposition | When |
+|---|---|
+| **FIXED** | A real defect inside this ticket's scope |
+| **DEFERRED** | Real, but belongs to another ticket. **Create a GitHub ticket and link it.** Never just drop it |
+| **DISPUTED** | You believe the finding is wrong. **Stop and ask the founder.** You do not overrule a checker alone |
+
+Then:
+
+1. Fix them one at a time. **Reference the finding ID in the commit message** —
+   `Fix F-1: Keycloak admin variables are 26-only, silently ignored by 25`.
+2. Add a test that would have caught it, wherever a test can.
+3. Mark each finding `FIXED` in its report, with the commit hash.
+4. Go back to `/test`. That is round 2. **There is no round 3** — see the split rule above.
+
+**A finding that reappears after being marked FIXED is escalated to High.** A wrong fix
+is worse than the original defect, because it consumed a round of everyone's attention.
+A High finding still open blocks the merge, so a loop that ran out of rounds cannot ship
+anyway.
+
+**A Medium may be discharged as a Condition rather than a fix** when the review says so —
+see `review`, "Approve with conditions". Conditions go into the merge commit message and
+are closed by the next ticket touching that file. A High is never a Condition.
+
+---
+
+## The rules the build cannot break
+
+| | |
+|---|---|
+| `tenant_id` and a row-level security policy on every new table outside `reference` | |
+| Flyway script for every schema change, under `code/backend/migration/`. **Never `ddl-auto`** | |
+| `Money` or `BigDecimal` for money. Never `double` or `float` | |
+| **No module references another module.** Only `core` | The build rejects it |
+| Every new endpoint authenticated, or added to the reviewed exception list | |
+| Nothing under `legacy/`, `docs/` (except this ticket's spec), `*.properties` or `.env*` | `guard-edit` blocks it |
+
+If the design seems to need a cross-module dependency, **the data belongs in `core`**.
+Say so and stop — do not reach for a workaround. `maven-enforcer` will refuse it anyway.
+
+---
+
+## Finishing — what the dev reads
+
+When the loop ends clean, reply with this and nothing longer. Plain English, no jargon,
+no report paste.
+
+```
+W-nn — <title>: done
 
 | File | New or changed | Why |
 |---|---|---|
 | code/backend/hrms/.../LeaveService.java | new | Works out how many leave days are left |
 | code/backend/migration/V12__leave_balance.sql | new | The table that stores it |
+| code/frontend/src/hrms/LeaveForm.tsx | changed | Sends the new field the API now expects |
 
-Checked: <what ran> — all green. Fixed along the way: <n> things, in plain English.
+Checked: tests pass, build clean, review found <n> things and all are fixed.
+Rounds used: <n> of 3.
 Next: /merge W-nn
 ```
 
-If something is genuinely blocked, say what and why in one sentence — do not start
-another pass around it.
+If the loop ran out of rounds, say that instead — what is still failing, in one plain
+sentence each, and what was tried in each round.
+
+**Never `git push` to main from here.** Code reaches main only through `/merge`.

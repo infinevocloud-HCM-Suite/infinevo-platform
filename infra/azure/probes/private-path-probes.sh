@@ -161,13 +161,10 @@ if assert_private_address "BLOB" "$BLOB_HOST"; then
          --auth-mode login --container-name documents \
          --name "$PROBE_BLOB_NAME" --file "/tmp/${PROBE_BLOB_NAME}" --overwrite \
          >/dev/null 2>&1; then
-      read_tmp="/tmp/readback-${PROBE_BLOB_NAME}"
-      az storage blob download \
+      READ_BACK="$(az storage blob download \
         --account-name "$STORAGE_ACCOUNT_NAME" --blob-endpoint "$BLOB_ENDPOINT" \
         --auth-mode login --container-name documents \
-        --name "$PROBE_BLOB_NAME" --file "$read_tmp" >/dev/null 2>&1 || true
-      READ_BACK="$(cat "$read_tmp" 2>/dev/null || true)"
-      rm -f "$read_tmp"
+        --name "$PROBE_BLOB_NAME" --file /dev/stdout -o none 2>/dev/null)"
       if [[ "$READ_BACK" == "$PROBE_BLOB_BODY" ]]; then
         echo "PROBE-BLOB: OK"
       else
@@ -242,41 +239,36 @@ fi
 # NOAUTH refusal as proof that a Redis server answered on the private endpoint — a
 # connection failure or timeout still fails. That is weaker than the other five and is
 # recorded as such; W-53 is the first genuine exercise of this path.
-if [[ -z "$REDIS_HOST" ]]; then
-  echo "--- PROBE-REDIS: SKIPPED (Redis deferred to W-53)"
-  echo "PROBE-REDIS: OK"
-else
-  echo "--- PROBE-REDIS: redis-cli PING over TLS on ${REDIS_HOST}:6380"
-  if assert_private_address "REDIS" "$REDIS_HOST"; then
-    REDIS_KEY=""
-    if login_as "id-migration" "$MIGRATION_CLIENT_ID"; then
-      REDIS_KEY="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" \
-        --name "redis-primary-key" --query value -o tsv 2>/dev/null || true)"
-    fi
-
-    if [[ -n "$REDIS_KEY" ]]; then
-      REDIS_REPLY="$(redis-cli --tls -h "$REDIS_HOST" -p 6380 -a "$REDIS_KEY" --no-auth-warning PING 2>&1)"
-    else
-      REDIS_REPLY="$(redis-cli --tls -h "$REDIS_HOST" -p 6380 PING 2>&1)"
-    fi
-
-    case "$REDIS_REPLY" in
-      *PONG*)
-        echo "PROBE-REDIS: OK"
-        ;;
-      *NOAUTH*|*"Authentication required"*)
-        if [[ -n "$REDIS_KEY" ]]; then
-          fail "REDIS" "authenticated with redis-primary-key and was still refused: ${REDIS_REPLY}"
-        else
-          echo "  no redis-primary-key in ${KEY_VAULT_NAME}; the server answered over TLS and demanded auth, which is the connectivity evidence this probe can obtain"
-          echo "PROBE-REDIS: OK"
-        fi
-        ;;
-      *)
-        fail "REDIS" "redis-cli did not reach ${REDIS_HOST}:6380 over TLS: ${REDIS_REPLY:-<no reply>}"
-        ;;
-    esac
+echo "--- PROBE-REDIS: redis-cli PING over TLS on ${REDIS_HOST}:6380"
+if assert_private_address "REDIS" "$REDIS_HOST"; then
+  REDIS_KEY=""
+  if login_as "id-migration" "$MIGRATION_CLIENT_ID"; then
+    REDIS_KEY="$(az keyvault secret show --vault-name "$KEY_VAULT_NAME" \
+      --name "redis-primary-key" --query value -o tsv 2>/dev/null || true)"
   fi
+
+  if [[ -n "$REDIS_KEY" ]]; then
+    REDIS_REPLY="$(redis-cli --tls -h "$REDIS_HOST" -p 6380 -a "$REDIS_KEY" --no-auth-warning PING 2>&1)"
+  else
+    REDIS_REPLY="$(redis-cli --tls -h "$REDIS_HOST" -p 6380 PING 2>&1)"
+  fi
+
+  case "$REDIS_REPLY" in
+    *PONG*)
+      echo "PROBE-REDIS: OK"
+      ;;
+    *NOAUTH*|*"Authentication required"*)
+      if [[ -n "$REDIS_KEY" ]]; then
+        fail "REDIS" "authenticated with redis-primary-key and was still refused: ${REDIS_REPLY}"
+      else
+        echo "  no redis-primary-key in ${KEY_VAULT_NAME}; the server answered over TLS and demanded auth, which is the connectivity evidence this probe can obtain"
+        echo "PROBE-REDIS: OK"
+      fi
+      ;;
+    *)
+      fail "REDIS" "redis-cli did not reach ${REDIS_HOST}:6380 over TLS: ${REDIS_REPLY:-<no reply>}"
+      ;;
+  esac
 fi
 
 echo "================================================================="

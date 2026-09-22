@@ -55,5 +55,5 @@ inside that module and prove it with tests.
 6. Run the verify commands yourself and **paste the real output** in your report:
    `cd code/backend && ./mvnw -q verify` · `cd code/frontend && npm run lint && npm run build`
 7. Report: files changed with line ranges, tests added, commands run with exit codes, and
-   anything the spec asked for that you could not do and why. Paste the real output — a
-   claim of success without it is not evidence.
+   anything the spec asked for that you could not do and why. Hand off to **verifier** for
+   independent confirmation — do not declare success yourself.

@@ -25,8 +25,8 @@ const abs = resolve(input.cwd ?? ROOT, target);
 const rel = relative(ROOT, abs).split(sep).join("/");
 const name = basename(abs);
 
-// The one sanctioned docs/ write: THIS BRANCH'S OWN ticket spec. An approved draft moves
-// from .claude/outputs/ to docs/target-state/features/W-nn-<slug>.md with its Status set,
+// The one sanctioned docs/ write: THIS BRANCH'S OWN ticket spec. `review-spec` moves an
+// approved draft to docs/target-state/features/W-nn-<slug>.md and sets its Status, and
 // check-done.mjs allows a ticket's branch to change docs/ only under `${item}-`.
 // Matching any W-nn- let a branch overwrite another ticket's approved spec, so the hook
 // was looser than the gate it cited (review F-1). It now resolves the branch's own

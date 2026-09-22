@@ -31,11 +31,8 @@ param environmentId string
 @description('ACR login server the runner image is pulled from (e.g. crinfinevo.azurecr.io)')
 param acrLoginServer string = 'crinfinevo.azurecr.io'
 
-@description('Repository of the migration runner image built from infra/docker/migration-runner.Dockerfile')
-param runnerImageRepository string = 'migration-runner'
-
-@description('Tag of the migration runner image. Parameterised because the pipeline no longer produces :latest - see the comment below (W-54 finding F-16).')
-param runnerImageTag string = 'latest'
+@description('Repository and tag of the migration runner image built from infra/docker/migration-runner.Dockerfile')
+param runnerImage string = 'migration-runner:latest'
 
 @description('Resource id of id-migration-{env} - pulls the image and reads Key Vault secrets')
 param migrationIdentityId string
@@ -126,13 +123,7 @@ resource migrationJob 'Microsoft.App/jobs@2024-03-01' = {
       containers: [
         {
           name: 'migration-runner'
-          // W-54 finding F-16. The build job pushes migration-runner:git-<sha> and pushes
-          // no :latest, so leaving this hardcoded to :latest would pin the job to an image
-          // hand-pushed before this ticket and quietly keep it there for ever. The tag is
-          // a parameter; main.bicep passes the release tag when one is supplied, and falls
-          // back to :latest only at rest, where :latest is the hand-pushed image an
-          // operator built and NOT something the pipeline maintains.
-          image: '${acrLoginServer}/${runnerImageRepository}:${runnerImageTag}'
+          image: '${acrLoginServer}/${runnerImage}'
           resources: {
             // 0.5 / 1.0Gi is the smallest Consumption combination that leaves headroom for
             // the Azure CLI, which is a Python process and will OOM at 0.5Gi partway
@@ -142,7 +133,6 @@ resource migrationJob 'Microsoft.App/jobs@2024-03-01' = {
           }
           env: [
             { name: 'ENVIRONMENT', value: environment }
-            { name: 'APPSETTING_WEBSITE_SITE_NAME', value: 'azcli-workaround' }
             { name: 'AZURE_SUBSCRIPTION_ID', value: subscription().subscriptionId }
             { name: 'KEY_VAULT_NAME', value: keyVaultName }
             { name: 'STORAGE_ACCOUNT_NAME', value: storageAccountName }

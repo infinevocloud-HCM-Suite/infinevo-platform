@@ -130,7 +130,6 @@ infra/docker/smoke.sh
 Five tickets are `ready` — `W-03` `W-04` `W-05` `W-49` `W-66`. Everything else waits on
 a dependency. **Nothing is in production.**
 
-Two things are owed and written down so they are not forgotten: the two-tenant seed now
-inserts both tenants (`W-09`) but **not their different module sets** — that waits on
-`W-12` and `core.subscription` — and nobody but the author has yet run the local stack on
-their own machine.
+Two things are owed and written down so they are not forgotten: `W-07` must finish the
+two-tenant seed, and nobody but the author has yet run the local stack on their own
+machine.

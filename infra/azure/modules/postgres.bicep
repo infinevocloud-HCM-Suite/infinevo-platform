@@ -36,7 +36,7 @@ param highAvailabilityMode string = 'Disabled'
 @description('Tags for the resource')
 param tags object = {}
 
-resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
+resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-30' = {
   name: serverName
   location: location
   tags: tags
@@ -71,7 +71,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' =
 }
 
 // Database: infinevo
-resource infinevoDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
+resource infinevoDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-12-30' = {
   parent: postgresServer
   name: 'infinevo'
   properties: {
@@ -81,7 +81,7 @@ resource infinevoDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08
 }
 
 // Database: keycloak
-resource keycloakDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
+resource keycloakDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-12-30' = {
   parent: postgresServer
   name: 'keycloak'
   properties: {

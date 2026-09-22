@@ -24,11 +24,6 @@ echo "================================================================="
 # migration-runner.Dockerfile predates the rename. If that base image is bumped, check the
 # flag before assuming this still works.
 echo "Authenticating as id-migration-${ENVIRONMENT} (${MIGRATION_CLIENT_ID})..."
-export APPSETTING_WEBSITE_SITE_NAME="${APPSETTING_WEBSITE_SITE_NAME:-azcli-workaround}"
-if [[ -n "${IDENTITY_ENDPOINT:-}" ]]; then
-  export MSI_ENDPOINT="${MSI_ENDPOINT:-$IDENTITY_ENDPOINT}"
-  export MSI_SECRET="${MSI_SECRET:-${IDENTITY_HEADER:-}}"
-fi
 az login --identity --username "$MIGRATION_CLIENT_ID" >/dev/null
 az account set --subscription "$AZURE_SUBSCRIPTION_ID" >/dev/null
 

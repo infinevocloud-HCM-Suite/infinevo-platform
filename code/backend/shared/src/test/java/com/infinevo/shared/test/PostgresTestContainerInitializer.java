@@ -68,55 +68,6 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         return POSTGRES.getJdbcUrl();
     }
 
-    /**
-     * Creates an additional, empty database on the shared container and provisions it with the
-     * canonical schemas and grants, returning its JDBC URL.
-     *
-     * <p>Roles are cluster-wide, so {@code 01-roles.sql} is not re-run; {@code 02-schemas.sql} and
-     * {@code 03-grants.sql} are database-scoped and are. Both are idempotent, and {@code
-     * 03-grants.sql} reads {@code current_database()} rather than a hardcoded name, so they apply
-     * unchanged here.
-     *
-     * <p>Exists so a test can run the <em>shipped</em> migration tree against a database no other
-     * test has touched. The default database carries the {@code db/migration-test/} fixtures, whose
-     * versions collide with the shipped ones, and {@code TenantIsolationIT} applies {@code
-     * V001__tenant.sql} by hand — either would make a real Flyway run fail for reasons that say
-     * nothing about the scripts (#136).
-     */
-    public static synchronized String provisionAdditionalDatabase(String databaseName) {
-        // The name goes into CREATE DATABASE unquoted, because an identifier cannot be a
-        // bind parameter. Callers are test classes passing a literal, so this is a guard
-        // against a typo rather than against an attacker - but an unchecked identifier
-        // concatenated into DDL is the habit, not the value, that goes wrong later.
-        if (!databaseName.matches("[a-z_][a-z0-9_]*")) {
-            throw new IllegalArgumentException("not a safe database identifier: " + databaseName);
-        }
-        startIfNeeded();
-        String url =
-                "jdbc:postgresql://" + POSTGRES.getHost() + ":" + POSTGRES.getFirstMappedPort() + "/" + databaseName;
-        try (Connection admin =
-                DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
-            boolean exists;
-            try (var rs = admin.createStatement()
-                    .executeQuery("SELECT 1 FROM pg_database WHERE datname = '" + databaseName + "'")) {
-                exists = rs.next();
-            }
-            if (!exists) {
-                // CREATE DATABASE cannot run inside a transaction block; autocommit is on by default.
-                admin.createStatement().execute("CREATE DATABASE " + databaseName);
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException("Failed to create test database " + databaseName, e);
-        }
-        try (Connection conn = DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword())) {
-            executeSqlScript(conn, "db/provision/02-schemas.sql");
-            executeSqlScript(conn, "db/provision/03-grants.sql");
-        } catch (SQLException e) {
-            throw new IllegalStateException("Failed to provision test database " + databaseName, e);
-        }
-        return url;
-    }
-
     /** Starts the container and provisions roles, schemas, and grants (idempotent). */
     private static synchronized void startIfNeeded() {
         if (!started) {

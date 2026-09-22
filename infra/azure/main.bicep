@@ -56,9 +56,6 @@ param redisSkuName string = 'Basic'
 @description('Redis SKU capacity')
 param redisSkuCapacity int = 0
 
-@description('Whether to deploy Redis. Defaults to false (deferred to W-53).')
-param deployRedis bool = false
-
 @description('Storage Account SKU')
 param storageSkuName string = 'Standard_LRS'
 
@@ -76,15 +73,6 @@ param containerAppMaxReplicas int = 3
 
 @description('Key Vault purge protection enabled')
 param enablePurgeProtection bool = false
-
-@description('Immutable tag of the release, e.g. git-1a2b3c4 - it drives the four Container App images, caj-db-migration-{env} and caj-flyway-{env}. Empty for an infrastructure-only deploy, which is the default; deploy.yml passes the tag it built, and deploy.sh passes --image-tag. See the sentinel below.')
-param backendImageTag string = ''
-
-@description('Per-app image references read from the LIVE apps immediately before this deployment, keys app/worker/web/keycloak. deploy.sh fills it; it is what makes an infrastructure-only deploy leave the running image alone instead of reverting it to the starter image (W-54 round-3 finding F-1). Empty on a first deployment, when no app exists to read.')
-param containerAppCurrentImages object = {}
-
-@description('Per-app revision name currently serving 100 percent of traffic, keys app/web/keycloak, read live by deploy.sh. The traffic block pins to these by name so no deployment moves the weight (W-54 findings F-5 and F-1). Empty on a first deployment, in which case the traffic block falls back to latestRevision.')
-param containerAppTrafficRevisions object = {}
 
 // ── Networking (W-51) ────────────────────────────────────────────────────────
 @description('VNet address space, 10.{octet}.0.0/16 - dev 10.10, uat 10.20, prod 10.30')
@@ -254,7 +242,7 @@ module postgres 'modules/postgres.bicep' = {
   }
 }
 
-module redis 'modules/redis.bicep' = if (deployRedis) {
+module redis 'modules/redis.bicep' = {
   name: 'deploy-redis-${environment}'
   scope: envRg
   params: {
@@ -316,12 +304,6 @@ module containerApps 'modules/containerapps.bicep' = {
     maxReplicas: containerAppMaxReplicas
     identities: identityMap
     frontDoorBackendPrefixes: frontDoorBackendPrefixes
-    // One tag across all four images (spec section 5 check 12), so the backend tag IS the
-    // release tag. Empty for an infrastructure-only deploy, in which case each app keeps
-    // the image currentImages says it is already running.
-    imageTag: backendImageTag
-    currentImages: containerAppCurrentImages
-    trafficRevisions: containerAppTrafficRevisions
     tags: defaultTags
   }
   dependsOn: [
@@ -347,14 +329,14 @@ module postgresPrivateEndpoint 'modules/private-endpoint.bicep' = {
   }
 }
 
-module redisPrivateEndpoint 'modules/private-endpoint.bicep' = if (deployRedis) {
+module redisPrivateEndpoint 'modules/private-endpoint.bicep' = {
   name: 'deploy-pe-redis-${environment}'
   scope: envRg
   params: {
     privateEndpointName: 'pe-redis-infinevo-${environment}'
     location: location
     subnetId: vnet.outputs.peSubnetId
-    targetResourceId: deployRedis ? redis.?outputs.?redisId ?? '' : ''
+    targetResourceId: redis.outputs.redisId
     groupId: 'redisCache'
     privateDnsZoneId: privateDns.outputs.redisZoneId
     tags: defaultTags
@@ -477,10 +459,6 @@ module dbMigrationJob 'modules/db-migration-job.bicep' = {
     location: location
     environmentId: containerAppEnv.outputs.environmentId
     acrLoginServer: registry.outputs.loginServer
-    // The pipeline pushes migration-runner:git-<sha> alongside the three application
-    // images and pushes no :latest (W-54 finding F-16), so this job follows the same tag
-    // when one is supplied. At rest it falls back to :latest, which is hand-pushed.
-    runnerImageTag: empty(backendImageTag) ? 'latest' : backendImageTag
     migrationIdentityId: managedIdentities.outputs.migrationIdentityId
     migrationIdentityClientId: managedIdentities.outputs.migrationIdentityClientId
     appIdentityId: managedIdentities.outputs.appIdentityId
@@ -491,7 +469,7 @@ module dbMigrationJob 'modules/db-migration-job.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     blobEndpoint: storage.outputs.primaryBlobEndpoint
     queueEndpoint: storage.outputs.primaryQueueEndpoint
-    redisHostName: deployRedis ? redis.?outputs.?hostName ?? '' : ''
+    redisHostName: redis.outputs.hostName
     postgresFqdn: postgres.outputs.fullyQualifiedDomainName
     postgresAdminUsername: postgresAdminUsername
     tags: defaultTags
@@ -511,47 +489,13 @@ module dbMigrationJob 'modules/db-migration-job.bicep' = {
   ]
 }
 
-// ── 9. Flyway job (W-54, closes #138) ────────────────────────────────────────
-// The only thing that applies migrations in Azure. Runs the backend image with
-// INFINEVO_ROLE=migration as migration_user; caj-db-migration-{env} above keeps its
-// provisioning-and-probes purpose and is not retired (W-54 section 2, "Out of scope").
-//
-// Ordering is deployment-time only. migration_user is created by provision.sh inside caj-db-migration-{env}, which is Manual-trigger: an operator must have run it once before the first Flyway run. dependsOn does not enforce that.
-module flywayJob 'modules/flyway-job.bicep' = {
-  name: 'deploy-flyway-job-${environment}'
-  scope: envRg
-  params: {
-    environment: environment
-    location: location
-    environmentId: containerAppEnv.outputs.environmentId
-    acrLoginServer: registry.outputs.loginServer
-    // Sentinel, not 'latest' (review finding F-17). At rest no tag has been built, and a
-    // job pointing at ':latest' would happily apply whatever was pushed last the first
-    // time anybody started it by hand. This tag cannot exist in the registry, so a run
-    // without a pipeline-supplied tag fails at image pull, naming the reason.
-    backendImageTag: empty(backendImageTag) ? 'no-tag-supplied-see-W-54' : backendImageTag
-    migrationIdentityId: managedIdentities.outputs.migrationIdentityId
-    migrationIdentityClientId: managedIdentities.outputs.migrationIdentityClientId
-    keyVaultName: keyVault.outputs.keyVaultName
-    postgresFqdn: postgres.outputs.fullyQualifiedDomainName
-    tags: defaultTags
-  }
-  dependsOn: [
-    dbMigrationJob
-    keyVaultRbac
-    acrRoleAssignment
-    postgresPrivateEndpoint
-    keyVaultPrivateEndpoint
-  ]
-}
-
 // ── Outputs ──────────────────────────────────────────────────────────────────
 output sharedResourceGroup string = sharedRgName
 output environmentResourceGroup string = envRgName
 output registryLoginServer string = registry.outputs.loginServer
 output keyVaultUri string = keyVault.outputs.keyVaultUri
 output postgresFqdn string = postgres.outputs.fullyQualifiedDomainName
-output redisHostName string = deployRedis ? redis.?outputs.?hostName ?? '' : ''
+output redisHostName string = redis.outputs.hostName
 output storageBlobEndpoint string = storage.outputs.primaryBlobEndpoint
 // Replaces the former serviceBusEndpoint output. W-52 consumes this to build the queue
 // client; there is no connection string to emit, and none is wanted - access is by
@@ -571,5 +515,3 @@ output vnetId string = vnet.outputs.vnetId
 output caeSubnetId string = vnet.outputs.caeSubnetId
 output peSubnetId string = vnet.outputs.peSubnetId
 output migrationJobName string = dbMigrationJob.outputs.jobName
-// The pipeline's `migrate` stage starts this job by name and gates the release on it.
-output flywayJobName string = flywayJob.outputs.jobName
