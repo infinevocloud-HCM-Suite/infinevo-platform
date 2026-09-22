@@ -252,6 +252,35 @@ jobs:
           fi
           echo "OK - no file under legacy/ was changed since $base"
 
+      # W-54. Nothing in this repository would have caught the defect that stopped
+      # deploy run 35589172208: a `secrets` context in a job-level `if:`, which is a
+      # hard parse error, so GitHub started zero jobs and reported the file path where
+      # the workflow name should be. YAML validity is not workflow validity, and only
+      # actionlint knows the difference.
+      #
+      # The action is pinned to a tag rather than run from a release download so the
+      # step needs no network fetch logic of its own. `-color` keeps the annotations
+      # readable; the action fails the step on any finding, and there is no
+      # continue-on-error here - a finding must fail the job.
+      #
+      # Every workflow is linted, not only the two W-54 touches: the class of defect is
+      # not specific to deploy.yml, and .github/workflows is small.
+      # `-shellcheck=` disables the shellcheck pass deliberately. actionlint shells out
+      # to shellcheck for every `run:` block, including the long assertion steps in this
+      # job that W-54 did not write and does not own. A style-level finding in one of
+      # them would fail this gate and, through check-done.mjs gate 8, block every merge -
+      # for a fault unrelated to the defect this step exists to catch. The workflow-schema
+      # pass is what catches a `secrets` context in a job-level `if:`; that stays on.
+      # Turning shellcheck back on is its own ticket, and means clearing the existing
+      # findings first.
+      - name: workflows are valid workflows
+        if: ${{ !cancelled() }}
+        uses: raven-actions/actionlint@v2
+        with:
+          files: '.github/workflows/*.yml'
+          fail-on-error: true
+          flags: '-color -shellcheck='
+
       # The leading ^[^#]* is what distinguishes a real setting from a commented-out
       # one: a line whose first # precedes the match cannot match. The second
       # alternative - a non-alphanumeric run to end of line - catches the Bicep and

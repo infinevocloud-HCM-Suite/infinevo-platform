@@ -70,13 +70,42 @@ resource endpoint 'Microsoft.Cdn/profiles/afdEndpoints@2024-02-01' = {
 //
 // The health probe uses HEAD on '/' rather than a health path on purpose:
 // 05-azure-architecture.md:159 keeps health and readiness endpoints off the Front Door
-// path, and the starter image serves '/' (containerapps.bicep starterImage).
+// path. The web and app origins serve '/' - the starter image does
+// (containerapps.bicep starterImage), and so do the frontend and backend images that
+// replace it.
+//
+// THIS NO LONGER HOLDS FOR KEYCLOAK, which is why the next block exists. The Keycloak
+// image now bakes KC_HTTP_RELATIVE_PATH=/auth at build time
+// (infra/docker/keycloak.Dockerfile:47), so that origin answers 404 at '/' and this
+// shared setting would mark it unhealthy and turn every /auth/* request into a 503
+// (W-54 round-2 finding F-20).
 var probeSettings = {
   probePath: '/'
   probeRequestType: 'HEAD'
   probeProtocol: 'Https'
   // 100s, the Standard-tier minimum for the shared profile. A shorter interval multiplies
   // probe traffic against an ingress that is already IP-restricted.
+  probeIntervalInSeconds: 100
+}
+
+// Keycloak only. Everything but the path and the verb matches probeSettings above.
+//
+// PATH: '/auth/realms/master' is a plain 200 on the current image and needs no realm this
+// repository has not created yet - `master` is built in, and no realm is baked
+// (keycloak.Dockerfile:55-67). '/auth/' was the other candidate and is a 302; Front Door
+// does not follow a probe redirect and counts only 2xx as healthy, so it is not used.
+// The management health endpoints are not reachable from here at all - they live on port
+// 9000, which has no ingress (keycloak.Dockerfile:94) - which also keeps this consistent
+// with 05-azure-architecture.md:159, since /auth/realms/master is an ordinary public
+// endpoint rather than a health path.
+//
+// VERB: GET, not HEAD. 200 on this path was measured with GET; HEAD against it was not
+// measured, and an origin group marked unhealthy on an unverified verb takes /auth/* down
+// wholesale. One GET every 100 seconds is not load worth the risk.
+var keycloakProbeSettings = {
+  probePath: '/auth/realms/master'
+  probeRequestType: 'GET'
+  probeProtocol: 'Https'
   probeIntervalInSeconds: 100
 }
 
@@ -111,7 +140,8 @@ resource keycloakOriginGroup 'Microsoft.Cdn/profiles/originGroups@2024-02-01' = 
   name: 'og-${environment}-keycloak'
   properties: {
     loadBalancingSettings: loadBalancingSettings
-    healthProbeSettings: probeSettings
+    // Its own settings, not the shared ones - see F-20 above.
+    healthProbeSettings: keycloakProbeSettings
     sessionAffinityState: 'Disabled'
   }
 }

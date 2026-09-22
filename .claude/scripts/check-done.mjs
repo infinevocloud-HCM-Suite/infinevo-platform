@@ -236,9 +236,53 @@ gate("CI green for this commit", () => {
   if (changed.length && changed.every(IGNORED)) {
     return { ok: true, detail: `${changed.length} file(s) changed, none CI covers - no run expected` };
   }
+  // A commit whose own push touched only ignored paths starts no run, because ci.yml's
+  // `paths-ignore` is evaluated PER PUSH while the check above is evaluated over the
+  // whole branch diff. A branch that ends with a docs-only commit - amending its own
+  // spec, which is the normal last step of a ticket - therefore has code in its diff,
+  // no run for HEAD, and could never merge. That is a gap between the two mechanisms,
+  // not a fact about the code.
+  //
+  // So: if HEAD has no run, fall back to the newest ancestor that does, and accept it
+  // ONLY when every path CI covers is byte-identical between the two. If any covered
+  // file differs the fallback is refused, which keeps the original guarantee - a green
+  // run on an earlier commit must say something about what is being merged.
+  const coveredUnchangedSince = (anc) => {
+    const d = sh("git", ["diff", "--name-only", `${anc}`, sha]);
+    if (d.code !== 0) return false;
+    const files = d.out.split("\n").map((x) => x.trim()).filter(Boolean);
+    return files.every(IGNORED);
+  };
   const FIELDS = "status,conclusion,url,headSha,workflowName";
-  const r = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha,
+  let r = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha,
                       "--json", FIELDS, "--limit", "10"]);
+  let creditedSha = sha;
+  let creditedNote = "";
+  if (r.code === 0) {
+    let probe;
+    try { probe = JSON.parse(r.out); } catch { probe = null; }
+    const direct = (Array.isArray(probe) ? probe : []).filter((x) => x.headSha === sha);
+    if (!direct.length) {
+      const anc = sh("git", ["rev-list", "--max-count=25", `${sha}^`]);
+      const candidates = anc.code === 0
+        ? anc.out.split("\n").map((x) => x.trim()).filter(Boolean)
+        : [];
+      for (const c of candidates) {
+        if (!coveredUnchangedSince(c)) break;   // stop at the first commit that changed code
+        const cr = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", c,
+                             "--json", FIELDS, "--limit", "10"]);
+        if (cr.code !== 0) continue;
+        let cruns;
+        try { cruns = JSON.parse(cr.out); } catch { continue; }
+        if ((Array.isArray(cruns) ? cruns : []).some((x) => x.headSha === c)) {
+          r = cr;
+          creditedSha = c;
+          creditedNote = ` (no run for ${short}; credited ${c.slice(0, 7)}, nothing CI covers changed since)`;
+          break;
+        }
+      }
+    }
+  }
   if (r.code !== 0) {
     // gh missing, unauthenticated, or the API refused. All of those are a failure to
     // prove CI, not a pass by default.
@@ -252,7 +296,7 @@ gate("CI green for this commit", () => {
   }
   // Belt and braces: --commit is a server-side filter, but the gate is worthless if it
   // ever credits a run from another commit, so check the SHA that came back too.
-  const mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === sha);
+  const mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === creditedSha);
   if (!mine.length) return { ok: false, detail: `no CI run for ${short} - push the branch and wait for ci.yml` };
   // Every run for the commit must be finished and green. One green run alongside a red
   // one is a red commit; gh lists the latest attempt per run, so a re-run that fixed a
@@ -272,7 +316,7 @@ gate("CI green for this commit", () => {
   if (bad) {
     return { ok: false, detail: `CI ${bad.conclusion ?? "had no conclusion"} for ${short}: ${bad.url ?? ""}`.slice(0, 160) };
   }
-  return { ok: true, detail: `${mine.length} run(s) success for ${short} - backend, frontend and static all green` };
+  return { ok: true, detail: `${mine.length} run(s) success for ${creditedSha.slice(0, 7)} - backend, frontend and static all green${creditedNote}` };
 });
 
 // ── report ──────────────────────────────────────────────────────────────────

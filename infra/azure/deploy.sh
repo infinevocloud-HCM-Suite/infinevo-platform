@@ -4,6 +4,11 @@
 #
 # Usage:
 #   bash infra/azure/deploy.sh [--env dev|uat|prod] [--location centralindia]
+#                              [--image-tag git-<sha>]
+#
+# Without --image-tag this is an INFRASTRUCTURE-ONLY run: it reads what every Container
+# App is running and which revision holds the traffic, hands both back to the template,
+# and so changes neither. With --image-tag it declares that release instead.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -13,6 +18,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ENV="dev"
 LOCATION="centralindia"
+# Empty means "infrastructure only": the apps keep the images they are already running and
+# caj-flyway-{env} keeps its unpullable sentinel tag. Supply --image-tag git-<sha> only to
+# declare a RELEASE from this script; the pipeline passes the same value through
+# backendImageTag (W-54 findings F-7 and F-8).
+IMAGE_TAG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -22,6 +32,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --location)
       LOCATION="$2"
+      shift 2
+      ;;
+    --image-tag)
+      IMAGE_TAG="$2"
       shift 2
       ;;
     *)
@@ -178,6 +192,70 @@ if [[ ! -f "$PARAM_FILE" ]]; then
   exit 1
 fi
 
+APP_RG="rg-infinevo-${ENV}"
+
+# ── Read the live apps, so this deployment cannot move them (W-54 finding F-1) ──
+# containerapps.bicep must name an image and a traffic target on every run; `image` is a
+# required property and there is no "leave it" in Bicep. The previous version defaulted
+# both to a guess, and the guess reverted dev to the starter image with 100 percent of the
+# traffic on it. So the values are not guessed any more - they are read off the running
+# apps, immediately before the deployment, and handed straight back to the template. An
+# infrastructure-only run therefore declares exactly what is already there.
+#
+# On a first deployment nothing is readable, both objects stay {} and the template falls
+# back to starterImage and latestRevision, which is what a brand-new app needs.
+CURRENT_IMAGES_JSON="{}"
+TRAFFIC_REVISIONS_JSON="{}"
+APP_TRAFFIC_PIN=""
+
+if [[ "$(az group exists --name "$APP_RG")" == "true" ]]; then
+  echo "Reading the live Container Apps in ${APP_RG} so this deployment leaves them where they are..."
+  IMG_PAIRS=""
+  PIN_PAIRS=""
+  for CA_ROLE in app worker web keycloak; do
+    CA_NAME="ca-infinevo-${ENV}-${CA_ROLE}"
+    LIVE_IMAGE=$(az containerapp show -g "$APP_RG" -n "$CA_NAME" \
+      --query "properties.template.containers[0].image" -o tsv 2>/dev/null || true)
+    if [[ -z "$LIVE_IMAGE" ]]; then
+      echo "  ${CA_NAME}: not present - it will be created on starterImage."
+      continue
+    fi
+    IMG_PAIRS="${IMG_PAIRS:+${IMG_PAIRS},}\"${CA_ROLE}\":\"${LIVE_IMAGE}\""
+    echo "  ${CA_NAME}: image ${LIVE_IMAGE}"
+
+    # The worker has no ingress and so no traffic block (W-50); nothing to pin.
+    if [[ "$CA_ROLE" != "worker" ]]; then
+      LIVE_PIN=$(az containerapp revision list -g "$APP_RG" -n "$CA_NAME" \
+        --query "[?properties.trafficWeight==\`100\`].name | [0]" -o tsv 2>/dev/null || true)
+      if [[ -z "$LIVE_PIN" || "$LIVE_PIN" == "None" ]]; then
+        # Not a missing app - the app answered, but no single revision holds the whole
+        # weight. That is a half-finished traffic shift. Passing {} here would emit
+        # latestRevision and hand 100 percent to whatever revision this deployment
+        # creates, which is the F-1 failure in a different costume. Stop instead.
+        echo "FAIL: ${CA_NAME} exists but no revision holds 100% of the traffic." >&2
+        echo "      A traffic shift is half-finished. Deploying now would re-point the" >&2
+        echo "      weight at a revision nothing has health-checked. Settle the weights" >&2
+        echo "      first:  az containerapp ingress traffic show -g ${APP_RG} -n ${CA_NAME}" >&2
+        exit 1
+      fi
+      PIN_PAIRS="${PIN_PAIRS:+${PIN_PAIRS},}\"${CA_ROLE}\":\"${LIVE_PIN}\""
+      echo "  ${CA_NAME}: 100% traffic on ${LIVE_PIN}"
+      if [[ "$CA_ROLE" == "app" ]]; then
+        APP_TRAFFIC_PIN="$LIVE_PIN"
+      fi
+    fi
+  done
+  CURRENT_IMAGES_JSON="{${IMG_PAIRS}}"
+  TRAFFIC_REVISIONS_JSON="{${PIN_PAIRS}}"
+fi
+
+if [[ -n "$IMAGE_TAG" ]]; then
+  echo "RELEASE deploy: all four apps and caj-flyway-${ENV} will be declared at tag ${IMAGE_TAG}."
+  echo "                The images read above are ignored; the traffic pins are not."
+else
+  echo "Infrastructure-only deploy: no --image-tag, so no app changes image and no weight moves."
+fi
+
 DEPLOY_NAME="infinevo-${ENV}-$(date +%Y%m%d%H%M%S)"
 echo "Executing subscription deployment: ${DEPLOY_NAME}..."
 
@@ -191,6 +269,9 @@ az deployment sub create \
   --parameters postgresAdminUsername="$ADMIN_USER" \
   --parameters frontDoorBackendPrefixes="$FD_PREFIXES_JSON" \
   --parameters keyVaultAllowedIpRules="[{\"value\":\"${KV_IP_RULE}\"}]" \
+  --parameters backendImageTag="$IMAGE_TAG" \
+  --parameters containerAppCurrentImages="$CURRENT_IMAGES_JSON" \
+  --parameters containerAppTrafficRevisions="$TRAFFIC_REVISIONS_JSON" \
   --output table
 
 echo "Deployment finished. Storing/updating administrator credentials in Key Vault..."
@@ -208,21 +289,68 @@ az acr import \
   --force >/dev/null
 
 APP_NAME="ca-infinevo-${ENV}-app"
-APP_RG="rg-infinevo-${ENV}"
 ACR_LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
 
-echo "Repointing ${APP_NAME} to ${ACR_LOGIN_SERVER}/${SMOKE_IMAGE}..."
-az containerapp update \
-  -g "$APP_RG" \
-  -n "$APP_NAME" \
-  --image "${ACR_LOGIN_SERVER}/${SMOKE_IMAGE}" >/dev/null
+# ── The AcrPull smoke test must not undo the deployment (W-54 finding F-1) ──
+# W-51 check 5b proves the app can pull from the private registry by repointing it at
+# platform-smoke:latest. That is a write to the running image, and it is the LOUDEST way
+# this script could break the guarantee the template now gives: it would take a released
+# ca-infinevo-dev-app off its git-<sha> image on every infrastructure run.
+#
+# It is skipped whenever the app is already running an image out of crinfinevo, because in
+# that case the app IS the proof - a running replica on a private-registry image is a
+# successful AcrPull, and repointing it proves nothing the app does not already show. The
+# repoint still happens on a placeholder from mcr.microsoft.com, which is the only state
+# where the check has anything to add.
+SMOKE_SKIPPED=0
+CURRENT_APP_IMAGE=$(az containerapp show -g "$APP_RG" -n "$APP_NAME" \
+  --query "properties.template.containers[0].image" -o tsv 2>/dev/null || true)
+if [[ "$CURRENT_APP_IMAGE" == "${ACR_LOGIN_SERVER}/"* && "$CURRENT_APP_IMAGE" != "${ACR_LOGIN_SERVER}/${SMOKE_IMAGE}" ]]; then
+  echo "Skipping the smoke repoint: ${APP_NAME} already runs ${CURRENT_APP_IMAGE} from the"
+  echo "private registry, so AcrPull is already demonstrated and overwriting it would"
+  echo "revert a release."
+  SMOKE_SKIPPED=1
+else
+  echo "Repointing ${APP_NAME} to ${ACR_LOGIN_SERVER}/${SMOKE_IMAGE}..."
+  az containerapp update \
+    -g "$APP_RG" \
+    -n "$APP_NAME" \
+    --image "${ACR_LOGIN_SERVER}/${SMOKE_IMAGE}" >/dev/null
+fi
 
-echo "Waiting for ${APP_NAME} to reach Running status..."
+# THE REVISION, NOT THE APP. This used to poll properties.runningStatus on the app, which
+# was a sound reading under activeRevisionsMode 'Single' - one revision, so the app's state
+# WAS that revision's state. The three ingress apps are 'Multiple' now (W-54 F-9), the
+# smoke revision is born at 0 percent beside the old one, and the app reports Running off
+# the OLD revision whether or not the new one ever pulled. That check would have passed on
+# a total AcrPull failure. Named revision, and runningState on it, is the only reading that
+# still means what it says.
+#
+# WHICH revision depends on which branch above ran, and getting this backwards turns a
+# healthy environment red. Repointed: the revision that repoint created, which is the
+# latest. Skipped: the revision SERVING, because that is the one already pulling from
+# crinfinevo - the latest revision is then the inert 0-percent one this deployment minted,
+# and before W-56 lands it has no env block, so it crash-loops by design (see the `env`
+# comments in containerapps.bicep) and would fail a check it was never the subject of.
+if [[ "$SMOKE_SKIPPED" -eq 1 && -n "$APP_TRAFFIC_PIN" ]]; then
+  SMOKE_REVISION="$APP_TRAFFIC_PIN"
+else
+  SMOKE_REVISION=$(az containerapp show -g "$APP_RG" -n "$APP_NAME" \
+    --query "properties.latestRevisionName" -o tsv 2>/dev/null || true)
+fi
+if [[ -z "$SMOKE_REVISION" ]]; then
+  echo "FAIL: could not read latestRevisionName from ${APP_NAME}, so nothing proves the" >&2
+  echo "      app can pull from the private registry." >&2
+  exit 1
+fi
+
+echo "Waiting for revision ${SMOKE_REVISION} to reach runningState Running..."
 STATE=""
 for i in {1..30}; do
-  STATE=$(az containerapp show -g "$APP_RG" -n "$APP_NAME" --query "properties.runningStatus" -o tsv 2>/dev/null || true)
+  STATE=$(az containerapp revision show -g "$APP_RG" -n "$APP_NAME" \
+    --revision "$SMOKE_REVISION" --query "properties.runningState" -o tsv 2>/dev/null || true)
   if [[ "$STATE" == "Running" ]]; then
-    echo "PASS: ${APP_NAME} runningStatus = Running (successfully pulled from private ${ACR_LOGIN_SERVER})"
+    echo "PASS: ${SMOKE_REVISION} runningState = Running (successfully pulled from private ${ACR_LOGIN_SERVER})"
     break
   fi
   sleep 5
@@ -231,8 +359,13 @@ done
 # The loop used to fall through silently, so this reported green whatever happened and
 # the one test of AcrPull against the private registry could never fail (review F-4).
 if [[ "$STATE" != "Running" ]]; then
-  echo "FAIL: ${APP_NAME} runningStatus is ${STATE:-<empty>} after 150s, not Running." >&2
-  echo "      It could not pull ${ACR_LOGIN_SERVER}/${SMOKE_IMAGE} - AcrPull is not working." >&2
+  echo "FAIL: ${SMOKE_REVISION} runningState is ${STATE:-<empty>} after 150s, not Running." >&2
+  if [[ "$SMOKE_SKIPPED" -eq 1 ]]; then
+    echo "      The smoke repoint was skipped because ${APP_NAME} already runs" >&2
+    echo "      ${CURRENT_APP_IMAGE}, so this is that released revision failing to run." >&2
+  else
+    echo "      It could not pull ${ACR_LOGIN_SERVER}/${SMOKE_IMAGE} - AcrPull is not working." >&2
+  fi
   exit 1
 fi
 
@@ -259,11 +392,18 @@ done
 # before the job can pull it, and CI has no Docker daemon. Built on every run because the
 # tag is `latest` - a stale image would run yesterday's probes against today's perimeter
 # and report OK for checks that no longer exist.
+#
+# The tag follows --image-tag when one was given, because main.bicep resolves
+# caj-db-migration-{env} to `migration-runner:${backendImageTag}` and falls back to
+# :latest only when the tag is empty (main.bicep:478, W-54 finding F-7). Building :latest
+# here while the job had been declared at :git-<sha> would leave the job pointing at an
+# image this run never produced.
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-echo "Building migration-runner:latest in ${ACR_NAME} from infra/docker/migration-runner.Dockerfile..."
+RUNNER_TAG="${IMAGE_TAG:-latest}"
+echo "Building migration-runner:${RUNNER_TAG} in ${ACR_NAME} from infra/docker/migration-runner.Dockerfile..."
 az acr build \
   --registry "$ACR_NAME" \
-  --image "migration-runner:latest" \
+  --image "migration-runner:${RUNNER_TAG}" \
   --platform linux/amd64 \
   --file "infra/docker/migration-runner.Dockerfile" \
   "$REPO_ROOT" >/dev/null
@@ -285,7 +425,7 @@ JOB_STATUS=""
 JOB_DEADLINE=$(( $(date +%s) + 900 ))
 while :; do
   JOB_STATUS=$(az containerapp job execution show -g "$APP_RG" -n "$JOB_NAME" \
-    --job-execution-name "$JOB_EXEC" --query status -o tsv 2>/dev/null || true)
+    --job-execution-name "$JOB_EXEC" --query "properties.status" -o tsv 2>/dev/null || true)
   # `if`, not `cond && break`: under set -e an AND-list whose left side is false exits 1
   # and takes the whole script with it on the first poll, before the job has done anything.
   if [[ "$JOB_STATUS" == "Succeeded" || "$JOB_STATUS" == "Failed" ]]; then
@@ -300,7 +440,7 @@ done
 
 # Logs are printed either way. On success they carry the six PROBE-*: OK lines that W-51
 # section 5 step 6 greps for; on failure they are the only explanation of what broke.
-az containerapp job logs show -g "$APP_RG" -n "$JOB_NAME" --execution "$JOB_EXEC" --tail 200 || true
+az containerapp job logs show -g "$APP_RG" -n "$JOB_NAME" --execution "$JOB_EXEC" --container "migration-runner" --tail 200 || true
 
 # The same hard-fail shape as the AcrPull check above (review F-4): a loop that falls
 # through silently would report this deployment green whatever the database did.
