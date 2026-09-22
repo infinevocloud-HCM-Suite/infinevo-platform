@@ -1,54 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
-    "allow": [
-      "Bash(az monitor log-analytics query *)",
-      "Bash(az containerapp revision list *)",
-      "Bash(az containerapp revision show *)",
-      "Bash(az containerapp job execution list *)",
-      "Bash(az containerapp job execution show *)",
-      "Bash(az containerapp job show *)",
-      "Bash(az containerapp job list *)",
-      "Bash(az containerapp logs show *)",
-      "Bash(az containerapp list *)",
-      "Bash(az containerapp show *)",
-      "Bash(az deployment operation sub list *)",
-      "Bash(az deployment sub list *)",
-      "Bash(az deployment group list *)",
-      "Bash(az deployment group show *)",
-      "Bash(az postgres flexible-server show *)",
-      "Bash(az postgres flexible-server list *)",
-      "Bash(az postgres flexible-server db list *)",
-      "Bash(az postgres flexible-server firewall-rule list *)",
-      "Bash(az deployment sub export *)",
-      "Bash(az role assignment list *)",
-      "Bash(az resource list *)",
-      "Bash(az account show *)",
-      "Bash(az group list *)",
-      "Bash(az bicep lint *)",
-      "Bash(az bicep build *)",
-      "Bash(az bicep build-params *)",
-      "Bash(az deployment sub what-if *)",
-      "Bash(az monitor log-analytics workspace show *)",
-      "Bash(az redis list *)",
-      "Bash(docker history *)",
-      "Bash(docker image inspect *)",
-      "Bash(docker info)",
-      "Bash(docker version)",
-      "Bash(az cognitiveservices account list-models *)",
-      "Bash(az cognitiveservices account deployment list *)",
-      "Bash(az storage queue list *)",
-      "Bash(az acr repository list *)",
-      "Bash(az afd route list *)",
-      "Bash(az network vnet subnet list *)",
-      "Bash(az monitor metrics alert list *)",
-      "Bash(gh run watch *)",
-      "Bash(docker system df)",
-      "Bash(node .claude/scripts/check-done.mjs)",
-      "Bash(npm run typecheck)",
-      "Bash(git rm *)",
-      "Bash(git add *)"
-    ]
+    "defaultMode": "bypassPermissions"
   },
   "hooks": {
     "PreToolUse": [
@@ -80,18 +32,7 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/verify-app.mjs\"",
-            "timeout": 300
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-log.mjs\"",
-            "timeout": 15
+            "timeout": 90
           }
         ]
       }

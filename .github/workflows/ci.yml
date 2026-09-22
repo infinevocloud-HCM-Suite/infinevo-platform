@@ -18,6 +18,15 @@ name: CI
 on:
   push:
     branches: ['**']
+    # A markdown-only commit used to start a run that could verify nothing. Nothing
+    # under these paths is compiled, linted or tested by any job below, so a branch
+    # that touches only them has no run - and check-done.mjs gate 7 passes it with
+    # "none CI covers". That list and this one must stay identical.
+    paths-ignore:
+      - 'docs/**'
+      - '.claude/**'
+      - 'legacy/**'
+      - '**.md'
 
 # Free-plan minutes: a push during a run cancels the superseded run rather than
 # burning two sets of minutes.
@@ -32,12 +41,15 @@ jobs:
   # ── what changed ────────────────────────────────────────────────────────────
   # Deleting two markdown reports used to build five Docker images and run the whole
   # backend suite - about five minutes to prove nothing. This job costs a few seconds
-  # and lets the expensive ones sit out when they cannot be affected.
+  # and lets the expensive ones sit out when they cannot be affected. `paths-ignore`
+  # above now stops a docs-only push reaching here at all.
   #
   # `static` deliberately has no condition. It is the only check a direct push to main
   # ever gets - guard-merge.mjs waves through anything that is not code/ or docs/ - and
-  # a run whose every job skipped concludes `skipped`, which check-done.mjs gate 8
-  # refuses. One always-running job keeps the run green rather than skipped.
+  # a run whose every job skipped concludes `skipped`, which check-done.mjs gate 7
+  # refuses. One always-running job keeps the run green rather than skipped. It still
+  # earns its place: a push touching only infra/azure/ skips all three other jobs, and
+  # the ddl-auto and legacy/ greps below scan the whole repository.
   scope:
     name: scope
     runs-on: ubuntu-latest
@@ -57,13 +69,30 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
           # First push of a branch, or a force-push that orphaned the old tip, leaves no
-          # usable base. Build everything rather than guess - a wrong skip here is a
-          # green run that tested nothing.
+          # usable base in github.event.before. That used to mean "build everything",
+          # which made the first push of EVERY branch run the whole suite whatever it
+          # touched - a harness commit changing no code still built five images.
+          #
+          # The branch point is a better base and is always available here, because the
+          # checkout above is unshallow (fetch-depth: 0). Falling back to it means the
+          # first push classifies on what the branch actually adds over main.
+          #
+          # Building everything stays the last resort: if even the merge-base cannot be
+          # resolved, guessing is worse than a slow run, because a wrong skip is a green
+          # run that tested nothing.
           if [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ] \
              || ! git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
-            echo "no usable base ($PUSH_BEFORE) - running everything"
-            changed=""
-            all=1
+            base=$(git merge-base origin/main HEAD 2>/dev/null || true)
+            if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD)" ]; then
+              echo "no usable base ($PUSH_BEFORE) - falling back to branch point $base"
+              PUSH_BEFORE="$base"
+              changed=$(git diff --name-only "$PUSH_BEFORE" HEAD)
+              all=0
+            else
+              echo "no usable base and no branch point - running everything"
+              changed=""
+              all=1
+            fi
           else
             changed=$(git diff --name-only "$PUSH_BEFORE" HEAD)
             all=0

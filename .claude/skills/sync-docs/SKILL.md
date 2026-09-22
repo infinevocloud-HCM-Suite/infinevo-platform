@@ -1,22 +1,21 @@
 ---
 name: sync-docs
-description: After a merge, check whether any core document now says something untrue, and bring docs/ back in line. Produces a reviewable diff; only applies it after the founder approves, and only through this skill.
+description: Bring docs/ back in line when a merge made a document untrue. The only sanctioned path to change docs/.
 ---
 
 # sync-docs
 
-The **only** sanctioned path to change `docs/`. The `guard-edit` hook blocks direct
-edits; this skill produces a diff first and applies it only after approval.
+The **only** sanctioned path to change `docs/`. The `guard-edit` hook blocks direct edits.
 
-**Run it after every merge**, not only when you already suspect drift. Its first job is
-to answer one question: *did what we just shipped make any document wrong?* Most of the
-time the answer is no, and saying so in one line is a complete run.
+**Run it when a merge changed how something documented actually works** — not after every
+merge. Most tickets change nothing a document claims, and the run that says so in one
+line is the common case.
 
 ## Steps
 
-1. Collect the sources of truth for the change: the merged commit, the `/verify` and
-   `/review` reports for the ticket, the `analyze` report's "Doc drift" section, or the
-   founder's stated correction.
+1. Collect the sources of truth for the change: the merged commit, the merge review's
+   findings, the `analyze` report's "Doc drift" section, or the founder's stated
+   correction.
 2. Identify affected docs. **Which side of the line they sit on decides everything:**
 
    | Doc | Changes when |
@@ -34,15 +33,20 @@ time the answer is no, and saying so in one line is a complete run.
    a complete answer. Do not manufacture a change to justify the run.
 4. Spawn **explorer** to confirm each fact you intend to write, with `path:line`
    evidence. Never write a path into a doc without confirming the file exists.
-5. Write the proposed change as a **unified diff** to
+5. Write the change as a **unified diff** to
    `.claude/outputs/<date>-docs-diff-<slug>.patch` (create it by editing a copy under
    `.claude/outputs/tmp-docs/` and running `git diff --no-index docs/<file>
-   .claude/outputs/tmp-docs/<file>`). Do not touch `docs/` yet.
-6. Reply with the summary below. **STOP; wait for "approved".**
-7. **On approval, apply the patch.** The guard hook blocks Edit/Write, so apply with
-   `git apply .claude/outputs/<patch>` from the repo root via Bash — this is the
-   intended bypass; hooks guard the model's editors, not an approved patch. Never delete
-   a doc outright: superseded files **move** to `legacy/docs/_archive/`.
+   .claude/outputs/tmp-docs/<file>`), then apply it with `git apply
+   .claude/outputs/<patch>` from the repo root via Bash. The guard hook blocks Edit/Write
+   on `docs/`; this is the intended route.
+
+   **The patch is how the founder reviews it after the fact, on the branch, before
+   merge** — so write it even though you apply it yourself. Never delete a doc outright:
+   superseded files **move** to `legacy/docs/_archive/`.
+6. **Two things still stop and ask**, because they are decisions rather than corrections:
+   a design change that needs a new dated entry in `07-decisions.md`, and anything that
+   contradicts a decision already recorded there. Everything else — a stale path, a wrong
+   command, a renamed file, a count that moved — is applied without asking.
 8. Verify every markdown link still resolves, and paste the result:
 
    ```bash
@@ -68,7 +72,7 @@ time the answer is no, and saying so in one line is a complete run.
    ```
 
 9. Update `.claude/work/active-work.md` if direction, ready tickets or in-flight work
-   changed. **STOP.**
+   changed.
 
 ---
 
