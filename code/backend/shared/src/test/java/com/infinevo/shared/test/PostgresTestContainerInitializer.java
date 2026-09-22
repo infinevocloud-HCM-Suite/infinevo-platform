@@ -162,7 +162,7 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
                         "spring.datasource.password=" + APP_USER_PASSWORD,
                         "spring.datasource.driver-class-name=org.postgresql.Driver",
                         "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
-                        "spring.flyway.enabled=false")
+                        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration")
                 .applyTo(ctx.getEnvironment());
     }
 }
