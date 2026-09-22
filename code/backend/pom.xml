@@ -61,10 +61,32 @@
          if an engine ever needs otherwise. -->
     <docker.api.version>1.41</docker.api.version>
     <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+    <!-- W-52: Queue & Worker -->
+    <azure-sdk-bom.version>1.2.26</azure-sdk-bom.version>
+    <shedlock.version>5.16.0</shedlock.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
+      <!-- W-52: Azure SDK BOM -->
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-sdk-bom</artifactId>
+        <version>${azure-sdk-bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- W-52: ShedLock -->
+      <dependency>
+        <groupId>net.javacrumbs.shedlock</groupId>
+        <artifactId>shedlock-spring</artifactId>
+        <version>${shedlock.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.javacrumbs.shedlock</groupId>
+        <artifactId>shedlock-provider-jdbc-template</artifactId>
+        <version>${shedlock.version}</version>
+      </dependency>
       <!-- W-04: Testcontainers BOM — manages all org.testcontainers versions -->
       <dependency>
         <groupId>org.testcontainers</groupId>
