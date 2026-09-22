@@ -128,7 +128,7 @@ troubleshooting are in `infra/docker/README.md`; they are not repeated here.
 | `app`, `web`, `keycloak` | themselves | |
 | `worker` | itself | Serves **health only**, on its own port. Without HTTP the process has no non-daemon thread and exits |
 | `postgres` | Azure Database for PostgreSQL | Two databases, as in production: the platform's four application schemas plus `migration` (`D-45`), and Keycloak's own |
-| `redis` | Azure Cache for Redis | |
+| `redis` | Azure Managed Redis (`D-59`) | |
 | `queue` | Azure Storage Queue (`D-50`) | **Azurite** — the emulator already serving `blob`, with its queue service switched on. Local and production then run the same API rather than differing by an adapter, which `D-44` accepted only because Service Bus has no faithful emulator. `compose.yml:73` starts Azurite as `azurite-blob` today; enabling the queue service and retiring the RabbitMQ container is `W-52`'s work |
 | `blob` | Azure Blob Storage | **Azurite** |
 | `mail` | Nothing — a catcher | **Mailpit.** Notifications are visible and nothing can ever be sent |
@@ -138,7 +138,7 @@ troubleshooting are in `infra/docker/README.md`; they are not repeated here.
 | The application connects as `app_user` and **is refused DDL** | ✅ enforced, and `smoke.sh` fails if it ever succeeds |
 | No real secrets. No connection to any shared environment | ✅ |
 | `ddl-auto` set nowhere | ✅ checked |
-| Migrations run on start, so the database is always current | ✅ **`W-06` merged, and `W-07`–`W-09` filled it.** Five scripts ship — `core/V001__tenant.sql`, `core/V002__user_tenant.sql` and `reference/V003`–`V005` — and `ShippedMigrationsIT` runs that exact tree through Flyway rather than a fixture |
+| Migrations run on start, so the database is always current | ✅ **`W-06` merged, and `W-07`–`W-09`, `W-52` filled it.** Six scripts ship — `core/V001__tenant.sql`, `core/V002__user_tenant.sql`, `reference/V003`–`V005`, and `core/V006__job_status_and_shedlock.sql` — and `ShippedMigrationsIT` runs that exact tree through Flyway rather than a fixture |
 | Seed data creates two tenants with different module sets | ⏳ **half done, `W-12` owes the rest.** `W-09` made the seed real: `infra/docker/seed/01-tenants.sql` inserts Acme and Globex with fixed UUIDs, idempotently. The **module asymmetry** is still missing — it needs `core.subscription`, which `W-12` creates, so both tenants currently hold the same nothing |
 
 **Seeding two tenants with different modules matters.** It is the only way entitlement
