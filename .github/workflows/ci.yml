@@ -230,8 +230,17 @@ jobs:
       - name: ddl-auto set nowhere
         if: ${{ !cancelled() }}
         run: |
+          # `^[^#]*` skips a # comment, which is how YAML and .properties comment a line.
+          # SQL comments with --, and a migration explaining why the legacy system's
+          # ddl-auto=update was a defect is exactly the sort of line that should be
+          # written - so the gate refused V005__reference_tax_seed.sql:7 for describing
+          # the thing it exists to prevent. ddl-auto is a Spring property and never
+          # appears in SQL, so dropping lines that open with -- cannot hide a real
+          # setting: a line in YAML or .properties starting -- is not a comment and is
+          # not a valid setting either.
           if git grep -nE '^[^#]*(ddl-auto|DDL_AUTO)([[:space:]]*[:=]|[^A-Za-z0-9]*$)' \
-               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).claude/' ':(exclude)*.md' ; then
+               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).claude/' ':(exclude)*.md' \
+             | grep -vE ':[0-9]+:[[:space:]]*--' ; then
             echo "::error::ddl-auto is set above - migrations go through Flyway (hard rule 4, DEBT-002)"
             exit 1
           fi
@@ -246,24 +255,58 @@ jobs:
           fi
           echo "OK - spring.flyway is confined to code/backend/migration"
 
+      - name: the migration table lister is itself correct
+        if: ${{ !cancelled() }}
+        run: |
+          # The two gates below are only as good as the parser under them, and #137 was
+          # exactly that failure - a check that looked right and answered a different
+          # question. Its own tests run first, so a broken lister fails here rather than
+          # quietly passing everything downstream.
+          node --test infra/ci/list-created-tables.test.mjs
+
       - name: tenant_id present in all non-reference CREATE TABLE statements
         if: ${{ !cancelled() }}
         run: |
-          # Case-insensitive throughout: SQL keywords are case-insensitive, so a lowercase
-          # `create table` is still a table. Without -i the selector matched nothing and the
-          # whole gate passed silently on it (verify F-2).
-          bad=$(find code/backend/migration/src/main/resources/db/migration/core \
-                     code/backend/migration/src/main/resources/db/migration/hrms \
-                     code/backend/migration/src/main/resources/db/migration/payroll \
-                -name '*.sql' 2>/dev/null \
-              | xargs -r grep -liE 'CREATE[[:space:]]+TABLE' 2>/dev/null \
-              | xargs -r grep -LiE 'tenant_id' 2>/dev/null || true)
+          # #137: this asked `does the file contain tenant_id`, which a two-table migration
+          # answers yes to when only the first table has one. The lister walks CREATE TABLE
+          # statements and reports each table's own column list, so the second table is
+          # judged on itself. infra/ci/list-created-tables.mjs carries the parsing notes.
+          #
+          # No `|| true` and no `2>/dev/null` on the lister: it exits non-zero when it
+          # cannot parse a file, and swallowing that would turn "I could not read this"
+          # into "nothing to report", which is the failure this gate exists to prevent.
+          find code/backend/migration/src/main/resources/db/migration/core \
+               code/backend/migration/src/main/resources/db/migration/hrms \
+               code/backend/migration/src/main/resources/db/migration/payroll \
+            -name '*.sql' > /tmp/migration-files.txt
+          xargs -r node infra/ci/list-created-tables.mjs < /tmp/migration-files.txt > /tmp/created-tables.tsv
+          bad=$(awk -F'\t' '$3 == "no" { print $1 ": " $2 }' /tmp/created-tables.tsv)
           if [ -n "$bad" ]; then
-            echo "::error::Migration script(s) create a table in core/hrms/payroll without tenant_id (W-07 §tenant_id column standard):"
+            echo "::error::Table(s) created in core/hrms/payroll without a tenant_id column (W-07 §tenant_id column standard):"
             printf '%s\n' "$bad"
             exit 1
           fi
-          echo "OK - all non-reference CREATE TABLE statements include tenant_id"
+          echo "OK - every CREATE TABLE in core/hrms/payroll declares tenant_id"
+
+      - name: no tenant_id in the reference schema
+        if: ${{ !cancelled() }}
+        run: |
+          # The mirror of the gate above, and the check W-09 §9 names as the thing that
+          # stops someone "fixing" the exemption. reference holds national law - ISO codes,
+          # RBI identifiers, Finance Act slabs - which is identical for every tenant, so a
+          # tenant column here would duplicate it per tenant and let the copies drift
+          # (D-08, CONVENTIONS.md Rule 7). Judged per table, from the same lister, so a
+          # comment explaining the exemption is not mistaken for a column.
+          find code/backend/migration/src/main/resources/db/migration/reference \
+            -name '*.sql' > /tmp/reference-files.txt
+          bad=$(xargs -r node infra/ci/list-created-tables.mjs < /tmp/reference-files.txt \
+                | awk -F'\t' '$3 == "yes" { print $1 ": " $2 }')
+          if [ -n "$bad" ]; then
+            echo "::error::Table(s) in the reference schema declare tenant_id — the reference schema is exempt by design (D-08, W-09 §2.5):"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
+          echo "OK - no table in the reference schema declares tenant_id"
 
       - name: schema qualifier present in all CREATE TABLE statements
         if: ${{ !cancelled() }}
@@ -289,25 +332,34 @@ jobs:
       - name: row-level security policy present in all non-reference CREATE TABLE statements
         if: ${{ !cancelled() }}
         run: |
-          # Case-insensitive throughout - see the note on gate A (verify F-2).
-          tables=$(find code/backend/migration/src/main/resources/db/migration/core \
-                        code/backend/migration/src/main/resources/db/migration/hrms \
-                        code/backend/migration/src/main/resources/db/migration/payroll \
-                   -name '*.sql' 2>/dev/null \
-                 | xargs -r grep -liE 'CREATE[[:space:]]+TABLE' 2>/dev/null || true)
-          # Pass 1 - RLS switched on.
-          missing_rls=$(printf '%s\n' "$tables" | sed '/^$/d' \
-              | xargs -r grep -LiE 'ENABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY' 2>/dev/null || true)
-          # Pass 2 - the isolation policy actually created. The switch alone isolates nothing.
-          missing_policy=$(printf '%s\n' "$tables" | sed '/^$/d' \
-              | xargs -r grep -LiE 'CREATE[[:space:]]+POLICY[[:space:]]+tenant_isolation' 2>/dev/null || true)
-          bad=$(printf '%s\n%s\n' "$missing_rls" "$missing_policy" | sed '/^$/d' | sort -u)
-          if [ -n "$bad" ]; then
-            echo "::error::Migration script(s) create a table in core/hrms/payroll without ENABLE ROW LEVEL SECURITY or without CREATE POLICY tenant_isolation (W-07 §row-level security):"
-            printf '%s\n' "$bad"
+          # #137, same defect as gate A: `does the file mention ENABLE ROW LEVEL SECURITY`
+          # is satisfied by one protected table however many unprotected ones sit beside it.
+          # Each table is now named in the search, so the switch and the policy have to
+          # exist for that table. Both the qualified and bare form are accepted, because
+          # ALTER TABLE core.foo and ALTER TABLE foo are the same statement under a
+          # search_path - matching only one spelling would fail a legal script.
+          #
+          # /tmp/created-tables.tsv was written by the tenant_id gate above, from the same
+          # lister. The table name is escaped before it goes into the pattern: it contains
+          # a dot, which grep -E reads as "any character", so an unescaped core.tenant
+          # would also match coreXtenant.
+          : > /tmp/rls-missing.txt
+          while IFS="$(printf '\t')" read -r file table _; do
+            [ -n "$table" ] || continue
+            bare=${table#*.}
+            esc=$(printf '%s' "$table" | sed 's/\./\\./g')
+            grep -qiE "alter[[:space:]]+table[[:space:]]+($esc|$bare)[[:space:]]+enable[[:space:]]+row[[:space:]]+level[[:space:]]+security" "$file" \
+              || echo "$file: $table - no ENABLE ROW LEVEL SECURITY" >> /tmp/rls-missing.txt
+            # The switch alone isolates nothing; RLS with no policy denies every row instead.
+            grep -qiE "create[[:space:]]+policy[[:space:]]+tenant_isolation[[:space:]]+on[[:space:]]+($esc|$bare)([[:space:]]|\$)" "$file" \
+              || echo "$file: $table - no CREATE POLICY tenant_isolation" >> /tmp/rls-missing.txt
+          done < /tmp/created-tables.tsv
+          if [ -s /tmp/rls-missing.txt ]; then
+            echo "::error::Table(s) created in core/hrms/payroll without row-level security (W-07 §row-level security):"
+            cat /tmp/rls-missing.txt
             exit 1
           fi
-          echo "OK - all non-reference CREATE TABLE statements enable RLS and create tenant_isolation"
+          echo "OK - every CREATE TABLE in core/hrms/payroll enables RLS and creates tenant_isolation"
 
       - name: No float or double money field
         if: ${{ !cancelled() }}

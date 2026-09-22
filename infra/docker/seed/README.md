@@ -1,20 +1,22 @@
 # Seed data
 
-**Two tenants holding different module sets.** Every developer then sees the
-difference between a Payroll-only customer and one holding both, every day.
+**Two tenants.** One tenant hides every isolation bug there is: a query that forgot
+its tenant filter returns exactly the right rows, and an RLS policy that never matches
+looks identical to one that always matches.
 
-> Seed one tenant with everything and entitlement bugs stay invisible until a real
-> customer buys one module — which is the worst possible time to find them.
+## Status
 
-## Status: mechanism ready, content pending `W-07`
+| Part | State |
+|---|---|
+| Loader | Works — `seed.sh`, idempotent |
+| Two tenants | **Seeded.** `core.tenant` exists (`W-07`), so `01-tenants.sql` inserts |
+| Different module sets | Pending `W-12` — `core.subscription` does not exist yet |
 
-`01-tenants.sql` is empty of inserts, because **the tenant table does not exist yet.**
-It is created by `W-07` (tenant model), four tickets away. `W-02` was specified as if
-the table already existed; that ordering was wrong and is recorded on issue #3.
-
-Nothing else is blocked by this. The stack, the schemas, the roles and the loader all
-work today. When `W-07` lands, the inserts go into `01-tenants.sql` and `./seed.sh`
-starts doing something.
+The module asymmetry is the half still missing. Until `W-12` creates the subscription
+table, both tenants are indistinguishable in what they have bought, so an entitlement
+check has nothing to fail against. Seed one tenant with everything and entitlement bugs
+stay invisible until a real customer buys one module, which is the worst possible time
+to find them — that argument still holds, and this is only half-answered.
 
 ## Running it
 
@@ -25,12 +27,16 @@ infra/docker/seed/seed.sh
 Idempotent — safe to run repeatedly. It is **local only**: it is not a Flyway
 migration and must never be reachable from a deployed environment.
 
-## The two tenants, once `W-07` exists
+## The two tenants
 
-| Tenant | Modules | Shows you |
+| Tenant | `tenant_id` | Modules, once `W-12` lands |
 |---|---|---|
-| `acme-payroll` | **Payroll only** | What a Payroll-only customer sees. No HRMS screens |
-| `globex-full` | **HRMS + Payroll** | The combined experience |
+| Acme Manufacturing | `11111111-1111-1111-1111-111111111111` | **Payroll only** — what a Payroll-only customer sees |
+| Globex Corporation | `22222222-2222-2222-2222-222222222222` | **HRMS + Payroll** — the combined experience |
+
+The UUIDs are fixed, not generated, so a developer can hardcode one in a request and
+still be talking about the same tenant after a restart. They are the same two the
+migration module's `TenantIsolationIT` uses.
 
 Their administrators already exist in Keycloak — `admin.acme` and `admin.globex`, both
 with password `local_dev_pw`. See `../keycloak/dev-realm.json`.
