@@ -44,7 +44,7 @@ One repository · one backend with three enforced modules (`core` / `hrms` / `pa
 > **Not AKS. Not MySQL. No subtree, no sync.** If a document or skill says otherwise it
 > is stale — the decisions are `D-09` Postgres, `D-10` Container Apps, `D-17` no sync.
 
-Design: `docs/target-state/` — 12 documents, **58 decisions (`D-01`–`D-58`), zero open
+Design: `docs/target-state/` — 12 documents, **59 decisions (`D-01`–`D-59`), zero open
 questions.** Start at `docs/target-state/README.md`.
 
 > **`W-06` Flyway is on `main` and the tenancy chain is complete.** This file said
