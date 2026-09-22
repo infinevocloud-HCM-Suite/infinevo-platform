@@ -68,6 +68,16 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         return POSTGRES.getJdbcUrl();
     }
 
+    public static String getAdminUsername() {
+        startIfNeeded();
+        return POSTGRES.getUsername();
+    }
+
+    public static String getAdminPassword() {
+        startIfNeeded();
+        return POSTGRES.getPassword();
+    }
+
     /** Starts the container and provisions roles, schemas, and grants (idempotent). */
     private static synchronized void startIfNeeded() {
         if (!started) {
@@ -89,6 +99,15 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
             executeSqlScript(conn, "db/provision/03-grants.sql");
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to provision test container database", e);
+        }
+
+        try (Connection conn =
+                DriverManager.getConnection(POSTGRES.getJdbcUrl(), MIGRATION_USER, MIGRATION_USER_PASSWORD)) {
+            executeSqlScriptIfPresent(conn, "db/migration/core/V001__tenant.sql");
+            executeSqlScriptIfPresent(conn, "db/migration/core/V002__user_tenant.sql");
+            executeSqlScriptIfPresent(conn, "db/migration/core/V003__user_account.sql");
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to apply DDL scripts to test container database", e);
         }
     }
 
@@ -122,6 +141,18 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         }
     }
 
+    private static void executeSqlScriptIfPresent(Connection conn, String resourcePath) {
+        try (InputStream is =
+                PostgresTestContainerInitializer.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is != null) {
+                String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                conn.createStatement().execute(sql);
+            }
+        } catch (IOException | SQLException e) {
+            throw new IllegalStateException("Failed to execute SQL script: " + resourcePath, e);
+        }
+    }
+
     @Override
     public void initialize(ConfigurableApplicationContext ctx) {
         startIfNeeded();
@@ -130,7 +161,8 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
                         "spring.datasource.username=" + APP_USER,
                         "spring.datasource.password=" + APP_USER_PASSWORD,
                         "spring.datasource.driver-class-name=org.postgresql.Driver",
-                        "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect")
+                        "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
+                        "spring.flyway.enabled=false")
                 .applyTo(ctx.getEnvironment());
     }
 }

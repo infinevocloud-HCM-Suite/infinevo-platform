@@ -1,1 +1,3 @@
 com.infinevo.shared.tenant.TenantBindingAutoConfiguration
+com.infinevo.shared.security.SecurityConfig
+

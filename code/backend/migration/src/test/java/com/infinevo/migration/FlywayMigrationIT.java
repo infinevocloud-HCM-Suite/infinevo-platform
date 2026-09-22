@@ -38,6 +38,17 @@ class FlywayMigrationIT {
     static void runMigrations() {
         jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
 
+        // Clean managed schemas as superuser to ensure a clean slate for test fixture migrations
+        Flyway.configure()
+                .dataSource(
+                        jdbcUrl,
+                        PostgresTestContainerInitializer.getAdminUsername(),
+                        PostgresTestContainerInitializer.getAdminPassword())
+                .schemas("reference", "core", "hrms", "payroll", "migration")
+                .cleanDisabled(false)
+                .load()
+                .clean();
+
         // Pass overrides as CLI args (highest Spring Boot property priority) so they
         // beat application.yml.  This is what proves the shipped Spring Boot
         // auto-configuration chain works — not a hand-built Flyway instance.
