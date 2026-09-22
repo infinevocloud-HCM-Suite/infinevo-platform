@@ -80,5 +80,41 @@ class PayrunQueueListenerTest {
         failingListener.onMessage(message);
 
         verify(jobService).markFailed(jobId, "Calculation error");
+        org.junit.jupiter.api.Assertions.assertNull(
+                org.slf4j.MDC.get(com.infinevo.shared.logging.MdcLoggingContext.CORRELATION_ID_KEY));
+        org.junit.jupiter.api.Assertions.assertNull(
+                org.slf4j.MDC.get(com.infinevo.shared.logging.MdcLoggingContext.TENANT_ID_KEY));
+    }
+
+    @Test
+    void shouldPropagateCorrelationIdAndTenantIdToMdcDuringProcessing() {
+        UUID tenantId = UUID.randomUUID();
+        String jobId = "job-corr-test";
+        String expectedCorrId = "corr-worker-999";
+        QueueMessage<String> message =
+                QueueMessage.of(jobId, tenantId, "payrun", expectedCorrId, "{\"run\":\"monthly\"}");
+
+        java.util.concurrent.atomic.AtomicReference<String> mdcCorrelationId =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<String> mdcTenantId =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
+        PayrunQueueListener trackingListener = new PayrunQueueListener(jobService) {
+            @Override
+            protected void processPayrunPayload(String payload) {
+                mdcCorrelationId.set(
+                        org.slf4j.MDC.get(com.infinevo.shared.logging.MdcLoggingContext.CORRELATION_ID_KEY));
+                mdcTenantId.set(org.slf4j.MDC.get(com.infinevo.shared.logging.MdcLoggingContext.TENANT_ID_KEY));
+            }
+        };
+
+        trackingListener.onMessage(message);
+
+        org.junit.jupiter.api.Assertions.assertEquals(expectedCorrId, mdcCorrelationId.get());
+        org.junit.jupiter.api.Assertions.assertEquals(tenantId.toString(), mdcTenantId.get());
+        org.junit.jupiter.api.Assertions.assertNull(
+                org.slf4j.MDC.get(com.infinevo.shared.logging.MdcLoggingContext.CORRELATION_ID_KEY));
+        org.junit.jupiter.api.Assertions.assertNull(
+                org.slf4j.MDC.get(com.infinevo.shared.logging.MdcLoggingContext.TENANT_ID_KEY));
     }
 }

@@ -163,6 +163,29 @@ module logAnalytics 'modules/loganalytics.bicep' = {
   }
 }
 
+// W-60: Observability — Application Insights and Azure Monitor Dashboard
+module appInsights 'modules/appinsights.bicep' = {
+  name: 'deploy-appinsights'
+  scope: sharedRg
+  params: {
+    appInsightsName: 'appi-infinevo-shared'
+    location: location
+    workspaceId: logAnalytics.outputs.workspaceId
+    tags: defaultTags
+  }
+}
+
+module telemetryDashboard 'modules/dashboard.bicep' = {
+  name: 'deploy-telemetry-dashboard'
+  scope: sharedRg
+  params: {
+    workbookDisplayName: 'Infinevo Platform Telemetry (${environment})'
+    location: location
+    workspaceId: logAnalytics.outputs.workspaceId
+    tags: defaultTags
+  }
+}
+
 // ── 3. Environment Network ───────────────────────────────────────────────────
 // Deployed before the Container Apps environment and before every private endpoint:
 // snet-cae has to exist before cae-infinevo-{env} can be injected into it (T2), and a
@@ -573,3 +596,7 @@ output peSubnetId string = vnet.outputs.peSubnetId
 output migrationJobName string = dbMigrationJob.outputs.jobName
 // The pipeline's `migrate` stage starts this job by name and gates the release on it.
 output flywayJobName string = flywayJob.outputs.jobName
+output appInsightsName string = appInsights.outputs.appInsightsName
+output appInsightsId string = appInsights.outputs.appInsightsId
+output workbookName string = telemetryDashboard.outputs.workbookName
+

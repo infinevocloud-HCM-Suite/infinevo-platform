@@ -34,6 +34,15 @@
         <groupId>com.azure</groupId>
         <artifactId>azure-storage-queue</artifactId>
       </dependency>
+      <!-- W-60: Observability Primitives -->
+      <dependency>
+        <groupId>net.logstash.logback</groupId>
+        <artifactId>logstash-logback-encoder</artifactId>
+      </dependency>
+      <dependency>
+        <groupId>io.micrometer</groupId>
+        <artifactId>micrometer-registry-prometheus</artifactId>
+      </dependency>
       <!-- W-04: Testcontainers for integration test infrastructure -->
       <dependency>
         <groupId>org.testcontainers</groupId>

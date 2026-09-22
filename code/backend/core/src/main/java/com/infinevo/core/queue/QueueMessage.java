@@ -20,6 +20,7 @@ public final class QueueMessage<T> implements Serializable {
     private final String jobId;
     private final UUID tenantId;
     private final String queueName;
+    private final String correlationId;
     private final Instant enqueuedAt;
     private final int retryCount;
     private final T payload;
@@ -30,6 +31,7 @@ public final class QueueMessage<T> implements Serializable {
             @JsonProperty("jobId") String jobId,
             @JsonProperty("tenantId") UUID tenantId,
             @JsonProperty("queueName") String queueName,
+            @JsonProperty("correlationId") String correlationId,
             @JsonProperty("enqueuedAt") Instant enqueuedAt,
             @JsonProperty("retryCount") int retryCount,
             @JsonProperty("payload") T payload) {
@@ -37,6 +39,8 @@ public final class QueueMessage<T> implements Serializable {
         this.jobId = Objects.requireNonNull(jobId, "jobId must not be null");
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
         this.queueName = Objects.requireNonNull(queueName, "queueName must not be null");
+        this.correlationId =
+                correlationId != null ? correlationId : UUID.randomUUID().toString();
         this.enqueuedAt = enqueuedAt != null ? enqueuedAt : Instant.now();
         this.retryCount = retryCount;
         this.payload = payload;
@@ -44,8 +48,25 @@ public final class QueueMessage<T> implements Serializable {
         validatePayloadSize(payload);
     }
 
+    public QueueMessage(
+            String messageId,
+            String jobId,
+            UUID tenantId,
+            String queueName,
+            Instant enqueuedAt,
+            int retryCount,
+            T payload) {
+        this(messageId, jobId, tenantId, queueName, null, enqueuedAt, retryCount, payload);
+    }
+
     public static <T> QueueMessage<T> of(String jobId, UUID tenantId, String queueName, T payload) {
-        return new QueueMessage<>(UUID.randomUUID().toString(), jobId, tenantId, queueName, Instant.now(), 0, payload);
+        return of(jobId, tenantId, queueName, null, payload);
+    }
+
+    public static <T> QueueMessage<T> of(
+            String jobId, UUID tenantId, String queueName, String correlationId, T payload) {
+        return new QueueMessage<>(
+                UUID.randomUUID().toString(), jobId, tenantId, queueName, correlationId, Instant.now(), 0, payload);
     }
 
     private void validatePayloadSize(T payload) {
@@ -91,12 +112,17 @@ public final class QueueMessage<T> implements Serializable {
         return payload;
     }
 
+    public String getCorrelationId() {
+        return correlationId;
+    }
+
     public QueueMessage<T> withIncrementedRetry() {
         return new QueueMessage<>(
                 this.messageId,
                 this.jobId,
                 this.tenantId,
                 this.queueName,
+                this.correlationId,
                 this.enqueuedAt,
                 this.retryCount + 1,
                 this.payload);
@@ -112,13 +138,14 @@ public final class QueueMessage<T> implements Serializable {
                 && Objects.equals(jobId, that.jobId)
                 && Objects.equals(tenantId, that.tenantId)
                 && Objects.equals(queueName, that.queueName)
+                && Objects.equals(correlationId, that.correlationId)
                 && Objects.equals(enqueuedAt, that.enqueuedAt)
                 && Objects.equals(payload, that.payload);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(messageId, jobId, tenantId, queueName, enqueuedAt, retryCount, payload);
+        return Objects.hash(messageId, jobId, tenantId, queueName, correlationId, enqueuedAt, retryCount, payload);
     }
 
     @Override
@@ -127,7 +154,8 @@ public final class QueueMessage<T> implements Serializable {
                 + messageId + '\'' + ", jobId='"
                 + jobId + '\'' + ", tenantId="
                 + tenantId + ", queueName='"
-                + queueName + '\'' + ", enqueuedAt="
+                + queueName + '\'' + ", correlationId='"
+                + correlationId + '\'' + ", enqueuedAt="
                 + enqueuedAt + ", retryCount="
                 + retryCount + '}';
     }

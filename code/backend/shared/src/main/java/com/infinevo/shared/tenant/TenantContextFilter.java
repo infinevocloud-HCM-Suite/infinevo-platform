@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
+import com.infinevo.shared.logging.MdcLoggingContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -107,9 +109,13 @@ public class TenantContextFilter extends OncePerRequestFilter {
         }
 
         TenantContext.set(tenantToBind);
+        MDC.put(MdcLoggingContext.TENANT_ID_KEY, tenantToBind.toString());
+        MDC.put(MdcLoggingContext.USER_ID_KEY, userId.toString());
         try {
             filterChain.doFilter(request, response);
         } finally {
+            MDC.remove(MdcLoggingContext.USER_ID_KEY);
+            MDC.remove(MdcLoggingContext.TENANT_ID_KEY);
             TenantContext.clear();
         }
     }
@@ -118,7 +124,10 @@ public class TenantContextFilter extends OncePerRequestFilter {
             throws IOException {
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        String traceId = UUID.randomUUID().toString().substring(0, 8);
+        String traceId = MDC.get(MdcLoggingContext.CORRELATION_ID_KEY);
+        if (traceId == null || traceId.isBlank()) {
+            traceId = UUID.randomUUID().toString().substring(0, 8);
+        }
         ApiErrorResponse errorResponseBody = ApiErrorResponse.of(error, message, traceId);
         objectMapper.writeValue(response.getOutputStream(), errorResponseBody);
     }

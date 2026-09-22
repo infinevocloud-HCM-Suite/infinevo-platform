@@ -82,6 +82,20 @@ class QueueMessageTest {
     }
 
     @Test
+    void shouldPropagateCorrelationIdThroughSerialization() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        QueueMessage<String> message =
+                QueueMessage.of("job-123", tenantId, "payrun", "corr-test-999", "{\"action\":\"RUN\"}");
+
+        assertEquals("corr-test-999", message.getCorrelationId());
+
+        String json = objectMapper.writeValueAsString(message);
+        QueueMessage<?> deserialized = objectMapper.readValue(json, QueueMessage.class);
+
+        assertEquals("corr-test-999", deserialized.getCorrelationId());
+    }
+
+    @Test
     void shouldRejectNullMandatoryFields() {
         UUID tenantId = UUID.randomUUID();
         assertThrows(NullPointerException.class, () -> QueueMessage.of(null, tenantId, "payrun", "data"));

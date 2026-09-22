@@ -39,6 +39,10 @@ public class PayrunQueueListener implements QueueConsumer<String> {
         String jobId = message.getJobId();
         var tenantId = message.getTenantId();
 
+        String correlationId = message.getCorrelationId();
+        org.slf4j.MDC.put(com.infinevo.shared.logging.MdcLoggingContext.CORRELATION_ID_KEY, correlationId);
+        org.slf4j.MDC.put(com.infinevo.shared.logging.MdcLoggingContext.TENANT_ID_KEY, tenantId.toString());
+
         log.info("Processing payrun job {} for tenant {}", jobId, tenantId);
 
         TenantContext.set(tenantId);
@@ -65,12 +69,14 @@ public class PayrunQueueListener implements QueueConsumer<String> {
             log.error("Failed to process payrun job {}: {}", jobId, e.getMessage(), e);
             jobService.markFailed(jobId, e.getMessage());
         } finally {
+            org.slf4j.MDC.remove(com.infinevo.shared.logging.MdcLoggingContext.CORRELATION_ID_KEY);
+            org.slf4j.MDC.remove(com.infinevo.shared.logging.MdcLoggingContext.TENANT_ID_KEY);
             TenantContext.clear();
         }
     }
 
     protected void processPayrunPayload(String payload) {
         // Business execution hook for pay run calculation
-        log.debug("Processed payload: {}", payload);
+        log.debug("Processed payrun payload (length: {} chars)", payload != null ? payload.length() : 0);
     }
 }

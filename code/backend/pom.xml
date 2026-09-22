@@ -64,10 +64,18 @@
     <!-- W-52: Queue & Worker -->
     <azure-sdk-bom.version>1.2.26</azure-sdk-bom.version>
     <shedlock.version>5.16.0</shedlock.version>
+    <!-- W-60: Observability -->
+    <logstash-logback-encoder.version>7.4</logstash-logback-encoder.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
+      <!-- W-60: Structured logging -->
+      <dependency>
+        <groupId>net.logstash.logback</groupId>
+        <artifactId>logstash-logback-encoder</artifactId>
+        <version>${logstash-logback-encoder.version}</version>
+      </dependency>
       <!-- W-52: Azure SDK BOM -->
       <dependency>
         <groupId>com.azure</groupId>
