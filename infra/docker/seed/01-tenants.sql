@@ -1,24 +1,28 @@
--- Seed: two tenants holding different module sets.
+-- Seed: two tenants.
 --
--- PENDING W-07. The core.tenant table does not exist yet, so there is nothing to
--- insert into. See README.md in this folder and issue #3.
+-- Local development only. Not a Flyway migration, and never run against a deployed
+-- environment — seed.sh says the same thing and is the only thing that runs this file.
 --
--- When W-07 lands, this file gets the two inserts below. They are written out here so
--- the intent is not lost, and are deliberately commented rather than left as a note -
--- the shape is already decided in docs/target-state/01-platform-shape.md section 7.
+-- Idempotent: re-running changes nothing, because tenant_id carries a unique index
+-- (V001__tenant.sql) and both inserts are ON CONFLICT DO NOTHING. The UUIDs are fixed
+-- rather than generated so that a developer can hardcode one in a request, restart the
+-- stack, and still be talking about the same tenant.
 --
---   INSERT INTO core.tenant (slug, name, status) VALUES
---       ('acme-payroll', 'Acme Manufacturing', 'active'),
---       ('globex-full',  'Globex Corporation', 'active')
---   ON CONFLICT (slug) DO NOTHING;
+-- The point of seeding TWO is that one tenant hides every isolation bug there is. With a
+-- single tenant, a query that forgot its tenant filter returns exactly the right rows, an
+-- RLS policy that never matches looks identical to one that always matches, and both pass
+-- review. Do not "simplify" this by seeding one.
 --
---   INSERT INTO core.subscription (tenant_id, module, status) VALUES
---       ((SELECT id FROM core.tenant WHERE slug = 'acme-payroll'), 'payroll', 'active'),
---       ((SELECT id FROM core.tenant WHERE slug = 'globex-full'),  'payroll', 'active'),
---       ((SELECT id FROM core.tenant WHERE slug = 'globex-full'),  'hrms',    'active')
---   ON CONFLICT DO NOTHING;
---
--- The point is the asymmetry: acme-payroll holds ONE module, globex-full holds BOTH.
--- Do not "simplify" this by giving both tenants everything.
+-- What is still missing: the module asymmetry. The original intent was acme holding
+-- payroll alone while globex holds both, so that an entitlement bug shows up locally
+-- rather than at a customer. That needs core.subscription, which W-12 creates — it does
+-- not exist yet, and neither does the `slug` or `status` column this file used to name in
+-- its commented-out draft. Until W-12 lands both tenants are indistinguishable in what
+-- they have bought, and an entitlement check has nothing to fail against.
 
-SELECT 'seed 01-tenants: no-op until W-07 creates core.tenant' AS status;
+INSERT INTO core.tenant (tenant_id, name, created_by, updated_by) VALUES
+    ('11111111-1111-1111-1111-111111111111', 'Acme Manufacturing', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'Globex Corporation', 'seed', 'seed')
+ON CONFLICT (tenant_id) DO NOTHING;
+
+SELECT format('seed 01-tenants: %s tenant(s) present', count(*)) AS status FROM core.tenant;

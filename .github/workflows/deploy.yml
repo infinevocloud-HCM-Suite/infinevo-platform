@@ -1,0 +1,1129 @@
+# Continuous deployment for infinevo-platform - W-54.
+#
+# Job graph (spec section 3). Each job needs the one above it, so a failure stops
+# the pipeline where it happens and nothing further is touched:
+#
+#   gate     resolve environment, require CI green for THIS sha
+#   build    az acr build x4 -> crinfinevo/<name>:git-<sha>   (once, ever)
+#   migrate  start caj-flyway-{env}, as migration_user
+#   release  new revision per app, 0% traffic
+#   health   poll THE NEW REVISION by name until healthy
+#   shift    traffic 100% -> the new revision, previous revision -> 0% in the same
+#            call. A failure part-way through shifts traffic back from inside this
+#            job, because `verify` never runs when `shift` fails (round-2 F-12).
+#   verify   assert revision name, image tag, traffic weight, HTTP 200 through
+#            Front Door. Any failure shifts traffic back.
+#
+# WHAT THIS WORKFLOW DOES NOT DO
+#   - It sets no Container App secret. W-56 owns the Key Vault contract end to end
+#     (spec section 2, "Out of scope"). The az command that would do it appears
+#     nowhere, which is what section 5 check 5 greps for - including in this comment,
+#     so the command is described here rather than quoted.
+#   - It sets no property Bicep also sets (spec section 7, last row). Env vars are
+#     merged with `--set-env-vars`, never `--replace-env-vars`: replacing would wipe
+#     the secret-backed vars W-56 writes into containerapps.bicep.
+#   - It never rebuilds. prod deploys the byte-identical image dev was proved on.
+#
+# NO FAILURE IS SWALLOWED. Neither of the two swallowing idioms - the one that ORs a
+# command with the true builtin, and the one that redirects stderr to /dev/null -
+# appears anywhere below. Section 5 check 6 greps for the first of them, in this file
+# as a whole, so it is described here rather than quoted. Every poll that tolerates a
+# transient CLI error does so explicitly, with an `if !`, and still fails on the
+# deadline. Round-1 review finding F-10 was the whole file doing the opposite. (Round 2
+# renumbered: its F-10 is the traffic weights in the shift and rollback steps.)
+#
+# PREREQUISITES (one-time, infra/azure/oidc-setup.sh - T2)
+#   Repository VARIABLES (not secrets - none of the three is confidential):
+#     AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   They are variables so they can be read in a job-level `if:` if one is ever
+#   needed. `secrets` is NOT available in a job-level `if:` - that is a hard parse
+#   error, it is what stopped run 35589172208, and it is review finding F-2.
+#   The gate job fails loudly when any of the three is unset (spec section 4 break 7).
+
+name: Deploy
+
+on:
+  # Auto-deploy dev once CI has passed on main.
+  #
+  # `branches: [main]` alone is NOT a trust boundary: a fork can have a branch called
+  # main and its CI run satisfies this filter (review finding F-4). The gate job checks
+  # head_repository as well, in the `if:` where it cannot be bypassed by a later step.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+  # Manual deploy to any environment. Unlike the previous attempt, dispatch is NOT a
+  # way around CI: the gate job queries the CI run for the dispatched sha and fails if
+  # there is no successful one (review finding F-20 / condition C-2).
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+
+# A deployment in progress is never cancelled by the next push: two concurrent runs
+# would race on revision creation and traffic weights.
+#
+# The group is per environment, which was review finding F-18 when two environments
+# could clobber a shared `:latest` tag. Nothing here pushes `:latest` - the only tag is
+# the immutable `git-<sha>` - so per-environment is now the correct grain: dev and prod
+# deploy different commits to different resource groups and must not block each other.
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  ACR_NAME: crinfinevo
+  ACR_LOGIN_SERVER: crinfinevo.azurecr.io
+
+jobs:
+  # ── gate: which environment, which commit, and was CI green on it ────────────
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read      # read the CI run conclusion for this sha
+    # Only `github`, `needs`, `vars` and `inputs` are legal here. `secrets` is not.
+    #
+    # head_repository is the fork guard for F-4: without it, any fork with a branch
+    # named main produces a workflow_run event that passes `branches: [main]`.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      sha_short: ${{ steps.resolve.outputs.sha_short }}
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+      rev_suffix: ${{ steps.resolve.outputs.rev_suffix }}
+    steps:
+      # Spec section 4 break 7: delete the AZURE_CLIENT_ID variable and the workflow
+      # must fail loudly. The previous attempt skipped the Azure jobs instead, which is
+      # a green run that deployed nothing.
+      - name: Azure OIDC variables are set
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          missing=''
+          [ -n "$AZURE_CLIENT_ID" ]       || missing="${missing} AZURE_CLIENT_ID"
+          [ -n "$AZURE_TENANT_ID" ]       || missing="${missing} AZURE_TENANT_ID"
+          [ -n "$AZURE_SUBSCRIPTION_ID" ] || missing="${missing} AZURE_SUBSCRIPTION_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::repository variable(s) not set:${missing} - run infra/azure/oidc-setup.sh and set them under Settings > Variables"
+            exit 1
+          fi
+          echo "OK - all three OIDC repository variables are set"
+
+      - name: Resolve target environment and commit
+        id: resolve
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+          DISPATCH_SHA: ${{ github.sha }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            target_env="$INPUT_ENV"
+            sha="$DISPATCH_SHA"
+          else
+            # workflow_run: deploy the exact commit CI validated, not the branch head.
+            target_env='dev'
+            sha="$RUN_SHA"
+          fi
+          if [ -z "$sha" ]; then
+            echo "::error::could not resolve a commit sha for this ${EVENT} event"
+            exit 1
+          fi
+          short="${sha:0:7}"
+
+          # The image tag is the FULL sha: immutable, never reused, never overwritten,
+          # and the only tag this pipeline pushes. There is no `:latest`.
+          #
+          # The revision suffix is derived from the short sha plus the run number and
+          # attempt. It cannot be the sha alone: re-deploying the same commit would
+          # collide with the existing revision name and fail (review finding F-19).
+          # Container App revision names are capped at 63 characters, which is why the
+          # suffix uses 7 characters of the sha and the tag uses all 40.
+          {
+            echo "environment=${target_env}"
+            echo "sha=${sha}"
+            echo "sha_short=${short}"
+            echo "image_tag=git-${sha}"
+            echo "rev_suffix=git-${short}-${RUN_NUMBER}-${RUN_ATTEMPT}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Deploying ${short} to ${target_env}"
+
+      # Required for BOTH events. On workflow_run the payload conclusion is already
+      # checked in the `if:` above, but that says a CI run passed on the branch - this
+      # says a CI run passed on THIS commit, which is what section 3 asks for.
+      - name: CI is green for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          conclusions=$(gh api \
+            "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${SHA}&per_page=100" \
+            --jq '.workflow_runs[] | .conclusion')
+          echo "CI runs for ${SHA}: ${conclusions:-<none>}"
+          if ! printf '%s\n' "$conclusions" | grep -qx 'success'; then
+            echo "::error::no successful CI run for ${SHA} - refusing to deploy an unvalidated commit"
+            exit 1
+          fi
+          echo "OK - CI concluded success for ${SHA}"
+
+  # ── build: the only place an image is ever built ─────────────────────────────
+  # Spec section 5 check 4 parses this file and fails if `acr build` appears in any
+  # job but this one. That is review finding F-14: the previous attempt rebuilt from
+  # source per environment, so prod ran an image nothing had ever tested.
+  #
+  # az acr build runs on ACR's own infrastructure, so the runner needs no Docker
+  # daemon. Sequential, not parallel: ACR Standard allows 2 concurrent tasks.
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45   # backend is ~3 min on ACR Standard; four images plus queueing
+    needs: gate
+    permissions:
+      contents: read
+      id-token: write     # OIDC token exchange with Azure - no stored credential
+    env:
+      SHA: ${{ needs.gate.outputs.sha }}
+      IMAGE_TAG: ${{ needs.gate.outputs.image_tag }}
+    steps:
+      - name: Checkout at the deploy commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build backend image
+        run: |
+          set -euo pipefail
+          az acr build --registry "$ACR_NAME" \
+            --image "infinevo-backend:${IMAGE_TAG}" \
+            --platform linux/amd64 \
+            --file infra/docker/backend.Dockerfile \
+            .
+
+      - name: Build frontend image
+        run: |
+          set -euo pipefail
+          az acr build --registry "$ACR_NAME" \
+            --image "infinevo-frontend:${IMAGE_TAG}" \
+            --platform linux/amd64 \
+            --file infra/docker/frontend.Dockerfile \
+            .
+
+      - name: Build keycloak image
+        run: |
+          set -euo pipefail
+          az acr build --registry "$ACR_NAME" \
+            --image "infinevo-keycloak:${IMAGE_TAG}" \
+            --platform linux/amd64 \
+            --file infra/docker/keycloak.Dockerfile \
+            .
+
+      # Still built and tagged with the same sha: caj-db-migration-{env} keeps its
+      # provisioning-and-probes purpose (W-51 / #124) and is a sibling of the new
+      # Flyway job, not something this ticket retires (spec section 2).
+      - name: Build migration-runner image
+        run: |
+          set -euo pipefail
+          az acr build --registry "$ACR_NAME" \
+            --image "migration-runner:${IMAGE_TAG}" \
+            --platform linux/amd64 \
+            --file infra/docker/migration-runner.Dockerfile \
+            .
+
+      - name: All four tags are in the registry
+        run: |
+          set -euo pipefail
+          for repo in infinevo-backend infinevo-frontend infinevo-keycloak migration-runner; do
+            az acr manifest show --registry "$ACR_NAME" \
+              --name "${repo}:${IMAGE_TAG}" --output none
+            echo "OK - ${repo}:${IMAGE_TAG}"
+          done
+
+  # ── migrate: Flyway, as migration_user, before any revision exists ───────────
+  # This is the ONLY job carrying `environment:`. GitHub enforces the environment's
+  # required reviewers here, and it is the first job that changes anything in the
+  # target environment - approving it releases the whole chain below, because every
+  # later job needs this one. Putting `environment:` on all five would prompt the
+  # reviewer five times for one deployment.
+  #
+  # dev has no required reviewers and runs automatically. uat and prod do; neither
+  # resource group exists yet, so those paths are written and gated but unproved
+  # (spec section 2 and section 7).
+  migrate:
+    name: migrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [gate, build]
+    environment: ${{ needs.gate.outputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENV: ${{ needs.gate.outputs.environment }}
+      IMAGE_TAG: ${{ needs.gate.outputs.image_tag }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Review finding F-1. main.bicep:518 deliberately deploys the job with the sentinel
+      # tag `no-tag-supplied-see-W-54` when no tag is supplied, so that starting the job
+      # by hand fails at image pull instead of applying whatever was pushed last. That
+      # sentinel is correct and stays. It also means the job NEVER runs anything until
+      # this pipeline points it at the image this run built - which is exactly what this
+      # step does, and its absence is why #138 stayed open.
+      #
+      # The update is a hard gate: if it fails, the job would still carry the sentinel
+      # (or a stale tag from an earlier run), so there is nothing to fall through to.
+      - name: Point caj-flyway at the image this run built
+        id: pin
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          job="caj-flyway-${ENV}"
+          image="${ACR_LOGIN_SERVER}/infinevo-backend:${IMAGE_TAG}"
+
+          if ! az containerapp job update -g "$rg" -n "$job" \
+                 --image "$image" --output none; then
+            echo "::error::could not update ${job} to ${image} - the job would run its previously configured tag (the main.bicep:518 sentinel on a fresh deployment), so this run stops here"
+            exit 1
+          fi
+
+          # Read it back. A successful update call that left a different tag on the job
+          # is the same failure as a failed one, and this is the only image the pipeline
+          # is allowed to migrate with.
+          actual=$(az containerapp job show -g "$rg" -n "$job" \
+            --query "properties.template.containers[0].image" -o tsv)
+          if [ "$actual" != "$image" ]; then
+            echo "::error::${job} runs ${actual:-<empty>} after the update, expected ${image}"
+            exit 1
+          fi
+          echo "OK - ${job} runs ${image}"
+
+      - name: Start caj-flyway
+        id: start
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          job="caj-flyway-${ENV}"
+
+          # The container name is read from the job rather than hardcoded: the log
+          # command below needs it, and a wrong guess there would mean no log output
+          # on the one job whose output is the evidence.
+          container=$(az containerapp job show -g "$rg" -n "$job" \
+            --query "properties.template.containers[0].name" -o tsv)
+          exec_name=$(az containerapp job start -g "$rg" -n "$job" --query name -o tsv)
+
+          if [ -z "$exec_name" ]; then
+            echo "::error::${job} did not start - no execution name returned"
+            exit 1
+          fi
+          {
+            echo "exec_name=${exec_name}"
+            echo "container=${container}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Execution ${exec_name} started on ${job} (container ${container})"
+
+      - name: Wait for the migration to finish
+        id: wait
+        env:
+          EXEC_NAME: ${{ steps.start.outputs.exec_name }}
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          job="caj-flyway-${ENV}"
+          deadline=$(( $(date +%s) + 1200 ))
+          status=''
+
+          while :; do
+            # A transient CLI or ARM error must not be read as a verdict, and must not
+            # be silenced either: the status stays empty, the loop says so, and the
+            # deadline below is what ends it.
+            if ! status=$(az containerapp job execution show \
+                  -g "$rg" -n "$job" --job-execution-name "$EXEC_NAME" \
+                  --query "properties.status" -o tsv); then
+              status=''
+              echo "  status query failed - retrying"
+            fi
+            case "$status" in
+              Succeeded|Failed|Degraded) break ;;
+            esac
+            if [ "$(date +%s)" -gt "$deadline" ]; then
+              echo "::error::${job} execution ${EXEC_NAME} did not finish within 20 minutes (last status: ${status:-unknown})"
+              echo "status=${status:-timeout}" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            echo "  status: ${status:-starting}"
+            sleep 15
+          done
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "Execution ${EXEC_NAME} ended with status ${status}"
+
+      # Runs even when the wait step failed, because the log is how a human finds out
+      # WHY. It is written to the step summary as well as the log, which is where
+      # someone looking at a red run looks first.
+      - name: Flyway log
+        if: ${{ !cancelled() }}
+        id: joblog
+        env:
+          EXEC_NAME: ${{ steps.start.outputs.exec_name }}
+          CONTAINER: ${{ steps.start.outputs.container }}
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          job="caj-flyway-${ENV}"
+
+          # Review finding F-14. `job logs show` reads Log Analytics, and ingestion lags
+          # container exit by a minute or more; a single call right after the execution
+          # ends returns an empty file on a perfectly good migration, and the gate below
+          # would then fail a successful run. Retry until the log has content: 6 attempts,
+          # 20s apart, ~2 minutes of headroom. A query error is retried the same way -
+          # it is not silenced and it is not read as "no output".
+          #
+          # --tail 300 is the CLI's maximum, not a preference: `az containerapp job logs
+          # show --help` documents the range as 0-300 and rejects anything larger with
+          # "--tail must be between 0 and 300". Round 1 asked for 500, which failed every
+          # time it ran.
+          got_log=0
+          for attempt in 1 2 3 4 5 6; do
+            if ! az containerapp job logs show \
+                   -g "$rg" -n "$job" \
+                   --container "$CONTAINER" \
+                   --execution "$EXEC_NAME" \
+                   --tail 300 > flyway.log; then
+              echo "  attempt ${attempt}: log query failed - retrying in 20s"
+              : > flyway.log
+            elif [ -s flyway.log ]; then
+              got_log=1
+              echo "  attempt ${attempt}: log retrieved ($(wc -l < flyway.log) lines)"
+              break
+            else
+              echo "  attempt ${attempt}: log is still empty - retrying in 20s"
+            fi
+            sleep 20
+          done
+          if [ "$got_log" != "1" ]; then
+            echo "::error::no log output for ${job} execution ${EXEC_NAME} after 6 attempts over 2 minutes - the most likely cause is Log Analytics ingestion lag, not a failed migration; check the execution in the portal before re-running"
+            exit 1
+          fi
+          cat flyway.log
+          {
+            echo '### Flyway output - '"${job}"' / '"${EXEC_NAME}"
+            echo '```'
+            cat flyway.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # THE #138 GATE. Spec section 1: "Succeeded" is exactly the signal that is already
+      # green on a job that applies nothing, so job status is a precondition here, never
+      # the verdict.
+      #
+      # Review finding F-7: the round-1 version accepted three strings, two of which are
+      # what Flyway prints when it applies NOTHING. What each string can and cannot prove:
+      #
+      #   "Successfully applied N migrations"   N>=1 is the only line that proves rows
+      #                                         were written to flyway_schema_history on
+      #                                         THIS run. This is the primary accept.
+      #   "Successfully validated N migrations" proves only that N scripts were found on
+      #                                         the classpath and their checksums match
+      #                                         history. N==0 means the locations list is
+      #                                         empty - the #138 shape exactly. It proves
+      #                                         nothing about anything being applied.
+      #   "No migration necessary"              proves only that Flyway found no PENDING
+      #                                         script. True of an up-to-date schema, and
+      #                                         equally true of a schema wrongly stamped
+      #                                         (a stray baseline) or an empty locations
+      #                                         list. Never accepted on its own.
+      #   "Current version of schema"           the version Flyway believes the schema is
+      #                                         at. `<< Empty Schema >>` means nothing has
+      #                                         ever been applied.
+      #
+      # So there are exactly two accepts:
+      #   A. applied >= 1.
+      #   B. a no-op, accepted ONLY with all three of: validated >= 1 (scripts were
+      #      actually found), an explicit up-to-date line, and a concrete numeric schema
+      #      version. Logged separately and loudly as APPLIED NOTHING so it is never
+      #      mistaken for A in a run log.
+      #
+      # A first run against an empty database cannot reach B: with no history table the
+      # version reads `<< Empty Schema >>` and Flyway would have had pending scripts to
+      # apply, so it fails - which is what this ticket exists to guarantee.
+      - name: Flyway applied something, or proved the schema was already at version
+        env:
+          STATUS: ${{ steps.wait.outputs.status }}
+        run: |
+          set -euo pipefail
+          if [ "$STATUS" != "Succeeded" ]; then
+            echo "::error::migration job ended with status ${STATUS} - no revision will be created"
+            exit 1
+          fi
+
+          echo '--- Flyway outcome lines ---'
+          grep -nE 'Successfully applied|Successfully validated|No migration necessary|is up to date|Current version of schema|Migrating schema' flyway.log || echo '(none)'
+          echo '----------------------------'
+
+          count_of() {
+            awk -v pat="$1" '
+              match($0, pat) { s = substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", s); t += s }
+              END { print t + 0 }' flyway.log
+          }
+          applied=$(count_of 'Successfully applied [0-9]+ migration')
+          validated=$(count_of 'Successfully validated [0-9]+ migration')
+          echo "applied=${applied} validated=${validated}"
+
+          if [ "$applied" -ge 1 ]; then
+            echo "OK - Flyway APPLIED ${applied} migration(s) on this run"
+            exit 0
+          fi
+
+          # Accept B, or fail. Each condition is reported by name so a red run says which
+          # piece of evidence was missing rather than just "no".
+          reason=''
+          [ "$validated" -ge 1 ] || reason="${reason} no-migrations-found(validated=${validated})"
+          grep -qE 'is up to date|No migration necessary' flyway.log \
+            || reason="${reason} no-up-to-date-line"
+          # Nothing here ORs a command with the true builtin - spec section 5 check 6
+          # greps this whole file for that idiom, comments included, which is why it is
+          # described rather than quoted. grep exiting 1 on no match is a fact this gate
+          # uses, so it is handled with an `if !`.
+          if ! version_line=$(grep -E 'Current version of schema' flyway.log | tail -1); then
+            version_line=''
+          fi
+          if [ -z "$version_line" ]; then
+            reason="${reason} no-current-version-line"
+          elif printf '%s' "$version_line" | grep -qE '<< *Empty Schema *>>'; then
+            reason="${reason} schema-is-empty"
+          elif ! printf '%s' "$version_line" | grep -qE ': *[0-9]'; then
+            reason="${reason} no-numeric-schema-version"
+          fi
+
+          if [ -n "$reason" ]; then
+            echo "::error::the migration job succeeded but nothing proves it applied anything - that is bug #138. Missing evidence:${reason}"
+            exit 1
+          fi
+          echo "::warning::Flyway APPLIED NOTHING on this run. Accepted only because ${validated} migration(s) were found and validated and the schema is already at a concrete version: ${version_line}"
+          echo "OK - schema already at the expected version, nothing pending"
+
+  # ── release: a new revision per app, taking no traffic ───────────────────────
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [gate, build, migrate]
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENV: ${{ needs.gate.outputs.environment }}
+      IMAGE_TAG: ${{ needs.gate.outputs.image_tag }}
+      SUFFIX: ${{ needs.gate.outputs.rev_suffix }}
+    outputs:
+      fd_host: ${{ steps.infra.outputs.fd_host }}
+      prev_app: ${{ steps.previous.outputs.prev_app }}
+      prev_web: ${{ steps.previous.outputs.prev_web }}
+      prev_keycloak: ${{ steps.previous.outputs.prev_keycloak }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # An empty Front Door hostname used to produce API_BASE_URL=https:///api with no
+      # failure anywhere - review finding F-12. An empty lookup is now fatal.
+      - name: Resolve Front Door hostname
+        id: infra
+        run: |
+          set -euo pipefail
+          fd_host=$(az afd endpoint show \
+            -g rg-infinevo-shared \
+            --profile-name afd-infinevo-shared \
+            --endpoint-name "ep-infinevo-${ENV}" \
+            --query hostName -o tsv)
+          if [ -z "$fd_host" ]; then
+            echo "::error::Front Door endpoint ep-infinevo-${ENV} resolved to an empty hostname - the frontend and Keycloak cannot be configured without it"
+            exit 1
+          fi
+          echo "fd_host=${fd_host}" >> "$GITHUB_OUTPUT"
+          echo "Front Door: ${fd_host}"
+
+      # Spec section 4 break 3: point the deploy at a tag that is not in the registry
+      # and the release must fail before any revision is created.
+      - name: The tags this release needs are in the registry
+        run: |
+          set -euo pipefail
+          for repo in infinevo-backend infinevo-frontend infinevo-keycloak; do
+            if ! az acr manifest show --registry "$ACR_NAME" \
+                   --name "${repo}:${IMAGE_TAG}" --output none; then
+              echo "::error::${repo}:${IMAGE_TAG} is not in ${ACR_NAME} - refusing to create a revision that cannot pull"
+              exit 1
+            fi
+            echo "OK - ${repo}:${IMAGE_TAG}"
+          done
+
+      # Captured BEFORE the new revisions exist. These are what verify shifts traffic
+      # back to if anything downstream fails, and what makes rollback a traffic weight
+      # change rather than a redeploy (spec section 5 check 14).
+      - name: Record the revision currently serving traffic
+        id: previous
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          for app in app web keycloak; do
+            name="ca-infinevo-${ENV}-${app}"
+            prev=$(az containerapp show -g "$rg" -n "$name" \
+              --query "properties.configuration.ingress.traffic[?weight>\`0\`].revisionName | [0]" -o tsv)
+            if [ -z "$prev" ] || [ "$prev" = "null" ]; then
+              # latestRevision:true traffic entries carry no revisionName. Fall back to
+              # the newest active revision, which is what latestRevision resolves to.
+              prev=$(az containerapp revision list -g "$rg" -n "$name" \
+                --query "[?properties.active] | sort_by(@, &properties.createdTime) | [-1].name" -o tsv)
+            fi
+            if [ -z "$prev" ]; then
+              echo "::error::${name} has no active revision - cannot establish a rollback target"
+              exit 1
+            fi
+            echo "prev_${app}=${prev}" >> "$GITHUB_OUTPUT"
+            echo "${name}: currently serving ${prev}"
+          done
+
+      # --set-env-vars MERGES. --replace-env-vars would delete the secret-backed
+      # variables W-56 writes into containerapps.bicep, so it is not used here even
+      # though the previous attempt used it. The pipeline owns image, revision suffix
+      # and traffic; Bicep and W-56 own everything else (spec section 7, last row).
+      #
+      # The variable names below are the container contract, verified against the
+      # entrypoints:
+      #   INFINEVO_ROLE=app|worker                   infra/docker/backend-entrypoint.sh:12-33
+      #   API_BASE_URL, KEYCLOAK_URL,
+      #   KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID          infra/docker/frontend-entrypoint.sh:29-32
+      #   realm infinevo, client infinevo-web         infra/docker/keycloak/dev-realm.json:2,31
+      # and the paths against the Front Door routes: /api/* -> app, /auth/* -> keycloak
+      # (infra/azure/modules/frontdoor.bicep:348,378).
+      - name: Create the new revisions at 0% traffic
+        env:
+          FD_HOST: ${{ steps.infra.outputs.fd_host }}
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          backend="${ACR_LOGIN_SERVER}/infinevo-backend:${IMAGE_TAG}"
+
+          az containerapp update -g "$rg" -n "ca-infinevo-${ENV}-app" \
+            --image "$backend" --container-name app \
+            --set-env-vars "INFINEVO_ROLE=app" \
+            --revision-suffix "$SUFFIX" --output none
+          echo "app      -> ${backend}"
+
+          # The worker has no ingress and stays activeRevisionsMode Single, so its new
+          # revision takes over as soon as it is created. There is no traffic to shift
+          # and nothing to roll back by weight; a bad worker revision is rolled back by
+          # re-running this pipeline on the previous commit. Stated, not hidden.
+          az containerapp update -g "$rg" -n "ca-infinevo-${ENV}-worker" \
+            --image "$backend" --container-name worker \
+            --set-env-vars "INFINEVO_ROLE=worker" \
+            --revision-suffix "$SUFFIX" --output none
+          echo "worker   -> ${backend}"
+
+          az containerapp update -g "$rg" -n "ca-infinevo-${ENV}-web" \
+            --image "${ACR_LOGIN_SERVER}/infinevo-frontend:${IMAGE_TAG}" --container-name web \
+            --set-env-vars \
+              "API_BASE_URL=https://${FD_HOST}/api" \
+              "KEYCLOAK_URL=https://${FD_HOST}/auth" \
+            --revision-suffix "$SUFFIX" --output none
+          # No KEYCLOAK_REALM and no KEYCLOAK_CLIENT_ID here, deliberately. `infinevo` and
+          # `infinevo-web` are the LOCAL realm's names, from infra/docker/keycloak/dev-realm.json,
+          # whose own README says those credentials must never reach a deployed environment.
+          # The deployed Keycloak image bakes no realm at all - W-10 supplies the real one.
+          # infra/docker/frontend-entrypoint.sh:24-28 removed exactly this fallback so that a
+          # missing value renders visibly empty instead of silently pointing at a realm that
+          # does not exist; setting them here would put the fallback back one layer up.
+          # Nothing reads them yet, so this is green either way today. W-10 sets them.
+          echo "web      -> ${ACR_LOGIN_SERVER}/infinevo-frontend:${IMAGE_TAG}"
+
+          # Keycloak 25.0 (infra/docker/keycloak.Dockerfile:24,49), hostname v1, which is
+          # the default on 25.x: KC_HOSTNAME takes a BARE HOSTNAME there, not a URL. The
+          # previous attempt passed https://<host> - review finding F-21. KC_HTTP_ENABLED,
+          # KC_PROXY_HEADERS, KC_HEALTH_ENABLED and KC_DB are baked into the image
+          # (keycloak.Dockerfile:53-56) and are not repeated here.
+          #
+          # KC_HTTP_RELATIVE_PATH is NOT set here, and must not be - review finding F-6.
+          # Front Door routes /auth/* to this app (frontdoor.bicep:378), so Keycloak does
+          # have to believe it lives under /auth, but the relative path is a Keycloak
+          # BUILD-time option. It is baked into the image instead:
+          # infra/docker/keycloak.Dockerfile:47 sets ENV KC_HTTP_RELATIVE_PATH=/auth in
+          # the builder stage, :69 runs `kc.sh build` to persist it, and :97 starts with
+          # `--optimized`, which reads build-time options only from what that build
+          # persisted and ignores the environment. Setting it here would look like a fix
+          # and do nothing. The pipeline sets only the runtime options below.
+          az containerapp update -g "$rg" -n "ca-infinevo-${ENV}-keycloak" \
+            --image "${ACR_LOGIN_SERVER}/infinevo-keycloak:${IMAGE_TAG}" --container-name keycloak \
+            --set-env-vars \
+              "KC_HOSTNAME=${FD_HOST}" \
+              "KC_HOSTNAME_STRICT_HTTPS=true" \
+            --revision-suffix "$SUFFIX" --output none
+          echo "keycloak -> ${ACR_LOGIN_SERVER}/infinevo-keycloak:${IMAGE_TAG}"
+
+      # Belt and braces. Under activeRevisionsMode Multiple a new revision takes 0%
+      # by default, but a traffic block written as latestRevision:true would send it
+      # 100% the instant it is created, which is the health gate bypassed. Pinning both
+      # weights by name makes the 0% true regardless of how Bicep wrote the block.
+      - name: Hold traffic on the previous revision
+        env:
+          PREV_APP: ${{ steps.previous.outputs.prev_app }}
+          PREV_WEB: ${{ steps.previous.outputs.prev_web }}
+          PREV_KEYCLOAK: ${{ steps.previous.outputs.prev_keycloak }}
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          for app in app web keycloak; do
+            name="ca-infinevo-${ENV}-${app}"
+            case "$app" in
+              app)      prev="$PREV_APP" ;;
+              web)      prev="$PREV_WEB" ;;
+              keycloak) prev="$PREV_KEYCLOAK" ;;
+            esac
+            new="${name}--${SUFFIX}"
+            if [ "$prev" = "$new" ]; then
+              echo "::error::${name}: the new revision ${new} is also the previous one - the revision suffix is not unique"
+              exit 1
+            fi
+            az containerapp ingress traffic set -g "$rg" -n "$name" \
+              --revision-weight "${prev}=100" "${new}=0" --output none
+            echo "${name}: ${prev}=100  ${new}=0"
+          done
+
+  # ── health: poll THE NEW REVISION by name ────────────────────────────────────
+  # Review finding F-11: the previous attempt read properties.runningStatus and
+  # template.containers[0].image off the APP. Both report the app, not the revision,
+  # so a crash-looping new revision left the app "Running" and the run green. Every
+  # query below names the revision.
+  health:
+    name: health
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [gate, release]
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENV: ${{ needs.gate.outputs.environment }}
+      SUFFIX: ${{ needs.gate.outputs.rev_suffix }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Review finding F-11. runningState and healthState are CONTROL-PLANE fields: they
+      # describe what Azure thinks of the revision, and a revision that has never had a
+      # replica scheduled can report Running with healthState None. dev sets
+      # containerAppMinReplicas: 0 (infra/azure/parameters/dev.bicepparam:21) and the new
+      # revision holds 0% traffic until the shift job, so nothing forces a replica to
+      # exist. The round-1 gate could therefore pass with no container ever having run.
+      #
+      # So the bar is now a REPLICA that actually started: `az containerapp replica list`
+      # for the revision by name, with at least one replica whose containers report
+      # ready/Running.
+      #
+      # SCALE-TO-ZERO, handled explicitly. Container Apps schedules a replica when a
+      # revision is provisioned, then scales it away again after the cooldown because
+      # minReplicas is 0 and no traffic is arriving. That window is what this gate
+      # observes. Two consequences, both deliberate:
+      #   - `seen_ready` is STICKY. Once a ready replica has been observed the revision is
+      #     proved to start, and a later drop to zero replicas is scale-to-zero doing its
+      #     job, not a regression. Requiring a replica to still be there at the end would
+      #     make the gate a race against the cooldown.
+      #   - Zero replicas for the WHOLE deadline is a hard failure, with its own message.
+      #     That is the F-11 case: nothing ever ran.
+      # Neither the pipeline nor this job changes minReplicas - that is a Bicep-owned
+      # property (spec section 7, last row).
+      - name: Poll each new revision until a replica is running
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          failed=0
+
+          for app in app worker web keycloak; do
+            name="ca-infinevo-${ENV}-${app}"
+            rev="${name}--${SUFFIX}"
+            confirming=0
+            seen_replica=0
+            seen_ready=0
+            # Review finding F-17: the deadline is per app. One deadline computed before
+            # the loop let a slow first app eat the whole budget and fail the other three
+            # without ever polling them.
+            deadline=$(( $(date +%s) + 900 ))
+            echo "Waiting on ${rev}"
+            while :; do
+              if ! running=$(az containerapp revision show -g "$rg" -n "$name" \
+                    --revision "$rev" --query "properties.runningState" -o tsv); then
+                running=''
+              fi
+              if ! healthy=$(az containerapp revision show -g "$rg" -n "$name" \
+                    --revision "$rev" --query "properties.healthState" -o tsv); then
+                healthy=''
+              fi
+
+              # The data-plane sample. A CLI error leaves both counts empty rather than
+              # zero, so a transient failure is never read as "no replica".
+              if ! replicas=$(az containerapp replica list -g "$rg" -n "$name" \
+                    --revision "$rev" --query "length(@)" -o tsv); then
+                replicas=''
+              fi
+              if ! ready=$(az containerapp replica list -g "$rg" -n "$name" \
+                    --revision "$rev" \
+                    --query "length([?properties.containers[?ready==\`true\` || runningState=='Running']])" \
+                    -o tsv); then
+                ready=''
+              fi
+              case "$replicas" in ''|0) ;; *) seen_replica=1 ;; esac
+              case "$ready"    in ''|0) ;; *) seen_ready=1 ;; esac
+
+              # Failed and Degraded are terminal. A crash-looping container reaches one
+              # of them, and waiting out the deadline on a verdict already delivered
+              # only delays the red run - spec section 4 break 2.
+              case "$running" in
+                Failed|Degraded)
+                  echo "::error::${rev} runningState=${running} healthState=${healthy:-unknown} replicas=${replicas:-unknown} - traffic stays on the previous revision"
+                  failed=1
+                  break
+                  ;;
+              esac
+
+              # healthState is None on a revision with no ingress probe - the worker has
+              # none at all. Running, a healthState that is not Unhealthy, AND a replica
+              # that was seen ready is the bar.
+              #
+              # Confirmed twice, 30 seconds apart. A crash-looping container passes
+              # through Running on its way round the loop, and a single sample taken at
+              # that moment would call a revision healthy that is about to restart.
+              if [ "$running" = "Running" ] && [ "$healthy" != "Unhealthy" ] && [ "$seen_ready" = "1" ]; then
+                if [ "$confirming" = "1" ]; then
+                  echo "  OK - ${rev} runningState=Running healthState=${healthy:-None}, a replica started and stayed up over 30s"
+                  break
+                fi
+                echo "  ${rev} is Running with a ready replica - confirming in 30s"
+                confirming=1
+                sleep 30
+                continue
+              fi
+              confirming=0
+
+              if [ "$(date +%s)" -gt "$deadline" ]; then
+                if [ "$seen_replica" = "0" ]; then
+                  echo "::error::${rev} never had a replica scheduled within 15 minutes (runningState=${running:-unknown} healthState=${healthy:-unknown}). The control plane alone cannot prove a container ran: minReplicas is 0 in dev and the new revision holds 0% traffic, so check the revision's provisioning state and image pull."
+                else
+                  echo "::error::${rev} had ${replicas:-0} replica(s) but none became ready within 15 minutes (runningState=${running:-unknown} healthState=${healthy:-unknown})"
+                fi
+                failed=1
+                break
+              fi
+              echo "  runningState=${running:-pending} healthState=${healthy:-pending} replicas=${replicas:-pending} ready=${ready:-pending}"
+              sleep 15
+            done
+          done
+
+          # Every revision is reported before the job fails: which ones came up is what
+          # you need in order to read the failure.
+          exit "$failed"
+
+  # ── shift: traffic moves only now, and only because health passed ────────────
+  # Spec section 5 check 8 parses this file and asserts the health job is in `needs`.
+  shift:
+    name: shift
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [gate, release, health]
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENV: ${{ needs.gate.outputs.environment }}
+      SUFFIX: ${{ needs.gate.outputs.rev_suffix }}
+      PREV_APP: ${{ needs.release.outputs.prev_app }}
+      PREV_WEB: ${{ needs.release.outputs.prev_web }}
+      PREV_KEYCLOAK: ${{ needs.release.outputs.prev_keycloak }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # The worker is absent on purpose: no ingress, so no traffic block exists on it.
+      #
+      # Review finding F-10: BOTH weights are passed. `ingress traffic set` updates only
+      # the revisions named on the command line and leaves every other entry as it is, so
+      # sending new=100 while the release job's hold step still has prev=100 leaves the
+      # block summing to 200 - undefined, and in practice a split. The previous revision
+      # is explicitly driven to 0 in the same call, which is atomic.
+      - name: Move all traffic to the new revision
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          for app in app web keycloak; do
+            name="ca-infinevo-${ENV}-${app}"
+            rev="${name}--${SUFFIX}"
+            case "$app" in
+              app)      prev="$PREV_APP" ;;
+              web)      prev="$PREV_WEB" ;;
+              keycloak) prev="$PREV_KEYCLOAK" ;;
+            esac
+            if [ -z "$prev" ]; then
+              echo "::error::${name}: no previous revision was carried from the release job - refusing to set a weight that would leave traffic split"
+              exit 1
+            fi
+            az containerapp ingress traffic set -g "$rg" -n "$name" \
+              --revision-weight "${rev}=100" "${prev}=0" --output none
+            echo "${name}: ${rev}=100  ${prev}=0"
+          done
+
+      # Review finding F-12. `verify` needs `shift`, so a shift that fails after moving
+      # one or two of the three apps would never reach verify's rollback and would leave
+      # traffic split across two releases. This step runs on any failure of this job -
+      # including a partial loop above - and returns all three apps to the previous
+      # revision, naming both weights for the same reason as the step above.
+      #
+      # It is unconditional over the three apps rather than tracking which ones moved:
+      # setting prev=100 on an app that never moved is a no-op, and a no-op is cheaper
+      # than the bookkeeping being wrong.
+      - name: Roll traffic back - the shift did not complete
+        if: failure()
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          failed=0
+          for app in app web keycloak; do
+            name="ca-infinevo-${ENV}-${app}"
+            rev="${name}--${SUFFIX}"
+            case "$app" in
+              app)      prev="$PREV_APP" ;;
+              web)      prev="$PREV_WEB" ;;
+              keycloak) prev="$PREV_KEYCLOAK" ;;
+            esac
+            if [ -z "$prev" ]; then
+              echo "::error::${name}: no previous revision was recorded - roll back by hand"
+              failed=1
+              continue
+            fi
+            # Every app is attempted even if one call fails: leaving the remaining apps
+            # split because the first rollback errored is the failure this step exists
+            # to prevent.
+            if ! az containerapp ingress traffic set -g "$rg" -n "$name" \
+                   --revision-weight "${prev}=100" "${rev}=0" --output none; then
+              echo "::error::${name}: rollback to ${prev} FAILED - traffic may be split, roll back by hand"
+              failed=1
+              continue
+            fi
+            echo "${name}: rolled back to ${prev}"
+          done
+          if [ "$failed" = "1" ]; then
+            echo "::error::the traffic shift did not complete AND the rollback was incomplete - check the traffic block on all three apps by hand"
+          else
+            echo "::error::the traffic shift did not complete - traffic was returned to the previous revisions"
+          fi
+          # Always red: this step only ever runs because the job already failed.
+          exit 1
+
+  # ── verify: assert, and shift back if the assertion fails ────────────────────
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [gate, release, health, shift]
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENV: ${{ needs.gate.outputs.environment }}
+      IMAGE_TAG: ${{ needs.gate.outputs.image_tag }}
+      SUFFIX: ${{ needs.gate.outputs.rev_suffix }}
+      FD_HOST: ${{ needs.release.outputs.fd_host }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Three assertions per app, all against the revision by name, all hard failures.
+      # The previous attempt warned on a tag mismatch and passed - review finding F-11.
+      - name: The new revision is the one serving, on the expected image
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          failed=0
+
+          check() {
+            label="$1"; expected="$2"; actual="$3"
+            if [ "$expected" = "$actual" ]; then
+              echo "  OK   ${label}: ${actual}"
+            else
+              echo "::error::${label}: expected ${expected}, got ${actual:-<empty>}"
+              failed=1
+            fi
+          }
+
+          for app in app worker web keycloak; do
+            name="ca-infinevo-${ENV}-${app}"
+            rev="${name}--${SUFFIX}"
+            case "$app" in
+              app|worker) repo='infinevo-backend' ;;
+              web)        repo='infinevo-frontend' ;;
+              keycloak)   repo='infinevo-keycloak' ;;
+            esac
+            echo "${name}"
+
+            image=$(az containerapp revision show -g "$rg" -n "$name" --revision "$rev" \
+              --query "properties.template.containers[0].image" -o tsv)
+            check "${app} image" "${ACR_LOGIN_SERVER}/${repo}:${IMAGE_TAG}" "$image"
+
+            active=$(az containerapp revision show -g "$rg" -n "$name" --revision "$rev" \
+              --query "properties.active" -o tsv)
+            check "${app} active" 'true' "$active"
+
+            if [ "$app" != "worker" ]; then
+              # The name is asserted through the traffic block, not read back from the
+              # revision: this proves the revision serving 100% is the new one, which
+              # reading its own name never could.
+              serving=$(az containerapp show -g "$rg" -n "$name" \
+                --query "properties.configuration.ingress.traffic[?weight==\`100\`].revisionName | [0]" -o tsv)
+              check "${app} serving revision" "$rev" "$serving"
+
+              weight=$(az containerapp revision show -g "$rg" -n "$name" --revision "$rev" \
+                --query "properties.trafficWeight" -o tsv)
+              check "${app} traffic weight" '100' "$weight"
+            fi
+          done
+          exit "$failed"
+
+      - name: The site answers through Front Door
+        run: |
+          set -euo pipefail
+          if [ -z "$FD_HOST" ]; then
+            echo "::error::no Front Door hostname was carried from the release job"
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            --max-time 30 --retry 5 --retry-delay 10 --retry-all-errors \
+            "https://${FD_HOST}/")
+          if [ "$code" != "200" ]; then
+            echo "::error::https://${FD_HOST}/ returned ${code}, expected 200"
+            exit 1
+          fi
+          echo "OK - https://${FD_HOST}/ returned 200"
+
+      # Rollback is a traffic weight change and nothing else, which is the whole reason
+      # the three ingress apps run activeRevisionsMode Multiple. Under Single this step
+      # could not exist - review finding F-9, where the printed command was a revision
+      # activate against an app that had no traffic block at all.
+      #
+      # WATCH (spec section 7, row 1): this returns the previous CODE to the CURRENT
+      # SCHEMA. It is safe only while the last migration was additive. A destructive
+      # migration makes rollback a forward fix, not this step.
+      #
+      # Review finding F-10, mirrored: both weights are named. The shift job left the new
+      # revision at 100 and the previous at 0; setting prev=100 alone would sum to 200 and
+      # leave traffic split between two releases, which is the state a rollback exists to
+      # get out of.
+      - name: Roll traffic back
+        if: failure()
+        env:
+          PREV_APP: ${{ needs.release.outputs.prev_app }}
+          PREV_WEB: ${{ needs.release.outputs.prev_web }}
+          PREV_KEYCLOAK: ${{ needs.release.outputs.prev_keycloak }}
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          failed=0
+          for app in app web keycloak; do
+            name="ca-infinevo-${ENV}-${app}"
+            new="${name}--${SUFFIX}"
+            case "$app" in
+              app)      prev="$PREV_APP" ;;
+              web)      prev="$PREV_WEB" ;;
+              keycloak) prev="$PREV_KEYCLOAK" ;;
+            esac
+            if [ -z "$prev" ]; then
+              echo "::error::${name}: no previous revision was recorded - roll back by hand"
+              failed=1
+              continue
+            fi
+            # Every app is attempted: stopping at the first error would leave the rest
+            # serving the new revision, which is traffic split across two releases.
+            if ! az containerapp ingress traffic set -g "$rg" -n "$name" \
+                   --revision-weight "${prev}=100" "${new}=0" --output none; then
+              echo "::error::${name}: rollback to ${prev} FAILED - roll back by hand"
+              failed=1
+              continue
+            fi
+            echo "${name}: rolled back to ${prev}"
+          done
+          if [ "$failed" = "1" ]; then
+            echo "::error::verification failed AND the rollback was incomplete - check the traffic block on all three apps by hand"
+            exit 1
+          fi
+          echo "::error::verification failed - traffic is back on the previous revision"
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Deploy ${ENV} @ ${IMAGE_TAG}"
+            echo ''
+            echo "| App | Revision | Image |"
+            echo "|---|---|---|"
+            for app in app worker web keycloak; do
+              case "$app" in
+                app|worker) repo='infinevo-backend' ;;
+                web)        repo='infinevo-frontend' ;;
+                keycloak)   repo='infinevo-keycloak' ;;
+              esac
+              echo "| ${app} | ca-infinevo-${ENV}-${app}--${SUFFIX} | ${repo}:${IMAGE_TAG} |"
+            done
+            echo ''
+            echo "Rollback: \`az containerapp ingress traffic set -g rg-infinevo-${ENV} -n ca-infinevo-${ENV}-app --revision-weight <previous>=100\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -25,8 +25,8 @@ failure mode that costs a rewrite.
    line and the code line. Do **not** edit the doc — that is `sync-docs`.
 6. If a new defect surfaces that is not in `GAP_INVENTORY.md`, add a "Proposed GAP entry"
    block (next free ID, category BUG/DEBT, evidence) to the report.
-7. Reply with the summary below.
-8. **STOP.** No follow-on work without a new instruction.
+7. Reply with the summary below. If the answer makes the next step obvious, say what it
+   is — do not start it without being asked.
 
 ---
 
@@ -52,7 +52,7 @@ The catch:       <the one thing that will bite - a load-bearing typo, a shared t
 Doc drift: <doc + line, or "none">
 Proposed GAP entries: <or "none">
 Full report: .claude/outputs/<date>-analyze-<slug>.md
-Next: /plan-feature W-nn  (or /infra-task W-nn for platform work)
+Next: /plan-feature W-nn
 ```
 
 **Six lines of plain English, then the evidence.** Somebody who reads only the top must

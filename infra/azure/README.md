@@ -79,8 +79,21 @@ bash infra/azure/deploy.sh --env dev
 ```
 `deploy.sh` will:
 - Auto-generate a secure password for `infinevo_admin` and store it in Key Vault (`psql-admin-pw`).
+- Read every Container App's current image and its 100%-traffic revision, and pass both
+  into `main.bicep`, so an infrastructure-only run leaves the running release untouched
+  (W-54 finding F-1). It stops if any app has no revision holding the whole weight.
 - Execute `main.bicep` deployment with parameters from `dev.bicepparam`.
-- Import a smoke container image into `crinfinevo` (`az acr import`) and repoint `ca-infinevo-dev-app` to test private `AcrPull`.
+- Import a smoke container image into `crinfinevo` (`az acr import`) and repoint
+  `ca-infinevo-dev-app` to test private `AcrPull` — **skipped** when the app already runs
+  an image from `crinfinevo`, because overwriting it would revert a release.
+
+To deploy a release from this script rather than from the pipeline, add the tag:
+```bash
+bash infra/azure/deploy.sh --env dev --image-tag git-1a2b3c4
+```
+That sets all four apps, `caj-db-migration-dev` and `caj-flyway-dev` to the one tag. The
+traffic weights still do not move; `deploy.yml`'s shift job is what moves them, after the
+health gate.
 
 ### 4.2 Database Bootstrap
 Once the cloud resources exist, run:

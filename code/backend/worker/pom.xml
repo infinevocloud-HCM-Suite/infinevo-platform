@@ -37,41 +37,6 @@
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
     </dependency>
-    <!-- W-52: ShedLock and Azure Storage Queue -->
-    <dependency>
-      <groupId>net.javacrumbs.shedlock</groupId>
-      <artifactId>shedlock-spring</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>net.javacrumbs.shedlock</groupId>
-      <artifactId>shedlock-provider-jdbc-template</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.azure</groupId>
-      <artifactId>azure-storage-queue</artifactId>
-    </dependency>
-    <!-- W-04: Test dependencies -->
-    <dependency>
-      <groupId>com.infinevo</groupId>
-      <artifactId>shared</artifactId>
-      <type>test-jar</type>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>testcontainers</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>postgresql</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 
   <build>
