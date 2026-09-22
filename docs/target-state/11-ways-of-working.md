@@ -27,7 +27,11 @@ tickets finish neither. The board should show one in-progress item per person.
 
 ## 2. The developer loop
 
-Seven steps. The same for every ticket, from the repository skeleton to the cutover.
+Six steps. The same for every ticket, from the repository skeleton to the cutover, and
+the same for a feature as for platform work.
+
+**Two of them wait for you: you approve the spec, and you merge the branch.** Nothing
+else stops.
 
 ### 1 — Read before writing
 Day one for anyone new, in this order:
@@ -68,22 +72,30 @@ The six standing rules, which are not negotiable per ticket:
 | 5 | `BigDecimal` for money. Never a floating-point type |
 | 6 | No module may reference another module. Only Core |
 
-Rules 2, 3 and 6 get enforced by the build once `W-07`, `W-57` and `W-01` exist. Until then
-they are checked by review, and they are the three most likely to slip under pressure.
+Rules 2, 4, 5 and 6 are enforced now — by CI and the done check, and by `maven-enforcer`
+for rule 6. Rule 3 waits on `W-57`; until then it is the one most likely to slip under
+pressure, because nothing refuses it.
 
-### 5 — Self-verify before asking for review
-Compile, lint, tests, all green locally. A pull request that fails the pipeline wastes a
-reviewer's slot, which for a part-time team is the scarcest thing you have.
+### 5 — Check it and fix it in the same pass
+Compile, lint and tests run as part of the build, not after it, and **a defect found is
+fixed in the commit that caused it.** No finding numbers, no report files, no rounds.
 
-### 6 — Pull request, reviewed against the spec
-The pull request links its ticket and its spec. **The reviewer checks it against the spec's
-acceptance criteria**, not against personal taste. Disagreements about approach belong at
-step 3, not here.
+This replaced three separate checking steps that could only write reports and a fourth
+that read them back and fixed. Each round's fixes produced the next round's findings:
+`W-08` ran three rounds and still merged with 13 findings open.
 
-### 7 — Merge, deploy, close
-Merge runs the pipeline and deploys to the development environment automatically. The ticket
-closes when evidence is attached: the commands run and their output. Not when someone says it
-works.
+### 6 — Merge, close
+**There is no pull request.** The branch is squashed onto `main` locally and pushed, and
+everything a pull request used to prove — what changed, that CI was green for it — the
+done check in §3 proves from the branch itself.
+
+Merge runs seven machine gates, then **one independent read** against the spec's
+acceptance criteria — the only one in the process, by an agent with no edit tools. It is
+there because running things is not the same as reading them: `W-02` passed 23 of 23
+tests while the Keycloak admin login it documented returned 401.
+
+The ticket closes when evidence is attached: the commands run and their output. Not when
+someone says it works. Disagreements about approach belong at step 3, not here.
 
 ---
 
@@ -103,6 +115,12 @@ No ticket closes without all six.
 > Item 6 matters more than it looks. A spec that drifts from the code is worse than no spec,
 > because the next person trusts it.
 
+Items 1, 3 and 4 are machine-checked at merge. `.claude/scripts/check-done.mjs` is the
+executable form of this table — seven gates, a receipt written only when every one passes
+— and the `guard-merge` hook refuses the push without that receipt. **Do not work around
+a failing gate.** A gate that is wrong gets fixed in the open, with a reason, never
+stepped around.
+
 ---
 
 ## 4. What the founder does
@@ -111,8 +129,8 @@ Four things, and deliberately not more.
 
 | What | When | Why it is yours |
 |---|---|---|
-| **Approve specs** | As they arrive | The only gate. Catches wrong approaches before they cost a week |
-| **Review pull requests** | As they arrive | Or delegate, once the conventions are visibly holding |
+| **Approve specs** | As they arrive | The gate before code. Catches wrong approaches before they cost a week |
+| **Merge to `main`** | When a branch passes its gates | The second and last gate. Developers stay on side branches |
 | **Unblock dependencies** | Weekly board review | Only you can decide what gets sequenced ahead of what |
 | **Answer product questions** | On demand | Developers will hit things the design did not settle |
 
@@ -125,7 +143,7 @@ scoping sheet handles the first two and the pipeline handles the third.
 
 | Rhythm | What happens |
 |---|---|
-| **Per ticket** | Spec → your approval → build → review → merge |
+| **Per ticket** | Spec → your approval → build → your merge |
 | **Weekly** | Board review: what closed, what is blocked, what opens next |
 | **Per wave** | A wave closes; check what the next one unlocks and who is free |
 
@@ -141,11 +159,14 @@ If your developers use Claude Code, the harness already does part of this for th
 | Harness piece | What it does for a developer |
 |---|---|
 | `guard-edit` hook | Blocks edits to `docs/` and configuration files. They cannot accidentally change a doc mid-feature |
-| `verify-app` hook | Compiles or lints the affected app automatically after every edit, and reports back |
-| `plan-feature` skill | Drafts the step-2 spec from the current state, and **stops before writing code** |
+| `guard-merge` hook | Refuses a push to `main` carrying `code/` outside the merge skill |
+| `verify-app` hook | Lints the frontend after an edit there. The backend compiles in the build, not after every keystroke |
+| `plan-feature` skill | Drafts the step-2 spec from the current state, and **stops before writing code**. Covers platform tickets too |
+| `develop` skill | Builds one approved ticket, runs its own checks, fixes what it finds, pushes the branch. One pass |
+| `merge` skill | Seven gates, one independent read, then the squash onto `main`. The only route code takes there |
 | `explorer` agent | Answers "where is this" with cited evidence, instead of guessing |
 | `implementer` agent | Confined to one app folder, and required to add tests |
-| `verifier` agent | Runs the build and tests independently and reports evidence. Has no edit tools, so it cannot quietly fix what it finds |
+| `reviewer` agent | The one independent read, at merge. Has no edit tools, so it cannot quietly fix what it finds |
 
 **Recommendation:** have developers use it. The value is not speed, it is that the rules in
 §2 step 4 are enforced by the tooling rather than by memory. A part-time developer returning
