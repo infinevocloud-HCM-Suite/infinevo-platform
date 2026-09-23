@@ -52,11 +52,19 @@ starts at all.
 > variables; `Azure Infrastructure CI` fails because no federated identity record matches
 > `refs/heads/main`. Both are missing Azure configuration, not code, and both block #129.
 
-Outstanding from the review, recorded rather than fixed: Keycloak and Brevo rotation are not
-implemented and now refuse instead of returning success; `SECRET_ROTATION.md` promises a
-90-day cadence for four secrets no script rotates; secret references are unversioned while
-§8.1 tells an operator to revert to a version GUID that does not exist; `id-web-dev` holds
-Key Vault read access the spec says it should not.
+**Rotation was removed entirely on 2026-09-23 (spec revision 6).** `rotate-secrets.sh` and
+`SECRET_ROTATION.md` are deleted. The review found the script promised more than it did —
+`--postgres-url` was ignored, two targets returned success having rotated nothing, and the
+runbook gave a cadence to four secrets no code touched. A documented procedure that is not
+real is worse than none.
+
+> **There is now no rotation procedure at all.** Rotating a leaked secret means changing the
+> database and Key Vault by hand and restarting the revisions, with nothing written down.
+> That is the largest open gap in `W-56` and belongs to `W-64` or the first incident.
+
+Also outstanding: secret references are unversioned while §8.1 tells an operator to revert to
+a version GUID that does not exist; `id-web-dev` holds Key Vault read access the spec says it
+should not.
 
 ---
 

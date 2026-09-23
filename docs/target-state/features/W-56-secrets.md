@@ -36,7 +36,7 @@ Vault, containers reading them, nothing committed. Zero-downtime rotation is not
 | `app_user_a` / `app_user_b` alternating login roles | One `app_user`, still `LOGIN`, exactly as `W-05` created it |
 | `psql-app-active-role` Key Vault pointer | Nothing. There is no active role to track |
 | `psql-app-pw-a` / `psql-app-pw-b` | `psql-app-pw`, which is **no longer retired** |
-| Ten-step zero-downtime rotation in `rotate-secrets.sh` | Set the new password, update Key Vault, restart the revision. A short window, documented |
+| Ten-step zero-downtime rotation | **Cut entirely on 2026-09-23** — no rotation script, no runbook. See §0a |
 | The `app_user` → `NOLOGIN` change and the five login sites that moved with it | No change. `compose.yml`, `application-local.yml`, `post-deploy-db.sh` and `PostgresTestContainerInitializer` all stay on `app_user` |
 
 **What this ticket still delivers, unchanged:** the Key Vault secret catalogue, Container
@@ -111,13 +111,13 @@ Per `09-build-order.md:279` (*"Watch: rotate the current Keycloak administrative
 1. **Key Vault Canonical Secret Inventory & Password Ownership:**
    - Formalise and populate the complete platform secret catalog in `kv-infinevo-shared`:
      - `psql-admin-pw`: PostgreSQL Flexible Server administrator password (`infinevo_admin`). Owned by `deploy.sh`.
-     - `psql-app-pw`: PostgreSQL password for `app_user`. Seeded by `deploy.sh`, rotated by `rotate-secrets.sh`.
-     - `psql-worker-pw`: PostgreSQL password for `worker_user`. Seeded by `deploy.sh`, rotated by `rotate-secrets.sh`.
+     - `psql-app-pw`: PostgreSQL password for `app_user`. Seeded by `deploy.sh`. **Rotation is manual and undocumented** — see §0a.
+     - `psql-worker-pw`: PostgreSQL password for `worker_user`. Seeded by `deploy.sh`. **Rotation is manual and undocumented** — see §0a.
      - `psql-migration-pw`: PostgreSQL password for `migration_user`. Owned by `deploy.sh`.
      - `psql-readonly-pw`: PostgreSQL password for `readonly_user`. Owned by `deploy.sh`.
      - `psql-keycloak-pw`: PostgreSQL password for Keycloak database user (`keycloak_user`). Owned by `deploy.sh`.
      - `keycloak-admin-pw`: Keycloak target-state bootstrap administrative password. Seeded by `deploy.sh`.
-     - `keycloak-client-secret`: Keycloak OAuth2 client secret for `infinevo-platform`. Seeded by `deploy.sh`, rotated by `rotate-secrets.sh`.
+     - `keycloak-client-secret`: Keycloak OAuth2 client secret for `infinevo-platform`. Seeded by `deploy.sh`. **Rotation is manual and undocumented** — see §0a.
      - `brevo-api-key`: Placeholder secret for Brevo transactional email delivery (`CORE-12`). Consumer arrives in `W-20`.
      - `jwt-signing-secret`: Placeholder secret used for signing internal tokens and session cookies. Consumer arrives in `W-57`.
    - **Ten secrets. `psql-app-pw` is kept, not retired** (rev 5, §0).
@@ -132,15 +132,7 @@ Per `09-build-order.md:279` (*"Watch: rotate the current Keycloak administrative
      - `ca-infinevo-{env}-keycloak`: references `psql-keycloak-pw`, `keycloak-admin-pw`.
      - `ca-infinevo-{env}-web`: **Zero secrets.** Frontend SPA (`nginx-unprivileged:alpine` on port 8080 per `D-49`) executes in client browsers and must never receive or hold backend secrets. Its runtime configuration is public and injected into `env.js` at container start. `id-web-{env}` requires `AcrPull` on `crinfinevo` for image pulling, but has zero entries in `configuration.secrets` and requires no `Key Vault Secrets User` role.
    - Map secret references to container environment variables (`DB_PASSWORD`, `KEYCLOAK_CLIENT_SECRET`, etc.).
-4. **Windowed Secret Rotation (`rotate-secrets.sh`):**
-   - Provide an idempotent bash script `infra/azure/rotate-secrets.sh` that rotates, in a short announced window:
-     - PostgreSQL role passwords — `ALTER ROLE … WITH PASSWORD`, write to Key Vault, restart the revision. Connections drop once; the container comes back on the new password.
-     - Keycloak client secret — Keycloak holds two secrets during the swap, so this one is genuinely zero-downtime at no extra cost and stays as written.
-     - Third-party API keys (Brevo) — Brevo allows multiple live keys, same reasoning.
-   - Under `D-53` (`defaultAction: 'Deny'`), `rotate-secrets.sh` automatically adds its own `/32` egress IP rule to Key Vault and revokes it on every catchable exit path (matching `deploy.sh:95-133`).
-5. **Secret Rotation Runbook (`infra/azure/docs/SECRET_ROTATION.md`):**
-   - Step-by-step operational runbook: emergency rotation, planned quarterly rotation, the expected outage window per secret, and rollback steps.
-6. **Repository-Wide Secret Elimination & Multi-Path Sweep:**
+4. **Repository-Wide Secret Elimination & Multi-Path Sweep:**
    - Scan across all repository directories (`code/backend/`, `code/frontend/src/`, `infra/azure/parameters/`, `.github/workflows/`, and root `.env*`) ensuring zero live credentials exist in committed files.
 
 ### Out of Scope
@@ -232,8 +224,6 @@ Per `09-build-order.md:279` (*"Watch: rotate the current Keycloak administrative
 | `code/backend/app/src/main/resources/application-local.yml` | **Unchanged** | `:13-14` default to `app_user` / `local_app_pw` and stay there. Listed so the revision-4 entry is not re-applied. |
 | `code/backend/shared/.../PostgresTestContainerInitializer.java` | Modified | Gains `worker_pw` in its variable map. JDBC has no `:'name'` substitution, so every psql variable `01-roles.sql` uses must be declared here too — the rev-4 lesson, which still holds. |
 | `infra/azure/modules/containerapps.bicep` | Modified | Wires `configuration.secrets` to Key Vault URLs using container UAMIs, injecting `DB_PASSWORD`, `KEYCLOAK_CLIENT_SECRET`, etc. into container `env`. Explicitly sets `secrets: []` on `web`. |
-| `infra/azure/rotate-secrets.sh` | NEW | Idempotent CLI script: windowed rotation for Postgres role passwords, and zero-downtime rotation for Keycloak client secrets and third-party API keys where the provider supports two live values. Includes Key Vault transient IP rule handling under `D-53`. |
-| `infra/azure/docs/SECRET_ROTATION.md` | NEW | Operator runbook documenting planned and emergency secret rotation procedures. |
 | `code/backend/app/src/main/resources/application.yml` | Modified | Maps `${KEYCLOAK_CLIENT_SECRET}`, `${JWT_SIGNING_SECRET}`, `${BREVO_API_KEY}` into Spring configuration with zero defaults. |
 | `code/backend/worker/src/main/resources/application.yml` | Modified | Maps `${DB_PASSWORD}` and worker-specific secrets. |
 
@@ -306,46 +296,6 @@ application role to exist.
 
 ---
 
-### 3f. Secret Rotation Mechanics
-
-#### 1. PostgreSQL Role Password Rotation (windowed)
-
-PostgreSQL Flexible Server does not support two live passwords for one role, so changing a
-password invalidates the open HikariCP connections. Revision 5 accepts that and takes a
-short window instead of engineering around it (§0).
-
-- **Sequence in `rotate-secrets.sh`, per role:**
-  1. **Transient Key Vault IP rule (`D-53`):** add the runner's egress address as a `/32`, wait 10s for propagation. Revoked by a `trap` on every catchable exit.
-  2. **Set the new password:** connect as admin (`psql-admin-pw`) and run `ALTER ROLE <role> WITH PASSWORD '<new>'`.
-  3. **Update Key Vault:** write the new value to `psql-app-pw` / `psql-worker-pw`.
-  4. **Restart the revision:** the container restarts, reads the new secret and reconnects.
-  5. **Verify:** the revision reaches healthy; `rotate-secrets.sh` fails loudly if it does not.
-  6. **Cleanup:** revoke the transient network rule.
-
-- **Expected impact:** in-flight requests on that container fail between steps 2 and 4.
-  Measured in seconds, on a planned quarterly window, against zero production users.
-- **If this ever stops being acceptable**, the deferred dual-role scheme in §0 is the
-  answer and it is purely additive.
-
-#### 2. Keycloak Client Secret Rotation
-- **Zero-Downtime Sequence:**
-  1. Keycloak supports two active client secrets concurrently (primary and secondary) during rotation.
-  2. Generate a secondary client secret in Keycloak via Admin API.
-  3. Store the new secret in Key Vault as `keycloak-client-secret`.
-  4. Deploy new Container Apps revision for `app`.
-  5. Verify authentication token exchanges succeed on the new revision.
-  6. In Keycloak, promote secondary secret to primary and delete the old secret.
-
-#### 3. Third-Party API Keys (Brevo)
-- **Zero-Downtime Sequence:**
-  1. Generate a new API key in the Brevo dashboard (Brevo supports multiple active API keys).
-  2. Update Key Vault secret `brevo-api-key`.
-  3. Deploy new Container Apps revision for `app` and `worker`.
-  4. Verify transactional email delivery (`CORE-12`).
-  5. Revoke the old API key in the Brevo dashboard.
-
----
-
 ### 3g. Keycloak Administrative Password Lifecycle & Management
 
 | Lifecycle Stage | Environment / Scope | Mechanism & Responsibility |
@@ -363,7 +313,7 @@ One area per task — Phase 2 spawns one **implementer** each and none may cross
 | # | Area | Files | Depends on |
 |---|---|---|---|
 | T1 | `infra/` — Postgres provisioning | `infra/postgres/01-roles.sql`, `infra/postgres/provision.sh`, `infra/postgres/03-grants.sql` | — |
-| T2 | `infra/` — Azure | `infra/azure/modules/containerapps.bicep`, `infra/azure/deploy.sh`, `infra/azure/post-deploy-db.sh`, `infra/azure/rotate-secrets.sh` (new), `infra/azure/docs/SECRET_ROTATION.md` (new) | T1 — role names |
+| T2 | `infra/` — Azure | `infra/azure/modules/containerapps.bicep`, `infra/azure/deploy.sh`, `infra/azure/post-deploy-db.sh`, | T1 — role names |
 | T3 | `infra/` — local stack | `infra/docker/compose.yml`, `infra/docker/migration-runner-entrypoint.sh`, `infra/docker/smoke.sh` | T1 — the role must exist before smoke.sh can assert it |
 | T4a | `code/backend/app` | `application.yml` | — |
 | T4b | `code/backend/worker` | `application.yml` | T3 |
@@ -375,7 +325,7 @@ module.
 
 **Revision 5 removes work that the branch already contains.** The existing commits carry
 `app_user_a`, `app_user_b` and `psql-app-active-role` across `deploy.sh`,
-`post-deploy-db.sh`, `rotate-secrets.sh`, `compose.yml` and `smoke.sh`. Each task above
+`post-deploy-db.sh`, `compose.yml` and `smoke.sh`. Each task above
 **reverts** those references as well as adding its own. The check in §5a (4) asserts the
 result: zero occurrences of `app_user_a`, `app_user_b` or `psql-app-active-role` anywhere
 outside this spec.
@@ -401,7 +351,6 @@ outside this spec.
 | 1 | Remove `Key Vault Secrets User` role from app UAMI | Revoke role on `kv-infinevo-shared`; deploy revision | Container App fails to start / revision provisioning fails with secret resolution error. |
 | 2 | Point secret reference to non-existent Key Vault secret | Set secret URL to `.../secrets/fake-secret` in Bicep | Deployment fails fast with Key Vault secret resolution error. |
 | 3 | Commit plaintext password in `application.yml` or `.bicepparam` | Introduce dummy secret string in `infra/azure/parameters/dev.bicepparam`; run CI | CI secret scanning / git hook fails with blocking error (`DEBT-004`). |
-| 4 | Put the Key Vault password out of sync with the database before rotating | Scramble `psql-app-pw` in Postgres only; run `rotate-secrets.sh` | The script's preflight authentication test fails before it writes to Key Vault or restarts a revision. A rotation that half-succeeds is worse than one that refuses to start. |
 | 5 | Give `worker_user` `BYPASSRLS` | `ALTER ROLE worker_user WITH BYPASSRLS;` then §5b check 2 | `FAIL: role worker_user missing or holds a forbidden attribute`. Proves the check reads the catalogue, and that the worker cannot see across tenants. |
 | 6 | Drop `GRANT app_user TO worker_user` | Remove the grant; run §5b check 3 | The `worker` container never reaches healthy — it can log in but cannot read. Proves inheritance is what carries the grants, not a second copy of them. |
 | 7 | Drop `worker_user` from `01-roles.sql` | Remove its `CREATE ROLE`; run §5b check 2 | `FAIL: role worker_user missing or holds a forbidden attribute`. |
@@ -502,28 +451,6 @@ vault=$(printf '%s' "$ARM_JSON" | jq -r '.parameters.keyVaultName.defaultValue /
 [ "$vault" = "kv-infinevo-shared" ] \
   || { echo "FAIL: keyVaultName defaults to '$vault', expected kv-infinevo-shared"; exit 1; }
 
-echo "== 3. Deliverables exist and the rotation script cleans up after itself =="
-for f in infra/azure/rotate-secrets.sh infra/azure/docs/SECRET_ROTATION.md; do
-  [ -s "$f" ] || { echo "FAIL: $f is missing or empty"; exit 1; }
-done
-bash -n infra/azure/rotate-secrets.sh
-bash -n infra/azure/deploy.sh
-bash -n infra/azure/post-deploy-db.sh
-bash -n infra/postgres/provision.sh
-# D-53: the transient /32 rule must be revoked on every catchable exit, as deploy.sh:95-133
-# does. A trap is the only construct that survives an early exit, and the handler has to be
-# the thing that revokes - a trap that calls nothing would satisfy a bare existence check.
-grep -qE "^[[:space:]]*trap .* (EXIT|ERR)" infra/azure/rotate-secrets.sh \
-  || { echo "FAIL: rotate-secrets.sh has no EXIT trap; a failed run leaves its IP rule on the vault"; exit 1; }
-grep -q "network-rule remove" infra/azure/rotate-secrets.sh \
-  || { echo "FAIL: rotate-secrets.sh never revokes its Key Vault IP rule"; exit 1; }
-# --dry-run prints the sequence it would run; the real sequence cannot run offline.
-DRY=$(bash infra/azure/rotate-secrets.sh --dry-run --target postgres --env dev)
-for step in "key vault" "alter role" "restart" "revoke"; do
-  printf '%s' "$DRY" | grep -qi "$step" || { echo "FAIL: --dry-run never mentions '$step'"; exit 1; }
-done
-echo "PASS: deliverables present, EXIT trap revokes the rule, dry-run prints all four steps"
-
 echo "== 4. deploy.sh seeds every canonical secret, and the cut scheme is absent =="
 # Comments are stripped first. deploy.sh lists all ten names in a header comment, so
 # grepping the raw file passes even after a name is dropped from the seed loop - proved by
@@ -564,7 +491,7 @@ done
 
 Q="'"
 # Two shapes: `password: "x"` / `secret = "x"`, and the CLI form `--value "x"`, which is how
-# rotate-secrets.sh will write to Key Vault.
+# deploy.sh will write to Key Vault.
 SWEEP="((password|passwd|secret|api[-_]?key|client[-_]?secret)[\"$Q]?[[:space:]]*[:=]|--value|--password)[[:space:]]*[\"$Q][^\"$Q]+[\"$Q]"
 # The exclusions apply to the VALUE, isolated by the sed, never to the whole line. Excluding
 # by line lets a real credential through whenever it shares a line with a $VAR or the word
@@ -708,9 +635,8 @@ in `.claude/work/active-work.md` and are listed here so the count is on the reco
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | **Live Keycloak Administrative Password Exposure:** The legacy Keycloak admin password was committed in git history with a trivial password (`09-build-order.md:279`). | High | **Pre-implementation prerequisite:** The founder/operator rotates the live Keycloak admin password immediately before starting code changes on this ticket (§1b). |
-| **Database Connection Pool Disruption During Rotation:** Changing a PostgreSQL role password immediately breaks active connections. | **Accepted (rev 5).** A rotation is planned, quarterly and announced, against zero production users. §3f documents the window; `SECRET_ROTATION.md` states it. Revisit at `W-64` or on a real incident — the deferred dual-role scheme in §0 is the answer and is purely additive |
+| **No rotation procedure of any kind (rev 6).** A leaked or expired secret has no tested path back to a working system. | **Accepted, and the largest open risk in this ticket.** Rotation is done by hand against Key Vault and the database, undocumented. Revisit at `W-64` or on a real incident |
 | **Keycloak Password Runtime Ignored:** Operators updating `KEYCLOAK_ADMIN_PASSWORD` in Key Vault expect the container to change its database password automatically. | Medium | Documented explicitly in §3g: Keycloak only reads the admin password on initial DB bootstrap. Runtime updates must run through `kcadm.sh`. |
-| **Key Vault IP Firewall Blocks Rotation Runner:** `rotate-secrets.sh` gets 403 against Key Vault default Deny action (`D-53`). | Low | `rotate-secrets.sh` includes transient `/32` IP rule creation and cleanup trap matching `deploy.sh`. |
 
 ---
 
@@ -739,7 +665,6 @@ on this list.
 | 5 | The local stack comes up — `app` healthy as `app_user`, `worker` healthy as `worker_user`. That is the proof the passwords and grants are right; a local negative test would be a weaker copy of it | §5b check 3 |
 | 6 | All five roles exist with the declared attributes, and none is superuser or `BYPASSRLS` | §5b check 2 |
 | 7 | `worker` connects as `worker_user`, and `post-deploy-db.sh` proves DDL refusal from the privilege error rather than an exit code | §5a check 5 |
-| 8 | `rotate-secrets.sh` and `SECRET_ROTATION.md` exist, the script parses, revokes its Key Vault IP rule from an `EXIT` trap, and its `--dry-run` prints all four rotation steps | §5a check 3 |
 | 9 | The sweep scans `code/backend`, `code/frontend/src`, `infra/azure`, `infra/docker`, `infra/postgres` and `.github` — over 200 files — and finds zero plaintext credentials outside `local_*` development fallbacks (`DEBT-004` closed for new code) | §5a check 6 |
 | 10 | PR description contains `Closes #76` | Merge gate |
 
@@ -760,9 +685,30 @@ it needs an environment that does not exist yet.
    is why §5a check 2 asserts the secret name and vault, and the pinned version is asserted
    in §5c.
 2. **Dual-Role Database Provisioning — withdrawn at revision 5.** Superseded by §0. One
-   `app_user` with `LOGIN`, plus `worker_user` inheriting from it. `rotate-secrets.sh` still
-   needs only `ALTER ROLE` password rights and never `CREATE ROLE`.
+   `app_user` with `LOGIN`, plus `worker_user` inheriting from it. Any future rotation needs
+   only `ALTER ROLE` password rights and never `CREATE ROLE`.
 
 Revision 4 was approved by the founder on 2026-09-19 for the `dev` environment.
+> ### Revision 6 — rotation removed entirely, 2026-09-23
+>
+> `rotate-secrets.sh` and `infra/azure/docs/SECRET_ROTATION.md` are **deleted**, and every
+> requirement, deliverable, check and risk row that described them is gone with them.
+>
+> **Why.** The merge review found the script promised more than it did: `--postgres-url` was
+> parsed and ignored, so a rotation aimed at a test server would have hit the real Azure
+> database; `--target keycloak` and `--target brevo` rotated nothing and returned success; and
+> the runbook assigned a 90-day cadence to four secrets no code rotated. A procedure that is
+> documented but not real is worse than an absent one, because an operator trusts it in the
+> hour they can least afford to.
+>
+> **What this ticket still delivers.** Secrets live in Key Vault, containers resolve them
+> through their own identity, nothing is committed, and `worker` has its own database role.
+> That is the whole of `DEBT-004`.
+>
+> **What is now absent, and is a real gap.** There is no rotation procedure at all — manual,
+> scripted or documented. Rotating a leaked secret means changing it in the database and Key
+> Vault by hand and restarting the revisions, with nothing written down. That belongs to
+> `W-64` or to the first incident, whichever comes first.
+
 **Revision 5 was approved by the founder on 2026-09-22** — the trim was chosen explicitly
 and `/develop W-56` invoked on the same turn. `/develop W-56` may resume.
