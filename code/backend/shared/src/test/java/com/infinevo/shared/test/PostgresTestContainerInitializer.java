@@ -106,6 +106,7 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
             executeSqlScriptIfPresent(conn, "db/migration/core/V001__tenant.sql");
             executeSqlScriptIfPresent(conn, "db/migration/core/V002__user_tenant.sql");
             executeSqlScriptIfPresent(conn, "db/migration/core/V003__user_account.sql");
+            executeSqlScriptIfPresent(conn, "db/migration/core/V004__subscription.sql");
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to apply DDL scripts to test container database", e);
         }

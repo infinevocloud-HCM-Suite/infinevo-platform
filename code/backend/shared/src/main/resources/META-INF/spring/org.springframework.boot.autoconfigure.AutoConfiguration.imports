@@ -1,3 +1,4 @@
 com.infinevo.shared.tenant.TenantBindingAutoConfiguration
 com.infinevo.shared.security.SecurityConfig
+com.infinevo.shared.entitlement.EntitlementAutoConfiguration
 
