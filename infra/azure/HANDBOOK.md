@@ -160,6 +160,12 @@ The Infinevo platform runs on a **Zero-Trust, Private-by-Default Architecture** 
    - `id-keycloak-dev`: Granted `Key Vault Secrets User`, `AcrPull`.
    - `id-migration-dev`: Granted `Key Vault Secrets User`, `AcrPull`.
 
+8. **GitHub Actions Service Principal (`sp-github-infinevo`)**:
+   - **Authentication**: Federated OIDC credentials for repository `infinevocloud-HCM-Suite/infinevo-platform`.
+   - **Subscription Scope**: Granted `Contributor` on `/subscriptions/${AZURE_SUBSCRIPTION_ID}` for running subscription-scoped Bicep validation (`az deployment sub what-if`) in CI (`infra.yml`).
+   - **Resource Group Scopes**: Granted `Container Apps Contributor` on `rg-infinevo-dev` and `Reader` on `rg-infinevo-shared`.
+   - **Registry Scope**: Granted `AcrPush` and custom role `Infinevo ACR Build Queue` on `crinfinevo.azurecr.io`.
+
 ---
 
 ## 4. Everyday DevOps GUI Playbook (Azure Portal)
