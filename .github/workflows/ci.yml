@@ -455,14 +455,11 @@ jobs:
         working-directory: code/backend
         run: ./mvnw -B dependency:resolve -q
 
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
       - name: Scan dependencies with Trivy
-        run: |
-          docker run --rm \
-            -v "$PWD:/src:ro" \
-            -v "$HOME/.m2:/root/.m2:ro" \
-            aquasec/trivy:latest \
-            fs --exit-code 1 --offline-scan --include-dev-deps \
-               --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed /src/code
+        run: trivy fs --exit-code 1 --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
 
   # ── static application security testing (SAST) ──────────────────────────────
   # Semgrep scans code/ for insecure code patterns and vulnerabilities.
@@ -474,12 +471,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
       - name: Run Semgrep SAST scan
-        run: |
-          docker run --rm \
-            -v "$PWD:/src:ro" \
-            semgrep/semgrep:latest \
-            semgrep scan --config auto --error /src/code
+        run: semgrep scan --config auto --error code/
 
       - name: Run security gate self-test
         run: bash .github/scripts/security-gate-selftest.sh --self-check
@@ -493,12 +492,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
       - name: Scan secrets with Trivy
         run: |
-          docker run --rm \
-            -v "$PWD:/src:ro" \
-            aquasec/trivy:latest \
-            fs --exit-code 1 --scanners secret /src/code /src/infra
+          trivy fs --exit-code 1 --scanners secret code/
+          trivy fs --exit-code 1 --scanners secret infra/
 
   # ── images ──────────────────────────────────────────────────────────────────
   # W-49 (#69) builds the production Dockerfiles (multi-stage, slim runtime,

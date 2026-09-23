@@ -35,14 +35,11 @@ jobs:
         working-directory: code/backend
         run: ./mvnw -B dependency:resolve -q
 
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
       - name: Scan dependencies with Trivy
-        run: |
-          docker run --rm \
-            -v "$PWD:/src:ro" \
-            -v "$HOME/.m2:/root/.m2:ro" \
-            aquasec/trivy:latest \
-            fs --offline-scan --include-dev-deps \
-               --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed /src/code
+        run: trivy fs --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
 
   rescan-secrets:
     name: rescan-secrets
@@ -51,9 +48,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+
       - name: Scan secrets with Trivy
         run: |
-          docker run --rm \
-            -v "$PWD:/src:ro" \
-            aquasec/trivy:latest \
-            fs --scanners secret /src/code /src/infra
+          trivy fs --scanners secret code/
+          trivy fs --scanners secret infra/
