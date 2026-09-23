@@ -32,6 +32,31 @@
 
 ---
 
+## Stream C is fully specced — 2026-09-23
+
+**All 21 core-platform tickets are planned and founder-approved.** The nine that broke the
+`plan-feature` size cap were split, so 16 tickets became 25; GitHub keeps the 9 parent tickets
+and several specs now share one, with only the last saying `Closes #nn`.
+
+| | |
+|---|---|
+| Specs approved | **33**, in `.claude/outputs/2026-09-22-plan-W-*.md` |
+| Decisions settled | 69, recorded in `.claude/outputs/2026-09-22-plan-core-open-questions.md` |
+| Evidence passes | 16, every claim carrying `file:line` |
+| Can start today | `W-10` · `W-13.1` · `W-22.1` — everything else waits on these |
+
+Nine decisions went against the recommendation in the spec and are worth reading before
+building: the pay divisor stays **calendar days** and a missing policy **falls back silently**
+(both to keep payslip amounts identical at cutover), a leave-policy change applies to the
+**year in progress**, self-approval is **allowed**, and the per-employee portal switch is
+**kept**. All nine are listed in §6 of the open-questions file.
+
+> **Approval is not promotion.** The specs live in `.claude/outputs/`. Each moves to
+> `docs/target-state/features/W-nn-<slug>.md` on its own ticket branch during `/develop` —
+> that is the only path `guard-edit` allows.
+
+---
+
 ## Current direction
 
 **One platform replacing four applications, then Azure.** A customer buys HRMS,

@@ -69,7 +69,7 @@ Present for every tenant.
 | `employee_personal` | HRMS `personal` + Payroll `employee_personal_detail` (incl. the embedded residential address) |
 | `employee_contact` | HRMS `contact` |
 | `employee_identification` | HRMS `identification` |
-| `employee_employment` | HRMS `work` + `report` |
+| `employee_employment` | HRMS `work`, plus `report`'s free-text `note`. **`report`'s manager and approver columns do not come here** — they become `core.reporting_line` (`CORE-06`) |
 | `employee_bank` | Payroll `employee_bank_detail` |
 
 ### Org structure (4)
@@ -127,7 +127,7 @@ replacing three hard-coded approval paths (leave, reimbursement, investment proo
 | `document` | Unified blob pointer. Replaces scattered Cloudinary references |
 | `audit_log` | **New (`CORE-14`).** Neither product has one |
 | `master_config` | Payroll `masterConfig` |
-| `report_definition` | HRMS `report` |
+| `report_definition` | **New (`CORE-16`).** HRMS `report` is the employee reporting hierarchy, not a report definition — neither product lets anyone define a report |
 
 ---
 
@@ -253,7 +253,8 @@ product has today.
 ### New (no source)
 `core.subscription` · `core.subscription_module` · `core.reporting_line` · `core.lop_policy` ·
 `core.pay_input` · `core.approval_definition` · `core.approval_instance` · `core.approval_step` ·
-`core.notification_template` · `core.audit_log` · `core.holiday_calendar` · `core.document`
+`core.notification_template` · `core.audit_log` · `core.holiday_calendar` · `core.document` ·
+`core.report_definition`
 
 ### Retired
 | Table | Reason |
