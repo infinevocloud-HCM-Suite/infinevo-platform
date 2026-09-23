@@ -1,8 +1,9 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-23**, after `W-22.1` Audit trail (#26) merged as `6fb4012` —
-> the first ticket built from the Stream C specs, and the first built one-ticket-one-branch.
+> Last refreshed: **2026-09-23**, after `W-10` Identity (#11) merged as `ac1e531`.
+> **Layer 0 of Core is complete** — `W-22.1` and `W-10`. `W-13.1` is the last of the three
+> and the only one still open.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -14,7 +15,7 @@
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
 | Tickets | **112** — 21 closed, 91 open. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 is done — all 7.** Wave 2 starts at `W-09` |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 > **`W-50` and `W-51` are verified as code and not as an environment.** The Bicep builds
@@ -29,6 +30,48 @@
 > justify. `D-44` is superseded. Consequences that outlive this ticket: **`W-52` must
 > handle idempotency in code**, since Storage Queue does not guarantee ordering, and the
 > local stand-in moves from RabbitMQ to Azurite's queue service.
+
+---
+
+## `W-10` Identity merged — 2026-09-23
+
+One Keycloak login now reaches the platform. **BUG-001 is closed** — HRMS minted its own
+JWT with a hardcoded secret while Payroll validated Keycloak tokens, and neither recognised
+the other.
+
+| | |
+|---|---|
+| Merged | `ac1e531`, closing **#11** |
+| Shipped | `core.user_account` (**`V009`**), one `SecurityFilterChain` in `shared`, `GET /api/v1/me`, per-request profile sync, the rewritten dev realm and its seed, Keycloak login in the frontend shell |
+| Tests | 21 identity and security tests, none skipped. `LoginFlowIT` starts a real Keycloak 25 and mints a token |
+| Review | one **High** and four Medium fixed on the branch; two deferred |
+
+> **Nobody has ever actually logged in.** CI is green and `LoginFlowIT` runs a real
+> Keycloak, but spec §8 steps 2–4 — bring the stack up, mint a token with `curl`, call
+> `/api/v1/me` — have never been run by anyone. That matters more here than usual, because
+> the High the review found was exactly the class of defect that survives a green suite:
+> Keycloak stamps `iss` from the host the request arrived on, so a browser at
+> `localhost:8081` and a backend validating `keycloak:8081` disagreed on every token, and
+> `LoginFlowIT` could not see it because it mints and validates through one mapped port.
+> **The fix — pinning `KC_HOSTNAME_URL` and splitting `issuer-uri` from `jwk-set-uri` — is
+> reasoned and CI-green, not exercised against a running stack.**
+
+Three other defects worth carrying forward as patterns, not items:
+
+| Found | Shape |
+|---|---|
+| `V007` sat below the already-applied `V008` | CI starts from an empty database, so out-of-order migration is invisible to it and breaks every existing dev volume. **Renumbered to `V009`** |
+| Liveness probes passed security and were then refused `401` | Two permit lists that must agree — `ResourceServerConfig` and `TenantContextFilter` — and only one was updated |
+| Genuine `404`s and `500`s came back as `401` | Error dispatch re-runs the filter chain; nothing permitted `/error` |
+
+**Deferred, and recorded in the merge commit:** `MeController` lives in `shared`, so the
+worker also serves `/api/v1/me` — authenticated, but outside its stated contract and as a
+role with no `USAGE` on `core`; it belongs in `app`, which is a module move. Three READMEs
+still describe the pre-`W-10` realm and none records the dev logins §8 depends on — that is
+`sync-docs` work.
+
+> **Nobody can self-register.** A user with no `core.user_tenant` row gets `401` and nothing
+> creates one. That is `W-24.2` invitations, by decision, not an oversight.
 
 ---
 
@@ -92,9 +135,16 @@ locally with their specs promoted and no code: `W-10-identity` (`77b9af1`) and
 `W-13-1-employee-record` (`6bc7584`).
 
 > **Flyway numbers are pre-allocated across the programme so parallel branches cannot
-> collide.** `V007` is reserved for `W-10`'s `user_account`; `V008` went to `W-22.1`.
-> `W-13.1` takes `V009`, and layer 1 runs `V010`–`V029`. A branch that picks its own number
-> is how the salvage branch got three collisions.
+> collide** — but the allocation has already had to move once, and the rule is stricter than
+> "don't repeat a number". `V008` went to `W-22.1`. `W-10` was allocated `V007` and **had to
+> be renumbered to `V009`**, because a script below the highest already applied fails
+> `validate-on-migrate` on any database that has run the later one. CI never sees this: it
+> starts from an empty database every time.
+>
+> **So the live rule is: take the next number above everything on `main`, not the number the
+> plan reserved.** `V001`–`V002`, `V006`, `V008`–`V009` are used. **`W-13.1` takes `V010`**,
+> and layer 1 continues from `V011`. A branch that picks its own number without checking
+> `main` is how the salvage branch got three collisions.
 
 **Two CI runs per ticket, and one is waste.** `ci.yml` triggers on `push: branches: ['**']`,
 so pushing at the end of `/develop` and again after the review's fixes burns two runs, and
@@ -171,7 +221,7 @@ and several specs now share one, with only the last saying `Closes #nn`.
 | Specs approved | **33**, in `.claude/outputs/2026-09-22-plan-W-*.md` |
 | Decisions settled | 69, recorded in `.claude/outputs/2026-09-22-plan-core-open-questions.md` |
 | Evidence passes | 16, every claim carrying `file:line` |
-| Can start today | `W-10` · `W-13.1` — `W-22.1` is merged. Everything else waits on these two |
+| Can start today | **`W-13.1` only.** `W-22.1` and `W-10` are merged; layer 0 ends when W-13.1 does, and layer 1 (ten branches) opens |
 
 Nine decisions went against the recommendation in the spec and are worth reading before
 building: the pay divisor stays **calendar days** and a missing policy **falls back silently**
@@ -259,8 +309,7 @@ head. (`--no-assignee` is not a flag in the installed `gh`; use the search form.
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
 | **none yet** | `W-22.2` audit retention | S | BE | **Must be raised.** Nothing deletes an audit row and `W-22.1` shipped without it. Spec and seven-year window are in `W-22-1-audit-trail.md` §13 |
-| **#11** | `W-10` Identity | L | BE | Layer 0. Branch `W-10-identity` exists locally with the spec promoted, `V007` reserved. Salvage the JWT converter and `UserProfileSync` from `origin/salvage/W-10-old`, move them to `shared`, and add the four things that branch never had: `issuer-uri`, the realm `tenant_id` mapper, the `user_tenant` seed, the frontend |
-| **#14** | `W-13.1` Employee record | M | BE | Layer 0, and on the critical path — it blocks six tickets. Branch exists locally, `V009`. **Must also fix the `@Embedded` redaction gap `W-22.1` deferred** |
+| **#14** | `W-13.1` Employee record | M | BE | **The last of layer 0, and on the critical path — it blocks six tickets.** Takes **`V010`** (not `V009`; `W-10` took that). Two inherited conditions: it is the first ticket that can carry `@Audited` on a production entity, and the first with an association, so it must fix the `@Embedded` redaction gap `W-22.1` deferred or it writes PII in clear |
 | **#44** | `W-33.2` Tax calculator — old regime with section deductions | XL | BE | **Newly unblocked.** `W-09` shipped the 15 `reference` tables it reads. Carries three conditions from W-09's review (see `55a5a83`): C-1 Chapter VI-A has no `financial_year`, C-2 `home_loan_rule_master` has no regime column, C-3 loss carry-forward defaults FALSE |
 | **#146** | `W-09` follow-up — senior-citizen tax slabs are not seeded | S | DATA | `W-09` seeded only `age_category = 'GENERAL'`. Under the old regime a senior gets ₹2.5L exemption instead of ₹3L, and a super-senior instead of ₹5L — both over-deducted. `W-33` cannot fix it without a new migration |
 | #139 | `W-06` code reached `main` inside a documentation-only commit | S | INFRA | A gate defect, not a code defect. Belongs with #101 and #104 — the same merge gate, the same failure shape |
