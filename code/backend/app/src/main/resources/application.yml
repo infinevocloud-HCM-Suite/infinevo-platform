@@ -7,6 +7,29 @@ spring:
     name: infinevo-app
   main:
     banner-mode: off
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # No default, deliberately. ResourceServerConfig refuses to build a filter chain
+          # without a decoder, so an unset issuer stops the app starting instead of letting
+          # it serve unauthenticated (W-10 spec section 10).
+          #
+          # Two properties, not one, and they hold different hostnames on purpose.
+          # issuer-uri is the value that must MATCH the `iss` claim in the token, which
+          # Keycloak stamps with its pinned frontend URL - localhost, the one name the
+          # browser and the containers both understand. jwk-set-uri is where this process
+          # FETCHES the signing keys, over the docker network, using a name only
+          # containers resolve. Setting issuer-uri alone would validate correctly and be
+          # unable to reach the keys; setting jwk-set-uri alone would fetch the keys and
+          # accept a token from any issuer.
+          #
+          # It also decides startup behaviour: issuer-uri on its own makes Boot perform
+          # OIDC discovery eagerly while building beans, so the process would die if
+          # Keycloak were not up yet. With jwk-set-uri present the fetch is lazy, so the
+          # app starts independently of Keycloak and no depends_on is required.
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI}
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -42,8 +65,10 @@ management:
       enabled: true
 
 security:
-  jwt:
-    signing-secret: ${JWT_SIGNING_SECRET}
+  # security.jwt.signing-secret was here until W-10 and is gone on purpose (spec section 13
+  # decision 3). Nothing read it. It was the last trace of HRMS minting its own tokens, and
+  # leaving a signing secret in configuration is how that path grows back. Keycloak is the
+  # sole authority; the platform validates tokens and signs none.
   keycloak:
     client-secret: ${KEYCLOAK_CLIENT_SECRET}
 

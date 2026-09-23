@@ -17,6 +17,19 @@ import axios from 'axios';
  * authenticated principal (W-08). A tenant the client can set is a tenant the client can
  * change.
  */
+/**
+ * Supplies a currently-valid bearer token, or null when there is none.
+ *
+ * The shell registers the Keycloak adapter here at startup (main.jsx). It is registered
+ * rather than imported so that `shared` keeps depending on nothing - the shell composes
+ * shared, not the other way round - and so a test can hand in its own provider.
+ */
+let tokenProvider = null;
+
+export function setTokenProvider(provider) {
+  tokenProvider = provider;
+}
+
 export const apiClient = axios.create({
   baseURL:
     (typeof window !== 'undefined' && window.__ENV?.API_BASE_URL) ||
@@ -24,6 +37,17 @@ export const apiClient = axios.create({
     '/api',
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
+});
+
+apiClient.interceptors.request.use(async (config) => {
+  // Asking the provider each time - not caching a token read at startup - is what keeps
+  // a 15-minute access token from being sent expired; the adapter refreshes it first.
+  const token = tokenProvider ? await tokenProvider() : null;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  // Nothing tenant-shaped is added here, on purpose. See the note above.
+  return config;
 });
 
 apiClient.interceptors.response.use(

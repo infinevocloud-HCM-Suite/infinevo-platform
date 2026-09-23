@@ -102,6 +102,19 @@
           <include>*.sql</include>
         </includes>
       </testResource>
+      <!--
+        W-10: the dev realm export, on the test classpath so LoginFlowIT can import it into a
+        Keycloak container. The test asserts against the realm the local stack actually runs, so
+        a mapper or a user id changed there fails the test rather than only breaking `docker
+        compose up` for whoever pulls next.
+      -->
+      <testResource>
+        <directory>${project.basedir}/../../../infra/docker/keycloak</directory>
+        <targetPath>keycloak</targetPath>
+        <includes>
+          <include>*.json</include>
+        </includes>
+      </testResource>
       <testResource>
         <directory>${project.basedir}/../migration/src/main/resources/db/migration</directory>
         <targetPath>db/migration</targetPath>
@@ -132,8 +145,16 @@
                 worker and migration. Harmless while ddl-auto is none, a trap the day
                 anything validates mappings. Only com/infinevo/shared/test/** is shared.
               -->
+              <!--
+                W-10 adds two more for the same reason: IdentityTestApp and
+                ResourceServerConfigTest.TestApp are @SpringBootApplication classes, and every
+                module scans com.infinevo. Shipping them would put a second application class on
+                the test classpath of core, hrms, payroll, worker and migration.
+              -->
               <excludes>
                 <exclude>com/infinevo/shared/audit/**</exclude>
+                <exclude>com/infinevo/shared/identity/**</exclude>
+                <exclude>com/infinevo/shared/security/**</exclude>
               </excludes>
             </configuration>
           </execution>

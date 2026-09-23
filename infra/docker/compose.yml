@@ -110,6 +110,21 @@ services:
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak_user
       KC_DB_PASSWORD: local_keycloak_pw
+      # Pin the frontend URL, or nothing can log in (W-10).
+      #
+      # start-dev derives the token's `iss` from the host the request arrived on. The
+      # browser reaches Keycloak at localhost:8081 and would get
+      # iss=http://localhost:8081/realms/infinevo, while the backend validates tokens
+      # against http://keycloak:8081/realms/infinevo - the name only containers can
+      # resolve. Same realm, two issuer strings, and every real login answers 401
+      # invalid_token. An integration test that mints and validates through one mapped
+      # port cannot see this, which is exactly how it survived to review.
+      #
+      # Pinning it makes `iss` the same string everywhere: localhost, which is the one
+      # name both the browser and the containers can agree on. The backend still FETCHES
+      # keys over the docker network - see KEYCLOAK_JWK_SET_URI on app and worker.
+      KC_HOSTNAME_URL: http://localhost:8081
+      KC_HOSTNAME_ADMIN_URL: http://localhost:8081
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./keycloak/dev-realm.json:/opt/keycloak/data/import/dev-realm.json:ro
@@ -157,7 +172,10 @@ services:
       BLOB_ENDPOINT: http://blob:10000/devstoreaccount1
       MAIL_HOST: mail
       MAIL_PORT: 1025
-      KEYCLOAK_ISSUER_URI: http://keycloak:8081/realms/infinevo
+      # Must match the token's iss, which Keycloak stamps from its pinned KC_HOSTNAME_URL.
+      KEYCLOAK_ISSUER_URI: http://localhost:8081/realms/infinevo
+      # Where the keys are actually fetched from, over the docker network.
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8081/realms/infinevo/protocol/openid-connect/certs
     ports: ["${APP_PORT:-8080}:8080"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -186,6 +204,14 @@ services:
       BLOB_ENDPOINT: http://blob:10000/devstoreaccount1
       MAIL_HOST: mail
       MAIL_PORT: 1025
+      # The worker needs the issuer too, which is not obvious. It scans com.infinevo and
+      # is a servlet application, so it assembles shared's resource-server filter chain,
+      # and that chain refuses to build without a decoder. Only /actuator/health is
+      # exposed, but the chain is still built - without this the worker will not start.
+      # Must match the token's iss, which Keycloak stamps from its pinned KC_HOSTNAME_URL.
+      KEYCLOAK_ISSUER_URI: http://localhost:8081/realms/infinevo
+      # Where the keys are actually fetched from, over the docker network.
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8081/realms/infinevo/protocol/openid-connect/certs
     ports: ["${WORKER_PORT:-8082}:8082"]
     depends_on:
       postgres: { condition: service_healthy }

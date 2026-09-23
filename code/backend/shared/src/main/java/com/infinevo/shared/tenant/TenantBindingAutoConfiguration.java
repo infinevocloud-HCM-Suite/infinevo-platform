@@ -69,15 +69,20 @@ public class TenantBindingAutoConfiguration {
         };
     }
 
+    /**
+     * A chain for contexts that have no resource server — a slice test, in practice. Every running
+     * application has {@code com.infinevo.shared.security.ResourceServerConfig} on its component
+     * scan, and that bean makes this one back off, so there is exactly one chain.
+     *
+     * <p>{@code /api/v1/auth/login} was in the permit list until W-10. It is gone for the same
+     * reason it is gone from {@code TenantContextFilter}: no local login path exists, and a
+     * permitted path is how one starts.
+     */
     @Bean
     @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain tenantDefaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(auth -> auth.requestMatchers(
-                        "/actuator/health",
-                        "/v3/api-docs/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/api/v1/auth/login")
+                        "/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                 .permitAll()
                 .anyRequest()
                 .authenticated());

@@ -27,8 +27,30 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class TenantContextFilter extends OncePerRequestFilter {
 
-    private static final List<String> EXEMPT_PATH_PATTERNS =
-            List.of("/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api/v1/auth/login");
+    /**
+     * Paths that need no tenant. Health probes and the API description, and nothing else.
+     *
+     * <p>{@code /api/v1/auth/login} was here until W-10 and is gone on purpose: the platform has no
+     * local login path. Keycloak issues every token ({@code ResourceServerConfig}), HRMS's own JWT
+     * system is being deleted rather than adapted, and an exemption sitting here is how such a path
+     * grows back. Nothing serves it now, so it answers 404 — spec section 8.
+     */
+    private static final List<String> EXEMPT_PATH_PATTERNS = List.of(
+            "/actuator/health",
+            // The sub-paths matter as much as the parent. `management.endpoint.health.probes.enabled`
+            // is on, so the orchestrator probes /actuator/health/liveness and /readiness, not the
+            // parent. ResourceServerConfig permits those, but this filter exempted only the bare
+            // path, so a probe passed security, reached here with no authentication and was refused
+            // 401 UNAUTHENTICATED - a replica that is alive being restarted for failing its probe.
+            // The two lists have to agree; ResourceServerConfig.HEALTH_SUBPATHS is the other half.
+            "/actuator/health/**",
+            // Error dispatch carries no authentication. Without this a genuine 404 or 500 is
+            // re-answered as 401 on the way out, so every server-side fault reads as an auth
+            // failure and the real status never reaches the caller.
+            "/error",
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html");
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final TenantAuthenticationExtractor extractor;

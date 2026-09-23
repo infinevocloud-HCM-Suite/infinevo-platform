@@ -234,10 +234,41 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         }
     }
 
+    /**
+     * A JWK set URI that resolves to nothing, so a context carrying {@code ResourceServerConfig}
+     * can start without a Keycloak.
+     *
+     * <p>W-10 made the resource server refuse to start with no issuer configured, deliberately —
+     * an application that boots without one authenticates nobody while reading as secured. Every
+     * integration test whose component scan reaches {@code com.infinevo.shared.security} therefore
+     * needs <em>some</em> decoder. This one is real but unreachable: {@code jwk-set-uri} is fetched
+     * lazily, so the context starts, and any token presented against it fails to validate. Tests
+     * that authenticate with {@code @WithMockUser} are unaffected; a test that needs a token that
+     * actually verifies overrides this with a live issuer, as {@code LoginFlowIT} does.
+     */
+    private static final String UNREACHABLE_JWK_SET_URI = "http://127.0.0.1:1/protocol/openid-connect/certs";
+
+    /**
+     * The value behind {@code ${KEYCLOAK_ISSUER_URI}}, which the {@code app} and {@code worker}
+     * profiles reference with no default — on purpose, so a deployment cannot start without one.
+     *
+     * <p>That deliberate absence reaches the tests too: any context loading one of those modules'
+     * {@code application.yml} fails at placeholder resolution before a single bean is built, which
+     * is what happened to {@code SchedulerLockIT} the moment the worker gained the property. It is
+     * supplied here rather than given a default in the profile, because a default in the profile is
+     * exactly the thing that lets a real deployment come up unsecured.
+     *
+     * <p>It is unreachable, and it is not what builds the decoder either — Boot prefers
+     * {@code jwk-set-uri} when both are set. It exists only so the placeholder resolves.
+     */
+    private static final String UNREACHABLE_ISSUER_URI = "http://127.0.0.1:1/realms/infinevo";
+
     @Override
     public void initialize(ConfigurableApplicationContext ctx) {
         startIfNeeded();
         TestPropertyValues.of(
+                        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=" + UNREACHABLE_JWK_SET_URI,
+                        "KEYCLOAK_ISSUER_URI=" + UNREACHABLE_ISSUER_URI,
                         "spring.datasource.url=" + POSTGRES.getJdbcUrl(),
                         "spring.datasource.username=" + APP_USER,
                         "spring.datasource.password=" + APP_USER_PASSWORD,

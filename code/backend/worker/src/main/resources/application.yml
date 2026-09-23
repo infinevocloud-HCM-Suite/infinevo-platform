@@ -10,6 +10,25 @@ spring:
     # NOT web-application-type: none. The worker serves a health endpoint and nothing
     # else (03-code-structure.md section 4) - the orchestrator needs a liveness probe,
     # and without HTTP the process has no non-daemon thread and exits immediately.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # The worker needs this for the same reason the app does, and it is easy to
+          # think it does not. It scans com.infinevo, so it picks up shared's
+          # ResourceServerConfig, and because the worker is a servlet application (see
+          # the note above) that config builds a real filter chain and refuses to build
+          # one without a decoder. The worker's only endpoint is /actuator/health, which
+          # is permitted - but the chain is still assembled, so the issuer must be set or
+          # the worker will not start. W-10.
+          #
+          # Two hostnames on purpose, as in the app module - see the longer note there.
+          # issuer-uri must match the token's `iss` (Keycloak's pinned frontend URL);
+          # jwk-set-uri is where the keys are fetched from over the docker network. The
+          # second also makes the fetch lazy, so the worker starts whether or not
+          # Keycloak is up.
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI}
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

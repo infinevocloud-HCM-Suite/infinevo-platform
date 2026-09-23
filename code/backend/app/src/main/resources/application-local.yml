@@ -40,8 +40,9 @@ management:
       enabled: true
 
 security:
-  jwt:
-    signing-secret: ${JWT_SIGNING_SECRET:local_jwt_secret}
+  # security.jwt.signing-secret removed with W-10, here as well as in the base profile.
+  # Leaving a local default would have been the easier half of the same mistake: the
+  # platform validates Keycloak tokens and signs none.
   keycloak:
     client-secret: ${KEYCLOAK_CLIENT_SECRET:local_kc_secret}
 
