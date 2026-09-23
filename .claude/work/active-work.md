@@ -32,6 +32,34 @@
 
 ---
 
+## `W-56` Secrets merged — 2026-09-23
+
+Ten platform secrets now come from Key Vault, with no default value anywhere: the app fails
+to start rather than running on a placeholder. `worker` gained its own database role.
+
+| | |
+|---|---|
+| Merged | `64ec5fd`, closing **#76** |
+| Roles | **five now** — `worker_user` and `keycloak_user` joined the three. None superuser or `BYPASSRLS` |
+| Review | one blocker fixed on the branch: `--postgres-url` was parsed and ignored, so a rotation aimed at a test server hit the real Azure server |
+
+**Verified as code, not as an environment.** Nothing here is proved against a deployment —
+that is **#129**, and it covers whether a container actually resolves a Key Vault secret and
+starts at all.
+
+> **Two workflows are red on `main` and were red before this merge.** `Deploy` fails because
+> `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` are not set as repository
+> variables; `Azure Infrastructure CI` fails because no federated identity record matches
+> `refs/heads/main`. Both are missing Azure configuration, not code, and both block #129.
+
+Outstanding from the review, recorded rather than fixed: Keycloak and Brevo rotation are not
+implemented and now refuse instead of returning success; `SECRET_ROTATION.md` promises a
+90-day cadence for four secrets no script rotates; secret references are unversioned while
+§8.1 tells an operator to revert to a version GUID that does not exist; `id-web-dev` holds
+Key Vault read access the spec says it should not.
+
+---
+
 ## Stream C is fully specced — 2026-09-23
 
 **All 21 core-platform tickets are planned and founder-approved.** The nine that broke the

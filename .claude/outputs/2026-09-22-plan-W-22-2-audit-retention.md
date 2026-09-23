@@ -124,7 +124,7 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 to add `DELETE` to it — which would have let the application remove any audit row, defeating
 most of what the audit trail protects against.
 
-So this ticket adds a **fourth database role**:
+So this ticket adds a **sixth database role** — `W-56` merged `worker_user` and `keycloak_user`, taking the matrix from three to five:
 
 | Role | Grants |
 |---|---|

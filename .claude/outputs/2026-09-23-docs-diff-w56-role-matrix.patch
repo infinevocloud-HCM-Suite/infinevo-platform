@@ -1,0 +1,23 @@
+diff --git a/docs/target-state/02-data-model.md b/docs/target-state/02-data-model.md
+index 4b3a06a..348a4e8 100644
+--- a/docs/target-state/02-data-model.md
++++ b/docs/target-state/02-data-model.md
+@@ -396,9 +396,17 @@ Minimum standard for the target schema:
+ 
+ | Database role | Used by | Rights | RLS |
+ |---|---|---|---|
+-| `app_user` | `app` and `worker` containers | Read/write on `core`, `hrms`, `payroll`; read on `reference` | **Enforced.** Sets tenant per transaction |
++| `app_user` | The `app` container | Read/write on `core`, `hrms`, `payroll`; read on `reference` | **Enforced.** Sets tenant per transaction |
++| `worker_user` | The `worker` container | Inherits `app_user`; holds its own credential (`W-56`) | **Enforced** |
+ | `migration_user` | The migration step in the pipeline only | DDL on all schemas | Bypassed |
+ | `readonly_user` | Reporting and exports, replica | Read only | Enforced |
++| `keycloak_user` | The `keycloak` container, on its own database | Owns the `keycloak` database only | n/a — outside the four platform schemas |
++
++**Five roles, and `worker` no longer shares the application's.** `W-56` gave the worker
++`worker_user`, inheriting `app_user` rather than reusing its credential, so a mis-wired
++worker fails to connect instead of coming up healthy on the wrong secret. None of the five
++is superuser or `BYPASSRLS`; `DatabasePrivilegesIT` asserts the count and the matrix in both
++directions.
+ 
+ **The application never connects as an owner.** That single constraint is what makes
+ row-level security a real boundary rather than a suggestion — a bug in the application
