@@ -220,7 +220,8 @@ the decision; the consolidated record is
 1. **May a tenant edit its own templates?** **Recommend** yes, with platform-seeded defaults — the frozen system's templates sit in a Brevo account nobody in the tenant can reach, which is why nothing is ever worded correctly.
 2. **Retention for notifications.** **Settled 2026-09-23:** `W-22.2`'s sweep gains `core.notification` as a second target rather than a second sweep being built. `core.tenant` carries `notification_retention_months`, defaulting to twelve — a notification has no statutory value after a year, unlike an audit row.
 
-## 14. Doc correction
+## 14. Doc correction — applied 2026-09-23
 
-`09-build-order.md:202` states Payroll has never sent an email for a payroll event. It sends
-the salary slip at `PayRunServiceImpl.java:975`. The line needs `sync-docs`.
+`09-build-order.md` stated Payroll has never sent an email for a payroll event. It sends the
+salary slip at `PayRunServiceImpl.java:975`. The build order now says the gap is the absence
+of a framework, not of any email.

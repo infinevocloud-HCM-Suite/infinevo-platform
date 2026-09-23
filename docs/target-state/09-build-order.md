@@ -192,13 +192,13 @@ Watch: two tenants is not optional. One tenant means entitlement bugs surface on
 
 **`W-16` Leave engine** ⚠️ **merge** · Build: types, policy, allocation, request, approval, balance, consumption, loss-of-pay derivation, import. Done when: a Payroll-only tenant can run leave end to end. Watch: request and approval come from HRMS, allocation and consumption from Payroll. Neither side is discarded, and the join is where the risk lives.
 
-**`W-17` Holiday calendar** · Build: calendar per location, management, import. Done when: leave and pay both read one calendar. Watch: per work location, not per tenant. Payroll models locations properly; use that.
+**`W-17` Holiday calendar** · Build: calendar per location, management, import. Done when: leave and pay both read one calendar. Watch: per work location, not per tenant. Payroll models **work locations** properly — `WorkLocation` with a real foreign key — so adopt that entity. It does **not** model the holiday-to-location link properly: `Holiday.locations` is a `Set<String>` of loose names, so renaming an office silently orphans its holidays. Take the entity, fix the link.
 
 **`W-18` Loss-of-pay and working-day policy** · Build: policy model, working-day basis, derivation rules, **policy stamped on every pay figure**. Done when: two tenants on different settings produce correctly different figures from identical data. Watch: the stamp is not optional. Without it a disputed payslip cannot be explained later.
 
 **`W-19` Pay input ledger** · Build: write API for modules, read API for the pay run, period locking. Done when: HRMS overtime reaches a payslip without Payroll knowing HRMS exists. Watch: keep it dumb. It is a ledger, not a calculation engine.
 
-**`W-20` Notifications** · Build: templates, email delivery, in-app, reminder rules, scheduler. Done when: a payroll event sends an email — something Payroll has never done. Watch: composed in `app`, sent by `worker`. The queue joins them.
+**`W-20` Notifications** · Build: templates, email delivery, in-app, reminder rules, scheduler. Done when: **any** payroll event can send an email through one path. Payroll already sends exactly one — the payslip after a run is finalised — hard-coded in `PayRunServiceImpl`. The gap is the absence of a framework, not of any email at all: a run that fails, stalls or completes sends nothing. Watch: composed in `app`, sent by `worker`. The queue joins them.
 
 **`W-21` Document store** · Build: upload, signed-link download, lifecycle, access control. Done when: a payslip downloads from Blob Storage. Watch: signed links, never a public container. Copy the existing payslip token pattern, and never log the signature.
 

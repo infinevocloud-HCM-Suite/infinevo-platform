@@ -73,6 +73,22 @@ secret overwritten with a wrong value has no recovery path from the deployment.
 
 ---
 
+## Build order corrected — 2026-09-23
+
+Two lines in `09-build-order.md` described the frozen system wrongly and would have sent an
+implementer down the wrong path.
+
+| Said | Actually |
+|---|---|
+| "Payroll models locations properly; use that" | It models **work locations** properly. The holiday-to-location link is a `Set<String>`, so renaming an office orphans its holidays. Take the entity, fix the link |
+| "a payroll event sends an email — something Payroll has never done" | It sends one: the payslip after a run, hard-coded in `PayRunServiceImpl`. The gap is the absence of a framework |
+
+`legacy/docs/FEATURE_MAP.md` has a third error of the same kind — it says the pay run reads
+loss-of-pay days from Payroll's own consumption table, while the code calls HRMS over HTTP.
+**Deliberately not corrected:** `legacy/docs/` describes the frozen system and is left alone.
+
+---
+
 ## Stream C is fully specced — 2026-09-23
 
 **All 21 core-platform tickets are planned and founder-approved.** The nine that broke the

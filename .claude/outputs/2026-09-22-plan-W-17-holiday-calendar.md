@@ -36,7 +36,7 @@ Both products have a holiday table, neither is usable, and **nothing reads eithe
 
 That last point is the real finding. `09-build-order.md:196` says *"leave and pay both read one calendar"* — today **neither reads any calendar**, so this is not a port of a working mechanism. It is a new one with two tables of source data.
 
-**A correction to the build order.** It says *"Payroll models locations properly; use that."* Payroll models **work locations** properly — `WorkLocation.java:1-130`, with a real FK to the organisation at `:40-42`. It does **not** model the holiday-to-location link properly. The instruction is right about the entity and wrong about the link; this spec takes the entity and fixes the link.
+**A correction to the build order — now applied to it (2026-09-23).** It said *"Payroll models locations properly; use that."* Payroll models **work locations** properly — `WorkLocation.java:1-130`, with a real FK to the organisation at `:40-42`. It does **not** model the holiday-to-location link properly. The instruction is right about the entity and wrong about the link; this spec takes the entity and fixes the link.
 
 ## 2. Scope
 
