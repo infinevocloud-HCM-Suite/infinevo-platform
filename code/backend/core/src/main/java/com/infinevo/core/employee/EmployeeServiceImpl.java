@@ -1,10 +1,19 @@
 package com.infinevo.core.employee;
 
+import com.infinevo.core.org.Department;
+import com.infinevo.core.org.DepartmentRepository;
+import com.infinevo.core.org.Designation;
+import com.infinevo.core.org.DesignationRepository;
+import com.infinevo.core.org.OrgMaster;
+import com.infinevo.core.org.OrgMasterRepository;
+import com.infinevo.core.org.WorkLocation;
+import com.infinevo.core.org.WorkLocationRepository;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
@@ -45,9 +54,22 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final int MAX_MOBILE = 32;
 
     private final EmployeeRepository employeeRepository;
+    private final DepartmentRepository departmentRepository;
+    private final DesignationRepository designationRepository;
+    private final WorkLocationRepository workLocationRepository;
 
-    public EmployeeServiceImpl(EmployeeRepository employeeRepository) {
+    public EmployeeServiceImpl(
+            EmployeeRepository employeeRepository,
+            DepartmentRepository departmentRepository,
+            DesignationRepository designationRepository,
+            WorkLocationRepository workLocationRepository) {
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
+        this.departmentRepository =
+                Objects.requireNonNull(departmentRepository, "departmentRepository must not be null");
+        this.designationRepository =
+                Objects.requireNonNull(designationRepository, "designationRepository must not be null");
+        this.workLocationRepository =
+                Objects.requireNonNull(workLocationRepository, "workLocationRepository must not be null");
     }
 
     @Override
@@ -62,6 +84,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         Employee employee = new Employee(tenantId, currentActor());
         fields.applyTo(employee, currentActor());
+        assign(employee, request, tenantId);
         return EmployeeResponse.from(save(employee, fields.employeeNumber()));
     }
 
@@ -83,6 +106,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         fields.applyTo(employee, currentActor());
+        assign(employee, request, employee.getTenantId());
         return EmployeeResponse.from(save(employee, fields.employeeNumber()));
     }
 
@@ -92,6 +116,88 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = require(id);
         employee.markDeleted(currentActor());
         employeeRepository.save(employee);
+    }
+
+    /**
+     * Resolves and assigns the three org masters — W-14.1, spec section 3 and section 7.
+     *
+     * <p><strong>This is the only thing stopping a cross-tenant assignment, and it has to be.</strong>
+     * The columns carry foreign keys ({@code V014__employee_org_columns.sql}), but PostgreSQL runs
+     * referential-integrity checks as the table owner with row security off, and the owner here is
+     * {@code migration_user}. So the database will happily accept an employee in tenant A pointing at
+     * a department in tenant B: the row exists, the key resolves, and no policy is consulted. Every id
+     * is therefore looked up through {@code findByIdAndTenantId} in the bound tenant, and one that
+     * does not resolve is a field error rather than a silent null — a request that names a department
+     * and gets an employee with none would be the worst of the three outcomes.
+     *
+     * <p>Inactive masters are refused too, <em>unless the employee already holds that exact one</em>.
+     * That is what "deactivating hides a value from new assignments without breaking the employees who
+     * hold it" means in practice (spec section 4): the employee can be updated, renamed and
+     * terminated while keeping a retired department, and cannot be moved into one.
+     */
+    private void assign(Employee employee, EmployeeRequest request, UUID tenantId) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        Department department = resolve(
+                departmentRepository,
+                request.departmentId(),
+                tenantId,
+                "departmentId",
+                "department",
+                employee.getDepartment(),
+                errors);
+        Designation designation = resolve(
+                designationRepository,
+                request.designationId(),
+                tenantId,
+                "designationId",
+                "designation",
+                employee.getDesignation(),
+                errors);
+        WorkLocation workLocation = resolve(
+                workLocationRepository,
+                request.workLocationId(),
+                tenantId,
+                "workLocationId",
+                "work location",
+                employee.getWorkLocation(),
+                errors);
+
+        if (!errors.isEmpty()) {
+            throw new ValidationException(errors);
+        }
+        employee.assign(department, designation, workLocation);
+    }
+
+    /**
+     * One org master, looked up inside the bound tenant.
+     *
+     * @param current what the employee holds now, so a record that has since been deactivated is not
+     *     torn off an employee who legitimately holds it
+     * @return the record, or null when the request named none
+     */
+    private <T extends OrgMaster> T resolve(
+            OrgMasterRepository<T> repository,
+            UUID id,
+            UUID tenantId,
+            String field,
+            String kind,
+            OrgMaster current,
+            Map<String, String> errors) {
+        if (id == null) {
+            return null;
+        }
+        Optional<T> found = repository.findByIdAndTenantId(id, tenantId);
+        if (found.isEmpty()) {
+            // Deliberately the same message whether the record does not exist at all or belongs to
+            // another tenant. Telling the two apart would let a caller enumerate another tenant's ids.
+            errors.put(field, "No " + kind + " " + id + " in this tenant");
+            return null;
+        }
+        T master = found.get();
+        if (!master.isActive() && (current == null || !id.equals(current.getId()))) {
+            errors.put(field, "The " + kind + " " + master.getCode() + " is inactive and cannot be assigned");
+        }
+        return master;
     }
 
     /**

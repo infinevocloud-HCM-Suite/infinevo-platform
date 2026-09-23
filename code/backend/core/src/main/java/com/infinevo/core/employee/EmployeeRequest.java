@@ -1,6 +1,7 @@
 package com.infinevo.core.employee;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 /**
  * What a client may say about an employee on create and on update (W-13.1, spec section 4).
@@ -22,6 +23,12 @@ import java.time.LocalDate;
  *
  * @param portalEnabled null means true — founder decision 2, spec section 13. Absence is the common
  *     case and the common case should not need a flag.
+ * @param departmentId the department to assign, or null to clear the assignment — W-14.1. It must
+ *     name a record <strong>in the bound tenant</strong>; one belonging to another tenant is refused
+ *     as a field error and not as a {@code 404} on the employee, because the employee is fine and the
+ *     id is not. See {@code EmployeeServiceImpl.resolve}.
+ * @param designationId the designation to assign, same rules
+ * @param workLocationId the work location to assign, same rules
  */
 public record EmployeeRequest(
         String employeeNumber,
@@ -34,4 +41,7 @@ public record EmployeeRequest(
         EmploymentStatus status,
         String workEmail,
         String mobile,
-        Boolean portalEnabled) {}
+        Boolean portalEnabled,
+        UUID departmentId,
+        UUID designationId,
+        UUID workLocationId) {}

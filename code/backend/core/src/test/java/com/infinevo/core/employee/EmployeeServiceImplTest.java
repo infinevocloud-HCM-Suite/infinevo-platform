@@ -4,9 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.infinevo.core.org.DepartmentRepository;
+import com.infinevo.core.org.DesignationRepository;
+import com.infinevo.core.org.WorkLocationRepository;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -40,13 +46,30 @@ class EmployeeServiceImplTest {
 
     private final Map<UUID, Employee> store = new LinkedHashMap<>();
     private EmployeeRepository repository;
+    private DepartmentRepository departmentRepository;
+    private DesignationRepository designationRepository;
+    private WorkLocationRepository workLocationRepository;
     private EmployeeServiceImpl service;
 
     @BeforeEach
     void setUp() {
         store.clear();
         repository = mock(EmployeeRepository.class);
-        service = new EmployeeServiceImpl(repository);
+        // W-14.1 added the three org-master repositories to the constructor. Most tests here name no
+        // department, designation or work location, so the mocks are never asked anything — the
+        // service returns early on a null id.
+        //
+        // All three mocks are held, because one test does need them. EmployeeAssignmentIT runs
+        // against real Postgres as app_user, where row-level security ALSO hides another tenant's
+        // master — so it passes whether or not the service does its own check, and it was observed
+        // passing with that check deliberately removed. Two layers both working is the right
+        // posture, but it means the IT cannot tell them apart. The unit test below pins the service
+        // layer on its own, for all three masters and against the bound tenant specifically.
+        departmentRepository = mock(DepartmentRepository.class);
+        designationRepository = mock(DesignationRepository.class);
+        workLocationRepository = mock(WorkLocationRepository.class);
+        service = new EmployeeServiceImpl(
+                repository, departmentRepository, designationRepository, workLocationRepository);
 
         when(repository.saveAndFlush(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
         when(repository.save(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
@@ -86,7 +109,28 @@ class EmployeeServiceImplTest {
     }
 
     private static EmployeeRequest request(String employeeNumber) {
-        return new EmployeeRequest(employeeNumber, "Asha", null, "Rao", "F", JOINED, null, null, null, null, null);
+        return new EmployeeRequest(
+                employeeNumber, "Asha", null, "Rao", "F", JOINED, null, null, null, null, null, null, null, null);
+    }
+
+    /** The same request, naming all three masters, for the tenant-scoped-finder test. */
+    private static EmployeeRequest requestWithMasters(
+            String employeeNumber, UUID departmentId, UUID designationId, UUID workLocationId) {
+        return new EmployeeRequest(
+                employeeNumber,
+                "Asha",
+                null,
+                "Rao",
+                "F",
+                JOINED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                departmentId,
+                designationId,
+                workLocationId);
     }
 
     // --- the tenant is never the caller's to state -------------------------------------------
@@ -138,7 +182,8 @@ class EmployeeServiceImplTest {
     @Test
     @DisplayName("A blank employee number and a missing joining date are both reported, by field")
     void requiredFieldsAreReported() {
-        EmployeeRequest bad = new EmployeeRequest("   ", null, null, null, null, null, null, null, null, null, null);
+        EmployeeRequest bad = new EmployeeRequest(
+                "   ", null, null, null, null, null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(bad))
                 .isInstanceOf(EmployeeService.ValidationException.class)
@@ -150,8 +195,8 @@ class EmployeeServiceImplTest {
     @Test
     @DisplayName("A work email that is not an address is refused")
     void workEmailIsChecked() {
-        EmployeeRequest bad =
-                new EmployeeRequest("E-1", "Asha", null, "Rao", null, JOINED, null, null, "asha-at-work", null, null);
+        EmployeeRequest bad = new EmployeeRequest(
+                "E-1", "Asha", null, "Rao", null, JOINED, null, null, "asha-at-work", null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(bad)).isInstanceOf(EmployeeService.ValidationException.class);
     }
@@ -254,6 +299,50 @@ class EmployeeServiceImplTest {
                 .isInstanceOf(EmployeeService.DuplicateEmployeeNumberException.class);
     }
 
+    @Test
+    @DisplayName("All three masters are looked up by id AND the BOUND tenant — never findById")
+    void allThreeMastersAreResolvedThroughTheTenantScopedFinder() {
+        // This exists because EmployeeAssignmentIT cannot prove it. That test runs as app_user,
+        // where row-level security hides another tenant's master regardless of what the service
+        // does — swapping findByIdAndTenantId for findById was tried and the IT stayed green. RLS is
+        // the boundary that matters and it works; this asserts the service is not leaning on it.
+        //
+        // Each mock answers findById with a row and findByIdAndTenantId with nothing, which is what
+        // a cross-tenant id looks like to a caller that is NOT relying on the database to filter.
+        //
+        // The tenant is asserted as TENANT_A, not any(UUID.class). An earlier version of this test
+        // used the loose matcher and so proved only the finder's NAME — passing a wrong tenant id
+        // would have kept it green, which is most of what could go wrong here. It also covered
+        // department alone, so specialising designation or work-location resolution later would have
+        // gone unnoticed; all three go through one generic resolve() today and this holds them there.
+        UUID foreignDepartment = UUID.randomUUID();
+        UUID foreignDesignation = UUID.randomUUID();
+        UUID foreignWorkLocation = UUID.randomUUID();
+        when(departmentRepository.findById(any(UUID.class)))
+                .thenReturn(Optional.of(mock(com.infinevo.core.org.Department.class)));
+        when(designationRepository.findById(any(UUID.class)))
+                .thenReturn(Optional.of(mock(com.infinevo.core.org.Designation.class)));
+        when(workLocationRepository.findById(any(UUID.class)))
+                .thenReturn(Optional.of(mock(com.infinevo.core.org.WorkLocation.class)));
+        when(departmentRepository.findByIdAndTenantId(any(UUID.class), any(UUID.class)))
+                .thenReturn(Optional.empty());
+        when(designationRepository.findByIdAndTenantId(any(UUID.class), any(UUID.class)))
+                .thenReturn(Optional.empty());
+        when(workLocationRepository.findByIdAndTenantId(any(UUID.class), any(UUID.class)))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create(
+                        requestWithMasters("E-1", foreignDepartment, foreignDesignation, foreignWorkLocation)))
+                .isInstanceOf(EmployeeService.ValidationException.class);
+
+        verify(departmentRepository).findByIdAndTenantId(eq(foreignDepartment), eq(TENANT_A));
+        verify(designationRepository).findByIdAndTenantId(eq(foreignDesignation), eq(TENANT_A));
+        verify(workLocationRepository).findByIdAndTenantId(eq(foreignWorkLocation), eq(TENANT_A));
+        verify(departmentRepository, never()).findById(any(UUID.class));
+        verify(designationRepository, never()).findById(any(UUID.class));
+        verify(workLocationRepository, never()).findById(any(UUID.class));
+    }
+
     // --- status transitions -------------------------------------------------------------------
 
     @Test
@@ -315,7 +404,9 @@ class EmployeeServiceImplTest {
         service.update(id, withStatus(EmploymentStatus.SUSPENDED, null));
 
         EmployeeResponse updated = service.update(
-                id, new EmployeeRequest("E-1", "Asha", null, "Rao", null, JOINED, null, null, null, null, null));
+                id,
+                new EmployeeRequest(
+                        "E-1", "Asha", null, "Rao", null, JOINED, null, null, null, null, null, null, null, null));
 
         assertThat(updated.status()).isEqualTo(EmploymentStatus.SUSPENDED);
     }
@@ -326,12 +417,15 @@ class EmployeeServiceImplTest {
         UUID id = service.create(request("E-1")).id();
 
         EmployeeResponse updated = service.update(
-                id, new EmployeeRequest("E-1", "Asha", null, "Rao", null, JOINED, null, null, null, null, false));
+                id,
+                new EmployeeRequest(
+                        "E-1", "Asha", null, "Rao", null, JOINED, null, null, null, null, false, null, null, null));
 
         assertThat(updated.portalEnabled()).isFalse();
     }
 
     private static EmployeeRequest withStatus(EmploymentStatus status, LocalDate terminationDate) {
-        return new EmployeeRequest("E-1", "Asha", null, "Rao", null, JOINED, terminationDate, status, null, null, null);
+        return new EmployeeRequest(
+                "E-1", "Asha", null, "Rao", null, JOINED, terminationDate, status, null, null, null, null, null, null);
     }
 }

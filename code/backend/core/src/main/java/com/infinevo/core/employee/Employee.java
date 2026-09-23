@@ -1,13 +1,19 @@
 package com.infinevo.core.employee;
 
+import com.infinevo.core.org.Department;
+import com.infinevo.core.org.Designation;
+import com.infinevo.core.org.WorkLocation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -46,11 +52,16 @@ import java.util.UUID;
  *       forbids; it is a payroll figure and is not carried here at all.
  * </ul>
  *
- * <p>Absent on purpose, and to stay absent until their own tickets: {@code department_id},
- * {@code designation_id} and {@code work_location_id} belong to W-14, and the PF / PT / LWF / ESI /
- * EPS eligibility flags that sit on the frozen employee row ({@code BasicDetails.java:76-140}) are
- * payroll semantics going to a {@code payroll} table under PAY-01 — spec section 2 and section 13,
- * decision 1. Adding either here is a named risk, not an economy.
+ * <p><strong>W-14.1 added {@code department}, {@code designation} and {@code workLocation}</strong>,
+ * the three columns this class was written without. They are the expand half of expand / contract:
+ * every one is nullable ({@code V014__employee_org_columns.sql}), so an employee created before that
+ * ticket keeps working and nothing had to be backfilled. Making any of them {@code NOT NULL} is a
+ * later contract step after a backfill, never an edit here.
+ *
+ * <p>Still absent on purpose: the PF / PT / LWF / ESI / EPS eligibility flags that sit on the frozen
+ * employee row ({@code BasicDetails.java:76-140}) are payroll semantics going to a {@code payroll}
+ * table under PAY-01 — spec section 2 and section 13, decision 1. Adding them here is a named risk,
+ * not an economy.
  *
  * <p>Deletion is soft: {@link #markDeleted} sets the flag and every read path filters on it, so an
  * employee referenced by a past pay run or leave record is never orphaned by a DELETE.
@@ -62,7 +73,10 @@ import java.util.UUID;
         indexes = {
             @Index(name = "idx_employee_tenant_employee_number", columnList = "tenant_id, employee_number"),
             @Index(name = "idx_employee_tenant_work_email", columnList = "tenant_id, work_email"),
-            @Index(name = "idx_employee_tenant_status", columnList = "tenant_id, status")
+            @Index(name = "idx_employee_tenant_status", columnList = "tenant_id, status"),
+            @Index(name = "idx_employee_tenant_department_id", columnList = "tenant_id, department_id"),
+            @Index(name = "idx_employee_tenant_designation_id", columnList = "tenant_id, designation_id"),
+            @Index(name = "idx_employee_tenant_work_location_id", columnList = "tenant_id, work_location_id")
         })
 public class Employee {
 
@@ -119,6 +133,30 @@ public class Employee {
      */
     @Column(name = "is_portal_enabled", nullable = false)
     private boolean portalEnabled = true;
+
+    /**
+     * The org masters this employee is assigned to — W-14.1, {@code V014__employee_org_columns.sql}.
+     *
+     * <p>All three are nullable and lazy. Nullable because the columns were added expand-style to a
+     * table that already had rows; lazy because loading an employee is not a reason to load three
+     * more tables, and every read path here needs the id far more often than the name.
+     *
+     * <p>A foreign key alone does <strong>not</strong> stop one of these pointing at another tenant's
+     * record: {@code migration_user} owns the tables, and PostgreSQL runs referential-integrity checks
+     * as the owner, bypassing row-level security. {@link EmployeeServiceImpl} is what refuses it, and
+     * {@code OrgMasterRlsIT} and {@code EmployeeAssignmentIT} are what prove it — spec section 7.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id")
+    private Department department;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "designation_id")
+    private Designation designation;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "work_location_id")
+    private WorkLocation workLocation;
 
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted = false;
@@ -209,6 +247,18 @@ public class Employee {
         return portalEnabled;
     }
 
+    public Department getDepartment() {
+        return department;
+    }
+
+    public Designation getDesignation() {
+        return designation;
+    }
+
+    public WorkLocation getWorkLocation() {
+        return workLocation;
+    }
+
     public boolean isDeleted() {
         return deleted;
     }
@@ -263,6 +313,24 @@ public class Employee {
         this.portalEnabled = portalEnabled;
         this.updatedBy = actor;
         this.updatedAt = Instant.now();
+    }
+
+    /**
+     * Assigns the three org masters — W-14.1, spec section 3.
+     *
+     * <p>Separate from {@link #apply} rather than three more parameters on a method that already
+     * takes eleven, and package-private for the same reason: {@link EmployeeServiceImpl} has already
+     * resolved each id <em>inside the bound tenant</em> by the time it calls this. An entity that
+     * accepted an id would have no way to check that, and the cross-tenant assignment the foreign key
+     * cannot stop would arrive here looking legitimate.
+     *
+     * <p>Null clears the assignment, which is how an employee is moved out of a department without
+     * being moved into another one.
+     */
+    void assign(Department department, Designation designation, WorkLocation workLocation) {
+        this.department = department;
+        this.designation = designation;
+        this.workLocation = workLocation;
     }
 
     /**

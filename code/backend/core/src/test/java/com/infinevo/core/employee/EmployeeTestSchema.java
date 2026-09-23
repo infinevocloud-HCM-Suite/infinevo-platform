@@ -59,6 +59,23 @@ final class EmployeeTestSchema {
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
             }
+            // W-14.1. Not optional here even though these tests say nothing about an org master:
+            // Employee now maps department_id, designation_id and work_location_id, so every SELECT
+            // it issues names those columns. Without V011-V014 this class fails on "column
+            // department_id does not exist" whenever it happens to run before the org tests.
+            if (!tableExists(conn, "department")) {
+                executeResource(conn, "db/migration/core/V011__department.sql");
+            }
+            if (!tableExists(conn, "designation")) {
+                executeResource(conn, "db/migration/core/V012__designation.sql");
+            }
+            if (!tableExists(conn, "work_location")) {
+                executeResource(conn, "db/migration/core/V013__work_location.sql");
+            }
+            // V014 creates no table, so the guard is on the column it adds.
+            if (!columnExists(conn, "employee", "department_id")) {
+                executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
         }
     }
 
@@ -186,6 +203,20 @@ final class EmployeeTestSchema {
         try (PreparedStatement ps =
                 conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
             ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                """
+                SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'core' AND table_name = ? AND column_name = ?
+                """)) {
+            ps.setString(1, table);
+            ps.setString(2, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

@@ -46,4 +46,25 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     /** The same check for an update, ignoring the row being updated. */
     boolean existsByTenantIdAndEmployeeNumberAndIdNot(UUID tenantId, String employeeNumber, UUID id);
+
+    /**
+     * How many employees in this tenant are assigned to this department — W-14.1, spec section 4.
+     *
+     * <p>This is what makes {@code DELETE /api/v1/departments/{id}} refusable while anyone holds the
+     * record. The underscore is Spring Data's explicit property-path separator: the property is the
+     * {@code department} association's {@code id}, not a scalar column called {@code departmentId}.
+     *
+     * <p><strong>Soft-deleted employees count.</strong> Every other finder here excludes them; these
+     * three deliberately do not. A soft-deleted employee still holds the foreign key, so the delete
+     * would fail in the database anyway — as a constraint violation carrying SQL rather than the
+     * sentence {@code RecordInUseException} gives — and the pay run that named the department is
+     * history somebody may have to reproduce.
+     */
+    long countByTenantIdAndDepartment_Id(UUID tenantId, UUID departmentId);
+
+    /** The same count for a designation. See {@link #countByTenantIdAndDepartment_Id}. */
+    long countByTenantIdAndDesignation_Id(UUID tenantId, UUID designationId);
+
+    /** The same count for a work location. See {@link #countByTenantIdAndDepartment_Id}. */
+    long countByTenantIdAndWorkLocation_Id(UUID tenantId, UUID workLocationId);
 }

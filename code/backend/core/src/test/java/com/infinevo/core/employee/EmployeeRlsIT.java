@@ -5,6 +5,7 @@ import static com.infinevo.core.employee.EmployeeTestSchema.TENANT_B;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.infinevo.core.CoreFeatureTestApp;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.sql.Connection;
@@ -48,7 +49,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>{@code AbstractIntegrationTest} carries {@code @EnabledIfDockerAvailable}, so with no Docker this
  * class fails rather than reporting green having run nothing (#117).
  */
-@SpringBootTest(classes = EmployeeTestApp.class)
+@SpringBootTest(classes = CoreFeatureTestApp.class)
 class EmployeeRlsIT extends AbstractIntegrationTest {
 
     @Autowired
@@ -159,6 +160,9 @@ class EmployeeRlsIT extends AbstractIntegrationTest {
                                 LocalDate.of(2026, 4, 1),
                                 null,
                                 EmploymentStatus.ACTIVE,
+                                null,
+                                null,
+                                null,
                                 null,
                                 null,
                                 null)))

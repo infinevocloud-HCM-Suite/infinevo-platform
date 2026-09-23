@@ -5,6 +5,7 @@ import static com.infinevo.core.employee.EmployeeTestSchema.TENANT_B;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.infinevo.core.CoreFeatureTestApp;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.sql.Connection;
@@ -37,7 +38,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * {@code V010__employee.sql:47} is what holds when two requests race. A test that only exercised the
  * service would still pass if the index were dropped.
  */
-@SpringBootTest(classes = EmployeeTestApp.class)
+@SpringBootTest(classes = CoreFeatureTestApp.class)
 class EmployeeNumberUniquenessIT extends AbstractIntegrationTest {
 
     private static final String SHARED_NUMBER = "EMP-0001";
@@ -105,7 +106,8 @@ class EmployeeNumberUniquenessIT extends AbstractIntegrationTest {
         TenantContext.set(TENANT_A);
         employeeService.create(request("Asha"));
         UUID second = employeeService
-                .create(new EmployeeRequest("EMP-0002", "Anil", null, null, null, JOINED, null, null, null, null, null))
+                .create(new EmployeeRequest(
+                        "EMP-0002", "Anil", null, null, null, JOINED, null, null, null, null, null, null, null, null))
                 .id();
 
         assertThatThrownBy(() -> employeeService.update(second, request("Anil")))
@@ -160,6 +162,7 @@ class EmployeeNumberUniquenessIT extends AbstractIntegrationTest {
     }
 
     private static EmployeeRequest request(String firstName) {
-        return new EmployeeRequest(SHARED_NUMBER, firstName, null, null, null, JOINED, null, null, null, null, null);
+        return new EmployeeRequest(
+                SHARED_NUMBER, firstName, null, null, null, JOINED, null, null, null, null, null, null, null, null);
     }
 }
