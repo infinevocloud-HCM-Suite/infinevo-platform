@@ -44,11 +44,34 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
                 PostgresTestContainerInitializer.APP_USER_PASSWORD);
     }
 
+    /**
+     * Applies the two migrations this test needs, each only if its table is absent.
+     *
+     * <p>The guard is not decoration. The Postgres container is shared by every integration test in
+     * the module, so whichever class runs first creates {@code core.tenant} and the next one to run
+     * {@code V001__tenant.sql} unguarded dies on {@code relation "tenant" already exists} — which is
+     * what happened the moment W-13.1 added {@code EmployeeRlsIT}, a class that sorts before this one
+     * and needs the same table.
+     */
     @BeforeAll
     static void applyMigrations() throws Exception {
         try (Connection conn = migrationUserConnection()) {
-            executeSqlResource(conn, "db/migration/core/V001__tenant.sql");
-            executeSqlResource(conn, "db/migration/core/V006__job_status_and_shedlock.sql");
+            if (!tableExists(conn, "tenant")) {
+                executeSqlResource(conn, "db/migration/core/V001__tenant.sql");
+            }
+            if (!tableExists(conn, "job_status")) {
+                executeSqlResource(conn, "db/migration/core/V006__job_status_and_shedlock.sql");
+            }
+        }
+    }
+
+    private static boolean tableExists(Connection conn, String table) throws SQLException {
+        try (PreparedStatement ps =
+                conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
+            ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 
