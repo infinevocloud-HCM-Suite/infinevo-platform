@@ -39,7 +39,7 @@ jobs:
         run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
       - name: Scan dependencies with Trivy
-        run: trivy fs --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
+        run: trivy fs --offline-scan --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
 
   rescan-secrets:
     name: rescan-secrets
@@ -53,5 +53,5 @@ jobs:
 
       - name: Scan secrets with Trivy
         run: |
-          trivy fs --scanners secret code/
-          trivy fs --scanners secret infra/
+          trivy fs --offline-scan --scanners secret code/
+          trivy fs --offline-scan --scanners secret infra/

@@ -459,7 +459,7 @@ jobs:
         run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
       - name: Scan dependencies with Trivy
-        run: trivy fs --exit-code 1 --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
+        run: trivy fs --exit-code 1 --offline-scan --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
 
   # ── static application security testing (SAST) ──────────────────────────────
   # Semgrep scans code/ for insecure code patterns and vulnerabilities.
@@ -496,8 +496,8 @@ jobs:
 
       - name: Scan secrets with Trivy
         run: |
-          trivy fs --exit-code 1 --scanners secret code/
-          trivy fs --exit-code 1 --scanners secret infra/
+          trivy fs --exit-code 1 --offline-scan --scanners secret code/
+          trivy fs --exit-code 1 --offline-scan --scanners secret infra/
 
   # ── images ──────────────────────────────────────────────────────────────────
   # W-49 (#69) builds the production Dockerfiles (multi-stage, slim runtime,
