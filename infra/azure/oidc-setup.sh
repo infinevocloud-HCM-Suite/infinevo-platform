@@ -180,6 +180,7 @@ for ACTION in "${ACR_BUILD_ACTIONS[@]}"; do
 done
 echo ""
 echo " Would grant:"
+echo "   Contributor on subscription ${SUBSCRIPTION_ID} (for infra.yml subscription what-if)"
 for RG in "${ENV_RESOURCE_GROUPS[@]}"; do
   echo "   ${CONTAINERAPPS_ROLE} on ${RG}"
 done
@@ -299,6 +300,10 @@ grant_role() {
 }
 
 echo "[4/5] Role assignments..."
+# Subscription-level Contributor role required by Azure Infrastructure CI (.github/workflows/infra.yml)
+# to run subscription-scoped Bicep what-if validation (az deployment sub what-if)
+grant_role "Contributor" "/subscriptions/${SUBSCRIPTION_ID}" "subscription"
+
 for RG in "${ENV_RESOURCE_GROUPS[@]}"; do
   if ! az group exists --name "$RG" | grep -q true; then
     echo "      skipped: ${RG} does not exist yet (uat and prod are unbuilt — W-54 section 2)"
