@@ -80,8 +80,8 @@ param containerAppCurrentImages object = {}
 @description('Per-app revision name currently serving 100 percent of traffic, keys app/web/keycloak, read live by deploy.sh. The traffic block pins to these by name so no deployment moves the weight (W-54 findings F-5 and F-1). Empty on a first deployment, in which case the traffic block falls back to latestRevision.')
 param containerAppTrafficRevisions object = {}
 
-@description('Primary on-call notification email address (W-61 decision 1: alerts@infinevocloud.com)')
-param alertEmail string = 'alerts@infinevocloud.com'
+@description('Primary on-call notification email address (W-61: kmohapatra@infinevocloud.com)')
+param alertEmail string = 'kmohapatra@infinevocloud.com'
 
 // ── Networking (W-51) ────────────────────────────────────────────────────────
 @description('VNet address space, 10.{octet}.0.0/16 - dev 10.10, uat 10.20, prod 10.30')

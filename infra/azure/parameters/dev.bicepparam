@@ -26,4 +26,4 @@ param caeSubnetPrefix = '10.10.0.0/23'
 param peSubnetPrefix = '10.10.3.0/24'
 
 param enablePurgeProtection = false
-param alertEmail = 'alerts@infinevocloud.com'
+param alertEmail = 'kmohapatra@infinevocloud.com'
