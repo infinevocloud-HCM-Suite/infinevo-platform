@@ -642,12 +642,29 @@ in `.claude/work/active-work.md` and are listed here so the count is on the reco
 
 ## 8. Rollback
 
-If secret resolution or rotation encounters issues:
-1. **Secret Version Rollback:** Key Vault maintains version history for all secrets. Revert the Container App secret reference to the previous working version GUID.
-2. **Rotation Rollback:** If a rotated password fails, reset the role with `psql-admin-pw` to the previous Key Vault version and restart the revision. This is the same short window as the rotation itself, run backwards.
-3. **Container Revision Rollback:** If a new revision fails to start due to secret resolution failure, Container Apps automatically leaves the previous healthy revision active (traffic remains at 100% on the old revision).
-4. **Database Credential Emergency Fallback:** In the event of a database password desynchronization, use `psql-admin-pw` to reset the role password to match the active Key Vault secret version.
-5. **Local stack rollback:** `docker compose -f infra/docker/compose.yml down -v` and re-run. The roles are provisioned from scratch, so a half-applied `01-roles.sql` leaves nothing behind.
+**There is no secret-version rollback, and this section used to claim there was.** Every
+`keyVaultUrl` in `containerapps.bicep` is unversioned — `.../secrets/psql-app-pw`, no GUID —
+which is deliberate, because an unversioned reference is what lets a revision restart pick up
+a changed secret. The consequence is that there is no version to revert *to*. The earlier
+instruction to "revert the Container App secret reference to the previous working version
+GUID" described something the template has never done.
+
+What actually works, if secret resolution fails:
+
+1. **Container revision rollback.** If a new revision cannot start because a secret will not
+   resolve, Container Apps leaves the previous healthy revision serving 100% of traffic. This
+   is automatic and is the real safety net.
+2. **Database credential desynchronisation.** If the role password and the Key Vault value
+   disagree, connect with `psql-admin-pw` and `ALTER ROLE` the role back to whatever Key Vault
+   currently holds, then restart the revision. By hand — there is no script (revision 6).
+3. **Local stack.** `docker compose -f infra/docker/compose.yml down -v` and re-run. Roles are
+   provisioned from scratch, so a half-applied `01-roles.sql` leaves nothing behind.
+
+**What this does not cover.** A secret overwritten with a wrong value cannot be recovered from
+the deployment — Key Vault holds the version history, but nothing in this template reads a
+specific version, so recovery means reading the old value out of Key Vault by hand and writing
+it back as the current one. That is a real gap and it belongs with the absent rotation
+procedure at `W-64`.
 
 ---
 

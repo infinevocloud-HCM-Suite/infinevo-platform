@@ -62,9 +62,14 @@ real is worse than none.
 > database and Key Vault by hand and restarting the revisions, with nothing written down.
 > That is the largest open gap in `W-56` and belongs to `W-64` or the first incident.
 
-Also outstanding: secret references are unversioned while §8.1 tells an operator to revert to
-a version GUID that does not exist; `id-web-dev` holds Key Vault read access the spec says it
-should not.
+**§8 Rollback was corrected on 2026-09-23.** It told an operator to revert a Container App
+secret reference to a previous version GUID. The references are unversioned by design — that
+is what lets a revision restart pick up a changed secret — so there was no version to revert
+to. The section now states what actually works: Container Apps keeps the last healthy revision
+serving traffic, and a desynchronised password is reset by hand with `psql-admin-pw`.
+
+Also outstanding: `id-web-dev` holds Key Vault read access the spec says it should not, and a
+secret overwritten with a wrong value has no recovery path from the deployment.
 
 ---
 
