@@ -36,7 +36,7 @@ jobs:
         run: ./mvnw -B dependency:resolve -q
 
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
       - name: Scan dependencies with Trivy
         run: trivy fs --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
       - name: Scan secrets with Trivy
         run: |

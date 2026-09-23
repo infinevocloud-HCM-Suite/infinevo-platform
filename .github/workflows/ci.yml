@@ -456,7 +456,7 @@ jobs:
         run: ./mvnw -B dependency:resolve -q
 
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
       - name: Scan dependencies with Trivy
         run: trivy fs --exit-code 1 --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
@@ -471,11 +471,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Semgrep
-        run: pip install semgrep
-
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+      - name: Install Semgrep and Trivy
+        run: |
+          pip install semgrep
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
       - name: Run Semgrep SAST scan
         run: semgrep scan --config auto --error code/
@@ -493,7 +492,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
       - name: Scan secrets with Trivy
         run: |
