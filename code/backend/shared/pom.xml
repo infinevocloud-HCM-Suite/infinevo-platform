@@ -30,6 +30,16 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-jdbc</artifactId>
       </dependency>
+      <!--
+        W-22.1: compile scope, not test. The audit trail maps core.audit_log with JPA and
+        captures changes through a Hibernate event listener, so the entity, the repository
+        and the listener all need this on the main classpath. It was test-scoped for W-04,
+        which only needed AbstractIntegrationTest.
+      -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-jpa</artifactId>
+      </dependency>
       <dependency>
         <groupId>com.azure</groupId>
         <artifactId>azure-storage-queue</artifactId>
@@ -66,12 +76,6 @@
       <dependency>
         <groupId>org.testcontainers</groupId>
         <artifactId>junit-jupiter</artifactId>
-        <scope>test</scope>
-      </dependency>
-      <!-- W-04: Spring Boot test support for AbstractIntegrationTest -->
-      <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-data-jpa</artifactId>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -119,6 +123,19 @@
           <execution>
             <id>test-jar</id>
             <goals><goal>test-jar</goal></goals>
+            <configuration>
+              <!--
+                W-22.1: the audit fixtures stay out of the test-jar. AuditedProbe is an
+                @Entity mapping core.audited_probe, a table no migration creates. Every
+                module scans com.infinevo for entities, so shipping it would put a mapping
+                to a non-existent table on the test classpath of core, hrms, payroll,
+                worker and migration. Harmless while ddl-auto is none, a trap the day
+                anything validates mappings. Only com/infinevo/shared/test/** is shared.
+              -->
+              <excludes>
+                <exclude>com/infinevo/shared/audit/**</exclude>
+              </excludes>
+            </configuration>
           </execution>
         </executions>
       </plugin>
