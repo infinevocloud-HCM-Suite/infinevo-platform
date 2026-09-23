@@ -1,0 +1,57 @@
+# Scheduled dependency and secret rescan for infinevo-platform.
+#
+# Daily rescan at 02:00 UTC and on manual dispatch.
+# Catches CVEs published against dependencies that have not changed.
+#
+# INFORMATIONAL ONLY — this workflow does NOT block merges.
+# check-done.mjs gate 8 evaluates only CI runs from .github/workflows/ci.yml.
+
+name: Security Rescan
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rescan-deps:
+    name: rescan-deps
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Warm Maven cache
+        working-directory: code/backend
+        run: ./mvnw -B install -DskipTests -Dspotless.check.skip=true -q
+
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - name: Scan dependencies with Trivy
+        run: trivy fs --offline-scan --include-dev-deps --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed code/
+
+  rescan-secrets:
+    name: rescan-secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - name: Scan secrets with Trivy
+        run: |
+          trivy fs --offline-scan --scanners secret code/
+          trivy fs --offline-scan --scanners secret infra/
