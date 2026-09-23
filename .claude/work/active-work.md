@@ -1,9 +1,9 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-23**, after `W-10` Identity (#11) merged as `ac1e531`.
-> **Layer 0 of Core is complete** — `W-22.1` and `W-10`. `W-13.1` is the last of the three
-> and the only one still open.
+> Last refreshed: **2026-09-23**, after `W-13.1` Employee record (#14) merged as `7d0bab6`.
+> **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. Layer 1 is ten
+> branches and they can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -13,9 +13,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **112** — 21 closed, 91 open. GitHub is authoritative, this file is the summary |
+| Tickets | **112** — 22 closed, 90 open. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 is done — all 7.** Wave 2 starts at `W-09` |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 > **`W-50` and `W-51` are verified as code and not as an environment.** The Bicep builds
@@ -30,6 +30,67 @@
 > justify. `D-44` is superseded. Consequences that outlive this ticket: **`W-52` must
 > handle idempotency in code**, since Storage Queue does not guarantee ordering, and the
 > local stand-in moves from RabbitMQ to Azurite's queue service.
+
+---
+
+## `W-13.1` Employee record merged — layer 0 is done
+
+`core.employee` (**`V010`**) is the first employee table isolated by row-level security
+rather than by a `WHERE` clause someone remembered. **BUG-002 is fixed for this table**; the
+other 38 HRMS entities are `W-67`'s.
+
+| | |
+|---|---|
+| Merged | `7d0bab6`, closing **#14** |
+| Tests | 34, none skipped. The RLS test asserts on a raw `app_user` connection, not through the service |
+| Review | 4 findings, no High, all fixed on the branch |
+
+Two legacy defects corrected rather than carried: `date_of_joining` is a real `DATE` where
+`BasicDetails.java:44` holds a `String`, and `employee_number` is unique **within** a tenant
+where `employeeUniqueId` (`:140`) is globally unique — which in a shared database lets one
+customer's numbering block another's.
+
+> **`W-13.3` search will trip on soft delete unless it is careful.** The repository extends
+> `JpaRepository`, so `findById`, `findAll`, `getReferenceById` and `deleteById` are
+> inherited and none filters `is_deleted`. Nothing uses them today. Search and listing is
+> exactly the ticket that reaches for `findAll`, and it would return soft-deleted employees
+> silently. The repository javadoc says so now, and names `W-13.3`.
+
+> **No database `CHECK` on `status`.** The three-value vocabulary lives only in Java, so a
+> row written outside the service is accepted at write and fails at **read**, as a Hibernate
+> enum conversion error. `W-67` is the caller that will hit it, and it is the ticket that
+> knows what the legacy values actually are.
+
+---
+
+## Layer 1 is open — ten branches, 2026-09-23
+
+All ten depend only on layer 0 and can run in parallel. Started first, because these three
+unblock the most: `W-14-1-org-masters` (critical path), `W-13-2-employee-detail`,
+`W-11-1-role-catalogue`.
+
+| Branch | Blocks |
+|---|---|
+| `W-14-1-org-masters` | `W-14.2` → `W-15` approval engine → most of leave |
+| `W-13-2-employee-detail` | `W-25` portal; carries the audit opt-in |
+| `W-11-1-role-catalogue` | `W-11.2`, `W-12.2`, `W-24.2` |
+| `W-12-1-subscription` · `W-13-3-employee-search` · `W-19-pay-input-ledger` · `W-20-1-notifications` · `W-21-document-store` · `W-23-1-export` · `W-22-2-audit-retention`* | — |
+
+\* `W-22.2` is **layer 3 in practice**, not layer 1: its spec says "blocked by W-22.1", but
+it also sweeps `core.notification` (`W-20.1`) and uses the scheduler (`W-20.2`). **It still
+has no GitHub ticket and must be raised.**
+
+> **Founder decision, 2026-09-23: `W-13.2` turns the audit trail on.** `W-22.1` shipped the
+> mechanism and it has recorded **nothing** since, because no production table carries
+> `@Audited`. `W-13.2` annotates the employee tables and fixes
+> the `@Embedded` redaction gap `W-22.1` deferred — without which the first audited entity
+> holding an address or bank detail writes it in clear. **This is scope added to an approved
+> spec, by the founder, and is recorded in the spec itself.**
+
+**Flyway continues from `V011`.** Used: `V001`, `V002`, `V006`, `V008`, `V009`, `V010`. The
+rule is the next number **above everything on `main`**, not the next free one — `W-10` had to
+be renumbered for exactly that, and CI cannot catch it because CI starts from an empty
+database.
 
 ---
 
@@ -221,7 +282,7 @@ and several specs now share one, with only the last saying `Closes #nn`.
 | Specs approved | **33**, in `.claude/outputs/2026-09-22-plan-W-*.md` |
 | Decisions settled | 69, recorded in `.claude/outputs/2026-09-22-plan-core-open-questions.md` |
 | Evidence passes | 16, every claim carrying `file:line` |
-| Can start today | **`W-13.1` only.** `W-22.1` and `W-10` are merged; layer 0 ends when W-13.1 does, and layer 1 (ten branches) opens |
+| Can start today | **Layer 1 — ten branches, all in parallel.** Layer 0 is done |
 
 Nine decisions went against the recommendation in the spec and are worth reading before
 building: the pay divisor stays **calendar days** and a missing policy **falls back silently**
@@ -308,8 +369,10 @@ head. (`--no-assignee` is not a flag in the installed `gh`; use the search form.
 
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
+| **#15** | `W-14.1` Org masters | M | BE | Layer 1, **critical path** — department, designation, work location. `W-14.2` then the approval engine sit behind it. Takes `V011` |
+| **#14** | `W-13.2` Employee detail | M | BE | Five detail tables. **Carries the founder decision to turn the audit trail on** — annotate `@Audited` and fix the `@Embedded` redaction gap |
+| **#12** | `W-11.1` Role catalogue | M | BE | Layer 1. Four tables; blocks permission checks, entitlement and invitations |
 | **none yet** | `W-22.2` audit retention | S | BE | **Must be raised.** Nothing deletes an audit row and `W-22.1` shipped without it. Spec and seven-year window are in `W-22-1-audit-trail.md` §13 |
-| **#14** | `W-13.1` Employee record | M | BE | **The last of layer 0, and on the critical path — it blocks six tickets.** Takes **`V010`** (not `V009`; `W-10` took that). Two inherited conditions: it is the first ticket that can carry `@Audited` on a production entity, and the first with an association, so it must fix the `@Embedded` redaction gap `W-22.1` deferred or it writes PII in clear |
 | **#44** | `W-33.2` Tax calculator — old regime with section deductions | XL | BE | **Newly unblocked.** `W-09` shipped the 15 `reference` tables it reads. Carries three conditions from W-09's review (see `55a5a83`): C-1 Chapter VI-A has no `financial_year`, C-2 `home_loan_rule_master` has no regime column, C-3 loss carry-forward defaults FALSE |
 | **#146** | `W-09` follow-up — senior-citizen tax slabs are not seeded | S | DATA | `W-09` seeded only `age_category = 'GENERAL'`. Under the old regime a senior gets ₹2.5L exemption instead of ₹3L, and a super-senior instead of ₹5L — both over-deducted. `W-33` cannot fix it without a new migration |
 | #139 | `W-06` code reached `main` inside a documentation-only commit | S | INFRA | A gate defect, not a code defect. Belongs with #101 and #104 — the same merge gate, the same failure shape |
