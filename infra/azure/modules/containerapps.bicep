@@ -220,22 +220,22 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
       secrets: [
         {
           name: 'brevo-api-key'
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/brevo-api-key'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/brevo-api-key'
           identity: identities.app.id
         }
         {
           name: 'jwt-signing-secret'
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/jwt-signing-secret'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/jwt-signing-secret'
           identity: identities.app.id
         }
         {
           name: 'keycloak-client-secret'
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/keycloak-client-secret'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/keycloak-client-secret'
           identity: identities.app.id
         }
         {
           name: 'psql-app-pw'
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/psql-app-pw'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-app-pw'
           identity: identities.app.id
         }
       ]
@@ -332,12 +332,12 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
       secrets: [
         {
           name: 'brevo-api-key'
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/brevo-api-key'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/brevo-api-key'
           identity: identities.worker.id
         }
         {
           name: 'psql-worker-pw'
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/psql-worker-pw'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-worker-pw'
           identity: identities.worker.id
         }
       ]
@@ -491,12 +491,12 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
       secrets: [
         {
           name: 'keycloak-admin-pw'
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/keycloak-admin-pw'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/keycloak-admin-pw'
           identity: identities.keycloak.id
         }
         {
           name: 'psql-keycloak-pw'
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/psql-keycloak-pw'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-keycloak-pw'
           identity: identities.keycloak.id
         }
       ]

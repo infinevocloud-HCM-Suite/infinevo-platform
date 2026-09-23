@@ -129,7 +129,7 @@ resource flywayJob 'Microsoft.App/jobs@2024-03-01' = {
           name: migrationPasswordSecretName
           // az.environment(), not environment(): the parameter above shadows the function
           // name (BCP265).
-          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/${migrationPasswordSecretName}'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/${migrationPasswordSecretName}'
           identity: migrationIdentityId
         }
       ]
