@@ -38,3 +38,12 @@ management:
   health:
     db:
       enabled: true
+
+security:
+  jwt:
+    signing-secret: ${JWT_SIGNING_SECRET:local_jwt_secret}
+  keycloak:
+    client-secret: ${KEYCLOAK_CLIENT_SECRET:local_kc_secret}
+
+brevo:
+  api-key: ${BREVO_API_KEY:local_brevo_key}

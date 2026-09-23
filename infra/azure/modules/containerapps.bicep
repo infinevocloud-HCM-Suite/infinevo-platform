@@ -43,6 +43,9 @@ param frontDoorBackendPrefixes array = []
 @description('Tags for the resources')
 param tags object = {}
 
+@description('Key Vault name holding application secrets')
+param keyVaultName string = 'kv-infinevo-shared'
+
 // Origin protection (W-51 section 2.5). Front Door Standard has no Private Link origin and
 // Container Apps ingress has no header-matching rule, so ipSecurityRestrictions is the only
 // control the ingress schema offers. Anything not arriving from a Front Door backend address
@@ -204,6 +207,28 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
         // moves it - after health passes, by name. Rollback re-points it by name too.
         traffic: appTrafficBlock
       }
+      secrets: [
+        {
+          name: 'brevo-api-key'
+          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/brevo-api-key'
+          identity: identities.app.id
+        }
+        {
+          name: 'jwt-signing-secret'
+          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/jwt-signing-secret'
+          identity: identities.app.id
+        }
+        {
+          name: 'keycloak-client-secret'
+          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/keycloak-client-secret'
+          identity: identities.app.id
+        }
+        {
+          name: 'psql-app-pw'
+          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/psql-app-pw'
+          identity: identities.app.id
+        }
+      ]
       registries: [
         {
           server: acrLoginServer
@@ -232,6 +257,24 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json(cpu)
             memory: memory
           }
+          env: [
+            {
+              name: 'BREVO_API_KEY'
+              secretRef: 'brevo-api-key'
+            }
+            {
+              name: 'JWT_SIGNING_SECRET'
+              secretRef: 'jwt-signing-secret'
+            }
+            {
+              name: 'KEYCLOAK_CLIENT_SECRET'
+              secretRef: 'keycloak-client-secret'
+            }
+            {
+              name: 'DB_PASSWORD'
+              secretRef: 'psql-app-pw'
+            }
+          ]
           probes: [
             {
               type: 'Liveness'
@@ -275,6 +318,18 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
       // No ingress block, and so no ipSecurityRestrictions: the worker is a queue consumer
       // with no inbound surface at all. W-51 section 3b says "all four ingress blocks", but
       // there are three - this app has never had one (W-50). Nothing to restrict here.
+      secrets: [
+        {
+          name: 'brevo-api-key'
+          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/brevo-api-key'
+          identity: identities.worker.id
+        }
+        {
+          name: 'psql-worker-pw'
+          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/psql-worker-pw'
+          identity: identities.worker.id
+        }
+      ]
       registries: [
         {
           server: acrLoginServer
@@ -294,6 +349,16 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json(cpu)
             memory: memory
           }
+          env: [
+            {
+              name: 'BREVO_API_KEY'
+              secretRef: 'brevo-api-key'
+            }
+            {
+              name: 'DB_PASSWORD'
+              secretRef: 'psql-worker-pw'
+            }
+          ]
         }
       ]
       scale: {
@@ -320,6 +385,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       // 'Multiple' for the same reason as the app — see the comment there (W-54, F-9).
       activeRevisionsMode: 'Multiple'
+      secrets: []
       ingress: {
         external: true
         // 8080, not 80 (W-54, review finding F-7). nginx in the frontend image listens on
@@ -404,6 +470,18 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
         // Pinned by name for the same reason as the app - see the comment there (F-5).
         traffic: keycloakTrafficBlock
       }
+      secrets: [
+        {
+          name: 'keycloak-admin-pw'
+          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/keycloak-admin-pw'
+          identity: identities.keycloak.id
+        }
+        {
+          name: 'psql-keycloak-pw'
+          keyVaultUrl: 'https://${keyVaultName}.${az.environment().suffixes.keyvaultDns}/secrets/psql-keycloak-pw'
+          identity: identities.keycloak.id
+        }
+      ]
       registries: [
         {
           server: acrLoginServer
@@ -425,6 +503,16 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json(cpu)
             memory: memory
           }
+          env: [
+            {
+              name: 'KEYCLOAK_ADMIN_PASSWORD'
+              secretRef: 'keycloak-admin-pw'
+            }
+            {
+              name: 'KC_DB_PASSWORD'
+              secretRef: 'psql-keycloak-pw'
+            }
+          ]
           // ON PORT 9000, NOT THE INGRESS PORT (W-54 round-2 finding F-20). The image bakes
           // KC_HTTP_RELATIVE_PATH=/auth at build time (infra/docker/keycloak.Dockerfile:47),
           // so '/' on 8080 - what this probe used to ask for - is now a 404 and the

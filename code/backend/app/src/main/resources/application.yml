@@ -40,3 +40,12 @@ management:
       # Fails the health check when Postgres is unreachable, so a Container Apps probe
       # reports a replica that started but cannot work.
       enabled: true
+
+security:
+  jwt:
+    signing-secret: ${JWT_SIGNING_SECRET}
+  keycloak:
+    client-secret: ${KEYCLOAK_CLIENT_SECRET}
+
+brevo:
+  api-key: ${BREVO_API_KEY}

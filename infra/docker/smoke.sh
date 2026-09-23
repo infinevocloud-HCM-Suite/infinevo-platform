@@ -46,10 +46,17 @@ check "keycloak database owned by keycloak_user" \
   "$C exec -T postgres psql -tAU postgres -c \"select pg_get_userbyid(datdba) from pg_database where datname='keycloak'\" | grep -qx keycloak_user"
 
 echo "── roles and privileges"
-for r in app_user migration_user readonly_user keycloak_user; do
+# 1. worker_user inherits from app_user. Read from the catalogue rather than inferred from
+# a query succeeding: a grant that is missing but compensated elsewhere would still pass a
+# behavioural test, and then break the moment the compensation moves.
+check "worker_user inherits from app_user" \
+  "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_auth_members m join pg_roles r on r.oid=m.roleid join pg_roles g on g.oid=m.member where r.rolname='app_user' and g.rolname='worker_user'\" | grep -q 1"
+
+# 2. Declared attributes, for the new role as well as the four original ones.
+for r in app_user worker_user migration_user readonly_user keycloak_user; do
   check "role $r exists" \
     "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_roles where rolname='$r'\" | grep -q 1"
-  check "role $r has declared attributes (nosuper, nobypassrls)" \
+  check "role $r has declared attributes (nosuper, nobypassrls, nocreatedb, nocreaterole)" \
     "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_roles where rolname='$r' and rolsuper=false and rolbypassrls=false and rolcreatedb=false and rolcreaterole=false\" | grep -q 1"
 done
 
@@ -68,13 +75,14 @@ check "readonly_user refused connection on keycloak db" \
 # The one that matters. If app_user CAN create a table, the roles are wrong and
 # row-level security will not be a boundary when W-07 lands.
 echo "── app_user must NOT be able to run DDL"
-if $C exec -T postgres psql -U app_user -d infinevo \
-     -c "create table core.smoke_should_fail(id int);" >/dev/null 2>&1; then
-  bad "app_user was ALLOWED to create a table - roles are wrong"
-  $C exec -T postgres psql -U postgres -d infinevo \
-     -c "drop table if exists core.smoke_should_fail;" >/dev/null 2>&1
+ddl_output=$($C exec -T postgres psql -U app_user -d infinevo \
+     -c "create table core.smoke_should_fail(id int);" 2>&1 || true)
+if echo "$ddl_output" | grep -q "permission denied for schema core"; then
+  ok "app_user is refused DDL (permission denied for schema core)"
 else
-  ok "app_user is refused DDL"
+  bad "app_user DDL check failed (expected permission denied): $ddl_output"
+  $C exec -T postgres psql -U postgres -d infinevo \
+     -c "drop table if exists core.smoke_should_fail;" >/dev/null 2>&1 || true
 fi
 
 echo "── configuration"

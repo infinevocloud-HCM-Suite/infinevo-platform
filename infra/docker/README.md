@@ -79,8 +79,10 @@ and `keycloak` for the identity server's own tables.
 
 ## Three things that are deliberate
 
-**`app` connects as `app_user`, never as the owner.** `app_user` has read/write on
-`core`, `hrms` and `payroll`, read on `reference`, and **no DDL at all**. Try it:
+**`app` connects as `app_user`, never as the owner.** `app_user` is the application's
+login role and holds the grants and the RLS policies; `worker_user` is the worker's own
+login and inherits them through membership. Both have read/write on `core`, `hrms` and
+`payroll`, read on `reference`, and **no DDL at all**. Try it:
 
 ```bash
 docker compose -f infra/docker/compose.yml exec postgres \

@@ -28,6 +28,10 @@ services:
       POSTGRES_PASSWORD: local_postgres_pw
       POSTGRES_DB: infinevo
       APP_PW: local_app_pw
+      # Deliberately different from APP_PW. In Azure these are two Key Vault secrets,
+      # psql-app-pw and psql-worker-pw; sharing one literal locally would let the worker
+      # come up healthy on the app's password and hide a mis-wired secret until deploy.
+      WORKER_PW: local_worker_pw
       MIGRATION_PW: local_migration_pw
       READONLY_PW: local_readonly_pw
       KEYCLOAK_PW: local_keycloak_pw
@@ -175,8 +179,8 @@ services:
     command: ["-pl", "worker", "spring-boot:run", "-Dspring-boot.run.profiles=local"]
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/infinevo
-      DB_USERNAME: app_user
-      DB_PASSWORD: local_app_pw
+      DB_USERNAME: worker_user
+      DB_PASSWORD: local_worker_pw
       REDIS_HOST: redis
       QUEUE_HOST: queue
       BLOB_ENDPOINT: http://blob:10000/devstoreaccount1

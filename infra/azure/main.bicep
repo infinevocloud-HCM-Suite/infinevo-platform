@@ -341,6 +341,7 @@ module containerApps 'modules/containerapps.bicep' = {
   }
   dependsOn: [
     acrRoleAssignment
+    keyVaultRbac
   ]
 }
 

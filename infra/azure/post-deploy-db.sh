@@ -78,6 +78,7 @@ fi
 # 3. Generate and store role passwords in Key Vault if absent
 declare -A ROLE_SECRETS=(
   ["APP_PW"]="psql-app-pw"
+  ["WORKER_PW"]="psql-worker-pw"
   ["MIGRATION_PW"]="psql-migration-pw"
   ["READONLY_PW"]="psql-readonly-pw"
   ["KEYCLOAK_PW"]="psql-keycloak-pw"
@@ -100,7 +101,7 @@ for VAR_NAME in "${!ROLE_SECRETS[@]}"; do
 done
 
 # Double check that no password uses local repo fallbacks
-for VAR_NAME in APP_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW; do
+for VAR_NAME in APP_PW WORKER_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW; do
   VAL="${!VAR_NAME}"
   if [[ "$VAL" =~ ^local_.*_pw$ ]]; then
     echo "ERROR: $VAR_NAME is using committed repo default literal '$VAL'" >&2
@@ -108,7 +109,7 @@ for VAR_NAME in APP_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW; do
   fi
 done
 
-echo "PASS: All four role credentials dynamically generated and retrieved from Key Vault."
+echo "PASS: All role credentials dynamically generated and retrieved from Key Vault."
 
 # 4. Execute canonical provision.sh against Flexible Server
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -133,22 +134,34 @@ if [[ "$SCHEMA_COUNT" != "5" ]]; then
 fi
 echo "PASS: All 5 schemas exist and are owned by migration_user."
 
-# 5. Check 6b: Exercise app_user Login and DDL Refusal
-echo "Exercising app_user login with generated Key Vault password (Check 6b)..."
-APP_CURRENT_USER=$(PGPASSWORD="$APP_PW" psql -h "$PGHOST" -U app_user -d "$PGDATABASE" -t -A -c "SELECT current_user;")
-if [[ "$APP_CURRENT_USER" != "app_user" ]]; then
-  echo "FAIL: app_user login returned current_user='${APP_CURRENT_USER}' (expected 'app_user')." >&2
+# 5. Check 6b: Exercise app_user login and DDL refusal
+# app_user is the application's login role and keeps its password (spec rev 5, §0).
+APP_ROLE="app_user"
+APP_ROLE_PW=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "psql-app-pw" --query value -o tsv 2>/dev/null || true)
+if [[ -z "$APP_ROLE_PW" ]]; then
+  echo "FAIL: Could not retrieve secret psql-app-pw from ${VAULT_NAME} for role ${APP_ROLE}" >&2
   exit 1
 fi
-echo "PASS: app_user connected successfully with its Key Vault password."
 
-echo "Testing that app_user is refused DDL permissions..."
-if PGPASSWORD="$APP_PW" psql -h "$PGHOST" -U app_user -d "$PGDATABASE" -c \
-  "CREATE TABLE core.should_not_exist(id int);" >/dev/null 2>&1; then
-  echo "FAIL: app_user was allowed to create a table — permissions misconfigured." >&2
+echo "Exercising ${APP_ROLE} login with generated Key Vault password (Check 6b)..."
+APP_CURRENT_USER=$(PGPASSWORD="$APP_ROLE_PW" psql -h "$PGHOST" -U "$APP_ROLE" -d "$PGDATABASE" -t -A -c "SELECT current_user;")
+if [[ "$APP_CURRENT_USER" != "$APP_ROLE" ]]; then
+  echo "FAIL: ${APP_ROLE} login returned current_user='${APP_CURRENT_USER}' (expected '${APP_ROLE}')." >&2
   exit 1
 fi
-echo "PASS: app_user was correctly refused DDL permissions."
+echo "PASS: ${APP_ROLE} connected successfully with its Key Vault password."
+
+# The refusal is proved by the privilege error itself, not by a nonzero psql exit: a
+# password prompt or a missing role exits nonzero just as well (spec §3b, rev2 finding B-6).
+echo "Testing that ${APP_ROLE} is refused DDL permissions..."
+DDL_OUT=$(PGPASSWORD="$APP_ROLE_PW" psql -h "$PGHOST" -U "$APP_ROLE" -d "$PGDATABASE" -c \
+  "CREATE TABLE core.should_not_exist(id int);" 2>&1 || true)
+if echo "$DDL_OUT" | grep -q "permission denied for schema core"; then
+  echo "PASS: ${APP_ROLE} was correctly refused DDL permissions (permission denied for schema core)."
+else
+  echo "FAIL: ${APP_ROLE} DDL test failed (expected permission denied for schema core): ${DDL_OUT}" >&2
+  exit 1
+fi
 
 echo "================================================================="
 echo " Database bootstrap and privilege verification complete!"

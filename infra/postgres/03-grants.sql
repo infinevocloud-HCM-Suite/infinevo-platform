@@ -12,7 +12,7 @@
 DO $$
 BEGIN
     EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC', current_database());
-    EXECUTE format('GRANT CONNECT ON DATABASE %I TO app_user, migration_user, readonly_user',
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO app_user, worker_user, migration_user, readonly_user',
                    current_database());
 END
 $$;
@@ -46,7 +46,7 @@ BEGIN
     FOR r IN
         SELECT rolname, rolsuper, rolbypassrls
         FROM pg_roles
-        WHERE rolname IN ('app_user', 'migration_user', 'readonly_user', 'keycloak_user')
+        WHERE rolname IN ('app_user', 'worker_user', 'migration_user', 'readonly_user', 'keycloak_user')
     LOOP
         IF r.rolsuper THEN
             RAISE EXCEPTION 'Security assertion failed: Role % must NOT be superuser', r.rolname;

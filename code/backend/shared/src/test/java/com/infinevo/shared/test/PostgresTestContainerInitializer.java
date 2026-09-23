@@ -6,6 +6,9 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -16,21 +19,34 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * W-04 — Dynamic property initializer for Testcontainers PostgreSQL.
  *
  * <p>Starts a single PostgreSQL 16 container with the platform database name
- * ({@code infinevo}) and creates the non-owner application role {@code app_user}.
+ * ({@code infinevo}) and runs the canonical {@code infra/postgres/} scripts against it.
  * All integration tests that extend {@link AbstractIntegrationTest} share this
  * container instance to minimise startup overhead (static single-instance pattern).
  *
- * <p>The Spring datasource is pointed at {@code app_user} so that PostgreSQL
- * Row-Level Security policies are enforced during tests — the owner role
+ * <p>The Spring datasource is pointed at the non-owner {@code app_user} role, so that
+ * PostgreSQL Row-Level Security policies are enforced during tests — the owner role
  * ({@code BYPASSRLS}) is never used for application queries.
  */
 public class PostgresTestContainerInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
-    /** Non-owner application role. RLS policies apply to this role. */
+    /**
+     * Non-owner application login role. Holds every grant and every RLS policy, and is what
+     * the application connects as.
+     */
     public static final String APP_USER = "app_user";
 
     /** Password for the {@code app_user} role. Test-only — not a secret. */
     public static final String APP_USER_PASSWORD = "app_user_pass";
+
+    /**
+     * Login role for the {@code worker} container. A member of {@code app_user}, so it
+     * inherits the same grants and policies while connecting as itself rather than sharing
+     * the application's credential (W-56).
+     */
+    public static final String WORKER_USER = "worker_user";
+
+    /** Password for {@link #WORKER_USER}. Test-only — not a secret. */
+    public static final String WORKER_USER_PASSWORD = "worker_user_pass";
 
     /** Migration user role owning schemas and running Flyway DDL. */
     public static final String MIGRATION_USER = "migration_user";
@@ -43,6 +59,12 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
 
     /** Password for the {@code readonly_user} role. Test-only — not a secret. */
     public static final String READONLY_USER_PASSWORD = "readonly_user_pass";
+
+    /** Login role owning the Keycloak database. No grant on the platform schemas. */
+    public static final String KEYCLOAK_USER = "keycloak_user";
+
+    /** Password for the {@code keycloak_user} role. Test-only — not a secret. */
+    public static final String KEYCLOAK_USER_PASSWORD = "local_keycloak_pw";
 
     /** Database name matching the production schema. */
     public static final String DATABASE_NAME = "infinevo";
@@ -141,6 +163,21 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
         }
     }
 
+    /**
+     * The psql variables {@code 01-roles.sql} expects, and the test-only values standing in
+     * for them. {@code psql} expands {@code :'name'} itself; JDBC does not, so this path
+     * substitutes them before sending the script.
+     */
+    private static final Map<String, String> SCRIPT_VARIABLES = Map.of(
+            "app_pw", APP_USER_PASSWORD,
+            "worker_pw", WORKER_USER_PASSWORD,
+            "migration_pw", MIGRATION_USER_PASSWORD,
+            "readonly_pw", READONLY_USER_PASSWORD,
+            "keycloak_pw", KEYCLOAK_USER_PASSWORD);
+
+    /** Matches a psql variable reference in single-quote form, e.g. {@code :'app_pw'}. */
+    private static final Pattern PSQL_VARIABLE = Pattern.compile(":'([a-z_][a-z0-9_]*)'");
+
     private static void executeSqlScriptWithVariables(Connection conn, String resourcePath) {
         try (InputStream is =
                 PostgresTestContainerInitializer.class.getClassLoader().getResourceAsStream(resourcePath)) {
@@ -148,14 +185,40 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
                 throw new IllegalStateException("SQL provisioning script not found on classpath: " + resourcePath);
             }
             String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            sql = sql.replace(":'app_pw'", "'" + APP_USER_PASSWORD + "'")
-                    .replace(":'migration_pw'", "'" + MIGRATION_USER_PASSWORD + "'")
-                    .replace(":'readonly_pw'", "'" + READONLY_USER_PASSWORD + "'")
-                    .replace(":'keycloak_pw'", "'local_keycloak_pw'");
-            conn.createStatement().execute(sql);
+            conn.createStatement().execute(substituteVariables(sql, resourcePath));
         } catch (IOException | SQLException e) {
             throw new IllegalStateException("Failed to execute SQL script: " + resourcePath, e);
         }
+    }
+
+    /**
+     * Replaces every {@code :'name'} with its test value, and refuses a script carrying one
+     * this class does not know.
+     *
+     * <p>The refusal is the point. A new role added to the canonical script arrives here as
+     * an unsubstituted variable, and Postgres reports it as {@code syntax error at or near
+     * ":"} — a message that names neither the variable nor the file. W-56 added {@code
+     * worker_user} and cost a red CI run finding that out. Naming the variable turns it into
+     * a one-line fix.
+     */
+    static String substituteVariables(String sql, String resourcePath) {
+        String substituted = sql;
+        for (Map.Entry<String, String> e : SCRIPT_VARIABLES.entrySet()) {
+            substituted = substituted.replace(":'" + e.getKey() + "'", "'" + e.getValue() + "'");
+        }
+        // Only executable text is checked. A header comment naming a variable is documentation,
+        // not a statement, and tripping on it would push the next author to stop documenting them.
+        Matcher leftover = PSQL_VARIABLE.matcher(stripLineComments(substituted));
+        if (leftover.find()) {
+            throw new IllegalStateException("No test value for psql variable :'" + leftover.group(1) + "' used by "
+                    + resourcePath + ". Add it to SCRIPT_VARIABLES in PostgresTestContainerInitializer.");
+        }
+        return substituted;
+    }
+
+    /** Removes {@code --} line comments. Crude, and enough: these scripts have no {@code --} inside a literal. */
+    private static String stripLineComments(String sql) {
+        return sql.replaceAll("(?m)--.*$", "");
     }
 
     private static void executeSqlScript(Connection conn, String resourcePath) {

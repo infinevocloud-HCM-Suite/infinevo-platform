@@ -7,11 +7,14 @@
 # Schema is owned by Flyway (W-06). See CONVENTIONS.md rule 4 and D-09.
 spring:
   datasource:
-    # app_user, NEVER the owner. That single constraint is what makes row-level
-    # security a real boundary when W-07 lands, rather than a suggestion.
+    # worker_user, NEVER the owner. It is a member of app_user, so it inherits every
+    # grant and every RLS policy while connecting as itself (W-56). That single
+    # constraint is what makes row-level security a real boundary, not a suggestion.
+    # The password default matches WORKER_PW in infra/docker/compose.yml, and is
+    # deliberately not the app's - see the comment there.
     url: ${DB_URL:jdbc:postgresql://localhost:5432/infinevo}
-    username: ${DB_USERNAME:app_user}
-    password: ${DB_PASSWORD:local_app_pw}
+    username: ${DB_USERNAME:worker_user}
+    password: ${DB_PASSWORD:local_worker_pw}
     hikari:
       maximum-pool-size: 10
       connection-timeout: 5000
@@ -38,3 +41,6 @@ management:
   health:
     db:
       enabled: true
+
+brevo:
+  api-key: ${BREVO_API_KEY:local_brevo_key}

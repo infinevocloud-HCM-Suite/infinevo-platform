@@ -39,3 +39,6 @@ management:
   health:
     db:
       enabled: true
+
+brevo:
+  api-key: ${BREVO_API_KEY}

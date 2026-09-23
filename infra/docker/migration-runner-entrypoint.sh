@@ -54,15 +54,16 @@ read_secret() {
 echo "Reading PostgreSQL credentials from ${KEY_VAULT_NAME}..."
 PGPASSWORD="$(read_secret psql-admin-pw)"
 APP_PW="$(read_secret psql-app-pw)"
+WORKER_PW="$(read_secret psql-worker-pw)"
 MIGRATION_PW="$(read_secret psql-migration-pw)"
 READONLY_PW="$(read_secret psql-readonly-pw)"
 KEYCLOAK_PW="$(read_secret psql-keycloak-pw)"
-export PGPASSWORD APP_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW
+export PGPASSWORD APP_PW WORKER_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW
 
 # The committed local-development fallbacks in provision.sh:13-16 must never reach a cloud
 # server. post-deploy-db.sh:119-126 makes the same check; it is repeated here because this
 # job is now the path that actually runs provision.sh against Azure.
-for var in APP_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW; do
+for var in APP_PW WORKER_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW; do
   if [[ "${!var}" =~ ^local_.*_pw$ ]]; then
     echo "ERROR: ${var} holds the committed repo default '${!var}'." >&2
     exit 1

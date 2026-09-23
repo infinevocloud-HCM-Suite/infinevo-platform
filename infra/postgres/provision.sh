@@ -11,6 +11,7 @@ PGUSER="${PGUSER:-postgres}"
 PGDATABASE="${PGDATABASE:-infinevo}"
 
 APP_PW="${APP_PW:-local_app_pw}"
+WORKER_PW="${WORKER_PW:-local_worker_pw}"
 MIGRATION_PW="${MIGRATION_PW:-local_migration_pw}"
 READONLY_PW="${READONLY_PW:-local_readonly_pw}"
 KEYCLOAK_PW="${KEYCLOAK_PW:-local_keycloak_pw}"
@@ -24,6 +25,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 psql "${PGHOST_ARG[@]}" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=1 \
   -v app_pw="$APP_PW" \
+  -v worker_pw="$WORKER_PW" \
   -v migration_pw="$MIGRATION_PW" \
   -v readonly_pw="$READONLY_PW" \
   -v keycloak_pw="$KEYCLOAK_PW" \

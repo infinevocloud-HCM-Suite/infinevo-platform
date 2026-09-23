@@ -101,7 +101,7 @@ Once the cloud resources exist, run:
 bash infra/azure/post-deploy-db.sh --env dev
 ```
 This script:
-- Generates dynamic passwords for `psql-app-pw`, `psql-migration-pw`, `psql-readonly-pw`, and `psql-keycloak-pw` in Key Vault.
+- Generates dynamic passwords for `psql-app-pw`, `psql-worker-pw`, `psql-migration-pw`, `psql-readonly-pw`, and `psql-keycloak-pw` in Key Vault.
 - Exports `PGUSER=infinevo_admin`, `PGHOST`, and `PGPASSWORD`.
 - Executes `infra/postgres/provision.sh` to create database roles, schemas (`core`, `hrms`, `payroll`, `reference`, `migration`), and grants.
 - Validates that `app_user` can connect with its Key Vault password and is strictly refused DDL.

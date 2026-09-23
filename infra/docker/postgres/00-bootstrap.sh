@@ -9,11 +9,12 @@ set -eo pipefail
 
 KEYCLOAK_PW="${KEYCLOAK_PW:-local_keycloak_pw}"
 APP_PW="${APP_PW:-local_app_pw}"
+WORKER_PW="${WORKER_PW:-local_worker_pw}"
 MIGRATION_PW="${MIGRATION_PW:-local_migration_pw}"
 READONLY_PW="${READONLY_PW:-local_readonly_pw}"
 
 # 1. Execute Canonical Platform Provisioning Script
-APP_PW="$APP_PW" MIGRATION_PW="$MIGRATION_PW" READONLY_PW="$READONLY_PW" KEYCLOAK_PW="$KEYCLOAK_PW" bash /provision/provision.sh
+APP_PW="$APP_PW" WORKER_PW="$WORKER_PW" MIGRATION_PW="$MIGRATION_PW" READONLY_PW="$READONLY_PW" KEYCLOAK_PW="$KEYCLOAK_PW" bash /provision/provision.sh
 
 # 2. Isolated Keycloak Database Setup
 psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<-EOSQL

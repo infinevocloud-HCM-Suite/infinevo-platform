@@ -369,18 +369,18 @@ if [[ "$STATE" != "Running" ]]; then
   exit 1
 fi
 
-# ── Seed the four PostgreSQL role passwords (W-51 section 3e) ────────────────
-# The migration job runs provision.sh, which needs app/migration/readonly/keycloak
-# passwords, and id-migration-${ENV} holds Key Vault Secrets User - READ ONLY, by section
-# 3f - so the job cannot create them itself. post-deploy-db.sh seeds them today, but it now
-# runs AFTER this script and after the job, so on a fresh environment the job would fail
-# with four missing secrets. Seeded here instead, inside the ipRule window, with the same
-# generator and the same idempotency: an existing non-placeholder value is left alone.
-echo "Verifying / seeding PostgreSQL role passwords in ${VAULT_NAME}..."
-for SECRET_NAME in psql-app-pw psql-migration-pw psql-readonly-pw psql-keycloak-pw; do
+# ── Seed canonical platform secrets (W-56) ──────────────────────────────────
+# The migration job and container apps need all canonical secrets seeded:
+# psql-app-pw, psql-worker-pw, psql-migration-pw, psql-readonly-pw, psql-keycloak-pw,
+# keycloak-admin-pw, keycloak-client-secret, brevo-api-key, jwt-signing-secret
+# (plus psql-admin-pw above) - ten in all.
+# Seeded here inside the ipRule window, with the same generator and idempotency:
+# an existing non-placeholder value is left alone.
+echo "Verifying / seeding canonical platform secrets in ${VAULT_NAME}..."
+for SECRET_NAME in psql-app-pw psql-worker-pw psql-migration-pw psql-readonly-pw psql-keycloak-pw keycloak-admin-pw keycloak-client-secret brevo-api-key jwt-signing-secret; do
   EXISTING_PW=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>/dev/null || true)
   if [[ -z "$EXISTING_PW" ]] || [[ "$EXISTING_PW" =~ ^local_.*_pw$ ]]; then
-    echo "Generating secure dynamic password for ${SECRET_NAME}..."
+    echo "Generating secure dynamic secret for ${SECRET_NAME}..."
     NEW_PW=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9!#%*+=' | head -c 24)
     NEW_PW="${NEW_PW}Aa1!"
     az keyvault secret set --vault-name "$VAULT_NAME" --name "$SECRET_NAME" --value "$NEW_PW" >/dev/null
