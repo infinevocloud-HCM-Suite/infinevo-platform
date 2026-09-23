@@ -1,0 +1,86 @@
+diff --git a/docs/target-state/07-decisions.md b/docs/target-state/07-decisions.md
+index 8ce3d1f..92a0d37 100644
+--- a/docs/target-state/07-decisions.md
++++ b/docs/target-state/07-decisions.md
+@@ -48,7 +48,7 @@
+ | `D-36` | 2026-09-13 | **The approval engine stays in Core as infrastructure.** Which workflows it runs depends on the modules held | Reimbursement claims and investment proofs are Payroll features that need approvals, so the engine cannot be HRMS-only. HRMS gates three specific workflows — leave requests, attendance regularization, overtime requests — not the engine itself | `01`, `02` |
+ | `D-37` | 2026-09-13 | **Reimbursement and investment-proof approvals are available to Payroll-only tenants**, employee-submitted and approved | Both are inherently employee-originated and meaningless without Payroll. Their approval must not depend on buying a second product | `01` |
+ | `D-38` | 2026-09-13 | **Java 21** for the whole backend | `HRMS_Backend` is already on 21, Payroll on 17. 21 is LTS with support to 2031, and nothing in the frozen Payroll code blocks the move. One version across seven modules, chosen before any code exists | `03`, `W-01` |
+-| `D-39` | 2026-09-13 | **Spring Boot 3.3.x**, latest patch | The frozen apps are on 3.2.4 and 3.2.5. Starting one minor ahead avoids a framework upgrade in month two, while staying close enough that ported code needs no rework | `03`, `W-01` |
++| ~~`D-39`~~ | 2026-09-13 | ~~**Spring Boot 3.3.x**, latest patch~~ — **superseded by `D-60`, 2026-09-16.** Spring Boot 3.5.x | The frozen apps are on 3.2.4 and 3.2.5. Starting one minor ahead avoids a framework upgrade in month two, while staying close enough that ported code needs no rework | `03`, `W-01` |
+ | `D-40` | 2026-09-13 | **Maven coordinates `com.infinevo` / `infinevo-platform`**, packages `com.infinevo.<module>.<feature>` | Neither frozen groupId carries forward. `com.phegondev` in `HRMS_Backend` is a template artefact and must not propagate into the new platform | `03`, `W-01` |
+ | ~~`D-41`~~ | 2026-09-13 | ~~**Node 20 LTS**~~ — **superseded same day by `D-42`** | Node 20 reached end of life in April 2026. It was proposed and approved in error; an unsupported runtime receives no security patches | `03`, `W-01` |
+ | `D-42` | 2026-09-13 | **Node 24 LTS** for the frontend and the harness | The current active LTS, maintained to 2028. **Supersedes `D-41`**, which named a runtime that was already end-of-life on the day it was approved | `03`, `W-01` |
+@@ -69,6 +69,8 @@
+ | `D-57` | 2026-09-19 | **The tenant binding is transaction-local, and `setForConnection` refuses a connection in auto-commit mode** | It executes `SELECT set_config('app.current_tenant_id', ?, true)` — `SET LOCAL` cannot take a bind parameter, and `is_local = true` is its equivalent. Under JDBC's default `autoCommit = true` each statement is its own transaction, so the binding would be discarded the instant the call returned and every later query would return zero rows under the policy: silently wrong, not visibly broken. The method throws rather than appear to succeed. Wiring it to the request — reading the tenant from the Keycloak token — is `W-08`; a `DataSource` decorator remains the longer-term target | `02` §9, `03` §3, `W-07`, `W-08` |
+ | `D-58` | 2026-09-19 | **Domain tables carry a foreign key to `core.tenant(tenant_id)`, added by each table's own migration from `W-13`** | The FK is self-documenting and rejects an orphaned row at insert time rather than leaving it invisible behind a policy. It is not retrofitted centrally: each migration script adds its own, as it is written. `core.tenant` is the referent and so has none of its own, which means **nothing exercises this decision until `W-13`** — the first domain table is also the first proof | `02` §3, `W-07`, `W-13` |
+ | `D-59` | 2026-09-22 | **Azure Managed Redis (`Microsoft.Cache/redisEnterprise`) replaces retired Azure Cache for Redis (`Microsoft.Cache/redis`)** | Microsoft announced retirement of legacy `Microsoft.Cache/redis` as of April 1, 2026, refusing new instance creations. Azure Managed Redis (`redisEnterprise@2024-10-01`) SKU `Balanced_B0` on TLS port 10000 over private endpoint (`pe-redis-infinevo-{env}`) in `snet-pe` provides cost-effective enterprise Redis with private DNS zone `privatelink.redisenterprise.cache.azure.net` | `04` §5, `05` §3 §4, `W-50`, `W-53` |
++| `D-60` | 2026-09-16 | **Spring Boot 3.5.x** for the backend. Supersedes `D-39` | Vulnerability `CVE-2026-40973` in `spring-boot:3.3.13` (arbitrary code execution) has no fix on the 3.3 line; fixed only in 3.5.14+ or 4.0.6+. Upgrading parent from 3.3.13 to 3.5.x cleared the 29-CVE backlog across the reactor without code rework. Approved by founder 2026-09-16 | `03`, `W-01`, `W-59` |
++| `D-61` | 2026-09-16 | **Dependabot daily alerts and version updates** via `.github/dependabot.yml` | Dependabot scans Maven (`code/backend`), npm (`code/frontend`), GitHub Actions (`/`), Docker (`infra/docker`), and Bicep (`infra/azure`) daily with prefix labels `deps:`. Security alerts and pull requests prevent dependency staleness. Approved by founder 2026-09-16 | `W-59` |
+ 
+ ---
+ 
+@@ -101,6 +103,7 @@ system are in §6.
+ | Earlier recommendation: tax reference data fully shared, no overrides | `D-08` | Professional tax overrides already exist in the code |
+ | `D-04` attendance is HRMS-only · `D-05` overtime is HRMS-only | `D-35` | Basic capture moves to Core. The differentiator becomes the request-and-approve experience, not the data |
+ | `D-41` Node 20 LTS | `D-42` | Node 20 was already end-of-life when it was approved. Caught during the `W-01` build |
++| `D-39` Spring Boot 3.3.x | `D-60` | Vulnerability `CVE-2026-40973` unfixable on the 3.3 line. Upgraded parent to 3.5.x to clear security backlog in `W-59` |
+ | Earlier proposal: three schemas | `D-08` | A fourth, `reference`, isolates the tenant-column exception and makes it auditable |
+ | `.claude/work/active-work.md`: shared-schema MySQL on Azure Kubernetes | `D-09`, `D-10` | Predates this design work |
+ | Plan: subtree migration + daily/weekly one-way sync from the four origin repos | `D-17` | No sync mechanism. The `sync-upstream` skill is cancelled |
+diff --git a/docs/target-state/features/W-59-scanning.md b/docs/target-state/features/W-59-scanning.md
+index 0919105..6179f19 100644
+--- a/docs/target-state/features/W-59-scanning.md
++++ b/docs/target-state/features/W-59-scanning.md
+@@ -12,7 +12,7 @@
+ | **Blocked by** | `W-03` (#4) — merged |
+ | **Blocks** | — |
+ | **Capabilities** | `PLAT-09` Security hardening (`01-platform-shape.md:161`) |
+-| **Decisions** | `D-38` Java 21 · `D-42` Node 24 · `D-43` no branch protection · **`D-45` approved 2026-09-16** — Spring Boot 3.5.x, supersedes `D-39` · **`D-46` approved 2026-09-16** — Dependabot alerts + config |
++| **Decisions** | `D-38` Java 21 · `D-42` Node 24 · `D-43` no branch protection · **`D-60` approved 2026-09-16** — Spring Boot 3.5.x, supersedes `D-39` (drafted as `D-45`) · **`D-61` approved 2026-09-16** — Dependabot alerts + config (drafted as `D-46`) |
+ | **Gaps addressed** | **None.** `DEBT-004` is preventative only — see §6 |
+ | **Status** | **Approved** |
+ | **Approved by** | sanjib (founder) |
+@@ -21,11 +21,8 @@
+ > **Approved by the founder on 2026-09-16.** Hard rule 1 is satisfied: `/develop W-59`
+ > may start.
+ >
+-> `D-45` and `D-46` were approved the same day and **do not yet exist in
+-> `07-decisions.md`**, which still ends at `D-44` (`:56`). Writing them into the register
+-> is a `sync-docs` change, listed as task 6 in §14. **Until that lands, this spec is the
+-> only record of them** — so task 6 is not optional housekeeping, it is what stops a
+-> reversed decision from being invisible to everyone who reads the register.
++> `D-60` and `D-61` were approved the same day (drafted as `D-45` and `D-46` before those
++> numbers were assigned by `W-06`) and are recorded in `07-decisions.md` via `sync-docs`.
+ 
+ Revision 4. Supersedes the draft at `origin/w-59` `542ee55`, reviewed in
+ `.claude/outputs/2026-09-15-review-spec-W-59-rev2.md`. Changes from that draft are in
+@@ -356,7 +353,7 @@ Nothing here reaches a database, a cloud resource or a deployed system.
+ 3. **Whole ticket** — revert the pull request. `ci.yml` returns to its four jobs,
+    `security.yml` and `dependabot.yml` disappear, `pom.xml` and `package.json` return to
+    `d3eb07e`. No state to unwind.
+-4. `D-45` and `D-46`, if approved, are recorded in `07-decisions.md` through `sync-docs`.
++4. `D-60` and `D-61` are recorded in `07-decisions.md` through `sync-docs`.
+    Reverting the code does not silently revert the decision — raise a superseding entry.
+ 
+ ## 11. Gap disposition
+@@ -410,7 +407,7 @@ One area each, sequenced so the riskiest change is isolated and reviewable on it
+ | 3 | `.github/workflows` | Three `security-*` jobs in `ci.yml`; container scan step inside `images` | §8 steps 3-5 |
+ | 4 | `.github/workflows` | `security.yml` daily rescan; `dependabot.yml` | §8 step 3 |
+ | 5 | `.github/scripts` | `security-gate-selftest.sh`, wired into `security-code` | §8 step 6 |
+-| 6 | `docs/` via `sync-docs` | Record `D-45` and `D-46` in `07-decisions.md`, and `D-39` → `D-45` in its supersession table (`:81-92`). **Not an implementer task** — `guard-edit` blocks `docs/`; runs through `sync-docs` with an approved diff | gate 5 |
++| 6 | `docs/` via `sync-docs` | Record `D-60` and `D-61` in `07-decisions.md`, and `D-39` → `D-60` in its supersession table (`:81-92`). **Not an implementer task** — `guard-edit` blocks `docs/`; runs through `sync-docs` with an approved diff | gate 5 |
+ 
+ ## 15. What changed from `542ee55`
+ 
+@@ -436,8 +433,8 @@ All five questions from revision 3 were put to the founder and answered.
+ | # | Question | Decision | Effect |
+ |---|---|---|---|
+ | 1 | Size, now the upgrade is in scope | **M** | Relabel `#79` `size-S` → `size-M` |
+-| 2 | Approve `D-45`, Spring Boot 3.5.x superseding `D-39`? | **Approved** | §14 task 1; `D-39` superseded; task 6 records it |
+-| 3 | Approve `D-46`, Dependabot? | **Approved — alerts and `dependabot.yml`** | §2(e); task 4 |
++| 2 | Approve `D-60` (draft `D-45`), Spring Boot 3.5.x superseding `D-39`? | **Approved** | §14 task 1; `D-39` superseded; task 6 records it |
++| 3 | Approve `D-61` (draft `D-46`), Dependabot? | **Approved — alerts and `dependabot.yml`** | §2(e); task 4 |
+ | 4 | `vite ^6.4.3` or `^8`? | **`^8`** — against the recommendation, to avoid upgrading twice | §5; forces `@vitejs/plugin-react`; §9 carries the fallback to `^6.4.3` |
+ | 5 | Widen the gate? | **No — the three blocking scans as specified** | Three follow-ups filed instead, below |
+ 

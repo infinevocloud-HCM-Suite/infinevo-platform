@@ -13,9 +13,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **112** — 22 closed, 90 open. GitHub is authoritative, this file is the summary |
+| Tickets | **112** — 23 closed, 89 open. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 is done — all 7.** Wave 2 starts at `W-09` |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-59` scanning (#79)** |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 > **`W-50` and `W-51` are verified as code and not as an environment.** The Bicep builds
@@ -91,6 +91,19 @@ has no GitHub ticket and must be raised.**
 rule is the next number **above everything on `main`**, not the next free one — `W-10` had to
 be renumbered for exactly that, and CI cannot catch it because CI starts from an empty
 database.
+
+---
+
+## `W-59` Scanning merged — 2026-09-23
+
+Security scanning is now active on every pull request and push to `main`.
+
+| | |
+|---|---|
+| Merged | `066ba6f` (via `ebb1d14`), closing **#79** |
+| Shipped | Trivy dependency scanning (`code/backend`, `code/frontend`), Semgrep SAST (`p/java`, `p/javascript`, `p/owasp-top-ten`), Gitleaks secret detection, Trivy container image scanning, `.github/dependabot.yml` daily scanning |
+| Upgrades | Spring Boot parent 3.3.13 → 3.5.16 (`D-60`, clearing 29 CVEs); Vite 5.4.10 → 8.0.16 & `@vitejs/plugin-react` 4.3.3 → 6.1.1 |
+| Decisions | `D-60` (Spring Boot 3.5.x supersedes `D-39`), `D-61` (Dependabot alerts & config) recorded in `07-decisions.md` |
 
 ---
 
