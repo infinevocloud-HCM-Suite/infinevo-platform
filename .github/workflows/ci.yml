@@ -453,7 +453,7 @@ jobs:
 
       - name: Warm Maven cache
         working-directory: code/backend
-        run: ./mvnw -B dependency:resolve -q
+        run: ./mvnw -B install -DskipTests -Dspotless.check.skip=true -q
 
       - name: Install Trivy
         run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin

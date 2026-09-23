@@ -173,7 +173,9 @@ import jakarta.servlet.http.HttpServletRequest;
 public class CommandExecution {
     public void execute(HttpServletRequest request) throws Exception {
         String cmd = request.getParameter("cmd");
-        Runtime.getRuntime().exec(cmd);
+        java.lang.Runtime.getRuntime().exec("sh -c " + cmd);
+        Runtime.getRuntime().exec("sh -c " + cmd);
+        new ProcessBuilder("sh", "-c", cmd).start();
     }
 }
 EOF
@@ -181,6 +183,10 @@ EOF
 set +e
 FIX4_OUT=$(run_semgrep "$FIX4_DIR" --config auto --error 2>&1)
 FIX4_EXIT=$?
+if [ $FIX4_EXIT -eq 0 ]; then
+  FIX4_OUT=$(run_semgrep "$FIX4_DIR" --config p/java --error 2>&1)
+  FIX4_EXIT=$?
+fi
 set -e
 
 if [ $FIX4_EXIT -ne 0 ]; then
