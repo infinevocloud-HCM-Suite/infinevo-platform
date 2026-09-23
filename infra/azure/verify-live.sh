@@ -114,6 +114,41 @@ if [ "$WORKER_DB_URL" != "$EXPECTED_DB_URL" ]; then echo "FAIL: ca-infinevo-${EN
 if [ "$WORKER_DB_USER" != "worker_user" ]; then echo "FAIL: ca-infinevo-${ENV}-worker DB_USERNAME is '$WORKER_DB_USER', expected 'worker_user'"; exit 1; fi
 echo "PASS: ca-infinevo-${ENV}-worker has DB_URL and DB_USERNAME configured correctly"
 
+# 10. Operational Alerting & Action Groups (W-61: PLAT-08)
+echo "--- Check 10: Operational Alerting & Action Groups ---"
+AG_NAME="ag-infinevo-${ENV}-oncall"
+AG_STATUS=$(az monitor action-group show -g "$RG_ENV" -n "$AG_NAME" --query "enabled" -o tsv 2>/dev/null || echo "NotFound")
+if [ "$AG_STATUS" != "true" ]; then
+  echo "FAIL: Action Group $AG_NAME status is $AG_STATUS (expected true)"
+  exit 1
+fi
+echo "PASS: Action Group $AG_NAME exists and is enabled"
+
+ALERT_PAYRUN="alert-payrun-failure-${ENV}"
+ALERT_PR_STATUS=$(az monitor scheduled-query show -g "$RG_ENV" -n "$ALERT_PAYRUN" --query "enabled" -o tsv 2>/dev/null || echo "NotFound")
+if [ "$ALERT_PR_STATUS" != "true" ]; then
+  echo "FAIL: Scheduled query alert $ALERT_PAYRUN status is $ALERT_PR_STATUS (expected true)"
+  exit 1
+fi
+echo "PASS: Scheduled query alert $ALERT_PAYRUN exists and is enabled"
+
+for alert in "alert-5xx-spikes-${ENV}" "alert-container-restarts-${ENV}" "alert-keyvault-unauthorized-${ENV}"; do
+  STATUS=$(az monitor scheduled-query show -g "$RG_ENV" -n "$alert" --query "enabled" -o tsv 2>/dev/null || echo "NotFound")
+  if [ "$STATUS" != "true" ]; then
+    echo "FAIL: Alert $alert status is $STATUS (expected true)"
+    exit 1
+  fi
+  echo "PASS: Alert $alert exists and is enabled"
+done
+
+ALERT_PG="alert-postgres-connections-${ENV}"
+PG_ALERT_STATUS=$(az monitor metrics alert show -g "$RG_ENV" -n "$ALERT_PG" --query "enabled" -o tsv 2>/dev/null || echo "NotFound")
+if [ "$PG_ALERT_STATUS" != "true" ]; then
+  echo "FAIL: Metric alert $ALERT_PG status is $PG_ALERT_STATUS (expected true)"
+  exit 1
+fi
+echo "PASS: Metric alert $ALERT_PG exists and is enabled"
+
 echo "================================================================="
 echo " ALL LIVE AZURE INFRASTRUCTURE TESTS PASSED SUCCESSFULLY!"
 echo "================================================================="

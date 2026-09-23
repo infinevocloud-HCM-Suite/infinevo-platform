@@ -290,3 +290,26 @@ bash infra/azure/verify-live.sh
 - **Troubleshooting Steps**:
   1. Verify private DNS zone `privatelink.postgres.database.azure.com` has a virtual network link to `vnet-infinevo-dev`.
   2. Verify Network Security Group `nsg-pe-dev` allows port 5432 inbound from `10.10.0.0/23`.
+
+---
+
+## 7. Operational Alerting & On-Call (W-61: PLAT-08)
+
+The platform runs automated Azure Monitor alert rules routed to an operations Action Group:
+
+### Action Group
+- **Name:** `ag-infinevo-{env}-oncall` (`location: 'global'`)
+- **Short Name:** `infinevo-ops`
+- **Receiver:** `alerts@infinevocloud.com` (Email with Common Alert Schema enabled)
+
+### Core Alert Rules
+| Alert Name | Type | Severity | Condition | Window / Frequency |
+| :--- | :--- | :---: | :--- | :---: |
+| `alert-payrun-failure-{env}` | Scheduled Query (KQL) | **Sev-1** | Worker console log contains `"Failed to process payrun job"` or `"markFailed"` | 15m window / 5m freq |
+| `alert-5xx-spikes-{env}` | Scheduled Query (KQL) | **Sev-2** | Console logs contain 5xx server errors > 10 in window | 15m window / 5m freq |
+| `alert-container-restarts-{env}` | Scheduled Query (KQL) | **Sev-2** | System logs report `CrashLoopBackOff`, `OOMKilled`, or `ContainerFailed` > 2 | 15m window / 5m freq |
+| `alert-postgres-connections-{env}` | Metric Alert | **Sev-2** | PostgreSQL Flexible Server `active_connections` > 80 | 15m window / 5m freq |
+| `alert-keyvault-unauthorized-{env}` | Scheduled Query (KQL) | **Sev-2** | Key Vault diagnostic logs report HTTP 403 Forbidden > 5 | 15m window / 5m freq |
+
+### On-Call Triage Procedures
+For response SLAs, escalation ladders, and step-by-step triage runbooks for failed pay runs or database saturation, see [ONCALL_PLAYBOOK.md](file:///d:/Infinevo%20Platform/infinevo-platform/infra/azure/ONCALL_PLAYBOOK.md).

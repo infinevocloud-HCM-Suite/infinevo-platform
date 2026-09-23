@@ -80,6 +80,9 @@ param containerAppCurrentImages object = {}
 @description('Per-app revision name currently serving 100 percent of traffic, keys app/web/keycloak, read live by deploy.sh. The traffic block pins to these by name so no deployment moves the weight (W-54 findings F-5 and F-1). Empty on a first deployment, in which case the traffic block falls back to latestRevision.')
 param containerAppTrafficRevisions object = {}
 
+@description('Primary on-call notification email address (W-61 decision 1: alerts@infinevocloud.com)')
+param alertEmail string = 'alerts@infinevocloud.com'
+
 // ── Networking (W-51) ────────────────────────────────────────────────────────
 @description('VNet address space, 10.{octet}.0.0/16 - dev 10.10, uat 10.20, prod 10.30')
 param vnetAddressPrefix string
@@ -562,6 +565,21 @@ module flywayJob 'modules/flyway-job.bicep' = {
   ]
 }
 
+// ── 10. Operational Alerting & Action Groups (W-61: PLAT-08) ─────────────────
+// Azure Monitor Action Group, Sev-1 pay run failure query, and Sev-2 platform metrics
+module alerting 'modules/alerting.bicep' = {
+  name: 'deploy-alerting-${environment}'
+  scope: envRg
+  params: {
+    environment: environment
+    location: location
+    workspaceId: logAnalytics.outputs.workspaceId
+    postgresServerId: postgres.outputs.serverId
+    alertEmail: alertEmail
+    tags: defaultTags
+  }
+}
+
 // ── Outputs ──────────────────────────────────────────────────────────────────
 output sharedResourceGroup string = sharedRgName
 output environmentResourceGroup string = envRgName
@@ -593,4 +611,6 @@ output flywayJobName string = flywayJob.outputs.jobName
 output appInsightsName string = appInsights.outputs.appInsightsName
 output appInsightsId string = appInsights.outputs.appInsightsId
 output workbookName string = telemetryDashboard.outputs.workbookName
+output actionGroupId string = alerting.outputs.actionGroupId
+output actionGroupName string = alerting.outputs.actionGroupName
 
