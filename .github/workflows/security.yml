@@ -1,0 +1,59 @@
+# Scheduled dependency and secret rescan for infinevo-platform.
+#
+# Daily rescan at 02:00 UTC and on manual dispatch.
+# Catches CVEs published against dependencies that have not changed.
+#
+# INFORMATIONAL ONLY — this workflow does NOT block merges.
+# check-done.mjs gate 8 evaluates only CI runs from .github/workflows/ci.yml.
+
+name: Security Rescan
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rescan-deps:
+    name: rescan-deps
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Warm Maven cache
+        working-directory: code/backend
+        run: ./mvnw -B dependency:resolve -q
+
+      - name: Scan dependencies with Trivy
+        run: |
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            -v "$HOME/.m2:/root/.m2:ro" \
+            aquasec/trivy:latest \
+            fs --offline-scan --include-dev-deps \
+               --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed /src/code
+
+  rescan-secrets:
+    name: rescan-secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan secrets with Trivy
+        run: |
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            aquasec/trivy:latest \
+            fs --scanners secret /src/code /src/infra
