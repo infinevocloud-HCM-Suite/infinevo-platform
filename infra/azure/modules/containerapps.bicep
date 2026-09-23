@@ -46,6 +46,12 @@ param tags object = {}
 @description('Key Vault name holding application secrets')
 param keyVaultName string = 'kv-infinevo-shared'
 
+@description('PostgreSQL Flexible Server FQDN')
+param postgresFqdn string = ''
+
+@description('PostgreSQL database name')
+param postgresDatabase string = 'infinevo'
+
 // Origin protection (W-51 section 2.5). Front Door Standard has no Private Link origin and
 // Container Apps ingress has no header-matching rule, so ipSecurityRestrictions is the only
 // control the ingress schema offers. Anything not arriving from a Front Door backend address
@@ -166,6 +172,10 @@ var keycloakTrafficBlock = empty(livePinKeycloak)
   ? [ { weight: 100, latestRevision: true } ]
   : [ { revisionName: livePinKeycloak, weight: 100, latestRevision: false } ]
 
+// Database JDBC connection strings for application, worker, and keycloak
+var jdbcUrl = empty(postgresFqdn) ? '' : 'jdbc:postgresql://${postgresFqdn}:5432/${postgresDatabase}?sslmode=require'
+var keycloakJdbcUrl = empty(postgresFqdn) ? '' : 'jdbc:postgresql://${postgresFqdn}:5432/keycloak?sslmode=require'
+
 // 1. Container App: app (Backend API)
 resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: 'ca-infinevo-${environment}-app'
@@ -244,20 +254,21 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
         {
           name: 'app'
           image: appImage
-          // NO `env` BLOCK HERE, AND THAT IS NOT AN OVERSIGHT. W-56 owns the environment
-          // variables and the Key Vault secret references for this app
-          // (docs/target-state/features/W-56-secrets.md); duplicating them here would
-          // collide on merge (spec section 3, merge order).
-          //
-          // CONSEQUENCE, STATED: until W-56 merges, a released revision has no database
-          // credentials and no Keycloak configuration, so it cannot start healthy and
-          // deploy.yml's health gate WILL go red. Spec section 3 puts W-56 ahead of this
-          // branch for that reason. A pipeline run before then is expected to fail.
+          // Database credentials and configuration for the backend web app.
+          // Connects to PostgreSQL Flexible Server over the private endpoint (10.10.3.7).
           resources: {
             cpu: json(cpu)
             memory: memory
           }
           env: [
+            {
+              name: 'DB_URL'
+              value: jdbcUrl
+            }
+            {
+              name: 'DB_USERNAME'
+              value: 'app_user'
+            }
             {
               name: 'BREVO_API_KEY'
               secretRef: 'brevo-api-key'
@@ -342,14 +353,21 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
         {
           name: 'worker'
           image: workerImage
-          // No `env` block: W-56 owns it, same as the app above. Until W-56 merges this
-          // revision starts without database credentials. The worker has no ingress and
-          // so no health gate of its own, but it will crash-loop just as visibly.
+          // Database credentials and configuration for the backend worker.
+          // Connects to PostgreSQL Flexible Server over the private endpoint (10.10.3.7).
           resources: {
             cpu: json(cpu)
             memory: memory
           }
           env: [
+            {
+              name: 'DB_URL'
+              value: jdbcUrl
+            }
+            {
+              name: 'DB_USERNAME'
+              value: 'worker_user'
+            }
             {
               name: 'BREVO_API_KEY'
               secretRef: 'brevo-api-key'
@@ -495,15 +513,25 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
         {
           name: 'keycloak'
           image: keycloakImage
-          // No `env` block: W-56 owns it, and for Keycloak that is load-bearing - KC_DB,
-          // KC_DB_URL, KC_DB_USERNAME and KC_DB_PASSWORD all come from there. Until W-56
-          // merges, a released Keycloak revision has no database to start against and the
-          // health gate in deploy.yml WILL go red. Spec section 3 merges W-56 first.
+          // Database credentials and configuration for Keycloak.
+          // Connects to PostgreSQL Flexible Server keycloak database over private endpoint.
           resources: {
             cpu: json(cpu)
             memory: memory
           }
           env: [
+            {
+              name: 'KC_DB_URL'
+              value: keycloakJdbcUrl
+            }
+            {
+              name: 'KC_DB_USERNAME'
+              value: 'keycloak_user'
+            }
+            {
+              name: 'KEYCLOAK_ADMIN'
+              value: 'admin'
+            }
             {
               name: 'KEYCLOAK_ADMIN_PASSWORD'
               secretRef: 'keycloak-admin-pw'

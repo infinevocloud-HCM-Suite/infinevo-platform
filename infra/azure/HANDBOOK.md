@@ -131,9 +131,9 @@ The Infinevo platform runs on a **Zero-Trust, Private-by-Default Architecture** 
 
 3. **Container Apps (Compute Microservices)**:
    - **`ca-infinevo-dev-web`**: React Single Page Application (non-root nginx on port 8080 - it cannot bind a privileged port; see infra/docker/nginx/default.conf:11).
-   - **`ca-infinevo-dev-app`**: Spring Boot Core Backend API (Port 8080).
-   - **`ca-infinevo-dev-worker`**: Spring Boot Background Async Processor (ShedLock + Queue consumer).
-   - **`ca-infinevo-dev-keycloak`**: Quay Keycloak 25 Authentication Server (Port 8080, Management Port 9000).
+   - **`ca-infinevo-dev-app`**: Spring Boot Core Backend API (Port 8080). Configured with `DB_URL` (`jdbc:postgresql://psql-infinevo-dev.postgres.database.azure.com:5432/infinevo?sslmode=require`), `DB_USERNAME` (`app_user`), and `DB_PASSWORD` (Key Vault secret ref `psql-app-pw`), connecting to PostgreSQL Flexible Server over the Private Endpoint (`10.10.3.7`).
+   - **`ca-infinevo-dev-worker`**: Spring Boot Background Async Processor (ShedLock + Queue consumer). Configured with `DB_URL` (`jdbc:postgresql://psql-infinevo-dev.postgres.database.azure.com:5432/infinevo?sslmode=require`), `DB_USERNAME` (`worker_user`), and `DB_PASSWORD` (Key Vault secret ref `psql-worker-pw`), connecting to PostgreSQL Flexible Server over the Private Endpoint (`10.10.3.7`).
+   - **`ca-infinevo-dev-keycloak`**: Quay Keycloak 25 Authentication Server (Port 8080, Management Port 9000). Configured with `KC_DB_URL` (`jdbc:postgresql://psql-infinevo-dev.postgres.database.azure.com:5432/keycloak?sslmode=require`), `KC_DB_USERNAME` (`keycloak_user`), `KC_DB_PASSWORD` (Key Vault secret ref `psql-keycloak-pw`), and `KEYCLOAK_ADMIN_PASSWORD` (Key Vault secret ref `keycloak-admin-pw`).
    - **Security Restriction**: Every app configures `ipSecurityRestrictions` that whitelist only `AzureFrontDoor.Backend` IP CIDRs. Direct hits return `403 Forbidden`.
 
 4. **`caj-db-migration-dev` (Database Migration Runner Job)**:
@@ -156,7 +156,7 @@ The Infinevo platform runs on a **Zero-Trust, Private-by-Default Architecture** 
 7. **Managed Identities (Zero Trust Security)**:
    - `id-app-dev`: Granted `Key Vault Secrets User`, `Storage Blob Data Contributor`, `Storage Queue Data Message Sender`, `AcrPull`.
    - `id-worker-dev`: Granted `Key Vault Secrets User`, `Storage Blob Data Contributor`, `Storage Queue Data Message Processor`, `Storage Queue Data Message Sender`, `AcrPull`.
-   - `id-web-dev`: Granted `Key Vault Secrets User`, `AcrPull`.
+   - `id-web-dev`: Granted `AcrPull` (static React/nginx frontend; no Key Vault access).
    - `id-keycloak-dev`: Granted `Key Vault Secrets User`, `AcrPull`.
    - `id-migration-dev`: Granted `Key Vault Secrets User`, `AcrPull`.
 

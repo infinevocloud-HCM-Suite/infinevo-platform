@@ -406,8 +406,6 @@ jobs:
           : > /tmp/rls-missing.txt
           while IFS="$(printf '\t')" read -r file table _; do
             [ -n "$table" ] || continue
-            # core.shedlock is a cluster-wide distributed coordination table (W-52), exempt from tenant RLS
-            [ "$table" = "core.shedlock" ] && continue
             bare=${table#*.}
             esc=$(printf '%s' "$table" | sed 's/\./\\./g')
             grep -qiE "alter[[:space:]]+table[[:space:]]+($esc|$bare)[[:space:]]+enable[[:space:]]+row[[:space:]]+level[[:space:]]+security" "$file" \

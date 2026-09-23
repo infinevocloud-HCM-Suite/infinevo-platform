@@ -46,5 +46,19 @@ CREATE TABLE core.shedlock (
     locked_by VARCHAR(255) NOT NULL
 );
 
+-- RLS for core.shedlock: allows cluster worker access (where app.current_tenant_id is not set)
+-- while denying tenant user requests from reading, mutating, or tampering with cluster locks.
+ALTER TABLE core.shedlock ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON core.shedlock
+    USING (
+        current_setting('app.current_tenant_id', true) IS NULL
+        OR current_setting('app.current_tenant_id', true) = ''
+    )
+    WITH CHECK (
+        current_setting('app.current_tenant_id', true) IS NULL
+        OR current_setting('app.current_tenant_id', true) = ''
+    );
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON core.job_status TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON core.shedlock TO app_user;

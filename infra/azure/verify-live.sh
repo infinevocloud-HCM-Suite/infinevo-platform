@@ -53,7 +53,7 @@ declare -A EXPECTED_ROLES=(
   ["id-app-${ENV}"]="Key Vault Secrets User|Storage Blob Data Contributor|Storage Queue Data Message Sender|AcrPull"
   ["id-worker-${ENV}"]="Key Vault Secrets User|Storage Blob Data Contributor|Storage Queue Data Message Processor|Storage Queue Data Message Sender|AcrPull"
   ["id-keycloak-${ENV}"]="Key Vault Secrets User|AcrPull"
-  ["id-web-${ENV}"]="Key Vault Secrets User|AcrPull"
+  ["id-web-${ENV}"]="AcrPull"
   ["id-migration-${ENV}"]="Key Vault Secrets User|AcrPull"
 )
 for uami in "${!EXPECTED_ROLES[@]}"; do
@@ -98,6 +98,21 @@ echo "PASS: Front Door / returns HTTP 200 OK"
 CANARY_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${AFD_HOST}/api/?wafcanary=block")
 if [ "$CANARY_CODE" != "403" ]; then echo "FAIL: Front Door WAF canary returned $CANARY_CODE, expected 403"; exit 1; fi
 echo "PASS: Front Door WAF canary correctly blocked with HTTP 403"
+
+# 9. Container Database Environment Variables
+echo "--- Check 9: Container Database Environment Configuration ---"
+EXPECTED_DB_URL="jdbc:postgresql://psql-infinevo-${ENV}.postgres.database.azure.com:5432/infinevo?sslmode=require"
+APP_DB_URL=$(az containerapp show -g "$RG_ENV" -n "ca-infinevo-${ENV}-app" --query "properties.template.containers[0].env[?name=='DB_URL'].value | [0]" -o tsv)
+APP_DB_USER=$(az containerapp show -g "$RG_ENV" -n "ca-infinevo-${ENV}-app" --query "properties.template.containers[0].env[?name=='DB_USERNAME'].value | [0]" -o tsv)
+if [ "$APP_DB_URL" != "$EXPECTED_DB_URL" ]; then echo "FAIL: ca-infinevo-${ENV}-app DB_URL is '$APP_DB_URL', expected '$EXPECTED_DB_URL'"; exit 1; fi
+if [ "$APP_DB_USER" != "app_user" ]; then echo "FAIL: ca-infinevo-${ENV}-app DB_USERNAME is '$APP_DB_USER', expected 'app_user'"; exit 1; fi
+echo "PASS: ca-infinevo-${ENV}-app has DB_URL and DB_USERNAME configured correctly"
+
+WORKER_DB_URL=$(az containerapp show -g "$RG_ENV" -n "ca-infinevo-${ENV}-worker" --query "properties.template.containers[0].env[?name=='DB_URL'].value | [0]" -o tsv)
+WORKER_DB_USER=$(az containerapp show -g "$RG_ENV" -n "ca-infinevo-${ENV}-worker" --query "properties.template.containers[0].env[?name=='DB_USERNAME'].value | [0]" -o tsv)
+if [ "$WORKER_DB_URL" != "$EXPECTED_DB_URL" ]; then echo "FAIL: ca-infinevo-${ENV}-worker DB_URL is '$WORKER_DB_URL', expected '$EXPECTED_DB_URL'"; exit 1; fi
+if [ "$WORKER_DB_USER" != "worker_user" ]; then echo "FAIL: ca-infinevo-${ENV}-worker DB_USERNAME is '$WORKER_DB_USER', expected 'worker_user'"; exit 1; fi
+echo "PASS: ca-infinevo-${ENV}-worker has DB_URL and DB_USERNAME configured correctly"
 
 echo "================================================================="
 echo " ALL LIVE AZURE INFRASTRUCTURE TESTS PASSED SUCCESSFULLY!"

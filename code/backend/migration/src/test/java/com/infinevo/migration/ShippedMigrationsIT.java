@@ -132,18 +132,24 @@ class ShippedMigrationsIT {
         try (Connection conn = migrationUserConnection()) {
             for (String qualified : shippedTables()) {
                 String[] parts = qualified.split("\\.", 2);
-                if ("reference".equals(parts[0]) || "core.shedlock".equals(qualified)) {
-                    continue; // D-08: reference schema is exempt; core.shedlock is cluster coordination (W-52)
+                if ("reference".equals(parts[0])) {
+                    continue; // D-08: reference schema is exempt from tenant_id and RLS
                 }
-                try (ResultSet rs = conn.createStatement()
-                        .executeQuery("SELECT count(*) FROM information_schema.columns"
-                                + " WHERE table_schema = '" + parts[0] + "' AND table_name = '" + parts[1]
-                                + "' AND column_name = 'tenant_id'")) {
-                    assertThat(rs.next()).isTrue();
-                    assertThat(rs.getInt(1))
-                            .as("tenant_id column on %s", qualified)
-                            .isEqualTo(1);
+
+                // core.shedlock is cluster coordination (W-52) and carries no tenant_id column (CONVENTIONS.md Rule 7)
+                if (!"core.shedlock".equals(qualified)) {
+                    try (ResultSet rs = conn.createStatement()
+                            .executeQuery("SELECT count(*) FROM information_schema.columns"
+                                    + " WHERE table_schema = '" + parts[0] + "' AND table_name = '" + parts[1]
+                                    + "' AND column_name = 'tenant_id'")) {
+                        assertThat(rs.next()).isTrue();
+                        assertThat(rs.getInt(1))
+                                .as("tenant_id column on %s", qualified)
+                                .isEqualTo(1);
+                    }
                 }
+
+                // Every table in core/hrms/payroll (including core.shedlock) MUST have RLS enabled
                 try (ResultSet rs = conn.createStatement()
                         .executeQuery("SELECT c.relrowsecurity FROM pg_class c"
                                 + " JOIN pg_namespace n ON n.oid = c.relnamespace"
@@ -153,6 +159,8 @@ class ShippedMigrationsIT {
                             .as("row-level security enabled on %s", qualified)
                             .isTrue();
                 }
+
+                // Every table in core/hrms/payroll (including core.shedlock) MUST have a tenant_isolation policy
                 try (ResultSet rs = conn.createStatement()
                         .executeQuery("SELECT count(*) FROM pg_policies WHERE schemaname = '" + parts[0]
                                 + "' AND tablename = '" + parts[1] + "' AND policyname = 'tenant_isolation'")) {

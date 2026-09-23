@@ -331,6 +331,8 @@ module containerApps 'modules/containerapps.bicep' = {
     maxReplicas: containerAppMaxReplicas
     identities: identityMap
     frontDoorBackendPrefixes: frontDoorBackendPrefixes
+    keyVaultName: keyVault.outputs.keyVaultName
+    postgresFqdn: postgres.outputs.fullyQualifiedDomainName
     // One tag across all four images (spec section 5 check 12), so the backend tag IS the
     // release tag. Empty for an infrastructure-only deploy, in which case each app keeps
     // the image currentImages says it is already running.
@@ -342,6 +344,7 @@ module containerApps 'modules/containerapps.bicep' = {
   dependsOn: [
     acrRoleAssignment
     keyVaultRbac
+    postgresPrivateEndpoint
   ]
 }
 
@@ -461,7 +464,6 @@ module keyVaultRbac 'modules/rbac.bicep' = {
     keyVaultName: keyVault.outputs.keyVaultName
     appPrincipalId: managedIdentities.outputs.appIdentityPrincipalId
     workerPrincipalId: managedIdentities.outputs.workerIdentityPrincipalId
-    webPrincipalId: managedIdentities.outputs.webIdentityPrincipalId
     keycloakPrincipalId: managedIdentities.outputs.keycloakIdentityPrincipalId
     migrationPrincipalId: managedIdentities.outputs.migrationIdentityPrincipalId
   }
@@ -475,7 +477,6 @@ module storageRbac 'modules/rbac.bicep' = {
     storageAccountName: storage.outputs.storageAccountName
     appPrincipalId: managedIdentities.outputs.appIdentityPrincipalId
     workerPrincipalId: managedIdentities.outputs.workerIdentityPrincipalId
-    webPrincipalId: managedIdentities.outputs.webIdentityPrincipalId
     keycloakPrincipalId: managedIdentities.outputs.keycloakIdentityPrincipalId
     migrationPrincipalId: managedIdentities.outputs.migrationIdentityPrincipalId
   }

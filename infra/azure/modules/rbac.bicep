@@ -40,9 +40,6 @@ param appPrincipalId string
 @description('Principal id of id-worker-{env}')
 param workerPrincipalId string
 
-@description('Principal id of id-web-{env}')
-param webPrincipalId string
-
 @description('Principal id of id-keycloak-{env}')
 param keycloakPrincipalId string
 
@@ -70,13 +67,14 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing 
   name: hasStorage ? storageAccountName : 'placeholdernotdeployed'
 }
 
-// ── Key Vault: Secrets User for all five identities (3f rows 1, 4, 8, 9, 10) ──
+// ── Key Vault: Secrets User for backend identities (3f rows 1, 4, 9, 10) ─────
 // keyvault.bicep:32 sets enableRbacAuthorization: true, so an access policy would do
 // nothing - RBAC is the only grant path on this vault.
+// Deliberately NOT granted to id-web: the frontend is static React/nginx and requires
+// zero Key Vault secrets.
 var keyVaultReaders = [
   { role: 'app', principalId: appPrincipalId }
   { role: 'worker', principalId: workerPrincipalId }
-  { role: 'web', principalId: webPrincipalId }
   { role: 'keycloak', principalId: keycloakPrincipalId }
   { role: 'migration', principalId: migrationPrincipalId }
 ]
