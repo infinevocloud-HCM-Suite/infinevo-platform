@@ -66,6 +66,9 @@
     <shedlock.version>5.16.0</shedlock.version>
     <!-- W-60: Observability -->
     <logstash-logback-encoder.version>7.4</logstash-logback-encoder.version>
+    <!-- W-59: Security scan dependency patch overrides -->
+    <tomcat.version>10.1.59</tomcat.version>
+    <postgresql.version>42.7.12</postgresql.version>
   </properties>
 
   <dependencyManagement>
@@ -129,6 +132,27 @@
         <groupId>com.infinevo</groupId>
         <artifactId>payroll</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <!-- W-59: Patched versions for security compliance -->
+      <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <version>${postgresql.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-core</artifactId>
+        <version>${tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-el</artifactId>
+        <version>${tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-websocket</artifactId>
+        <version>${tomcat.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
