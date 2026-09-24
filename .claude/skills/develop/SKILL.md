@@ -47,6 +47,19 @@ that caused it.** Do not write it down first.
 | anything | `git grep -nE '^[^#]*ddl-auto[[:space:]]*[:=]' -- code/` — expect nothing |
 | anything | `git diff --name-only origin/main...HEAD \| grep -E '^legacy/'` — expect nothing |
 
+**Triage before you reason.** Save the failing output to a file and run
+`jev-harness test-gate --log <file> --json`. Exit 0 means `skip_llm` — the failure is
+mechanical: a missing package, a port already in use, a flaky download. Retry or fix it
+directly and move on. Exit 1 means a real defect; only those are worth reading and
+reasoning about.
+
+**Before repeating yourself, ask.** Before trying the same fix a second time, run
+`jev-harness abort-check --plan "<what you are about to do>" --history "<what already
+failed>"`. If it says stop, stop and tell the founder. Do not go round again.
+
+The gate only decides **who** fixes a failure — you or the model. It decides nothing
+about whether the code is correct; every rule below stays exactly as it is.
+
 **Break each guard the ticket ships, once.** A check that has never failed has not been
 shown to work.
 
@@ -97,7 +110,8 @@ W-nn — <title>: built and pushed
 | code/backend/hrms/.../LeaveService.java | new | Works out how many leave days are left |
 | code/backend/migration/V12__leave_balance.sql | new | The table that stores it |
 
-Checked: <what ran> — all green. Fixed along the way: <n> things, in plain English.
+Checked: <what ran> — all green. Fixed along the way: <n> things, in plain English
+(<n> of them handled by the triage gate, never sent to the model).
 Next: /merge W-nn
 ```
 
