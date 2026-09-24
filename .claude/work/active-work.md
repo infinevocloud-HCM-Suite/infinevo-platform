@@ -1,7 +1,7 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-23**, after `W-13.1` Employee record (#14) merged as `7d0bab6`.
+> Last refreshed: **2026-09-24**, after `W-11.1` Role catalogue (#12) merged as `172eaaa`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. Layer 1 is ten
 > branches and they can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
@@ -13,9 +13,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **112** — 24 closed, 88 open. GitHub is authoritative, this file is the summary |
+| Tickets | **112** — 25 closed, 87 open. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 is done — all 7.** Wave 2 starts at `W-09` |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-59` scanning (#79)** · **`W-61` alerting (#81)** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-11.1` role catalogue (#12)** · **`W-59` scanning (#79)** · **`W-61` alerting (#81)** |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 > **`W-50` and `W-51` are verified as code and not as an environment.** The Bicep builds
@@ -73,7 +73,7 @@ unblock the most: `W-14-1-org-masters` (critical path), `W-13-2-employee-detail`
 |---|---|
 | `W-14-1-org-masters` | `W-14.2` → `W-15` approval engine → most of leave |
 | `W-13-2-employee-detail` | `W-25` portal; carries the audit opt-in |
-| `W-11-1-role-catalogue` | `W-11.2`, `W-12.2`, `W-24.2` |
+| ~~`W-11-1-role-catalogue`~~ **merged `172eaaa`** | `W-11.2`, `W-12.2`, `W-24.2` — now unblocked |
 | `W-12-1-subscription` · `W-13-3-employee-search` · `W-19-pay-input-ledger` · `W-20-1-notifications` · `W-21-document-store` · `W-23-1-export` · `W-22-2-audit-retention`* | — |
 
 \* `W-22.2` is **layer 3 in practice**, not layer 1: its spec says "blocked by W-22.1", but
@@ -86,6 +86,12 @@ has no GitHub ticket and must be raised.**
 > the `@Embedded` redaction gap `W-22.1` deferred — without which the first audited entity
 > holding an address or bank detail writes it in clear. **This is scope added to an approved
 > spec, by the founder, and is recorded in the spec itself.**
+
+> **`W-11.1` merged 2026-09-24.** Took `V020`–`V023`; next script is **`V024`**. Until `W-11.2`
+> enforces actions, any authenticated user can change their own roles — **do not deploy
+> between the two.** `core.role` now blocks `DELETE FROM core.tenant` (FK, no `ON DELETE`):
+> offboarding and test cleanup delete `user_role`, `role_action`, `role` first. Role and grant
+> changes are not `@Audited` yet.
 
 **Flyway continues from `V011`.** Used: `V001`, `V002`, `V006`, `V008`, `V009`, `V010`. The
 rule is the next number **above everything on `main`**, not the next free one — `W-10` had to
@@ -384,7 +390,6 @@ head. (`--no-assignee` is not a flag in the installed `gh`; use the search form.
 |---|---|---|---|---|
 | **#15** | `W-14.1` Org masters | M | BE | Layer 1, **critical path** — department, designation, work location. `W-14.2` then the approval engine sit behind it. Takes `V011` |
 | **#14** | `W-13.2` Employee detail | M | BE | Five detail tables. **Carries the founder decision to turn the audit trail on** — annotate `@Audited` and fix the `@Embedded` redaction gap |
-| **#12** | `W-11.1` Role catalogue | M | BE | Layer 1. Four tables; blocks permission checks, entitlement and invitations |
 | **none yet** | `W-22.2` audit retention | S | BE | **Must be raised.** Nothing deletes an audit row and `W-22.1` shipped without it. Spec and seven-year window are in `W-22-1-audit-trail.md` §13 |
 | **#44** | `W-33.2` Tax calculator — old regime with section deductions | XL | BE | **Newly unblocked.** `W-09` shipped the 15 `reference` tables it reads. Carries three conditions from W-09's review (see `55a5a83`): C-1 Chapter VI-A has no `financial_year`, C-2 `home_loan_rule_master` has no regime column, C-3 loss carry-forward defaults FALSE |
 | **#146** | `W-09` follow-up — senior-citizen tax slabs are not seeded | S | DATA | `W-09` seeded only `age_category = 'GENERAL'`. Under the old regime a senior gets ₹2.5L exemption instead of ₹3L, and a super-senior instead of ₹5L — both over-deducted. `W-33` cannot fix it without a new migration |
