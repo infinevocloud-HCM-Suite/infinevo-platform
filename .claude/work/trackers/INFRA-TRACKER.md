@@ -11,7 +11,7 @@
 | Containers & local stack | 2 | 2 | 2 | 2 |
 | GitHub Actions | 4 | 4 | 4 | 2 |
 | Azure | 5 | 5 | 5 | **0** |
-| Security & operations | 7 | 4 | 4 | 3 |
+| Security & operations | 7 | 5 | 5 | 4 |
 | Open defects | 1 | — | — | — |
 
 **Nothing Azure has ever been deployed.** Five tickets are merged and zero are proven (#124).
@@ -80,7 +80,7 @@ not polish.
 
 ## 4. Security, operations, go-to-market
 
-Observability, alerting and backup are merged. `W-57`, `W-58`, `W-63` and `W-64` have no
+Observability, alerting, backup and load testing are merged. `W-57`, `W-58` and `W-64` have no
 spec yet.
 
 | # | Ticket | What it is | Status |
@@ -90,7 +90,7 @@ spec yet.
 | #80 | `W-60` Observability | Structured logging, tracing, metrics, health endpoints, dashboards. One request followable across app, worker and database | **on main `3e1aebc`** · code done |
 | #81 | `W-61` Alerting | Alert rules, routing to a person, an on-call process | **on main `10e60bc`** · code done — no rule has ever fired |
 | #82 | `W-62` Backup & disaster recovery | Backup configuration, a restore that has actually been performed, a recovery runbook | **on main `1d1123a`** · code done — **no restore has been performed** |
-| #83 | `W-63` Load test | Scenarios, baseline, regression run | ready — `W-54` merged |
+| #83 | `W-63` Load test | Scenarios, baseline, regression run | **on main** · code done |
 | #84 | `W-64` Penetration test | External engagement and remediation. Re-tests the perimeter and is where `D-51` Front Door Standard gets revisited | `W-57`, `W-58` |
 
 ---
