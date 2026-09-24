@@ -49,7 +49,7 @@ done** (migration excluded).
 
 | Column | Where it comes from |
 |---|---|
-| **Spec** | `written` = the spec is in `docs/target-state/features/` or `.claude/outputs/2026-09-22-plan-W-*.md` |
+| **Spec** | `written` = the spec is in `docs/target-state/features/` |
 | **Owner** | The developer the founder assigned. `—` means unassigned |
 | **Built by** | The author of the commit on `main` |
 

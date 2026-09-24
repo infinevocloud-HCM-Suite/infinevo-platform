@@ -49,8 +49,7 @@ department, designation, work location, role — all under row-level security.
 
 ## 3. Stream C — Core platform
 
-All 25 Core specs are approved (`.claude/outputs/2026-09-22-plan-W-*.md`). A spec moves
-into `docs/target-state/features/` on its own branch during `/develop`.
+All Core specs are written and live in `docs/target-state/features/`.
 
 | # | Ticket | Spec | Status | Owner | Built by |
 |---|---|---|---|---|---|
