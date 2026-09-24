@@ -1,7 +1,7 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-24**, after `W-11.2` Permission check merged as `23d1126` — **W-11 Authorization (#12) complete**.
+> Last refreshed: **2026-09-24**, after `W-62` Backup & disaster recovery merged as `1d1123a` (#82).
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. Layer 1 is ten
 > branches and they can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
@@ -13,9 +13,9 @@
 | | |
 |---|---|
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
-| Tickets | **112** — 26 closed, 86 open. GitHub is authoritative, this file is the summary |
+| Tickets | **112** — 27 closed, 85 open. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 is done — all 7.** Wave 2 starts at `W-09` |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-11.1` role catalogue (#12)** · **`W-11.2` permission check (#12)** · **`W-59` scanning (#79)** · **`W-61` alerting (#81)** · **`W-55` index & query standard (#75)** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-11.1` role catalogue (#12)** · **`W-11.2` permission check (#12)** · **`W-59` scanning (#79)** · **`W-61` alerting (#81)** · **`W-55` index & query standard (#75)** · **`W-62` backup & DR (#82)** |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 > **`W-50` and `W-51` are verified as code and not as an environment.** The Bicep builds
