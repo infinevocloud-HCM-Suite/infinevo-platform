@@ -69,9 +69,20 @@ CREATE INDEX ON core.employee (tenant_id, id);
 
 ### Index on tenant_id plus lookup columns (DEBT-018)
 
-Every table in `core`, `hrms`, `payroll` must have a composite index with `tenant_id`
-as the leading column, followed by the columns used in typical WHERE clauses
-(`02-data-model.md:363-372`).
+Every secondary index on a table in `core`, `hrms`, or `payroll` must adhere to these conventions
+(`W-55`, `PLAT-06`, `02-data-model.md:384-392`):
+
+1. **`tenant_id` is the leading column** (position 1) on every secondary index on a tenant-scoped table.
+2. **Standard naming pattern**:
+   - `idx_<table/feature>_tenant_<columns>` for standard composite indexes (e.g. `idx_employee_tenant_status`).
+   - `uk_<table/feature>_tenant_<columns>` for unique composite indexes (e.g. `idx_employee_tenant_employee_number`).
+3. **Soft-delete column included**: If a table has an `is_deleted` column (e.g. `core.employee`),
+   composite indexes used for listing must include `is_deleted` (e.g. `(tenant_id, is_deleted, status)`)
+   rather than filtering soft-deleted rows post-fetch.
+4. **Time-growing tables**: Tables that grow continuously with time (`audit_log`, `job_status`, `attendance`, `pay_input_ledger`)
+   must index `(tenant_id, ...)` ordered by descending timestamp (`occurred_at DESC`, `created_at DESC`).
+5. **No unindexed foreign keys**: Every foreign key column must be indexed.
+
 
 ### Row-level security
 

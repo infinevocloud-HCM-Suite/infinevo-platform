@@ -13,10 +13,18 @@ spring:
     username: ${DB_USERNAME:app_user}
     password: ${DB_PASSWORD:local_app_pw}
     hikari:
+      pool-name: InfinevoAppHikariPool
       maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 1800000
       connection-timeout: 5000
+      leak-detection-threshold: 30000
   jpa:
     open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 25
     # No default_schema. This design has four of them, so every entity declares its
     # own - @Table(schema = "core" | "hrms" | "payroll" | "reference"). A default here
     # would silently put an unqualified hrms or payroll entity into core, and the bug

@@ -34,13 +34,21 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     hikari:
+      pool-name: InfinevoWorkerHikariPool
       # Smaller than the app's pool: the worker runs batches, not concurrent requests.
       maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 1800000
       connection-timeout: 5000
+      leak-detection-threshold: 30000
   jpa:
     # See the app module's application.yml — these belong in the base, not only in the
     # local profile (review F-6).
     open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 25
 
 server:
   port: 8082
