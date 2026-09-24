@@ -30,7 +30,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  *       have {@code tenant_id} as their leading column (column position 1).</li>
  *   <li>Primary keys ({@code _pkey}) and the un-scoped {@code reference} schema are appropriately exempt.</li>
  *   <li>Composite indexes adhere to naming convention {@code idx_<table/feature>_tenant_<columns>} or {@code uk_*}.</li>
- *   <li>High-growth table indexes and soft-delete covering indexes from {@code V011} exist in the catalog.</li>
+ *   <li>High-growth table indexes and soft-delete covering indexes from {@code V024} exist in the catalog.</li>
  *   <li>A non-compliant index (violating tenant-leading rule) is detected and rejected by the assertion logic.</li>
  * </ul>
  */
@@ -64,9 +64,9 @@ class DatabaseIndexConventionIT extends AbstractIntegrationTest {
             applyScriptIfMissing(conn, "core", "user_account", "db/migration/core/V009__user_account.sql");
             applyScriptIfMissing(conn, "core", "employee", "db/migration/core/V010__employee.sql");
 
-            // Apply V011 index optimizations
+            // Apply V024 index optimizations
             if (!indexExists(conn, "core", "idx_employee_tenant_active_status")) {
-                executeSqlResource(conn, "db/migration/core/V011__index_standard_optimizations.sql");
+                executeSqlResource(conn, "db/migration/core/V024__index_standard_optimizations.sql");
             }
         }
     }
@@ -142,8 +142,8 @@ class DatabaseIndexConventionIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("V011 indexes for soft-delete status and job polling exist in PostgreSQL catalog")
-    void v011IndexesExistInCatalog() throws SQLException {
+    @DisplayName("V024 indexes for soft-delete status and job polling exist in PostgreSQL catalog")
+    void v024IndexesExistInCatalog() throws SQLException {
         try (Connection conn = DriverManager.getConnection(
                 PostgresTestContainerInitializer.getJdbcUrl(),
                 PostgresTestContainerInitializer.APP_USER,

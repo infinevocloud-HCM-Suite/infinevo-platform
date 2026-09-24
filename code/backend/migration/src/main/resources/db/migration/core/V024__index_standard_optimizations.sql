@@ -1,4 +1,4 @@
--- Migration: V011__index_standard_optimizations.sql
+-- Migration: V024__index_standard_optimizations.sql
 -- Description: Composite index optimizations adhering to W-55 standards (DEBT-018, PLAT-06)
 
 -- 1. core.employee: Active status listing index covering tenant_id and soft-delete flag (02-data-model.md:391)
