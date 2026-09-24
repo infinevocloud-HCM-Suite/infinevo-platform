@@ -35,6 +35,7 @@ Apps with an automated pipeline.
 | `09-build-order.md` | Waves, parallel tracks, and per-item build detail | About to start building something |
 | `10-scoping.md` | Sizes, skills, blockers, and what to assign first | Assigning work to people |
 | `11-ways-of-working.md` | What you assign, how a developer works a ticket, what done means | Starting development |
+| `12-core-contracts.md` | What Core provides to Payroll, HRMS, frontend and admin: tables, APIs, Java seams, permission codes; the fixes the Core specs need | Writing any spec outside Core |
 | `features/` | The per-ticket specs. `TEMPLATE.md`, then one `W-nn-*.md` per item as it starts | Writing or approving a spec |
 
 **Start with `01`.** It is the shortest path to understanding the product.
