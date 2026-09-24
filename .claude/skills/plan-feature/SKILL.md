@@ -35,7 +35,7 @@ findings open. Splitting costs one ticket. Not splitting costs weeks.
 
 0. **Apply the size cap.** If the ticket breaks it, propose the split and stop.
 1. Read `.claude/work/active-work.md`, then the ticket's row in
-   `.claude/work/trackers/`. **If it is Blocked, say which ticket it waits on and stop.**
+   `docs/trackers/`. **If it is Blocked, say which ticket it waits on and stop.**
 2. Read `docs/target-state/09-build-order.md` §3 for this item — what to build, how you
    know it is done, the trap to avoid. That is the spine of the spec.
 3. Read `docs/target-state/01-platform-shape.md` for the capability, and `02-data-model.md`

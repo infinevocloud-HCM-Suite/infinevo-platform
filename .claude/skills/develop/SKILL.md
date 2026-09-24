@@ -19,7 +19,7 @@ commit that caused it.
 1. Read `.claude/work/active-work.md`.
 2. Find the spec: `docs/target-state/features/W-nn-<slug>.md`. **If it does not exist,
    stop** and say so.
-3. Find the ticket's row in `.claude/work/trackers/`. **If it is not assigned to you, or
+3. Find the ticket's row in `docs/trackers/`. **If it is not assigned to you, or
    you already have another row In flight, stop.** One feature at a time per developer.
 
 ## Step 1 — build
