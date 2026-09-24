@@ -31,12 +31,13 @@ function gate(name, fn) {
   results.push({ name, ok, detail });
 }
 
-function sh(cmd, args) {
+function sh(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, {
-    cwd: ROOT,
+    cwd: opts.cwd ? join(ROOT, opts.cwd) : ROOT,
     encoding: "utf8",
-    shell: process.platform === "win32",
-    timeout: 600_000,
+    shell: opts.shell !== undefined ? opts.shell : process.platform === "win32",
+    timeout: opts.timeout ?? 600_000,
+    input: opts.input,
   });
   return { code: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
@@ -128,7 +129,36 @@ gate("CI green for this commit", () => {
     return d.out.split(NL).map((x) => x.trim()).filter(Boolean).every(IGNORED);
   };
   const FIELDS = "status,conclusion,url,headSha,workflowName";
-  const runsFor = (sha) => sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha, "--json", FIELDS, "--limit", "10"]);
+  const runsFor = (sha) => {
+    const res = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha, "--json", FIELDS, "--limit", "10"]);
+    if (res.code === 0) return res;
+    // Fall back to GitHub REST API if gh CLI is not available
+    const token = (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || (() => {
+      const cred = sh("git", ["credential", "fill"], { input: "protocol=https\nhost=github.com\n\n" });
+      return (cred.out.match(/password=([^\r\n]+)/) || [])[1];
+    })())?.trim();
+    const curl = sh("curl.exe", [
+      "-s",
+      "-A",
+      "check-done",
+      ...(token ? ["-H", `Authorization: token ${token}`] : []),
+      `https://api.github.com/repos/infinevocloud-HCM-Suite/infinevo-platform/actions/workflows/ci.yml/runs?head_sha=${encodeURIComponent(sha)}&per_page=10`,
+    ], { shell: false });
+    if (curl.code === 0 && curl.out.trim()) {
+      try {
+        const data = JSON.parse(curl.out);
+        const mapped = (data.workflow_runs || []).map((w) => ({
+          status: w.status,
+          conclusion: w.conclusion,
+          url: w.html_url,
+          headSha: w.head_sha,
+          workflowName: w.name,
+        }));
+        return { code: 0, out: JSON.stringify(mapped) };
+      } catch {}
+    }
+    return res;
+  };
 
   let r = runsFor(head);
   let credited = head;

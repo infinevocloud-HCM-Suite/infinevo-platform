@@ -59,6 +59,10 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01'
       enabled: true
       days: 7
     }
+    containerDeleteRetentionPolicy: {
+      enabled: true
+      days: 7
+    }
   }
 }
 

@@ -33,6 +33,11 @@ param storageSizeGB int = 32
 ])
 param highAvailabilityMode string = 'Disabled'
 
+@description('Backup retention days (7-35)')
+@minValue(7)
+@maxValue(35)
+param backupRetentionDays int = 7
+
 @description('Tags for the resource')
 param tags object = {}
 
@@ -56,7 +61,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' =
       mode: highAvailabilityMode
     }
     backup: {
-      backupRetentionDays: 7
+      backupRetentionDays: backupRetentionDays
       // D-18: no geo-replication, so the backup stays in centralindia with the primary.
       geoRedundantBackup: 'Disabled'
     }

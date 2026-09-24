@@ -9,6 +9,7 @@ param postgresSkuName = 'Standard_B1ms'
 param postgresSkuTier = 'Burstable'
 param postgresStorageSizeGB = 32
 param postgresHighAvailability = 'Disabled'
+param postgresBackupRetentionDays = 7
 
 param redisSkuName = 'Balanced_B0'
 param deployRedis = true

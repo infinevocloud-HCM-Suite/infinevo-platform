@@ -47,6 +47,11 @@ param postgresStorageSizeGB int = 32
 @description('PostgreSQL high availability mode')
 param postgresHighAvailability string = 'Disabled'
 
+@description('PostgreSQL backup retention days (7-35)')
+@minValue(7)
+@maxValue(35)
+param postgresBackupRetentionDays int = 7
+
 @description('Redis Enterprise / Azure Managed Redis SKU name')
 param redisSkuName string = 'Balanced_B0'
 
@@ -270,6 +275,7 @@ module postgres 'modules/postgres.bicep' = {
     skuTier: postgresSkuTier
     storageSizeGB: postgresStorageSizeGB
     highAvailabilityMode: postgresHighAvailability
+    backupRetentionDays: postgresBackupRetentionDays
     tags: defaultTags
   }
 }
