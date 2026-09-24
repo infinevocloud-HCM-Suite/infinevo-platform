@@ -63,7 +63,7 @@ The legacy system suffered from two pervasive database performance anti-patterns
      - Standard naming convention: `idx_<table/feature>_tenant_<columns>` or `uk_<table/feature>_tenant_<columns>`.
      - Tables that grow with time (`audit_log`, `job_status`, `attendance`, `pay_input_ledger`) must index `(tenant_id, ...)` with timestamp ordering (`occurred_at DESC`, `created_at DESC`).
      - Tables using soft delete (`is_deleted`) must include `is_deleted` in query-covering indexes (`02-data-model.md:391`).
-   - Create migration `code/backend/migration/src/main/resources/db/migration/core/V011__index_standard_optimizations.sql`:
+   - Create migration `code/backend/migration/src/main/resources/db/migration/core/V024__index_standard_optimizations.sql`:
      - Add composite index `idx_employee_tenant_active_status ON core.employee (tenant_id, is_deleted, status)`.
      - Add composite index `idx_job_status_tenant_status ON core.job_status (tenant_id, status, created_at DESC)`.
 2. **Automated Catalog Enforcement Test (`DatabaseIndexConventionIT`)**:
@@ -113,7 +113,7 @@ The legacy system suffered from two pervasive database performance anti-patterns
 | Module | Task ID | File / Package | Change Description |
 |---|---|---|---|
 | `code/backend/migration` | **T1** | `code/backend/migration/README.md` | Document tenant-leading index rules, naming conventions, and soft-delete index standard |
-| `code/backend/migration` | **T1** | `db/migration/core/V011__index_standard_optimizations.sql` | Add composite indexes on `core.employee` and `core.job_status` |
+| `code/backend/migration` | **T1** | `db/migration/core/V024__index_standard_optimizations.sql` | Add composite indexes on `core.employee` and `core.job_status` |
 | `code/backend/app` | **T2** | `code/backend/app/src/main/resources/application.yml` | Configure Hikari pool parameters and `hibernate.default_batch_fetch_size: 25` |
 | `code/backend/app` | **T2** | `code/backend/app/src/main/resources/application-local.yml` | Align local profile Hikari pool parameters |
 | `code/backend/worker` | **T2** | `code/backend/worker/src/main/resources/application.yml` | Configure worker Hikari pool parameters and `hibernate.default_batch_fetch_size: 25` |
@@ -133,10 +133,10 @@ The legacy system suffered from two pervasive database performance anti-patterns
 
 > Flyway only. Never `ddl-auto`. See `CONVENTIONS.md` rule 4.
 
-### Migration Script: `core/V011__index_standard_optimizations.sql`
+### Migration Script: `core/V024__index_standard_optimizations.sql`
 
 ```sql
--- Migration: V011__index_standard_optimizations.sql
+-- Migration: V024__index_standard_optimizations.sql
 -- Description: Composite index optimizations adhering to W-55 standards (DEBT-018, PLAT-06)
 
 -- 1. core.employee: Active status listing index covering tenant_id and soft-delete flag (02-data-model.md:391)
@@ -150,7 +150,7 @@ CREATE INDEX idx_job_status_tenant_status
 
 | Migration | Tables | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `core/V011__index_standard_optimizations.sql` | `core.employee`, `core.job_status` | yes | yes (`DROP INDEX`) |
+| `core/V024__index_standard_optimizations.sql` | `core.employee`, `core.job_status` | yes | yes (`DROP INDEX`) |
 
 - [x] `tenant_id` present on every new index leading column (`02-data-model.md:387`)
 - [x] Index on `tenant_id` plus lookup columns (`DEBT-018`)
@@ -196,7 +196,7 @@ Exact commands to run on a clean checkout:
 
 | Gap | Disposition |
 |---|---|
-| `DEBT-018` — zero `@Index` declarations across 99 entities | **Fixed.** Tenant-leading index standard established in `migration/README.md`, automated catalog assertion test `DatabaseIndexConventionIT` active, and `V011` optimizations applied. |
+| `DEBT-018` — zero `@Index` declarations across 99 entities | **Fixed.** Tenant-leading index standard established in `migration/README.md`, automated catalog assertion test `DatabaseIndexConventionIT` active, and `V024` optimizations applied. |
 | `DEBT-019` — N+1 query loops across 77/78 repositories | **Fixed.** Global `default_batch_fetch_size: 25` configured, `@EntityGraph` / `JOIN FETCH` standard established, and verified via `QueryCountIT`. |
 
 ---
@@ -215,7 +215,7 @@ Exact commands to run on a clean checkout:
 
 If rolled back:
 1. Revert git commit.
-2. Drop indexes added in `V011__index_standard_optimizations.sql` (`DROP INDEX IF EXISTS core.idx_employee_tenant_active_status; DROP INDEX IF EXISTS core.idx_job_status_tenant_status;`).
+2. Drop indexes added in `V024__index_standard_optimizations.sql` (`DROP INDEX IF EXISTS core.idx_employee_tenant_active_status; DROP INDEX IF EXISTS core.idx_job_status_tenant_status;`).
 3. No cloud resources or schema data altered.
 
 ---
@@ -223,7 +223,7 @@ If rolled back:
 ## 10. Done When
 
 1. Tenant-leading index conventions and naming standards documented in `code/backend/migration/README.md`.
-2. Flyway migration `V011__index_standard_optimizations.sql` applied with composite indexes on `core.employee` and `core.job_status`.
+2. Flyway migration `V024__index_standard_optimizations.sql` applied with composite indexes on `core.employee` and `core.job_status`.
 3. `DatabaseIndexConventionIT` runs in CI and asserts that 100% of secondary indexes in tenant-scoped schemas (`core`, `hrms`, `payroll`) have `tenant_id` in position 1.
 4. `application.yml` for both `app` and `worker` configures `spring.jpa.properties.hibernate.default_batch_fetch_size: 25`.
 5. HikariCP connection pool settings calibrated with `minimum-idle`, `idle-timeout`, `max-lifetime`, `leak-detection-threshold: 30000`, and named pools in `app` and `worker`.
