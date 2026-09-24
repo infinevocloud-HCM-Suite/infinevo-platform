@@ -1,9 +1,10 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-24**, after `W-62` Backup & disaster recovery merged as `1d1123a` (#82).
-> **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. Layer 1 is ten
-> branches and they can all run at once.
+> Last refreshed: **2026-09-24**, checked row by row against `main`.
+> **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1 is half
+> done:** `W-11.1`, `W-11.2`, `W-13.2` and `W-14.1` are merged; six branches remain and
+> can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
 ## Where the project is
@@ -15,7 +16,7 @@
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
 | Tickets | **112** — 27 closed, 85 open. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 is done — all 7.** Wave 2 starts at `W-09` |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-11.1` role catalogue (#12)** · **`W-11.2` permission check (#12)** · **`W-59` scanning (#79)** · **`W-61` alerting (#81)** · **`W-55` index & query standard (#75)** · **`W-62` backup & DR (#82)** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-11.1` role catalogue (#12)** · **`W-11.2` permission check (#12)** · **`W-59` scanning (#79)** · **`W-61` alerting (#81)** · **`W-55` index & query standard (#75)** · **`W-62` backup & DR (#82)** · `W-54` deployment pipeline (#74) · `W-56` secrets (#76) · **`W-14.1` org masters (#15)** · **`W-13.2` employee detail (#14)** |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 > **`W-50` and `W-51` are verified as code and not as an environment.** The Bicep builds
@@ -63,24 +64,23 @@ customer's numbering block another's.
 
 ---
 
-## Layer 1 is open — ten branches, 2026-09-23
+## Layer 1 — four of ten merged, 2026-09-24
 
-All ten depend only on layer 0 and can run in parallel. Started first, because these three
-unblock the most: `W-14-1-org-masters` (critical path), `W-13-2-employee-detail`,
-`W-11-1-role-catalogue`.
+The three that unblocked the most are in. Six remain, all independent of each other.
 
 | Branch | Blocks |
 |---|---|
-| `W-14-1-org-masters` | `W-14.2` → `W-15` approval engine → most of leave |
-| `W-13-2-employee-detail` | `W-25` portal; carries the audit opt-in |
+| ~~`W-14-1-org-masters`~~ **merged `235aab2`** | `W-14.2` and `W-17` — now unblocked |
+| ~~`W-13-2-employee-detail`~~ **merged `5228385`** | `W-25` portal; **the audit opt-in is in, the trail now captures** |
 | ~~`W-11-1-role-catalogue`~~ **merged `172eaaa`** | `W-11.2`, `W-12.2`, `W-24.2` — now unblocked |
-| `W-12-1-subscription` · `W-13-3-employee-search` · `W-19-pay-input-ledger` · `W-20-1-notifications` · `W-21-document-store` · `W-23-1-export` · `W-22-2-audit-retention`* | — |
+| ~~`W-11-2-permission-check`~~ **merged `23d1126`** | — |
+| `W-12-1-subscription` · `W-13-3-employee-search` · `W-19-pay-input-ledger` · `W-20-1-notifications` · `W-21-document-store` · `W-23-1-export` · `W-22-2-audit-retention`* | **the six still open**, plus `W-14.2` and `W-17` newly unblocked |
 
 \* `W-22.2` is **layer 3 in practice**, not layer 1: its spec says "blocked by W-22.1", but
 it also sweeps `core.notification` (`W-20.1`) and uses the scheduler (`W-20.2`). **It still
 has no GitHub ticket and must be raised.**
 
-> **Founder decision, 2026-09-23: `W-13.2` turns the audit trail on.** `W-22.1` shipped the
+> **Founder decision, 2026-09-23, now shipped: `W-13.2` turned the audit trail on.** `W-22.1` shipped the
 > mechanism and it has recorded **nothing** since, because no production table carries
 > `@Audited`. `W-13.2` annotates the employee tables and fixes
 > the `@Embedded` redaction gap `W-22.1` deferred — without which the first audited entity
@@ -93,14 +93,70 @@ has no GitHub ticket and must be raised.**
 > Outstanding: `app`'s `JobStatusController` is unguarded; employees cannot read their own
 > record until an ownership ticket uses the `_own` codes.
 >
-> **Two scripts share `V011`** — `V011__department.sql` (`W-14.1`) and
-> `V011__index_standard_optimizations.sql` (`W-55`). Flyway refuses duplicate versions; the
-> `W-55` script needs renumbering to `V024`.
+> **Two scripts share `V011` on `main`** — `V011__department.sql` (`W-14.1`) and
+> `V011__index_standard_optimizations.sql` (`W-55`). Flyway refuses duplicate versions, so a
+> clean database cannot migrate today. The `W-55` script needs renumbering to `V024`.
+> **This is the one thing on this page that blocks everybody.**
 
-**Flyway continues from `V024`.** Used: `V001`, `V002`, `V006`, `V008`, `V009`, `V010`, `V011` (`W-55`), `V020`–`V023` (`W-11.1`). The
+**Flyway continues from `V024`.** Used on `main`: `V001`, `V002`, `V006`, `V008`, `V009`, `V010`, `V011` **twice**, `V012`–`V019` (`W-14.1`, `W-13.2`), `V020`–`V023` (`W-11.1`). The
 rule is the next number **above everything on `main`**, not the next free one — `W-10` had to
 be renumbered for exactly that, and CI cannot catch it because CI starts from an empty
 database.
+
+---
+
+## `W-13.2` Employee detail merged — the audit trail now captures, 2026-09-24
+
+Five optional one-to-one sections of `core.employee` (`V015`–`V019`), each written through
+`PUT /api/v1/employees/{id}/{personal,contact,identification,employment,bank}`.
+
+| | |
+|---|---|
+| Merged | `5228385`, closing **#14** |
+| Tests | full suite at merge: 8 modules, 0 failures, 0 skips. CI green on the branch head `cdcb3aa` |
+| Review | 5 findings, 2 Medium, all fixed on the branch |
+
+**`@Audited` is on the five sections and on the root `Employee`** — the founder's added
+scope. The redaction fix landed first and in that order, because these tables hold a bank
+account number, an IFSC and a PAN. An association had been audited as
+`String.valueOf(entity)`, so a bank change recorded `…Employee@1b6d3586` and named nobody.
+
+Outstanding, and each names its owner:
+
+| What | Owner |
+|---|---|
+| No `CHECK` on `payment_mode` or `bank_account_type` — a row written outside the service fails at **read**, as a Hibernate enum conversion error. Same shape as `core.employee.status` | `W-67` |
+| PAN, Aadhaar and bank account number are **not** unique within a tenant. The frozen columns are globally unique, which in a shared database lets one customer's row block another's | `W-67` |
+| HRMS's address `country` column is not carried | — |
+| `check-done.mjs` gates 2 and 4 accept **any** `W-13*` spec for a `W-13.2` branch. A branch with no spec of its own would pass, and could edit a sibling's spec | #101, #104 |
+
+---
+
+## `W-14.1` Org masters merged — 2026-09-23
+
+Department, designation and work location (`V011`–`V013`), each tenant-scoped and
+RLS-isolated, plus the three nullable columns on `core.employee` that let an employee hold
+them (`V014`). Payroll modelled these properly; HRMS kept department and job title as plain
+strings with no lookup table, no foreign key and no validation.
+
+| | |
+|---|---|
+| Merged | `235aab2`, closing **#15** |
+| Unblocks | `W-14.2` reporting line, `W-17` holiday calendar |
+
+> **The cross-tenant assignment check is load-bearing, not belt and braces.** The columns
+> carry foreign keys, but PostgreSQL runs referential integrity as the table **owner** with
+> row security off, and the owner is `migration_user` — so the database accepts an employee
+> in tenant A pointing at a department in tenant B. `EmployeeAssignmentIT` demonstrates
+> exactly that, then proves the service refuses it.
+
+Free-text conversion is **deliberately not attempted** — it is `W-67`'s, with production
+data in front of it, and three migration comments push back on it by name.
+
+Two things carried forward: `EmployeeResponse.from` initialises up to three lazy proxies,
+harmless today but an **N+1 across a page** the moment `W-13.3` adds search and listing; and
+section 8's verification block was run by `/develop` but **not independently re-run**,
+because the platform Postgres was not up during the review.
 
 ---
 
@@ -125,7 +181,7 @@ Security scanning is now active on every pull request and push to `main`.
 | Merged | `066ba6f` (via `ebb1d14`), closing **#79** |
 | Shipped | Trivy dependency scanning (`code/backend`, `code/frontend`), Semgrep SAST (`p/java`, `p/javascript`, `p/owasp-top-ten`), Gitleaks secret detection, Trivy container image scanning, `.github/dependabot.yml` daily scanning |
 | Upgrades | Spring Boot parent 3.3.13 → 3.5.16 (`D-60`, clearing 29 CVEs); Vite 5.4.10 → 8.0.16 & `@vitejs/plugin-react` 4.3.3 → 6.1.1 |
-| Decisions | `D-60` (Spring Boot 3.5.x supersedes `D-39`), `D-61` (Dependabot alerts & config) recorded in `07-decisions.md` |
+| Decisions | `D-60` (Spring Boot 3.5.x supersedes `D-39`), `D-61` (Dependabot alerts & config) — **neither is in `07-decisions.md`; the file still ends at `D-59`.** `sync-docs` work |
 
 ---
 
@@ -249,6 +305,18 @@ the `develop` skill, on its own branch.
 
 ---
 
+## `W-54` Deployment pipeline merged — 2026-09-22
+
+`.github/workflows/deploy.yml` promotes the image CI already built rather than rebuilding
+it, runs the Flyway migration job, switches revision, and rolls back by shifting traffic.
+
+| | |
+|---|---|
+| Merged | `b1f9533`, closing **#74** and **#138** |
+| Feature | **code done — it has never run.** No deployment, no migration job, no rollback has been executed against a real subscription (#124) |
+
+---
+
 ## `W-56` Secrets merged — 2026-09-23
 
 Ten platform secrets now come from Key Vault, with no default value anywhere: the app fails
@@ -343,8 +411,8 @@ One repository · one backend with three enforced modules (`core` / `hrms` / `pa
 > **Not AKS. Not MySQL. No subtree, no sync.** If a document or skill says otherwise it
 > is stale — the decisions are `D-09` Postgres, `D-10` Container Apps, `D-17` no sync.
 
-Design: `docs/target-state/` — 12 documents, **59 decisions (`D-01`–`D-59`), zero open
-questions.** Start at `docs/target-state/README.md`.
+Design: `docs/target-state/` — 12 documents, **59 decisions recorded (`D-01`–`D-59`), zero
+open questions.** `D-60` and `D-61` were taken at `W-59` and are not written down yet. Start at `docs/target-state/README.md`.
 
 > **`W-06` Flyway is on `main` and the tenancy chain is complete.** This file said
 > otherwise from 2026-09-17 to 2026-09-21; it was wrong, and it steered work with a
@@ -381,9 +449,9 @@ questions.** Start at `docs/target-state/README.md`.
    realm baked in. All non-root, no secrets, 154 / 24 / 225 MB, built and gated by CI
    which pushes nothing. **`W-50` and `W-51` followed and are merged** — the Bicep,
    the network perimeter and the identities all exist as code. Nothing has been deployed
-   (#124). Two things `W-49` left behind: the container scan's "report-only until `W-49`"
-   condition has expired, so `W-59` must now decide whether it blocks; and the Keycloak
-   image runs with primary group 0 (root), also handed to `W-59`.
+   (#124). **`W-54` deployment pipeline and `W-56` secrets are also merged** —
+   `deploy.yml` promotes the image CI built and runs the migration job; neither has ever
+   executed against Azure. `W-59` scanning closed the two things `W-49` left behind.
 
 ### Code is ported, never synced
 
@@ -394,38 +462,38 @@ production fixes or they are lost at cutover.
 
 ---
 
-## The queue — claimed, not assigned (#107, 2026-09-15)
+## The queue — assigned by the founder, 2026-09-24
 
-Developers pull the next `ready` ticket themselves; `tickets.yml` enforces one owner,
-a WIP limit of 2, and releases blocked tickets when their blockers close. This file
-no longer tracks who holds what — **the assignee field on GitHub is the only truth**:
-`gh issue list --label ready --search "no:assignee"` is the queue, `--label next` is its
-head. (`--no-assignee` is not a flag in the installed `gh`; use the search form.)
+**Founder decision, 2026-09-24: the founder writes the spec and assigns it in the tracker.**
+There is no self-claiming on GitHub and no spec-approval stop. Each developer works one
+ticket at a time on their own `dev-<name>` branch.
 
 | Issue | Ticket | Size | Skill | Why it is at the head |
 |---|---|---|---|---|
-| **#15** | `W-14.1` Org masters | M | BE | Layer 1, **critical path** — department, designation, work location. `W-14.2` then the approval engine sit behind it. Takes `V011` |
-| **#14** | `W-13.2` Employee detail | M | BE | Five detail tables. **Carries the founder decision to turn the audit trail on** — annotate `@Audited` and fix the `@Embedded` redaction gap |
 | **none yet** | `W-22.2` audit retention | S | BE | **Must be raised.** Nothing deletes an audit row and `W-22.1` shipped without it. Spec and seven-year window are in `W-22-1-audit-trail.md` §13 |
 | **#44** | `W-33.2` Tax calculator — old regime with section deductions | XL | BE | **Newly unblocked.** `W-09` shipped the 15 `reference` tables it reads. Carries three conditions from W-09's review (see `55a5a83`): C-1 Chapter VI-A has no `financial_year`, C-2 `home_loan_rule_master` has no regime column, C-3 loss carry-forward defaults FALSE |
 | **#146** | `W-09` follow-up — senior-citizen tax slabs are not seeded | S | DATA | `W-09` seeded only `age_category = 'GENERAL'`. Under the old regime a senior gets ₹2.5L exemption instead of ₹3L, and a super-senior instead of ₹5L — both over-deducted. `W-33` cannot fix it without a new migration |
 | #139 | `W-06` code reached `main` inside a documentation-only commit | S | INFRA | A gate defect, not a code defect. Belongs with #101 and #104 — the same merge gate, the same failure shape |
 | #138 | Migrate job reports success while applying nothing | S | INFRA | `compose up migrate` without `--build` finds zero scripts and exits 0 |
-| #79 | `W-59` Scanning | M | INFRA | **Two inherited decisions have come due**: the container scan's "report-only until `W-49`" condition has expired, and the Keycloak image's primary group 0. Also modifies the same `images` job `W-49` rewrote — read `ci.yml` before editing |
 | #124 | `W-50`/`W-51` follow-up — prove the unverified checks against a real dev environment | M | INFRA | Everything Azure is verified as code only. Nothing has been deployed |
 | #101 | Merge-gate hardening — 3 defects from `W-03` | S | INFRA | Small, unblocks nothing but hardens `/merge` |
 | #104 | Three gate paths never executed; harness not in CI | S | INFRA | Same |
 | #86 | `W-66` Marketing website | L | FE | Independent of the chain |
 
-The founder steers by keeping the `next` label on three to five tickets, in order.
+Newly claimable after `W-14.1` and `W-13.2`: `W-13.3` search, `W-14.2` reporting line,
+`W-17` holiday calendar, `W-12.1` subscription, `W-19` pay input ledger, `W-20.1`
+notifications, `W-21` document store, `W-23.1` export.
+
+**Ahead of all of them: renumber `W-55`'s `V011` to `V024`.** Two scripts share `V011` on
+`main`, so Flyway cannot migrate a clean database.
 
 > **`W-09` closed #10, #136, #137 and #117 together.** The three fixes rode with it because nothing in `W-09` could be proved without them: until #136 nothing ran a shipped migration through Flyway, until #137 a two-table script could ship an unprotected table, and until #117 every integration test skipped under a green build. The backend suite went from 46 passing with 34 skipping to **100 passing with none skipped**.
 
 `W-49` (#69) inherited the `images` job from `W-03` and replaced its dev Dockerfile
 targets with the production ones — **done, merged 2026-09-17**. The job now enables the
 containerd image store (`D-47`), builds three production and two dev images, runs a
-three-part secret scan and asserts size thresholds. **`W-59` (#79) edits the same job**
-and was written before any of that existed; whoever picks it up reads `ci.yml` first.
+three-part secret scan and asserts size thresholds. **`W-59` (#79) is merged** (`ebb1d14`) and
+landed as its own `security.yml`, closing both inherited conditions.
 
 ---
 

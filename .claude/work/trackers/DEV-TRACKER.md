@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-09-22**; `W-11` rows updated **2026-09-24**. Other rows not yet refreshed.
+> Last refreshed: **2026-09-24**, against `main` — every row checked against a merge commit.
 
 ## Summary
 
@@ -11,14 +11,16 @@
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
 | B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete |
-| C — Core platform | 19 | 0 | 0 | Two tickets claimable, the rest blocked behind them |
+| C — Core platform | 19 | 7 | 7 | **Building.** Layer 0 done; `W-11`, `W-13.2`, `W-14.1` merged |
 | D — Payroll | 21 | 0 | 0 | All blocked on `W-13` and `W-26` |
 | E — HRMS | 6 | 0 | 0 | All blocked on `W-15` |
 | F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is blocked on `W-12` |
-| G/H — product items | 3 | 0 | 0 | `W-66` claimed |
+| G/H — product items | 3 | 1 | 1 | `W-55` merged `2ccd723`. `W-66` claimed |
 
-**Nothing in the product is built yet.** The foundation is finished, the first business
-table has not been written.
+**The core is being built.** The foundation is finished and seven Stream C tickets are on
+`main`: identity, the audit trail, the employee record and its five detail sections, the
+three org masters, and the role and permission pair. Payroll, HRMS and the frontend have
+not started.
 
 ---
 
@@ -60,25 +62,30 @@ table has not been written.
 
 ## 3. Stream C — Core platform
 
-Nothing started. `W-10`, `W-13` and `W-22` are claimable now; everything else waits.
+Seven merged. `W-13.3`, `W-12.1`, `W-19`, `W-20.1`, `W-21`, `W-23.1` and `W-14.2` are
+claimable now; everything else waits.
 
 | # | Ticket | What it is | Ready? |
 |---|---|---|---|
-| #11 | `W-10` Identity | Realm configuration, login flow, token validation, user profile sync, password reset delegated to Keycloak | **ready** |
-| #14 | `W-13` Employee master | The employee record — personal, contact, identification, employment history, bank details, search and listing. **A merge of two systems, and one of the two riskiest tickets in the plan** | **ready** |
-| #26 | `W-22` Audit trail | Change capture, audit query, retention policy | **ready** |
+| #11 | `W-10` Identity | Realm configuration, login flow, token validation, user profile sync, password reset delegated to Keycloak | **on main `ac1e531`** · code done — **spec §8 login never run by hand** |
+| #14 | `W-13.1` Employee record | The neutral root, `core.employee` (`V010`), isolated by row-level security rather than a remembered `WHERE` | **on main `7d0bab6`** · done |
+| #14 | `W-13.2` Employee detail | Five one-to-one sections (`V015`–`V019`) — personal, contact, identification, employment, bank. **Turned the audit trail on**, and fixed the `@Embedded` redaction gap | **on main `5228385`** · done |
+| #14 | `W-13.3` Employee search & listing | Search and listing over the employee record | **ready** — must filter `is_deleted`; `EmployeeResponse.from` is an N+1 here |
+| #26 | `W-22.1` Audit trail | Change capture, `core.audit_log` (`V008`), `GET /api/v1/audit` | **on main `6fb4012`** · done — capturing since `W-13.2` |
+| #— | `W-22.2` Audit retention | Retention sweep and purge. **Still has no GitHub ticket — raise it** | spec approved; layer 3 in practice — also needs `W-20.1`, `W-20.2` |
 | #12 | `W-11.1` Role & action catalogue | 63-action catalogue in `reference.action`, tenant-scoped roles, seven system roles seeded per tenant, role and grant API | **on main `172eaaa`** · spec approved · code done |
 | #12 | `W-11.2` Permission check & cache | `@RequiresAction` on every endpoint, 403 when not held, shared Redis cache that every replica reloads on a role change | **on main `23d1126`** · spec approved · code done |
 | #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | `W-10` |
-| #15 | `W-14` Org structure & hierarchy | Department, designation, work location, a new reporting line, org chart read model | `W-13` |
+| #15 | `W-14.1` Org masters | Department, designation and work location (`V011`–`V013`), plus the three nullable columns on `core.employee` (`V014`). Free-text conversion deliberately left to `W-67` | **on main `235aab2`** · code done — §8 verification not independently re-run |
+| #15 | `W-14.2` Reporting line | The new reporting line and the org chart read model | **ready** |
 | #16 | `W-15` Approval engine | Approval definitions, instance lifecycle, step routing along the reporting line, delegation and escalation, history | `W-14` |
 | #17–20 | `W-16.1`–`.4` Leave engine | Types and policy · allocation and balance · request, approval and documents · consumption, loss-of-pay derivation and bulk import. **The other riskiest ticket — a merge** | `W-15` |
-| #21 | `W-17` Holiday calendar | Calendar per work location, holiday management, bulk import | `W-14` |
+| #21 | `W-17` Holiday calendar | Calendar per work location, holiday management, bulk import | `W-14.1` — **unblocked** |
 | #22 | `W-18` Loss-of-pay & working-day policy | Policy model, working-day basis, derivation rules, the policy stamped on every pay figure | `W-16`, `W-17` |
-| #23 | `W-19` Pay input ledger | Write API for modules, read API for the pay run, period locking | `W-13` |
-| #24 | `W-20` Notifications | Templates, email delivery, in-app notification, reminder rules, scheduler | `W-13` |
-| #25 | `W-21` Document store | Upload, download by signed link, blob lifecycle and retention, access control | `W-13` |
-| #27 | `W-23` Reporting & export | Report definitions, spreadsheet and CSV export, scheduled reports | `W-13` |
+| #23 | `W-19` Pay input ledger | Write API for modules, read API for the pay run, period locking | **ready** |
+| #24 | `W-20` Notifications | Templates, email delivery, in-app notification, reminder rules, scheduler | **ready** (`W-20.1`); `W-20.2` follows |
+| #25 | `W-21` Document store | Upload, download by signed link, blob lifecycle and retention, access control | **ready** |
+| #27 | `W-23` Reporting & export | Report definitions, spreadsheet and CSV export, scheduled reports | **ready** (`W-23.1`); `W-23.2` needs `W-20.2` |
 | #28 | `W-24` Setup checklist & invitations | A module-aware checklist, progress tracking, user and employee invitation | `W-12` |
 | #29 | `W-25` Employee self-service portal | My profile, leave, documents, payslips (Payroll only), timesheet (HRMS only) | `W-16` |
 
@@ -143,7 +150,7 @@ Nothing started. Everything waits on `W-45`, which waits on `W-12` entitlement.
 
 | # | Ticket | What it is | Status |
 |---|---|---|---|
-| #75 | `W-55` Index & query standard | Tenant-leading index conventions, related-data fetching in one query, connection pooling. Calibrated to scale — the tables that matter are the ones growing with time: attendance, pay run lines, tax detail | **ready** |
+| #75 | `W-55` Index & query standard | Tenant-leading index conventions, related-data fetching in one query, connection pooling. Calibrated to scale — the tables that matter are the ones growing with time: attendance, pay run lines, tax detail | **on main `2ccd723`** · done |
 | #85 | `W-65` Admin console | Tenant list, subscription management, module toggle, support impersonation, audit view. **The real onboarding tool, since there is no payment step** | blocked on `W-12` |
 | #86 | `W-66` Marketing website | Module pages, feature comparison, pricing, lead capture, help centre, blog. Separate repo, no platform integration | claimed — Gau318 |
 

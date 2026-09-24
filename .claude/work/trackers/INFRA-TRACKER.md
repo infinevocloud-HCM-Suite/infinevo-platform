@@ -2,19 +2,19 @@
 
 > Containers, GitHub Actions, Azure, security and operations — streams G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-09-22**.
+> Last refreshed: **2026-09-24**, against `main` — every row checked against a merge commit.
 
 ## Summary
 
 | | Tickets | Spec approved | Code on main | Feature done |
 |---|---|---|---|---|
 | Containers & local stack | 2 | 2 | 2 | 2 |
-| GitHub Actions | 4 | 3 | 3 | 2 |
-| Azure | 5 | 3 | 3 | **0** |
-| Security & operations | 7 | 0 | 0 | 0 |
+| GitHub Actions | 4 | 4 | 4 | 2 |
+| Azure | 5 | 5 | 5 | **0** |
+| Security & operations | 7 | 4 | 4 | 3 |
 | Open defects | 1 | — | — | — |
 
-**Nothing Azure has ever been deployed.** Three tickets are merged and zero are proven.
+**Nothing Azure has ever been deployed.** Five tickets are merged and zero are proven (#124).
 
 ---
 
@@ -41,9 +41,9 @@ Left behind by `W-49`, both handed to `W-59`: the container scan's "report-only 
 | #4 | `W-03` Build & test pipeline | `.github/workflows/ci.yml` | Compile, lint, test, build images. Deploys nothing, pushes to no registry | approved | on main | **done** |
 | #70 | `W-50` (part of) | `.github/workflows/infra.yml` | Bicep lint and what-if on every change under `infra/azure/` | approved | on main | **code done** — what-if never run against a real subscription |
 | #74 | `W-54` Deployment pipeline | `.github/workflows/deploy.yml` | Promote the image CI already built, never rebuild it; run the migration job; switch revision; roll back by shifting traffic. OIDC to Azure | approved | on main | **code done** — merged 2026-09-22, never executed |
-| #79 | `W-59` Scanning | new job inside `ci.yml` | Dependency scan, code scan, container scan | approved 2026-09-16 | — | — |
+| #79 | `W-59` Scanning | `.github/workflows/security.yml` | Trivy dependencies and images, Semgrep SAST, Gitleaks, Dependabot. Carried Spring Boot 3.3.13 → 3.5.16 (`D-60`, 29 CVEs) | approved 2026-09-16 | on main `ebb1d14` | **done** |
 
-`W-59` edits the same `images` job that `W-49` rewrote. Read `ci.yml` before starting it.
+`W-59` edited the same `images` job that `W-49` rewrote, and landed as its own workflow.
 
 `.github/workflows/tickets.yml` is harness, not infra — see
 [HARNESS-TRACKER.md](HARNESS-TRACKER.md).
@@ -56,39 +56,43 @@ Left behind by `W-49`, both handed to `W-59`: the container scan's "report-only 
 |---|---|---|---|---|---|
 | #70 | `W-50` Azure infrastructure as code | The estate in Bicep — 2 resource groups, container registry, Key Vault, Log Analytics, Container Apps environment and 4 apps, Postgres 16 Flexible, Redis, Storage blob and queue, 4 managed identities, Front Door with WAF | approved 2026-09-18 | on main | **code done** |
 | #71 | `W-51` Networking & identity | The perimeter — VNet and subnets, private endpoints and private DNS for Postgres, Redis, Storage and Key Vault, Front Door origin lock by IP, managed-identity RBAC, in-VNet migration job, Central India residency | approved 2026-09-19 rev 3 | on main | **code done** |
-| #72 | `W-52` Queue & worker | Background jobs — Storage Queue in Azure and Azurite locally, job dispatch, job status and progress, ShedLock so the two cron jobs stop firing twice on multiple replicas | **draft, not approved** | — | — |
-| #73 | `W-53` Caching | Cache abstraction, permission cache, master data cache, invalidation. The Redis already exists from `W-50` | — | — | — |
-| #76 | `W-56` Secrets | No credential anywhere in the repo — Key Vault, managed-identity resolution, dual-role zero-downtime database rotation | approved 2026-09-19 rev 4 | **in flight** `W-56-secrets` | — |
+| #72 | `W-52` Queue & worker | Background jobs — Storage Queue in Azure and Azurite locally, job dispatch, job status and progress, ShedLock so the two cron jobs stop firing twice on multiple replicas | approved 2026-09-21 | on main `e833196` | **done** — Storage Queue, ShedLock, `JobStatusController` |
+| #73 | `W-53` Caching | Cache abstraction, permission cache, master data cache, invalidation. The Redis already exists from `W-50` | approved 2026-09-22 | on main `808d837` | **done** |
+| #76 | `W-56` Secrets | No credential anywhere in the repo — Key Vault, managed-identity resolution, dual-role zero-downtime database rotation | approved 2026-09-23 rev 6 | on main `64ec5fd` | **code done** — rotation removed in rev 6; never run in Azure |
 
 ### What "code done" is hiding
 
-`W-50` and `W-51` are verified as code and never as an environment. The Bicep builds and
-lints clean and the scripts parse, but **no live check has ever run**: not Front Door
-routing, not the WAF, not the six private-path probes, not the 16 role assignments, not
-the migration job. The shape of the risk is `W-50`'s `AcrPull` role — declared, never
+`W-50`, `W-51`, `W-54`, `W-56`, `W-60`, `W-61` and `W-62` are verified as code and never
+as an environment. The Bicep builds and lints clean and the scripts parse, but **no live
+check has ever run**: not Front Door routing, not the WAF, not the six private-path probes,
+not the 16 role assignments, not the migration job, not a deployment, not a Key Vault
+resolution, not an alert rule, and **not a restore**. The shape of the risk is `W-50`'s `AcrPull` role — declared, never
 exercised, green through four gate passes. **#124** closes this and is part of the work,
 not polish.
 
-### Two things blocking other people
+### Carried forward
 
-- `W-52` is unapproved and blocks `W-29` pay run, `W-20` notifications, and any
-  horizontal scaling of the `worker` container.
+- `W-52` is merged, so `W-20` notifications and `W-29` pay run are unblocked on the queue.
 - `W-52` must handle **idempotency in code**: Storage Queue does not guarantee ordering
   (`D-50`).
+- **Two scripts share `V011`** on `main` — `V011__department.sql` (`W-14.1`) and
+  `V011__index_standard_optimizations.sql` (`W-55`). Flyway refuses duplicate versions;
+  the `W-55` script needs renumbering to `V024`.
 
 ---
 
 ## 4. Security, operations, go-to-market
 
-None started. All are `ready` or `blocked` on GitHub, none has a spec.
+Observability, alerting and backup are merged. `W-57`, `W-58`, `W-63` and `W-64` have no
+spec yet.
 
-| # | Ticket | What it is | Blocked by |
+| # | Ticket | What it is | Status |
 |---|---|---|---|
 | #77 | `W-57` Deny-by-default authentication | Everything closed unless explicitly listed, with a build-time check that fails on a new unlisted public endpoint. Also carries the `X-Azure-FDID` origin check deferred out of `W-51` | `W-10` Identity |
 | #78 | `W-58` Tenant isolation tests | Cross-tenant read tests, row-level security verification, wired into the pipeline | ready — `W-08` merged |
-| #80 | `W-60` Observability | Structured logging, tracing, metrics, health endpoints, dashboards. One request followable across app, worker and database | ready |
-| #81 | `W-61` Alerting | Alert rules, routing to a person, an on-call process | `W-60` |
-| #82 | `W-62` Backup & disaster recovery | Backup configuration, a restore that has actually been performed, a recovery runbook | ready |
+| #80 | `W-60` Observability | Structured logging, tracing, metrics, health endpoints, dashboards. One request followable across app, worker and database | **on main `3e1aebc`** · code done |
+| #81 | `W-61` Alerting | Alert rules, routing to a person, an on-call process | **on main `10e60bc`** · code done — no rule has ever fired |
+| #82 | `W-62` Backup & disaster recovery | Backup configuration, a restore that has actually been performed, a recovery runbook | **on main `1d1123a`** · code done — **no restore has been performed** |
 | #83 | `W-63` Load test | Scenarios, baseline, regression run | ready — `W-54` merged |
 | #84 | `W-64` Penetration test | External engagement and remediation. Re-tests the perimeter and is where `D-51` Front Door Standard gets revisited | `W-57`, `W-58` |
 
