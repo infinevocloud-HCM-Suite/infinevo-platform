@@ -1,6 +1,6 @@
 ---
 name: develop
-description: Build an approved ticket end to end - writes the code, runs the checks itself, fixes what it finds, and pushes the branch. Refuses to start without an approved spec.
+description: Build an assigned ticket end to end on the developer's own branch - writes the code, runs the checks itself, fixes what it finds, and pushes. Refuses to start without a spec and a tracker row assigning it to you.
 ---
 
 # develop
@@ -17,14 +17,17 @@ commit that caused it.
 ## Before anything
 
 1. Read `.claude/work/active-work.md`.
-2. Find the spec: `docs/target-state/features/W-nn-<slug>.md`.
-3. **If it does not exist, or its status is not Approved, stop** and say so. That is the
-   one approval gate before merge; do not write code to get a head start.
+2. Find the spec: `docs/target-state/features/W-nn-<slug>.md`. **If it does not exist,
+   stop** and say so.
+3. Find the ticket's row in `.claude/work/trackers/`. **If it is not assigned to you, or
+   you already have another row In flight, stop.** One feature at a time per developer.
 
 ## Step 1 — build
 
 1. Read the spec in full, then `docs/CONVENTIONS.md`.
-2. Branch `W-nn-<slug>`, if not already on one.
+2. Work on your own branch `dev-<name>`, created from `main` once and reused for every
+   feature. Before starting, bring it level with `main`: `git fetch && git rebase origin/main`.
+   Set the tracker row to `In flight — dev-<name>` and commit it.
 3. **One module at a time.** Spawn **implementer** confined to `code/backend/<module>`,
    `code/frontend/src/<area>`, `infra/` or `.github/workflows/`. Finish one before
    spawning the next — never one agent across two.
@@ -75,8 +78,8 @@ plus lint plus CI is what proves the template here.
 
 ## Step 3 — push
 
-Commit in meaningful steps and push the branch. **Never push to `main`** — code reaches
-main only through `/merge`, which is also where the one independent read happens.
+Commit in meaningful steps and push `dev-<name>`. **Never push to `main`** — the founder
+merges, after `/merge` has run the gates and the one independent read.
 
 ---
 
@@ -91,7 +94,7 @@ here so you know what will reject you, not as prose to comply with by hand.
 | Flyway script for every schema change; `ddl-auto` set nowhere | CI, `check-done.mjs` |
 | `Money` or `BigDecimal` for money, never `double` or `float` | CI, `check-done.mjs` |
 | No module references another module — only `core` | `maven-enforcer` |
-| Nothing under `legacy/`, `docs/` (except this ticket's spec), `*.properties`, `.env*` | `guard-edit` hook |
+| Nothing under `legacy/`, `*.properties`, `.env*` | `guard-edit` hook |
 
 If the design seems to need a cross-module dependency, **the data belongs in `core`**.
 Say so and stop — the build rejects the workaround anyway.

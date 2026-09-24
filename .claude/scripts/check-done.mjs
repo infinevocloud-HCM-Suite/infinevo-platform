@@ -1,28 +1,21 @@
 #!/usr/bin/env node
 // check-done.mjs — the definition of done, made machine-checkable.
 //
-//   node .claude/scripts/check-done.mjs            (reads the branch you are on)
+//   node .claude/scripts/check-done.mjs W-nn     (a feature: its spec must exist)
+//   node .claude/scripts/check-done.mjs          (harness or tooling work, no ticket)
 //
-// Runs every gate, prints a table, and on success writes a receipt:
-//   .claude/outputs/.merge-receipts/<branch>.json
+// Run by /merge on the developer's branch (dev-<name>) before the founder merges it.
+// The ticket comes from the argument, not the branch name: one developer branch carries
+// one feature at a time, and the branch is reused for the next.
 //
-// The guard-merge hook refuses a push to main without a fresh passing receipt for the
-// commit at HEAD. Branch protection is unavailable on the GitHub Free plan (D-43), so
-// this is the enforcement that is actually available to us.
-//
-// There is no pull request in this flow. A branch is squashed onto main by /merge, and
-// everything a PR used to prove - what changed, that CI was green for it - is proved
-// here from the branch itself.
-//
-// Exit 0 = every gate passed, receipt written. Exit 1 = at least one failed, no receipt.
+// Exit 0 = every gate passed. Exit 1 = at least one failed.
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
-const RECEIPTS = join(ROOT, ".claude", "outputs", ".merge-receipts");
 
 const results = [];
 function gate(name, fn) {
@@ -38,12 +31,12 @@ function gate(name, fn) {
   results.push({ name, ok, detail });
 }
 
-function sh(cmd, args, opts = {}) {
+function sh(cmd, args) {
   const r = spawnSync(cmd, args, {
-    cwd: opts.cwd ? join(ROOT, opts.cwd) : ROOT,
+    cwd: ROOT,
     encoding: "utf8",
     shell: process.platform === "win32",
-    timeout: opts.timeout ?? 600_000,
+    timeout: 600_000,
   });
   return { code: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
@@ -54,86 +47,34 @@ function lastLine(out) {
   return (l[l.length - 1] || "").slice(0, 140);
 }
 
-// Which work item, if any, a branch belongs to. Every gate that asks must answer the
-// same way: a branch that gate 5 treats as a ticket while gate 2 does not is incoherent,
-// and the disagreement is exactly where a smuggled change fits.
-//
-// The match is unanchored and the separator optional, so W followed by up to four digits
-// counts wherever it appears, in any case. That deliberately over-matches: "flow12"
-// contains "w12" and is read as a ticket. The cost of that misfire is bounded and
-// visible - the gate names the ticket it thinks you are on, and the fix is to rename the
-// branch - whereas the cost of under-matching is a smuggled docs/ edit nobody sees.
-//
-// An unreadable branch name is its own answer, and fails closed. A name that opens "W-"
-// with no number behind it is ticket-shaped but names no ticket, and is refused for the
-// same reason rather than read as a non-ticket branch.
-function ticketOf(branch) {
-  const b = String(branch ?? "").trim();
-  if (!b || b === "HEAD")
-    return { item: null, unknown: true, why: "cannot resolve a branch name - are you on a detached HEAD?" };
-  if (/(?:^|\/)w-(?!\d)/i.test(b))
-    return { item: null, unknown: true, why: `branch "${b}" starts "W-" but names no ticket number` };
-  const m = /w[-_. ]?(\d{1,4})/i.exec(b);
-  return { item: m ? `W-${m[1]}` : null, unknown: false };
+const arg = (process.argv[2] ?? "").trim();
+const m = /^w-?(\d{1,4}(?:\.\d{1,2})?)$/i.exec(arg);
+if (arg && !m) {
+  console.error(`check-done: "${arg}" is not a ticket - pass W-nn (e.g. W-12 or W-12.1), or nothing for harness work`);
+  process.exit(1);
 }
+const item = m ? `W-${m[1]}` : null;
 
 const branch = sh("git", ["rev-parse", "--abbrev-ref", "HEAD"]).out.trim();
 const head = sh("git", ["rev-parse", "HEAD"]).out.trim();
-// The content sha, not the commit sha. /merge squashes this branch onto main, which
-// produces a NEW commit for the same bytes - so a receipt pinned to the commit could
-// never match the push it is meant to authorise. The tree is what was actually checked,
-// and it survives the squash. If main moved underneath, the tree differs and the check
-// has to run again, which is correct: those are different bytes.
-//
-// `show -s --format=%T`, not `rev-parse HEAD^{tree}`. sh() spawns with shell: true, and
-// on Windows cmd.exe eats the `^` as its escape character, so git received `HEAD{tree}`
-// and answered "fatal: ambiguous argument". That error string was then written into the
-// receipt as the tree, and guard-merge - which computes the tree correctly - could never
-// match it. Every merge was refused with "written for different content", no matter how
-// many times the check passed. %T asks for the same value with no character cmd rewrites.
-const tree = sh("git", ["show", "-s", "--format=%T", "HEAD"]).out.trim();
-const { item, unknown, why } = ticketOf(branch);
 
-// Everything this branch adds on top of main. The three-dot form is against the merge
-// base, so a main that moved on underneath does not show up as this branch's work.
+// Everything this branch adds on top of main, against the merge base.
 const changed = sh("git", ["diff", "--name-only", "main...HEAD"]).out
   .split(NL).map((s) => s.trim()).filter(Boolean);
 
-// ── 1. the branch says what it is ───────────────────────────────────────────
-gate("Branch names a ticket", () => {
-  if (unknown) return { ok: false, detail: `${why} - rename it W-nn-<slug> or docs-<slug>` };
-  if (item) return { ok: true, detail: `${branch} -> ${item}` };
-  if (/^docs[-/]/i.test(branch)) return { ok: true, detail: `${branch} -> docs-only branch` };
-  // Harness, tooling and process work is real work. There is no W-nn for it because
-  // there is no work item, and requiring one would mean inventing a fake ticket - a gate
-  // people fake is worse than no gate. It still has to say what it is.
-  return { ok: true, detail: `${branch} -> not a ticket; harness or tooling work` };
-});
-
-// ── 2. the spec exists and is approved ──────────────────────────────────────
-gate("Approved spec exists", () => {
-  if (unknown) return { ok: false, detail: "no branch, so no spec can be found - see gate 1" };
-  if (!item) return { ok: true, detail: "not a W-nn ticket; no spec expected" };
+// ── 1. the spec exists ──────────────────────────────────────────────────────
+// The founder writes every spec straight into docs/target-state/features/. There is no
+// approval marker to look for; a spec that exists is a spec the founder wrote.
+gate("Spec exists", () => {
+  if (!item) return { ok: true, detail: "no ticket given; harness or tooling work" };
   const dir = join(ROOT, "docs", "target-state", "features");
   if (!existsSync(dir)) return { ok: false, detail: "features folder missing" };
-  const spec = readdirSync(dir).find((f) => f.startsWith(item + "-"));
-  if (!spec) return { ok: false, detail: `no spec for ${item}` };
-  const body = readFileSync(join(dir, spec), "utf8");
-  if (!/\*\*Approved/i.test(body) && !/Status\*\*.*Approved/i.test(body))
-    return { ok: false, detail: `${spec} is not marked approved` };
-  return { ok: true, detail: spec };
+  const dotted = item.replace(".", "-");
+  const spec = readdirSync(dir).find((f) => f.startsWith(item + "-") || f.startsWith(dotted + "-"));
+  return spec ? { ok: true, detail: spec } : { ok: false, detail: `no spec for ${item} in docs/target-state/features/` };
 });
 
-// ── 3. nothing frozen was edited ────────────────────────────────────────────
-//
-// There was a gate here that refused a merge while any `/verify` or `/review` report
-// still carried a High finding marked OPEN. Both of those skills are gone: checking now
-// happens inside `/develop`, which fixes what it finds in the commit that caused it, and
-// `/merge` runs one independent read that it fixes before pushing. Neither writes a
-// report, so this gate had nothing left to read and would have passed unconditionally.
-//
-// A gate that always passes is worse than no gate, because the table still prints it
-// green. It is deleted rather than stubbed.
+// ── 2. nothing frozen was edited ────────────────────────────────────────────
 gate("legacy/ untouched", () => {
   const bad = changed.filter((f) => f.startsWith("legacy/"));
   return bad.length
@@ -141,55 +82,10 @@ gate("legacy/ untouched", () => {
     : { ok: true, detail: `${changed.length} files changed` };
 });
 
-// ── 5. docs/ changed only by a recognised route ─────────────────────────────
-// One rule, read off the branch name: a ticket branch may change its own spec and
-// nothing else under docs/; a docs branch may change docs/ and nothing else. The point
-// is that nobody rewrites the design documents while shipping a feature - a docs change
-// travels on its own, reviewed for what it says rather than waved through with code.
-//
-// This replaces a 280-line approval-file mechanism (blob shas, markdown fence stripping,
-// added-not-edited checks) whose whole purpose was to police a pull request diff. With
-// no pull request there is nothing for it to read, and the founder reads the docs at
-// merge anyway. It was a process gate, never a security boundary, and it said so.
-gate("docs/ changed only by a recognised route", () => {
-  if (unknown) return { ok: false, detail: "cannot classify the branch - see gate 1" };
-  const docs = changed.filter((f) => f === "docs" || f.startsWith("docs/"));
-  const isDocsBranch = /^docs[-/]/i.test(branch);
-
-  if (isDocsBranch) {
-    // What must not ride along is code and infrastructure - a docs change that quietly
-    // ships a behaviour change is exactly what this gate exists to stop. The harness is
-    // a different matter: /sync-docs updates .claude/work/active-work.md as its last
-    // step and writes its patch under .claude/outputs/, so refusing those would refuse
-    // the skill's own documented output.
-    const shipped = changed.filter((f) => f.startsWith("code/") || f.startsWith("infra/"));
-    return shipped.length
-      ? { ok: false, detail: `docs branch also ships ${shipped.slice(0, 3).join(", ")} - split it` }
-      : { ok: true, detail: `${docs.length} document(s), nothing shipped` };
-  }
-
-  if (!docs.length) return { ok: true, detail: "no docs/ changes" };
-
-  if (!item) {
-    return {
-      ok: false,
-      detail: `${branch} is neither a ticket nor a docs branch, so it may not change docs/ (${docs[0]}) - move them to a docs-<slug> branch`,
-    };
-  }
-  const ownSpec = new RegExp(`^docs/target-state/features/${item}-[^/]+\\.md$`, "i");
-  const strays = docs.filter((f) => !ownSpec.test(f));
-  return strays.length
-    ? { ok: false, detail: `${item} may change only its own spec; also changed ${strays.slice(0, 3).join(", ")} - move them to a docs-<slug> branch` }
-    : { ok: true, detail: `only ${item}'s own spec` };
-});
-
-// ── 6. ddl-auto is set nowhere ──────────────────────────────────────────────
+// ── 3. ddl-auto is set nowhere ──────────────────────────────────────────────
+// Scope and pattern kept identical to ci.yml's static job - if the two disagree, one of
+// them is lying about the tree.
 gate("ddl-auto set nowhere", () => {
-  // Scope and pattern kept identical to ci.yml's static job (W-03, F-20) - if these two
-  // ever disagree, one of them is lying about the tree. legacy/ is excluded because the
-  // frozen apps really do set ddl-auto; docs/, .md and .claude/ because they discuss it
-  // in prose. Everything else - infra/, .github/, the repo root - is in scope, since
-  // DDL_AUTO as a container or App Service env var is exactly how it would come back.
   const r = sh("git", ["grep", "-nE",
     "^[^#]*(ddl-auto|DDL_AUTO)([[:space:]]*[:=]|[^A-Za-z0-9]*$)",
     "--", ".", ":(exclude)legacy/", ":(exclude)docs/", ":(exclude).claude/", ":(exclude)*.md"]);
@@ -198,7 +94,7 @@ gate("ddl-auto set nowhere", () => {
     : { ok: true };
 });
 
-// ── 7. no floating point money ──────────────────────────────────────────────
+// ── 4. no floating point money ──────────────────────────────────────────────
 gate("No float or double money field", () => {
   const r = sh("git", ["grep", "-nE",
     "(private|public|protected)[[:space:]]+(Double|Float|double|float)[[:space:]]+[a-zA-Z]*(amount|salary|pay|Pay|Amount|Salary|deduction|Deduction|tax|Tax)",
@@ -208,144 +104,86 @@ gate("No float or double money field", () => {
     : { ok: true };
 });
 
-// ── 8. CI is green for the exact commit being merged ────────────────────────
-// This is also where the build and the tests are checked. They used to run again here,
-// on the same bytes CI had just built, which answered a question already answered and
-// cost ten minutes every time. CI runs backend verify, frontend lint and build, and the
-// static checks; this gate refuses unless that run went green for THIS commit.
-//
-// GitHub refuses branch protection on a private repository on the Free plan (D-43), so a
-// red CI run cannot be a required check. The enforcement therefore lives here. Pinning to
-// the SHA matters - a green run on an earlier commit says nothing about what is being
-// merged, which is the same reasoning guard-merge uses to void a receipt after a commit.
+// ── 5. CI is green for the exact commit being merged ────────────────────────
+// Build and tests are checked here: CI ran them on this commit. Branch protection is
+// unavailable on the GitHub Free plan (D-43), so this gate is the enforcement.
 gate("CI green for this commit", () => {
-  const sha = head;
-  if (!sha) return { ok: false, detail: "cannot resolve HEAD" };
-  const short = sha.slice(0, 7);
+  if (!head) return { ok: false, detail: "cannot resolve HEAD" };
+  const short = head.slice(0, 7);
 
-  // ci.yml ignores docs/, .claude/, legacy/ and *.md, so a branch that touches only
-  // those produces no run at all - and demanding one would make a docs branch
-  // unmergeable. This is scoping, not credit by default: the gate still refuses unless
-  // it can name a reason CI had nothing to verify.
-  //
-  // The list MUST stay in step with `paths-ignore` in .github/workflows/ci.yml. If a
-  // path is ignored there but not here, a docs branch hangs waiting for a run that
-  // never starts; ignored here but not there, CI runs and this gate skips reading it.
+  // ci.yml ignores docs/, .claude/, legacy/ and *.md. MUST stay in step with its
+  // `paths-ignore`, or a docs-only branch waits for a run that never starts.
   const IGNORED = (f) =>
     f.startsWith("docs/") || f.startsWith(".claude/") || f.startsWith("legacy/") || f.endsWith(".md");
   if (changed.length && changed.every(IGNORED)) {
     return { ok: true, detail: `${changed.length} file(s) changed, none CI covers - no run expected` };
   }
-  // A commit whose own push touched only ignored paths starts no run, because ci.yml's
-  // `paths-ignore` is evaluated PER PUSH while the check above is evaluated over the
-  // whole branch diff. A branch that ends with a docs-only commit - amending its own
-  // spec, which is the normal last step of a ticket - therefore has code in its diff,
-  // no run for HEAD, and could never merge. That is a gap between the two mechanisms,
-  // not a fact about the code.
-  //
-  // So: if HEAD has no run, fall back to the newest ancestor that does, and accept it
-  // ONLY when every path CI covers is byte-identical between the two. If any covered
-  // file differs the fallback is refused, which keeps the original guarantee - a green
-  // run on an earlier commit must say something about what is being merged.
+
+  // paths-ignore is evaluated per push, so a branch ending in a docs-only commit has no
+  // run for HEAD. Fall back to the newest ancestor with a run, but only when every path
+  // CI covers is byte-identical between the two.
   const coveredUnchangedSince = (anc) => {
-    const d = sh("git", ["diff", "--name-only", `${anc}`, sha]);
+    const d = sh("git", ["diff", "--name-only", anc, head]);
     if (d.code !== 0) return false;
-    const files = d.out.split("\n").map((x) => x.trim()).filter(Boolean);
-    return files.every(IGNORED);
+    return d.out.split(NL).map((x) => x.trim()).filter(Boolean).every(IGNORED);
   };
   const FIELDS = "status,conclusion,url,headSha,workflowName";
-  let r = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha,
-                      "--json", FIELDS, "--limit", "10"]);
-  let creditedSha = sha;
-  let creditedNote = "";
+  const runsFor = (sha) => sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha, "--json", FIELDS, "--limit", "10"]);
+
+  let r = runsFor(head);
+  let credited = head;
+  let note = "";
   if (r.code === 0) {
     let probe;
     try { probe = JSON.parse(r.out); } catch { probe = null; }
-    const direct = (Array.isArray(probe) ? probe : []).filter((x) => x.headSha === sha);
-    if (!direct.length) {
-      const anc = sh("git", ["rev-list", "--max-count=25", `${sha}^`]);
-      const candidates = anc.code === 0
-        ? anc.out.split("\n").map((x) => x.trim()).filter(Boolean)
-        : [];
+    if (!(Array.isArray(probe) ? probe : []).some((x) => x.headSha === head)) {
+      const anc = sh("git", ["rev-list", "--max-count=25", `${head}^`]);
+      const candidates = anc.code === 0 ? anc.out.split(NL).map((x) => x.trim()).filter(Boolean) : [];
       for (const c of candidates) {
-        if (!coveredUnchangedSince(c)) break;   // stop at the first commit that changed code
-        const cr = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", c,
-                             "--json", FIELDS, "--limit", "10"]);
+        if (!coveredUnchangedSince(c)) break;
+        const cr = runsFor(c);
         if (cr.code !== 0) continue;
         let cruns;
         try { cruns = JSON.parse(cr.out); } catch { continue; }
         if ((Array.isArray(cruns) ? cruns : []).some((x) => x.headSha === c)) {
           r = cr;
-          creditedSha = c;
-          creditedNote = ` (no run for ${short}; credited ${c.slice(0, 7)}, nothing CI covers changed since)`;
+          credited = c;
+          note = ` (no run for ${short}; credited ${c.slice(0, 7)}, nothing CI covers changed since)`;
           break;
         }
       }
     }
   }
   if (r.code !== 0) {
-    // gh missing, unauthenticated, or the API refused. All of those are a failure to
-    // prove CI, not a pass by default.
     return { ok: false, detail: `gh run list failed: ${lastLine(r.out) || `exit ${r.code}`}`.slice(0, 160) };
   }
   let runs;
-  try {
-    runs = JSON.parse(r.out);
-  } catch {
+  try { runs = JSON.parse(r.out); } catch {
     return { ok: false, detail: `gh run list returned unparseable output: ${lastLine(r.out)}`.slice(0, 160) };
   }
-  // Belt and braces: --commit is a server-side filter, but the gate is worthless if it
-  // ever credits a run from another commit, so check the SHA that came back too.
-  const mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === creditedSha);
+  const mine = (Array.isArray(runs) ? runs : []).filter((x) => x.headSha === credited);
   if (!mine.length) return { ok: false, detail: `no CI run for ${short} - push the branch and wait for ci.yml` };
-  // Every run for the commit must be finished and green. One green run alongside a red
-  // one is a red commit; gh lists the latest attempt per run, so a re-run that fixed a
-  // failure shows as success here rather than leaving the old failure behind.
   const pending = mine.find((x) => x.status !== "completed");
-  if (pending) {
-    return { ok: false, detail: `CI still ${pending.status} for ${short}: ${pending.url ?? ""}`.slice(0, 160) };
-  }
-  // "skipped" is NOT a pass. A skipped run verified nothing about this commit, which is
-  // precisely what this gate exists to prevent - and it is indistinguishable from green
-  // in the Checks UI.
+  if (pending) return { ok: false, detail: `CI still ${pending.status} for ${short}: ${pending.url ?? ""}`.slice(0, 160) };
+  // "skipped" is not a pass - it verified nothing about this commit.
   const skipped = mine.find((x) => x.conclusion === "skipped");
-  if (skipped) {
-    return { ok: false, detail: `CI was SKIPPED for ${short} - it verified nothing: ${skipped.url ?? ""}`.slice(0, 160) };
-  }
+  if (skipped) return { ok: false, detail: `CI was SKIPPED for ${short} - it verified nothing: ${skipped.url ?? ""}`.slice(0, 160) };
   const bad = mine.find((x) => x.conclusion !== "success");
-  if (bad) {
-    return { ok: false, detail: `CI ${bad.conclusion ?? "had no conclusion"} for ${short}: ${bad.url ?? ""}`.slice(0, 160) };
-  }
-  return { ok: true, detail: `${mine.length} run(s) success for ${creditedSha.slice(0, 7)} - backend, frontend and static all green${creditedNote}` };
+  if (bad) return { ok: false, detail: `CI ${bad.conclusion ?? "had no conclusion"} for ${short}: ${bad.url ?? ""}`.slice(0, 160) };
+  return { ok: true, detail: `${mine.length} run(s) success for ${credited.slice(0, 7)}${note}` };
 });
 
 // ── report ──────────────────────────────────────────────────────────────────
 const w = Math.max(...results.map((r) => r.name.length));
-console.log(`\nDefinition of done — ${branch} @ ${head.slice(0, 8)}\n`);
-for (const r of results) {
-  console.log(`  ${r.ok ? "PASS" : "FAIL"}  ${r.name.padEnd(w)}  ${r.detail}`);
-}
+console.log(`\nDefinition of done — ${item ?? "no ticket"} on ${branch} @ ${head.slice(0, 8)}\n`);
+for (const r of results) console.log(`  ${r.ok ? "PASS" : "FAIL"}  ${r.name.padEnd(w)}  ${r.detail}`);
 
 const failed = results.filter((r) => !r.ok);
 console.log(`\n  ${results.length - failed.length}/${results.length} gates passed\n`);
-
 if (failed.length) {
   console.log("  MERGE BLOCKED. Fix these, then run this check again:\n");
   for (const f of failed) console.log(`    - ${f.name}${f.detail ? `: ${f.detail}` : ""}`);
   console.log("");
   process.exit(1);
 }
-
-mkdirSync(RECEIPTS, { recursive: true });
-const receipt = {
-  branch,
-  ticket: item,
-  status: "PASS",
-  at: new Date().toISOString(),
-  head,
-  tree,
-  gates: results.map(({ name, ok, detail }) => ({ name, ok, detail })),
-};
-writeFileSync(join(RECEIPTS, `${branch.replace(/[^A-Za-z0-9._-]/g, "_")}.json`),
-              JSON.stringify(receipt, null, 2));
-console.log("  Receipt written. The push to main is now unblocked for this commit.\n");
+console.log("  Ready for the founder to merge.\n");

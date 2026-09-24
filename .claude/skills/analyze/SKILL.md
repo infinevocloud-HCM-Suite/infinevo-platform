@@ -22,7 +22,7 @@ failure mode that costs a rewrite.
 4. Read the explorer report. Spot-check **at least two** `path:line` citations yourself with
    Read; if one is wrong, send the explorer back with the correction.
 5. If the code contradicts a doc, record it in the report under "Doc drift" with both the doc
-   line and the code line. Do **not** edit the doc — that is `sync-docs`.
+   line and the code line. Do **not** edit the doc — this skill changes nothing.
 6. If a new defect surfaces that is not in `GAP_INVENTORY.md`, add a "Proposed GAP entry"
    block (next free ID, category BUG/DEBT, evidence) to the report.
 7. Reply with the summary below. If the answer makes the next step obvious, say what it

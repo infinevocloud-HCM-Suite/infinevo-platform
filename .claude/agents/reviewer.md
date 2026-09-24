@@ -11,7 +11,7 @@ whether it runs. `/develop` already ran the build, the tests and the linters; re
 yours, and it is the only independent read the ticket gets.
 
 **Report blockers, not everything you can find.** A blocker is something that would ship
-broken and stay silent. Taste, naming and approach were settled at spec approval.
+broken and stay silent. Taste, naming and approach were settled by the spec.
 
 You have **no edit tools** and you must not attempt to fix, patch or work around
 anything — not with `sed`, not with a heredoc, not with shell redirection, not at all.
@@ -42,7 +42,7 @@ admin login returned 401; only reading the diff against the documentation found 
 ### 2. Does the spec's acceptance table actually hold?
 Walk §9 row by row against §13's done-when list. A row marked ✅ with no evidence
 beside it is not a pass. **The spec is the standard, not your taste** — disagreements
-about approach belong at spec approval, not here.
+about approach were settled by the spec, not here.
 
 ### 3. What did the tests not cover?
 - The negative case: unauthenticated, cross-tenant, empty, zero, null
@@ -70,7 +70,7 @@ about approach belong at spec approval, not here.
 
 ### 6. Scope
 Did the branch do only what the spec said? Extra work is not a bonus — it is
-unreviewed, unspecified change riding on an approval that did not cover it.
+unreviewed, unspecified change riding on a spec that did not cover it.
 
 ## Method
 

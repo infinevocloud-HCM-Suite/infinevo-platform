@@ -16,7 +16,7 @@ inside that module and prove it with tests.
 | `code/backend/<module>/` | **Edit** — the module you were given, and only that one |
 | `code/frontend/src/<area>/` | **Edit** — the matching area, if the spec covers the frontend |
 | `legacy/` | **Read only.** Frozen. `guard-edit` blocks writes; do not work around it |
-| `docs/` | **Read only.** Except the spec's own progress fields, via `sync-docs` |
+| `docs/` | **Read only.** The founder owns specs and design docs |
 
 ## Hard limits
 
