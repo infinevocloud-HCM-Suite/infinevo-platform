@@ -57,6 +57,12 @@
         <artifactId>postgresql</artifactId>
         <scope>test</scope>
       </dependency>
+      <!-- W-11.2: MockMvc requests carrying a JWT principal, for PermissionGuardIT -->
+      <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-test</artifactId>
+        <scope>test</scope>
+      </dependency>
   </dependencies>
 
   <build>

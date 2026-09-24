@@ -1,6 +1,7 @@
 package com.infinevo.shared.audit;
 
 import com.infinevo.shared.audit.AuditQueryService.AuditLogView;
+import com.infinevo.shared.authz.RequiresAction;
 import java.time.Instant;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -16,9 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>Thin by design: it unpacks the query string and delegates. The tenant is never a parameter;
  * it is bound by {@code TenantContextFilter} and read from {@code TenantContext} inside the
  * service.
+ *
+ * <p>Guarded by {@code core.audit.read} (W-11.2): the trail holds who changed what for every
+ * employee, so it is for hr and the admins, not every authenticated user.
  */
 @RestController
 @RequestMapping("/api/v1/audit")
+@RequiresAction("core.audit.read")
 public class AuditController {
 
     /** Rows per page when the caller does not say. */

@@ -1,5 +1,6 @@
 package com.infinevo.core.authz;
 
+import com.infinevo.shared.authz.RequiresAction;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,6 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * {@code PUT /api/v1/users/{id}/roles} — replaces a user's roles in the bound tenant (W-11.1, spec
  * section 4). {@code id} is the {@code core.user_account} id, which already names one tenant (V009).
+ *
+ * <p>Guarded by {@code core.role.assign} (W-11.2), which only the two admin roles hold — without it any
+ * authenticated user could grant themselves any role.
  */
 @RestController
 @RequestMapping("/api/v1/users")
@@ -24,6 +28,7 @@ public class UserRoleController extends AuthzController {
 
     /** {@code 200}; {@code 404} when the user or any role is not in this tenant. */
     @PutMapping("/{id}/roles")
+    @RequiresAction("core.role.assign")
     public UserRolesResponse replaceRoles(@PathVariable("id") UUID id, @RequestBody UserRolesRequest request) {
         return roleService.replaceUserRoles(id, request);
     }

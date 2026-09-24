@@ -1,5 +1,6 @@
 package com.infinevo.core.authz;
 
+import com.infinevo.shared.authz.RequiresAction;
 import java.net.URI;
 import java.util.List;
 import java.util.Objects;
@@ -19,7 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Thin by rule: unpack, delegate, repack. No endpoint names a tenant; {@code TenantContextFilter}
  * bound it from the verified token before the request arrived, and row-level security enforces it
- * again. No {@code @PreAuthorize} either — enforcement belongs to W-11.2 (spec section 2).
+ * again. Each endpoint names the action it needs with {@code @RequiresAction} (W-11.2): reading roles
+ * is {@code core.role.read}, changing them {@code core.role.manage}.
  */
 @RestController
 @RequestMapping("/api/v1/roles")
@@ -33,6 +35,7 @@ public class RoleController extends AuthzController {
 
     /** {@code 201}. {@code code} is optional and derived from the name when absent — see {@link RoleCreateRequest}. */
     @PostMapping
+    @RequiresAction("core.role.manage")
     public ResponseEntity<RoleResponse> create(@RequestBody RoleCreateRequest request) {
         RoleResponse created = roleService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/roles/" + created.id()))
@@ -40,18 +43,21 @@ public class RoleController extends AuthzController {
     }
 
     @GetMapping
+    @RequiresAction("core.role.read")
     public List<RoleResponse> list() {
         return roleService.list();
     }
 
     /** {@code 200}; {@code 409} for a system role. */
     @PutMapping("/{id}")
+    @RequiresAction("core.role.manage")
     public RoleResponse update(@PathVariable("id") UUID id, @RequestBody RoleUpdateRequest request) {
         return roleService.update(id, request);
     }
 
     /** {@code 204}; {@code 409} for a system role or while any user holds the role. */
     @DeleteMapping("/{id}")
+    @RequiresAction("core.role.manage")
     public ResponseEntity<Void> delete(@PathVariable("id") UUID id) {
         roleService.delete(id);
         return ResponseEntity.noContent().build();

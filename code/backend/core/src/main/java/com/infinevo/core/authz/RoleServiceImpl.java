@@ -1,5 +1,6 @@
 package com.infinevo.core.authz;
 
+import com.infinevo.shared.authz.PermissionCache;
 import com.infinevo.shared.identity.UserAccountRepository;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.ArrayList;
@@ -16,11 +17,15 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Every rule about roles and grants (W-11.1, spec sections 4 and 7).
@@ -46,9 +51,21 @@ import org.springframework.transaction.annotation.Transactional;
  * that actually change are written, so {@code created_at} / {@code created_by} on an unchanged grant
  * keep saying when it was really made. Hibernate flushes inserts before deletes, which is safe here
  * precisely because the added and removed sets are disjoint.
+ *
+ * <p><strong>Every successful write bumps the tenant's permission version, after it commits</strong>
+ * (W-11.2, spec section 4). Create, update, delete and grant each end in {@link #bumpAfterCommit}, which
+ * registers a {@link TransactionSynchronization} whose {@code afterCommit} calls
+ * {@link PermissionCache#bumpVersion}. After commit, not before: a bump before commit would let another
+ * replica reload the old rows under the new version and keep them for the whole TTL. A write that is
+ * refused or rolls back registers nothing, or never reaches {@code afterCommit}, so it bumps nothing. The
+ * bump lives here in the service, not in a controller — the frozen design invalidated from a controller
+ * ({@code legacy/Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/controller/RoleActionController.java:94}) and reached only the
+ * replica that served the call.
  */
 @Service
 public class RoleServiceImpl implements RoleService {
+
+    private static final Logger log = LoggerFactory.getLogger(RoleServiceImpl.class);
 
     static final int MAX_CODE = 64;
     static final int MAX_NAME = 128;
@@ -70,13 +87,15 @@ public class RoleServiceImpl implements RoleService {
     private final UserRoleRepository userRoleRepository;
     private final ActionRepository actionRepository;
     private final UserAccountRepository userAccountRepository;
+    private final PermissionCache permissionCache;
 
     public RoleServiceImpl(
             RoleRepository roleRepository,
             RoleActionRepository roleActionRepository,
             UserRoleRepository userRoleRepository,
             ActionRepository actionRepository,
-            UserAccountRepository userAccountRepository) {
+            UserAccountRepository userAccountRepository,
+            PermissionCache permissionCache) {
         this.roleRepository = Objects.requireNonNull(roleRepository, "roleRepository must not be null");
         this.roleActionRepository =
                 Objects.requireNonNull(roleActionRepository, "roleActionRepository must not be null");
@@ -84,6 +103,7 @@ public class RoleServiceImpl implements RoleService {
         this.actionRepository = Objects.requireNonNull(actionRepository, "actionRepository must not be null");
         this.userAccountRepository =
                 Objects.requireNonNull(userAccountRepository, "userAccountRepository must not be null");
+        this.permissionCache = Objects.requireNonNull(permissionCache, "permissionCache must not be null");
     }
 
     @Override
@@ -131,6 +151,7 @@ public class RoleServiceImpl implements RoleService {
             held.add(new RoleAction(tenantId, role.getId(), actionCode, actor));
         }
         roleActionRepository.saveAll(held);
+        bumpAfterCommit(tenantId);
         return RoleResponse.from(role, actionCodes);
     }
 
@@ -176,6 +197,7 @@ public class RoleServiceImpl implements RoleService {
         roleActionRepository.deleteAll(removed);
         roleActionRepository.saveAll(added);
         roleRepository.save(role);
+        bumpAfterCommit(tenantId);
         return RoleResponse.from(role, wanted);
     }
 
@@ -202,6 +224,7 @@ public class RoleServiceImpl implements RoleService {
         } catch (DataIntegrityViolationException e) {
             throw new RoleInUseException(role.getCode(), 1);
         }
+        bumpAfterCommit(tenantId);
     }
 
     @Override
@@ -261,11 +284,55 @@ public class RoleServiceImpl implements RoleService {
         }
         userRoleRepository.deleteAll(removed);
         userRoleRepository.saveAll(added);
+        bumpAfterCommit(tenantId);
 
         List<Role> ordered = roles.stream()
                 .sorted((a, b) -> a.getCode().compareTo(b.getCode()))
                 .toList();
         return new UserRolesResponse(userAccountId, withActions(tenantId, ordered));
+    }
+
+    /**
+     * Invalidates the tenant's cached permission sets on every replica once this transaction commits.
+     *
+     * <p>Called last in each write path, after every refusal has had its chance to throw, so a refused
+     * write registers nothing; and a transaction that rolls back later never runs {@code afterCommit}.
+     * Outside a transaction — no caller does this; every write method is {@code @Transactional} — the
+     * writes have already been committed statement by statement, so the bump runs at once.
+     */
+    private void bumpAfterCommit(UUID tenantId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            bumpNow(tenantId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                bumpNow(tenantId);
+            }
+        });
+    }
+
+    /**
+     * The bump itself, which never throws.
+     *
+     * <p>By the time it runs the change is committed. An exception from {@code afterCommit} propagates
+     * to the caller, so letting one escape would answer a committed change with a {@code 500} — and a
+     * client that retries a grant it was told failed. Instead the failure is logged at {@code ERROR}:
+     * the change stands, other replicas may serve the previous set until
+     * {@link PermissionCache#PERMISSION_TTL} expires it, and that ten-minute TTL is the backstop.
+     */
+    private void bumpNow(UUID tenantId) {
+        try {
+            permissionCache.bumpVersion(tenantId);
+        } catch (RuntimeException e) {
+            log.error(
+                    "Permission version bump failed for tenant {} after a committed role change; cached"
+                            + " permission sets may be stale for up to {}",
+                    tenantId,
+                    PermissionCache.PERMISSION_TTL,
+                    e);
+        }
     }
 
     /** The role with this id in the bound tenant, or {@link NotFoundException}. The single read path. */

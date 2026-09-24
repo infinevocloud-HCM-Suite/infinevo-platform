@@ -62,6 +62,15 @@
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-pool2</artifactId>
       </dependency>
+      <!--
+        W-11.2: @RequiresAction is enforced by an @Aspect (RequiresActionAspect). AspectJ already
+        arrives transitively through spring-boot-starter-data-jpa; declared here because this module
+        now depends on it directly, and a transitive path is not a contract.
+      -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-aop</artifactId>
+      </dependency>
       <!-- W-04: Testcontainers for integration test infrastructure -->
       <dependency>
         <groupId>org.testcontainers</groupId>
@@ -155,6 +164,8 @@
                 <exclude>com/infinevo/shared/audit/**</exclude>
                 <exclude>com/infinevo/shared/identity/**</exclude>
                 <exclude>com/infinevo/shared/security/**</exclude>
+                <!-- W-11.2: PermissionReplicaIT and PermissionRlsIT carry nested @SpringBootApplication classes. -->
+                <exclude>com/infinevo/shared/authz/**</exclude>
               </excludes>
             </configuration>
           </execution>

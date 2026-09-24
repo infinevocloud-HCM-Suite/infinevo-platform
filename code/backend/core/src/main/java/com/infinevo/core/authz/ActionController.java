@@ -1,5 +1,6 @@
 package com.infinevo.core.authz;
 
+import com.infinevo.shared.authz.RequiresAction;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +27,7 @@ public class ActionController extends AuthzController {
     }
 
     @GetMapping
+    @RequiresAction("core.role.read")
     public List<ActionResponse> list() {
         return roleService.listActions();
     }

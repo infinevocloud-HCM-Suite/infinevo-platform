@@ -10,6 +10,7 @@ looks identical to one that always matches.
 |---|---|
 | Loader | Works — `seed.sh`, idempotent |
 | Two tenants | **Seeded.** `core.tenant` exists (`W-07`), so `01-tenants.sql` inserts |
+| Dev users' roles | **Seeded.** `03-user-roles.sql`: both admins hold `tenant-admin`, `employee.globex` holds `employee`. Without it every local login gets `403` since `W-11.2` |
 | Different module sets | Pending `W-12` — `core.subscription` does not exist yet |
 
 The module asymmetry is the half still missing. Until `W-12` creates the subscription

@@ -1,1 +1,2 @@
 com.infinevo.shared.tenant.TenantBindingAutoConfiguration
+com.infinevo.shared.authz.AuthzAutoConfiguration

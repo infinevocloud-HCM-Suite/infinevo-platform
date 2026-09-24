@@ -7,11 +7,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.infinevo.shared.authz.PermissionCache;
+import com.infinevo.shared.cache.CacheOperationException;
 import com.infinevo.shared.identity.UserAccount;
 import com.infinevo.shared.identity.UserAccountRepository;
 import com.infinevo.shared.tenant.TenantContext;
@@ -27,6 +31,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * W-11.1 — the rules spec section 7 names for roles: a role cannot hold an unknown action, a granted
@@ -48,6 +54,7 @@ class RoleServiceTest {
     private UserRoleRepository userRoleRepository;
     private ActionRepository actionRepository;
     private UserAccountRepository userAccountRepository;
+    private PermissionCache permissionCache;
     private RoleService service;
 
     @BeforeEach
@@ -57,8 +64,14 @@ class RoleServiceTest {
         userRoleRepository = mock(UserRoleRepository.class);
         actionRepository = mock(ActionRepository.class);
         userAccountRepository = mock(UserAccountRepository.class);
+        permissionCache = mock(PermissionCache.class);
         service = new RoleServiceImpl(
-                roleRepository, roleActionRepository, userRoleRepository, actionRepository, userAccountRepository);
+                roleRepository,
+                roleActionRepository,
+                userRoleRepository,
+                actionRepository,
+                userAccountRepository,
+                permissionCache);
 
         // The catalogue stand-in answers findAllById the way the database would: only codes it holds.
         when(actionRepository.findAllById(anyIterable())).thenAnswer(inv -> {
@@ -82,6 +95,9 @@ class RoleServiceTest {
     @AfterEach
     void unbind() {
         TenantContext.clear();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     // ── a role cannot hold an unknown action
@@ -399,6 +415,132 @@ class RoleServiceTest {
                 .doesNotEndWith("-");
     }
 
+    // ── W-11.2: every successful write bumps the tenant's permission version, after commit
+
+    @Test
+    @DisplayName("Create bumps the version after commit, not before")
+    void createBumpsAfterCommit() {
+        inTransaction();
+
+        service.create(new RoleCreateRequest(null, "Reviewer", List.of("core.role.read")));
+
+        verify(permissionCache, never()).bumpVersion(any());
+        commit();
+        verify(permissionCache, times(1)).bumpVersion(TENANT);
+    }
+
+    @Test
+    @DisplayName("Update bumps the version after commit, not before")
+    void updateBumpsAfterCommit() {
+        Role role = tenantRole("reviewer", "Reviewer");
+        when(roleRepository.findByIdAndTenantId(role.getId(), TENANT)).thenReturn(Optional.of(role));
+        when(roleActionRepository.findByTenantIdAndRoleId(TENANT, role.getId())).thenReturn(List.of());
+        inTransaction();
+
+        service.update(role.getId(), new RoleUpdateRequest("Reviewer", List.of("core.org.read")));
+
+        verify(permissionCache, never()).bumpVersion(any());
+        commit();
+        verify(permissionCache, times(1)).bumpVersion(TENANT);
+    }
+
+    @Test
+    @DisplayName("Delete bumps the version after commit, not before")
+    void deleteBumpsAfterCommit() {
+        Role role = tenantRole("reviewer", "Reviewer");
+        when(roleRepository.findByIdAndTenantId(role.getId(), TENANT)).thenReturn(Optional.of(role));
+        when(userRoleRepository.countByTenantIdAndRoleId(TENANT, role.getId())).thenReturn(0L);
+        when(roleActionRepository.findByTenantIdAndRoleId(TENANT, role.getId())).thenReturn(List.of());
+        inTransaction();
+
+        service.delete(role.getId());
+
+        verify(permissionCache, never()).bumpVersion(any());
+        commit();
+        verify(permissionCache, times(1)).bumpVersion(TENANT);
+    }
+
+    @Test
+    @DisplayName("A grant bumps the version after commit, not before")
+    void grantBumpsAfterCommit() {
+        UUID userId = userInTenant();
+        Role reviewer = tenantRole("reviewer", "Reviewer");
+        when(roleRepository.findByTenantIdAndIdIn(eq(TENANT), anyCollection())).thenReturn(List.of(reviewer));
+        when(userRoleRepository.findByTenantIdAndUserAccountId(TENANT, userId)).thenReturn(List.of());
+        inTransaction();
+
+        service.replaceUserRoles(userId, new UserRolesRequest(List.of(reviewer.getId())));
+
+        verify(permissionCache, never()).bumpVersion(any());
+        commit();
+        verify(permissionCache, times(1)).bumpVersion(TENANT);
+    }
+
+    @Test
+    @DisplayName("A refused write registers no bump: unknown action, system role, role in use, platform-admin")
+    void refusedWritesDoNotBump() {
+        inTransaction();
+
+        assertThatThrownBy(() -> service.create(new RoleCreateRequest(null, "X", List.of("core.nope.x"))))
+                .isInstanceOf(RoleService.ValidationException.class);
+
+        Role hr = systemRole("hr", "HR");
+        when(roleRepository.findByIdAndTenantId(hr.getId(), TENANT)).thenReturn(Optional.of(hr));
+        assertThatThrownBy(() -> service.update(hr.getId(), new RoleUpdateRequest("HR", List.of())))
+                .isInstanceOf(RoleService.SystemRoleException.class);
+
+        Role held = tenantRole("reviewer", "Reviewer");
+        when(roleRepository.findByIdAndTenantId(held.getId(), TENANT)).thenReturn(Optional.of(held));
+        when(userRoleRepository.countByTenantIdAndRoleId(TENANT, held.getId())).thenReturn(1L);
+        assertThatThrownBy(() -> service.delete(held.getId())).isInstanceOf(RoleService.RoleInUseException.class);
+
+        UUID userId = userInTenant();
+        Role platformAdmin = systemRole("platform-admin", "Platform admin");
+        when(roleRepository.findByTenantIdAndIdIn(eq(TENANT), anyCollection())).thenReturn(List.of(platformAdmin));
+        when(userRoleRepository.findByTenantIdAndUserAccountId(TENANT, userId)).thenReturn(List.of());
+        assertThatThrownBy(() -> service.replaceUserRoles(userId, new UserRolesRequest(List.of(platformAdmin.getId()))))
+                .isInstanceOf(RoleService.SystemRoleException.class);
+
+        assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
+        commit();
+        verify(permissionCache, never()).bumpVersion(any());
+    }
+
+    @Test
+    @DisplayName("A write whose transaction rolls back after it returned never bumps")
+    void rolledBackWriteDoesNotBump() {
+        inTransaction();
+
+        service.create(new RoleCreateRequest(null, "Reviewer", List.of()));
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+        verify(permissionCache, never()).bumpVersion(any());
+    }
+
+    @Test
+    @DisplayName(
+            "A bump that fails after commit is logged, not thrown: the committed change is not reported as an error")
+    void bumpFailureAfterCommitDoesNotThrow() {
+        doThrow(new CacheOperationException("Failed to evict cache key"))
+                .when(permissionCache)
+                .bumpVersion(TENANT);
+        inTransaction();
+
+        service.create(new RoleCreateRequest(null, "Reviewer", List.of()));
+
+        commit(); // would throw if the failure escaped afterCommit
+        verify(permissionCache).bumpVersion(TENANT);
+    }
+
+    @Test
+    @DisplayName("Outside a transaction the bump runs at once")
+    void noTransactionBumpsAtOnce() {
+        service.create(new RoleCreateRequest(null, "Reviewer", List.of()));
+
+        verify(permissionCache).bumpVersion(TENANT);
+    }
+
     // ── PermissionReadService
 
     @Test
@@ -409,6 +551,46 @@ class RoleServiceTest {
 
         assertThat(new PermissionReadServiceImpl(roleActionRepository).actionsOf(userId))
                 .containsExactly("core.role.read");
+    }
+
+    // ── ActionSource, W-11.2
+
+    @Test
+    @DisplayName("The ActionSource form queries the explicit tenant when it is the bound one")
+    void actionSourceUsesTheExplicitTenant() {
+        UUID userId = UUID.randomUUID();
+        when(roleActionRepository.findActionCodesOfUser(TENANT, userId)).thenReturn(Set.of("core.org.read"));
+
+        assertThat(new PermissionReadServiceImpl(roleActionRepository).actionsOf(TENANT, userId))
+                .containsExactly("core.org.read");
+    }
+
+    @Test
+    @DisplayName("The ActionSource form refuses a tenant other than the bound one, or none bound, and never queries")
+    void actionSourceRefusesAnotherTenant() {
+        UUID userId = UUID.randomUUID();
+        PermissionReadServiceImpl source = new PermissionReadServiceImpl(roleActionRepository);
+
+        assertThatThrownBy(() -> source.actionsOf(OTHER_TENANT, userId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(OTHER_TENANT.toString());
+
+        TenantContext.clear();
+        assertThatThrownBy(() -> source.actionsOf(TENANT, userId)).isInstanceOf(IllegalStateException.class);
+
+        verify(roleActionRepository, never()).findActionCodesOfUser(any(), any());
+    }
+
+    /** Opens a transaction's synchronization scope, as {@code @Transactional} would. */
+    private static void inTransaction() {
+        TransactionSynchronizationManager.initSynchronization();
+    }
+
+    /** Runs what a successful commit runs, in order. */
+    private static void commit() {
+        List<TransactionSynchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
+        syncs.forEach(TransactionSynchronization::afterCommit);
+        syncs.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
     }
 
     private UUID userInTenant() {

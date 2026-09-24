@@ -30,8 +30,9 @@ import org.springframework.context.ConfigurableApplicationContext;
  * canonical schema and grant scripts there) and nothing else ever sees the trigger.
  *
  * <p>The shipped scripts are applied as written, in version order — {@code V001} (tenant),
- * {@code V009} (user_account), {@code V020} (the catalogue), {@code V021}-{@code V023} — so the tables
- * under test are the migrated ones and not copies that drifted.
+ * {@code V002} (user_tenant), {@code V009} (user_account), {@code V010}-{@code V014} (employee and the
+ * org masters, for W-11.2's HTTP test), {@code V020} (the catalogue), {@code V021}-{@code V023} — so the
+ * tables under test are the migrated ones and not copies that drifted.
  *
  * <p>Two connections, as in {@code OrgTestSchema}: {@link #migrationConnection()} is the schema owner
  * and bypasses row-level security; {@link #appConnection()} is {@code app_user}, which does not.
@@ -66,7 +67,16 @@ final class AuthzTestSchema {
                     PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
                 if (!tableExists(conn, "core", "role")) {
                     executeResource(conn, "db/migration/core/V001__tenant.sql");
+                    // W-11.2: PermissionGuardIT goes through TenantContextFilter, which checks
+                    // membership in core.user_tenant, and reaches the employee endpoints, whose
+                    // queries name the V014 org columns.
+                    executeResource(conn, "db/migration/core/V002__user_tenant.sql");
                     executeResource(conn, "db/migration/core/V009__user_account.sql");
+                    executeResource(conn, "db/migration/core/V010__employee.sql");
+                    executeResource(conn, "db/migration/core/V011__department.sql");
+                    executeResource(conn, "db/migration/core/V012__designation.sql");
+                    executeResource(conn, "db/migration/core/V013__work_location.sql");
+                    executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
                     executeResource(conn, "db/migration/reference/V020__action.sql");
                     executeResource(conn, "db/migration/core/V021__role.sql");
                     executeResource(conn, "db/migration/core/V022__role_action.sql");
@@ -113,6 +123,26 @@ final class AuthzTestSchema {
 
     /** Inserts a user account in a tenant, as the schema owner. */
     static UUID insertUserAccount(UUID tenantId, String email) throws SQLException {
+        return insertUserAccount(tenantId, UUID.randomUUID(), email);
+    }
+
+    /**
+     * A member of the tenant as a request sees one: a {@code core.user_tenant} row, which
+     * {@code TenantContextFilter} checks, and a {@code core.user_account} profile, which the permission
+     * check resolves the token subject to. Returns the profile row's id.
+     */
+    static UUID insertMember(UUID tenantId, UUID keycloakUserId, String email) throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps =
+                        conn.prepareStatement("INSERT INTO core.user_tenant (tenant_id, user_id) VALUES (?, ?)")) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, keycloakUserId);
+            ps.executeUpdate();
+        }
+        return insertUserAccount(tenantId, keycloakUserId, email);
+    }
+
+    private static UUID insertUserAccount(UUID tenantId, UUID keycloakUserId, String email) throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         """
@@ -121,7 +151,7 @@ final class AuthzTestSchema {
                         RETURNING id
                         """)) {
             ps.setObject(1, tenantId);
-            ps.setObject(2, UUID.randomUUID());
+            ps.setObject(2, keycloakUserId);
             ps.setString(3, email);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();

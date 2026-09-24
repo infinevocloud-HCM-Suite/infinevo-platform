@@ -1,5 +1,6 @@
 package com.infinevo.core.employee;
 
+import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
@@ -38,6 +39,11 @@ import org.springframework.web.bind.annotation.RestController;
  * global advice in the platform yet, and inventing one here would quietly set the error contract for
  * every future controller from inside a feature branch. They return the shared
  * {@link ApiErrorResponse} envelope, so the shape is already the common one when that advice arrives.
+ *
+ * <p><strong>Guarded by the tenant-wide codes</strong> (W-11.2): {@code core.employee.read} and
+ * {@code .update}, not the {@code _own} / {@code _team} forms. Those need the service to know which
+ * employee the caller is, which nothing does yet. Until it does, a user holding only
+ * {@code employee} cannot read their own record here — a known gap, not an oversight.
  */
 @RestController
 @RequestMapping("/api/v1/employees")
@@ -50,6 +56,7 @@ public class EmployeeController {
     }
 
     @PostMapping
+    @RequiresAction("core.employee.create")
     public ResponseEntity<EmployeeResponse> create(@RequestBody EmployeeRequest request) {
         EmployeeResponse created = employeeService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/employees/" + created.id()))
@@ -57,17 +64,20 @@ public class EmployeeController {
     }
 
     @GetMapping("/{id}")
+    @RequiresAction("core.employee.read")
     public EmployeeResponse get(@PathVariable("id") UUID id) {
         return employeeService.get(id);
     }
 
     @PutMapping("/{id}")
+    @RequiresAction("core.employee.update")
     public EmployeeResponse update(@PathVariable("id") UUID id, @RequestBody EmployeeRequest request) {
         return employeeService.update(id, request);
     }
 
     /** Soft delete — {@code 204}, and the row stays. See {@link Employee#markDeleted}. */
     @DeleteMapping("/{id}")
+    @RequiresAction("core.employee.delete")
     public ResponseEntity<Void> delete(@PathVariable("id") UUID id) {
         employeeService.delete(id);
         return ResponseEntity.noContent().build();

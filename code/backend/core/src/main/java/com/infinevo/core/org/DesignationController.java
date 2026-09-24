@@ -1,5 +1,6 @@
 package com.infinevo.core.org;
 
+import com.infinevo.shared.authz.RequiresAction;
 import java.net.URI;
 import java.util.List;
 import java.util.Objects;
@@ -32,6 +33,7 @@ public class DesignationController extends OrgMasterController {
     }
 
     @PostMapping
+    @RequiresAction("core.org.manage")
     public ResponseEntity<DesignationResponse> create(@RequestBody DesignationRequest request) {
         DesignationResponse created = designationService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/designations/" + created.id()))
@@ -42,18 +44,21 @@ public class DesignationController extends OrgMasterController {
      * @param activeOnly true to leave out the designations an administrator has retired
      */
     @GetMapping
+    @RequiresAction("core.org.read")
     public List<DesignationResponse> list(
             @RequestParam(name = "activeOnly", defaultValue = "false") boolean activeOnly) {
         return designationService.list(activeOnly);
     }
 
     @PutMapping("/{id}")
+    @RequiresAction("core.org.manage")
     public DesignationResponse update(@PathVariable("id") UUID id, @RequestBody DesignationRequest request) {
         return designationService.update(id, request);
     }
 
     /** {@code 204}, and refused with {@code 409} while an employee is assigned — spec section 4. */
     @DeleteMapping("/{id}")
+    @RequiresAction("core.org.manage")
     public ResponseEntity<Void> delete(@PathVariable("id") UUID id) {
         designationService.delete(id);
         return ResponseEntity.noContent().build();

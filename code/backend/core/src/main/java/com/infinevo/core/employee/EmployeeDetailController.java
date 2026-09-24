@@ -16,6 +16,7 @@ import com.infinevo.core.employee.detail.EmployeeIdentificationService;
 import com.infinevo.core.employee.detail.EmployeePersonalRequest;
 import com.infinevo.core.employee.detail.EmployeePersonalResponse;
 import com.infinevo.core.employee.detail.EmployeePersonalService;
+import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
@@ -59,6 +60,11 @@ import org.springframework.web.bind.annotation.RestController;
  * here would quietly set the error contract for every future controller from inside a feature
  * branch. They return the shared {@link ApiErrorResponse} envelope, so the shape is already the
  * common one when that advice arrives.
+ *
+ * <p><strong>Guarded per section</strong> (W-11.2): personal, contact and employment by
+ * {@code core.employee.read} / {@code .update}; identification and bank by their own codes, which
+ * fewer roles hold. The self-service {@code core.employee.update_own} is not honoured here yet — it
+ * needs ownership, which no service decides today.
  */
 @RestController
 @RequestMapping("/api/v1/employees/{id}")
@@ -85,55 +91,65 @@ public class EmployeeDetailController {
     }
 
     @GetMapping("/personal")
+    @RequiresAction("core.employee.read")
     public EmployeePersonalResponse getPersonal(@PathVariable("id") UUID id) {
         return personalService.get(id);
     }
 
     @PutMapping("/personal")
+    @RequiresAction("core.employee.update")
     public EmployeePersonalResponse putPersonal(
             @PathVariable("id") UUID id, @RequestBody EmployeePersonalRequest request) {
         return personalService.put(id, request);
     }
 
     @GetMapping("/contact")
+    @RequiresAction("core.employee.read")
     public EmployeeContactResponse getContact(@PathVariable("id") UUID id) {
         return contactService.get(id);
     }
 
     @PutMapping("/contact")
+    @RequiresAction("core.employee.update")
     public EmployeeContactResponse putContact(
             @PathVariable("id") UUID id, @RequestBody EmployeeContactRequest request) {
         return contactService.put(id, request);
     }
 
     @GetMapping("/identification")
+    @RequiresAction("core.employee_identification.read")
     public EmployeeIdentificationResponse getIdentification(@PathVariable("id") UUID id) {
         return identificationService.get(id);
     }
 
     @PutMapping("/identification")
+    @RequiresAction("core.employee_identification.update")
     public EmployeeIdentificationResponse putIdentification(
             @PathVariable("id") UUID id, @RequestBody EmployeeIdentificationRequest request) {
         return identificationService.put(id, request);
     }
 
     @GetMapping("/employment")
+    @RequiresAction("core.employee.read")
     public EmployeeEmploymentResponse getEmployment(@PathVariable("id") UUID id) {
         return employmentService.get(id);
     }
 
     @PutMapping("/employment")
+    @RequiresAction("core.employee.update")
     public EmployeeEmploymentResponse putEmployment(
             @PathVariable("id") UUID id, @RequestBody EmployeeEmploymentRequest request) {
         return employmentService.put(id, request);
     }
 
     @GetMapping("/bank")
+    @RequiresAction("core.employee_bank.read")
     public EmployeeBankResponse getBank(@PathVariable("id") UUID id) {
         return bankService.get(id);
     }
 
     @PutMapping("/bank")
+    @RequiresAction("core.employee_bank.update")
     public EmployeeBankResponse putBank(@PathVariable("id") UUID id, @RequestBody EmployeeBankRequest request) {
         return bankService.put(id, request);
     }

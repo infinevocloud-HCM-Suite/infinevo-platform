@@ -1,5 +1,6 @@
 package com.infinevo.core.org;
 
+import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import java.net.URI;
@@ -36,6 +37,7 @@ public class WorkLocationController extends OrgMasterController {
     }
 
     @PostMapping
+    @RequiresAction("core.org.manage")
     public ResponseEntity<WorkLocationResponse> create(@RequestBody WorkLocationRequest request) {
         WorkLocationResponse created = workLocationService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/work-locations/" + created.id()))
@@ -46,18 +48,21 @@ public class WorkLocationController extends OrgMasterController {
      * @param activeOnly true to leave out the work locations an administrator has retired
      */
     @GetMapping
+    @RequiresAction("core.org.read")
     public List<WorkLocationResponse> list(
             @RequestParam(name = "activeOnly", defaultValue = "false") boolean activeOnly) {
         return workLocationService.list(activeOnly);
     }
 
     @PutMapping("/{id}")
+    @RequiresAction("core.org.manage")
     public WorkLocationResponse update(@PathVariable("id") UUID id, @RequestBody WorkLocationRequest request) {
         return workLocationService.update(id, request);
     }
 
     /** {@code 204}, and refused with {@code 409} while an employee is assigned — spec section 4. */
     @DeleteMapping("/{id}")
+    @RequiresAction("core.org.manage")
     public ResponseEntity<Void> delete(@PathVariable("id") UUID id) {
         workLocationService.delete(id);
         return ResponseEntity.noContent().build();

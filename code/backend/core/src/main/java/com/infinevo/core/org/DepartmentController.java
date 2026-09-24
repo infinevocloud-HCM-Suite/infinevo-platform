@@ -1,5 +1,6 @@
 package com.infinevo.core.org;
 
+import com.infinevo.shared.authz.RequiresAction;
 import java.net.URI;
 import java.util.List;
 import java.util.Objects;
@@ -38,6 +39,7 @@ public class DepartmentController extends OrgMasterController {
     }
 
     @PostMapping
+    @RequiresAction("core.org.manage")
     public ResponseEntity<DepartmentResponse> create(@RequestBody DepartmentRequest request) {
         DepartmentResponse created = departmentService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/departments/" + created.id()))
@@ -48,18 +50,21 @@ public class DepartmentController extends OrgMasterController {
      * @param activeOnly true to leave out the departments an administrator has retired
      */
     @GetMapping
+    @RequiresAction("core.org.read")
     public List<DepartmentResponse> list(
             @RequestParam(name = "activeOnly", defaultValue = "false") boolean activeOnly) {
         return departmentService.list(activeOnly);
     }
 
     @PutMapping("/{id}")
+    @RequiresAction("core.org.manage")
     public DepartmentResponse update(@PathVariable("id") UUID id, @RequestBody DepartmentRequest request) {
         return departmentService.update(id, request);
     }
 
     /** {@code 204}, and refused with {@code 409} while an employee is assigned — spec section 4. */
     @DeleteMapping("/{id}")
+    @RequiresAction("core.org.manage")
     public ResponseEntity<Void> delete(@PathVariable("id") UUID id) {
         departmentService.delete(id);
         return ResponseEntity.noContent().build();
