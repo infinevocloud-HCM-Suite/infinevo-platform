@@ -16,11 +16,11 @@
 | **Capabilities** | `PLAT-14` |
 | **Decisions** | `07-decisions.md:129` (`PLAT-14` downgrade), `D-18` (Central India region), `D-50` (Azure Storage Queue), `W-55` (Hikari pool limits) |
 | **Gaps addressed** | `DEBT-019` (N+1 query loop regression guard) |
-| **Status** | **Draft — not approved** |
-| **Approved by** | |
-| **Approved on** | |
+| **Status** | **Approved** |
+| **Approved by** | Founder |
+| **Approved on** | 2026-09-24 |
 
-> Hard rule 1: no code is written until this spec is approved.
+> Hard rule 1: no code is written until this spec is approved. (Approved 2026-09-24)
 
 ---
 
@@ -45,12 +45,14 @@ Per founder decision (`07-decisions.md:129`), full-scale enterprise stress testi
 ### In scope
 - A lightweight, containerized load test harness using **k6** in `infra/load-test/`.
 - Two core traffic scenarios:
-  1. **Concurrent Users Scenario**: 100 virtual users (VUs) simulating portal navigation (authentication token exchange, `/actuator/health`, `/api/v1/me`, employee listing/profile query).
-  2. **Pay Run Queue Scenario**: Enqueuing and processing a 100-employee pay run job via the Azure Storage Queue (`payrun`) through `PayrunQueueListener`.
+  1. **Concurrent Users Scenario**: 100 virtual users (VUs) simulating portal navigation (authentication token exchange, `/actuator/health`, `/api/v1/me`, `/api/v1/departments`, and employee profile query).
+  2. **Pay Run Queue Scenario**: Enqueuing and processing a 100-employee pay run job via the asynchronous queue pipeline:
+     `Azure Storage Queue ('payrun') → PayrunQueueListener → core.job_status ('COMPLETED')`.
 - Automated threshold assertions:
   - Error rate: < 0.1% (HTTP 5xx or unhandled exceptions).
   - Web API latency: p95 < 500ms, p99 < 1500ms under 100 concurrent VUs.
-  - Pay run batch completion time recorded for 100 employees.
+  - Pay run batch completion time recorded for 100 employees with SLA < 60 seconds (`payrun_batch_duration_ms`).
+  - Strict verification that the pay run job reaches `COMPLETED` state in `core.job_status`.
 - Markdown baseline output report generator comparing results against thresholds.
 
 ### Out of scope
@@ -96,6 +98,7 @@ infra/load-test/
 | 1 | Temporarily reduce web connection pool `maximum-pool-size: 1` in `application.yml` | `run.sh` fails with HTTP 500 or timeout error rate threshold violation (> 0.1%) |
 | 2 | Force endpoint latency delay > 2000ms | k6 threshold assertion fails: `http_req_duration p(95) < 500` breached |
 | 3 | Target invalid/unauthenticated endpoint | Authentication check fails and test runner exits non-zero |
+| 4 | Force payrun batch processing delay > 60s | k6 threshold assertion fails: `payrun_batch_duration_ms p(95) < 60000` breached |
 
 ---
 
@@ -115,14 +118,20 @@ docker run --rm --network host infinevo-loadtest:test run-scenario concurrent-us
 
 # 4. Run the payrun batch scenario
 docker run --rm --network host infinevo-loadtest:test run-scenario payrun-batch --employees 100
+
+# 5. Run the full regression test suite
+docker run --rm --network host infinevo-loadtest:test run-scenario regression
 ```
 
-| Check | Expected | Result |
-|---|---|---|
-| HTTP 5xx errors | 0% | |
-| p95 latency (`http_req_duration`) | < 500ms | |
-| p99 latency (`http_req_duration`) | < 1500ms | |
-| 100-employee pay run status | Completed in `core.job_status` | |
+| Check | Type | Target / Expected | Verification Status |
+|---|---|---|---|
+| HTTP 5xx errors (`http_req_failed`) | Contractual SLA | < 0.1% | Verified via k6 threshold |
+| p95 latency (`http_req_duration`) | Contractual SLA | < 500ms | Verified via k6 threshold |
+| p99 latency (`http_req_duration`) | Contractual SLA | < 1500ms | Verified via k6 threshold |
+| 100-employee pay run batch SLA | Contractual SLA | < 60,000ms | Verified via k6 threshold |
+| 100-employee pay run status | Contractual SLA | `COMPLETED` in `core.job_status` | Verified via k6 check assertion |
+| Median latency p50 (`http_req_duration`) | Informational Metric | None (Recorded metric) | Measured and reported by k6 |
+| Sustained Throughput (`req/s`) | Informational Metric | None (Recorded metric) | Measured and reported by k6 |
 
 ---
 
@@ -155,7 +164,7 @@ docker run --rm --network host infinevo-loadtest:test run-scenario payrun-batch 
 1. `infra/load-test/` contains working, linted k6 scripts for 100 concurrent users and 100-employee pay run.
 2. `docker build -t infinevo-loadtest:test infra/load-test` succeeds.
 3. Test suite runs against local Docker stack and records p50, p95, p99, throughput, and error rates into `infra/load-test/README.md`.
-4. Automated thresholds enforce < 0.1% error rate and < 500ms p95 latency.
+4. Automated thresholds enforce < 0.1% error rate, < 500ms p95 latency, and < 60s payrun batch completion.
 
 ---
 
