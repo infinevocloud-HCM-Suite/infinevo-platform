@@ -52,7 +52,9 @@ class ReferenceSchemaIT {
             "standard_deduction_rule_master",
             "section6a_item_master",
             "section87a_rebate_rule_master",
-            "cess_surcharge_rule_master");
+            "cess_surcharge_rule_master",
+            // W-11.1 — the action catalogue (V020__action.sql)
+            "action");
 
     private static String jdbcUrl;
 
@@ -83,7 +85,7 @@ class ReferenceSchemaIT {
                 .containsOnly(PostgresTestContainerInitializer.MIGRATION_USER);
     }
 
-    // ── 2. app_user can read all fifteen
+    // ── 2. app_user can read all sixteen
 
     @Test
     void appUser_hasSelectPermission_onAllReferenceTables() throws SQLException {
