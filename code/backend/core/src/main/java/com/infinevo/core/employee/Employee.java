@@ -3,6 +3,7 @@ package com.infinevo.core.employee;
 import com.infinevo.core.org.Department;
 import com.infinevo.core.org.Designation;
 import com.infinevo.core.org.WorkLocation;
+import com.infinevo.shared.audit.Audited;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -65,6 +66,16 @@ import java.util.UUID;
  *
  * <p>Deletion is soft: {@link #markDeleted} sets the flag and every read path filters on it, so an
  * employee referenced by a past pay run or leave record is never orphaned by a DELETE.
+ *
+ * <p><strong>W-13.2 added {@link Audited}, and that is the point of the ticket.</strong> W-22.1
+ * shipped the capture mechanism and it has recorded <em>nothing</em> since, because no production
+ * class carried the annotation — its own spec section 2 records that {@code core.tenant} and
+ * {@code core.user_tenant} could not be the proof, since both are reached by raw JDBC and a
+ * Hibernate listener cannot observe them. This row and the five detail sections are the first that
+ * can be. A change to a person's name, status, joining date or org assignment now produces a row in
+ * {@code core.audit_log} — the soft delete included, which is an {@code UPDATE} of
+ * {@code is_deleted} and not a {@code DELETE}, so the trail records who retired an employee.
+ * Removing the annotation stops the capture; the rows already written stay readable.
  */
 @Entity
 @Table(
@@ -78,6 +89,7 @@ import java.util.UUID;
             @Index(name = "idx_employee_tenant_designation_id", columnList = "tenant_id, designation_id"),
             @Index(name = "idx_employee_tenant_work_location_id", columnList = "tenant_id, work_location_id")
         })
+@Audited
 public class Employee {
 
     /** Written into {@code created_by} / {@code updated_by} when no authenticated user is on the thread. */

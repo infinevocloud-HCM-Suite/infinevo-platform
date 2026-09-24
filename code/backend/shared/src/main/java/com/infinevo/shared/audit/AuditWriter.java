@@ -41,7 +41,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p><strong>Secrets never reach the row</strong> - spec section 9. {@link #REDACTED_FRAGMENTS}
  * is a deny-list matched case-insensitively against the column name, and a match is replaced with
- * {@value #REDACTED} before the row is built, not before it is displayed.
+ * {@value #REDACTED} before the row is built, not before it is displayed. A deny-list only covers
+ * what it has heard of, so it is not the whole defence: any property whose database column could
+ * not be resolved is redacted outright, whatever it is called - see {@link Column}.
  */
 @Component
 public class AuditWriter {
@@ -62,7 +64,24 @@ public class AuditWriter {
             "private_key",
             "passphrase",
             "aadhaar",
-            "passport");
+            "passport",
+            // W-13.2: core.employee_bank.bank_account_number and ifsc_code are the first two
+            // production columns this list had never heard of. Both are long enough that an
+            // accidental substring match is implausible, so they belong here and not in
+            // REDACTED_WORDS.
+            "account_number",
+            "ifsc",
+            // W-13.2 review, F-2: core.employee_identification holds four more identity numbers
+            // that this list had never heard of - social_insurance_number, personal_tax_id,
+            // id_document_number and address_document_number. PAN and Aadhaar were covered only
+            // because V017__employee_identification.sql spells those columns to match this list;
+            // their four siblings on the same row were being written to core.audit_log in clear,
+            // where readonly_user can read them. "document_number" catches both document columns
+            // without reaching an ordinary count or reference, and "tax_id" and "social_insurance"
+            // are each long enough that an accidental match is implausible.
+            "social_insurance",
+            "tax_id",
+            "document_number");
 
     /**
      * Short names that carry a secret or an identity number but are matched as whole words only.
@@ -106,6 +125,41 @@ public class AuditWriter {
             List<String> changedColumns,
             Map<String, String> oldValues,
             Map<String, String> newValues) {}
+
+    /**
+     * One audited property, paired with whether the persister could resolve it to exactly one
+     * database column.
+     *
+     * <p><strong>Why the flag exists.</strong> {@code AuditEventListener.columnNames} used to
+     * fall back to the Java property name whenever a property did not map to a single column -
+     * an {@code @Embedded} component, an association over a composite key, or a persister that
+     * threw. The value was then serialised under that Java name with {@code String.valueOf}, and
+     * {@link #isRedacted(String)} matches <em>column</em> names, so the deny-list could never
+     * match it: an embedded address, or any multi-column value object, reached
+     * {@code core.audit_log} in clear. W-22.1 deferred this; W-13.2 could not, because the first
+     * entities to carry {@link Audited} hold a bank account number, an IFSC code and a PAN
+     * (spec section 2).
+     *
+     * <p><strong>What {@code resolved == false} means.</strong> The name is still recorded - in
+     * {@code changed_columns} and as the key of the value map - so the trail still says
+     * <em>what</em> changed. Only the value is withheld: {@link #values} writes {@value #REDACTED}
+     * for it whatever it is called. That is fail-safe by construction rather than by vigilance,
+     * because it cannot be defeated by a column the deny-list has not heard of. A multi-column
+     * property is redacted rather than named: naming it was the unsafe half, since a name the
+     * deny-list cannot match is a name that buys nothing.
+     */
+    public record Column(String name, boolean resolved) {
+
+        /** A property whose single database column name is known. */
+        public static Column of(String name) {
+            return new Column(name, true);
+        }
+
+        /** A property whose column could not be determined; the value is withheld. */
+        public static Column unresolved(String name) {
+            return new Column(name, false);
+        }
+    }
 
     /** The actor behind a change: a Keycloak subject, or the system. */
     record Actor(UUID userId, String label) {}
@@ -182,15 +236,18 @@ public class AuditWriter {
         return new Actor(parseUuidOrNull(subject), subject);
     }
 
-    /** The properties whose value differs between the two states. */
-    static List<String> changedProperties(String[] names, Object[] oldState, Object[] newState) {
+    /**
+     * The properties whose value differs between the two states, by name. An unresolved column
+     * is diffed like any other - withholding the value does not mean hiding that it changed.
+     */
+    static List<String> changedProperties(Column[] columns, Object[] oldState, Object[] newState) {
         List<String> changed = new ArrayList<>();
-        if (names == null || oldState == null || newState == null) {
+        if (columns == null || oldState == null || newState == null) {
             return changed;
         }
-        for (int i = 0; i < names.length && i < oldState.length && i < newState.length; i++) {
+        for (int i = 0; i < columns.length && i < oldState.length && i < newState.length; i++) {
             if (!Objects.equals(oldState[i], newState[i])) {
-                changed.add(names[i]);
+                changed.add(columns[i].name());
             }
         }
         return changed;
@@ -198,19 +255,26 @@ public class AuditWriter {
 
     /**
      * Serialises {@code state} into a name/value map, keeping only the names in {@code only} when
-     * it is given, and redacting anything the deny-list matches.
+     * it is given.
+     *
+     * <p>A value is withheld for either of two reasons, and the second is the one that cannot be
+     * got wrong: the column name matches the deny-list, <em>or</em> the column could not be
+     * resolved at all ({@link Column}). The unresolved case is checked first and without
+     * consulting any list, because the whole point is that its name is not a column name and so
+     * proves nothing about what the object holds.
      */
-    static Map<String, String> values(String[] names, Object[] state, List<String> only) {
+    static Map<String, String> values(Column[] columns, Object[] state, List<String> only) {
         Map<String, String> values = new LinkedHashMap<>();
-        if (names == null || state == null) {
+        if (columns == null || state == null) {
             return values;
         }
-        for (int i = 0; i < names.length && i < state.length; i++) {
-            String name = names[i];
-            if (only != null && !only.contains(name)) {
+        for (int i = 0; i < columns.length && i < state.length; i++) {
+            Column column = columns[i];
+            if (only != null && !only.contains(column.name())) {
                 continue;
             }
-            values.put(name, isRedacted(name) ? REDACTED : serialize(state[i]));
+            boolean withhold = !column.resolved() || isRedacted(column.name());
+            values.put(column.name(), withhold ? REDACTED : serialize(state[i]));
         }
         return values;
     }

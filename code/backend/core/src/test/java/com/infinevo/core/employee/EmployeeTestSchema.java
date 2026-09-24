@@ -25,25 +25,31 @@ import java.util.UUID;
  * row gets planted and inspected. {@link #appConnection()} is {@code app_user}, the role the
  * application actually connects as, which holds no {@code BYPASSRLS} — anything read through it has
  * passed the policy at {@code V010__employee.sql:55-62}.
+ *
+ * <p><strong>Public since W-13.2</strong>, and nothing else changed. {@code EmployeeDetailTestSchema}
+ * sits in {@code com.infinevo.core.employee.detail} and needs the same two connections, the same two
+ * tenants and the same seeded employee; a second copy of them would be two answers to "which tenant
+ * is Acme". The three helpers it also needs — {@link #tableExists}, {@link #executeResource} and the
+ * rest — are public for the same reason.
  */
-final class EmployeeTestSchema {
+public final class EmployeeTestSchema {
 
     /** Acme Manufacturing — {@code infra/docker/seed/01-tenants.sql}. */
-    static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    public static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     /** Globex Corporation — {@code infra/docker/seed/01-tenants.sql}. */
-    static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    public static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     private EmployeeTestSchema() {}
 
-    static Connection migrationConnection() throws SQLException {
+    public static Connection migrationConnection() throws SQLException {
         return DriverManager.getConnection(
                 PostgresTestContainerInitializer.getJdbcUrl(),
                 PostgresTestContainerInitializer.MIGRATION_USER,
                 PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD);
     }
 
-    static Connection appConnection() throws SQLException {
+    public static Connection appConnection() throws SQLException {
         return DriverManager.getConnection(
                 PostgresTestContainerInitializer.getJdbcUrl(),
                 PostgresTestContainerInitializer.APP_USER,
@@ -51,7 +57,7 @@ final class EmployeeTestSchema {
     }
 
     /** Applies the shipped migrations this feature needs. Idempotent — other suites share the container. */
-    static void apply() throws Exception {
+    public static void apply() throws Exception {
         try (Connection conn = migrationConnection()) {
             if (!tableExists(conn, "tenant")) {
                 executeResource(conn, "db/migration/core/V001__tenant.sql");
@@ -80,7 +86,7 @@ final class EmployeeTestSchema {
     }
 
     /** Seeds the two dev tenants. Idempotent. */
-    static void seedTenants() throws SQLException {
+    public static void seedTenants() throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
@@ -99,7 +105,7 @@ final class EmployeeTestSchema {
      *
      * @return the generated id
      */
-    static UUID seedEmployee(UUID tenantId, String employeeNumber, String firstName) throws SQLException {
+    public static UUID seedEmployee(UUID tenantId, String employeeNumber, String firstName) throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         """
@@ -120,7 +126,7 @@ final class EmployeeTestSchema {
     }
 
     /** Removes every employee row, as the schema owner. For {@code @BeforeEach} and {@code @AfterAll}. */
-    static void clearEmployees() throws SQLException {
+    public static void clearEmployees() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
             stmt.execute("DELETE FROM core.employee");
@@ -128,7 +134,7 @@ final class EmployeeTestSchema {
     }
 
     /** Counts employee rows for one tenant, bypassing row-level security — the control for the assertions. */
-    static int countEmployees(UUID tenantId) throws SQLException {
+    public static int countEmployees(UUID tenantId) throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps =
                         conn.prepareStatement("SELECT count(*) FROM core.employee WHERE tenant_id = ?")) {
@@ -141,7 +147,7 @@ final class EmployeeTestSchema {
     }
 
     /** One column of one employee row, read as the schema owner. */
-    static Object readColumn(UUID id, String column) throws SQLException {
+    public static Object readColumn(UUID id, String column) throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps = conn.prepareStatement("SELECT " + column + " FROM core.employee WHERE id = ?")) {
             ps.setObject(1, id);
@@ -158,7 +164,7 @@ final class EmployeeTestSchema {
      * <p>It has to be this and not a call through the service: the service filters soft-deleted rows
      * in Java, so a service-level "not found" would look identical whether the policy works or not.
      */
-    static boolean visibleToAppUser(UUID tenantId, UUID employeeId) throws SQLException {
+    public static boolean visibleToAppUser(UUID tenantId, UUID employeeId) throws SQLException {
         try (Connection conn = appConnection()) {
             conn.setAutoCommit(false);
             try {
@@ -176,7 +182,7 @@ final class EmployeeTestSchema {
     }
 
     /** How many rows {@code app_user} can see at all with {@code tenantId} bound. */
-    static int visibleRowCount(UUID tenantId) throws SQLException {
+    public static int visibleRowCount(UUID tenantId) throws SQLException {
         try (Connection conn = appConnection()) {
             conn.setAutoCommit(false);
             try {
@@ -199,7 +205,7 @@ final class EmployeeTestSchema {
         }
     }
 
-    private static boolean tableExists(Connection conn, String table) throws SQLException {
+    public static boolean tableExists(Connection conn, String table) throws SQLException {
         try (PreparedStatement ps =
                 conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
             ps.setString(1, table);
@@ -223,7 +229,7 @@ final class EmployeeTestSchema {
         }
     }
 
-    private static void executeResource(Connection conn, String resourcePath) throws Exception {
+    public static void executeResource(Connection conn, String resourcePath) throws Exception {
         try (InputStream is = EmployeeTestSchema.class.getClassLoader().getResourceAsStream(resourcePath)) {
             if (is == null) {
                 throw new IllegalStateException("migration not on the test classpath: " + resourcePath);

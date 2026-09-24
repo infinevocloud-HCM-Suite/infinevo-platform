@@ -1,6 +1,7 @@
 package com.infinevo.shared.audit;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -20,7 +21,9 @@ import java.util.UUID;
  * tenant_id} and row-level security like any other business table.
  *
  * <p>{@code apiToken} exists so {@link AuditCaptureIT} can show the deny-list redacting a real
- * captured row, not only a unit-tested map.
+ * captured row, not only a unit-tested map. {@code address} exists for the other half of that
+ * proof (W-13.2): an {@code @Embedded} component is one property over two columns, which the
+ * deny-list can never match by name, so the fix must withhold it on the resolution flag alone.
  */
 @Entity
 @Table(name = "audited_probe", schema = "core")
@@ -44,13 +47,21 @@ public class AuditedProbe {
     @Column(name = "api_token", length = 100)
     private String apiToken;
 
+    @Embedded
+    private ProbeAddress address;
+
     public AuditedProbe() {}
 
     public AuditedProbe(UUID tenantId, String name, BigDecimal amount, String apiToken) {
+        this(tenantId, name, amount, apiToken, null);
+    }
+
+    public AuditedProbe(UUID tenantId, String name, BigDecimal amount, String apiToken, ProbeAddress address) {
         this.tenantId = tenantId;
         this.name = name;
         this.amount = amount;
         this.apiToken = apiToken;
+        this.address = address;
     }
 
     public UUID getId() {
@@ -83,5 +94,13 @@ public class AuditedProbe {
 
     public void setApiToken(String apiToken) {
         this.apiToken = apiToken;
+    }
+
+    public ProbeAddress getAddress() {
+        return address;
+    }
+
+    public void setAddress(ProbeAddress address) {
+        this.address = address;
     }
 }

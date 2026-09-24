@@ -58,7 +58,9 @@ final class AuditTestSchema {
                                 tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id),
                                 name VARCHAR(100),
                                 amount NUMERIC(19,4),
-                                api_token VARCHAR(100)
+                                api_token VARCHAR(100),
+                                address_line1 VARCHAR(200),
+                                zip_code VARCHAR(12)
                             )
                             """);
                     stmt.execute("ALTER TABLE core.audited_probe ENABLE ROW LEVEL SECURITY");
@@ -123,6 +125,26 @@ final class AuditTestSchema {
                 rs.next();
                 return rs.getInt(1);
             }
+        }
+    }
+
+    /**
+     * The whole audit row as text, straight from the database as the schema owner. Used to prove
+     * a redacted value is absent from <em>every</em> column, not merely from the map the query
+     * service hands back — W-13.2 spec section 2.
+     */
+    static String rawAuditRowText(UUID tenantId) throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "SELECT audit_log::text FROM core.audit_log audit_log WHERE tenant_id = ?")) {
+            ps.setObject(1, tenantId);
+            StringBuilder text = new StringBuilder();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    text.append(rs.getString(1)).append(System.lineSeparator());
+                }
+            }
+            return text.toString();
         }
     }
 

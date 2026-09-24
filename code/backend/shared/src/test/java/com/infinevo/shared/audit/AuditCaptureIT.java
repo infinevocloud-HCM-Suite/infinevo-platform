@@ -68,9 +68,18 @@ class AuditCaptureIT extends AbstractIntegrationTest {
         }
     }
 
+    /** The embedded address's value. It must not appear anywhere in the captured row. */
+    private static final String SECRET_LINE1 = "12 Secret Lane";
+
+    private static final String SECRET_ZIP = "560001";
+
     private UUID insertProbe() {
-        return inTenantTransaction(TENANT_A, () -> probes.save(
-                        new AuditedProbe(TENANT_A, "Acme", new BigDecimal("1250.5000"), "sk-live-secret"))
+        return inTenantTransaction(TENANT_A, () -> probes.save(new AuditedProbe(
+                        TENANT_A,
+                        "Acme",
+                        new BigDecimal("1250.5000"),
+                        "sk-live-secret",
+                        new ProbeAddress(SECRET_LINE1, SECRET_ZIP)))
                 .getId());
     }
 
@@ -132,6 +141,51 @@ class AuditCaptureIT extends AbstractIntegrationTest {
         assertThat(row.entityId()).isEqualTo(probeId.toString());
         assertThat(row.oldValues()).containsEntry("name", "Acme");
         assertThat(row.newValues()).isNull();
+    }
+
+    @Test
+    @DisplayName("An @Embedded component is captured as *** and its value appears nowhere in the row")
+    void embeddedComponentIsRedactedEndToEnd() throws Exception {
+        // W-13.2 spec section 2. `address` is one property over two columns, so the listener
+        // cannot resolve it and the writer withholds it. Before the fix the whole object's
+        // toString() was written here in clear, under a Java name no deny-list entry matches.
+        insertProbe();
+
+        AuditLogView row = auditRows().get(0);
+        assertThat(row.newValues()).containsEntry("address", AuditWriter.REDACTED);
+        assertThat(row.newValues().values()).doesNotContain(SECRET_LINE1, SECRET_ZIP);
+
+        // Not only the parsed map: the raw row, every column of it.
+        String raw = AuditTestSchema.rawAuditRowText(TENANT_A);
+        assertThat(raw).doesNotContain(SECRET_LINE1);
+        assertThat(raw).doesNotContain("Secret Lane");
+        assertThat(raw).contains(AuditWriter.REDACTED);
+        // Over-redaction would make the trail useless, so the ordinary columns are still there.
+        assertThat(raw).contains("Acme");
+    }
+
+    @Test
+    @DisplayName("Changing only the embedded component still names it, and still withholds both values")
+    void embeddedComponentUpdateNamesButWithholds() throws Exception {
+        UUID probeId = insertProbe();
+        AuditTestSchema.clearAudit();
+
+        inTenantTransaction(TENANT_A, () -> {
+            AuditedProbe probe = probes.findById(probeId).orElseThrow();
+            probe.setAddress(new ProbeAddress("9 Other Road", "560002"));
+            return probes.save(probe);
+        });
+
+        assertThat(AuditTestSchema.countAuditRows(TENANT_A)).isEqualTo(1);
+        AuditLogView row = auditRows().get(0);
+        assertThat(row.operation()).isEqualTo("UPDATE");
+        assertThat(row.changedColumns()).containsExactly("address");
+        assertThat(row.oldValues()).containsEntry("address", AuditWriter.REDACTED);
+        assertThat(row.newValues()).containsEntry("address", AuditWriter.REDACTED);
+
+        String raw = AuditTestSchema.rawAuditRowText(TENANT_A);
+        assertThat(raw).doesNotContain(SECRET_LINE1);
+        assertThat(raw).doesNotContain("9 Other Road");
     }
 
     @Test
