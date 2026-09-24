@@ -126,7 +126,7 @@ Nothing started. All blocked on `W-15` approval engine.
 
 > **Renumbered 2026-09-24**, following `10-scoping.md:93,117`. `W-39` is Core's basic
 > attendance and overtime capture (`D-35`), now in Stream C. HRMS attendance and the
-> overtime request are one ticket, `W-40`. GitHub #51 and #52 still carry the old titles, and `W-39` has no GitHub ticket yet — raise one.
+> overtime request are one ticket, `W-40`.
 
 | # | Ticket | What it is |
 |---|---|---|
