@@ -75,9 +75,6 @@ not polish.
 - `W-52` is merged, so `W-20` notifications and `W-29` pay run are unblocked on the queue.
 - `W-52` must handle **idempotency in code**: Storage Queue does not guarantee ordering
   (`D-50`).
-- **Two scripts share `V011`** on `main` — `V011__department.sql` (`W-14.1`) and
-  `V011__index_standard_optimizations.sql` (`W-55`). Flyway refuses duplicate versions;
-  the `W-55` script needs renumbering to `V024`.
 
 ---
 

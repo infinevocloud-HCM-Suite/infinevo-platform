@@ -92,13 +92,8 @@ has no GitHub ticket and must be raised.**
 > otherwise. Run `infra/docker/seed/seed.sh` after `migrate`, or local logins get `403`.
 > Outstanding: `app`'s `JobStatusController` is unguarded; employees cannot read their own
 > record until an ownership ticket uses the `_own` codes.
->
-> **Two scripts share `V011` on `main`** — `V011__department.sql` (`W-14.1`) and
-> `V011__index_standard_optimizations.sql` (`W-55`). Flyway refuses duplicate versions, so a
-> clean database cannot migrate today. The `W-55` script needs renumbering to `V024`.
-> **This is the one thing on this page that blocks everybody.**
 
-**Flyway continues from `V024`.** Used on `main`: `V001`, `V002`, `V006`, `V008`, `V009`, `V010`, `V011` **twice**, `V012`–`V019` (`W-14.1`, `W-13.2`), `V020`–`V023` (`W-11.1`). The
+**Flyway continues from `V024`.** Used on `main`: `V001`, `V002`, `V006`, `V008`, `V009`, `V010`, `V011`, `V012`–`V019` (`W-14.1`, `W-13.2`), `V020`–`V023` (`W-11.1`). The
 rule is the next number **above everything on `main`**, not the next free one — `W-10` had to
 be renumbered for exactly that, and CI cannot catch it because CI starts from an empty
 database.
@@ -167,7 +162,7 @@ Tenant-leading index convention, batch fetching, and HikariCP connection pool ca
 | | |
 |---|---|
 | Merged | `2ccd723`, closing **#75** |
-| Shipped | Tenant-leading composite index conventions documented in `code/backend/migration/README.md`; Flyway `V011__index_standard_optimizations.sql` (`core.employee`, `core.job_status`); automated convention enforcement in `DatabaseIndexConventionIT` (`core`, `hrms`, `payroll`); global batch fetching (`default_batch_fetch_size: 25`) in `app` and `worker`; HikariCP pool calibration (App: 10 max/5 min, Worker: 5 max/2 min, leak detection 30s) compatible with statement-level tenant binding proxy (`D-57`); `QueryCountIT` verifying N+1 elimination |
+| Shipped | Tenant-leading composite index conventions documented in `code/backend/migration/README.md`; Flyway `V024__index_standard_optimizations.sql` (`core.employee`, `core.job_status`); automated convention enforcement in `DatabaseIndexConventionIT` (`core`, `hrms`, `payroll`); global batch fetching (`default_batch_fetch_size: 25`) in `app` and `worker`; HikariCP pool calibration (App: 10 max/5 min, Worker: 5 max/2 min, leak detection 30s) compatible with statement-level tenant binding proxy (`D-57`); `QueryCountIT` verifying N+1 elimination |
 | Tests | 6 index convention tests, 4 Hikari pool calibration tests, 1 QueryCount integration test |
 
 ---
@@ -483,9 +478,6 @@ ticket at a time on their own `dev-<name>` branch.
 Newly claimable after `W-14.1` and `W-13.2`: `W-13.3` search, `W-14.2` reporting line,
 `W-17` holiday calendar, `W-12.1` subscription, `W-19` pay input ledger, `W-20.1`
 notifications, `W-21` document store, `W-23.1` export.
-
-**Ahead of all of them: renumber `W-55`'s `V011` to `V024`.** Two scripts share `V011` on
-`main`, so Flyway cannot migrate a clean database.
 
 > **`W-09` closed #10, #136, #137 and #117 together.** The three fixes rode with it because nothing in `W-09` could be proved without them: until #136 nothing ran a shipped migration through Flyway, until #137 a two-table script could ship an unprotected table, and until #117 every integration test skipped under a green build. The backend suite went from 46 passing with 34 skipping to **100 passing with none skipped**.
 
