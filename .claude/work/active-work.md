@@ -1,7 +1,7 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-24**, after `W-55` Index & query standard (#75) merged as `2ccd723`.
+> Last refreshed: **2026-09-24**, after `W-11.2` Permission check merged as `23d1126` — **W-11 Authorization (#12) complete**.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. Layer 1 is ten
 > branches and they can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
@@ -15,7 +15,7 @@
 | Repository | `infinevocloud-HCM-Suite/infinevo-platform`, private |
 | Tickets | **112** — 26 closed, 86 open. GitHub is authoritative, this file is the summary |
 | Waves | 9. **Wave 1 is done — all 7.** Wave 2 starts at `W-09` |
-| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-11.1` role catalogue (#12)** · **`W-59` scanning (#79)** · **`W-61` alerting (#81)** · **`W-55` index & query standard (#75)** |
+| Merged | `W-01` skeleton (#1) · `W-02` local stack (#3) · process skills and merge gate (#97) · `W-03` build pipeline (#4) · docs route through gate 5 (#100) · `W-04` test foundation (#5) · `W-05` Postgres & schemas (#6) · docs back in line with `W-05` (#114) · `W-49` containerisation (#69) · `W-50` Azure IaC (#70) · `W-51` networking & identity (#71) · `D-50` Storage Queue (#127) · `W-06` Flyway (#7) · **`W-07` tenant model (#8)** · **`W-08` tenant binding filter (#9)** · **`W-09` reference schema & seed (#10)** · `W-52` queue & worker (#72) · `W-60` observability (#80) · **`W-53` redis cache & invalidation (#73)** · docs for `W-51` (#132) and `W-07` (#142) as built · **`W-22.1` audit trail (#26)** · **`W-10` identity (#11)** · **`W-13.1` employee record (#14)** · **`W-11.1` role catalogue (#12)** · **`W-11.2` permission check (#12)** · **`W-59` scanning (#79)** · **`W-61` alerting (#81)** · **`W-55` index & query standard (#75)** |
 | Team | `developers`, Write access. Gau318 `#6` · BirenGit `#69` · SayInfi `#5` |
 
 > **`W-50` and `W-51` are verified as code and not as an environment.** The Bicep builds
@@ -87,11 +87,15 @@ has no GitHub ticket and must be raised.**
 > holding an address or bank detail writes it in clear. **This is scope added to an approved
 > spec, by the founder, and is recorded in the spec itself.**
 
-> **`W-11.1` merged 2026-09-24.** Took `V020`–`V023`; next script is **`V024`**. Until `W-11.2`
-> enforces actions, any authenticated user can change their own roles — **do not deploy
-> between the two.** `core.role` now blocks `DELETE FROM core.tenant` (FK, no `ON DELETE`):
-> offboarding and test cleanup delete `user_role`, `role_action`, `role` first. Role and grant
-> changes are not `@Audited` yet.
+> **`W-11.1` and `W-11.2` merged 2026-09-24.** `W-11.1` took `V020`–`V023`.
+> Every `core`/`shared` endpoint now needs `@RequiresAction` — `EndpointGuardCoverageTest` fails
+> otherwise. Run `infra/docker/seed/seed.sh` after `migrate`, or local logins get `403`.
+> Outstanding: `app`'s `JobStatusController` is unguarded; employees cannot read their own
+> record until an ownership ticket uses the `_own` codes.
+>
+> **Two scripts share `V011`** — `V011__department.sql` (`W-14.1`) and
+> `V011__index_standard_optimizations.sql` (`W-55`). Flyway refuses duplicate versions; the
+> `W-55` script needs renumbering to `V024`.
 
 **Flyway continues from `V024`.** Used: `V001`, `V002`, `V006`, `V008`, `V009`, `V010`, `V011` (`W-55`), `V020`–`V023` (`W-11.1`). The
 rule is the next number **above everything on `main`**, not the next free one — `W-10` had to
