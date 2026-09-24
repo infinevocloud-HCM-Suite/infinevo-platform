@@ -11,9 +11,9 @@
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
 | B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete |
-| C — Core platform | 19 | 7 | 7 | **Building.** Layer 0 done; `W-11`, `W-13.2`, `W-14.1` merged |
+| C — Core platform | 21 | 7 | 7 | **Building.** Layer 0 done; `W-11`, `W-13.2`, `W-14.1` merged |
 | D — Payroll | 21 | 0 | 0 | All blocked on `W-13` and `W-26` |
-| E — HRMS | 6 | 0 | 0 | All blocked on `W-15` |
+| E — HRMS | 5 | 0 | 0 | All blocked on `W-15` |
 | F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is blocked on `W-12` |
 | G/H — product items | 3 | 1 | 1 | `W-55` merged `2ccd723`. `W-66` claimed |
 
@@ -62,8 +62,8 @@ not started.
 
 ## 3. Stream C — Core platform
 
-Seven merged. `W-13.3`, `W-12.1`, `W-19`, `W-20.1`, `W-21`, `W-23.1` and `W-14.2` are
-claimable now; everything else waits.
+Seven merged. `W-13.3`, `W-12.1`, `W-19`, `W-20.1`, `W-21`, `W-23.1`, `W-14.2` and `W-39.1`
+are claimable now; everything else waits.
 
 | # | Ticket | What it is | Ready? |
 |---|---|---|---|
@@ -88,6 +88,8 @@ claimable now; everything else waits.
 | #27 | `W-23` Reporting & export | Report definitions, spreadsheet and CSV export, scheduled reports | **ready** (`W-23.1`); `W-23.2` needs `W-20.2` |
 | #28 | `W-24` Setup checklist & invitations | A module-aware checklist, progress tracking, user and employee invitation | `W-12` |
 | #29 | `W-25` Employee self-service portal | My profile, leave, documents, payslips (Payroll only), timesheet (HRMS only) | `W-16` |
+| #— | `W-39.1` Attendance capture (basic) | `core.attendance` — present, absent, half day per employee per date, entered by an administrator, so a Payroll-only tenant can record it (`D-35`) | **ready** — spec written 2026-09-24 |
+| #— | `W-39.2` Overtime capture (basic) | `core.overtime_request` — approved overtime entered by an administrator, written to the pay input ledger | `W-19` — no spec yet |
 
 ---
 
@@ -122,10 +124,13 @@ Nothing started. Everything is blocked, most of it behind `W-26`.
 
 Nothing started. All blocked on `W-15` approval engine.
 
+> **Renumbered 2026-09-24**, following `10-scoping.md:93,117`. `W-39` is Core's basic
+> attendance and overtime capture (`D-35`), now in Stream C. HRMS attendance and the
+> overtime request are one ticket, `W-40`. GitHub #51 and #52 still carry the old titles, and `W-39` has no GitHub ticket yet — raise one.
+
 | # | Ticket | What it is |
 |---|---|---|
-| #51 | `W-39` Attendance | Attendance record, clock in and out, multiple sessions a day, regularization request and approval, preferences moved over from Payroll |
-| #52 | `W-40` Overtime | Overtime form, approval, write to the pay input ledger. Independent of attendance |
+| #51–52 | `W-40` Clock attendance & request workflows | Clock in and out, multiple sessions a day, attendance preferences moved over from Payroll, and the employee-submitted, manager-approved regularization and overtime requests. Blocked on `W-39`, `W-15`, `W-16` |
 | #53 | `W-41` Projects, tasks, assignments | Project and task management, employee assignment |
 | #54 | `W-42` Timesheets | Weekly timesheet, project, day and task entry, submit, approve |
 | #55 | `W-43` Timesheet reminders | Reminder rules, escalation, notification trigger |
