@@ -16,7 +16,7 @@ is the finding.** Reporting it is the job; repairing it is not.
 
 | What | Command | Expect |
 |---|---|---|
-| Backend build + tests | `cd code/backend && ./mvnw -B clean verify` | BUILD SUCCESS, 8 reactor entries, 21 tests in `shared` |
+| Backend build + tests | `cd code/backend && ./mvnw -B clean verify` | BUILD SUCCESS, every module built, no test failures |
 | Frontend lint | `cd code/frontend && npm run lint` | Clean, zero warnings (`--max-warnings 0`) |
 | Frontend build | `cd code/frontend && npm run build` | Builds |
 | No `ddl-auto` anywhere | `grep -rn "ddl-auto" code/backend/` | **No matches.** A match is a finding |
@@ -57,6 +57,6 @@ Regressions:     <list, or "none">
 Blockers:        <what stopped a check, if anything>
 ```
 
-State verdicts plainly. "Compile PASS, 21 tests pass, frontend lint clean" is a result.
+State verdicts plainly. "Compile PASS, all tests pass, frontend lint clean" is a result.
 So is "FAIL — enforcer rejected a payroll dependency in hrms". Never soften a failure and
 never claim a check you did not run.
