@@ -8,10 +8,10 @@
 | Tracker | Tickets | Done (on `main`) | Of which proven live | In flight | Ready | Blocked |
 |---|---|---|---|---|---|---|
 | [DEV](DEV-TRACKER.md) — streams A–F, product items | 74 | 15 | 15 | 1 | 13 | 45 |
-| [INFRA](INFRA-TRACKER.md) — containers, CI, Azure, security | 18 | 12 | **4** | 1 | 4 | 1 |
+| [INFRA](INFRA-TRACKER.md) — containers, CI, Azure, security | 18 | 13 | **4** | 1 | 3 | 1 |
 | [HARNESS](HARNESS-TRACKER.md) — the build process | 12 | 9 | 9 | 0 | 3 | 0 |
 | [MIGRATION](MIGRATION-TRACKER.md) — stream I | 8 | 0 | 0 | 0 | 0 | 8 |
-| **Total** | **112** | **36** | **28** | **2** | **20** | **54** |
+| **Total** | **112** | **37** | **28** | **2** | **19** | **54** |
 
 Rows are build pieces: where a ticket's parts ship separately (`W-13.1`, `.2`, `.3`) each
 is a row. GitHub itself holds 113 tickets — 40 closed, 73 open — six of

@@ -11,8 +11,8 @@
 | Containers & local stack | 2 | 2 | 2 | 0 | 0 | 0 |
 | GitHub Actions | 3 | 3 | 2 | 0 | 0 | 0 |
 | Azure | 8 | 7 | **0** | 1 | 0 | 0 |
-| Security & operations | 5 | 0 | 0 | 0 | 4 | 1 |
-| **Total** | **18** | **12** | **4** | **1** | **4** | **1** |
+| Security & operations | 5 | 1 | 0 | 0 | 3 | 1 |
+| **Total** | **18** | **13** | **4** | **1** | **3** | **1** |
 
 `W-55` Index & query standard is done and tracked in [DEV-TRACKER.md](DEV-TRACKER.md) §7.
 
@@ -82,7 +82,7 @@ is part of the work, not polish.
 |---|---|---|---|---|
 | #77 | `W-57` Deny-by-default authentication | — | Ready — `W-10` done | — |
 | #78 | `W-58` Tenant isolation tests | — | Ready | — |
-| #82 | `W-62` Backup & disaster recovery — a restore actually performed | — | Ready | — |
+| #82 | `W-62` Backup & disaster recovery — a restore actually performed | written | **Done — not live** (`1d1123a`) | — |
 | #83 | `W-63` Load test | — | Ready — needs a live environment | — |
 | #84 | `W-64` Penetration test | — | Blocked — `W-57`, `W-58` | — |
 
