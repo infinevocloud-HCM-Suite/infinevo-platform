@@ -10,8 +10,8 @@
 | Stream | Tickets | Code on main | Feature done | Where it stands |
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
-| B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete — but see `W-04.1`: the suite no longer passes on `main` |
-| C — Core platform | 26 | 7 | 7 | **Building.** All specs corrected 2026-09-25; `W-11.3` first, then the rest |
+| B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete; suite green again (`W-04.1`) |
+| C — Core platform | 26 | 9 | 9 | **Building.** `W-04.1` and `W-11.3` merged `3350cf2`; every corrected spec is now unblocked on codes |
 | D — Payroll | 21 | 0 | 0 | All blocked on `W-13` and `W-26` |
 | E — HRMS | 5 | 0 | 0 | All blocked on `W-15` |
 | F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is blocked on `W-12` |
@@ -42,11 +42,11 @@ One row per known defect in merged code. A row leaves this table only when its f
 
 | # | Defect | Found | Fixed by | Status |
 |---|---|---|---|---|
-| D-1 | `mvn verify` fails: `shared`'s `DatabasePrivilegesIT` hits `53300 too_many_connections` (16 test contexts × pool of 10 > 100 slots) | 2026-09-25, running the suite | `W-04.1` | **Ready to merge — dev-claude** |
+| D-1 | `mvn verify` fails: `shared`'s `DatabasePrivilegesIT` hits `53300 too_many_connections` (16 test contexts × pool of 10 > 100 slots) | 2026-09-25, running the suite | `W-04.1` | **fixed** `3350cf2` |
 | D-2 | Worker never reads the queue; no consumer loop, producer bean only in `worker`, no retry-then-fail, `RUNNING` jobs re-run | 2026-09-24, `12-core-contracts.md` §5 | `W-52.1` | assigned — claude, `dev-claude` |
 | D-3 | `GET /jobs/{id}` has no `@RequiresAction` and honours a legacy `organizationId` header | 2026-09-24 | `W-52.1` | assigned — claude, `dev-claude` |
-| D-4 | Every tenant's seeded `platform-admin` role holds `core.tenant.provision` (platform staff only) | 2026-09-24 | `W-11.3` | **Ready to merge — dev-claude** |
-| D-5 | Core actions catalogued as `hrms.*` (leave, holiday, attendance) — a module filter would strip them from a Payroll-only tenant | 2026-09-24 | `W-11.3` | **Ready to merge — dev-claude** |
+| D-4 | Every tenant's seeded `platform-admin` role holds `core.tenant.provision` (platform staff only) | 2026-09-24 | `W-11.3` | **fixed** `3350cf2` |
+| D-5 | Core actions catalogued as `hrms.*` (leave, holiday, attendance) — a module filter would strip them from a Payroll-only tenant | 2026-09-24 | `W-11.3` | **fixed** `3350cf2` |
 | D-6 | No link from `core.employee` to `core.user_account`; `*_own` actions and the portal cannot resolve the caller | 2026-09-24 | `W-13.4` | assigned — claude, `dev-claude` |
 | D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | assigned — claude, `dev-claude` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | assigned — claude, `dev-claude` |
@@ -114,18 +114,18 @@ naming the rows it took. Kept here as the record of what changed.
 | `W-22.2`, `W-23.1`, `W-23.2` | tenant sweep visibility, `ReportSource`, async export as a job |
 | `W-24.1`, `W-24.2`, `W-25` | role join table, invitation lifecycle, `PortalPanelProvider` |
 
-Every spec above now names its `@RequiresAction` codes, which `W-11.3` creates, so
-**`W-11.3` blocks all of them** and is listed in each one's Blocked-by.
+Every spec above names its `@RequiresAction` codes. **`W-11.3` is on main (`3350cf2`)**, so that
+blocker is cleared for all of them.
 
 ### 3b. Correction tickets
 
 | Ticket | What it is | Fixes | Ready? |
 |---|---|---|---|
-| `W-11.3` Catalogue correction | Rename the 14 Core actions misfiled as `hrms.*`, add 24 missing codes, take `core.tenant.provision` out of the seeded `platform-admin` role. Migration `V025` | `12-core-contracts.md` §4 | **Ready to merge — dev-claude** |
+| `W-11.3` Catalogue correction | Rename the 14 Core actions misfiled as `hrms.*`, add 24 missing codes, take `core.tenant.provision` out of the seeded `platform-admin` role. Migration `V025` | `12-core-contracts.md` §4 | **on main `3350cf2`** · done — built by claude |
 | `W-13.4` Employee login link | `user_account_id` on `core.employee`; employees may edit their own personal and contact sections. Migration `V026` | §5 row 14 | **In flight — dev-claude** |
-| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}` | §5 row 21 | **In flight — dev-claude**, after `W-11.3` |
+| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}` | §5 row 21 | **In flight — dev-claude** — unblocked |
 | `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and the `core.queue` package | §5 row 22 | **In flight — dev-claude** |
-| `W-04.1` Test connection budget | `mvn verify` **fails on main** (2026-09-25, reproducible serially): `shared`'s `DatabasePrivilegesIT` dies with `53300 too_many_connections`. 16 `@SpringBootTest` classes each hold a Hikari pool of 10 against a 100-slot Testcontainers Postgres. Fix: one shared test context config with a small pool, or raise the container's `max_connections` | suite green | **Ready to merge — dev-claude** |
+| `W-04.1` Test connection budget | `mvn verify` **fails on main** (2026-09-25, reproducible serially): `shared`'s `DatabasePrivilegesIT` dies with `53300 too_many_connections`. 16 `@SpringBootTest` classes each hold a Hikari pool of 10 against a 100-slot Testcontainers Postgres. Fix: one shared test context config with a small pool, or raise the container's `max_connections` | suite green | **on main `3350cf2`** · done — built by claude |
 | `W-09.1` Age category seed | Seed `SENIOR` and `SUPER_SENIOR` slab rows for three financial years (defect #146). Migration `V027` | Stream B defect | **In flight — dev-claude** |
 
 `W-52.1` and `W-53.1` are backend fixes to tickets tracked in [INFRA-TRACKER.md](INFRA-TRACKER.md).

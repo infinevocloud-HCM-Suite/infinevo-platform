@@ -7,6 +7,14 @@
 > can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-25 — `W-04.1` and `W-11.3` merged (`3350cf2`)
+
+- The backend suite is green on `main` again (`D-1` fixed).
+- The permission catalogue is corrected: leave, holiday and attendance codes are `core.*`, 24 codes added, no tenant admin holds `core.tenant.provision` (`D-4`, `D-5` fixed).
+- **Newly unblocked:** every corrected Core spec that was waiting on `W-11.3` for its codes — `W-12.x`, `W-14.2`, `W-15.x`, `W-16.x`, `W-17`, `W-18.x`, `W-19`, `W-20.x`, `W-21`, `W-22.2`, `W-23.x`, `W-25` — and `W-52.1`.
+- Defects still open: `D-2`, `D-3` (`W-52.1`), `D-6` (`W-13.4`), `D-7` (`W-53.1`), `D-8` (`W-09.1`), `D-9` (manual). All but `D-9` are in flight on `dev-claude`.
+- The defect list lives in `trackers/DEV-TRACKER.md` § Defects on `main`.
+
 ## Where the project is
 
 **Design finished. Build started. Nothing in production.**
