@@ -43,6 +43,12 @@
         <groupId>com.azure</groupId>
         <artifactId>azure-identity</artifactId>
       </dependency>
+      <!-- W-23.1: xlsx export through the streaming workbook (SXSSF). The in-memory workbook
+           the frozen exports use holds the whole file in heap; this one holds a window. -->
+      <dependency>
+        <groupId>org.apache.poi</groupId>
+        <artifactId>poi-ooxml</artifactId>
+      </dependency>
       <!-- W-04: Shared test infrastructure (AbstractIntegrationTest, initializers) -->
       <dependency>
         <groupId>com.infinevo</groupId>

@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-23.1` · from ticket #27 · `CORE-16` |
 | **Promoted to** | `docs/target-state/features/W-23-1-export.md` on branch `W-23-1-export` — **`W-23-1` with hyphens**, never `W-23.1`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | devashis (`dev-devashis`) |
 | **Apps touched** | `code/backend/core`, `code/backend/migration` |
 | **Related gaps** | DEBT-018 (honoured) |
 | **Status** | **Approved** |
@@ -53,7 +53,7 @@ build, and the mapping line is wrong.
 - One export service producing CSV and Excel from a definition
 - **Streaming**, so memory does not scale with row count
 - Tenant scoping through RLS, so an export cannot outrun the isolation the rest of the platform has
-- Wiring three consumers: employees, leave balances and pay inputs
+- Wiring three consumers: employees, the org masters and the audit log (decision D3, section 14)
 
 **Out of scope**
 
@@ -86,7 +86,7 @@ export does not hold a request thread open and the link can be re-fetched.
 | Repository | `core/.../report/ReportDefinitionRepository.java` | new |
 | Enumeration | `core/.../report/ExportFormat.java` | new |
 | Interface | `core/.../report/ReportSource.java` | new — **a bean interface, not an enum** (corrected 2026-09-25, `12-core-contracts.md:108`) |
-| Source | `core/.../report/source/EmployeeReportSource.java`, `LeaveBalanceReportSource.java`, `PayInputReportSource.java` | new — the three Core consumers, each a `@Component` |
+| Source | `core/.../report/source/EmployeeReportSource.java`, `OrgMasterReportSource.java`, `AuditLogReportSource.java` | new — the three Core consumers, each a `@Component` (decision D3, section 14) |
 
 **`ReportSource`** — the seam a module implements to make its data exportable without `core`
 knowing the module exists:
@@ -167,7 +167,7 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 | Unit | `core/.../report/CsvWriterTest.java` | commas, quotes and newlines in values escaped; a value beginning `=` is not written as a formula |
 | Integration | `core/.../report/ExportStreamingIT.java` | **10 000 rows export with bounded heap** — the writer never holds the whole set |
 | Integration | `core/.../report/ExportRlsIT.java` | an export run by tenant A contains no tenant B row, including in the row count |
-| Integration | `core/.../report/ThreeConsumersIT.java` | employees, leave balances and pay inputs all export through the one service |
+| Integration | `core/.../report/ThreeConsumersIT.java` | employees, the org masters and the audit log all export through the one service |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 
@@ -180,7 +180,7 @@ code execution on someone's laptop.
 ## 8. Verification
 
 ```bash
-docker compose -f infra/docker/compose.yml up -d postgres azurite
+docker compose -f infra/docker/compose.yml up -d postgres blob
 docker compose -f infra/docker/compose.yml up --build migrate
 docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_user -d infinevo -c \
   "SELECT relrowsecurity FROM pg_class WHERE oid='core.report_definition'::regclass;"
@@ -245,3 +245,32 @@ the decision; the consolidated record is
 
 1. **Can a tenant define its own reports, or only use seeded ones?** **Recommend** seeded system definitions plus tenant-created ones limited to the same sources and columns — a full report builder is a product of its own.
 2. **Does an export land in the document store or stream to the browser?** This spec says the store, so the file survives a dropped connection and can be re-downloaded. **Recommend** that, accepting a signed link instead of an immediate download.
+
+## 14. As built — 2026-09-25, branch `dev-devashis`
+
+**Decisions D3, D4 and D6 were accepted by the owner on 2026-09-25.** Sections 2, 4 and 7 now name
+the three consumers as built.
+
+| # | Question | As built |
+|---|---|---|
+| D3 | Which three sources ship? | **`employee`, `org_master`, `audit_log`**, in place of leave balances and pay inputs. No leave-balance or pay-input table exists yet (`W-16`, `W-19`), so those sources would have nothing to read. Adding one later is one new `ReportSource` bean plus one seeded definition, with no schema change. |
+| D4 | Migration number | `V040__report_definition.sql`, the lane's reservation (`DEV-TRACKER.md`). |
+| D6 | Create vs update | **`POST /api/v1/report-definitions` creates** (`201`), and `PUT /{id}` updates (`200`). Both need `core.report.manage`. A system definition refuses `PUT` with `409`. |
+
+Seeded for every tenant by trigger, and backfilled for existing tenants:
+
+| Code | Source | Format | `required_action` |
+|---|---|---|---|
+| `employees` | `employee` | XLSX | `core.employee.export` |
+| `org-masters` | `org_master` | XLSX | `core.org.read` |
+| `audit-log` | `audit_log` | CSV | `core.audit.read` — excludes old and new values |
+
+Also as built:
+
+- **Grant** (W-11.3 spec section 2). `V040` gives `hr` `core.report.read`. `hr` already holds the action each seeded definition requires, so it can run all three. `core.report.manage` stays with the admin roles. The grant uses `V037`'s pattern: a function, a trigger that sorts after `tenant_seed_system_roles`, and a backfill.
+- **CSV** is UTF-8 with a byte-order mark and CRLF line endings. A cell starting with `=`, `+`, `-`, `@`, tab or CR is prefixed with `'`, so no spreadsheet runs it as a formula.
+- **XLSX** is Apache POI `SXSSFWorkbook` with a 100-row window, asserted at 10 000 rows. The version (5.5.1) is pinned in the parent POM.
+- An unknown filter name is refused. The file is named `{code}-yyyyMMdd-HHmmss.{ext}` and stored as `DocumentKind.EXPORT` with a null employee through `storeFile`. The response returns a 15-minute link.
+- The export runs synchronously in `app`. Running it as a job on `worker` is `W-23.2`'s (`DEV-TRACKER.md`: "async export as a job").
+
+**Correction applied to this spec.** In section 8, the compose service is named `blob`, not `azurite`.

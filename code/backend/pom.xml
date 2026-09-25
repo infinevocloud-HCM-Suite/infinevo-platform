@@ -66,6 +66,8 @@
     <shedlock.version>5.16.0</shedlock.version>
     <!-- W-60: Observability -->
     <logstash-logback-encoder.version>7.4</logstash-logback-encoder.version>
+    <!-- W-23.1: the streaming Excel writer (SXSSF). Spring Boot does not manage POI. -->
+    <poi.version>5.5.1</poi.version>
     <!-- W-59: Security scan dependency patch overrides -->
     <tomcat.version>10.1.59</tomcat.version>
     <postgresql.version>42.7.12</postgresql.version>
@@ -87,6 +89,12 @@
         <version>${azure-sdk-bom.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+      <!-- W-23.1: Excel export -->
+      <dependency>
+        <groupId>org.apache.poi</groupId>
+        <artifactId>poi-ooxml</artifactId>
+        <version>${poi.version}</version>
       </dependency>
       <!-- W-52: ShedLock -->
       <dependency>
