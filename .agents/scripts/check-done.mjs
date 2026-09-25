@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // check-done.mjs — the definition of done, made machine-checkable.
 //
-//   node .claude/scripts/check-done.mjs W-nn     (a feature: its spec must exist)
-//   node .claude/scripts/check-done.mjs          (harness or tooling work, no ticket)
+//   node .agents/scripts/check-done.mjs W-nn     (a feature: its spec must exist)
+//   node .agents/scripts/check-done.mjs          (harness or tooling work, no ticket)
 //
 // Run by /merge on the developer's branch (dev-<name>) before the founder merges it.
 // The ticket comes from the argument, not the branch name: one developer branch carries
@@ -10,10 +10,10 @@
 //
 // Exit 0 = every gate passed. Exit 1 = at least one failed.
 
-import { existsSync, readdirSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { existsSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { resolve, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execSync } from "node:child_process";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
 
@@ -64,8 +64,6 @@ const changed = sh("git", ["diff", "--name-only", "main...HEAD"]).out
   .split(NL).map((s) => s.trim()).filter(Boolean);
 
 // ── 1. the spec exists ──────────────────────────────────────────────────────
-// The founder writes every spec straight into docs/target-state/features/. There is no
-// approval marker to look for; a spec that exists is a spec the founder wrote.
 gate("Spec exists", () => {
   if (!item) return { ok: true, detail: "no ticket given; harness or tooling work" };
   const dir = join(ROOT, "docs", "target-state", "features");
@@ -84,12 +82,10 @@ gate("legacy/ untouched", () => {
 });
 
 // ── 3. ddl-auto is set nowhere ──────────────────────────────────────────────
-// Scope and pattern kept identical to ci.yml's static job - if the two disagree, one of
-// them is lying about the tree.
 gate("ddl-auto set nowhere", () => {
   const r = sh("git", ["grep", "-nE",
     "^[^#]*(ddl-auto|DDL_AUTO)([[:space:]]*[:=]|[^A-Za-z0-9]*$)",
-    "--", ".", ":(exclude)legacy/", ":(exclude)docs/", ":(exclude).claude/", ":(exclude)*.md"]);
+    "--", ".", ":(exclude)legacy/", ":(exclude)docs/", ":(exclude).agents/", ":(exclude).claude/", ":(exclude)*.md"]);
   return r.code === 0 && r.out.trim()
     ? { ok: false, detail: r.out.trim().split(NL)[0] }
     : { ok: true };
@@ -99,30 +95,23 @@ gate("ddl-auto set nowhere", () => {
 gate("No float or double money field", () => {
   const r = sh("git", ["grep", "-nE",
     "(private|public|protected)[[:space:]]+(Double|Float|double|float)[[:space:]]+[a-zA-Z]*(amount|salary|pay|Pay|Amount|Salary|deduction|Deduction|tax|Tax)",
-    "--", ".", ":(exclude)legacy/", ":(exclude)docs/", ":(exclude).claude/", ":(exclude)*.md"]);
+    "--", ".", ":(exclude)legacy/", ":(exclude)docs/", ":(exclude).agents/", ":(exclude).claude/", ":(exclude)*.md"]);
   return r.code === 0 && r.out.trim()
     ? { ok: false, detail: r.out.trim().split(NL)[0] }
     : { ok: true };
 });
 
 // ── 5. CI is green for the exact commit being merged ────────────────────────
-// Build and tests are checked here: CI ran them on this commit. Branch protection is
-// unavailable on the GitHub Free plan (D-43), so this gate is the enforcement.
 gate("CI green for this commit", () => {
   if (!head) return { ok: false, detail: "cannot resolve HEAD" };
   const short = head.slice(0, 7);
 
-  // ci.yml ignores docs/, .claude/, legacy/ and *.md. MUST stay in step with its
-  // `paths-ignore`, or a docs-only branch waits for a run that never starts.
   const IGNORED = (f) =>
-    f.startsWith("docs/") || f.startsWith(".claude/") || f.startsWith("legacy/") || f.endsWith(".md");
+    f.startsWith("docs/") || f.startsWith(".agents/") || f.startsWith(".claude/") || f.startsWith("legacy/") || f.endsWith(".md");
   if (changed.length && changed.every(IGNORED)) {
     return { ok: true, detail: `${changed.length} file(s) changed, none CI covers - no run expected` };
   }
 
-  // paths-ignore is evaluated per push, so a branch ending in a docs-only commit has no
-  // run for HEAD. Fall back to the newest ancestor with a run, but only when every path
-  // CI covers is byte-identical between the two.
   const coveredUnchangedSince = (anc) => {
     const d = sh("git", ["diff", "--name-only", anc, head]);
     if (d.code !== 0) return false;
@@ -195,7 +184,6 @@ gate("CI green for this commit", () => {
   if (!mine.length) return { ok: false, detail: `no CI run for ${short} - push the branch and wait for ci.yml` };
   const pending = mine.find((x) => x.status !== "completed");
   if (pending) return { ok: false, detail: `CI still ${pending.status} for ${short}: ${pending.url ?? ""}`.slice(0, 160) };
-  // "skipped" is not a pass - it verified nothing about this commit.
   const skipped = mine.find((x) => x.conclusion === "skipped");
   if (skipped) return { ok: false, detail: `CI was SKIPPED for ${short} - it verified nothing: ${skipped.url ?? ""}`.slice(0, 160) };
   const bad = mine.find((x) => x.conclusion !== "success");
@@ -216,4 +204,29 @@ if (failed.length) {
   console.log("");
   process.exit(1);
 }
+
+// Write signed merge receipt
+try {
+  const receiptsDir = join(ROOT, ".agents", "outputs", ".merge-receipts");
+  mkdirSync(receiptsDir, { recursive: true });
+  let headTree = "";
+  try {
+    headTree = execSync("git rev-parse HEAD:", { cwd: ROOT, encoding: "utf8" }).trim();
+  } catch {}
+  const receipt = {
+    branch: branch,
+    commit: head,
+    tree: headTree,
+    status: "PASS",
+    timestamp: new Date().toISOString(),
+    gates: results.length
+  };
+  const sanitizedBranch = branch.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const receiptPath = join(receiptsDir, `${sanitizedBranch}.json`);
+  writeFileSync(receiptPath, JSON.stringify(receipt, null, 2), "utf8");
+  console.log(`  Merge receipt issued: ${relative(ROOT, receiptPath)}`);
+} catch (err) {
+  console.error("  Warning: Failed to write merge receipt:", err.message);
+}
+
 console.log("  Ready for the founder to merge.\n");

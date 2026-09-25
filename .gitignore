@@ -3,10 +3,11 @@
 # They are no longer cloned separately - CONTRIBUTING.md section 1.
 # ---------------------------------------------------------------------------
 
-# Harness working files, under .claude/ with the harness itself.
+# Harness working files, under .agents/ with the harness itself.
 # Findings and session logs ARE tracked: docs/target-state/README.md cites them,
-# and .claude/work/active-work.md is the live project state everyone reads first.
+# and .agents/work/active-work.md is the live project state everyone reads first.
 # Only transient machine-local material is ignored.
+.agents/outputs/.verify-cache/
 .claude/outputs/.verify-cache/
 
 # Dependencies
@@ -23,6 +24,7 @@ code/frontend/dist/
 # Merge receipts: machine-local proof that check-done.mjs passed HERE, at this commit.
 # Never committed - a shared receipt would let one machine's pass unlock everyone
 # else's merge, which is the whole thing the gate exists to prevent.
+.agents/outputs/.merge-receipts/
 .claude/outputs/.merge-receipts/
 
 # Local port overrides for the dev stack (each developer, never committed)
@@ -32,4 +34,5 @@ infra/docker/.env
 # every rebase and merge - three times on 2026-09-13 alone. The investigation findings
 # beside them stay tracked; a running commentary of one machine's session does not
 # need to be.
+.agents/outputs/*-session-*.md
 .claude/outputs/*-session-*.md

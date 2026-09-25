@@ -1,0 +1,53 @@
+{
+  "guard-edit": {
+    "PreToolUse": [
+      {
+        "matcher": "replace_file_content|write_to_file|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/guard-edit.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "guard-merge": {
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/guard-merge.mjs",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "verify-app": {
+    "PostToolUse": [
+      {
+        "matcher": "replace_file_content|write_to_file|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/verify-app.mjs",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  },
+  "session-log": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node .agents/hooks/session-log.mjs",
+        "timeout": 15
+      }
+    ]
+  }
+}

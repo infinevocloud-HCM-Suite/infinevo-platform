@@ -2,7 +2,7 @@
 
 > Tracked skeleton. The live file (`active-work.md`) is gitignored — copy this over it
 > when starting fresh, then populate from **actual repo state**, never from memory
-> (root `CLAUDE.md` rule 6). Cite branch, SHA and date for every claim.
+> (root `GEMINI.md` / `AGENTS.md` rule 6). Cite branch, SHA and date for every claim.
 > Last refreshed: <YYYY-MM-DD>
 
 ## Repo state at last refresh
