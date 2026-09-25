@@ -30,8 +30,8 @@ lane so two lanes never collide on a version.
 
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
-| sayeed | `dev-sayeed` | Defects, then employee | `W-52.1` → `W-53.1` → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` → `W-39.2` | `V026`–`V032`, `V041` |
-| krushna | `dev-krushna` | Tenant and onboarding | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** → `W-12.3` → `W-24.1` → `W-17` | `V033`–`V034` used · `V035`–`V036` |
+| sayeed | `dev-sayeed` | Defects, then employee | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` → `W-39.2` | `V026`–`V032`, `V041` |
+| krushna | `dev-krushna` | Tenant and onboarding | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** → `W-12.3` **sent back 2026-09-25, see § 3c** → `W-24.1` → `W-17` | `V033`–`V034` used · `V035`–`V036` |
 | devashis | `dev-devashis` | Documents, notifications, reporting | `W-21` → `W-20.1` → `W-23.1` | `V037`–`V040` |
 | *unassigned* | — | Payroll | `W-26.1` → `W-26.2` → `W-27.1` → `W-27.2` → `W-28` (after `W-18.1`) → `W-29.1` (after `W-19`) → `W-29.2` → `W-29.3` (after `W-18.1`) → `W-29.4` (after `W-52.1`) → `W-30.1` (core, after `W-19`) → `W-30.2` → `W-31.1` → `W-31.2` → `W-31.3` (after `W-26.2`) → `W-31.4` (after `W-29.3`) → `W-32.1` (after `W-13.4`) → `W-32.2` → `W-32.3` → `W-32.4` | `V042`–`V081` reserved 2026-09-25 (extended by one for `W-27.2`, one for `W-28`, two for `W-29.1`, one each for `W-29.2`, `W-29.3`, `W-29.4`, `W-30.1`, `W-30.2`, eight for `W-31`, twelve for `W-32`); `V042`–`V045` are `W-26.1`, `V046`–`V050` are `W-26.2`, `V051` is `W-27.1`, `V052`–`V053` are `W-27.2`, `V054` is `W-28`, `V055`–`V056` are `W-29.1`, `V057` is `W-29.2`, `V058` is `W-29.3`, `V059` is `W-29.4`, `V060` is `W-30.1` (a `core` script), `V061` is `W-30.2`, `V062`–`V063` are `W-31.1`, `V064`–`V067` are `W-31.2` (`V064` a `reference` script), `V068`–`V069` are `W-31.3`, `V070`–`V072` are `W-32.1` (`V070` a `reference` script), `V073`–`V076` are `W-32.2`, `V077`–`V079` are `W-32.3`, `V080`–`V081` are `W-32.4` |
 
@@ -47,7 +47,7 @@ not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V0
 `V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`.
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
-and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2` and `W-52.1`), `W-15`, `W-16`, `W-18`, `W-25`
+and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2`; `W-52.1` is on main), `W-15`, `W-16`, `W-18`, `W-25`
 (need `W-14.2`).
 
 ## Defects on `main`
@@ -58,12 +58,12 @@ One row per known defect in merged code. A row leaves this table only when its f
 | # | Defect | Found | Fixed by | Status |
 |---|---|---|---|---|
 | D-1 | `mvn verify` fails: `shared`'s `DatabasePrivilegesIT` hits `53300 too_many_connections` (16 test contexts × pool of 10 > 100 slots) | 2026-09-25, running the suite | `W-04.1` | **fixed** `3350cf2` |
-| D-2 | Worker never reads the queue; no consumer loop, producer bean only in `worker`, no retry-then-fail, `RUNNING` jobs re-run | 2026-09-24, `12-core-contracts.md` §5 | `W-52.1` | assigned — sayeed |
-| D-3 | `GET /jobs/{id}` has no `@RequiresAction` and honours a legacy `organizationId` header | 2026-09-24 | `W-52.1` | assigned — sayeed |
+| D-2 | Worker never reads the queue; no consumer loop, producer bean only in `worker`, no retry-then-fail, `RUNNING` jobs re-run | 2026-09-24, `12-core-contracts.md` §5 | `W-52.1` | **fixed** `5c07c45` |
+| D-3 | `GET /jobs/{id}` has no `@RequiresAction` and honours a legacy `organizationId` header | 2026-09-24 | `W-52.1` | **fixed** `5c07c45` |
 | D-4 | Every tenant's seeded `platform-admin` role holds `core.tenant.provision` (platform staff only) | 2026-09-24 | `W-11.3` | **fixed** `3350cf2` |
 | D-5 | Core actions catalogued as `hrms.*` (leave, holiday, attendance) — a module filter would strip them from a Payroll-only tenant | 2026-09-24 | `W-11.3` | **fixed** `3350cf2` |
 | D-6 | No link from `core.employee` to `core.user_account`; `*_own` actions and the portal cannot resolve the caller | 2026-09-24 | `W-13.4` | assigned — sayeed |
-| D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | assigned — sayeed |
+| D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | **fixed** `5c07c45` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | assigned — sayeed |
 | D-9 | `W-10` spec §8 login flow never run by hand; `W-14.1` §8 never independently re-run | at merge | sayeed runs the two §8 checks | assigned — sayeed |
 
@@ -138,8 +138,8 @@ blocker is cleared for all of them.
 |---|---|---|---|
 | `W-11.3` Catalogue correction | Rename the 14 Core actions misfiled as `hrms.*`, add 24 missing codes, take `core.tenant.provision` out of the seeded `platform-admin` role. Migration `V025` | `12-core-contracts.md` §4 | **on main `3350cf2`** · done — built by claude |
 | `W-13.4` Employee login link | `user_account_id` on `core.employee`; employees may edit their own personal and contact sections. Migration `V026` | §5 row 14 | **assigned — sayeed** |
-| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}` | §5 row 21 | **assigned — sayeed** |
-| `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and the `core.queue` package | §5 row 22 | **assigned — sayeed** |
+| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}`. At merge: `JobService` gained `claimForRun` and `releaseForRetry` (spec §4 updated); `QueueRoundTripIT` proves the loop against Azurite | §5 row 21 | **on main `5c07c45`** · done — built by sayeed, merge-review fixes by claude |
+| `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and the `core.queue` package | §5 row 22 | **on main `5c07c45`** · done — built by sayeed |
 | `W-04.1` Test connection budget | `mvn verify` **fails on main** (2026-09-25, reproducible serially): `shared`'s `DatabasePrivilegesIT` dies with `53300 too_many_connections`. 16 `@SpringBootTest` classes each hold a Hikari pool of 10 against a 100-slot Testcontainers Postgres. Fix: one shared test context config with a small pool, or raise the container's `max_connections` | suite green | **on main `3350cf2`** · done — built by claude |
 | `W-09.1` Age category seed | Seed `SENIOR` and `SUPER_SENIOR` slab rows for three financial years (defect #146). Migration `V027` | Stream B defect | **assigned — sayeed** |
 
@@ -155,7 +155,7 @@ blocker is cleared for all of them.
 | #— | `W-22.2` Audit retention | Retention sweep and purge | spec approved; layer 3 in practice — also needs `W-20.1`, `W-20.2` |
 | #12 | `W-11.1` Role & action catalogue | 63-action catalogue in `reference.action`, tenant-scoped roles, seven system roles seeded per tenant, role and grant API | **on main `172eaaa`** · spec approved · code done |
 | #12 | `W-11.2` Permission check & cache | `@RequiresAction` on every endpoint, 403 when not held, shared Redis cache that every replica reloads on a role change | **on main `23d1126`** · spec approved · code done |
-| #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | **`W-12.1` and `W-12.2` on main `b7d03ec`** · done — built by krushna · `W-12.3` **assigned — krushna** · `W-24.1`, `W-20.2`, `W-24.2` unblocked on `W-12.1` |
+| #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | **`W-12.1` and `W-12.2` on main `b7d03ec`** · done — built by krushna · `W-12.3` **sent back 2026-09-25 — krushna** (review on `161c9d1`, § 3c) · `W-24.1`, `W-20.2`, `W-24.2` unblocked on `W-12.1` |
 | #15 | `W-14.1` Org masters | Department, designation and work location (`V011`–`V013`), plus the three nullable columns on `core.employee` (`V014`). Free-text conversion deliberately left to `W-67` | **on main `235aab2`** · code done — §8 verification not independently re-run |
 | #15 | `W-14.2` Reporting line | The new reporting line and the org chart read model | **assigned — sayeed**, after `W-13.3` |
 | #16 | `W-15` Approval engine | Approval definitions, instance lifecycle, step routing along the reporting line, delegation and escalation, history | `W-14.2` — unassigned |
@@ -173,6 +173,26 @@ blocker is cleared for all of them.
 
 ---
 
+### 3c. `W-12.3` review — sent back 2026-09-25
+
+Branch `W-12-3-navigation-feed` at `161c9d1`. CI red on frontend lint; backend green. Not merged.
+Fix on the branch, re-run `check-done.mjs W-12.3`, then it comes back for merge. Items 1–4 block;
+5–7 are fixed in the same pass because the same files are open.
+
+| # | Defect | Where | Why it matters |
+|---|---|---|---|
+| 1 | `useNavigation()` called after an early return — rules-of-hooks; also the reason CI is red | `src/shell/navigation/useCan.js:16` | a screen whose action code changes between renders crashes React |
+| 2 | `NavigationMatchesEnforcementIT` walks 4 of 8 items against test-only stand-in controllers | `core/src/test/.../navigation/NavigationTestEndpointsController.java:17-41` | the test the spec calls the ticket's reason to exist cannot catch catalogue drift |
+| 3 | `core.employee` item targets `GET /api/v1/employees`, which does not exist — only `POST` and `/{id}` | `NavigationCatalogue.java:40` vs `EmployeeController.java:58-81` | every admin sees Employees and gets an error on click; hidden by item 2 |
+| 4 | Routes are not registered from the feed: `routesFromFeed` is never called, no `<Routes>`, `routesFor(entitlements)` kept | `src/shell/routes.js:25,52`, `AppShell.jsx:98` | spec §5: a route not in the response is not registered at all |
+| 5 | Frontend tests re-implement the logic inline and never import `useCan.js`, `useNavigation.js` or `AppShell.jsx` | `useCan.test.js`, `useNavigation.test.js` | a static fallback menu would not fail them — spec §9's top risk |
+| 6 | `hrms.timesheets` and `payroll.runs` point at unbuilt endpoints; the dev-mode "target endpoint exists" check in spec §2 was not written | `NavigationCatalogue.java:76,83` | Globex sees two dead items; nothing flags a dead item |
+| 7 | Tenant-switch refetch listens for `infinevo:tenant-switched`, which nothing dispatches; the test never triggers a refetch | `useNavigation.js:113-128`, `useNavigation.test.js:144-167` | claimed and tested behaviour that never runs |
+
+Merge notes for the founder: take `code/` only (the branch also carries the `.agents/` harness
+move, deletes `CLAUDE.md`, edits `ci.yml` and `.gitignore`); one conflict in
+`PermissionGuardTestApp.java` — keep navigation, subscription and tenant in the scan list.
+
 ## 4. Stream D — Payroll
 
 Nothing started. Everything is blocked, most of it behind `W-26`.
@@ -187,7 +207,7 @@ Nothing started. Everything is blocked, most of it behind `W-26`.
 | #33 | `W-29.1` Pay run — creation, inclusion, locking | `payroll.payrun` and `payroll.employee_payrun`; one non-cancelled run per tenant and period by a partial unique index; every employee considered gets a row, `INCLUDED` or `SKIPPED` with a reason; lock calls `W-19`'s `PayInputService.lock`; the eight-value status vocabulary for all four parts. **Spec Ready 2026-09-25 — unassigned**, after `W-28`, `W-26.2`, `W-19`. Migrations `V055`–`V056` — size-cap exceptions (two scripts, one `core` read method) granted 2026-09-25 |
 | #34 | `W-29.2` Pay run — earnings and deductions | `payroll.employee_payrun_line` with code and name snapshots, money columns on the two `W-29.1` tables, all `numeric(19,4)`; `POST /compute` runs every `PayLineContributor` in order and sums; this ticket ships the `STRUCTURE` contributor only — statutory is `W-31`, tax is `W-36`, LOP and pay inputs are `W-29.3`. **Spec Ready 2026-09-25 — unassigned**, after `W-29.1`, `W-26.2`, `W-27.2`. Migration `V057` |
 | #35 | `W-29.3` Pay run — loss of pay and pay inputs | Two more contributors in the `W-29.2` loop: `LOP` scales the pro-rata lines by `W-18.1`'s divisor for LOP days and days outside the employment window, leavers included; `PAY_INPUT` turns the `W-19` ledger into lines, one per kind, read once per run. No HRMS call. Negative net kept and counted; hours-only overtime counted as unpriced, not paid. The stamp columns stay `W-18.2`'s. **Spec Ready 2026-09-25 — unassigned**, after `W-29.2`, `W-18.1`, `W-19`. Migration `V058` |
-| #36 | `W-29.4` Pay run — async on the worker | `POST /compute` returns `202` and enqueues on `payrun`; `PayrunQueueListener` calls `W-29.2`'s service; progress on the run and on `core.job_status`; resume by attempt number after a dead worker, stale after 15 minutes; duplicate messages never compute twice. The last part of the merge. **Spec Ready 2026-09-25 — unassigned**, after `W-29.3` and `W-52.1` (D-2). Migration `V059` |
+| #36 | `W-29.4` Pay run — async on the worker | `POST /compute` returns `202` and enqueues on `payrun`; `PayrunQueueListener` calls `W-29.2`'s service; progress on the run and on `core.job_status`; resume by attempt number after a dead worker, stale after 15 minutes; duplicate messages never compute twice. The last part of the merge. **Spec Ready 2026-09-25 — unassigned**, after `W-29.3` (`W-52.1` is on main `5c07c45`). Migration `V059` |
 | #37 | `W-30.1` Pay input run tag | `run_ref` on `core.pay_input` and on the lock table, no FK; `forRun`, `lockRun`; a tagged row obeys its run's lock, not the period's, and `forPeriod` returns untagged rows only. No table. **Spec Ready 2026-09-25 — unassigned**, after `W-19`. Migration `V060` |
 | #37 | `W-30.2` Off-cycle pay run | `run_type = 'OFF_CYCLE'` on `payroll.payrun`, zero new tables (founder 2026-09-25); named employees, bank only; `POST /payruns/{id}/inputs` writes tagged ledger rows; `STRUCTURE` and `LOP` contribute nothing, `PAY_INPUT` reads `forRun`; the one-per-period index narrowed to regular runs. One-time payout and bonus are `W-19`/`W-29.x`'s; withheld-salary release dropped. **Spec Ready 2026-09-25 — unassigned**, after `W-30.1`, `W-29.3`. Migration `V061` |
 | #38 | `W-31.1` EPF and ESI settings | `payroll.epf_setting`, `payroll.esi_setting`, one row per tenant; numeric rates and wage ceilings replace text like `"12.00%"` and the browser's `15000`; defaults returned without a row. **Spec Ready 2026-09-25 — unassigned.** Migrations `V062`–`V063` |

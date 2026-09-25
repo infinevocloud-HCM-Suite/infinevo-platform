@@ -7,6 +7,14 @@
 > can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-25 — `W-52.1` and `W-53.1` merged (`5c07c45`)
+
+- The worker consumes the queue: `QueueConsumerLoop` in `worker`, `StorageQueueConfig` in `shared` so `app` can enqueue, `GET /api/v1/jobs/{jobId}` guarded by `core.job.read`. D-2, D-3 and D-7 are fixed.
+- Idempotency is an atomic claim (`JobService.claimForRun`), and a failing job is retried and marked `FAILED` on the third delivery under its tenant. `QueueRoundTripIT` proves it against Azurite and Postgres with nothing mocked.
+- **Newly unblocked:** `W-29.4` pay run async (still after `W-29.3`); the `W-52.1` half of `W-22.2` and `W-23.2` (both still need `W-20.2`).
+- **Still open from `W-52`:** a stale-`RUNNING` sweep after a worker dies mid-job (spec §9), and a local queue stand-in in `compose.yml`.
+- sayeed's next: `W-13.4`. The branch merged was `ticket/feature-sayeed`; the tracker assigns `dev-sayeed`.
+
 ## 2026-09-25 — `W-12.1` and `W-12.2` merged (`b7d03ec`)
 
 - Subscription, module selection and entitlement enforcement are on `main`: `core.subscription`, `core.subscription_module` (`V034`), tenant locale columns (`V033`), `@RequiresModule` in `shared`.
