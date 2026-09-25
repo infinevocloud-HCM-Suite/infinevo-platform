@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-09-24**, against `main` — every row checked against a merge commit.
+> Last refreshed: **2026-09-25**, against `main` — every row checked against a merge commit.
 
 ## Summary
 
@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
 | B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete |
-| C — Core platform | 21 | 7 | 7 | **Building.** Layer 0 done; `W-11`, `W-13.2`, `W-14.1` merged |
+| C — Core platform | 26 | 7 | 7 | **Paused for spec correction.** 20 unbuilt specs are being fixed against `12-core-contracts.md`; 5 correction tickets added |
 | D — Payroll | 21 | 0 | 0 | All blocked on `W-13` and `W-26` |
 | E — HRMS | 5 | 0 | 0 | All blocked on `W-15` |
 | F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is blocked on `W-12` |
@@ -62,8 +62,43 @@ not started.
 
 ## 3. Stream C — Core platform
 
-Seven merged. `W-13.3`, `W-12.1`, `W-19`, `W-20.1`, `W-21`, `W-23.1`, `W-14.2` and `W-39.1`
-are claimable now; everything else waits.
+Seven merged. **Nothing new starts until its spec is corrected** (see §3a). `W-13.3` and
+`W-39.1` are the exceptions: their specs checked out and they are claimable now.
+
+### 3a. Spec corrections (2026-09-25)
+
+The first read of all 36 Core specs together (`docs/target-state/12-core-contracts.md` §5)
+found 23 corrections. The specs below carry **needs correction** until fixed; a developer
+must not build from them before then.
+
+| Spec | Needs correction for |
+|---|---|
+| `W-12.1`, `W-12.2`, `W-12.3` | tenant columns, port placement, cache bump, action codes in the feed |
+| `W-14.2` | `asOf` on the chain; permission codes |
+| `W-15.1`, `W-15.2`, `W-15.3` | step JSON, two missing flows, approved amount, reassign endpoint, circular block |
+| `W-16.1`, `W-16.2`, `W-16.3`, `W-16.4a`, `W-16.4b` | exceed-balance modes, frequencies, statuses, on-behalf entry, file names |
+| `W-17` | three scripts, two unique indexes |
+| `W-18.1`, `W-18.2` | weekday set from pay schedule, class name, no-policy rule |
+| `W-19` | period lock design, idempotency key, append-only grants |
+| `W-20.1`, `W-20.2` | event list, reminder-rule columns, `/reminder-rules` API, `notification` queue |
+| `W-21` | document kinds, limits, link life |
+| `W-22.2`, `W-23.1`, `W-23.2` | tenant sweep visibility, `ReportSource`, async export as a job |
+| `W-24.1`, `W-24.2`, `W-25` | role join table, invitation lifecycle, `PortalPanelProvider` |
+
+Every spec above also needs its `@RequiresAction` codes, which come from `W-11.3`, so
+**`W-11.3` blocks all of them.**
+
+### 3b. Correction tickets
+
+| Ticket | What it is | Fixes | Ready? |
+|---|---|---|---|
+| `W-11.3` Catalogue correction | Rename the Core actions misfiled as `hrms.*`, add the ~20 missing codes, take `core.tenant.provision` out of the seeded `platform-admin` role | `12-core-contracts.md` §4 | spec pending |
+| `W-13.4` Employee login link | `user_account_id` on `core.employee`; employees may edit their own personal and contact sections | §5 row 14 | spec pending |
+| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}` | §5 row 21 | spec pending |
+| `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and `core.queue.QueueMessage` | §5 row 22 | spec pending |
+| `W-09.1` Age category seed | Seed `SENIOR` and `SUPER_SENIOR` exemption rows (defect #146) | Stream B defect | spec pending |
+
+`W-52.1` and `W-53.1` are backend fixes to tickets tracked in [INFRA-TRACKER.md](INFRA-TRACKER.md).
 
 | # | Ticket | What it is | Ready? |
 |---|---|---|---|
