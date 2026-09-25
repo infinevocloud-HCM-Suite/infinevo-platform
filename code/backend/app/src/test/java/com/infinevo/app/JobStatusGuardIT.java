@@ -34,18 +34,20 @@ class JobStatusGuardIT extends AbstractIntegrationTest {
     @MockBean
     private JobService jobService;
 
+    private static final String USER_ID = "11111111-1111-1111-1111-111111111111";
     private static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @Test
     @DisplayName("Returns 403 Forbidden when caller lacks core.job.read permission")
-    @WithMockUser(username = "unauthorized-user")
+    @WithMockUser(username = USER_ID)
     void forbiddenWithoutPermission() throws Exception {
-        mockMvc.perform(get("/api/v1/jobs/job-100")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/jobs/job-100").header("X-Tenant-Id", TENANT_A.toString()))
+                .andExpect(status().isForbidden());
     }
 
     @Test
     @DisplayName("Returns 404 Not Found when requested job belongs to another tenant or not found")
-    @WithMockUser(username = "authorized-user", authorities = "core.job.read")
+    @WithMockUser(username = USER_ID, authorities = "core.job.read")
     void notFoundForOtherTenantJob() throws Exception {
         BDDMockito.given(jobService.getJobStatus("job-other", TENANT_A)).willReturn(Optional.empty());
 
