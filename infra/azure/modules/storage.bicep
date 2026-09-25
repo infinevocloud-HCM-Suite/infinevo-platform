@@ -101,10 +101,14 @@ resource queueService 'Microsoft.Storage/storageAccounts/queueServices@2023-01-0
   name: 'default'
 }
 
+// W-20.1 adds the fourth, 'notification': app puts an email notification's id on it after
+// commit, and W-20.2's worker sends it. The role assignments above are scoped to the
+// account, so the new queue needs none of its own.
 var queueNames = [
   'payrun'
   'import'
   'report'
+  'notification'
 ]
 
 resource queues 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-01-01' = [for qName in queueNames: {

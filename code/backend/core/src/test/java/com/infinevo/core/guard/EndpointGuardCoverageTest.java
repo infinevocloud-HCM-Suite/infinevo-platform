@@ -39,7 +39,10 @@ class EndpointGuardCoverageTest {
             "com.infinevo.core.document.DocumentReadController",
             "core.document.read, or core.document.read_own for the caller's own document (W-21 spec section 4):"
                     + " two codes, which @RequiresAction cannot express until W-13.4's anyOf; DocumentReadAccess"
-                    + " checks both on every call and fails closed");
+                    + " checks both on every call and fails closed",
+            "com.infinevo.core.notification.NotificationController",
+            "recipient only (W-20.1 spec section 4): every member reads their own notifications and nobody"
+                    + " else's; the query is scoped to tenant and recipient, so there is no action to hold");
 
     @Test
     @DisplayName("every mapped method in core and shared names the action it requires")
