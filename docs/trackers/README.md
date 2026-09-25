@@ -1,57 +1,31 @@
 # Trackers
 
 > Four files, one per kind of work. **These trackers are the source of truth** for who
-> owns what and where it stands. GitHub tickets are no longer used (2026-09-24). Last refreshed: **2026-09-24**, against `origin/main` at `1d1123a`.
+> owns a ticket and where it stands. `/plan-feature`, `/develop` and `/merge` update the
+> row; GitHub carries no status of its own.
+> Last refreshed: **2026-09-22**.
 
-## The overall picture
-
-| Tracker | Tickets | Done (on `main`) | Of which proven live | In flight | Ready | Blocked |
-|---|---|---|---|---|---|---|
-| [DEV](DEV-TRACKER.md) — streams A–F, product items | 74 | 15 | 15 | 1 | 13 | 45 |
-| [INFRA](INFRA-TRACKER.md) — containers, CI, Azure, security | 18 | 13 | **4** | 1 | 3 | 1 |
-| [HARNESS](HARNESS-TRACKER.md) — the build process | 12 | 9 | 9 | 0 | 3 | 0 |
-| [MIGRATION](MIGRATION-TRACKER.md) — stream I | 8 | 0 | 0 | 0 | 0 | 8 |
-| **Total** | **112** | **37** | **28** | **2** | **19** | **54** |
-
-Rows are build pieces: where a ticket's parts ship separately (`W-13.1`, `.2`, `.3`) each
-is a row. GitHub itself holds 113 tickets — 40 closed, 73 open — six of
-them docs tickets, listed in the harness tracker. **By weighted effort the build is about 27%
-done** (migration excluded).
-
-## Blocking everyone today
-
-| What | Effect |
+| Tracker | Covers |
 |---|---|
-| **GitHub Actions is not running** — "recent account payments have failed or your spending limit needs to be increased", every run since 2026-09-24 07:29 UTC | CI, `Tickets` (claiming, unblocking), `Deploy` and the security rescan all fail without starting. `check-done.mjs` gate 10 reads the CI conclusion, so **nothing can pass `/merge`** until billing is fixed |
-| **Azure dev is deployed but nothing starts** | All four container apps exist in `rg-infinevo-dev` (image `git-26c6078`, 2026-09-23) and every revision fails activation: Keycloak gets no database password, `app` and `worker` fail on a missing JWT key-set setting, `web` fails its startup probe. The `Deploy` workflow itself has never succeeded — the estate was deployed by hand |
+| [INFRA-TRACKER.md](INFRA-TRACKER.md) | Containers, GitHub Actions, Azure, security, operations — streams G and H |
+| [DEV-TRACKER.md](DEV-TRACKER.md) | The product itself — foundation, data, core, payroll, HRMS, frontend — streams A to F |
+| [HARNESS-TRACKER.md](HARNESS-TRACKER.md) | The build process itself: skills, hooks, merge gate, ticket automation |
+| [MIGRATION-TRACKER.md](MIGRATION-TRACKER.md) | Moving live data out of the four frozen applications — stream I |
 
-## How work moves
+## The three status columns
 
-| Step | Who | Tracker change |
+Every row carries three, because a ticket can be closed and the thing still not work.
+
+| Column | Values | Means |
 |---|---|---|
-| Spec written, `/plan-feature W-nn <dev>` | Founder | Row → **Assigned**, Owner = developer |
-| Build starts, `/develop W-nn` on `dev-<name>` | Developer | Row → **In flight — dev-<name>**. One row In flight per developer |
-| Gates and review pass, `/merge W-nn` | Developer | Row → **Ready to merge** |
-| Merged to `main` | Founder | Row → **Done**; rows it unblocks → **Ready** |
-| Seen working in Azure | Whoever checks | Row → **Done — proven live** |
+| **Spec** | `—` · `draft` · `approved` | Founder approval is the gate before any code (hard rule 1) |
+| **Code** | `—` · `in flight` · `on main` | Where the code is. `in flight` means a branch exists |
+| **Feature** | `—` · `code done` · `done` | `code done` = merged and the build is green. `done` = proven to work for real |
 
-## The status values
-
-| Status | Means |
-|---|---|
-| **Done** | The code is on GitHub `origin/main`. **Nothing else counts as done** — a closed ticket, a green branch or a local commit is not |
-| **Done — not live** | On `main`, but never run in Azure. Every Azure and pipeline ticket is here |
-| **In flight** | A branch is pushed to GitHub and not merged |
-| **Ready** | Blockers cleared; not yet assigned |
-| **Assigned** | The founder has given it to a developer; not started |
-| **Ready to merge** | Gates and review passed on `dev-<name>`; waiting for the founder |
-| **Blocked** | Waits on another ticket |
-
-| Column | Where it comes from |
-|---|---|
-| **Spec** | `written` = the spec is in `docs/target-state/features/` |
-| **Owner** | The developer the founder assigned. `—` means unassigned |
-| **Built by** | The author of the commit on `main` |
+**`code done` is not `done`.** Everything Azure is `code done`: the Bicep builds, the
+scripts parse, nothing has ever been deployed (#124). A backend ticket reaches `done`
+when its tests pass against a real database; an Azure ticket reaches `done` when it has
+run in a live environment.
 
 ## Related
 

@@ -2,16 +2,17 @@
 
 > Moving live data out of the four frozen applications into the new tables — stream I.
 > **Nothing here touches production data until every other stream works.**
-> **GitHub is authoritative. Done means on `origin/main`, nothing else.** Legend: [README.md](README.md).
-> Last refreshed: **2026-09-24**, against `origin/main` at `1d1123a`. No change since 2026-09-22.
+> **GitHub is authoritative.** Status legend: [README.md](README.md).
+> Last refreshed: **2026-09-22**.
 
 ## Summary
 
 | | |
 |---|---|
-| Tickets | 8 — all blocked, none owned |
+| Tickets | 8 |
 | Spec approved | **0** |
-| Done (on `main`) | **0** |
+| Code on main | **0** |
+| Feature done | **0** |
 | Blocked by | Streams C, D and E complete |
 
 **Not started, and correctly so.** Migration is last by design. Two tickets carry a
@@ -21,16 +22,16 @@
 
 ## 1. The tickets
 
-| # | Ticket | What it is | Blocked by | Labels | Owner |
-|---|---|---|---|---|---|
-| #87 | `W-67` Migration rules | Employee deduplication rules, the leave authority decision, the timesheet data decision, duplicate entity resolution, the loss-of-pay reconciliation approach. **Written and agreed before a single row moves** | Streams C–E complete | `needs-founder` | — |
-| #88 | `W-68.1` Migration engine — extract and staging | Pull from the two frozen MySQL databases into staging | `W-67` | | — |
-| #89 | `W-68.2` Migration engine — transform and merge | Reshape and merge the two sources into one | `W-68.1` | | — |
-| #90 | `W-68.3` Migration engine — load and restartability | Load into Postgres, and survive being restarted halfway | `W-68.2` | | — |
-| #91 | `W-69` Document migration | Rewrite document references, copy the blobs, verify them | `W-21`, `W-68` | | — |
-| #92 | `W-70` Reconciliation | Row counts, financial totals, per-employee comparison, and a **loss-of-pay mismatch log for finance** | `W-68` | | — |
-| #93 | `W-71` Rehearsals | Rehearsal automation, result capture, repeat until boring | `W-70` | | — |
-| #94 | `W-72` Cutover | Freeze window, switch, smoke test, **rollback runbook** | `W-71` | `needs-founder` | — |
+| # | Ticket | What it is | Blocked by | Labels |
+|---|---|---|---|---|
+| #87 | `W-67` Migration rules | Employee deduplication rules, the leave authority decision, the timesheet data decision, duplicate entity resolution, the loss-of-pay reconciliation approach. **Written and agreed before a single row moves** | Streams C–E complete | `needs-founder` |
+| #88 | `W-68.1` Migration engine — extract and staging | Pull from the two frozen MySQL databases into staging | `W-67` | |
+| #89 | `W-68.2` Migration engine — transform and merge | Reshape and merge the two sources into one | `W-68.1` | |
+| #90 | `W-68.3` Migration engine — load and restartability | Load into Postgres, and survive being restarted halfway | `W-68.2` | |
+| #91 | `W-69` Document migration | Rewrite document references, copy the blobs, verify them | `W-21`, `W-68` | |
+| #92 | `W-70` Reconciliation | Row counts, financial totals, per-employee comparison, and a **loss-of-pay mismatch log for finance** | `W-68` | |
+| #93 | `W-71` Rehearsals | Rehearsal automation, result capture, repeat until boring | `W-70` | |
+| #94 | `W-72` Cutover | Freeze window, switch, smoke test, **rollback runbook** | `W-71` | `needs-founder` |
 
 ---
 

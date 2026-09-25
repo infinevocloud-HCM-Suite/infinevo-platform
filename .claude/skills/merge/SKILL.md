@@ -52,7 +52,7 @@ settled the approach.
 
 Spot-check two `file:line` citations before acting on them.
 
-Before handing over: set the tracker row to `Ready to merge — dev-<name>`, commit, push,
+Before handing over: set the ticket's row in `docs/trackers/` to `Ready to merge — dev-<name>`, commit, push,
 and tell the founder. If step 2 produced a fix, run step 1 again first.
 
 ## Step 3 — the founder puts it on main

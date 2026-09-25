@@ -16,6 +16,7 @@ infinevo-platform/
 ├── docs/        THE DESIGN        target-state/ (where we are going, 12 documents)
 │                                  target-state/features/ (one spec per ticket)
 │                                  CONVENTIONS.md (rules new code must follow)
+│                                  trackers/ (owner and status of every ticket — the source of truth)
 │
 ├── code/        THE CODE          backend/  shared core hrms payroll app worker migration
 │                                  frontend/ src/{shell core hrms payroll shared}
@@ -112,6 +113,7 @@ describes code being replaced, not a rule for new code.
 | Where we are going: decisions, work plan, build order | `@docs/target-state/README.md` |
 | Coding rules, `BigDecimal`, naming hazards | `@docs/CONVENTIONS.md` |
 | New feature spec | `@docs/target-state/features/TEMPLATE.md` |
+| Who owns a ticket and where it stands — **the source of truth** | `@docs/trackers/README.md` |
 | Current direction, in-flight, frozen | `@.claude/work/active-work.md` |
 | Setup and the developer loop | `@CONTRIBUTING.md` |
 

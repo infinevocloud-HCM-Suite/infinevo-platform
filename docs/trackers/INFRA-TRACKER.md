@@ -1,110 +1,125 @@
 # Infra Tracker
 
 > Containers, GitHub Actions, Azure, security and operations — streams G and H.
-> **GitHub is authoritative. Done means on `origin/main`, nothing else.** Legend: [README.md](README.md).
-> Last refreshed: **2026-09-24**, against `origin/main` at `1d1123a`.
+> **GitHub is authoritative.** Status legend: [README.md](README.md).
+> Last refreshed: **2026-09-24**, against `main` — every row checked against a merge commit.
 
 ## Summary
 
-| | Rows | Done | Of which proven live | In flight | Ready | Blocked |
-|---|---|---|---|---|---|---|
-| Containers & local stack | 2 | 2 | 2 | 0 | 0 | 0 |
-| GitHub Actions | 3 | 3 | 2 | 0 | 0 | 0 |
-| Azure | 8 | 7 | **0** | 1 | 0 | 0 |
-| Security & operations | 5 | 1 | 0 | 0 | 3 | 1 |
-| **Total** | **18** | **13** | **4** | **1** | **3** | **1** |
+| | Tickets | Spec approved | Code on main | Feature done |
+|---|---|---|---|---|
+| Containers & local stack | 2 | 2 | 2 | 2 |
+| GitHub Actions | 4 | 4 | 4 | 2 |
+| Azure | 5 | 5 | 5 | **0** |
+| Security & operations | 7 | 5 | 5 | 4 |
+| Open defects | 1 | — | — | — |
 
-`W-55` Index & query standard is done and tracked in [DEV-TRACKER.md](DEV-TRACKER.md) §7.
-
-**Azure dev is deployed, but nothing in it starts.** The estate exists in
-`rg-infinevo-dev` and `rg-infinevo-shared`, deployed by hand (the `Deploy` workflow has never
-succeeded). All four apps run image `git-26c6078` and every revision since 2026-09-19 fails
-activation. Branch `W-51-azure-dev-live` has sat unmerged since 2026-09-19.
-
----
-
-## 0. Blocking right now
-
-| What | Since | Effect |
-|---|---|---|
-| **GitHub Actions billing** — jobs are refused with "recent account payments have failed or your spending limit needs to be increased" | 2026-09-24 07:29 UTC | CI, `Tickets`, `Deploy` and `Security Rescan` fail without starting a runner. `/merge` gate 10 needs a green CI run, so **no ticket can merge** |
-| **No container starts in Azure dev** | 2026-09-19 | Keycloak: `PSQLException: SCRAM-based authentication, but no password was provided` — its database secret is empty. `app`, `worker`: Spring fails on `OAuth2ResourceServerJwtConfiguration…jwtDecoderByJwkKeySetUri` — the JWT key-set setting from `W-10` is not set in the Bicep. `web`: startup probe fails. `worker` also has no scale trigger |
-| **Azure deploy identity not configured** | since `W-54` merged | `Deploy` needs `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` as repository variables, and a federated credential for `refs/heads/main`. Neither exists |
+**Nothing Azure has ever been deployed.** Five tickets are merged and zero are proven (#124).
 
 ---
 
 ## 1. Containers and the local stack
 
-| # | Ticket | Spec | Status | Owner | Built by |
+| # | Ticket | What it is | Spec | Code | Feature |
 |---|---|---|---|---|---|
-| #3 | `W-02` Local development stack — nine containers from one command | approved | **Done** — proven, all healthy in 114s | — | InvoiceLLM |
-| #69 | `W-49` Containerisation — three production images, non-root, no secrets | approved | **Done** — proven, built and gated by CI | KarmaveerM | KarmaveerM |
+| #3 | `W-02` Local development stack | Nine containers from one command, schema bootstrap on start, two seeded tenants with different module sets, mail catcher | approved | on main | **done** — all healthy in 114s |
+| #69 | `W-49` Containerisation | Three production images: backend carrying both `app.jar` and `worker.jar` selected by `INFINEVO_ROLE`, unprivileged nginx on 8080, Keycloak with no realm baked in. All non-root, no secrets | approved | on main | **done** — 154 / 24 / 225 MB, built and gated by CI |
+
+Files: `infra/docker/` — `compose.yml`, `backend.Dockerfile`, `frontend.Dockerfile`,
+`keycloak.Dockerfile`, `migration-runner.Dockerfile`, two dev Dockerfiles, three
+entrypoints, `nginx/`, `postgres/`, `seed/`.
+
+Left behind by `W-49`, both handed to `W-59`: the container scan's "report-only until
+`W-49`" condition has expired, and the Keycloak image runs with primary group 0.
 
 ---
 
 ## 2. GitHub Actions
 
-| # | Ticket | Workflow | Spec | Status | Owner | Built by |
+| # | Ticket | Workflow | What it does | Spec | Code | Feature |
 |---|---|---|---|---|---|---|
-| #4 | `W-03` Build & test pipeline | `ci.yml` | approved | **Done** — proven; **not running today** (billing) | SayInfi | InvoiceLLM |
-| #74 | `W-54` Deployment pipeline | `deploy.yml` | approved | **Done — not live.** Never succeeded | KarmaveerM | sanjib |
-| #79 | `W-59` Scanning — dependency, code, container, secret scans, Dependabot | job in `ci.yml` | approved | **Done** — proven in CI | BirenGit | BirenGit |
+| #4 | `W-03` Build & test pipeline | `.github/workflows/ci.yml` | Compile, lint, test, build images. Deploys nothing, pushes to no registry | approved | on main | **done** |
+| #70 | `W-50` (part of) | `.github/workflows/infra.yml` | Bicep lint and what-if on every change under `infra/azure/` | approved | on main | **code done** — what-if never run against a real subscription |
+| #74 | `W-54` Deployment pipeline | `.github/workflows/deploy.yml` | Promote the image CI already built, never rebuild it; run the migration job; switch revision; roll back by shifting traffic. OIDC to Azure | approved | on main | **code done** — merged 2026-09-22, never executed |
+| #79 | `W-59` Scanning | `.github/workflows/security.yml` | Trivy dependencies and images, Semgrep SAST, Gitleaks, Dependabot. Carried Spring Boot 3.3.13 → 3.5.16 (`D-60`, 29 CVEs) | approved 2026-09-16 | on main `ebb1d14` | **done** |
 
-`.github/workflows/tickets.yml` is harness — see [HARNESS-TRACKER.md](HARNESS-TRACKER.md).
+`W-59` edited the same `images` job that `W-49` rewrote, and landed as its own workflow.
+
+`.github/workflows/tickets.yml` is harness, not infra — see
+[HARNESS-TRACKER.md](HARNESS-TRACKER.md).
 
 ---
 
 ## 3. Azure
 
-| # | Ticket | Spec | Status | Owner | Built by |
+| # | Ticket | What it builds | Spec | Code | Feature |
 |---|---|---|---|---|---|
-| #70 | `W-50` Azure infrastructure as code — the estate in Bicep | approved | **Done — not live** | KarmaveerM | InvoiceLLM |
-| #71 | `W-51` Networking & identity — VNet, private endpoints, RBAC | approved | **Done — not live** | — | InvoiceLLM |
-| #72 | `W-52` Queue & worker — Storage Queue, job status, ShedLock | approved | **Done — not live** (tested on Azurite) | — | BirenGit |
-| #73 | `W-53` Caching — Redis, permission and master-data cache | approved | **Done — not live** | — | KarmaveerM |
-| #76 | `W-56` Secrets — Key Vault, no default values, worker role | approved | **Done — not live** (#129) | BirenGit | sanjib |
-| #80 | `W-60` Observability — logging, tracing, metrics, dashboards | approved | **Done — not live** | — | BirenGit |
-| #81 | `W-61` Alerting — alert rules, on-call routing | approved | **Done — not live** | KarmaveerM | KarmaveerM |
-| #124 | Prove the nine unverified `W-50` / `W-51` checks in a real dev environment | — | **In flight** — `W-51-azure-dev-live` (KarmaveerM, 2026-09-19, not merged) | — | — |
+| #70 | `W-50` Azure infrastructure as code | The estate in Bicep — 2 resource groups, container registry, Key Vault, Log Analytics, Container Apps environment and 4 apps, Postgres 16 Flexible, Redis, Storage blob and queue, 4 managed identities, Front Door with WAF | approved 2026-09-18 | on main | **code done** |
+| #71 | `W-51` Networking & identity | The perimeter — VNet and subnets, private endpoints and private DNS for Postgres, Redis, Storage and Key Vault, Front Door origin lock by IP, managed-identity RBAC, in-VNet migration job, Central India residency | approved 2026-09-19 rev 3 | on main | **code done** |
+| #72 | `W-52` Queue & worker | Background jobs — Storage Queue in Azure and Azurite locally, job dispatch, job status and progress, ShedLock so the two cron jobs stop firing twice on multiple replicas | approved 2026-09-21 | on main `e833196` | **code done — defect open.** No consumer loop runs, producer is worker-only, `/jobs/{id}` unguarded. Fix is `W-52.1` in [DEV-TRACKER.md](DEV-TRACKER.md) §3b |
+| #73 | `W-53` Caching | Cache abstraction, permission cache, master data cache, invalidation. The Redis already exists from `W-50` | approved 2026-09-22 | on main `808d837` | **code done** — two unused classes remain; cleanup is `W-53.1` in [DEV-TRACKER.md](DEV-TRACKER.md) §3b |
+| #76 | `W-56` Secrets | No credential anywhere in the repo — Key Vault, managed-identity resolution, dual-role zero-downtime database rotation | approved 2026-09-23 rev 6 | on main `64ec5fd` | **code done** — rotation removed in rev 6; never run in Azure |
 
-### What "not live" is hiding
+### What "code done" is hiding
 
-The Bicep builds and lints, the scripts parse, but **no live check has ever run**: not
-Front Door routing, not the WAF, not the private-path probes, not the role assignments,
-not the migration job, not a container resolving a Key Vault secret. #124 closes this and
-is part of the work, not polish.
+`W-50`, `W-51`, `W-54`, `W-56`, `W-60`, `W-61` and `W-62` are verified as code and never
+as an environment. The Bicep builds and lints clean and the scripts parse, but **no live
+check has ever run**: not Front Door routing, not the WAF, not the six private-path probes,
+not the 16 role assignments, not the migration job, not a deployment, not a Key Vault
+resolution, not an alert rule, and **not a restore**. The shape of the risk is `W-50`'s `AcrPull` role — declared, never
+exercised, green through four gate passes. **#124** closes this and is part of the work,
+not polish.
+
+### Carried forward
+
+- `W-52` is merged, so `W-20` notifications and `W-29` pay run are unblocked on the queue.
+- `W-52` must handle **idempotency in code**: Storage Queue does not guarantee ordering
+  (`D-50`).
 
 ---
 
 ## 4. Security, operations, go-to-market
 
-| # | Ticket | Spec | Status | Owner |
-|---|---|---|---|---|
-| #77 | `W-57` Deny-by-default authentication | — | Ready — `W-10` done | — |
-| #78 | `W-58` Tenant isolation tests | — | Ready | — |
-| #82 | `W-62` Backup & disaster recovery — a restore actually performed | written | **Done — not live** (`1d1123a`) | — |
-| #83 | `W-63` Load test | — | Ready — needs a live environment | — |
-| #84 | `W-64` Penetration test | — | Blocked — `W-57`, `W-58` | — |
+Observability, alerting, backup and load testing are merged. `W-57`, `W-58` and `W-64` have no
+spec yet.
 
-`W-59`, `W-60` and `W-61` are counted in §2 and §3. `W-65` admin console and `W-66`
-website are in [DEV-TRACKER.md](DEV-TRACKER.md) §7.
+| # | Ticket | What it is | Status |
+|---|---|---|---|
+| #77 | `W-57` Deny-by-default authentication | Everything closed unless explicitly listed, with a build-time check that fails on a new unlisted public endpoint. Also carries the `X-Azure-FDID` origin check deferred out of `W-51` | `W-10` Identity |
+| #78 | `W-58` Tenant isolation tests | Cross-tenant read tests, row-level security verification, wired into the pipeline | ready — `W-08` merged |
+| #80 | `W-60` Observability | Structured logging, tracing, metrics, health endpoints, dashboards. One request followable across app, worker and database | **on main `3e1aebc`** · code done |
+| #81 | `W-61` Alerting | Alert rules, routing to a person, an on-call process | **on main `10e60bc`** · code done — no rule has ever fired |
+| #82 | `W-62` Backup & disaster recovery | Backup configuration, a restore that has actually been performed, a recovery runbook | **on main `1d1123a`** · code done — **no restore has been performed** |
+| #83 | `W-63` Load test | Scenarios, baseline, regression run | **on main** · code done |
+| #84 | `W-64` Penetration test | External engagement and remediation. Re-tests the perimeter and is where `D-51` Front Door Standard gets revisited | `W-57`, `W-58` |
 
 ---
 
-## 5. Decisions that shape this stream
+## 5. Open defects and follow-ups
+
+| # | What | Size |
+|---|---|---|
+| #124 | Prove the nine unverified `W-50` / `W-51` acceptance checks against a real dev environment | M |
+
+Closed with their tickets: #138 (migrate job reported success while applying nothing),
+#120 (docs drift from `W-49`).
+
+---
+
+## 6. Decisions that shape this stream
 
 | Decision | Effect |
 |---|---|
 | `D-10` | Azure Container Apps, not Kubernetes |
+| `D-11` | API gateway deferred |
 | `D-18` | Central India region |
 | `D-19` | 10 tenants × 100 employees — the scale every sizing choice is made against |
 | `D-48` | One backend image; `app` and `worker` selected by `INFINEVO_ROLE` |
 | `D-49` | Frontend runs non-root nginx on 8080 |
-| `D-50` | Azure Storage Queue, not Service Bus |
-| `D-51` | Front Door **Standard**, not Premium |
-| `D-53` | Key Vault is the single exception to "only Front Door is public" |
-| `D-54` | Container Apps origins protected by an IP boundary until `W-57` |
-| `D-60` | Spring Boot 3.5.x, clearing 29 CVEs |
+| `D-50` | Azure Storage Queue, not Service Bus — a private endpoint on Service Bus is Premium-tier only, roughly ten times Standard |
+| `D-51` | Front Door **Standard**, not Premium — no managed OWASP rule set, no Private Link origins |
+| `D-53` | Key Vault is the single documented exception to "only Front Door is public" |
+| `D-54` | Container Apps origins are protected by an IP boundary, not authentication, until `W-57` |
 
 ---
 

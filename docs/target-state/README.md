@@ -122,5 +122,6 @@ are in `06` §5 with evidence.
 | `legacy/docs/FEATURE_MAP.md` | Which files implement which feature today |
 | `legacy/docs/GAP_INVENTORY.md` | Known defects and debt |
 | `docs/CONVENTIONS.md` | Coding rules, money handling, naming hazards |
+| `docs/trackers/` | Owner and status of every ticket — the source of truth |
 | `.claude/work/active-work.md` | Live project state, branches, in-flight work |
 | `.claude/outputs/2026-09-11-*` | The investigations this design rests on |

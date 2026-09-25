@@ -1,6 +1,6 @@
 # Contributing
 
-How to set up, what to read, and how a ticket gets from claimed to merged.
+How to set up, what to read, and how a ticket gets from assigned to merged.
 
 This is the front door. The full version of the process is
 [`docs/target-state/11-ways-of-working.md`](docs/target-state/11-ways-of-working.md).
@@ -92,43 +92,40 @@ Look the rest up when you hit the question:
 
 ---
 
-## 3. Claiming a ticket
+## 3. Getting a ticket
 
-**Work is pulled, not handed out.** Nobody waits to be assigned; nobody is assigned
-ahead of time. GitHub is the queue and the lock, and `.github/workflows/tickets.yml`
-enforces the rules below (#107).
+**Work is assigned, not claimed.** The founder writes the spec and puts your name on the
+ticket's row in [`docs/trackers/`](docs/trackers/README.md). That row is the source of
+truth for who owns a ticket and where it stands. GitHub carries no status of its own,
+there are no labels to watch, and nothing to claim.
 
 | Rule | What it means |
 |---|---|
-| **Claimable** = `ready` label + no assignee | `gh issue list --label ready --search "no:assignee"` |
-| **Claim** = assign yourself | `gh issue edit <n> --add-assignee @me`, then comment `claimed` |
-| **One owner, ever** | A second assignee is reverted automatically. The earlier one wins |
-| **WIP limit 2** | One in build, one waiting on approval. A third claim is reverted |
-| **`next` first, your `skill-*` only** | The founder marks what should go first. Don't reach past it |
-| **Blocked tickets free themselves** | When every `Blocked by` ticket closes, the label flips to `ready` |
-| **3 working days idle = released** | No branch, commit or comment: the claim returns to the queue |
+| **Yours** = your name in the Owner column | If the row does not name you, it is not yours. `/develop` refuses to start |
+| **One in flight at a time** | You may hold several `Assigned` rows, but only one may be `In flight` |
+| **One branch, reused** | `dev-<name>`, created from `main` once, rebased onto `main` before every ticket |
+| **The row moves with the work** | `Assigned` → `In flight` → `Ready to merge` → `Done`. Each command sets the next value |
+| **Only `/merge` writes `Done`** | Done means on `main`. Nothing else may say so |
+| **Blocked rows wait** | `/plan-feature` will not spec a Blocked ticket. It says which ticket it waits on |
 
-Ownership is the assignee field and nothing else. There are no `owner-*` labels.
+### Developer: the steps, assigned to merged
 
-### Developer: the steps, claim to merge
-
-**One ticket in build at a time.** Each command ends by telling you the next, in plain
-English. Same steps for a feature and for platform work.
+Each command ends by telling you the next, in plain English. Same steps for a feature
+and for platform work.
 
 | # | Step | Command | What comes back |
 |---|---|---|---|
-| 1 | **Claim it** | `gh issue edit <n> --add-assignee @me` | Comment `claimed`. If the bot reverts, read why and take the next |
-| 2 | Branch | `git checkout -b W-nn-<slug> main` | The `W-nn` in the name is what tells the stale sweep you started |
+| 1 | **Find your row** | open `docs/trackers/` | A row with your name and status `Assigned`. Its spec is already in `docs/target-state/features/` |
+| 2 | Branch | `git checkout dev-<name> && git rebase origin/main` | Your branch, level with `main` |
 | 3 | Understand it | `/analyze W-nn` | The ticket in plain English: what it is, what it touches, the one thing that will bite |
-| 4 | **Write the spec** | `/plan-feature W-nn` | What will be built and what could go wrong. It stops here |
-| 5 | **Get it approved** | — | **The one gate before code.** One draft, one answer |
-| 6 | **Build** | `/develop W-nn` | Builds, runs its own checks, fixes what it finds, pushes the branch. One pass |
-| 7 | **Merge** | `/merge W-nn` | Seven gates, one independent read, then squashed onto main. One line: pushed successfully |
-| 8 | Docs | `/sync-docs` | Only if the ticket made a document untrue |
+| 4 | **Build** | `/develop W-nn` | Sets the row to `In flight — dev-<name>`, builds, runs its own checks, fixes what it finds, pushes the branch |
+| 5 | **Hand over** | `/merge W-nn` | Five gates, one independent read, row set to `Ready to merge — dev-<name>`. Then the founder merges |
+| 6 | Docs | `/sync-docs` | Only if the ticket made a document untrue |
 
-There is no pull request. The branch is squashed onto `main` by `/merge`, and everything
-a pull request used to prove — what changed, that CI was green for it — the done check
-proves from the branch itself.
+There is no spec approval stop: the founder wrote the spec, so a spec on `main` is ready
+to build. There is no pull request. The branch is squashed onto `main` by the founder,
+and everything a pull request used to prove — what changed, that CI was green for it —
+the done check proves from the branch itself.
 
 **Checks run inside the build, and defects are fixed on the spot.** No finding numbers,
 no report files, no rounds. Earlier this was three separate checking skills that could
@@ -141,29 +138,24 @@ edit tools. It is there because running things is not the same as reading them: 
 the smoke test reported 23 of 23 while the documented Keycloak admin login returned 401 —
 the test hit the realm endpoint, which works whether or not the admin user exists.
 
-Disagreements about approach belong at step 5, not step 6.
+Disagree with the spec? Say so before `/develop`, not inside it. Blocked or stuck for
+good? Tell the founder; the row is theirs to reassign.
 
-Blocked for more than a day? Say so in a ticket comment. Silence is what gets a claim
-released. Stuck for good or reprioritised? Unassign yourself, comment why, and claim
-the next.
+### Founder: the steps
 
-### Approver: the steps
+The founder writes, assigns and merges. Developers build.
 
-The founder never assigns a ticket. Developers claim; the founder steers the order.
-
-1. **Keep `next` populated.** Three to five tickets, in the order they should go.
-   `gh issue edit <n> --add-label next`. That is the only steering needed day to day.
-2. **Approve specs within a day.** Step 5 of the developer list is the only place a
-   developer waits on you, so it is the only place idle time can come from.
-3. **Merge.** `/merge W-nn` is yours. `Closes #n` in the commit closes the ticket, and
-   closing it is what releases the tickets behind it.
-4. **Check the queue weekly.** `gh issue list --label ready --search "no:assignee"` should never
-   be empty while a developer is free; `gh issue list --label blocked` shows what is
-   coming. If `ready` runs dry, split or unblock something.
-5. **Reprioritise with labels, not people.** Move `next` around. If a claimed ticket
-   must stop, comment on it and the developer unassigns themself and claims the next.
-6. **Never pre-assign.** Ownership starts when a developer claims. A `blocked` ticket
-   cannot be claimed, and every ticket sits unassigned until then.
+1. **Write the spec.** `/plan-feature W-nn <developer>` writes it into
+   `docs/target-state/features/` and sets the tracker row to `Assigned` with that
+   developer as Owner. Commit both together.
+2. **Keep every developer holding an `Assigned` row.** The tracker is the queue. A
+   developer with no `Assigned` row is idle.
+3. **Merge.** Step 3 of `/merge` is yours: squash the `dev-<name>` branch onto `main`,
+   push, set the row to `Done` with the merge commit, set every row it unblocks to
+   `Ready`, and refresh `.claude/work/active-work.md`.
+4. **Reprioritise in the tracker, not in chat.** Reassign a row or move a ticket ahead
+   by editing the file. If an `In flight` ticket must stop, tell the developer and reset
+   the row.
 
 ---
 
@@ -188,40 +180,32 @@ Rule 7 is enforced by the `guard-edit` hook if you use Claude Code.
 
 ## 5. Done means
 
-**Eight gates, checked by a script rather than by memory.** `/merge` runs it for you; run
-it yourself any time to see where the ticket stands.
+**Five gates, checked by a script rather than by memory.** `/merge` runs it for you on
+your `dev-<name>` branch; run it yourself any time to see where the ticket stands.
 
 ```bash
-node .claude/scripts/check-done.mjs        # reads the branch you are on
+node .claude/scripts/check-done.mjs W-nn    # the ticket is the argument, not the branch name
+node .claude/scripts/check-done.mjs         # harness or tooling work with no ticket
 ```
 
-| | |
-|---|---|
-| 1 | The branch says what it is: `W-nn-<slug>`, `docs-<slug>`, or plainly neither |
-| 2 | An **approved** spec exists for this `W-nn` |
-| 3 | **No High finding is still OPEN** |
-| 4 | Nothing under `legacy/` was touched |
-| 5 | `docs/` changed only by a recognised route — see below |
-| 6 | `ddl-auto` is set nowhere |
-| 7 | No `double` or `float` on a money field |
-| 8 | CI is green for the exact commit being merged |
+| | Gate | Refuses when |
+|---|---|---|
+| 1 | Spec exists | No `docs/target-state/features/W-nn-*.md` |
+| 2 | `legacy/` untouched | The diff changes a frozen file |
+| 3 | `ddl-auto` set nowhere | A real setting, not a comment |
+| 4 | No floating-point money | `double` or `float` on an amount, salary, pay, tax or deduction field |
+| 5 | CI green for this commit | No `ci.yml` run for `HEAD`, still running, or not `success` |
 
-**Gate 5 is one rule, read off the branch name.** A `W-nn` branch may change its own
-`features/W-nn-*` spec and no other document. A `docs-<slug>` branch may change `docs/`
-but must not ship anything under `code/` or `infra/`. That is all of it. What it refuses
-is a `docs/` edit riding along with a feature — a docs change travels on its own, read
-for what it says rather than waved through with code.
-
-**The build and the tests are gate 8, not gates of their own.** CI runs backend `verify`,
-frontend lint and build, and the static checks, on this exact commit; gate 8 refuses
+**The build and the tests are gate 5, not gates of their own.** CI runs backend `verify`,
+frontend lint and build, and the static checks, on this exact commit; gate 5 refuses
 unless that run went green. Running them again locally on the same bytes answers a
-question already answered and costs ten minutes each time.
+question already answered and costs ten minutes each time. A commit that touches only
+`docs/`, `.claude/`, `legacy/` or `*.md` does not trigger CI, and the gate knows that.
 
-A receipt is written **only if all eight pass**, and the push to `main` is refused
-without one matching the exact content being pushed. Change anything afterwards and it is
-void — deliberately, since otherwise the check proves nothing about what is being merged.
-The receipt is matched on the content, not the commit, so the squash `/merge` performs
-does not invalidate it.
+**Then one independent read.** `/merge` spawns the reviewer agent, which has no edit
+tools, on the diff against `main` and the spec. A real defect is fixed on the branch and
+the gates run again. Only after that does the founder squash the branch onto `main` and
+set the tracker row to `Done`.
 
 GitHub cannot enforce branch protection on a private repository on the Free plan
 (`D-43`), so this runs on your machine instead. **Do not work around a failing gate.**
@@ -230,7 +214,8 @@ It is telling you the ticket is not finished. If a gate is itself wrong, fix
 protects nothing.
 
 Two things the script cannot check, still yours: indexes for the queries you introduced,
-and the spec updated to match what you actually built.
+and the spec updated to match what you actually built. (`tenant_id` and an RLS policy on
+every new table are checked, by CI, so they fall under gate 5.)
 
 That second one matters more than it looks. A spec that drifts from the code is worse
 than no spec, because the next person trusts it.
