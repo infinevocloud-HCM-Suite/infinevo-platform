@@ -19,7 +19,7 @@ import java.util.function.Supplier;
  * <p>A map is fine here: this is test code standing in for Redis. The rule against in-process maps
  * is for {@code src/main/.../authz/}.
  */
-final class FakeCacheService implements CacheService {
+public final class FakeCacheService implements CacheService {
 
     enum Mode {
         NORMAL,

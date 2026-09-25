@@ -37,7 +37,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = {"com.infinevo.core.authz", "com.infinevo.core.employee", "com.infinevo.core.org"},
+        basePackages = {
+            "com.infinevo.core.authz",
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org",
+            "com.infinevo.core.subscription",
+            "com.infinevo.core.tenant"
+        },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
@@ -47,6 +53,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.subscription",
             "com.infinevo.shared.identity"
         })
 @EnableJpaRepositories(
@@ -54,6 +61,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.subscription",
             "com.infinevo.shared.identity"
         })
 @Import({RedisConfig.class, UserProfileSyncService.class})

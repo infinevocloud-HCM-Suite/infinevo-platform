@@ -15,6 +15,7 @@ public enum ApiError {
     FORBIDDEN("Not permitted"),
     TENANT_NOT_BOUND("No tenant is bound to this request"),
     MODULE_NOT_ENTITLED("This tenant does not hold the module required"),
+    TENANT_SUSPENDED("This tenant's subscription is suspended"),
 
     INTERNAL("Something went wrong");
 
