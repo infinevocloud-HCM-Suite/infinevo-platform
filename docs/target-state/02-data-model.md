@@ -55,7 +55,7 @@ Present for every tenant.
 | `user_tenant` | From `organizationUserMapping`. A user may belong to more than one tenant |
 | `user_role` | From `organizationUserRoleMapping` |
 | `role` | Merge of HRMS `role` and Payroll `organizationRole` |
-| `action` | Merge of both `action` tables |
+| ~~`action`~~ | **Lives in `reference.action`**, not `core` — an action is the same list for every tenant (`W-11.1`, `V020`) |
 | `role_action` | Merge of `organization_role_action` and `user_action_mapping` |
 | `user_invitation` | From `userInvitations` |
 | `employee_invitation` | From `employeeInvitation` |
@@ -108,11 +108,11 @@ Present for every tenant.
 | Table | Notes |
 |---|---|
 | `lop_policy` | **New (`CORE-09`).** Per-tenant rule for deriving loss of pay. Seeded from Payroll's attendance-preference flags (`D-07`) |
-| `pay_input` | **New (`CORE-10`).** The only channel from a module into a pay run. HRMS writes overtime and attendance adjustments; Payroll reads. Empty for a Payroll-only tenant |
+| `pay_input` | **New (`CORE-10`).** The only channel from a module into a pay run. Core leave (`LOP_DAYS`), Core overtime (`D-35`), Payroll reimbursements and off-cycle payouts write; the pay run reads. **Written for every tenant** — corrected 2026-09-25, see `12-core-contracts.md` §5 |
 
 ### Approval workflow (3)
 `approval_definition` · `approval_instance` · `approval_step` — **all new (`CORE-11`)**,
-replacing three hard-coded approval paths (leave, reimbursement, investment proof).
+replacing five hard-coded approval paths (leave, reimbursement, investment proof, overtime, attendance regularization — `D-33`).
 
 ### Notification (3)
 | Table | Origin |
@@ -142,7 +142,7 @@ Present only when HRMS is bought.
 |---|---|
 | Clock-based attendance | `clock_session`, `attendance_regularization`, `attendance_preference` |
 | Project work | `project`, `task`, `assignment` |
-| Timesheet | `timesheet`, `timesheet_project_entry`, `timesheet_day_entry`, `timesheet_task_entry`, `timesheet_notification` |
+| Timesheet | `timesheet`, `timesheet_project_entry`, `timesheet_day_entry`, `timesheet_task_entry`. ~~`timesheet_notification`~~ folds into `core.notification` + `core.reminder_rule` (2026-09-25) |
 
 > ⚠️ `attendance_preference` **moves in from Payroll**, where it is orphaned: it configures
 > hour thresholds, overtime minimums and pay-treatment flags for an attendance system
@@ -245,7 +245,7 @@ product has today.
 | Leave balance | `leave_balances`, `employee_leave_balances` | `employee_leave_allocation` | `core.leave_allocation` |
 | Holiday | `holidays` | `holidays` | `core.holiday` |
 | Role | `role` | `organizationRole` | `core.role` |
-| Action | `action` | `Action` | `core.action` |
+| Action | `action` | `Action` | `reference.action` |
 | Role↔action | `user_action_mapping` | `organization_role_action` | `core.role_action` |
 | User | `ourusers` | `companyUser` | `core.user_account` |
 | Reminder rules | `role_reminder_config` + 5 reminder tables | `reminder` | `core.reminder_rule` |
@@ -328,7 +328,7 @@ Capability identifiers come from `01`. This section names tables only; what each
 | `HRMS-07` Tasks | `task` | 1 |
 | `HRMS-08` Assignments | `assignment` | 1 |
 | `HRMS-09` Timesheets | `timesheet`, `timesheet_project_entry`, `timesheet_day_entry`, `timesheet_task_entry` | 4 |
-| `HRMS-10` Timesheet reminders | `timesheet_notification` | 1 |
+| `HRMS-10` Timesheet reminders | **none** — rows in `core.reminder_rule` | 0 |
 | `HRMS-11` HRMS dashboards | **none** — reads the above | 0 |
 | | **Total** | **11** |
 
