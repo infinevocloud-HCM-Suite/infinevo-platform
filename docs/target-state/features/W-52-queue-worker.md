@@ -19,6 +19,7 @@
 | **Status** | **Approved** |
 | **Approved by** | Founder |
 | **Approved on** | 2026-09-21 |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 21 (§1 Jobs row, §2 `/jobs/{jobId}` row, §3 queue seams). The spec now follows the code on `main`; the gaps are listed in §11 and are `W-52.1`'s |
 
 > **Hard rule 1:** No code is written until this spec is approved by the founder. (Approved 2026-09-21)
 
@@ -61,7 +62,7 @@ Long-running and scheduled operations are uncoordinated and synchronous across t
 2. **Azure Storage Queue Implementation**:
    - Driver backed by `com.azure:azure-storage-queue:12.24.1` (or latest Spring Cloud Azure / Azure SDK BOM).
    - Authentication via `DefaultAzureCredential` (Managed Identity `id-app` / `id-worker` in Azure) with connection string / local credential fallback for Azurite (`D-50`).
-   - Three standard queues created: `payrun`, `import`, `report` (`W-51-networking-and-identity.md:248`).
+   - Three standard queues created: `payrun`, `import`, `report` (`infra/azure/modules/storage.bicep:104-108`). A fourth, `notification`, is added by `W-20.1` (`12-core-contracts.md` §3, "Enqueue a job"); it is not this ticket's.
 3. **Job Status & Progress Subsystem**:
    - `core.job_status` table tracking `job_id`, `tenant_id`, `queue_name`, `status` (`QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`), `progress_percentage` (0–100), `result_payload`, and `error_message`.
    - Status polling endpoint on `app`: `GET /api/v1/jobs/{jobId}`.
@@ -131,9 +132,10 @@ Long-running and scheduled operations are uncoordinated and synchronous across t
 
 | Module | Task ID | File / Package | Change Description |
 |---|---|---|---|
-| `code/backend/core` | **T1** | `com.infinevo.core.queue.QueueMessage<T>` | Standard immutable queue payload envelope with metadata |
-| `code/backend/core` | **T1** | `com.infinevo.core.queue.QueueProducer` | Interface for queue dispatch (`send(queueName, message)`) |
-| `code/backend/core` | **T1** | `com.infinevo.core.queue.QueueConsumer` | Interface for queue listeners |
+| `code/backend/shared` | **T1** | `com.infinevo.shared.queue.QueueMessage<T>` | Standard immutable queue payload envelope with metadata — **as built**; `QueueMessage.of(jobId, tenantId, queue, payload)` is the seam every module uses (`12-core-contracts.md` §3) |
+| `code/backend/shared` | **T1** | `com.infinevo.shared.queue.QueueProducer` | Interface for queue dispatch (`send(queueName, message)`) — as built, `shared/.../queue/QueueProducer.java:6` |
+| `code/backend/shared` | **T1** | `com.infinevo.shared.queue.QueueConsumer<T>` | Interface for queue listeners: `getQueueName()`, `onMessage(QueueMessage<T>)` — as built, `shared/.../queue/QueueConsumer.java:18` |
+| `code/backend/core` | **T1** | `com.infinevo.core.queue.*` | **Built as a duplicate of the `shared` package** — `core/.../queue/QueueProducer.java:7` only extends the `shared` one, and `core/.../queue/QueueMessage.java` is a copy nothing imports. Removed by `W-53.1` with the cache cleanup; nothing new may import `core.queue` |
 | `code/backend/core` | **T2** | `com.infinevo.core.job.JobStatus` | Entity mapping `core.job_status` (`tenant_id`, `status`, `progress`) |
 | `code/backend/core` | **T2** | `com.infinevo.core.job.JobStatusRepository` | Spring Data JPA repository for job tracking with tenant RLS |
 | `code/backend/core` | **T2** | `com.infinevo.core.job.JobService` | Service to create, update progress, and fetch job records |
@@ -144,13 +146,16 @@ Long-running and scheduled operations are uncoordinated and synchronous across t
 | `code/backend/worker` | **T5** | `com.infinevo.worker.listener.PayrunQueueListener` | Queue consumer bean for `payrun` queue |
 | `code/backend/worker` | **T6** | `com.infinevo.worker.scheduler.WorkerAutoLockScheduler` | Ported IT Declaration auto-lock with `@SchedulerLock` |
 | `code/backend/worker` | **T6** | `com.infinevo.worker.scheduler.WorkerPOIReminderScheduler` | Ported POI reminder scheduler with `@SchedulerLock` |
-| `code/backend/migration` | **T7** | `db/migration/core/V003__job_status_and_shedlock.sql` | Flyway DDL for `core.job_status` and `core.shedlock` |
+| `code/backend/migration` | **T7** | `db/migration/core/V006__job_status_and_shedlock.sql` | Flyway DDL for `core.job_status` and `core.shedlock` — **`V006`, not `V003`**: `V003`–`V005` are `reference` scripts on `main` and Flyway runs one sequence across all four locations |
 
 ### API Contract (`code/backend/app`)
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| `GET` | `/api/v1/jobs/{jobId}` | Header: `Authorization: Bearer <JWT>` | `200 OK` + `JobStatusResponseDTO` | Required (`USER` or `ADMIN`) |
+| `GET` | `/api/v1/jobs/{jobId}` | Header: `Authorization: Bearer <JWT>` | `200 OK` + `JobStatusResponseDTO` | `@RequiresAction("core.job.read")` — code added by `W-11.3` (`12-core-contracts.md` §4); **not on `main` yet**, see §11 |
+
+The tenant comes from `TenantContext.require()` and from nowhere else. The built controller
+also accepts an `organizationId` header (§11); that fallback is removed, not kept.
 
 **JobStatusResponseDTO**:
 ```json
@@ -177,54 +182,54 @@ Long-running and scheduled operations are uncoordinated and synchronous across t
 
 > **Flyway only. Never `ddl-auto`.**
 
-### Migration Script: `V003__job_status_and_shedlock.sql`
-Target schema: `core`.
+### Migration Script: `V006__job_status_and_shedlock.sql` — as built on `main`
+Target schema: `core`. The file is
+`code/backend/migration/src/main/resources/db/migration/core/V006__job_status_and_shedlock.sql`;
+the spec follows it (`12-core-contracts.md` §5 row 21). Three things differ from the first
+draft of this section, and the built form is the right one:
+
+| Draft said | Built (`V006`) | Why the built form stands |
+|---|---|---|
+| `V003` | `V006` (`:1`) | one Flyway sequence across four locations; `V003`–`V005` are `reference` |
+| `tenant_id VARCHAR(64)` | `tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id)` (`:8`) | `D-58` — every tenant column is a `uuid` FK to `core.tenant` |
+| policy on `app.current_tenant`, `TO app_user`, no RLS on `shedlock` | policy `tenant_isolation` in the exact `CASE` form on `app.current_tenant_id` (`:21-35`); `shedlock` **is** under RLS and readable only when no tenant is bound (`:49-61`) | the `CASE` form is the platform standard (`migration/README.md:76-123`); the `shedlock` policy stops a tenant request touching cluster locks |
 
 ```sql
--- V003__job_status_and_shedlock.sql
--- Schema: core
--- Purpose: Job tracking and distributed scheduler locking (W-52)
-
--- 1. Job Status Table
+-- V006__job_status_and_shedlock.sql (excerpt — the file on main is authoritative)
 CREATE TABLE core.job_status (
     job_id VARCHAR(64) PRIMARY KEY,
-    tenant_id VARCHAR(64) NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id),
     queue_name VARCHAR(64) NOT NULL,
     status VARCHAR(32) NOT NULL,
     progress_percentage INT DEFAULT 0 CHECK (progress_percentage BETWEEN 0 AND 100),
     result_payload TEXT,
     error_message TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
-
--- RLS and Indexes for core.job_status
 ALTER TABLE core.job_status ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY job_status_tenant_isolation ON core.job_status
-    FOR ALL
-    TO app_user
-    USING (tenant_id = current_setting('app.current_tenant', true))
-    WITH CHECK (tenant_id = current_setting('app.current_tenant', true));
-
+CREATE POLICY tenant_isolation ON core.job_status USING (CASE ... END) WITH CHECK (CASE ... END);
 CREATE INDEX idx_job_status_tenant_queue ON core.job_status (tenant_id, queue_name);
 CREATE INDEX idx_job_status_created ON core.job_status (created_at);
 
--- 2. ShedLock Table
--- Note: ShedLock table is shared across worker instances for cluster synchronization
 CREATE TABLE core.shedlock (
     name VARCHAR(64) NOT NULL PRIMARY KEY,
-    lock_until TIMESTAMP WITH TIME ZONE NOT NULL,
-    locked_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    lock_until TIMESTAMPTZ NOT NULL,
+    locked_at TIMESTAMPTZ NOT NULL,
     locked_by VARCHAR(255) NOT NULL
 );
+ALTER TABLE core.shedlock ENABLE ROW LEVEL SECURITY;
+-- readable and writable only when app.current_tenant_id is unset or empty (the worker)
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON core.job_status TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON core.shedlock TO app_user;
 ```
 
+`V024__index_standard_optimizations.sql` (`W-55`) later added to `core.job_status`'s indexes;
+this ticket owns none of that.
+
 ### Standing Rules Verification Checklist
-- [x] `tenant_id` present on `core.job_status` with active RLS policy.
+- [x] `tenant_id uuid` present on `core.job_status`, FK to `core.tenant`, with active RLS policy in the `CASE` form.
 - [x] Compound index on `(tenant_id, queue_name)` created.
 - [x] Zero floating point types (integers, varchars, timestamps only).
 - [x] Explicit schema prefix `core.` on all table and index declarations.
@@ -241,6 +246,17 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON core.shedlock TO app_user;
 | **Integration** | `com.infinevo.shared.queue.AzureStorageQueueIT` | Dispatches message to Azurite Testcontainer queue and asserts successful consumption |
 | **Integration** | `com.infinevo.worker.scheduler.SchedulerLockIT` | **Concurrency proof**: Simulates 2 concurrent worker threads attempting the same `@SchedulerLock` task; asserts exactly 1 thread runs and 1 skips |
 | **Integration** | `com.infinevo.core.job.JobStatusTenantIT` | Asserts tenant isolation on `core.job_status` under RLS |
+
+**Added for `W-52.1`** (the defects in §11). None of these exists on `main`; each fails against
+today's code by construction.
+
+| Type | Test Class | Coverage |
+|---|---|---|
+| **Integration** | `com.infinevo.worker.queue.ConsumerLoopIT` | A message put on Azurite's `payrun` queue is **received** by the worker's polling loop and reaches `PayrunQueueListener.onMessage`; the message is deleted after success and left visible after failure |
+| **Integration** | `com.infinevo.app.queue.AppProducerWiringIT` | With `azure.storage.queue.connection-string` set, `app`'s context holds a `QueueProducer` bean and `send("payrun", …)` lands a message in Azurite |
+| **Unit** | `com.infinevo.worker.listener.PayrunQueueListenerTest` (extended) | A redelivery for a job in `RUNNING` is dropped, not re-run — today only `COMPLETED` is dropped |
+| **Unit** | `com.infinevo.worker.queue.RetryPolicyTest` | A failing message is retried up to 3 times with `retryCount` incremented; the fourth failure marks the job `FAILED` and deletes the message |
+| **Integration** | `com.infinevo.app.controller.JobStatusControllerIT` | `GET /jobs/{id}` without `core.job.read` is `403`; a request carrying another tenant's id in an `organizationId` header is answered from the caller's own tenant, never the header's |
 
 ---
 
@@ -277,9 +293,9 @@ cd code/backend && ./mvnw -B dependency:tree -pl :worker
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | **Storage Queue 64 KB limit** (`D-50`) | Medium | Large payloads (e.g. bulk CSV import rows) are uploaded to Blob Storage; queue message carries only the Blob URL and metadata. Payloads > 48 KB throw `PayloadTooLargeException`. |
-| **At-least-once duplicate delivery** | Medium | The worker checks `core.job_status` upon receipt. If status is already `RUNNING` or `COMPLETED`, message is dropped and deleted from queue without re-execution. |
+| **At-least-once duplicate delivery** | Medium | The worker checks `core.job_status` upon receipt. If status is already `RUNNING` or `COMPLETED`, message is dropped and deleted from queue without re-execution. **Built for `COMPLETED` only** (`PayrunQueueListener.java:53`); `RUNNING` is §11 / `W-52.1`. |
 | **Clock drift across worker replicas** | Low | ShedLock is configured with `usingDbTime()` so lock acquisition evaluates against PostgreSQL server clock (`CURRENT_TIMESTAMP`), not container system clocks. |
-| **Worker container crash mid-job** | Low | Message invisibility timeout is configured (5 minutes). If worker crashes, message becomes visible again and `retryCount` increments; after 3 retries, job is marked `FAILED`. |
+| **Worker container crash mid-job** | Low | Message invisibility timeout is configured (5 minutes). If worker crashes, message becomes visible again and `retryCount` increments; after 3 retries, job is marked `FAILED`. **Not built** — `retryCount` exists on the envelope (`shared/.../queue/QueueMessage.java:25,127`) and nothing reads it; §11 / `W-52.1`. |
 
 ---
 
@@ -287,4 +303,25 @@ cd code/backend && ./mvnw -B dependency:tree -pl :worker
 
 If this release fails in staging or production:
 1. Revert Container App deployment to previous revision (traffic shifts back to previous revision immediately).
-2. Database migration `V003` is additive (creates `core.job_status` and `core.shedlock`) and does not modify any existing tables or schemas. Previous code will run completely unaffected.
+2. Database migration `V006` is additive (creates `core.job_status` and `core.shedlock`) and does not modify any existing tables or schemas. Previous code will run completely unaffected.
+
+---
+
+## 11. Known defects on `main`, fixed by `W-52.1`
+
+`W-52` merged (#72) with the seams in place and the loop that uses them missing. Each row is
+verified against `main` on 2026-09-25 and is `W-52.1`'s to close; the tests are in §7.
+
+| # | Defect | Evidence | Fix in `W-52.1` |
+|---|---|---|---|
+| 1 | **No consumer loop.** `QueueConsumer.onMessage` is called only by tests; nothing polls a queue | `grep receiveMessages code/backend` — no hit; the only `onMessage` callers are `worker/src/test/.../PayrunQueueListenerTest.java:42,60,80,111` | A `worker` poller per registered `QueueConsumer`: `QueueClient.receiveMessages` with a 5-minute visibility timeout, dispatch to `onMessage`, `deleteMessage` on success |
+| 2 | **`app` cannot enqueue.** The `QueueProducer` bean is declared only in the worker | `worker/.../config/StorageQueueConfig.java:27-31` is the sole `@Bean QueueProducer`; no `app` configuration class produces one | Move `StorageQueueConfig` to `shared` (auto-configured on the connection-string property) so both roles get the producer |
+| 3 | **Idempotency skips `COMPLETED` only.** A redelivery during `RUNNING` runs the job twice | `worker/.../listener/PayrunQueueListener.java:53` — `if (state == JobState.COMPLETED)` | Drop on `RUNNING` too; the check and `markRunning` become one conditional update |
+| 4 | **No retry, no terminal `FAILED` from redelivery.** `retryCount` is carried and never read | `shared/.../queue/QueueMessage.java:25,127`; the listener's `catch` marks `FAILED` on the first exception (`PayrunQueueListener.java:68-70`) and the message stays on the queue | Poller reads Storage Queue's `dequeueCount`; below 4 it leaves the message to reappear, at 4 it marks `FAILED` and deletes |
+| 5 | **`GET /jobs/{jobId}` is unguarded and trusts a header.** No `@RequiresAction`; falls back to an `organizationId` request header for the tenant | `app/src/main/java/com/infinevo/app/controller/JobStatusController.java:28-36` — no annotation; `:31-36` reads `organizationId` when no tenant is bound | `@RequiresAction("core.job.read")` (code from `W-11.3`), `TenantContext.require()` only, header parameter deleted. `EndpointGuardCoverageTest` covers `core` and `shared`; extend it to `app` so this cannot recur |
+| 6 | **A fourth queue.** `notification` is not this ticket's, but the poller from row 1 must register consumers by name, not by a fixed list of three | `infra/azure/modules/storage.bicep:104-108` lists three | `W-20.1` adds the queue to Bicep and Azurite and registers its consumer; `W-52.1` builds nothing queue-specific |
+
+Row 5 is a tenant-isolation defect, not a style one: with no tenant bound, a caller naming
+another tenant's id in the header would be answered from that tenant's `core.job_status`
+row (RLS is keyed on the same value the controller sets). It is listed first in `W-52.1`'s
+order of work.

@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
 | B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete |
-| C — Core platform | 26 | 7 | 7 | **Paused for spec correction.** 20 unbuilt specs are being fixed against `12-core-contracts.md`; 5 correction tickets added |
+| C — Core platform | 26 | 7 | 7 | **Building.** All specs corrected 2026-09-25; `W-11.3` first, then the rest |
 | D — Payroll | 21 | 0 | 0 | All blocked on `W-13` and `W-26` |
 | E — HRMS | 5 | 0 | 0 | All blocked on `W-15` |
 | F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is blocked on `W-12` |
@@ -62,14 +62,15 @@ not started.
 
 ## 3. Stream C — Core platform
 
-Seven merged. **Nothing new starts until its spec is corrected** (see §3a). `W-13.3` and
-`W-39.1` are the exceptions: their specs checked out and they are claimable now.
+Seven merged. All unbuilt specs were corrected on 2026-09-25 (§3a). **Build `W-11.3` first**:
+it renames and adds the permission codes every other spec now cites. `W-13.3`, `W-39.1`,
+`W-13.4`, `W-53.1` and `W-09.1` do not depend on it and are claimable now.
 
 ### 3a. Spec corrections (2026-09-25)
 
 The first read of all 36 Core specs together (`docs/target-state/12-core-contracts.md` §5)
-found 23 corrections. The specs below carry **needs correction** until fixed; a developer
-must not build from them before then.
+found 23 corrections. **All applied 2026-09-25** — each spec carries a `Corrected` header row
+naming the rows it took. Kept here as the record of what changed.
 
 | Spec | Needs correction for |
 |---|---|
@@ -85,18 +86,18 @@ must not build from them before then.
 | `W-22.2`, `W-23.1`, `W-23.2` | tenant sweep visibility, `ReportSource`, async export as a job |
 | `W-24.1`, `W-24.2`, `W-25` | role join table, invitation lifecycle, `PortalPanelProvider` |
 
-Every spec above also needs its `@RequiresAction` codes, which come from `W-11.3`, so
-**`W-11.3` blocks all of them.**
+Every spec above now names its `@RequiresAction` codes, which `W-11.3` creates, so
+**`W-11.3` blocks all of them** and is listed in each one's Blocked-by.
 
 ### 3b. Correction tickets
 
 | Ticket | What it is | Fixes | Ready? |
 |---|---|---|---|
-| `W-11.3` Catalogue correction | Rename the Core actions misfiled as `hrms.*`, add the ~20 missing codes, take `core.tenant.provision` out of the seeded `platform-admin` role | `12-core-contracts.md` §4 | spec pending |
-| `W-13.4` Employee login link | `user_account_id` on `core.employee`; employees may edit their own personal and contact sections | §5 row 14 | spec pending |
-| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}` | §5 row 21 | spec pending |
-| `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and `core.queue.QueueMessage` | §5 row 22 | spec pending |
-| `W-09.1` Age category seed | Seed `SENIOR` and `SUPER_SENIOR` exemption rows (defect #146) | Stream B defect | spec pending |
+| `W-11.3` Catalogue correction | Rename the 14 Core actions misfiled as `hrms.*`, add 24 missing codes, take `core.tenant.provision` out of the seeded `platform-admin` role. Migration `V025` | `12-core-contracts.md` §4 | **ready** — build first |
+| `W-13.4` Employee login link | `user_account_id` on `core.employee`; employees may edit their own personal and contact sections. Migration `V026` | §5 row 14 | **ready** |
+| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}` | §5 row 21 | `W-11.3` (`core.job.read`) |
+| `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and the `core.queue` package | §5 row 22 | **ready** |
+| `W-09.1` Age category seed | Seed `SENIOR` and `SUPER_SENIOR` slab rows for three financial years (defect #146). Migration `V027` | Stream B defect | **ready** |
 
 `W-52.1` and `W-53.1` are backend fixes to tickets tracked in [INFRA-TRACKER.md](INFRA-TRACKER.md).
 

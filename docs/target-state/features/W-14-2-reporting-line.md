@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-14.1` |
+| **Blocked by** | `W-14.1`, `W-11.3` (the `core.reporting_line.manage` code) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §3 (`chainAbove` takes `asOf`) and §4 (permission codes) |
 
 ## Size cap
 
@@ -70,8 +71,12 @@ and is flagged, not done here.
    --> validate manager exists, is active, no cycle
    --> [core.reporting_line under RLS]
 
-[W-15.2, later] --> [ReportingLineService.chainAbove(employee)] --> ordered managers
+[W-15.2, later] --> [ReportingLineService.chainAbove(employee, asOf)] --> ordered managers
 ```
+
+`chainAbove(UUID employeeId, LocalDate asOf)` is the seam `12-core-contracts.md:91` names.
+`asOf` is required, not defaulted: an approval that started in March must resolve March's
+manager, which is the reason the table is effective-dated.
 
 ## 4. Backend changes
 
@@ -87,12 +92,17 @@ and is flagged, not done here.
 
 **API contract**
 
-| Method | Path | Request | Response | Auth |
+| Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| PUT | `/api/v1/employees/{id}/reporting-line` | managerId, kind, effectiveFrom | `200` | Bearer, tenant bound |
-| GET | `/api/v1/employees/{id}/reporting-line` | `?asOf=` | the lines in force | Bearer, tenant bound |
-| GET | `/api/v1/employees/{id}/manager-chain` | `?asOf=` | ordered, top-most last | Bearer, tenant bound |
-| GET | `/api/v1/org-chart` | `?rootEmployeeId=&depth=` | tree | Bearer, tenant bound |
+| PUT | `/api/v1/employees/{id}/reporting-line` | managerId, kind, effectiveFrom | `200` | `core.reporting_line.manage` |
+| GET | `/api/v1/employees/{id}/reporting-line` | `?asOf=` | the lines in force | `core.org.read` |
+| GET | `/api/v1/employees/{id}/manager-chain` | `?asOf=` | ordered, top-most last | `core.org.read` |
+| GET | `/api/v1/org-chart` | `?rootEmployeeId=&depth=` | tree | `core.org.read` |
+
+All Bearer, tenant bound. Codes per `12-core-contracts.md:58`; `core.reporting_line.manage`
+arrives with `W-11.3` (`12-core-contracts.md:128`), `core.org.read` is already built
+(`12-core-contracts.md:57`). `EndpointGuardCoverageTest` fails a controller method without a
+code (`12-core-contracts.md:45-46`).
 
 ## 5. Frontend changes
 
@@ -137,7 +147,8 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 | Unit | `core/.../org/ReportingLineServiceTest.java` | self-management refused; a two-step cycle refused; a three-step cycle refused; a diamond is allowed |
 | Unit | `core/.../org/OrgChartServiceTest.java` | subtree depth honoured; an employee with no reports returns an empty list, not an error |
 | Integration | `core/.../org/ReportingLineRlsIT.java` | a manager in another tenant is refused, as `app_user` |
-| Integration | `core/.../org/ManagerChainIT.java` | a five-deep chain resolves in order; a manager change with effective dates gives different answers for different `asOf` values |
+| Integration | `core/.../org/ManagerChainIT.java` | a five-deep chain resolves in order; a manager change with effective dates gives different answers for different `asOf` values — asserted through `chainAbove(employee, asOf)` directly, as `W-15.2` will call it |
+| Integration | `core/.../org/ReportingLineGuardIT.java` | `PUT` without `core.reporting_line.manage` is `403`; `GET` with `core.org.read` alone is `200` |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 
@@ -164,6 +175,7 @@ cd code/backend && mvn -q verify
 | RLS | `t` |
 | Check constraint | present — self-management refused at the database |
 | `manager_name` | **no rows** — the column must not exist |
+| `ReportingLineGuardIT` | green — every endpoint carries a `core.*` code |
 | Suite | green, no skips |
 
 ## 9. Risks

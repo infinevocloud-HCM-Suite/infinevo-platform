@@ -11,6 +11,7 @@
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
 | **Blocked by** | `W-12.1` (a module set), `W-11.2` (the cache this reuses) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 12 |
 
 ## Size cap
 
@@ -70,8 +71,10 @@ tenant bought only Payroll.
 ```
 [request] --> TenantContextFilter (W-08)
    --> [@RequiresModule aspect] --> [EntitlementService]
-        --> Redis hit? --> Set<module>
-        --> miss? --> W-12.1 EntitlementReadService --> Redis
+        --> Redis hit? --> Set<PlatformModule>
+        --> miss? --> EntitlementSource.modulesOf(tenantId)  (port in shared,
+                      implemented by W-12.1 EntitlementReadService in core) --> Redis
+   --> subscription suspended? 403 TENANT_SUSPENDED
    --> module held? proceed : 403 MODULE_NOT_ENTITLED
 ```
 
@@ -79,15 +82,25 @@ tenant bought only Payroll.
 
 | Layer | File | Change |
 |---|---|---|
+| Enumeration | `shared/.../entitlement/PlatformModule.java` | new — `HRMS`, `PAYROLL`; lives in `shared` so the annotation can name it without `shared` depending on `core` |
+| Port | `shared/.../entitlement/EntitlementSource.java` | new — `Set<PlatformModule> modulesOf(UUID tenantId)`; the same shape as `ActionSource` (`code/backend/shared/src/main/java/com/infinevo/shared/authz/ActionSource.java:16-29`): `shared` declares it, `core`'s `EntitlementReadService` (`W-12.1`) is the one bean, and no bean means every check refuses |
 | Annotation | `shared/.../entitlement/RequiresModule.java` | new |
 | Interceptor | `shared/.../entitlement/RequiresModuleAspect.java` | new |
-| Service | `shared/.../entitlement/EntitlementService.java` | new |
-| Cache | reuses `shared/.../authz/PermissionCache.java` | change — a second key namespace, same version scheme |
-| Error | `shared/.../error/ApiError.java` | change — add `MODULE_NOT_ENTITLED` |
+| Service | `shared/.../entitlement/EntitlementService.java` | new — loads through the port on a miss, exactly as `PermissionService` loads through `ActionSource` |
+| Cache | reuses `shared/.../authz/PermissionCache.java` | change — a second key namespace, same version scheme; `W-12.1`'s `SubscriptionService` bumps that version on every change |
+| Error | `shared/.../error/ApiError.java` | change — add `TENANT_SUSPENDED`. `MODULE_NOT_ENTITLED` **already exists** (`ApiError.java:17`) and is not added again |
 
 The error enumeration already exists and is already used by `TenantContextFilter` —
 `code/backend/shared/src/main/java/com/infinevo/shared/error/ApiError.java`, referenced at
-`TenantContextFilter.java:59,81,95`. Adding a value is additive.
+`TenantContextFilter.java:59,81,95`. `MODULE_NOT_ENTITLED` was added there ahead of this ticket
+(`ApiError.java:17`); the one value this ticket adds is `TENANT_SUSPENDED`, which decision 1
+below needs so a suspended tenant's refusal is not mistaken for a module it never bought.
+
+**Why the port and the enum live in `shared`, not `core`.** `@RequiresModule(PlatformModule.HRMS)`
+is written on `hrms` and `payroll` controllers and read by an aspect in `shared`. Only `core` and
+`shared` may be referenced by a module, and `shared` may not reference `core` — so the type the
+annotation carries, and the interface the aspect reads from, must both be in `shared`. `core`
+implements the port; it does not own the seam. This mirrors `ActionSource` exactly.
 
 **The annotation goes on the module controllers, not on `core`.** Every tenant holds all
 core capabilities, so annotating `core` would be wrong and would break a Payroll-only tenant's
@@ -114,9 +127,11 @@ None here. The frontend's reaction to `MODULE_NOT_ENTITLED` belongs to `W-12.3`.
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `shared/.../entitlement/EntitlementServiceTest.java` | held module passes; unheld returns `MODULE_NOT_ENTITLED`; an unbound tenant fails closed |
-| Unit | `shared/.../entitlement/RefusalDistinctionTest.java` | a module refusal and a permission refusal carry different codes and are not interchangeable |
-| Integration | `shared/.../entitlement/EntitlementIT.java` | Acme (Payroll only) gets `403` on an `hrms` endpoint; Globex gets `200` on the same one |
+| Unit | `shared/.../entitlement/EntitlementServiceTest.java` | held module passes; unheld returns `MODULE_NOT_ENTITLED`; a suspended subscription returns `TENANT_SUSPENDED` on every module endpoint; an unbound tenant fails closed; **no `EntitlementSource` bean fails closed** (as `PermissionServiceTest.noActionSourceFailsClosed`, `code/backend/shared/src/test/java/com/infinevo/shared/authz/PermissionServiceTest.java:131-133`) |
+| Unit | `shared/.../entitlement/StubEntitlementSource.java` | test double for the port, the counterpart of `StubActionSource` (`code/backend/shared/src/test/java/com/infinevo/shared/authz/StubActionSource.java:12`) |
+| Unit | `shared/.../entitlement/RefusalDistinctionTest.java` | `MODULE_NOT_ENTITLED`, `TENANT_SUSPENDED` and `FORBIDDEN` are three distinct codes and are not interchangeable |
+| Test controller | `shared/src/test/.../entitlement/ModuleGuardTestController.java` | `@RestController @RequiresModule(HRMS)` at `/api/v1/test/hrms-guard`, on the test classpath only — the target `EntitlementIT` and the verification script hit; there is no `hrms` endpoint on `main` yet |
+| Integration | `shared/.../entitlement/EntitlementIT.java` | Acme (Payroll only) gets `403 MODULE_NOT_ENTITLED` on the test `hrms` endpoint; Globex gets `200` on the same one; Globex with status `suspended` gets `403 TENANT_SUSPENDED`; a module change through `W-12.1` is seen on the next request without waiting for the TTL |
 | Integration | `shared/.../entitlement/EntitlementCoverageIT.java` | **every** `@RestController` in `hrms` and `payroll` carries `@RequiresModule` |
 
 `EntitlementCoverageIT` is the test that keeps this true as the platform grows. A module
@@ -134,19 +149,25 @@ for u in admin.acme admin.globex; do
   TOKEN=$(curl -s -d client_id=infinevo-web -d username=$u -d password=local_dev_pw \
     -d grant_type=password \
     http://localhost:8081/realms/infinevo/protocol/openid-connect/token | jq -r .access_token)
-  echo -n "$u on an hrms endpoint: "
-  curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/hrms/ping \
+  echo -n "$u on the hrms test endpoint: "
+  curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/test/hrms-guard \
     -o /tmp/body -w '%{http_code} '; jq -r .code /tmp/body
 done
 
-cd code/backend && mvn -q -pl shared -Dit.test=EntitlementCoverageIT verify
+cd code/backend && mvn -q -pl shared -Dit.test=EntitlementIT,EntitlementCoverageIT verify
 cd code/backend && mvn -q verify
 ```
 
+No `/api/v1/hrms/*` endpoint exists on `main` (`code/backend/hrms` has no controller yet), so
+the curl target is `ModuleGuardTestController` from `src/test`, served only when the app is
+started with the test classpath — which is what `EntitlementIT` does. The manual loop above is
+run against that test context; the two `mvn` lines are the check that counts.
+
 | Check | Expected |
 |---|---|
-| `admin.acme` on an `hrms` endpoint | `403` with code `MODULE_NOT_ENTITLED` |
+| `admin.acme` on the `hrms` test endpoint | `403` with code `MODULE_NOT_ENTITLED` |
 | `admin.globex` on the same endpoint | `200` |
+| Globex after `PUT .../subscription/status = suspended` | `403` with code `TENANT_SUSPENDED` |
 | Coverage test | green — no unannotated module controller |
 | Suite | green, no skips |
 
@@ -176,7 +197,7 @@ Nothing is deployed and no schema changes. Removing the annotations withdraws en
 | `Money`/`BigDecimal` for money | holds no money |
 | Index on `tenant_id` plus lookup columns | adds none |
 | Expand / contract | no schema change |
-| No module references another module | the aspect lives in `shared`; it reads `core` data and annotates module controllers without either module referencing the other |
+| No module references another module | the aspect, enum and port live in `shared`; `core` implements the port; module controllers reference only `shared`. Neither `shared` nor a module references `core` |
 
 ## 12. Gap inventory
 
@@ -189,7 +210,7 @@ Nothing is deployed and no schema changes. Removing the annotations withdraws en
 
 | # | Question | Answer |
 |---|---|---|
-| 1 | What does a suspended subscription do? | **`suspended` blocks every module endpoint, leaving login and billing screens reachable; `past_due` blocks nothing.** Settled 2026-09-23. Locking a customer out over an invoice stays a deliberate act, not something a gate does |
+| 1 | What does a suspended subscription do? | **`suspended` blocks every module endpoint, leaving login and billing screens reachable; `past_due` blocks nothing.** Settled 2026-09-23. Locking a customer out over an invoice stays a deliberate act, not something a gate does. *Corrected 2026-09-25:* the refusal carries `TENANT_SUSPENDED`, not `MODULE_NOT_ENTITLED` — the tenant holds the module; it is the subscription that is stopped |
 | 2 | Read-only after downgrade? | **Yes** — settled by `W-12.1` decision 1 on 2026-09-22. `@RequiresModule` carries a read-only mode: reads pass, writes return `MODULE_NOT_ENTITLED` |
 
 **Consequence of decision 2:** the annotation takes a mode, the aspect distinguishes safe from

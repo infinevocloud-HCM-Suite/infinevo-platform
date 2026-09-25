@@ -11,6 +11,7 @@
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
 | **Blocked by** | `W-13.1` |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §2 (`/employees` permission) and §5 row 14 context; index already built in V024 |
 
 ## Size cap
 
@@ -75,12 +76,18 @@ The split decision of 2026-09-22 takes both halves: paginated **and** free-text.
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| GET | `/api/v1/employees` | `?q=&status=&page=0&size=25&sort=lastName,asc` | `Page<EmployeeSummaryResponse>` | Bearer, tenant bound |
+| GET | `/api/v1/employees` | `?q=&status=&page=0&size=25&sort=lastName,asc` | `Page<EmployeeSummaryResponse>` | `@RequiresAction("core.employee.read")`, tenant bound |
 
 - `size` defaults to 25 and is capped at 100; a larger value is clamped, not rejected
 - `q` matches `first_name`, `last_name`, `employee_number` and `work_email`, case-insensitive, prefix match
 - No `organizationId` or `tenantId` parameter exists, deliberately
-- Soft-deleted rows are excluded unless `includeDeleted=true`, which requires the same authority as delete
+- Soft-deleted rows are excluded unless `includeDeleted=true`, which additionally requires `core.employee.delete` — checked in the service with `PermissionService.require("core.employee.delete")`, so a caller with `read` alone gets `403 FORBIDDEN` on `includeDeleted=true`, never a silently filtered page
+
+Both codes are catalogued: `core.employee.read` "Read every employee record in the tenant" and
+`core.employee.delete` (`code/backend/migration/src/main/resources/db/migration/reference/V020__action.sql:56,64`).
+`core.employee.read_team` and `read_own` (`V020__action.sql:57-58`) do **not** reach this list —
+a manager's team view is `W-14.2`, the portal is `W-25`. `EndpointGuardCoverageTest` fails the
+build if the annotation is missing (`12-core-contracts.md` §2).
 
 ## 5. Frontend changes
 
@@ -91,11 +98,15 @@ None.
 **None. This ticket creates no table and ships no migration.**
 
 The indexes it relies on were created by `W-13.1`: `(tenant_id, employee_number)`,
-`(tenant_id, work_email)`, `(tenant_id, status)`. If free-text on names proves slow, a
+`(tenant_id, work_email)`, `(tenant_id, status)`. The default listing — active, not deleted,
+paged — is already covered by `idx_employee_tenant_active_status` on
+`(tenant_id, is_deleted, status)`, built in
+`code/backend/migration/src/main/resources/db/migration/core/V024__index_standard_optimizations.sql:5-6`,
+so **no new index is added here**. If free-text on names proves slow, a
 trigram index is a **separate** ticket with its own migration — it is not smuggled in here.
 
 - [x] `tenant_id` on every new table — creates none
-- [x] Index on `tenant_id` plus lookup columns — inherited from `W-13.1`
+- [x] Index on `tenant_id` plus lookup columns — inherited from `W-13.1` and `V024:5-6`
 - [x] Money columns — none
 - [x] Expand / contract — no schema change
 
@@ -103,7 +114,8 @@ trigram index is a **separate** ticket with its own migration — it is not smug
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `core/.../employee/EmployeeQueryServiceTest.java` | page size clamped at 100; `q` matches each of the four fields; soft-deleted excluded by default |
+| Unit | `core/.../employee/EmployeeQueryServiceTest.java` | page size clamped at 100; `q` matches each of the four fields; soft-deleted excluded by default; `includeDeleted=true` without `core.employee.delete` throws the `FORBIDDEN` refusal, with it returns deleted rows |
+| Integration | `core/.../employee/EmployeeListGuardIT.java` | a user holding only `core.employee.read_own` gets `403` on `GET /employees`; `core.employee.read` gets `200`; `read` alone with `includeDeleted=true` gets `403`; `read` + `delete` gets `200` |
 | Integration | `core/.../employee/EmployeeSearchRlsIT.java` | with 50 employees in tenant A and 50 in tenant B, every page and every `q` returns only the bound tenant's |
 | Integration | `core/.../employee/EmployeeSearchPagingIT.java` | total count is the tenant's count, not the table's; last page is not short by an off-by-one |
 
@@ -144,7 +156,7 @@ cd code/backend && mvn -q verify
 | `GET /employees/all` is ported "for parity" | medium | Named in the problem statement as the defect; there is no unpaginated route |
 | A tenant parameter is added later for an admin screen | medium | `PLAT-02` impersonation is a separate capability and must not enter through this endpoint |
 | Free-text on names is slow at scale | low for now | Prefix match uses the existing indexes; a trigram index is its own ticket |
-| `includeDeleted` becomes an unguarded way to read deleted rows | low | Same authority as delete, asserted in the unit test |
+| `includeDeleted` becomes an unguarded way to read deleted rows | low | `core.employee.delete` required, asserted in the unit test and `EmployeeListGuardIT` |
 
 ## 10. Rollback
 
@@ -157,7 +169,7 @@ Nothing is deployed, and no schema changes. Withdrawing the endpoint is a code r
 | `tenant_id` + RLS on every new table | **creates no table** |
 | Flyway only, `ddl-auto` nowhere | **ships no migration**; none added |
 | `Money`/`BigDecimal` for money | no money column |
-| Index on `tenant_id` plus lookup columns | uses `W-13.1`'s; adds none |
+| Index on `tenant_id` plus lookup columns | uses `W-13.1`'s and `V024`'s `(tenant_id, is_deleted, status)`; adds none |
 | Expand / contract | no schema change |
 | No module references another module | `core` only |
 

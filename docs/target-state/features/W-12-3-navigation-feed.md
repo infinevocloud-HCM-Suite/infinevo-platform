@@ -11,6 +11,7 @@
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
 | **Blocked by** | `W-12.2` — the menu must reflect an enforcement that already exists |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 13 |
 
 ## Size cap
 
@@ -47,6 +48,7 @@ two drift and the menu starts lying.
 
 - `GET /api/v1/navigation` — the ordered menu the signed-in user may see, for the bound tenant
 - Items filtered by module entitlement (`W-12.2`) **and** by action (`W-11.2`)
+- The same response carries the caller's full action-code set (`actions: [...]`), so a screen can hide a button the caller cannot use without a second call — the server-side answer to what legacy Payroll fetched per role from `GET /api/organizations/{orgId}/roles/{roleId}/actions` (`legacy/Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/controller/RoleActionController.java:18,39-40`)
 - The shell rendering exactly what it is given
 - A development-mode check that every menu item's target endpoint exists
 
@@ -62,8 +64,8 @@ two drift and the menu starts lying.
 ```
 [shell boot, after W-10 login]
   --> GET /api/v1/navigation
-  --> [NavigationService] modules from W-12.1, actions from W-11.1
-  --> ordered items --> shell renders
+  --> [NavigationService] modules from W-12.1, actions from W-11.2 (PermissionService, cached)
+  --> { items: [...ordered...], actions: [...caller's codes...] } --> shell renders
   --> a route not in the response is not registered at all
 ```
 
@@ -75,6 +77,7 @@ two drift and the menu starts lying.
 | Service | `core/.../navigation/NavigationService.java` | new |
 | Config | `core/.../navigation/NavigationCatalogue.java` | new — the item definitions, in code |
 | DTO | `core/.../navigation/NavigationItemResponse.java` | new |
+| DTO | `core/.../navigation/NavigationResponse.java` | new — `items: List<NavigationItemResponse>`, `actions: Set<String>` |
 
 The catalogue is code, not a table. A menu item exists because an endpoint exists; a row in a
 table would let the two disagree.
@@ -83,10 +86,16 @@ table would let the two disagree.
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| GET | `/api/v1/navigation` | — | ordered items: key, label key, path, children | Bearer, tenant bound |
+| GET | `/api/v1/navigation` | — | `items`: ordered — key, label key, path, children; `actions`: the caller's action codes | Bearer, tenant bound; no `@RequiresAction` — every signed-in user has a menu (`12-core-contracts.md` §2) |
 
 Each item names the module and action it requires. The service returns only those the caller
 passes both checks for, so the response contains no item the caller cannot use.
+
+`actions` is the same set `PermissionService` already holds for the caller under the tenant's
+permission version (`code/backend/shared/src/main/java/com/infinevo/shared/authz/PermissionCache.java:97-113`),
+so it costs no extra query and cannot disagree with what `@RequiresAction` will decide. It is
+action codes only — never role names, never employee data. A screen hides a button when its
+code is absent; the endpoint behind the button still refuses on its own.
 
 ## 5. Frontend changes
 
@@ -94,7 +103,8 @@ passes both checks for, so the response contains no item the caller cannot use.
 |---|---|
 | `src/shell/routes.js` | change — routes registered from the navigation response, not a static array |
 | `src/shell/AppShell.jsx` | change — render the returned items |
-| `src/shell/navigation/useNavigation.js` | new — fetches once after login, refetches on tenant switch |
+| `src/shell/navigation/useNavigation.js` | new — fetches once after login, refetches on tenant switch; exposes `items` and `actions` |
+| `src/shell/navigation/useCan.js` | new — `useCan('core.employee.delete')` reads `actions` from the feed; the one way a screen decides to show a button |
 | `src/shared/api/client.js` | change — handle `MODULE_NOT_ENTITLED` distinctly from `FORBIDDEN` |
 
 **Routes added**
@@ -120,7 +130,9 @@ this ticket exists to avoid re-creating.
 | Type | File | Covers |
 |---|---|---|
 | Unit | `core/.../navigation/NavigationServiceTest.java` | a Payroll-only tenant's feed has no HRMS item; an action the user lacks removes its item; a parent with no visible children is itself hidden |
-| Integration | `core/.../navigation/NavigationIT.java` | Acme and Globex get different feeds from the same endpoint |
+| Integration | `core/.../navigation/NavigationIT.java` | Acme and Globex get different feeds from the same endpoint; `actions` equals the caller's `PermissionService` set exactly, and changes on the next call after a role grant is revoked |
+| Unit | `core/.../navigation/NavigationServiceTest.java` | `actions` contains only codes the caller holds, and never a role name |
+| Frontend | `src/shell/navigation/useCan.test.js` | a code in `actions` renders the button; a missing code hides it; an empty `actions` hides every guarded button |
 | Integration | `core/.../navigation/NavigationMatchesEnforcementIT.java` | **for every item in the feed, the target endpoint returns non-`403`; for every item absent, it returns `403`** |
 | Frontend | `src/shell/navigation/useNavigation.test.js` | the shell renders exactly the returned items; an empty feed renders an empty shell, not a default menu |
 
@@ -139,7 +151,9 @@ for u in admin.acme admin.globex; do
     -d grant_type=password \
     http://localhost:8081/realms/infinevo/protocol/openid-connect/token | jq -r .access_token)
   echo "$u menu:"
-  curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/navigation | jq -r '.[].key'
+  curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/navigation | jq -r '.items[].key'
+  echo "$u actions:"
+  curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/navigation | jq -r '.actions|length'
 done
 
 cd code/backend && mvn -q -pl core -Dit.test=NavigationMatchesEnforcementIT verify
@@ -153,6 +167,7 @@ grep -rn 'const .*[Mm]enu.*= \[' src/shell/ && echo "REVIEW: static menu array" 
 |---|---|
 | `admin.acme` menu | no `hrms.*` key |
 | `admin.globex` menu | both `hrms.*` and `payroll.*` keys |
+| `actions` count | non-zero for both admins; `NavigationIT` asserts the set equals `PermissionService`'s for the same user |
 | Match test | green — feed and enforcement agree both ways |
 | Static menu grep | `no static menu` |
 | Suites | green |
@@ -196,5 +211,5 @@ shell; the `403`s from `W-12.2` remain, which is the safe direction.
 the decision; the consolidated record is
 `.claude/outputs/2026-09-22-plan-core-open-questions.md`.
 
-1. **Does the feed include items the user may see but not act on?** A read-only viewer might want the screen without the buttons. **Recommend** item-level visibility by action, and button-level by action as well, rather than a half-usable screen.
+1. **Does the feed include items the user may see but not act on?** A read-only viewer might want the screen without the buttons. **Recommend** item-level visibility by action, and button-level by action as well, rather than a half-usable screen. *Corrected 2026-09-25:* button-level visibility is what `actions` in the response is for — the feed carries the caller's codes so screens need no second call (`12-core-contracts.md` §5 row 13).
 2. **Is menu order configurable per tenant?** **Recommend** no — one order, defined in the catalogue. Per-tenant ordering is a table, a screen and a support burden for very little.

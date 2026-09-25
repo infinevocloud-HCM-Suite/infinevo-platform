@@ -5,12 +5,13 @@
 | **Feature ID** | `W-23.2` · from ticket #27 · `CORE-16` |
 | **Promoted to** | `docs/target-state/features/W-23-2-scheduled-reports.md` on branch `W-23-2-scheduled-reports` — **`W-23-2` with hyphens**, never `W-23.2`; `guard-edit` blocks the dotted form |
 | **Owner** | unassigned |
-| **Apps touched** | `code/backend/worker`, `code/backend/migration` |
+| **Apps touched** | `code/backend/worker`, `code/backend/migration`, `code/backend/core` (`async=true` on `ExportController`), `code/backend/app` (the `core.job.read` guard on `JobStatusController`) |
 | **Related gaps** | DEBT-018 (honoured) |
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-23.1` (a definition and an export path), `W-20.2` (the scheduler and the delivery it reuses) |
+| **Blocked by** | `W-23.1` (a definition and an export path), `W-20.2` (the scheduler, the tenant-list function and the delivery it reuses), `W-52` (the queue consumer loop the async export rides on), `W-11.3` (adds `core.report_schedule.manage` and `core.job.read` to the catalogue) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 17, 18 and §6 decision 8 |
 
 ## Size cap
 
@@ -54,8 +55,9 @@ already exists for exactly this, with read-only access and RLS enforced
 - Running due schedules on `worker` as a `@Scheduled` + `@SchedulerLock` job, using `W-52`'s ShedLock
 - Producing the file with `W-23.1`'s export service into `core.document`
 - Notifying recipients with a signed link, through `W-20.1` and `W-20.2`
-- Reading as `readonly_user`, so pointing at a replica later is configuration rather than a rewrite
-- An asynchronous path for a large user-triggered export
+- Reading the report rows as `readonly_user`, so pointing at a replica later is configuration rather than a rewrite — **and writing the result as `worker_user`**, because `readonly_user` holds `SELECT` only (`infra/postgres/03-grants.sql:35`) and cannot write `core.document` or `core.job_status`
+- An asynchronous path for a large user-triggered export: a `report` job on `W-52`'s queue, polled at `GET /api/v1/jobs/{id}` (contracts §5 row 18)
+- The per-tenant sweep, iterating `W-20.2`'s `core.list_tenants_for_sweep()` (contracts §5 row 17)
 
 **Out of scope**
 
@@ -67,23 +69,39 @@ already exists for exactly this, with read-only access and RLS enforced
 ## 3. Flow
 
 ```
-[@Scheduled + @SchedulerLock] --> [ReportScheduleEvaluator] due schedules
-   --> [W-23.1 ExportService] as readonly_user --> core.document
-   --> [W-20.1 compose] REPORT_READY --> queue --> [W-20.2 deliver] link
+[@Scheduled + @SchedulerLock] --> core.list_tenants_for_sweep() --> [ReportScheduleEvaluator] due schedules
+   --> [W-23.1 ExportService] rows read as readonly_user --> DocumentService.store(EXPORT, ...) as worker_user
+   --> signedLink(id, 7 days) --> [W-20.1 compose] --> queue `notification` --> [W-20.2 deliver]
 
-[large user export] --> POST /exports?async=true --> queued --> same path
+[large user export] --> POST /exports?async=true (app) --> JobService.createJob --> QueueProducer.send("report", ...)
+   --> [worker: AsyncExportConsumer] --> same export path --> JobService.markCompleted(documentId)
+   --> user polls GET /api/v1/jobs/{id} --> document id --> GET /documents/{id}/link
 ```
+
+**Which database user.** Two, on purpose. The row query runs on the `readonly_user` datasource
+so a replica is a config change; the export file (`core.document`), the schedule's
+`last_run_*` columns and the job row (`core.job_status`) are written on the `worker_user`
+datasource, which is a member of `app_user` (`infra/postgres/01-roles.sql:32`) and so holds
+`app_user`'s grants. `readonly_user` cannot do this — `03-grants.sql:35` gives it `SELECT` and
+nothing else, and that is the point of it. Both datasources are tenant-bound (§4).
 
 ## 4. Backend changes
 
 | Layer | File | Change |
 |---|---|---|
 | Job | `worker/.../report/ReportScheduleEvaluator.java` | new — `@Scheduled` + `@SchedulerLock` |
-| Consumer | `worker/.../report/AsyncExportConsumer.java` | new |
+| Consumer | `worker/.../report/AsyncExportConsumer.java` | new — implements `shared.queue.QueueConsumer<ExportJobPayload>` for queue `report` (`12-core-contracts.md:111-112`) |
 | Entity | `worker/.../report/ReportSchedule.java` | new, `@Table(schema="core")` |
 | Repository | `worker/.../report/ReportScheduleRepository.java` | new |
-| Config | `worker/src/main/resources/application.yml` | change — a second datasource bound to `readonly_user` |
-| Controller | `core/.../report/ExportController.java` | change — accept `async=true`, return a job id |
+| Config | `worker/src/main/resources/application.yml` | change — a second datasource bound to `readonly_user`, beside the existing `worker_user` one |
+| Controller | `core/.../report/ExportController.java` | change — accept `async=true`: `JobService.createJob`, then `QueueProducer.send("report", QueueMessage.of(jobId, tenantId, "report", payload))`, return `202` + job id |
+| Controller | `app/.../controller/JobStatusController.java` | change — add `@RequiresAction("core.job.read")` to `GET /api/v1/jobs/{jobId}` (`JobStatusController.java:19-28`; today it has none — `12-core-contracts.md:78`) |
+
+The `report` queue already exists — `W-52` created `payrun`, `import`, `report`
+(`W-52-queue-worker.md:64`); this is its first producer. The consumer is idempotent on
+`jobId`: a redelivered message for a job already `COMPLETED` or `RUNNING` is dropped, per
+`W-52`'s rule (`12-core-contracts.md:158`). The job's result payload carries the document id,
+so `GET /jobs/{id}` is enough to reach the file.
 
 **A second datasource, not a second connection string in the same pool.** `readonly_user` is
 subject to RLS like `app_user` (`02-data-model.md:400`), so the tenant must still be bound per
@@ -95,9 +113,14 @@ becomes cross-tenant.
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| PUT | `/api/v1/report-schedules/{id}` | definitionId, cadence, recipients, filters | `200` | Bearer, tenant bound |
-| GET | `/api/v1/report-schedules` | — | the tenant's schedules with last-run status | Bearer, tenant bound |
-| POST | `/api/v1/exports?async=true` | definitionId, filters | `202` + job id | Bearer, tenant bound |
+| PUT | `/api/v1/report-schedules/{id}` | definitionId, cadence, recipients, filters | `200` | `@RequiresAction("core.report_schedule.manage")` |
+| GET | `/api/v1/report-schedules` | — | the tenant's schedules with last-run status | `@RequiresAction("core.report_schedule.manage")` |
+| POST | `/api/v1/exports?async=true` | definitionId, filters | `202` + job id | `core.report.read` and the definition's `required_action`, as `W-23.1` |
+| GET | `/api/v1/jobs/{jobId}` | — | status, progress, result (document id) | `@RequiresAction("core.job.read")` — built in `app`, guard added here |
+
+`core.report_schedule.manage` and `core.job.read` arrive with `W-11.3`
+(`12-core-contracts.md:128`). `PUT` also requires that the caller holds the definition's
+`required_action`: nobody schedules a report they may not run.
 
 ## 5. Frontend changes
 
@@ -141,7 +164,9 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 | Unit | `worker/.../report/ReportScheduleEvaluatorTest.java` | daily, weekly and monthly cadences; month-end handled where a month has no 31st; local time honoured |
 | Integration | `worker/.../report/ScheduledReportIT.java` | a due schedule produces a document and queues exactly one notification |
 | Integration | `worker/.../report/ReadOnlyRoleIT.java` | **the report datasource is refused `INSERT`, and its reads are still tenant-scoped by RLS** |
-| Integration | `worker/.../report/AsyncExportIT.java` | a queued export completes and its job id resolves to the document |
+| Integration | `worker/.../report/AsyncExportIT.java` | `POST /exports?async=true` puts one message on the `report` queue and returns `202`; the consumer completes it; `GET /jobs/{id}` returns `COMPLETED` with the document id; a redelivered message does not produce a second document |
+| Integration | `worker/.../report/ScheduledReportLinkIT.java` | the emailed link is signed for 7 days, not 15 minutes; the document row has `kind = EXPORT` and no `employee_id` |
+| Integration | `worker/.../report/ScheduleGuardIT.java` | `/report-schedules` returns `403` without `core.report_schedule.manage`; `GET /jobs/{id}` returns `403` without `core.job.read`, and `404` for another tenant's job |
 | Integration | `worker/.../report/ScheduleRlsIT.java` | a sweep bound to tenant A runs no schedule of tenant B |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
@@ -182,7 +207,8 @@ cd code/backend && mvn -q verify
 | The file is attached to the email instead of linked | medium | Signed link only, per `09-build-order.md:204`; attachments also break at size |
 | A monthly schedule set to the 31st skips February | medium | Month-end clamping, unit-tested |
 | Two replicas run the same schedule | medium | `@SchedulerLock` from `W-52`; not re-solved here |
-| A signed link outlives the recipient's need for it | low | `W-21` decision 1 sets the window; a scheduled report may need the longer one |
+| A signed link outlives the recipient's need for it | low | `W-21`'s `signedLink(id, Duration)` caps at 7 days; this ticket passes exactly that (contracts §6 decision 8) |
+| The worker writes the export on the read-only datasource and fails, or the read runs on `worker_user` and a replica never helps | medium | Two datasources, named by purpose; `ReadOnlyRoleIT` asserts the read one refuses `INSERT`, `AsyncExportIT` asserts the write lands |
 
 ## 10. Rollback
 
@@ -217,4 +243,4 @@ the decision; the consolidated record is
 `.claude/outputs/2026-09-22-plan-core-open-questions.md`.
 
 1. **May a schedule send to an address outside the tenant?** An accountant or auditor often wants the file. **Recommend** allowing it but recording every external recipient in the audit log, since it is a deliberate export of tenant data to someone with no account.
-2. **How long does a scheduled report's link live?** `W-21` decision 1 proposes fifteen minutes for interactive downloads, which is far too short for a report emailed overnight. **Recommend** seven days for scheduled reports, set when the link is created rather than as a second global default.
+2. **How long does a scheduled report's link live?** `W-21` decision 1 proposes fifteen minutes for interactive downloads, which is far too short for a report emailed overnight. **Recommend** seven days for scheduled reports, set when the link is created rather than as a second global default. **Confirmed 2026-09-25** as `12-core-contracts.md:173`, decision 8; `W-21` now caps `signedLink` at 7 days.

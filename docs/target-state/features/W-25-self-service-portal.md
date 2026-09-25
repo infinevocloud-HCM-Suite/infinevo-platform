@@ -5,23 +5,26 @@
 | **Feature ID** | `W-25` · ticket #29 · `CORE-19` |
 | **Promoted to** | `docs/target-state/features/W-25-self-service-portal.md` on branch `W-25-self-service-portal` |
 | **Owner** | unassigned |
-| **Apps touched** | `code/frontend` · read-only endpoints already built by other tickets |
+| **Apps touched** | `code/frontend` · `code/backend/core` (`/me/panels`, `PortalPanelProvider`, three core providers) · one placeholder provider class each in `payroll` and `hrms` · read-only endpoints already built by other tickets |
 | **Related gaps** | BUG-001 (already fixed by `W-10`), DEBT-013 (discounted) |
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | every panel it renders — `W-13.2`, `W-16.3`, `W-21`, `W-12.2`; payslips wait for `W-36` |
+| **Blocked by** | every panel it renders — `W-13.2`, `W-16.3`, `W-21`, `W-12.2`; payslips wait for `W-36`; `W-11.3` for the `core.leave.read_own` and `core.document.read_own` codes |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 20 (§2 `/me/panels` row, §3 `PortalPanelProvider` seam) |
 
 ## Size cap
 
 | Axis | This spec | Limit |
 |---|---|---|
-| Backend module | none — creates no table and no new domain service | 1 |
+| Backend module | `core` — creates no table; the two placeholder providers in `payroll` and `hrms` are one class each, replaced in place by `W-36` and the HRMS timesheet ticket | 1 — placeholders noted 2026-09-25 |
 | Flyway migration | **none** | 1 |
 | Externally testable behaviour | the portal renders the right panels for all three purchase combinations, and a hidden panel's endpoint refuses too | 1 |
 | Frontend area | `src/shell` portal routes | 1 |
 
-Within cap. This is the one stream-C ticket that is mostly frontend.
+Within cap. This is the one stream-C ticket that is mostly frontend. The two placeholder
+providers exist so the placeholder panels have a descriptor to render (decision 2); each is
+a single class with no logic.
 
 ---
 
@@ -54,8 +57,10 @@ renamed and it is not carried forward.
 
 - One portal in the new frontend, at `/me`, with panels assembled from the tenant's entitlement
 - Panels: my profile, my leave, my documents, my payslips (Payroll only), my timesheet (HRMS only)
+- Each panel is a `PortalPanelProvider` bean registered by the module that owns it; `core` lists them, filtered by entitlement and by the caller's actions
 - Server-side entitlement on every panel's data endpoint, asserted by test
 - A panel whose module the tenant has not bought is not rendered **and** its endpoint returns `403`
+- **Gated by actions, not by the `employee` role.** A panel appears when the caller holds its `*_own` action, whoever granted it
 
 **Out of scope**
 
@@ -69,9 +74,13 @@ renamed and it is not carried forward.
 
 ```
 [employee logs in via Keycloak (W-10)]
-  --> [GET /api/v1/me/panels] --> entitlement resolved server-side (W-12.2)
+  --> [GET /api/v1/me/panels]
+        --> every PortalPanelProvider bean
+        --> keep if provider.module() is entitled (W-12.2)
+        --> keep if caller holds provider's *_own action (W-11.2)
+        --> keep if is_portal_enabled
   --> shell renders only the returned panels
-  --> each panel --> its own endpoint --> 403 if the module is not held
+  --> each panel --> its own endpoint --> 403 if the module or the action is not held
 ```
 
 The panel list comes from the server. The frontend never decides what an employee may see;
@@ -82,15 +91,45 @@ it renders what it is given.
 | Layer | File | Change |
 |---|---|---|
 | Controller | `core/.../portal/PortalController.java` | new — `GET /api/v1/me/panels` only |
-| Service | `core/.../portal/PortalPanelService.java` | new — resolves panels from entitlement |
+| Service | `core/.../portal/PortalPanelService.java` | new — collects the `PortalPanelProvider` beans and filters them |
+| Contract | `core/.../portal/PortalPanelProvider.java` | new — the interface a panel's owning module implements |
+| Providers | `core/.../portal/ProfilePanelProvider.java`, `LeavePanelProvider.java`, `DocumentPanelProvider.java` | new — the three core panels, in `core` |
+| Providers | `payroll/.../portal/PayslipPanelProvider.java`, `hrms/.../portal/TimesheetPanelProvider.java` | new — placeholders until `W-36` and the HRMS timesheet ticket; each returns its panel descriptor and nothing else |
 
-That is the whole backend. No entity, no repository, no table.
+No entity, no repository, no table.
+
+**`PortalPanelProvider` bean contract** (`12-core-contracts.md` §3, "Portal panel"). The
+module registers the bean; `core` discovers it by type. `core` never names a payroll or HRMS
+class — `maven-enforcer` would reject it.
+
+| Method | Returns | Meaning |
+|---|---|---|
+| `code()` | `String` | the panel id the shell routes on, e.g. `profile`, `leave`, `documents`, `payslips`, `timesheet` |
+| `module()` | `PlatformModule` or `null` | the module the panel belongs to; `null` means core, every tenant |
+| `panel(UUID employeeId)` | `PanelDescriptor` | `code`, `displayOrder`, the endpoint the panel reads, and the `*_own` action it needs |
+
+**Panels, endpoints and the action each needs.** The portal is gated by actions, not by the
+`employee` role: the seeded role happens to hold these codes, but the check is on the code.
+
+| Panel | `module()` | Endpoint | Action | In `V020__action.sql` today? |
+|---|---|---|---|---|
+| `profile` | core | `GET /api/v1/me/employee` (`W-13.2`) | `core.employee.read_own` | yes, `:58` |
+| `leave` | core | `GET /api/v1/me/leave-requests`, `/me/leave-balances` (`W-16.2`, `W-16.3`) | `core.leave.read_own` | **no** — exists as `hrms.leave.read_own` (`:81`); renamed by `W-11.3` (`12-core-contracts.md` §4) |
+| `documents` | core | `GET /api/v1/me/documents` (`W-21`) | `core.document.read_own` | **no** — added by `W-11.3` |
+| `payslips` | `PAYROLL` | `GET /api/v1/me/payslips` (`W-36`) | `payroll.payslip.read_own` | yes, `:121` |
+| `timesheet` | `HRMS` | `GET /api/v1/me/timesheet` (HRMS timesheet ticket) | `hrms.timesheet.read_own` | yes, `:98` |
+
+Until `W-11.3` lands, the leave provider builds against `hrms.leave.read_own` and the
+document provider against whatever `W-21` ships; both are one-string changes.
 
 **API contract**
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| GET | `/api/v1/me/panels` | — | ordered list of panel ids the caller may see | Bearer, tenant bound, role `employee` |
+| GET | `/api/v1/me/panels` | — | ordered list of panel descriptors the caller may see | `@RequiresAction("core.employee.read_own")` — the least any portal user holds; each panel then applies its own action |
+
+`/me/*` data endpoints belong to their own tickets and each carries its panel's `*_own` code
+(`12-core-contracts.md` §2, `/me/panels` row).
 
 ## 5. Frontend changes
 
@@ -128,8 +167,10 @@ No panel component is imported conditionally on a `localStorage` value. The lega
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `core/.../portal/PortalPanelServiceTest.java` | all three purchase combinations return the right panel set |
-| Integration | `core/.../portal/PortalEntitlementIT.java` | a Payroll-only tenant's employee gets `403` from the timesheet endpoint, not just a missing menu |
+| Unit | `core/.../portal/PortalPanelServiceTest.java` | all three purchase combinations return the right panel set, from stub providers; a provider whose action the caller lacks is dropped; ordering follows `displayOrder` |
+| Unit | `core/.../portal/PortalActionGateTest.java` | a caller **without** the `employee` role but holding `core.employee.read_own` and `payroll.payslip.read_own` sees exactly those two panels — the role is not consulted |
+| Integration | `core/.../portal/PortalEntitlementIT.java` | a Payroll-only tenant's employee gets `403` from the timesheet endpoint, not just a missing menu; a caller stripped of `payroll.payslip.read_own` gets `403` from `/me/payslips` while entitled |
+| Integration | `core/.../portal/PortalPanelDiscoveryIT.java` | with `payroll` and `hrms` on the classpath, both module providers are discovered by `core` without `core` importing either |
 | Frontend | `src/shell/portal/PortalLayout.test.jsx` | renders exactly the panels returned; renders nothing for an empty list |
 
 `PortalEntitlementIT` is the test that matters. `09-build-order.md:185` calls a hidden menu
@@ -156,8 +197,8 @@ cd code/frontend && npm test
 
 | Check | Expected |
 |---|---|
-| `employee.globex` panels | profile, leave, documents, payslips, timesheet |
-| `employee.acme` panels | profile, leave, documents, payslips — **no timesheet** |
+| `employee.globex` panels | `profile, leave, documents, payslips, timesheet` (by `code`) |
+| `employee.acme` panels | `profile, leave, documents, payslips` — **no timesheet** |
 | `employee.acme` timesheet endpoint | `403`, not `404` and not `200` |
 | Frontend tests | green |
 
@@ -189,7 +230,7 @@ the endpoints it reads belong to other tickets and are unaffected.
 | `Money`/`BigDecimal` for money | holds no money; figures are rendered from responses |
 | Index on `tenant_id` plus lookup columns | adds none |
 | Expand / contract | no schema change |
-| No module references another module | `PortalController` lives in `core` and calls `core` only; module panels are reached by HTTP from the browser, not by a Java call |
+| No module references another module | `PortalController` lives in `core` and calls `core` only; `payroll` and `hrms` implement `core`'s `PortalPanelProvider` and `core` discovers them by type; panel data is reached by HTTP from the browser, not by a Java call |
 
 ## 12. Gap inventory
 
@@ -212,7 +253,7 @@ silently:
 | Gate | Answers |
 |---|---|
 | `is_portal_enabled` on the employee | May this person use the portal at all? |
-| The `employee` role (`W-11.1`) | Do they hold the actions the panels need? |
+| The panel's `*_own` action (`W-11.2`) — **not the `employee` role** | Do they hold the action this panel needs? The seeded role is one way to get it; a custom role is another |
 | Module entitlement (`W-12.2`) | Did the customer buy the module behind this panel? |
 
 **The strictest wins.** `PortalPanelService` evaluates all three and returns a panel only if

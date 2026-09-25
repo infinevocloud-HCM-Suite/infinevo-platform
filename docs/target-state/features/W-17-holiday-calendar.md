@@ -10,18 +10,21 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-14.1` — `core.work_location` must exist first |
+| **Blocked by** | `W-14.1` — `core.work_location` must exist first; `W-11.3` — the `core.holiday.read/manage` codes |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 9 |
 
 ## Size cap
 
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `core` | 1 |
-| Flyway migration | 2 scripts, one table each — aggregate exception | 1 — exception granted 2026-09-22 |
+| Flyway migration | **3 scripts, one table each** — aggregate exception | 1 — exception granted 2026-09-22, extended to three 2026-09-25 (`12-core-contracts.md:146`) |
 | Externally testable behaviour | a location's holiday list for a date range is correct and tenant-isolated | 1 |
 | Frontend area | none | 1 |
 
-Within cap. `holiday` is a satellite of `holiday_calendar` and ships with it.
+Over the migration cap by two, under a noted exception. `holiday` and
+`holiday_calendar_location` are satellites of `holiday_calendar` and ship with it; the first
+draft counted two and described three.
 
 ---
 
@@ -44,7 +47,7 @@ That last point is the real finding. `09-build-order.md:196` says *"leave and pa
 
 - `core.holiday_calendar` — a named list, owned by a tenant, assigned to work locations
 - `core.holiday` — one dated entry, supporting a range and the restricted-holiday flag
-- A read API a consumer can ask "is this date a holiday for this location"
+- A read API a consumer can ask "is this date a holiday for this location" and "which holidays fall between these dates"
 - CRUD for both, tenant-scoped
 
 **Out of scope**
@@ -60,7 +63,8 @@ That last point is the real finding. `09-build-order.md:196` says *"leave and pa
 [admin] --> [HolidayCalendarController] --> [HolidayCalendarService]
    --> TenantContext bound by W-08 --> [core.holiday_calendar, core.holiday under RLS]
 
-[leave or pay, later] --> [HolidayQueryService.isHoliday(locationId, date)] --> [core.holiday]
+[leave or pay, later] --> [HolidayQueryService.isHoliday(locationId, date)]
+                      --> [HolidayQueryService.holidaysBetween(locationId, from, to)] --> [core.holiday]
 ```
 
 ## 4. Backend changes
@@ -69,25 +73,33 @@ That last point is the real finding. `09-build-order.md:196` says *"leave and pa
 |---|---|---|
 | Controller | `core/.../holiday/HolidayCalendarController.java` | new |
 | Service | `core/.../holiday/HolidayCalendarService.java` | new |
-| Service | `core/.../holiday/HolidayQueryService.java` | new — the read side consumers will use |
-| Entity | `core/.../holiday/HolidayCalendar.java`, `Holiday.java` | new, each `@Table(schema="core")` |
-| Repository | `core/.../holiday/HolidayCalendarRepository.java`, `HolidayRepository.java` | new |
+| Service | `core/.../holiday/HolidayQueryService.java` | new — the read side consumers will use: `isHoliday(locationId, date)` and `holidaysBetween(locationId, from, to)` (`12-core-contracts.md:96`) |
+| Entity | `core/.../holiday/HolidayCalendar.java`, `Holiday.java`, `HolidayCalendarLocation.java` | new, each `@Table(schema="core")` |
+| Repository | `core/.../holiday/HolidayCalendarRepository.java`, `HolidayRepository.java`, `HolidayCalendarLocationRepository.java` | new |
 | DTO | `core/.../holiday/*Request.java`, `*Response.java` | new |
 
 `HolidayQueryService` exists in this ticket even though nothing calls it yet. That is
-deliberate: it is the seam `W-16` and `W-18` plug into, and defining it here stops each of
-them growing its own.
+deliberate: it is the seam `W-16`, `W-18` and `W-15.3` plug into, and defining it here stops
+each of them growing its own. It answers two questions and does no arithmetic:
+`isHoliday(UUID locationId, LocalDate date)` → boolean, and
+`holidaysBetween(UUID locationId, LocalDate from, LocalDate to)` → the holidays overlapping
+that inclusive range, each with its `isRestricted` flag. A location with no calendar resolves
+to the tenant's `is_default` one.
 
 **API contract**
 
-| Method | Path | Request | Response | Auth |
+| Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| POST | `/api/v1/holiday-calendars` | name, work location ids | `201` | Bearer, tenant bound |
-| GET | `/api/v1/holiday-calendars` | — | list | Bearer, tenant bound |
-| PUT | `/api/v1/holiday-calendars/{id}` | name, work location ids | `200` | Bearer, tenant bound |
-| POST | `/api/v1/holiday-calendars/{id}/holidays` | name, from, to, restricted | `201` | Bearer, tenant bound |
-| DELETE | `/api/v1/holiday-calendars/{id}/holidays/{holidayId}` | — | `204` | Bearer, tenant bound |
-| GET | `/api/v1/holidays?workLocationId=&from=&to=` | — | list for that location | Bearer, tenant bound |
+| POST | `/api/v1/holiday-calendars` | name, work location ids | `201` | `core.holiday.manage` |
+| GET | `/api/v1/holiday-calendars` | — | list | `core.holiday.read` |
+| PUT | `/api/v1/holiday-calendars/{id}` | name, work location ids | `200` | `core.holiday.manage` |
+| POST | `/api/v1/holiday-calendars/{id}/holidays` | name, from, to, restricted | `201` | `core.holiday.manage` |
+| DELETE | `/api/v1/holiday-calendars/{id}/holidays/{holidayId}` | — | `204` | `core.holiday.manage` |
+| GET | `/api/v1/holidays?workLocationId=&from=&to=` | — | list for that location | `core.holiday.read` |
+
+All Bearer, tenant bound. Codes per `12-core-contracts.md:62`; they are today's
+`hrms.holiday.read/manage`, renamed to `core.*` by `W-11.3` (`12-core-contracts.md:126`) so
+a Payroll-only tenant keeps its holidays.
 
 ## 5. Frontend changes
 
@@ -99,24 +111,29 @@ None.
 |---|---|---|---|
 | `core/V0NN__holiday_calendar.sql` | `core.holiday_calendar` | yes | additive |
 | `core/V0NN__holiday.sql` | `core.holiday` | yes | additive |
+| `core/V0NN__holiday_calendar_location.sql` | `core.holiday_calendar_location` | yes | additive |
 
 Version numbers are assigned when the branch is cut; the sequence is global —
 `migration/README.md:17-31`.
 
 `holiday_calendar`: `id uuid` · `tenant_id uuid NOT NULL` · `name varchar(128) NOT NULL` ·
-`is_default boolean NOT NULL DEFAULT false` · four audit columns.
+`is_default boolean NOT NULL DEFAULT false` · four audit columns. **One default per tenant**:
+a partial unique index on `(tenant_id) WHERE is_default` (`12-core-contracts.md:146`).
 
 `holiday`: `id uuid` · `tenant_id uuid NOT NULL` ·
 `calendar_id uuid NOT NULL REFERENCES core.holiday_calendar(id)` · `name varchar(128)` ·
 `from_date date NOT NULL` · `to_date date NOT NULL` · `is_restricted boolean NOT NULL DEFAULT false` ·
 `description` · four audit columns.
 
-The calendar-to-location link is a third structure, `core.holiday_calendar_location`
-(`tenant_id`, `calendar_id`, `work_location_id`) — **and that makes three tables, not two.**
-See decision 1: either it ships here under the aggregate exception, or `W-17` splits.
+`holiday_calendar_location`: `id uuid` · `tenant_id uuid NOT NULL` ·
+`calendar_id uuid NOT NULL REFERENCES core.holiday_calendar(id)` ·
+`work_location_id uuid NOT NULL REFERENCES core.work_location(id)` · four audit columns.
+**Unique `(tenant_id, work_location_id)`** — a location resolves to exactly one calendar
+(decision 2, `12-core-contracts.md:29`), so "is this a holiday" has one answer. Three tables,
+three scripts, under the exception noted in the size cap (decision 1).
 
 - [x] `tenant_id` on every table, leading index column
-- [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, calendar_id, from_date)` on `holiday`, `(tenant_id, work_location_id)` on the link
+- [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, calendar_id, from_date)` on `holiday`; the unique `(tenant_id, work_location_id)` on the link doubles as its lookup index; the partial unique on `(tenant_id) WHERE is_default`
 - [x] Money columns — none
 - [x] Expand / contract — new tables only
 
@@ -130,9 +147,10 @@ Each script carries its own RLS and `tenant_isolation` policy in the exact `CASE
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `core/.../holiday/HolidayQueryServiceTest.java` | a date inside a range is a holiday; boundaries are inclusive; restricted holidays are returned but flagged |
+| Unit | `core/.../holiday/HolidayQueryServiceTest.java` | a date inside a range is a holiday; boundaries are inclusive; restricted holidays are returned but flagged; **`holidaysBetween` returns a holiday that straddles either end of the range, and an empty list, not null, when there are none**; a location with no calendar falls to the default |
 | Integration | `core/.../holiday/HolidayRlsIT.java` | tenant A cannot read tenant B's calendars or holidays as `app_user` |
-| Integration | `core/.../holiday/HolidayCalendarLocationIT.java` | a calendar cannot be assigned a work location belonging to another tenant |
+| Integration | `core/.../holiday/HolidayCalendarLocationIT.java` | a calendar cannot be assigned a work location belonging to another tenant; **assigning a location already on another calendar is refused by the unique key**; a second `is_default` calendar for one tenant is refused |
+| Integration | `core/.../holiday/HolidayGuardIT.java` | writes are `403` without `core.holiday.manage`; reads succeed with `core.holiday.read` alone |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 
@@ -148,6 +166,10 @@ done
 docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_user -d infinevo -c \
   "INSERT INTO core.holiday (tenant_id, calendar_id, name, from_date, to_date)
    VALUES (gen_random_uuid(), gen_random_uuid(), 'bad', '2026-05-02', '2026-05-01');"
+docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_user -d infinevo -c \
+  "SELECT indexdef FROM pg_indexes WHERE schemaname='core'
+     AND (tablename='holiday_calendar_location' OR tablename='holiday_calendar') AND indexdef LIKE '%UNIQUE%';"
+ls code/backend/migration/src/main/resources/db/migration/core/ | grep -c 'holiday'
 cd code/backend && mvn -q verify
 ```
 
@@ -155,6 +177,8 @@ cd code/backend && mvn -q verify
 |---|---|
 | RLS on all three | `t` three times |
 | Inverted range insert | rejected by the check constraint, not accepted |
+| Unique indexes | two rows: `(tenant_id, work_location_id)` on the link, `(tenant_id) WHERE is_default` on the calendar |
+| Script count | `3` — one per table |
 | Suite | green, no skips |
 
 ## 9. Risks
@@ -162,8 +186,9 @@ cd code/backend && mvn -q verify
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | Locations are copied as strings because the legacy model did (`Holiday.java:39-45`) | **medium — the legacy shape is the trap here** | The link table has a real FK; `HolidayCalendarLocationIT` asserts the cross-tenant case |
-| `HolidayQueryService` is written to no consumer and turns out wrong when `W-16` arrives | medium | Keep it to one question — is this date a holiday for this location — and no calculation |
-| A tenant with no calendar makes every day a working day, silently | medium | `is_default` on one calendar per tenant; `W-12.1` tenant creation seeds an empty default |
+| `HolidayQueryService` is written to no consumer and turns out wrong when `W-16` arrives | medium | Keep it to two questions — is this date a holiday, which holidays fall in this range — and no calculation |
+| A tenant with no calendar makes every day a working day, silently | medium | `is_default` on exactly one calendar per tenant, enforced by the partial unique index; `W-12.1` tenant creation seeds an empty default |
+| A location lands on two calendars and "is this a holiday" has two answers | medium | Unique `(tenant_id, work_location_id)` on the link, asserted by `HolidayCalendarLocationIT` |
 | Restricted holidays are treated as ordinary ones by a later consumer | low | The flag is on the row and in the response; consumers decide |
 
 ## 10. Rollback
@@ -175,7 +200,7 @@ Nothing is deployed. Scripts are additive and forward-only — `migration/README
 | Rule | This ticket |
 |---|---|
 | `tenant_id` + RLS on every new table outside `reference` | all three tables, each in its own script |
-| Flyway only, `ddl-auto` nowhere | two or three scripts; none added |
+| Flyway only, `ddl-auto` nowhere | three scripts, under the noted exception; none added |
 | `Money`/`BigDecimal` for money | creates no money column |
 | Index on `tenant_id` plus lookup columns | `tenant_id` leads every index |
 | Expand / contract | new tables only |
@@ -195,5 +220,5 @@ Nothing is deployed. Scripts are additive and forward-only — `migration/README
 the decision; the consolidated record is
 `.claude/outputs/2026-09-22-plan-core-open-questions.md`.
 
-1. **Three tables or two tickets?** The calendar-to-location link is a third table. It is a pure join with no behaviour of its own, so I would ship it under the same aggregate exception granted for `W-13.2`. Confirm, or `W-17` splits into calendar-and-holidays plus location-assignment.
+1. **Three tables or two tickets?** The calendar-to-location link is a third table. It is a pure join with no behaviour of its own, so I would ship it under the same aggregate exception granted for `W-13.2`. Confirm, or `W-17` splits into calendar-and-holidays plus location-assignment. **Confirmed as three scripts here** (`12-core-contracts.md:146`); the size cap now says so.
 2. **One calendar per location, or many?** Payroll allows a holiday to name several locations. **Recommend** one calendar assigned to many locations, and a location resolving to exactly one calendar — otherwise "is this a holiday" has more than one answer and every consumer must break the tie.

@@ -11,13 +11,14 @@
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
 | **Blocked by** | `W-10` |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 11, §6 decisions 4 and 7 |
 
 ## Size cap
 
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `core` | 1 |
-| Flyway migration | 2 scripts, one table each — aggregate exception | 1 — exception granted 2026-09-22 |
+| Flyway migration | 3 scripts — `subscription`, `subscription_module`, and an expand-only `ALTER TABLE core.tenant` (§6 decision 7) — aggregate exception | 1 — exception granted 2026-09-22, widened 2026-09-25 to the tenant ALTER |
 | Externally testable behaviour | a tenant is created holding a named set of modules, and that set is readable | 1 |
 | Frontend area | none | 1 |
 
@@ -51,7 +52,8 @@ eventually attach without the rest of the platform knowing.
 
 - `core.subscription` — one per tenant, with the status that is the payment seam
 - `core.subscription_module` — one row per granted module
-- Tenant creation that takes a module set
+- Tenant creation that takes a module set **and** the tenant's `country_code`, `timezone` and `leave_year_start_month` — three new nullable-with-default columns on `core.tenant`, which today holds `name` only (`code/backend/migration/src/main/resources/db/migration/core/V001__tenant.sql:5-14`)
+- Cross-tenant writes by platform staff through `SECURITY DEFINER` functions, never an RLS bypass for `app_user`
 - A read API returning the tenant's modules, which `W-12.2` enforces and `W-12.3` renders
 - Making the two seeded dev tenants actually differ
 
@@ -67,9 +69,14 @@ eventually attach without the rest of the platform knowing.
 
 ```
 [platform admin] --> [TenantController] --> [TenantService]
+   --> core.provision_tenant(...)  SECURITY DEFINER, owner migration_user
    --> [core.tenant] + [core.subscription] + [core.subscription_module]
 
-[W-12.2, later] --> [EntitlementService.holds(tenant, module)] --> boolean
+[platform admin] --> [SubscriptionController] --> [SubscriptionService]
+   --> core.set_subscription_modules(...) / core.set_subscription_status(...)
+   --> PermissionCache.bumpVersion(tenantId)
+
+[W-12.2, later] --> [EntitlementSource.modulesOf(tenantId)] --> Set<PlatformModule>
 ```
 
 ## 4. Backend changes
@@ -78,11 +85,11 @@ eventually attach without the rest of the platform knowing.
 |---|---|---|
 | Controller | `core/.../subscription/SubscriptionController.java` | new |
 | Controller | `core/.../tenant/TenantController.java` | new — creation now takes a module set |
-| Service | `core/.../subscription/SubscriptionService.java` | new |
-| Service | `core/.../subscription/EntitlementReadService.java` | new — the seam `W-12.2` caches and enforces |
+| Service | `core/.../subscription/SubscriptionService.java` | new — after any module or status change calls `PermissionCache.bumpVersion(tenantId)` (`code/backend/shared/src/main/java/com/infinevo/shared/authz/PermissionCache.java:132-143`), so every replica's cached module set and action set is invalidated together |
+| Service | `core/.../subscription/EntitlementReadService.java` | new — implements `shared`'s `EntitlementSource` port (`W-12.2`); `Set<PlatformModule> modulesOf(UUID tenantId)` returns the non-revoked modules of an `active` or `past_due` subscription |
 | Entity | `core/.../subscription/Subscription.java`, `SubscriptionModule.java` | new, each `@Table(schema="core")` |
 | Repository | two | new |
-| Enumeration | `core/.../subscription/PlatformModule.java`, `SubscriptionStatus.java` | new |
+| Enumeration | `core/.../subscription/SubscriptionStatus.java` | new. `PlatformModule` is **not** here — it lives in `shared` (`W-12.2`), because the aspect that reads it may not depend on `core` |
 
 `PlatformModule` has exactly two values — `HRMS` and `PAYROLL`. `core` is not a module;
 every tenant has all twenty-one core capabilities (`01-platform-shape.md:57`).
@@ -91,10 +98,38 @@ every tenant has all twenty-one core capabilities (`01-platform-shape.md:57`).
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| POST | `/api/v1/tenants` | name, country, modules | `201` | Bearer, `platform-admin` |
-| GET | `/api/v1/tenants/{id}/subscription` | — | status, modules, dates | Bearer, tenant bound |
-| PUT | `/api/v1/tenants/{id}/subscription/modules` | modules | `200` | Bearer, `platform-admin` |
-| PUT | `/api/v1/tenants/{id}/subscription/status` | status | `200` | Bearer, `platform-admin` |
+| POST | `/api/v1/tenants` | name, country_code, timezone, leave_year_start_month, modules | `201` | `@RequiresAction("core.tenant.provision")` |
+| GET | `/api/v1/tenants/{id}/subscription` | — | status, modules, dates | `@RequiresAction("core.tenant.read")`, tenant bound |
+| PUT | `/api/v1/tenants/{id}/subscription/modules` | modules | `200` | `@RequiresAction("core.tenant.provision")` |
+| PUT | `/api/v1/tenants/{id}/subscription/status` | status | `200` | `@RequiresAction("core.tenant.provision")` |
+
+Request fields on `POST`: `name` (required) · `country_code` ISO 3166-1 alpha-2, `CHAR(2)` ·
+`timezone` an IANA zone name, `varchar(64)`, rejected unless `ZoneId.of()` accepts it ·
+`leave_year_start_month` `smallint` 1–12. The three optional fields fall back to the column
+defaults in §6.
+
+**The gate is the action, not the realm role.** `core.tenant.provision` is catalogued as
+"platform staff only; never granted to a customer role" (`code/backend/migration/src/main/resources/db/migration/reference/V020__action.sql:43-44`)
+and the seeded `tenant-admin` role excludes it (`code/backend/migration/src/main/resources/db/migration/core/V022__role_action.sql:47,91`). The
+Keycloak realm role gates nothing (`W-11-1-role-catalogue.md:61,229`); a `hasRole("platform-admin")`
+check here would be a second, unchecked permission system.
+
+**Cross-tenant writes go through `SECURITY DEFINER` functions (§6 decision 4).** Platform
+staff act on a tenant that is not the bound one, and `app_user` is under RLS on every table.
+The migration therefore adds three functions owned by `migration_user`, in the same form as
+`core.seed_system_roles` (`code/backend/migration/src/main/resources/db/migration/core/V022__role_action.sql:65-70`) and `core.get_user_tenants`
+(`code/backend/migration/src/main/resources/db/migration/core/V002__user_tenant.sql:30-40`):
+
+| Function | Writes | Grant |
+|---|---|---|
+| `core.provision_tenant(p_name, p_country_code, p_timezone, p_leave_year_start_month, p_modules text[])` → `tenant_id` | `core.tenant`, `core.subscription`, `core.subscription_module` | `REVOKE EXECUTE FROM PUBLIC; GRANT EXECUTE TO app_user` |
+| `core.set_subscription_modules(p_tenant_id, p_modules text[])` | `core.subscription_module` — grants new, sets `revoked_on` on dropped, re-grants a revoked one in place | same |
+| `core.set_subscription_status(p_tenant_id, p_status)` | `core.subscription.status` | same |
+
+Each is `LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp` with every
+name schema-qualified. `app_user` keeps no direct `INSERT`/`UPDATE` on rows of another tenant;
+the only door is the function, and the Java service calls it only after `@RequiresAction`
+has passed. RLS stays absolute for the application connection.
 
 Adding a module is an upgrade — the switch `CLAUDE.md` promises instead of a re-onboarding.
 **Removing** one is not symmetrical and is decision 1.
@@ -109,8 +144,17 @@ None.
 |---|---|---|---|
 | `core/V0NN__subscription.sql` | `core.subscription` | yes | additive |
 | `core/V0NN__subscription_module.sql` | `core.subscription_module` | yes | additive |
+| `core/V0NN__tenant_locale_columns.sql` | `core.tenant` — `ALTER TABLE ADD COLUMN` ×3, plus the three `SECURITY DEFINER` functions above | yes (existing RLS, `V001:24-33`) | expand only |
 
 Version numbers assigned when the branch is cut — `migration/README.md:17-31`.
+
+`core.tenant` gains (`§6 decision 7`; `core.tenant` is built, so this is the expand half only,
+`migration/README.md:149`): `country_code char(2) NULL DEFAULT 'IN'` ·
+`timezone varchar(64) NULL DEFAULT 'Asia/Kolkata'` ·
+`leave_year_start_month smallint NULL DEFAULT 1 CHECK (leave_year_start_month BETWEEN 1 AND 12)`.
+Nullable with a default so existing rows and the dev seed need no backfill; a `NOT NULL` is a
+later contract step. The `leave_year_start_month` default is provisional — §7 question 1 of
+`12-core-contracts.md` is open; the column, not the default, is what this ticket commits to.
 
 `subscription`: `id uuid` · `tenant_id uuid NOT NULL` · `status varchar(16) NOT NULL` —
 **active, past due, suspended, cancelled** · `started_on date NOT NULL` ·
@@ -125,7 +169,7 @@ four audit columns.
 - [x] `tenant_id` on both, leading index column
 - [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id)` unique on subscription, `(tenant_id, module)` unique where `revoked_on IS NULL`
 - [x] **Money columns — none.** No price, no amount. `D-12` puts billing behind the seam, not in this table
-- [x] Expand / contract — new tables only
+- [x] Expand / contract — new tables, plus nullable-with-default columns on `core.tenant`; nothing dropped or renamed
 
 **`revoked_on` rather than deletion.** A module a tenant used to hold explains data that still
 exists, and a payslip from a month the tenant had Payroll must stay explainable after they
@@ -143,7 +187,10 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form in each script �
 |---|---|---|
 | Unit | `core/.../subscription/SubscriptionServiceTest.java` | a tenant cannot hold the same module twice; granting a revoked module re-grants rather than duplicating |
 | Integration | `core/.../subscription/SubscriptionRlsIT.java` | tenant A cannot read tenant B's subscription as `app_user` |
-| Integration | `core/.../subscription/TenantCreationIT.java` | creating a tenant with `[PAYROLL]` yields exactly one module row, and `EntitlementReadService` reports `HRMS` not held |
+| Integration | `core/.../subscription/TenantCreationIT.java` | creating a tenant with `[PAYROLL]` yields exactly one module row, and `EntitlementReadService.modulesOf` omits `HRMS`; the created row carries the given `country_code`, `timezone` and `leave_year_start_month`, and the defaults when omitted; `timezone=Mars/Olympus` and `leave_year_start_month=13` are `400 VALIDATION_FAILED` |
+| Unit | `core/.../subscription/SubscriptionServiceTest.java` | every module or status change calls `PermissionCache.bumpVersion` with the target tenant's id exactly once; a no-op change (same set) does not |
+| Integration | `core/.../subscription/TenantProvisionGuardIT.java` | a user without `core.tenant.provision` gets `403 FORBIDDEN` on `POST /tenants` and both `PUT`s, whatever realm role the token carries; `core.tenant.read` alone reaches only the `GET` |
+| Integration | `core/.../subscription/CrossTenantWriteIT.java` | as `app_user` bound to tenant A, a direct `INSERT` into tenant B's `core.subscription_module` is refused by RLS, and `core.set_subscription_modules(B, ...)` succeeds — the function is the only door |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 
@@ -185,7 +232,7 @@ The seed check is the one that closes the gap `01-tenants.sql:16-21` names.
 
 ## 10. Rollback
 
-Nothing is deployed. Both scripts are additive and forward-only —
+Nothing is deployed. All three scripts are additive and forward-only —
 `migration/README.md:135-143`.
 
 ## 11. Standing rules
@@ -193,10 +240,11 @@ Nothing is deployed. Both scripts are additive and forward-only —
 | Rule | This ticket |
 |---|---|
 | `tenant_id` + RLS on every new table outside `reference` | both tables, each in its own script |
-| Flyway only, `ddl-auto` nowhere | two scripts; none added |
+| Flyway only, `ddl-auto` nowhere | three scripts; none added |
 | `Money`/`BigDecimal` for money | creates no money column, deliberately |
 | Index on `tenant_id` plus lookup columns | two indexes, `tenant_id` leading |
-| Expand / contract | new tables only |
+| Expand / contract | new tables; `core.tenant` gains nullable-with-default columns only |
+| Cross-tenant writes (`12-core-contracts.md` §6 decision 4) | `SECURITY DEFINER` functions owned by `migration_user`; no bypass role for `app_user` |
 | No module references another module | `core` only |
 
 ## 12. Gap inventory
@@ -213,4 +261,4 @@ Nothing is deployed. Both scripts are additive and forward-only —
 |---|---|---|
 | 1 | What happens when a module is revoked? | **Read-only for the statutory retention window, no new records** — settled 2026-09-22. `revoked_on` is what marks it, and `W-12.2` must implement a read-only mode rather than a plain refusal |
 | 2 | Trials | **No trial concept at all** — settled 2026-09-22, against my recommendation of keeping the status value. Every tenant is active or it is not; adding trials later is a migration |
-| 3 | Who may create a tenant? | **`platform-admin` only** — settled 2026-09-23. No self-service signup until there is billing behind the seam |
+| 3 | Who may create a tenant? | **`platform-admin` only** — settled 2026-09-23. No self-service signup until there is billing behind the seam. *Corrected 2026-09-25:* enforced as the action `core.tenant.provision`, which only the seeded `platform-admin` role holds (`V022__role_action.sql:86-91`), not as a realm-role check |

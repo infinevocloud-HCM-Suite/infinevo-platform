@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-15.2` per the ticket; in practice only `W-14.1`, since eligibility references departments, designations and work locations |
+| **Blocked by** | `W-15.2` per the ticket; in practice only `W-14.1`, since eligibility references departments, designations and work locations; `W-11.3` for the `core.leave_type.*` permission codes (`12-core-contracts.md` §4) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 3, 23 |
 
 ## Size cap
 
@@ -77,7 +78,7 @@ entity does not have. Trust the entity.
 | Service | `core/.../leave/LeaveEligibilityService.java` | new — the seam `W-16.3` plugs into |
 | Entity | `core/.../leave/LeaveType.java`, `LeavePolicy.java` | new, each `@Table(schema="core")` |
 | Repository | `core/.../leave/LeaveTypeRepository.java`, `LeavePolicyRepository.java` | new |
-| Enumeration | `core/.../leave/LeaveUnit.java`, `AccrualFrequency.java`, `ExceedBalanceMode.java` | new |
+| Enumeration | `core/.../leave/LeaveUnit.java`, `AccrualFrequency.java`, `ResetFrequency.java`, `ExceedBalanceMode.java` | new — `AccrualFrequency` is `MONTHLY, YEARLY` (`legacy/Payroll-Fend-react/src/pages/mainPages/allSettingsPages/leaveAttendence/addLeaveTypes.js:403-404`); `ResetFrequency` is `YEARLY, MONTHLY, QUARTERLY, HALF_YEARLY` (`:471-474`); `ExceedBalanceMode` is `NO_LIMIT, YEAR_END_LIMIT, MARK_AS_LOP` (`:591-593`), stored as the legacy strings `noLimit`, `yearEndLimit`, `markAsLOP` |
 | DTO | `core/.../leave/*Request.java`, `*Response.java` | new |
 
 The package is `core/.../leave/`. The frozen tree's `leaveAndAttedance/` typo (DEBT-013) is
@@ -85,13 +86,20 @@ not carried forward and the frozen package is not renamed.
 
 **API contract**
 
-| Method | Path | Request | Response | Auth |
+| Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| POST | `/api/v1/leave-types` | name, code, paid, unit, half-day, validity | `201` | Bearer, tenant bound |
-| GET | `/api/v1/leave-types` | `?activeOn=` | list with current policy | Bearer, tenant bound |
-| PUT | `/api/v1/leave-types/{id}` | same | `200` | Bearer, tenant bound |
-| PUT | `/api/v1/leave-types/{id}/policy` | the policy matrix | `200` | Bearer, tenant bound |
-| GET | `/api/v1/leave-types/eligible?employeeId=` | — | the types that employee may request | Bearer, tenant bound |
+| POST | `/api/v1/leave-types` | name, code, paid, unit, half-day, validity | `201` | `core.leave_type.manage` |
+| GET | `/api/v1/leave-types` | `?activeOn=` | list with current policy | `core.leave_type.read` |
+| PUT | `/api/v1/leave-types/{id}` | same | `200` | `core.leave_type.manage` |
+| PUT | `/api/v1/leave-types/{id}/policy` | the policy matrix | `200` | `core.leave_type.manage` |
+| GET | `/api/v1/leave-types/eligible?employeeId=` | — | the types that employee may request | `core.leave_type.read` |
+
+Every endpoint is tenant bound and carries the code shown — `EndpointGuardCoverageTest` fails
+otherwise (`12-core-contracts.md` §2). The codes arrive with `W-11.3`; `core.leave_type.read`
+is added there alongside the renamed `core.leave_type.manage` (`12-core-contracts.md` §4).
+
+The policy `PUT` rejects `exceedBalanceMode = yearEndLimit` without `exceedBalanceLimitDays`,
+the same rule the frozen screen enforces (`addLeaveTypes.js:195-196`).
 
 ## 5. Frontend changes
 
@@ -114,25 +122,49 @@ four audit columns.
 
 `leave_policy`: `id uuid` · `tenant_id uuid NOT NULL` ·
 `leave_type_id uuid NOT NULL REFERENCES core.leave_type(id)` ·
-`annual_days numeric(5,2) NOT NULL` · `accrual_enabled boolean` · `accrual_frequency varchar(16)` ·
-`accrual_units numeric(5,2)` · `reset_enabled boolean` · `reset_frequency varchar(16)` ·
-`carry_forward_enabled boolean` · `carry_forward_cap numeric(5,2)` · `carry_forward_expires_after_months int` ·
+`annual_days numeric(10,2) NOT NULL` · `accrual_enabled boolean` ·
+`accrual_frequency varchar(16) CHECK IN ('monthly','yearly')` ·
+`accrual_units numeric(10,2)` · `reset_enabled boolean` ·
+`reset_frequency varchar(16) CHECK IN ('yearly','monthly','quarterly','halfYearly')` ·
+`carry_forward_enabled boolean` · `carry_forward_cap numeric(10,2)` · `carry_forward_expires_after_months int` ·
 `requires_document boolean NOT NULL DEFAULT false` ·
 `past_booking_limit_days int` · `future_booking_limit_days int` ·
 `include_weekend boolean` · `include_holiday boolean` ·
-`exceed_balance_mode varchar(16) NOT NULL` · `pro_rate_enabled boolean` ·
-`max_days_per_application numeric(5,2)` · `effective_from date NOT NULL` · four audit columns.
+`exceed_balance_mode varchar(16) NOT NULL CHECK IN ('noLimit','yearEndLimit','markAsLOP')` ·
+`exceed_balance_limit_days numeric(10,2) NULL` — required when the mode is `yearEndLimit`, a
+`CHECK` enforces the pair · `pro_rate_enabled boolean` ·
+`max_days_per_application numeric(10,2)` · `gender varchar(32) NULL` — restricts the type to
+one gender, NULL means any · `effective_from date NOT NULL` · four audit columns.
+
+The frequency vocabularies are the frozen screen's (`addLeaveTypes.js:403-404`, `:471-474`),
+and the three exceed-balance modes are its `negativeBalanceType` options (`:591-593`). Payroll's
+entity stores the mode but not the limit (`LeaveType.java:152-153`), so `exceed_balance_limit_days`
+is new. What each mode means downstream: `noLimit` lets the balance go negative with no
+consequence; `yearEndLimit` lets it go negative up to the limit, and `W-16.3` refuses a request
+past it; **only `markAsLOP` produces loss of pay** in `W-16.4a` (`12-core-contracts.md` §5 row 2).
 
 Eligibility is a third structure, `core.leave_policy_eligibility`, holding one row per
-(policy, dimension, value) for gender, department, designation and work location. **That makes
-three tables.** See decision 1.
+(policy, dimension, value). **That makes three tables.** See decision 1.
+
+`leave_policy_eligibility`: `id uuid` · `tenant_id uuid NOT NULL` ·
+`policy_id uuid NOT NULL REFERENCES core.leave_policy(id)` ·
+`dimension varchar(32) NOT NULL CHECK IN ('department','designation','work_location','employment_type')` ·
+`value_id uuid NOT NULL` — the id in the dimension's master table (`core.department`,
+`core.designation`, `core.work_location` from `W-14.1`, `M/core/V011`–`V013`) · four audit
+columns. Unique `(tenant_id, policy_id, dimension, value_id)`. `employment_type` is in the
+vocabulary for the contract (`12-core-contracts.md` §5 row 3) but no built table carries one —
+`core.employee` (`V010`) and `core.employee_employment` (`V018:4-17`) have no such column — so
+the API rejects that dimension until a master for it exists. Gender is not a dimension here: it
+is `core.employee.gender` (`V010__employee.sql:11`), a `varchar`, and `LeaveEligibilityService`
+checks it from a nullable `gender varchar(32)` column on `core.leave_policy` instead.
 
 - [x] `tenant_id` on every table, leading index column
-- [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, code)` unique on type, `(tenant_id, leave_type_id, effective_from DESC)` on policy
-- [x] **Money columns — none.** Day counts are `numeric(5,2)`, not money and not integers
+- [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, code)` unique on type, `(tenant_id, leave_type_id, effective_from DESC)` on policy, `(tenant_id, policy_id, dimension, value_id)` unique on eligibility
+- [x] **Money columns — none.** Day counts are `numeric(10,2)`, not money and not integers
 - [x] Expand / contract — new tables only
 
-**Day counts are `numeric(5,2)`, deliberately.** Payroll stores allocation days as `Integer`
+**Day counts are `numeric(10,2)`, deliberately** — the shape `CONVENTIONS.md:37` prescribes
+for leave days. Payroll stores allocation days as `Integer`
 — `EmployeeLeaveAllocation.java:78` — while HRMS supports half-days through
 `is_half_day` and `half_day_period` on the request. An integer column is where half a day gets
 lost, and that is BUG-003's whole shape. Two decimal places carry it from the first table.
@@ -152,6 +184,8 @@ Each script carries its own RLS and `tenant_isolation` policy in the exact `CASE
 | Unit | `core/.../leave/LeavePolicyVersionTest.java` | the policy in force on a given date is the latest with `effective_from <= date` |
 | Integration | `core/.../leave/LeaveTypeRlsIT.java` | tenant A cannot read or write tenant B's types or policies as `app_user` |
 | Integration | `core/.../leave/LeaveTypeHalfDayIT.java` | `2.5` days survives a write and read on every day-count column |
+| Unit | `core/.../leave/LeavePolicyValidationTest.java` | `yearEndLimit` without a limit is refused; `noLimit` and `markAsLOP` with a limit are refused; an accrual or reset frequency outside its vocabulary is refused |
+| Integration | `core/.../leave/LeavePolicyEligibilityIT.java` | a second row for the same `(policy, dimension, value_id)` is refused by the unique constraint; a `dimension` outside the four is refused by the `CHECK` |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 
@@ -165,7 +199,7 @@ for t in leave_type leave_policy leave_policy_eligibility; do
     "SELECT '$t', relrowsecurity FROM pg_class WHERE oid='core.$t'::regclass;"
 done
 docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_user -d infinevo -c \
-  "SELECT column_name, data_type, numeric_scale FROM information_schema.columns
+  "SELECT column_name, data_type, numeric_precision, numeric_scale FROM information_schema.columns
     WHERE table_schema='core' AND table_name='leave_policy' AND column_name LIKE '%days%' ORDER BY 1;"
 cd code/backend && mvn -q verify
 ```
@@ -173,14 +207,14 @@ cd code/backend && mvn -q verify
 | Check | Expected |
 |---|---|
 | RLS on all three | `t` three times |
-| Day-count columns | `numeric`, scale 2 — never `integer` |
+| Day-count columns | `numeric`, precision 10, scale 2 — never `integer` |
 | Suite | green, no skips |
 
 ## 9. Risks
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Day counts become integers because the legacy allocation used them | **high — this is the BUG-003 shape** | `numeric(5,2)` everywhere; `LeaveTypeHalfDayIT` asserts `2.5` round-trips |
+| Day counts become integers because the legacy allocation used them | **high — this is the BUG-003 shape** | `numeric(10,2)` everywhere; `LeaveTypeHalfDayIT` asserts `2.5` round-trips |
 | The accrual engine gets built here because the columns are here | medium | Named in **Out of scope**; `W-16.2` owns it, and this ticket stores configuration only |
 | HRMS's hard-coded 24/12/8/90/10 are seeded as if they were a standard | medium | They are one employer's numbers (`LeaveBalance.java:9-72`); `W-12.1` seeds nothing, and a new tenant defines its own |
 | Policy is edited in place and last year's balance cannot be explained | medium | `effective_from` versioning, asserted by `LeavePolicyVersionTest` |
@@ -196,7 +230,7 @@ Nothing is deployed. Scripts are additive and forward-only — `migration/README
 |---|---|
 | `tenant_id` + RLS on every new table outside `reference` | all three tables, each in its own script |
 | Flyway only, `ddl-auto` nowhere | two or three scripts; none added |
-| `Money`/`BigDecimal` for money | creates no money column; day counts are `numeric(5,2)`, never float |
+| `Money`/`BigDecimal` for money | creates no money column; day counts are `numeric(10,2)`, never float |
 | Index on `tenant_id` plus lookup columns | `tenant_id` leads every index |
 | Expand / contract | new tables only |
 | No module references another module | `core` only |
@@ -205,7 +239,7 @@ Nothing is deployed. Scripts are additive and forward-only — `migration/README
 
 | ID | Decision |
 |---|---|
-| BUG-003 half-day LOP precision (`GAP_INVENTORY.md:29`) | **Fixed at the source.** Every day count is `numeric(5,2)` from this table onward. The inventory records it resolved on the HRMS side while Payroll still truncates — this removes the truncating side |
+| BUG-003 half-day LOP precision (`GAP_INVENTORY.md:29`) | **Fixed at the source.** Every day count is `numeric(10,2)` from this table onward. The inventory records it resolved on the HRMS side while Payroll still truncates — this removes the truncating side |
 | DEBT-013 package typo `leaveAndAttedance/` (`:51`) | **Discounted.** New code is `core/.../leave/`; the frozen package is untouched |
 | DEBT-018 missing tenant indexes | **Honoured** |
 | `expiration_date` never enforced (`EmployeeLeaveAllocation.java:79`) | **Deferred to `W-16.2`**, which owns balances. The policy here records the window; enforcing it needs an allocation |

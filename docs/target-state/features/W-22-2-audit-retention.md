@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-22.1` — there must be an audit log to retain |
+| **Blocked by** | `W-22.1` — there must be an audit log to retain · `W-20.2` — the `core.list_tenants_for_sweep()` function and the `@Scheduled` + `@SchedulerLock` house pattern · `W-20.1` — the `core.notification` table this sweep also clears |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 17 |
 
 ## Size cap
 
@@ -56,16 +57,25 @@ ticket merges.
 - Archiving to cold storage before deletion — see decision 2
 - Retention for anything but `core.audit_log` and `core.notification`. Documents, payslips and leave records have their own statutory windows and are not swept by this job
 - The capture mechanism — `W-22.1`
-- The scheduler infrastructure itself — `W-20.2` builds it; this job registers with it
+- The scheduler itself — `W-20.2` owns it (contracts §5 row 17). There is no registry to register with: this job is one more `@Scheduled` + `@SchedulerLock` method following `W-20.2`'s pattern, and it calls `W-20.2`'s tenant-list function rather than building its own
 
 ## 3. Flow
 
 ```
-[scheduler, W-20.2] --> [worker: AuditRetentionJob]
-   --> for each tenant: window = tenant setting or 7 years
-   --> delete from core.audit_log where occurred_at < cutoff, in batches
-   --> [core.retention_run] one row per sweep, per tenant
+[@Scheduled + @SchedulerLock, W-20.2's pattern] --> [worker: AuditRetentionJob]
+   --> core.list_tenants_for_sweep() --> for each tenant: bind; windows from the returned row
+   --> delete from core.audit_log    where occurred_at < now - audit_retention_months, in batches
+   --> delete from core.notification where queued_at   < now - notification_retention_months, in batches
+   --> [core.retention_run] one row per sweep, per tenant, per target_table
 ```
+
+**How the job sees every tenant without bypassing RLS.** `retention_user` has no request
+behind it, and `core.tenant` is not in its grant list. It calls
+`core.list_tenants_for_sweep()`, the `SECURITY DEFINER` function `W-20.2` adds in the shape of
+`core.get_user_tenants` (`M/core/V002__user_tenant.sql:30-40`), which `RETURNS SETOF core.tenant`
+— so `audit_retention_months` and `notification_retention_months`, added to `core.tenant`
+below, come back in the same row. This ticket grants `EXECUTE` on it to `retention_user` and
+builds no second list (contracts §6 decision 4).
 
 ## 4. Backend changes
 
@@ -128,7 +138,7 @@ So this ticket adds a **sixth database role** — `W-56` merged `worker_user` an
 
 | Role | Grants |
 |---|---|
-| `retention_user` | `SELECT, DELETE` on `core.audit_log` and `core.notification` only. Not superuser, not `BYPASSRLS`, no `UPDATE`, no access to any other table |
+| `retention_user` | `SELECT, DELETE` on `core.audit_log` and `core.notification`; `SELECT, INSERT, UPDATE` on `core.retention_run`; `EXECUTE` on `core.list_tenants_for_sweep()`. Not superuser, not `BYPASSRLS` (`infra/postgres/01-roles.sql:18-45` is the pattern), no `UPDATE` on either target, no access to any other table |
 
 That touches `infra/postgres/` — the three SQL scripts and `provision.sh` that local Docker,
 Testcontainers and Azure all run, which `W-05` made canonical — and `DatabasePrivilegesIT` in
@@ -141,6 +151,8 @@ Testcontainers and Azure all run, which `W-05` made canonical — and `DatabaseP
 |---|---|---|
 | Unit | `worker/.../retention/AuditRetentionServiceTest.java` | cutoff arithmetic for 84 months; a tenant override is honoured; a dry run deletes nothing |
 | Integration | `worker/.../retention/AuditRetentionIT.java` | with rows at 6 years and 8 years old, only the 8-year rows go |
+| Integration | `worker/.../retention/NotificationRetentionIT.java` | notifications at 11 and 13 months old: only the 13-month rows go; a tenant with `notification_retention_months = 24` keeps both; one `retention_run` row per target table |
+| Integration | `worker/.../retention/RetentionTenantListIT.java` | `retention_user` can execute `core.list_tenants_for_sweep()` and reads both window columns from it; a direct `SELECT FROM core.tenant` as `retention_user` is refused |
 | Integration | `worker/.../retention/AuditRetentionBatchIT.java` | an interrupted sweep resumes and does not double-count `rows_deleted` |
 | Integration | `worker/.../retention/AuditRetentionRlsIT.java` | a sweep bound to tenant A deletes no row belonging to tenant B |
 
@@ -223,4 +235,5 @@ dry run exists and why the first production sweep should be run with it.
 | 1 | Who may delete expired audit rows? | **A dedicated `retention_user` role** — settled 2026-09-22. `app_user` keeps `SELECT, INSERT` and never gains `DELETE` |
 | 2 | Archive before deleting? | **No archive** — settled 2026-09-23. Deletion is final, and §10 says so plainly |
 | 3 | Is there a floor on the tenant's window? | **Twelve months minimum** — settled 2026-09-23, so nobody disables their own audit trail by setting retention to zero |
-| 4 | Does `W-20.1`'s notification table get swept too? | **Yes** — settled 2026-09-22. `core.notification` is a second target of this sweep rather than a second sweep of its own |
+| 4 | Does `W-20.1`'s notification table get swept too? | **Yes** — settled 2026-09-22. `core.notification` is a second target of this sweep rather than a second sweep of its own; it is in the flow in §3 and tested by `NotificationRetentionIT` |
+| 5 | Who builds the scheduler? | **`W-20.2` owns it** — corrected 2026-09-25 (contracts §5 row 17). The earlier wording "this job registers with it" implied a registry; there is none. This job is a `@Scheduled` + `@SchedulerLock` method and a call to `W-20.2`'s tenant list |

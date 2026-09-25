@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-15.2` (approval lifecycle), `W-16.2` (balance), `W-21` (documents), `W-17` (holidays) |
+| **Blocked by** | `W-15.2` (approval lifecycle), `W-16.2` (balance), `W-21` (documents), `W-17` (holidays), `W-11.3` (the `core.leave.*` codes, `12-core-contracts.md` §4) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 4, 23 |
 
 ## Size cap
 
@@ -54,6 +55,8 @@ it would be easiest to rebuild the hard-coded ladder instead.
 - Raising, cancelling and withdrawing a request
 - Submitting it to the approval engine and reacting to the engine's decision
 - Working-day calculation: weekends and holidays excluded per the policy's inclusion flags
+- Administrator entry on an employee's behalf — `D-35` (`07-decisions.md:47`): a Payroll-only tenant records leave as administrator data entry, so the record must exist without the request-and-approve experience
+- Balance check at submission against the policy's `exceed_balance_mode` (`W-16.1` §6): `noLimit` never refuses; `yearEndLimit` refuses when the balance would fall below `−exceed_balance_limit_days`; `markAsLOP` never refuses and leaves the excess to `W-16.4a`
 
 **Out of scope**
 
@@ -88,7 +91,7 @@ what `W-14.2` built `reporting_line` for.
 | Service | `core/.../leave/WorkingDayCalculator.java` | new — weekends and holidays per policy |
 | Entity | `core/.../leave/LeaveRequest.java`, `LeaveRequestDocument.java` | new, each `@Table(schema="core")` |
 | Repository | `core/.../leave/LeaveRequestRepository.java`, `LeaveRequestDocumentRepository.java` | new |
-| Enumeration | `core/.../leave/LeaveRequestStatus.java`, `HalfDayPeriod.java` | new |
+| Enumeration | `core/.../leave/LeaveRequestStatus.java`, `HalfDayPeriod.java` | new — `LeaveRequestStatus` is `DRAFT, PENDING, APPROVED, REJECTED, CANCELLED, WITHDRAWN` (`12-core-contracts.md` §5 row 4); `HalfDayPeriod` is `FIRST, SECOND`, stored as `first` / `second` |
 | DTO | `core/.../leave/LeaveRequest*.java` | new |
 
 One entity, one table, singular — the `LeaveRequest` / `LeaveRequests` duplication is not
@@ -96,15 +99,38 @@ carried across.
 
 **API contract**
 
-| Method | Path | Request | Response | Auth |
+| Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| POST | `/api/v1/leave-requests` | typeId, from, to, halfDay, period, reason, documentIds | `201` | Bearer, tenant bound |
-| GET | `/api/v1/leave-requests` | `?employeeId=&status=&from=&to=&page=` | page | Bearer, tenant bound |
-| GET | `/api/v1/leave-requests/{id}` | — | request with its approval trail | Bearer, tenant bound |
-| POST | `/api/v1/leave-requests/{id}/cancel` | reason | `200` | Bearer, tenant bound |
+| POST | `/api/v1/leave-requests` | typeId, from, to, halfDay, halfDayPeriod, reason, documentIds, `submit` (false ⇒ `DRAFT`) | `201` | `core.leave.apply` — for the caller's own employee only |
+| POST | `/api/v1/leave-requests/on-behalf` | employeeId + the same body; created `APPROVED` with no approval instance | `201` | `core.leave.manage` |
+| GET | `/api/v1/leave-requests` | `?employeeId=&status=&from=&to=&page=` | page | `core.leave.read`; `core.leave.read_own` for the caller's own, `core.leave.read_team` for direct reports |
+| GET | `/api/v1/leave-requests/{id}` | — | request with its approval trail | same three as the list |
+| POST | `/api/v1/leave-requests/{id}/submit` | — | `200` — `DRAFT` → `PENDING`, starts the approval | `core.leave.apply` |
+| POST | `/api/v1/leave-requests/{id}/withdraw` | reason | `200` — `PENDING` → `WITHDRAWN`, the approval instance is closed | `core.leave.apply` (own) or `core.leave.manage` |
+| POST | `/api/v1/leave-requests/{id}/cancel` | reason | `200` — `APPROVED` → `CANCELLED`, before the leave starts (decision 1) | `core.leave.apply` (own) or `core.leave.manage` |
+
+Every endpoint is tenant bound and carries the code shown — `EndpointGuardCoverageTest` fails
+otherwise (`12-core-contracts.md` §2). `core.leave.apply/read/read_own/read_team` are renamed
+from `hrms.*` and `core.leave.manage` is added by `W-11.3` (`12-core-contracts.md` §4).
+
+**Status transitions**, and nothing else is legal:
+
+| From | To | By |
+|---|---|---|
+| — | `DRAFT` | `POST` with `submit=false` |
+| — or `DRAFT` | `PENDING` | `POST` with `submit=true`, or `/submit` — `ApprovalService.start(LEAVE, …)` runs here |
+| `PENDING` | `APPROVED` / `REJECTED` | the engine's `ApprovalOutcomeHandler` callback, never a client |
+| `PENDING` | `WITHDRAWN` | the employee, before any decision |
+| `APPROVED` | `CANCELLED` | the employee or an administrator, before `from_date` |
+| — | `APPROVED` | `/on-behalf` — administrator entry, `D-35`; `W-16.4a` consumes it like any approval |
+
+Withdraw and cancel are different verbs on purpose: one stops a request nobody has decided,
+the other reverses a decision and re-credits balance through `W-16.4a`.
 
 There is no `approve` endpoint here. Approving is the engine's API, and duplicating it is how
-leave approval quietly becomes its own workflow again.
+leave approval quietly becomes its own workflow again. The on-behalf path does not approve
+either — it records an absence an administrator already knows about, which is what `D-35`
+means by administrator data entry.
 
 ## 5. Frontend changes
 
@@ -123,10 +149,17 @@ Version numbers assigned when the branch is cut — `migration/README.md:17-31`.
 `employee_id uuid NOT NULL REFERENCES core.employee(id)` ·
 `leave_type_id uuid NOT NULL REFERENCES core.leave_type(id)` ·
 `from_date date NOT NULL` · `to_date date NOT NULL` ·
-`is_half_day boolean NOT NULL DEFAULT false` · `half_day_period varchar(8) NULL` ·
-`working_days numeric(5,2) NOT NULL` · `reason text` ·
-`status varchar(16) NOT NULL` · `approval_instance_id uuid NULL` ·
+`is_half_day boolean NOT NULL DEFAULT false` ·
+`half_day_period varchar(8) NULL CHECK IN ('first','second')` — `NOT NULL` exactly when
+`is_half_day`, a `CHECK` enforces the pair · `working_days numeric(10,2) NOT NULL` · `reason text` ·
+`status varchar(16) NOT NULL CHECK IN ('DRAFT','PENDING','APPROVED','REJECTED','CANCELLED','WITHDRAWN')` ·
+`approval_instance_id uuid NULL` — NULL for `DRAFT` and for on-behalf entries ·
+`on_behalf boolean NOT NULL DEFAULT false` — the administrator who entered it is `created_by` ·
 `decided_at timestamptz NULL` · four audit columns.
+
+`working_days` is `numeric(10,2)` — `CONVENTIONS.md:37`, `12-core-contracts.md` §5 row 23. The
+frozen HRMS request carries the same half-day pair, `is_half_day` and `half_day_period`
+(`W-16.1` §6 cites it), and the vocabulary `first` / `second` is kept.
 
 `leave_request_document`: `id uuid` · `tenant_id uuid NOT NULL` ·
 `leave_request_id uuid NOT NULL REFERENCES core.leave_request(id)` ·
@@ -134,7 +167,7 @@ Version numbers assigned when the branch is cut — `migration/README.md:17-31`.
 
 - [x] `tenant_id` on both tables, leading index column
 - [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, employee_id, from_date DESC)`, `(tenant_id, status)`, `(tenant_id, leave_request_id)` on documents
-- [x] **Money columns — none.** `working_days` is `numeric(5,2)`
+- [x] **Money columns — none.** `working_days` is `numeric(10,2)`
 - [x] Expand / contract — new tables only
 
 **No `manual_days_allocation` and no `lop_allocation`.** Both exist on the frozen request —
@@ -160,7 +193,9 @@ Each script carries its own RLS and `tenant_isolation` policy in the exact `CASE
 | Type | File | Covers |
 |---|---|---|
 | Unit | `core/.../leave/WorkingDayCalculatorTest.java` | weekends and holidays excluded or included per policy; a half-day is `0.5`; a single-day request spanning a holiday is zero working days |
-| Unit | `core/.../leave/LeaveRequestServiceImplTest.java` | overlapping requests refused; a request beyond the future-booking limit refused; an ineligible type refused |
+| Unit | `core/.../leave/LeaveRequestServiceImplTest.java` | overlapping requests refused; a request beyond the future-booking limit refused; an ineligible type refused; `yearEndLimit` refuses past the limit while `noLimit` and `markAsLOP` do not |
+| Unit | `core/.../leave/LeaveRequestStatusTest.java` | every transition in the §4 table is allowed and every other pair is refused; withdraw after a decision is refused; cancel on or after `from_date` is refused; a half-day without `half_day_period` is refused |
+| Integration | `core/.../leave/LeaveRequestOnBehalfIT.java` | `/on-behalf` with `core.leave.manage` creates an `APPROVED` request with no approval instance and `on_behalf = true`; the same call with only `core.leave.apply` gets `403` |
 | Integration | `core/.../leave/LeaveRequestApprovalIT.java` | a request raised, approved through the engine, ends `APPROVED` with a trail — and the service exposes no way to approve it directly |
 | Integration | `core/.../leave/LeaveRequestRlsIT.java` | tenant A cannot read tenant B's requests or attachments as `app_user` |
 
@@ -183,6 +218,9 @@ docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_us
     WHERE table_schema='core' AND table_name='leave_request'
       AND column_name IN ('manual_days_allocation','lop_allocation','hr_status',
                           'reporting_manager_status','employee_name');"
+docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_user -d infinevo -c \
+  "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+    WHERE conrelid='core.leave_request'::regclass AND contype='c' ORDER BY 1;"
 cd code/backend && mvn -q verify
 grep -rn 'reporting.manager\|hr_status' core/src/main/java/com/infinevo/core/leave/ || echo "no hard-coded ladder"
 ```
@@ -191,6 +229,7 @@ grep -rn 'reporting.manager\|hr_status' core/src/main/java/com/infinevo/core/lea
 |---|---|
 | RLS on both | `t` twice |
 | Forbidden columns | **no rows** — none of the five exists |
+| `CHECK` constraints | one on `status` listing the six values, one on `half_day_period` listing `first`, `second` |
 | Ladder grep | `no hard-coded ladder` |
 | Suite | green, no skips |
 
@@ -201,7 +240,8 @@ grep -rn 'reporting.manager\|hr_status' core/src/main/java/com/infinevo/core/lea
 | The two-stage ladder is rebuilt because it is familiar and the engine is not ready | **high — the single largest risk in this ticket** | Blocked on `W-15.2`; the grep and the integration test both check for it |
 | Override maps come back to solve a real correction case | medium | Corrections go through an allocation adjustment, which is auditable; the column check catches the shortcut |
 | Working days computed at read time, so history changes when a holiday is added | medium | Stored on the row; the calculator is called once, at submission |
-| Half-days lost between request and consumption | medium | `working_days numeric(5,2)`; the calculator test asserts `0.5` |
+| Half-days lost between request and consumption | medium | `working_days numeric(10,2)`; the calculator test asserts `0.5` |
+| The on-behalf path becomes a back-door approval for ordinary users | medium | Guarded by `core.leave.manage`, which `W-11.3` seeds only into administrator roles; `LeaveRequestOnBehalfIT` asserts the `403` |
 | Overlapping requests both approved, double-consuming balance | medium | Overlap check at submission **and** a partial unique index on approved requests per employee per date range |
 | Attachments pointing at another tenant's document | low | FK plus RLS; asserted in `LeaveRequestRlsIT` |
 
@@ -216,7 +256,7 @@ Nothing is deployed. Both scripts are additive and forward-only —
 |---|---|
 | `tenant_id` + RLS on every new table outside `reference` | both tables, each in its own script |
 | Flyway only, `ddl-auto` nowhere | two scripts; none added |
-| `Money`/`BigDecimal` for money | no money column; `working_days` is `numeric(5,2)` |
+| `Money`/`BigDecimal` for money | no money column; `working_days` is `numeric(10,2)` |
 | Index on `tenant_id` plus lookup columns | three indexes, `tenant_id` leading |
 | Expand / contract | new tables only |
 | No module references another module | `core` only; the engine, balance, holiday and document services are all `core` |
@@ -225,7 +265,7 @@ Nothing is deployed. Both scripts are additive and forward-only —
 
 | ID | Decision |
 |---|---|
-| BUG-003 half-day precision (`GAP_INVENTORY.md:29`) | **Honoured.** `working_days` is `numeric(5,2)` end to end |
+| BUG-003 half-day precision (`GAP_INVENTORY.md:29`) | **Honoured.** `working_days` is `numeric(10,2)` end to end |
 | DEBT-013 package typo (`:51`) | **Discounted.** New code is `core/.../leave/` |
 | Dual `LeaveRequest` / `LeaveRequests` entities | **Fixed.** One entity, one table |
 | Hard-coded two-stage approval (`LeaveRequestController.java:155-222`) | **Fixed by replacement.** Routing belongs to `W-15.2` |

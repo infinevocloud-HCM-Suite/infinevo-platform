@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-18.1` (a versioned policy to point at), `W-29` (the pay figures to stamp) |
+| **Blocked by** | `W-18.1` (a versioned policy to point at), `W-29` (the pay figures to stamp), `W-11.3` (transitively — `W-18.1`'s codes) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 10, 23 |
 
 ## Size cap
 
@@ -53,7 +54,7 @@ not less.
 - Additive columns on `payroll.employee_payrun` recording the policy id, basis, divisor, payable days and rounding actually used
 - The pay-run calculation calling `W-18.1`'s calculator instead of dividing by calendar days
 - An explain endpoint returning the stamp alongside the figure
-- **Stamping the fallback too.** Decision M2 settled that a tenant with no policy falls back to calendar days rather than refusing, so the stamp records `working_day_basis = CALENDAR_DAYS` and a null `lop_policy_id`. A fallback figure is therefore distinguishable afterwards from a configured one — which is the whole reason the fallback is acceptable
+- **Failing the employee when no policy resolves.** `W-18.1`'s calculator throws `NoLopPolicyException` rather than falling back (`12-core-contracts.md:147`), so this ticket catches it per employee, writes **no figure** for them, marks them failed on the run with the reason, and completes the rest (decision 1). There is never a null stamp and never a guessed one
 
 **Out of scope**
 
@@ -66,8 +67,10 @@ not less.
 
 ```
 [W-29 pay run computes a figure]
-  --> [WorkingDayBasisCalculator (W-18.1)] --> {payableDays, divisor, policyId}
-  --> figure computed from that divisor
+  --> [WorkingDayBasisCalculator.basisFor(tenantId, period, employeeId) (W-18.1)]
+  --> NoLopPolicyException --> this employee FAILED on the run, no row written, run continues
+  --> {payableDays, divisor, policyId}
+  --> figure computed from that divisor, rounded per the policy's lop_rounding
   --> stamp written on the same row, same transaction
 
 [employee or support] --> GET /payruns/{id}/employees/{id}/explain
@@ -89,9 +92,13 @@ the policy in `core`.
 
 **API contract**
 
-| Method | Path | Request | Response | Auth |
+| Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| GET | `/api/v1/payruns/{payrunId}/employees/{employeeId}/explain` | — | figure, policy id, basis, divisor, payable days, rounding | Bearer, tenant bound, `@RequiresModule(PAYROLL)` |
+| GET | `/api/v1/payruns/{payrunId}/employees/{employeeId}/explain` | — | figure, policy id, basis, divisor, payable days, rounding | `payroll.run.read`; or `payroll.payslip.read_own` when `{employeeId}` is the caller (decision 2) |
+
+Bearer, tenant bound, `@RequiresModule(PAYROLL)`. Both codes are already in the catalogue —
+`M/reference/V020__action.sql:117,121` — so this endpoint needs nothing from `W-11.3`
+directly. `EndpointGuardCoverageTest` fails it without a code (`12-core-contracts.md:45-46`).
 
 ## 5. Frontend changes
 
@@ -107,13 +114,13 @@ Version number assigned when the branch is cut; the sequence is global and `payr
 above `core` within a batch — `migration/README.md:17-31`.
 
 Columns added, all nullable:
-`lop_policy_id uuid NULL` · `working_day_basis varchar(24) NULL` ·
-`pay_divisor numeric(6,2) NULL` · `payable_days numeric(5,2) NULL` ·
-`lop_rounding varchar(16) NULL`.
+`lop_policy_id uuid NULL` · `working_day_basis varchar(24) NULL` — `ACTUAL_DAYS`, `ORG_DAYS`, `FIXED_30` ·
+`pay_divisor numeric(10,2) NULL` · `payable_days numeric(10,2) NULL` ·
+`lop_rounding varchar(16) NULL` — `HALF_UP_2` and the rest of `W-18.1`'s `LopRounding`.
 
 - [x] `tenant_id` — already present on `payroll.employee_payrun` from `W-29`; this ticket adds no table
 - [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, lop_policy_id)` so every figure produced by a policy is findable when one is questioned
-- [x] **Money columns — none added.** `pay_divisor` is a divisor, not an amount, and is `numeric(6,2)`. The money columns it divides are `W-29`'s, already `numeric(19,4)` per `CONVENTIONS.md` §2
+- [x] **Money columns — none added.** `pay_divisor` and `payable_days` are day counts, not amounts, and are `numeric(10,2)` — the day-count type `CONVENTIONS.md:37` and `12-core-contracts.md:160` fix. The money columns they divide are `W-29`'s, already `numeric(19,4)` per `CONVENTIONS.md` §2
 - [x] Expand / contract — columns added nullable; no destructive step
 
 **No foreign key to `core.lop_policy`.** A `payroll` table holding a database-level constraint
@@ -130,11 +137,12 @@ RLS already applies to `payroll.employee_payrun`; adding columns does not change
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `payroll/.../payrun/PayFigureStampTest.java` | a figure computed without a resolvable policy is refused, not defaulted |
-| Unit | `payroll/.../payrun/LopAmountTest.java` | the amount uses the calculator's divisor, not the period's calendar days |
-| Integration | `payroll/.../payrun/StampCompletenessIT.java` | **after a pay run, no `employee_payrun` row has a null stamp** |
+| Unit | `payroll/.../payrun/PayFigureStampTest.java` | a figure computed without a resolvable policy is refused, not defaulted; `NoLopPolicyException` becomes a per-employee failure, not a run failure |
+| Unit | `payroll/.../payrun/LopAmountTest.java` | the amount uses the calculator's divisor, not the period's calendar days; the same LOP days under `ACTUAL_DAYS`, `ORG_DAYS(26)` and `FIXED_30` give three different amounts; rounding follows the stamped `lop_rounding` |
+| Integration | `payroll/.../payrun/StampCompletenessIT.java` | **after a pay run, no `employee_payrun` row has a null in any of the five stamp columns** — `lop_policy_id` included |
+| Integration | `payroll/.../payrun/NoPolicyFailsEmployeeIT.java` | a run over a tenant with no policy completes with every employee marked failed and the reason recorded, and writes **zero** `employee_payrun` rows; one employee with no work location on an `ORG_DAYS` tenant fails alone while the rest complete |
 | Integration | `payroll/.../payrun/TwoTenantFigureIT.java` | two tenants, identical data, different policies, different loss-of-pay amounts — and each row's stamp explains its own figure |
-| Integration | `payroll/.../payrun/ExplainEndpointIT.java` | the explanation matches the stored stamp exactly |
+| Integration | `payroll/.../payrun/ExplainEndpointIT.java` | the explanation matches the stored stamp exactly; an employee with only `payroll.payslip.read_own` reads their own and is `403` on a colleague's; `payroll.run.read` reads either |
 
 `StampCompletenessIT` is the test that makes "not optional" real. Nullable columns plus a
 service-level rule decay quietly; a test asserting zero nulls after a run does not.
@@ -153,18 +161,22 @@ docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_us
       AND column_name IN ('lop_policy_id','working_day_basis','pay_divisor','payable_days','lop_rounding')
     ORDER BY 1;"
 
-cd code/backend && mvn -q -pl payroll -Dit.test=StampCompletenessIT,TwoTenantFigureIT verify
+cd code/backend && mvn -q -pl payroll -Dit.test=StampCompletenessIT,NoPolicyFailsEmployeeIT,TwoTenantFigureIT verify
 cd code/backend && mvn -q verify
 
-# the hard-coded divisor must not survive
+# the hard-coded divisor must not survive, and no fallback basis may exist
 grep -rn 'totalPeriodDays\|ChronoUnit.DAYS.between' payroll/src/main/java/com/infinevo/payroll/payrun/ \
   && echo "REVIEW: calendar-day divisor still present" || echo "divisor comes from policy"
+grep -rn 'CALENDAR_DAYS\|WorkingDayCalculator\b' payroll/src/main/java/com/infinevo/payroll/payrun/ \
+  && echo "REVIEW: fallback or old calculator name present" || echo "no fallback"
 ```
 
 | Check | Expected |
 |---|---|
-| Five stamp columns | present, all nullable, `pay_divisor` is `numeric` |
-| `StampCompletenessIT` | green — zero null stamps after a run |
+| Five stamp columns | present, all nullable, `pay_divisor` and `payable_days` are `numeric(10,2)` |
+| `StampCompletenessIT` | green — zero null stamps after a run, `lop_policy_id` included |
+| `NoPolicyFailsEmployeeIT` | green — failed employees, zero rows, run completes |
+| Fallback grep | `no fallback` |
 | `TwoTenantFigureIT` | green — different figures, each explained |
 | Divisor grep | `divisor comes from policy` |
 | Suite | green, no skips |
@@ -173,8 +185,8 @@ grep -rn 'totalPeriodDays\|ChronoUnit.DAYS.between' payroll/src/main/java/com/in
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Rows written without a stamp because the columns are nullable | **high — nullable is an invitation** | `StampCompletenessIT` asserts that `working_day_basis`, `pay_divisor` and `payable_days` are non-null on every row after a run. `lop_policy_id` is the one column that may legitimately be null, and only when the fallback produced the figure |
-| The fallback becomes invisible, repeating the defect this ticket exists to fix | **medium** | The fallback is stamped, not hidden: `working_day_basis` is always recorded and `lop_policy_id` is null exactly when no policy applied, so "how many figures came from the fallback" is one query |
+| Rows written without a stamp because the columns are nullable | **high — nullable is an invitation** | `StampCompletenessIT` asserts all five columns, `lop_policy_id` included, are non-null on every row after a run. No figure exists without a policy, so a null anywhere is a defect |
+| A missing policy is quietly defaulted, repeating the defect this ticket exists to fix | **medium** | There is no fallback in `W-18.1` or here (`12-core-contracts.md:147`): the employee fails the run with a reason, `NoPolicyFailsEmployeeIT` asserts zero rows, and the grep refuses a `CALENDAR_DAYS` constant |
 | `payroll` imports `core`'s entity instead of calling its service | medium | Allowed by the module rule either way, but the id is stored and resolved through the service; no FK, no shared entity |
 | The stamp records the policy but not the version actually used | medium | `W-18.1` rows are immutable per `effective_from`; the stamped id identifies one version |
 | Rounding disputes remain unexplainable | low | `lop_rounding` is stamped with the rest |
@@ -191,7 +203,7 @@ is the useful half.
 |---|---|
 | `tenant_id` + RLS on every new table outside `reference` | **creates no table**; the columns land on a table that already has both |
 | Flyway only, `ddl-auto` nowhere | one script; none added |
-| `Money`/`BigDecimal` for money | adds no money column; `pay_divisor` is `numeric(6,2)`, never float |
+| `Money`/`BigDecimal` for money | adds no money column; `pay_divisor` and `payable_days` are `numeric(10,2)`, never float |
 | Index on `tenant_id` plus lookup columns | one new index, `tenant_id` leading |
 | Expand / contract | nullable columns added; no destructive step |
 | No module references another module | `payroll` → `core` only, which is permitted. **This constraint is why `W-18` was split** |
@@ -210,5 +222,5 @@ is the useful half.
 the decision; the consolidated record is
 `.claude/outputs/2026-09-22-plan-core-open-questions.md`.
 
-1. **What does the pay run do when one employee's policy cannot resolve?** **Recommend** failing that employee's figure and completing the rest, with the run reporting which employees failed — a 500-person run should not abort over one, and a silently defaulted figure is exactly what this ticket exists to prevent.
-2. **Who may call the explain endpoint?** **Recommend** the employee for their own figure, plus anyone holding the payroll-read action — a disputed payslip is usually raised by the employee, and making them ask an administrator adds a step with no security benefit.
+1. **What does the pay run do when one employee's policy cannot resolve?** **Recommend** failing that employee's figure and completing the rest, with the run reporting which employees failed — a 500-person run should not abort over one, and a silently defaulted figure is exactly what this ticket exists to prevent. **Confirmed by `12-core-contracts.md:147`**, which also removed `W-18.1`'s silent fallback, so the "stamp the fallback" bullet this spec once carried is gone.
+2. **Who may call the explain endpoint?** **Recommend** the employee for their own figure, plus anyone holding the payroll-read action — a disputed payslip is usually raised by the employee, and making them ask an administrator adds a step with no security benefit. Codes: `payroll.payslip.read_own` for self, `payroll.run.read` otherwise (`V020__action.sql:117,121`).

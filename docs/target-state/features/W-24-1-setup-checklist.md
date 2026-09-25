@@ -11,6 +11,7 @@
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
 | **Blocked by** | `W-12.1` — the checklist is assembled from the tenant's modules |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 19–22 (§2 `/setup-checklist` row, §3 `SetupStepChecker` seam) |
 
 ## Size cap
 
@@ -102,12 +103,30 @@ step exists because a feature exists, and a table would let the two disagree.
 whether a pay schedule does. `core` does not reach into `payroll` to look — the module
 registers its checker.
 
+**`SetupStepChecker` bean contract** (`12-core-contracts.md` §3, "Setup step"). Each module
+registers one Spring bean per step; `core` collects them by type, never by name:
+
+| Method | Returns | Meaning |
+|---|---|---|
+| `code()` | `String` | the `step_code` stored on the row, e.g. `WORK_LOCATION`, `PAY_SCHEDULE` |
+| `module()` | `PlatformModule` or `null` | the module the step belongs to; `null` means core, applies to every tenant. Matches the `module` column |
+| `isComplete(UUID tenantId)` | `boolean` | an existence query under the caller's tenant context; must be side-effect free |
+
+`SetupStepCatalogue` holds only the ordering and display metadata; a step with no registered
+checker is a build error, asserted by `SetupChecklistServiceTest`. `module()` is filtered
+against the tenant's entitlement (`W-12.2`), which is how an HRMS-only tenant never sees a
+payroll checker run.
+
 **API contract**
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| GET | `/api/v1/setup-checklist` | — | steps with completion and progress | Bearer, tenant bound |
-| POST | `/api/v1/setup-checklist/{stepCode}/skip` | reason | `200` | Bearer, tenant bound |
+| GET | `/api/v1/setup-checklist` | — | steps with completion and progress | `@RequiresAction("core.tenant.read")` |
+| POST | `/api/v1/setup-checklist/{stepCode}/skip` | reason | `200` | `@RequiresAction("core.tenant.manage")` |
+
+Every `core` endpoint must carry `@RequiresAction` or `EndpointGuardCoverageTest` fails
+(`12-core-contracts.md` §2). Both codes already exist in the catalogue —
+`reference/V020__action.sql:45-46`.
 
 There is no endpoint to mark a step complete. Completion is observed; only skipping is a
 choice, and it is recorded with a reason.
@@ -153,6 +172,8 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 | Unit | `core/.../setup/SetupStepDetectionTest.java` | a step completes when its checker says so, and reverts when the underlying data goes |
 | Integration | `core/.../setup/ModuleUpgradeIT.java` | adding Payroll to an HRMS-only tenant adds the payroll steps and leaves completed ones alone |
 | Integration | `core/.../setup/SetupChecklistRlsIT.java` | tenant A cannot read tenant B's checklist |
+| Unit | `core/.../setup/SetupStepCheckerRegistryTest.java` | a checker with `module()` = `PAYROLL` is not invoked for an HRMS-only tenant; a catalogue step with no registered checker fails fast |
+| Integration | `core/.../setup/SetupChecklistGuardIT.java` | `GET` without `core.tenant.read` is `403`; `skip` with `core.tenant.read` only is `403`; with `core.tenant.manage` is `200` |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 

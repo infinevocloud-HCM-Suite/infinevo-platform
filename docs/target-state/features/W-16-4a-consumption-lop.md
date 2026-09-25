@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-16.3` (an approved request), `W-16.2` (a balance), `W-19` (the ledger LOP is written to) |
+| **Blocked by** | `W-16.3` (an approved request), `W-16.2` (a balance), `W-19` (the ledger LOP is written to), `W-11.3` (the `core.leave.read*` codes, `12-core-contracts.md` §4) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 2, 5, 23 |
 
 ## Size cap
 
@@ -50,8 +51,10 @@ only.
 **In scope**
 
 - `core.leave_consumption` — one immutable row per consumption event
-- `core.leave_monthly_lop` — the per-employee, per-month loss-of-pay figure
-- Derivation: consumption beyond available balance becomes loss of pay
+- `core.leave_monthly_lop` — the per-employee, per-month loss-of-pay figure, append-only
+- Derivation: consumption beyond available balance becomes loss of pay **only when the policy's `exceed_balance_mode` is `markAsLOP`** (`W-16.1` §6; `legacy/Payroll-Fend-react/src/pages/mainPages/allSettingsPages/leaveAttendence/addLeaveTypes.js:591-593`). `noLimit` and `yearEndLimit` let the balance go negative and produce no loss of pay — `yearEndLimit`'s ceiling is enforced at submission by `W-16.3`, not here
+- Multi-month split: a request spanning a month boundary charges each day to its own calendar month, as HRMS does in `generateMonthlyLop` — `legacy/HRMS_Backend/.../serviceimpl/leaverequest/LeaveRequestServiceImpl.java:333-464`, the month-wise split at `:397-420`
+- Same-month second approval: a second request landing loss of pay on a month that already has a row writes a **delta row**, never an update — HRMS adds in place at `:441-447`, which this replaces
 - Writing that figure to `core.pay_input` as the `LOP_DAYS` kind, so the pay run never asks a module for it
 - Re-crediting on cancellation, as a compensating row
 
@@ -67,9 +70,15 @@ only.
 ```
 [W-16.3 request APPROVED]
    --> [LeaveConsumptionService] --> [core.leave_consumption, append only]
-   --> balance from W-16.2 --> excess? --> [core.leave_monthly_lop]
-   --> [PayInputService.record(LOP_DAYS, period) (W-19)]
+   --> balance from W-16.2 --> excess AND mode = markAsLOP?
+   --> split excess days by calendar month
+   --> [core.leave_monthly_lop, one delta row per month]
+   --> [PayInputService.record(PayInputCommand{kind=LOP_DAYS, period, quantity, sourceRef=lop row id}) (W-19)]
 ```
+
+The LOP days are the last days of the request, taken from the end backwards — the frozen rule
+at `LeaveRequestServiceImpl.java:382-392` — then each is charged to `YearMonth.from(date)`
+(`:403`).
 
 The pay run reads `core.pay_input` and nothing else. That is what removes the cross-service
 HTTP call at `EmployeePayRunServiceImpl.java:1091`.
@@ -87,10 +96,13 @@ HTTP call at `EmployeePayRunServiceImpl.java:1091`.
 
 **API contract**
 
-| Method | Path | Request | Response | Auth |
+| Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| GET | `/api/v1/employees/{id}/leave-consumption` | `?year=` | the rows, in order | Bearer, tenant bound |
-| GET | `/api/v1/employees/{id}/lop` | `?period=` | days, with the working shown | Bearer, tenant bound |
+| GET | `/api/v1/employees/{id}/leave-consumption` | `?year=` | the rows, in order | `core.leave.read`; `core.leave.read_own` when `{id}` is the caller, `core.leave.read_team` for direct reports |
+| GET | `/api/v1/employees/{id}/lop` | `?period=` | days, with the working shown per month and per delta row | same three |
+
+Both are tenant bound and carry the code shown — `EndpointGuardCoverageTest` fails otherwise
+(`12-core-contracts.md` §2). The codes are renamed from `hrms.*` by `W-11.3` (`12-core-contracts.md` §4).
 
 No write endpoint. Consumption is a consequence of an approval, never something a client
 posts.
@@ -112,19 +124,29 @@ Version numbers assigned when the branch is cut — `migration/README.md:17-31`.
 `employee_id uuid NOT NULL REFERENCES core.employee(id)` ·
 `allocation_id uuid NOT NULL REFERENCES core.leave_allocation(id)` ·
 `leave_request_id uuid NULL REFERENCES core.leave_request(id)` ·
-`consumed_days numeric(5,2) NOT NULL` · `consumed_on date NOT NULL` ·
+`consumed_days numeric(10,2) NOT NULL` · `consumed_on date NOT NULL` ·
 `period char(7) NOT NULL` · `reverses_id uuid NULL REFERENCES core.leave_consumption(id)` ·
 `reason varchar(500)` · four audit columns.
 
 `leave_monthly_lop`: `id uuid` · `tenant_id uuid NOT NULL` ·
-`employee_id uuid NOT NULL REFERENCES core.employee(id)` · `period char(7) NOT NULL` ·
+`employee_id uuid NOT NULL REFERENCES core.employee(id)` · `period char(7) NOT NULL` — `YYYY-MM` ·
 `leave_type_id uuid NULL REFERENCES core.leave_type(id)` ·
-`lop_days numeric(5,2) NOT NULL` · `pay_input_id uuid NULL REFERENCES core.pay_input(id)` ·
-four audit columns.
+`leave_request_id uuid NULL REFERENCES core.leave_request(id)` ·
+`lop_days numeric(10,2) NOT NULL` — positive for a charge, negative for a re-credit ·
+`reverses_id uuid NULL REFERENCES core.leave_monthly_lop(id)` ·
+`pay_input_id uuid NULL REFERENCES core.pay_input(id)` · four audit columns.
+
+**No unique key on `(employee, period, type)` — deliberately.** A month's figure is the sum of
+its rows. A second approval in the same month adds a delta row; a cancellation adds a negative
+one. Each row writes its own `core.pay_input` entry with `source_ref = leave_monthly_lop.id`,
+which is what `W-19`'s unique `(tenant_id, source_module, source_ref)` keys on
+(`12-core-contracts.md` §6 decision 2), so a retried approval cannot post twice.
+
+Day counts are `numeric(10,2)` — `CONVENTIONS.md:37`, `12-core-contracts.md` §5 row 23.
 
 - [x] `tenant_id` on both, leading index column
-- [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, employee_id, period)` on both, `(tenant_id, allocation_id)` on consumption
-- [x] **Money columns — none.** Day counts are `numeric(5,2)`; the rupee value is `W-18.2`'s
+- [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, employee_id, period)` on both, `(tenant_id, allocation_id)` on consumption, `(tenant_id, leave_request_id)` on monthly LOP
+- [x] **Money columns — none.** Day counts are `numeric(10,2)`; the rupee value is `W-18.2`'s
 - [x] Expand / contract — new tables only
 
 **Append-only, and no `balance_after` column.** The frozen consumption row stores
@@ -146,8 +168,10 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form in each script �
 | Type | File | Covers |
 |---|---|---|
 | Unit | `core/.../leave/LopDerivationServiceTest.java` | consumption within balance yields zero; excess yields the difference; half-days survive; a reversal reduces loss of pay |
-| Unit | `core/.../leave/LeaveConsumptionServiceTest.java` | one approval writes exactly one row; a repeat of the same approval writes none |
-| Integration | `core/.../leave/LopToPayInputIT.java` | a derived figure appears in `core.pay_input` with kind `LOP_DAYS` and the right period |
+| Unit | `core/.../leave/ExceedBalanceModeTest.java` | the same excess under `markAsLOP` yields loss of pay; under `noLimit` and `yearEndLimit` it yields none and the balance goes negative |
+| Unit | `core/.../leave/LopMonthSplitTest.java` | a request 28 Jan – 3 Feb with 4 excess days lands 1 day on `2026-01` and 3 on `2026-02` — the last days first, per `LeaveRequestServiceImpl.java:382-392`; a half-day excess lands `0.5` |
+| Unit | `core/.../leave/LeaveConsumptionServiceTest.java` | one approval writes exactly one row; a repeat of the same approval writes none; a second approval in the same month writes a second `leave_monthly_lop` row and the month's sum is right |
+| Integration | `core/.../leave/LopToPayInputIT.java` | a derived figure appears in `core.pay_input` with kind `LOP_DAYS`, the right period and `source_ref` = the LOP row id; a delta row produces a second `pay_input` row, never an update |
 | Integration | `core/.../leave/LeaveConsumptionImmutabilityIT.java` | `app_user` is refused `UPDATE` and `DELETE` |
 | Integration | `core/.../leave/LeaveConsumptionRlsIT.java` | tenant A cannot read tenant B's consumption or loss-of-pay rows |
 
@@ -191,6 +215,8 @@ cd code/backend && mvn -q verify
 | Loss of pay is derived twice — here and again in the pay run | medium, expensive | `core.pay_input` is the single channel; `W-29` reads the ledger and derives nothing |
 | Integer truncation returns through a DTO | medium | Every field is `BigDecimal`; half-day cases asserted in two tests |
 | A duplicate approval event double-consumes | medium | `leave_request_id` is unique among non-reversing rows; the service test covers the repeat |
+| Loss of pay is produced for a policy that does not ask for it | medium | Only `markAsLOP` derives; `ExceedBalanceModeTest` asserts the other two produce none |
+| The monthly row is updated in place, as HRMS does at `LeaveRequestServiceImpl.java:441-447` | medium | Append-only grants; a same-month second approval is a delta row, asserted in the service test |
 | Loss of pay written for a period already locked in the ledger | medium | `W-19`'s lock refuses the insert at the database; this service surfaces the refusal rather than swallowing it |
 
 ## 10. Rollback
@@ -205,7 +231,7 @@ reversing row, never by an edit.
 |---|---|
 | `tenant_id` + RLS on every new table outside `reference` | both tables, each in its own script |
 | Flyway only, `ddl-auto` nowhere | two scripts; none added |
-| `Money`/`BigDecimal` for money | no money column; day counts are `numeric(5,2)` |
+| `Money`/`BigDecimal` for money | no money column; day counts are `numeric(10,2)` |
 | Index on `tenant_id` plus lookup columns | `tenant_id` leads every index |
 | Expand / contract | new tables only |
 | No module references another module | `core` only; payroll reads `core.pay_input`, never this |
@@ -214,7 +240,7 @@ reversing row, never by an edit.
 
 | ID | Decision |
 |---|---|
-| BUG-003 half-day loss of pay (`GAP_INVENTORY.md:29`) | **Fixed.** `numeric(5,2)` end to end; no integer path remains |
+| BUG-003 half-day loss of pay (`GAP_INVENTORY.md:29`) | **Fixed.** `numeric(10,2)` end to end; no integer path remains |
 | Destructive recalculation (`EmployeeLeaveAllocationServiceImpl.java:666-718`) | **Fixed by replacement.** Append-only rows, balance summed at read time |
 | Two competing loss-of-pay figures | **Fixed.** One derivation, written once to the ledger |
 | DEBT-018 missing tenant indexes | **Honoured** |
@@ -226,4 +252,4 @@ the decision; the consolidated record is
 `.claude/outputs/2026-09-22-plan-core-open-questions.md`.
 
 1. **Does loss of pay derive per leave type or per employee per month?** The frozen systems do both — HRMS records a type on the row, Payroll compares against a type's allocation. **Recommend** deriving per type and summing per month onto one ledger entry, since a payslip needs one number but a dispute needs the breakdown.
-2. **What happens when a cancellation arrives after the period is locked?** **Recommend** the reversing row is written to the next open period, not the locked one, and the response says so — the alternative is either rewriting a closed payslip or losing the credit.
+2. **What happens when a cancellation arrives after the period is locked?** **Recommend** the reversing row is written to the next open period, not the locked one, and the response says so — the alternative is either rewriting a closed payslip or losing the credit. Now the platform rule for every late input: `12-core-contracts.md` §6 decision 3, enforced by `W-19`.

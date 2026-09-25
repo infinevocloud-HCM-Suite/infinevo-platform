@@ -5,24 +5,26 @@
 | **Feature ID** | `W-20.2` · from ticket #24 · `CORE-12` |
 | **Promoted to** | `docs/target-state/features/W-20-2-delivery-scheduler.md` on branch `W-20-2-delivery-scheduler` — **`W-20-2` with hyphens**, never `W-20.2`; `guard-edit` blocks the dotted form |
 | **Owner** | unassigned |
-| **Apps touched** | `code/backend/worker`, `code/backend/migration` |
+| **Apps touched** | `code/backend/worker`, `code/backend/core` (the `/reminder-rules` API), `code/backend/migration` |
 | **Related gaps** | DEBT-004 (fixed), DEBT-018 (honoured) |
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-20.1` — there must be something to deliver |
+| **Blocked by** | `W-20.1` — there must be something to deliver · `W-12.1` — `core.tenant.timezone` (`W-12-1-subscription.md:55`) · `W-11.3` — adds `core.reminder_rule.manage` to the catalogue |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 15, 17 and §6 decision 7 |
 
 ## Size cap
 
 | Axis | This spec | Limit |
 |---|---|---|
-| Backend module | `worker` | 1 |
-| Flyway migration | one script, one table — `core.reminder_rule` | 1 |
+| Backend module | `worker` for the jobs; `core` holds the `ReminderRule` entity and its CRUD API — exception noted 2026-09-25, `12-core-contracts.md:71` | 1 |
+| Flyway migration | one script, one table — `core.reminder_rule` — plus one `SECURITY DEFINER` tenant-list function in the same script | 1 |
 | Externally testable behaviour | a queued notification is delivered once, and a due reminder rule composes one | 1 |
 | Frontend area | none | 1 |
 
-Within cap. This is the half that could not ride with `W-20.1`: a different module, and
-delivery is its own observable behaviour.
+Within cap, with the module exception. This is the half that could not ride with `W-20.1`: a
+different module, and delivery is its own observable behaviour. The API sits in `core` because
+`worker` exposes no HTTP endpoint and `worker` may reference `core` (`12-core-contracts.md:82`).
 
 ---
 
@@ -51,8 +53,11 @@ is committed in plaintext, which is DEBT-004.
 - The delivery consumer: read the queue, send by Brevo, record the outcome
 - Retry with backoff, and a dead-letter state a human can see
 - The provider credential from Key Vault (`W-56`), never from a properties file
-- Tenant-local time, not UTC
-- Registering `W-15.3`'s escalation sweep and `W-22.2`'s retention sweep with the same scheduler
+- Tenant-local time, not UTC — read from `core.tenant.timezone`, the column `W-12.1` adds (`W-12-1-subscription.md:55`; legacy kept it on the organisation, `legacy/Payroll-Bend-SBoot/.../entity/organization/Organization.java:61-62`)
+- A `/api/v1/reminder-rules` CRUD API in `core`, guarded by `core.reminder_rule.manage`
+- A `ReminderAudienceResolver` bean interface: a rule names an audience, a module supplies the bean that turns it into employee ids (`12-core-contracts.md:106`)
+- The per-tenant sweep, iterating a `SECURITY DEFINER` tenant list rather than a bypass role
+- **This ticket owns the scheduler.** Registering `W-15.3`'s escalation sweep and `W-22.2`'s retention sweep with the same `@Scheduled` + `@SchedulerLock` pattern (contracts §5 row 17)
 
 **Out of scope**
 
@@ -64,10 +69,24 @@ is committed in plaintext, which is DEBT-004.
 ## 3. Flow
 
 ```
-[@Scheduled + @SchedulerLock] --> [ReminderEvaluator] due rules --> W-20.1 compose --> queue
+[@Scheduled + @SchedulerLock] --> core.list_tenants_for_sweep() --> for each tenant: bind, read tenant.timezone
+   --> [ReminderEvaluator] due rules --> [ReminderAudienceResolver] recipients --> W-20.1 compose --> queue `notification`
+   --> rule.last_executed_at, repeat_count updated
 [queue consumer on worker]  --> [BrevoDeliveryClient] --> sent, or retry, or dead-letter
                             --> core.notification.status updated
+
+[admin] --> /api/v1/reminder-rules CRUD (core) --> core.reminder_rule
 ```
+
+**The tenant list.** A sweep runs with no request behind it, so nothing has bound a tenant and
+RLS maps to nothing. The job cannot enumerate `core.tenant` as `worker_user` for the same
+reason. The pattern already on `main` is `core.get_user_tenants(UUID)` — a `SECURITY DEFINER`
+function with `SET search_path = core, pg_temp`, `REVOKE ... FROM PUBLIC`, granted to
+`app_user` (`M/core/V002__user_tenant.sql:30-40`). This ticket adds
+`core.list_tenants_for_sweep()` in the same shape, granted to `worker_user`, which is a member
+of `app_user` (`infra/postgres/01-roles.sql:32`). The job then binds each tenant in turn, so
+every read and write inside the loop is still under RLS. `W-22.2` and `W-23.2` call the same
+function; none of the three builds a second one (contracts §5 row 17, §6 decision 4).
 
 ## 4. Backend changes
 
@@ -77,8 +96,10 @@ is committed in plaintext, which is DEBT-004.
 | Job | `worker/.../notification/ReminderEvaluator.java` | new |
 | Consumer | `worker/.../notification/NotificationDeliveryConsumer.java` | new |
 | Client | `worker/.../notification/BrevoDeliveryClient.java` | new |
-| Entity | `worker/.../notification/ReminderRule.java` | new, `@Table(schema="core")` |
-| Repository | `worker/.../notification/ReminderRuleRepository.java` | new |
+| Entity | `core/.../notification/ReminderRule.java` | new, `@Table(schema="core")` — in `core`, so the API and the evaluator share it |
+| Repository | `core/.../notification/ReminderRuleRepository.java` | new |
+| Controller | `core/.../notification/ReminderRuleController.java` | new |
+| Interface | `core/.../notification/ReminderAudienceResolver.java` | new — `audience()`, `resolve(ReminderRule, tenantId)` → employee ids; one bean per audience, module-supplied |
 | Config | `worker/src/main/resources/application.yml` | change — Brevo key from environment, **no default**; batch size; poll interval |
 
 **`@Scheduled` plus `@SchedulerLock`, never `@Scheduled` alone.** Bare `@Scheduled` is what
@@ -89,10 +110,17 @@ established, and `WorkerAutoLockScheduler` is the worked example — see §6.
 use the same `@Scheduled` + `@SchedulerLock` pair directly. Inventing a registry on top of
 ShedLock would be a second mechanism, which is the thing to avoid.
 
-**API contract**
+**API contract** — in `core`; `worker` exposes no HTTP endpoint beyond its health probe.
 
-None. Reminder rules are managed through `W-20.1`'s admin surface; `worker` exposes no HTTP
-endpoint beyond its health probe.
+| Method | Path | Request | Response | Auth |
+|---|---|---|---|---|
+| GET | `/api/v1/reminder-rules` | `?event=&isActive=` | the tenant's rules | `@RequiresAction("core.reminder_rule.manage")` |
+| POST | `/api/v1/reminder-rules` | event, audience, anchor, offset_days, day_of_week?, send_at_local_time, repeat_every_days?, max_repeats? | `201` + id | `@RequiresAction("core.reminder_rule.manage")` |
+| PUT | `/api/v1/reminder-rules/{id}` | same body | `200` | `@RequiresAction("core.reminder_rule.manage")` |
+| DELETE | `/api/v1/reminder-rules/{id}` | — | `204`, sets `is_active=false` | `@RequiresAction("core.reminder_rule.manage")` |
+
+`core.reminder_rule.manage` arrives with `W-11.3` (`12-core-contracts.md:128`). An `audience`
+with no registered `ReminderAudienceResolver` is refused at `POST`, not discovered at sweep time.
 
 ## 5. Frontend changes
 
@@ -108,9 +136,30 @@ Version number assigned when the branch is cut — `migration/README.md:17-31`.
 
 Columns: `id uuid` · `tenant_id uuid NOT NULL` · `event varchar(64) NOT NULL` ·
 `audience varchar(32) NOT NULL` — the subject, their manager, an HR role holder ·
-`offset_days int NOT NULL` · `send_at_local_time time NOT NULL` ·
+`anchor varchar(32) NOT NULL` — what `offset_days` counts from ·
+`offset_days int NOT NULL` · `day_of_week smallint NULL` — ISO 1–7, weekly rules only ·
+`send_at_local_time time NOT NULL` ·
 `repeat_every_days int NULL` · `max_repeats int NULL` ·
+`last_executed_at timestamptz NULL` · `repeat_count int NOT NULL DEFAULT 0` ·
 `is_active boolean NOT NULL DEFAULT true` · four audit columns.
+
+Same script, after the table: `core.list_tenants_for_sweep()` — `SECURITY DEFINER`, in the
+shape of `M/core/V002__user_tenant.sql:30-40`, `RETURNS SETOF core.tenant` so a column added
+to the tenant later (`W-22.2`'s retention windows) reaches the sweeps without a redefinition;
+`EXECUTE` granted to `worker_user` here, and to `retention_user` by `W-22.2`.
+
+**Why these four columns** (contracts §1, §5 row 15). The frozen reminders come in two shapes
+and one table must hold both:
+
+| Legacy shape | Where | Maps to |
+|---|---|---|
+| Weekly: a weekday, a local time, a level | HRMS `EmployeeReminder.java:25-31` (`day`, `time`, `level`); `RoleReminderConfig.java:38-45` (`day_of_week`, `time`, `timezone`) | `day_of_week` + `send_at_local_time`; `anchor = WEEKLY` |
+| Offset: *n* days before a deadline | Payroll `Reminder.java:22-23` (`number_of_days`) | `offset_days` counted from `anchor` — `DECLARATION_LOCK_DATE`, `POI_DUE_DATE`, `LEAVE_START`, ... |
+
+`anchor` is an enum in code, not free text. `last_executed_at` and `repeat_count` are what
+make `repeat_every_days` and `max_repeats` decidable without a second table, and they are
+what the evaluator updates. `timezone` is **not** on the rule: `RoleReminderConfig` carried one
+per row, and this ticket reads `core.tenant.timezone` instead, one clock per tenant.
 
 **The lock already exists on `main`. This ticket builds nothing for it.**
 
@@ -140,12 +189,13 @@ revisits it.
 So this ticket ships **one** script and one table, as originally scoped.
 
 - [x] `tenant_id` present, leading index column
-- [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, event, is_active)`
+- [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, event, is_active)` and `(tenant_id, is_active, last_executed_at)` for the sweep
 - [x] Money columns — none
 - [x] Expand / contract — new table only
 
 **`send_at_local_time` with the tenant's timezone**, not a UTC cron. A reminder at 09:00 means
-09:00 where the employee is.
+09:00 where the employee is. The zone is `core.tenant.timezone` from `W-12.1`
+(`W-12-1-subscription.md:55`); a tenant with none set falls back to UTC and the sweep logs it.
 
 RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 `migration/README.md:76-123`.
@@ -154,7 +204,10 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `worker/.../notification/ReminderEvaluatorTest.java` | a rule due today fires; one due tomorrow does not; repeats stop at `max_repeats`; local time honoured across timezones |
+| Unit | `worker/.../notification/ReminderEvaluatorTest.java` | a rule due today fires; one due tomorrow does not; repeats stop at `max_repeats` and `repeat_count` advances; local time honoured across timezones read from `tenant.timezone`; a weekly rule fires only on `day_of_week`; an offset rule counts `offset_days` from its `anchor`; `last_executed_at` stops a rule firing twice in one day |
+| Unit | `core/.../notification/ReminderRuleControllerTest.java` | an unknown `audience` is refused with `400`; `anchor` outside the enum is refused |
+| Integration | `core/.../notification/ReminderRuleGuardIT.java` | every `/reminder-rules` verb returns `403` without `core.reminder_rule.manage` |
+| Integration | `worker/.../notification/TenantSweepIT.java` | `core.list_tenants_for_sweep()` returns every tenant to `worker_user`; a direct `SELECT FROM core.tenant` with no tenant bound returns none; `app_user` cannot execute the function |
 | Unit | `worker/.../notification/DeliveryRetryTest.java` | a transient failure retries with backoff; a permanent one dead-letters; a success is never retried |
 | Integration | `worker/.../notification/ReminderSingleRunIT.java` | **two worker instances against one database: the reminder job body executes exactly once.** `W-52`'s `SchedulerLockIT` already proves ShedLock itself; this proves *this* job is annotated |
 | Integration | `worker/.../notification/DeliveryIT.java` | a queued notification is delivered once and its status updated; a redelivered queue message does not send twice |
@@ -223,7 +276,7 @@ lost.
 | `Money`/`BigDecimal` for money | creates no money column |
 | Index on `tenant_id` plus lookup columns | one index, `tenant_id` leading |
 | Expand / contract | new table only |
-| No module references another module | `worker` and `core` only |
+| No module references another module | `worker` and `core` only; `hrms`/`payroll` reach the sweep only by registering a `ReminderAudienceResolver` bean |
 
 ## 12. Gap inventory
 

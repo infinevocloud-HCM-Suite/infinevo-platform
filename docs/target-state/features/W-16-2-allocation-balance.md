@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-16.1` — an allocation needs a type and a policy |
+| **Blocked by** | `W-16.1` — an allocation needs a type and a policy; `W-11.3` for the `core.leave_balance.manage` and `core.leave.read*` codes (`12-core-contracts.md` §4) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 3, 23 |
 
 ## Size cap
 
@@ -45,7 +46,8 @@ it got there and no accrual behind it.
 
 - `core.leave_allocation` — one row per tenant, employee, leave type and leave year
 - Opening balance, accrued to date, carried forward, and the carry-forward expiry the policy defines
-- The accrual engine the policy has been describing since `W-16.1` — monthly, quarterly or annual
+- The accrual engine the policy has been describing since `W-16.1` — `monthly` or `yearly`, the two frequencies the frozen screen offers (`legacy/Payroll-Fend-react/src/pages/mainPages/allSettingsPages/leaveAttendence/addLeaveTypes.js:403-404`)
+- The reset the policy describes — `yearly`, `monthly`, `quarterly` or `halfYearly` (`addLeaveTypes.js:471-474`): at each reset boundary the unused balance is dropped, or carried forward up to `carry_forward_cap` when carry-forward is enabled
 - Pro-rating for an employee who joins or leaves mid-year
 - A balance read that explains itself: entitlement, accrued, carried forward, consumed, remaining
 
@@ -54,8 +56,10 @@ it got there and no accrual behind it.
 - Consumption rows — `W-16.4a` owns `leave_consumption`; this ticket reads a total from it and treats zero as valid until it exists
 - Requests — `W-16.3`
 - Loss of pay — `W-16.4a`
-- Encashment — the policy carries flags, nothing acts on them
 - Bulk import of opening balances — `W-16.4b`
+
+Encashment is not mentioned here on purpose: `W-16.1` decision 2 carries no encashment column,
+so there is no flag for this ticket to leave alone.
 
 ## 3. Flow
 
@@ -73,7 +77,9 @@ it got there and no accrual behind it.
 |---|---|---|
 | Controller | `core/.../leave/LeaveAllocationController.java` | new |
 | Service | `core/.../leave/LeaveAllocationService.java` | new |
-| Service | `core/.../leave/LeaveAccrualService.java` | new — the engine |
+| Service | `core/.../leave/LeaveAccrualService.java` | new — the engine, `monthly` and `yearly` |
+| Service | `core/.../leave/LeaveResetService.java` | new — applies `reset_frequency` at each boundary, with carry-forward |
+| Job | `worker/.../leave/LeaveAccrualJob.java` | new — `@Scheduled` + `@SchedulerLock`, calls accrual then reset |
 | Service | `core/.../leave/LeaveBalanceService.java` | new — the read side `W-16.3` uses |
 | Entity | `core/.../leave/LeaveAllocation.java` | new, `@Table(schema="core")` |
 | Repository | `core/.../leave/LeaveAllocationRepository.java` | new |
@@ -81,14 +87,19 @@ it got there and no accrual behind it.
 
 **API contract**
 
-| Method | Path | Request | Response | Auth |
+| Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| GET | `/api/v1/employees/{id}/leave-balances` | `?asOf=` | balance per type, with the working shown | Bearer, tenant bound |
-| POST | `/api/v1/leave-allocations` | employeeId, typeId, year, openingDays | `201` — manual allocation | Bearer, tenant bound |
-| POST | `/api/v1/leave-allocations/accrue` | `?asOf=` | `200` + count accrued | Bearer, tenant bound |
+| GET | `/api/v1/employees/{id}/leave-balances` | `?asOf=` | balance per type, with the working shown | `core.leave.read`; `core.leave.read_own` when `{id}` is the caller, `core.leave.read_team` when `{id}` reports to the caller |
+| POST | `/api/v1/leave-allocations` | employeeId, typeId, year, openingDays | `201` — manual allocation | `core.leave_balance.manage` |
+| POST | `/api/v1/leave-allocations/accrue` | `?asOf=` | `200` + count accrued | `core.leave_balance.manage` |
+
+Every endpoint is tenant bound and carries the code shown — `EndpointGuardCoverageTest` fails
+otherwise (`12-core-contracts.md` §2). The codes arrive with `W-11.3` (`12-core-contracts.md` §4).
 
 The accrual endpoint is callable by hand so it can be tested and re-run. Scheduling it is
-a `@Scheduled` + `@SchedulerLock` job on `worker`, using `W-52`'s ShedLock — not a timer inside `app`, which would fire once per replica.
+a `@Scheduled` + `@SchedulerLock` job on `worker`, using `W-52`'s ShedLock (`core.shedlock`,
+`M/core/V006`) — not a timer inside `app`, which would fire once per replica, and not `W-20.2`'s
+reminder scheduler, which owns notifications and nothing else (`12-core-contracts.md` §5 row 3).
 
 ## 5. Frontend changes
 
@@ -106,15 +117,17 @@ Columns: `id uuid` · `tenant_id uuid NOT NULL` ·
 `employee_id uuid NOT NULL REFERENCES core.employee(id)` ·
 `leave_type_id uuid NOT NULL REFERENCES core.leave_type(id)` ·
 `leave_year varchar(9) NOT NULL` — `2026` or `2026-27` · `year_start_date date NOT NULL` ·
-`year_end_date date NOT NULL` · `entitlement_days numeric(5,2) NOT NULL` ·
-`accrued_days numeric(5,2) NOT NULL DEFAULT 0` · `carried_forward_days numeric(5,2) NOT NULL DEFAULT 0` ·
+`year_end_date date NOT NULL` · `entitlement_days numeric(10,2) NOT NULL` ·
+`accrued_days numeric(10,2) NOT NULL DEFAULT 0` · `carried_forward_days numeric(10,2) NOT NULL DEFAULT 0` ·
 `carry_forward_expires_on date NULL` · `pro_rate_factor numeric(5,4) NOT NULL DEFAULT 1` ·
-`last_accrued_on date NULL` · `policy_id uuid NOT NULL REFERENCES core.leave_policy(id)` ·
-four audit columns.
+`last_accrued_on date NULL` · `last_reset_on date NULL` ·
+`policy_id uuid NOT NULL REFERENCES core.leave_policy(id)` · four audit columns.
+
+Day counts are `numeric(10,2)` — `CONVENTIONS.md:37`, and `12-core-contracts.md` §5 row 23.
 
 - [x] `tenant_id` present, leading index column
 - [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, employee_id, leave_type_id, leave_year)` unique, `(tenant_id, last_accrued_on)` for the accrual sweep
-- [x] **Money columns — none.** Every day count is `numeric(5,2)`; `pro_rate_factor` is `numeric(5,4)`
+- [x] **Money columns — none.** Every day count is `numeric(10,2)`; `pro_rate_factor` is `numeric(5,4)`
 - [x] Expand / contract — new table only
 
 **No `consumed_days` column, deliberately.** Payroll keeps a `consumed_days` integer on the
@@ -139,12 +152,14 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `core/.../leave/LeaveAccrualServiceTest.java` | monthly, quarterly and annual frequencies; re-running for the same period accrues nothing twice |
+| Unit | `core/.../leave/LeaveAccrualServiceTest.java` | `monthly` and `yearly` frequencies; re-running for the same period accrues nothing twice |
+| Unit | `core/.../leave/LeaveResetServiceTest.java` | `yearly`, `monthly`, `quarterly` and `halfYearly` boundaries; unused balance drops at the boundary, or carries forward up to the cap; re-running for the same boundary resets nothing twice (`last_reset_on`) |
 | Unit | `core/.../leave/LeaveProRateTest.java` | joining mid-year and leaving mid-year; a full year is a factor of exactly 1 |
 | Unit | `core/.../leave/LeaveBalanceServiceTest.java` | remaining = entitlement + accrued + carried forward − consumed; half-days survive |
 | Integration | `core/.../leave/LeaveAllocationRlsIT.java` | tenant A cannot read tenant B's allocations as `app_user` |
 | Integration | `core/.../leave/LeaveCarryForwardExpiryIT.java` | carried-forward days stop counting after `carry_forward_expires_on` |
 | Integration | `core/.../leave/MidYearPolicyChangeIT.java` | cutting entitlement mid-year recalculates every current-year allocation, reports who becomes over-drawn **before** applying, and writes an audit row carrying the previous entitlement |
+| Integration | `core/.../leave/LeaveAccrualJobIT.java` | the `worker` job takes a `core.shedlock` row; a second instance started concurrently accrues nothing |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 
@@ -198,7 +213,7 @@ Accrual can be re-derived from the policy; nothing here is destructive.
 |---|---|
 | `tenant_id` + RLS on every new table outside `reference` | `core.leave_allocation` has both, same script |
 | Flyway only, `ddl-auto` nowhere | one script; none added |
-| `Money`/`BigDecimal` for money | no money column; every day count is `BigDecimal` / `numeric(5,2)` |
+| `Money`/`BigDecimal` for money | no money column; every day count is `BigDecimal` / `numeric(10,2)` |
 | Index on `tenant_id` plus lookup columns | two indexes, `tenant_id` leading |
 | Expand / contract | new table only |
 | No module references another module | `core` only |
@@ -216,7 +231,7 @@ Accrual can be re-derived from the policy; nothing here is destructive.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Who runs accrual? | **`W-20.2`'s shared scheduler**, not a timer in `app` |
+| 1 | Who runs accrual? | ~~**`W-20.2`'s shared scheduler**~~ — **corrected 2026-09-25: a `@Scheduled` + `@SchedulerLock` job on `worker` under `W-52`'s ShedLock** (`12-core-contracts.md` §5 row 3). Not a timer in `app`, and not the reminder scheduler |
 | 2 | A policy changes mid-year | **It applies immediately, to the year in progress.** Against my recommendation of deferring to the next leave year |
 
 **Decision 2 changes this spec's shape.** The allocation cannot freeze `entitlement_days` at
@@ -224,7 +239,7 @@ year start:
 
 - On a policy change, every allocation for the current leave year **recalculates** its entitlement, accrual rate and carry-forward cap from the new policy
 - `policy_id` is updated to the new version, and the recalculation writes an audit row through `W-22.1` — under this choice the audit trail is the only record of what the entitlement used to be
-- **A consequence to surface in the UI:** an employee who has already taken more than the new entitlement becomes over-drawn, and the excess becomes loss of pay through `W-16.4a`. That can turn an already-approved absence into an unpaid one, which is a real outcome the admin making the change should be warned about before confirming
+- **A consequence to surface in the UI:** an employee who has already taken more than the new entitlement becomes over-drawn, and — when the policy's `exceed_balance_mode` is `markAsLOP`, the only mode that produces loss of pay (`W-16.1` §6, `12-core-contracts.md` §5 row 2) — the excess becomes loss of pay through `W-16.4a`. That can turn an already-approved absence into an unpaid one, which is a real outcome the admin making the change should be warned about before confirming
 
 The recalculation is therefore not silent: the policy-change endpoint returns how many
 employees would become over-drawn, and by how much, before the change is applied.

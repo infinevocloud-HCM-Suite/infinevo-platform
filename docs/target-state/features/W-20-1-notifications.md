@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-13.1` — a notification has a recipient |
+| **Blocked by** | `W-13.1` — a notification has a recipient · `W-11.3` — adds `core.notification_template.manage` to the catalogue |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 15 |
 
 ## Size cap
 
@@ -50,9 +51,10 @@ none, and the difference changes what this ticket must build.
 - `core.notification_template` — per tenant, versioned, in the database rather than in Brevo or in Java
 - `core.notification` — one row per notification, in-app and email alike
 - Composition: an event plus a template plus data produces a rendered notification
-- Enqueueing it for delivery, on the Storage Queue `D-50` selected
+- Enqueueing it for delivery, on the Storage Queue `D-50` selected — a fourth queue, `notification`, beside `W-52`'s `payrun`, `import` and `report` (`W-52-queue-worker.md:64`)
 - In-app read and mark-as-read
 - The events `W-15.2` already raises — a step assigned, an approval decided
+- The `NotificationEvent` enum, closed and taken from what legacy actually sends (§4)
 
 **Out of scope**
 
@@ -66,7 +68,7 @@ none, and the difference changes what this ticket must build.
 ```
 [any core event] --> [NotificationService.compose(event, recipient, data)]
    --> template for tenant + event --> rendered subject and body
-   --> [core.notification, status QUEUED] --> [Storage Queue]
+   --> [core.notification, status QUEUED] --> [Storage Queue `notification`]
 
 [recipient] --> GET /api/v1/notifications --> in-app list
 ```
@@ -86,14 +88,44 @@ Composition happens in `app`; the queue is the seam. That is `09-build-order.md:
 | Repository | two | new |
 | Enumeration | `core/.../notification/NotificationEvent.java`, `Channel.java`, `NotificationStatus.java` | new |
 
+**The seam.** `NotificationService.compose(NotificationEvent event, UUID recipientEmployeeId, Map<String,Object> data)`
+— the one method every module calls (`12-core-contracts.md:105`). `recipientEmployeeId` may be
+null when `recipient_email` is supplied in `data`, for invitations. It writes the
+`core.notification` row and puts one message on the `notification` queue through
+`shared.queue.QueueProducer.send(queue, message)` (`shared/.../queue/QueueProducer.java:15`).
+
+**`NotificationEvent`** — closed enum, per §5 row 15 of the contracts. The Payroll list is the
+Brevo template map at `legacy/Payroll-Bend-SBoot/src/main/resources/application.properties:52-65`
+(`poi.reminder`, `itdeclaration.reminder/lock/release`, `poi.submission`, `salary.slip`,
+`employee/user.invitation`, `employee/user.credentials`); the rest are the events this
+platform's own tickets raise.
+
+| Event | Legacy source |
+|---|---|
+| `POI_REMINDER`, `POI_SUBMITTED` | `application.properties:52,55` |
+| `IT_DECLARATION_REMINDER`, `IT_DECLARATION_LOCK`, `IT_DECLARATION_RELEASE` | `application.properties:53,54,56` |
+| `PAYSLIP_READY` | `application.properties:57` (`salary.slip`) |
+| `USER_INVITATION`, `EMPLOYEE_INVITATION` | `application.properties:60-61`; consumed by `W-24.2` |
+| `CREDENTIALS` | `application.properties:64-65` — one event, the template decides the wording |
+| `LEAVE_APPLIED`, `LEAVE_APPROVED`, `LEAVE_REJECTED`, `LEAVE_CANCELLED` | `W-16.3` |
+| `APPROVAL_PENDING`, `APPROVAL_DECIDED` | `W-15.2` |
+| `TIMESHEET_REMINDER` | HRMS `NotificationSchedular`; rule-driven by `W-20.2` |
+
+A new event is a code change, deliberately: a template must exist for it, and seeding is per
+event.
+
 **API contract**
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| GET | `/api/v1/notifications` | `?unreadOnly=&page=` | the caller's notifications | Bearer, tenant bound |
+| GET | `/api/v1/notifications` | `?unreadOnly=&page=` | the caller's notifications | Bearer, tenant bound — recipient only, no action code |
 | POST | `/api/v1/notifications/{id}/read` | — | `200` | Bearer, tenant bound, recipient only |
-| GET | `/api/v1/notification-templates` | `?event=` | the tenant's templates | Bearer, tenant bound |
-| PUT | `/api/v1/notification-templates/{event}` | subject, body, channels | `200` | Bearer, tenant bound |
+| GET | `/api/v1/notification-templates` | `?event=` | the tenant's templates | `@RequiresAction("core.notification_template.manage")` |
+| PUT | `/api/v1/notification-templates/{event}` | subject, body, channels | `200` | `@RequiresAction("core.notification_template.manage")` |
+
+`core.notification_template.manage` is added to `reference.action` by `W-11.3`
+(`12-core-contracts.md:128`). Every Core endpoint must carry a code or a documented "recipient
+only" scope — `EndpointGuardCoverageTest` (`12-core-contracts.md:45-46`).
 
 ## 5. Frontend changes
 
@@ -142,7 +174,9 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form in each script �
 |---|---|---|
 | Unit | `core/.../notification/TemplateRendererTest.java` | placeholders substituted; a missing placeholder fails loudly rather than rendering `${name}`; HTML escaped |
 | Unit | `core/.../notification/NotificationServiceTest.java` | no template for an event is an error, not a silent skip; the rendered body is stored |
-| Integration | `core/.../notification/NotificationQueueIT.java` | composing enqueues exactly one message against Azurite |
+| Unit | `core/.../notification/NotificationEventTest.java` | the enum holds exactly the §5 row 15 list; every event has a seeded default template for both channels |
+| Integration | `core/.../notification/NotificationQueueIT.java` | composing enqueues exactly one message against Azurite, on the `notification` queue and no other |
+| Integration | `core/.../notification/NotificationTemplateGuardIT.java` | `GET`/`PUT /notification-templates` return `403` without `core.notification_template.manage`; `/notifications` returns only the caller's rows |
 | Integration | `core/.../notification/NotificationRlsIT.java` | a recipient cannot read another tenant's notifications, and cannot mark someone else's as read |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.

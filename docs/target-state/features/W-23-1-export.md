@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-13.1` — the first thing anyone exports is employees |
+| **Blocked by** | `W-13.1` — the first thing anyone exports is employees · `W-21` — the file is stored as `DocumentKind.EXPORT` · `W-11.3` — adds `core.report.read/manage` to the catalogue |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 row 18 |
 
 ## Size cap
 
@@ -66,8 +67,9 @@ build, and the mapping line is wrong.
 ```
 [user] --> POST /api/v1/exports {definitionId, filters}
    --> [ExportService] --> definition --> query under RLS
-   --> stream rows --> CSV or Excel --> core.document (W-21)
-   --> response: document id + signed link
+   --> [ReportSource bean for definition.source].rows(filters)
+   --> stream rows --> CSV or Excel --> DocumentService.store(EXPORT, null, filename, stream) (W-21)
+   --> response: document id + DocumentLinkService.signedLink(id, 15 min)
 ```
 
 The file lands in the document store rather than streaming down the HTTP response, so a large
@@ -82,18 +84,43 @@ export does not hold a request thread open and the link can be re-fetched.
 | Service | `core/.../report/CsvWriter.java`, `XlsxStreamingWriter.java` | new |
 | Entity | `core/.../report/ReportDefinition.java` | new, `@Table(schema="core")` |
 | Repository | `core/.../report/ReportDefinitionRepository.java` | new |
-| Enumeration | `core/.../report/ExportFormat.java`, `ReportSource.java` | new |
+| Enumeration | `core/.../report/ExportFormat.java` | new |
+| Interface | `core/.../report/ReportSource.java` | new — **a bean interface, not an enum** (corrected 2026-09-25, `12-core-contracts.md:108`) |
+| Source | `core/.../report/source/EmployeeReportSource.java`, `LeaveBalanceReportSource.java`, `PayInputReportSource.java` | new — the three Core consumers, each a `@Component` |
+
+**`ReportSource`** — the seam a module implements to make its data exportable without `core`
+knowing the module exists:
+
+```java
+public interface ReportSource {
+    String code();                                   // stored in report_definition.source
+    List<ReportColumn> columns();                    // the allow-list: name, label, type
+    Stream<Map<String, Object>> rows(ReportFilters filters);  // under RLS, tenant already bound
+}
+```
+
+`ExportService` finds the bean by `code()` from the Spring context. A `payroll` source is a
+`payroll` bean; `core` never imports it. `rows` returns a `Stream`, so the writer pulls and the
+source never materialises the set — the streaming guarantee starts here, not at the writer.
 
 `XlsxStreamingWriter` uses POI's `SXSSFWorkbook`, which keeps a bounded window of rows in
 memory. The frozen code uses the in-memory workbook, and that is the whole difference.
+
+**Where the file goes.** `DocumentService.store(DocumentKind.EXPORT, null, filename, stream)`
+— no employee, because an export belongs to the tenant (`W-21`, `12-core-contracts.md:107`).
+The response link is `DocumentLinkService.signedLink(id, Duration.ofMinutes(15))`.
 
 **API contract**
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| GET | `/api/v1/report-definitions` | — | the tenant's definitions | Bearer, tenant bound |
-| PUT | `/api/v1/report-definitions/{id}` | name, source, columns, format | `200` | Bearer, tenant bound |
-| POST | `/api/v1/exports` | definitionId, filters | `201` + document id and link | Bearer, tenant bound |
+| GET | `/api/v1/report-definitions` | — | the tenant's definitions the caller may run | `@RequiresAction("core.report.read")` |
+| PUT | `/api/v1/report-definitions/{id}` | name, source, columns, format, required_action | `200` | `@RequiresAction("core.report.manage")` |
+| POST | `/api/v1/exports` | definitionId, filters | `201` + document id and link | `core.report.read` **and** the definition's `required_action`, checked by `PermissionService.require` |
+
+`core.report.read` and `core.report.manage` arrive with `W-11.3` (`12-core-contracts.md:128`).
+The per-definition `required_action` is the second gate on `POST /exports`; a caller who lacks
+it gets `403`, and `GET /report-definitions` hides the definition from them.
 
 ## 5. Frontend changes
 
@@ -118,12 +145,14 @@ Columns: `id uuid` · `tenant_id uuid NOT NULL` · `code varchar(64) NOT NULL` �
 - [x] **Money columns — none.** Exported amounts are formatted from `numeric(19,4)` sources; no amount is stored here
 - [x] Expand / contract — new table only
 
-**`source` is an enumeration, not free SQL.** A definition names a source the code knows how
-to query — employees, leave balances, pay inputs — and chooses columns from that source's
-allow-list. Storing a query would be a report builder and an injection surface in one column.
+**`source` is a `ReportSource.code()`, not free SQL.** A definition names a bean the code
+knows how to query — employees, leave balances, pay inputs — and chooses columns from that
+bean's `columns()` allow-list. `PUT` refuses a code with no registered bean. Storing a query
+would be a report builder and an injection surface in one column.
 
 **`required_action` is on the definition.** An export of salary data must not be reachable by
-someone who cannot see salary data on screen, and `W-11.2` enforces it.
+someone who cannot see salary data on screen. `ExportService` checks it through
+`PermissionService.require` (`12-core-contracts.md:87`) after the `core.report.read` guard.
 
 RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 `migration/README.md:76-123`.
@@ -132,7 +161,9 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `core/.../report/ExportServiceTest.java` | a column outside the source's allow-list refused; format honoured; empty result produces a header-only file, not an error |
+| Unit | `core/.../report/ExportServiceTest.java` | a column outside the source's `columns()` refused; format honoured; empty result produces a header-only file, not an error; an unknown `source` code refused; the file is stored with `DocumentKind.EXPORT` and a null employee |
+| Unit | `core/.../report/ReportSourceRegistryTest.java` | a test `ReportSource` bean registered in the context is found by `code()`; two beans with one code fail startup |
+| Integration | `core/.../report/ExportGuardIT.java` | `POST /exports` returns `403` without `core.report.read`; returns `403` with it but without the definition's `required_action`; `GET /report-definitions` omits that definition; `PUT` needs `core.report.manage` |
 | Unit | `core/.../report/CsvWriterTest.java` | commas, quotes and newlines in values escaped; a value beginning `=` is not written as a formula |
 | Integration | `core/.../report/ExportStreamingIT.java` | **10 000 rows export with bounded heap** — the writer never holds the whole set |
 | Integration | `core/.../report/ExportRlsIT.java` | an export run by tenant A contains no tenant B row, including in the row count |
@@ -176,7 +207,7 @@ grep -rn 'new XSSFWorkbook' core/src/main/java/com/infinevo/core/report/ \
 |---|---|---|
 | A large export exhausts the container's memory, as the frozen code would | **high without streaming** | `SXSSFWorkbook` and a streamed CSV; the grep and the 10 000-row test |
 | `source` becomes free SQL because a definition cannot express something | medium | Enumerated sources with allow-listed columns; a new source is a code change, deliberately |
-| An export bypasses the action check and leaks salary data | medium | `required_action` on the definition, enforced by `W-11.2` |
+| An export bypasses the action check and leaks salary data | medium | `required_action` on the definition, checked by `PermissionService.require`; `ExportGuardIT` |
 | CSV injection through employee-supplied text | medium | Values beginning `=`, `+`, `-` or `@` are prefixed; unit-tested |
 | An export runs long and ties up a request thread | medium | The file goes to the document store; large exports become `W-23.2`'s asynchronous path |
 
@@ -194,7 +225,7 @@ Nothing is deployed. The script is additive and forward-only —
 | `Money`/`BigDecimal` for money | creates no money column; exported amounts format from `numeric(19,4)`, never float |
 | Index on `tenant_id` plus lookup columns | one index, `tenant_id` leading |
 | Expand / contract | new table only |
-| No module references another module | `core` only; a `payroll` source is registered through a `core` interface |
+| No module references another module | `core` only; a `payroll` source is a `payroll` bean implementing `core`'s `ReportSource`, discovered by `code()` |
 
 ## 12. Gap inventory
 

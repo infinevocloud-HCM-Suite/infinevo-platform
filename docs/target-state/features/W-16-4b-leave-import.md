@@ -10,7 +10,8 @@
 | **Status** | **Approved** |
 | **Approved by** | founder |
 | **Approved on** | 2026-09-23 |
-| **Blocked by** | `W-16.2` (allocations to import into), `W-21` (the uploaded file) |
+| **Blocked by** | `W-16.2` (allocations to import into), `W-21` (the uploaded file), `W-11.3` (the `core.leave_balance.manage` code, `12-core-contracts.md` §4) |
+| **Corrected** | 2026-09-25 — aligned to 12-core-contracts.md §5 rows 5, 23 |
 
 ## Size cap
 
@@ -85,11 +86,16 @@ if half of them silently fail the tenant starts with wrong entitlements and no r
 
 **API contract**
 
-| Method | Path | Request | Response | Auth |
+| Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| POST | `/api/v1/leave-imports` | `{documentId, leaveYear, dryRun}` | `202` + import id | Bearer, tenant bound |
-| GET | `/api/v1/leave-imports/{id}` | — | status, counts, error report document id | Bearer, tenant bound |
-| GET | `/api/v1/leave-imports` | `?page=` | history | Bearer, tenant bound |
+| POST | `/api/v1/leave-imports` | `{documentId, leaveYear, dryRun}` | `202` + import id | `core.leave_balance.manage` |
+| GET | `/api/v1/leave-imports/{id}` | — | status, counts, error report document id | `core.leave_balance.manage` |
+| GET | `/api/v1/leave-imports` | `?page=` | history | `core.leave_balance.manage` |
+
+Every endpoint is tenant bound and carries the code shown — `EndpointGuardCoverageTest` fails
+otherwise (`12-core-contracts.md` §2). The code is renamed from `hrms.leave_balance.manage` by
+`W-11.3` (`12-core-contracts.md` §4). An import writes allocations, so it is the same permission
+as the manual allocation endpoint in `W-16.2`.
 
 `dryRun` validates and reports without writing an allocation. For a cutover import of
 several thousand opening balances, being able to see the errors before committing is the
@@ -119,7 +125,7 @@ four audit columns.
 
 - [x] `tenant_id` present, leading index column
 - [x] Index on `tenant_id` plus lookup columns (DEBT-018) — `(tenant_id, started_at DESC)` and `(tenant_id, status)`
-- [x] **Money columns — none.** Imported day counts land in `core.leave_allocation` as `numeric(5,2)`
+- [x] **Money columns — none.** Imported day counts land in `core.leave_allocation` as `numeric(10,2)` (`CONVENTIONS.md:37`)
 - [x] Expand / contract — new table only
 
 **No row-level import table.** The frozen design stores every imported row forever —
@@ -137,6 +143,7 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 | Unit | `core/.../leave/LeaveImportServiceTest.java` | a file of 5 good and 2 bad rows imports 5 and reports 2; a dry run imports 0 and reports the same 2 |
 | Integration | `core/.../leave/LeaveImportPartialSuccessIT.java` | the good rows are committed **after** a bad row is encountered, not rolled back with it |
 | Integration | `core/.../leave/LeaveImportRlsIT.java` | tenant A cannot read tenant B's import logs, and cannot import against tenant B's document |
+| Integration | `core/.../leave/LeaveImportGuardIT.java` | a caller without `core.leave_balance.manage` gets `403` on all three endpoints; a row of `12.5` days lands as `12.50`, not `12` |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 
