@@ -56,3 +56,14 @@ security:
 
 brevo:
   api-key: ${BREVO_API_KEY:local_brevo_key}
+
+document:
+  link:
+    # A local default, like every other secret in this file. It signs links that only ever
+    # point at a developer's own stack. The base profile has none, so no deployment can
+    # fall back to this value.
+    secret: ${DOCUMENT_LINK_SECRET:local_document_link_secret}
+  blob:
+    # infra/docker/compose.yml supplies the Azurite connection string. Run the app outside
+    # compose without it and uploads answer 503 while everything else works.
+    connection-string: ${DOCUMENT_BLOB_CONNECTION_STRING:}

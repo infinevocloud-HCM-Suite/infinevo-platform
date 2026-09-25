@@ -33,11 +33,13 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ResourceServerConfig {
 
     /**
-     * The only unauthenticated path. The orchestrator's liveness probe carries no token, and a
-     * probe that cannot answer is a replica restart loop.
+     * The only unauthenticated infrastructure path. The orchestrator's liveness probe carries no
+     * token, and a probe that cannot answer is a replica restart loop.
      *
      * <p>Kept to one entry on purpose: every path added here is a path no one has to authenticate
-     * for, so the list is the security boundary and should stay readable at a glance.
+     * for, so the list is the security boundary and should stay readable at a glance. Application
+     * endpoints that must be reachable without a token are not added here but to
+     * {@link PublicEndpoints}, the {@code D-22} exception list, which this chain also permits.
      */
     public static final String HEALTH_PATH = "/actuator/health";
 
@@ -71,6 +73,10 @@ public class ResourceServerConfig {
                         // authorised, or it never reached a handler.
                         .permitAll()
                         .requestMatchers(HEALTH_PATH, HEALTH_SUBPATHS)
+                        .permitAll()
+                        // The D-22 exception list: exact paths, each authorising its requests
+                        // another way. TenantContextFilter exempts the same list.
+                        .requestMatchers(PublicEndpoints.paths())
                         .permitAll()
                         .anyRequest()
                         .authenticated())

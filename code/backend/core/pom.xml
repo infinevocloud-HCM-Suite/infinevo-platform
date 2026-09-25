@@ -30,6 +30,19 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-json</artifactId>
       </dependency>
+      <!-- W-21: the document store writes to Azure Blob Storage (Azurite locally). The version
+           comes from azure-sdk-bom in the parent - the BOM that already pins azure-storage-queue
+           in shared - so the two storage clients share one azure-core. -->
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-storage-blob</artifactId>
+      </dependency>
+      <!-- W-21 D5: in Azure the store authenticates as the container app's managed identity.
+           W-51 forbids account keys and SAS there (infra/azure/modules/rbac.bicep:18-20). -->
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-identity</artifactId>
+      </dependency>
       <!-- W-04: Shared test infrastructure (AbstractIntegrationTest, initializers) -->
       <dependency>
         <groupId>com.infinevo</groupId>

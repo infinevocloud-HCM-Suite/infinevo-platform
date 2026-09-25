@@ -285,12 +285,22 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
      */
     private static final String UNREACHABLE_ISSUER_URI = "http://127.0.0.1:1/realms/infinevo";
 
+    /**
+     * The value behind {@code ${DOCUMENT_LINK_SECRET}}, supplied for the reason
+     * {@link #UNREACHABLE_ISSUER_URI} is: the {@code app} and {@code worker} profiles reference it with
+     * no default (W-21), so a deployment cannot sign document links with a known key, and a context
+     * loading either profile would otherwise fail at placeholder resolution. It signs nothing that
+     * leaves the test JVM. A test that exercises links sets its own.
+     */
+    private static final String TEST_DOCUMENT_LINK_SECRET = "test-only-document-link-secret-not-for-use";
+
     @Override
     public void initialize(ConfigurableApplicationContext ctx) {
         startIfNeeded();
         TestPropertyValues.of(
                         "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=" + UNREACHABLE_JWK_SET_URI,
                         "KEYCLOAK_ISSUER_URI=" + UNREACHABLE_ISSUER_URI,
+                        "DOCUMENT_LINK_SECRET=" + TEST_DOCUMENT_LINK_SECRET,
                         "spring.datasource.url=" + POSTGRES.getJdbcUrl(),
                         "spring.datasource.username=" + APP_USER,
                         "spring.datasource.password=" + APP_USER_PASSWORD,

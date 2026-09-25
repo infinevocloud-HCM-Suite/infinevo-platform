@@ -32,7 +32,14 @@ class EndpointGuardCoverageTest {
     /** Controllers that deliberately need no action, and why. */
     private static final Map<String, String> EXEMPT = Map.of(
             "com.infinevo.shared.identity.MeController",
-            "returns only the caller's own identity; every authenticated member may see themselves");
+            "returns only the caller's own identity; every authenticated member may see themselves",
+            "com.infinevo.core.document.DocumentDownloadController",
+            "the D-22 public download (PublicEndpoints): no bearer token exists to check an action against;"
+                    + " the signed, expiring link is the authorisation",
+            "com.infinevo.core.document.DocumentReadController",
+            "core.document.read, or core.document.read_own for the caller's own document (W-21 spec section 4):"
+                    + " two codes, which @RequiresAction cannot express until W-13.4's anyOf; DocumentReadAccess"
+                    + " checks both on every call and fails closed");
 
     @Test
     @DisplayName("every mapped method in core and shared names the action it requires")

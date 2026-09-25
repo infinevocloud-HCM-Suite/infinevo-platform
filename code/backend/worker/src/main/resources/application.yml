@@ -69,3 +69,20 @@ management:
 
 brevo:
   api-key: ${BREVO_API_KEY}
+
+# W-21 document store. The worker scans com.infinevo, so it builds the link signer too -
+# and it is the runtime that will sign the seven-day links in emailed reports (W-23.2)
+# and payslips (W-36). Same rule as the app: no default secret, and the process does not
+# start without one. See the app module's application.yml.
+document:
+  link:
+    secret: ${DOCUMENT_LINK_SECRET}
+  system:
+    max-bytes: 52428800
+  blob:
+    container: documents
+    # See the app module: a connection string for an emulator, or an endpoint reached by
+    # this container's own managed identity in Azure (decision D5).
+    connection-string: ${DOCUMENT_BLOB_CONNECTION_STRING:}
+    endpoint: ${DOCUMENT_BLOB_ENDPOINT:}
+    managed-identity-client-id: ${AZURE_CLIENT_ID:}

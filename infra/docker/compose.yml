@@ -75,6 +75,13 @@ services:
   blob:                                   # -> Azure Blob Storage
     image: mcr.microsoft.com/azure-storage/azurite
     command: ["azurite-blob", "--blobHost", "0.0.0.0", "--skipApiVersionCheck"]
+    environment:
+      # W-21: a local account with a local key, like every other local_* credential here,
+      # rather than Azurite's built-in devstoreaccount1 - whose key is a published constant
+      # that secret scanners flag wherever it is committed. The value is base64 of
+      # "local_blob_key_for_azurite_only"; Azurite requires base64. It opens nothing but
+      # this container.
+      AZURITE_ACCOUNTS: "infinevolocal:bG9jYWxfYmxvYl9rZXlfZm9yX2F6dXJpdGVfb25seQ=="
     ports: ["${BLOB_PORT:-10000}:10000"]
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "10000"]
@@ -169,7 +176,11 @@ services:
       DB_PASSWORD: local_app_pw
       REDIS_HOST: redis
       QUEUE_HOST: queue
-      BLOB_ENDPOINT: http://blob:10000/devstoreaccount1
+      BLOB_ENDPOINT: http://blob:10000/infinevolocal
+      # W-21: the document store's way in to Azurite - the local account the blob service
+      # above declares, same local key. The link secret needs nothing here: the local
+      # profile carries a local default (app/.../application-local.yml).
+      DOCUMENT_BLOB_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=infinevolocal;AccountKey=bG9jYWxfYmxvYl9rZXlfZm9yX2F6dXJpdGVfb25seQ==;BlobEndpoint=http://blob:10000/infinevolocal;"
       MAIL_HOST: mail
       MAIL_PORT: 1025
       # Must match the token's iss, which Keycloak stamps from its pinned KC_HOSTNAME_URL.
@@ -201,7 +212,7 @@ services:
       DB_PASSWORD: local_worker_pw
       REDIS_HOST: redis
       QUEUE_HOST: queue
-      BLOB_ENDPOINT: http://blob:10000/devstoreaccount1
+      BLOB_ENDPOINT: http://blob:10000/infinevolocal
       MAIL_HOST: mail
       MAIL_PORT: 1025
       # The worker needs the issuer too, which is not obvious. It scans com.infinevo and

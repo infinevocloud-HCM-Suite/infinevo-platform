@@ -372,12 +372,14 @@ fi
 # ── Seed canonical platform secrets (W-56) ──────────────────────────────────
 # The migration job and container apps need all canonical secrets seeded:
 # psql-app-pw, psql-worker-pw, psql-migration-pw, psql-readonly-pw, psql-keycloak-pw,
-# keycloak-admin-pw, keycloak-client-secret, brevo-api-key, jwt-signing-secret
-# (plus psql-admin-pw above) - ten in all.
+# keycloak-admin-pw, keycloak-client-secret, brevo-api-key, jwt-signing-secret,
+# document-link-secret (plus psql-admin-pw above) - eleven in all.
+# document-link-secret (W-21) signs document download links. app and worker both refuse to
+# start without it, so it has to exist before the first revision that references it.
 # Seeded here inside the ipRule window, with the same generator and idempotency:
 # an existing non-placeholder value is left alone.
 echo "Verifying / seeding canonical platform secrets in ${VAULT_NAME}..."
-for SECRET_NAME in psql-app-pw psql-worker-pw psql-migration-pw psql-readonly-pw psql-keycloak-pw keycloak-admin-pw keycloak-client-secret brevo-api-key jwt-signing-secret; do
+for SECRET_NAME in psql-app-pw psql-worker-pw psql-migration-pw psql-readonly-pw psql-keycloak-pw keycloak-admin-pw keycloak-client-secret brevo-api-key jwt-signing-secret document-link-secret; do
   EXISTING_PW=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>/dev/null || true)
   if [[ -z "$EXISTING_PW" ]] || [[ "$EXISTING_PW" =~ ^local_.*_pw$ ]]; then
     echo "Generating secure dynamic secret for ${SECRET_NAME}..."

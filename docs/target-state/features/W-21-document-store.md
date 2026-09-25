@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-21` · ticket #25 · `CORE-13` |
 | **Promoted to** | `docs/target-state/features/W-21-document-store.md` on branch `W-21-document-store` |
-| **Owner** | unassigned |
+| **Owner** | devashis (`dev-devashis`) |
 | **Apps touched** | `code/backend/core`, `code/backend/migration`, `infra/azure` (config only) |
 | **Related gaps** | Incident 3 (fixed), DEBT-004 (discounted), DEBT-018 (honoured) |
 | **Status** | **Approved** |
@@ -136,7 +136,7 @@ file public. A path plus a container is not a credential; a URL is.
 `blob_path` is `{tenantId}/{employeeId}/{kind}/{documentId}`, tenant first, and
 `{tenantId}/tenant/{kind}/{documentId}` when there is no employee — an `EXPORT` lands under
 the tenant, never under a null. The legacy layout led with `organizationId` too —
-`CloudinaryServiceImpl.java:83` — and that part was right.
+`CloudinaryServiceImpl.java:92` — and that part was right.
 
 RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 `migration/README.md:76-123`.
@@ -161,7 +161,7 @@ from RabbitMQ to Azurite's queue service for `D-50`.
 ## 8. Verification
 
 ```bash
-docker compose -f infra/docker/compose.yml up -d postgres azurite
+docker compose -f infra/docker/compose.yml up -d postgres blob
 docker compose -f infra/docker/compose.yml up --build migrate
 docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_user -d infinevo -c \
   "SELECT relrowsecurity FROM pg_class WHERE oid='core.document'::regclass;"
@@ -223,3 +223,27 @@ the decision; the consolidated record is
 
 1. **How long is a download link valid?** The legacy payslip token never expires. **Recommend** fifteen minutes for an interactive download and a separate, longer-lived path for emailed payslips when `W-36` needs one. **Sharpened 2026-09-25:** the longer path is seven days, chosen by the caller through `signedLink(id, Duration)` — `12-core-contracts.md:173`.
 2. **Who may delete a document?** **Recommend** soft delete only, by a tenant administrator, with the blob retained — an audit trail over a deleted proof of investment is worth more than the storage. Hard deletion becomes a retention concern alongside `W-22.2`.
+
+## 14. As built — 2026-09-25, branch `dev-devashis`
+
+**Decisions D1–D6 were accepted by the owner on 2026-09-25.** Each line below either departs from
+the text above or pins down something it left open.
+
+| # | Question | As built |
+|---|---|---|
+| D1 | Where is a signed link redeemed? | By `app`, at exactly `GET /api/v1/documents/download?t=` (`DocumentDownloadController`). It is the only anonymous path, named once in `shared/.../security/PublicEndpoints.java`. The resource server permits it, and the tenant filter skips it. The token binds tenant, document and expiry under HMAC-SHA256 with a domain tag, and is compared in constant time. Every refusal is the same `404`. Responses carry `Cache-Control: no-store`, `nosniff` and `Referrer-Policy: no-referrer`, and the token is never logged. |
+| D2 | Does 10 MB apply to generated files? | No. **10 MB applies to uploads only** (`store`). Generated files (`PAYSLIP`, `EXPORT`) go through `storeFile(kind, employeeId, fileName, Path)`. That streams from disk under a separate **50 MB** cap (`document.system.max-bytes`). `POST /documents` refuses a system kind with `400`. |
+| D4 | Migration number | `V037__document.sql`, the lane's reservation (`DEV-TRACKER.md`: `V037` W-21 · `V038`–`V039` W-20.1 · `V040` W-23.1). |
+| D5 | How does a deployed app reach Blob Storage? | By **managed identity**: `DOCUMENT_BLOB_ENDPOINT` plus `AZURE_CLIENT_ID`, with no account key. A connection string is used only for Azurite, locally and in tests. `containerapps.bicep` takes `blobEndpoint` and carries the `document-link-secret` secret for `app` and `worker`, and `deploy.sh` now loads eleven secrets. |
+
+Also as built:
+
+- **`read_own`.** `GET /{id}` and `GET /{id}/link` live in `DocumentReadController`. `DocumentReadAccess` admits `core.document.read`, or `core.document.read_own` when the document's `employee_id` is the caller's employee. A document with no `employee_id` is never admitted through `read_own`. A caller holding neither code is refused before any lookup.
+  - `@RequiresAction` takes one code, so the controller is on `EndpointGuardCoverageTest`'s exempt list, with that reason.
+  - Which employee the caller is comes from `DocumentOwnerResolver`. Until `W-13.4` links a login to an employee, `UnlinkedDocumentOwnerResolver` answers "nobody", so `read_own` admits no one. At that point, swap its body for `EmployeeService.currentEmployee()`, and add `anyOf` to the two methods.
+- **Grants** (W-11.3 spec section 2: each feature ticket grants its own codes). `V037` gives `hr` `core.document.read` and `core.document.upload`, and gives `employee` `core.document.read_own`. `core.document.delete` stays with the admin roles (decision 2).
+  - The grants come from a function, a trigger that sorts after `tenant_seed_system_roles`, and a backfill for existing tenants. They do not rewrite `core.seed_system_roles`, which every lane would otherwise have to rewrite in turn.
+- Soft delete is enforced in the database as well as in the service: `REVOKE DELETE ON core.document FROM app_user`.
+- Blob path: `{tenantId}/{employeeId|tenant}/{KIND}/{documentId}`. `uk_document_tenant_blob_path` stops two rows sharing one blob.
+
+**Corrections applied to this spec.** In section 6, the Cloudinary upload is at `CloudinaryServiceImpl.java:92`, not `:83`. In section 8, the compose service is named `blob`, not `azurite`.

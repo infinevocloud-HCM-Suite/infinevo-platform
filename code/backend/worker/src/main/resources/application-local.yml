@@ -44,3 +44,8 @@ management:
 
 brevo:
   api-key: ${BREVO_API_KEY:local_brevo_key}
+
+document:
+  link:
+    # Local default, as in the app module's local profile. The base profile has none.
+    secret: ${DOCUMENT_LINK_SECRET:local_document_link_secret}
