@@ -1,10 +1,13 @@
 package com.infinevo.core.job;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +16,7 @@ import com.infinevo.core.job.entity.JobStatus;
 import com.infinevo.core.job.repository.JobStatusRepository;
 import com.infinevo.core.job.service.JobService;
 import com.infinevo.core.job.serviceimpl.JobServiceImpl;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,5 +141,51 @@ class JobServiceTest {
 
         Optional<JobStatusResponseDTO> dto = jobService.getJobStatus(jobId, tenantB);
         assertTrue(dto.isEmpty());
+    }
+
+    @Test
+    void claimForRunReturnsTrueOnlyWhenTheUpdateChangedTheRow() {
+        when(repository.transition(eq("job-q"), eq(JobState.QUEUED), eq(JobState.RUNNING), any(Instant.class)))
+                .thenReturn(1);
+        when(repository.transition(eq("job-r"), eq(JobState.QUEUED), eq(JobState.RUNNING), any(Instant.class)))
+                .thenReturn(0);
+
+        assertTrue(jobService.claimForRun("job-q"));
+        assertFalse(jobService.claimForRun("job-r"));
+    }
+
+    @Test
+    void releaseForRetryPutsARunningJobBackToQueuedAndKeepsTheError() {
+        JobStatus job = new JobStatus("job-1", UUID.randomUUID(), "payrun", JobState.RUNNING);
+        when(repository.findById("job-1")).thenReturn(Optional.of(job));
+
+        jobService.releaseForRetry("job-1", "Calculation error");
+
+        assertEquals(JobState.QUEUED, job.getStatus());
+        assertEquals("Calculation error", job.getErrorMessage());
+        verify(repository).save(job);
+    }
+
+    @Test
+    void releaseForRetryLeavesACompletedJobAlone() {
+        JobStatus job = new JobStatus("job-2", UUID.randomUUID(), "payrun", JobState.COMPLETED);
+        when(repository.findById("job-2")).thenReturn(Optional.of(job));
+
+        jobService.releaseForRetry("job-2", "late error");
+
+        assertEquals(JobState.COMPLETED, job.getStatus());
+        verify(repository, never()).save(any(JobStatus.class));
+    }
+
+    @Test
+    void markFailedKeepsTheLastAttemptsError() {
+        JobStatus job = new JobStatus("job-3", UUID.randomUUID(), "payrun", JobState.QUEUED);
+        job.setErrorMessage("Calculation error");
+        when(repository.findById("job-3")).thenReturn(Optional.of(job));
+
+        jobService.markFailed("job-3", "poison: delivered 3 times");
+
+        assertEquals(JobState.FAILED, job.getStatus());
+        assertEquals("poison: delivered 3 times (last attempt: Calculation error)", job.getErrorMessage());
     }
 }

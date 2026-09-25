@@ -2,13 +2,13 @@ package com.infinevo.app.controller;
 
 import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.service.JobService;
+import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,15 +26,9 @@ public class JobStatusController {
     }
 
     @GetMapping("/{jobId}")
-    public ResponseEntity<JobStatusResponseDTO> getJobStatus(
-            @PathVariable("jobId") String jobId,
-            @RequestHeader(value = "organizationId", required = false) String organizationId) {
-
-        UUID tenantId = TenantContext.current()
-                .orElseGet(() -> organizationId != null && !organizationId.isBlank()
-                        ? UUID.fromString(organizationId)
-                        : TenantContext.require());
-
+    @RequiresAction("core.job.read")
+    public ResponseEntity<JobStatusResponseDTO> getJobStatus(@PathVariable("jobId") String jobId) {
+        UUID tenantId = TenantContext.require();
         return jobService
                 .getJobStatus(jobId, tenantId)
                 .map(ResponseEntity::ok)

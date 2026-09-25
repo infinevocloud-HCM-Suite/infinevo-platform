@@ -1,11 +1,9 @@
-package com.infinevo.worker.config;
+package com.infinevo.shared.queue;
 
 import com.azure.storage.queue.QueueMessageEncoding;
 import com.azure.storage.queue.QueueServiceClient;
 import com.azure.storage.queue.QueueServiceClientBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.infinevo.shared.queue.AzureStorageQueueProducer;
-import com.infinevo.shared.queue.QueueProducer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;

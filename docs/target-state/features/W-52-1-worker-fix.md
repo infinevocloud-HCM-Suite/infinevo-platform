@@ -74,9 +74,9 @@ PayrunQueueListener.onMessage --> status RUNNING or COMPLETED ? return : markRun
 | Layer | File | Change |
 |---|---|---|
 | Config | `shared/.../queue/StorageQueueConfig.java` | Moved from `worker/config/StorageQueueConfig.java:14-32` unchanged (same `@ConditionalOnProperty("azure.storage.queue.connection-string")`). Both runtimes scan `com.infinevo` (`InfinevoApplication.java:19`, `InfinevoWorkerApplication.java:18`) and `app` reaches `shared` through `core` (`core/pom.xml:19`, `app/pom.xml:17`) |
-| Loop | `worker/.../queue/QueueConsumerLoop.java` | New. `SmartLifecycle`, same `@ConditionalOnProperty`. Constructor takes `QueueServiceClient`, `ObjectMapper`, `List<QueueConsumer<String>>`, `JobService`. Builds `Map<queueName, consumer>`; two consumers on one queue → fail startup. One daemon thread per queue; `receiveMessages(32, Duration.ofMinutes(5), ...)`; empty batch → sleep `azure.storage.queue.poll-interval` (default `PT1S`); `stop()` interrupts and joins |
+| Loop | `worker/.../queue/QueueConsumerLoop.java` | New. `SmartLifecycle`, same `@ConditionalOnProperty`. Constructor takes `QueueServiceClient`, `ObjectMapper`, `List<QueueConsumer<String>>`, `JobService`. Builds `Map<queueName, consumer>`; two consumers on one queue → fail startup. One daemon thread per queue; `receiveMessages(32, azure.storage.queue.visibility-timeout, ...)` (default `PT5M`; the round-trip IT sets `PT1S`); empty batch → sleep `azure.storage.queue.poll-interval` (default `PT1S`); `stop()` interrupts and joins. **As built:** `markFailed` on the poison and unparseable paths runs with the message's `tenantId` bound — `core.job_status` is RLS-isolated, so an unbound call writes nothing — and both `markFailed` and `deleteMessage` are wrapped so one failure does not abandon the batch |
 | Loop | same | Per message: `getDequeueCount() >= 3` → `jobService.markFailed(jobId, "poison: delivered N times")` and `deleteMessage(id, popReceipt)`, `jobId` read from the raw JSON without full parsing; else `objectMapper.readValue(body, new TypeReference<QueueMessage<String>>(){})` (constructor is `@JsonCreator`, `QueueMessage.java:28-37`) → `consumer.onMessage` → delete. Unparseable body → `markFailed` if a `jobId` is readable, delete either way |
-| Listener | `PayrunQueueListener.java:53` | `if (state == COMPLETED \|\| state == RUNNING)` → warn and return |
+| Listener | `PayrunQueueListener.java` | **As built:** `if (!jobService.claimForRun(jobId))` → warn and return — one `UPDATE … WHERE status = QUEUED`, so a duplicate delivery, a second replica, or a `COMPLETED`/`FAILED` job all lose the claim. On exception: `releaseForRetry(jobId, error)` (back to `QUEUED`, error kept) and rethrow, so the loop leaves the message and marks it `FAILED` on the third delivery — retry-then-fail as `12-core-contracts.md` §5 asks |
 | Controller | `app/.../JobStatusController.java:28-36` | `@RequiresAction("core.job.read")`; signature `getJobStatus(@PathVariable String jobId)`; tenant = `TenantContext.require()` (`TenantContext.java:50`), bound by `TenantContextFilter` from the token |
 | Worker config | `worker/config/StorageQueueConfig.java` | Deleted |
 
@@ -86,8 +86,11 @@ PayrunQueueListener.onMessage --> status RUNNING or COMPLETED ? return : markRun
 |---|---|---|---|---|
 | `GET` | `/api/v1/jobs/{jobId}` | — (no `organizationId` header) | `200` `JobStatusResponseDTO`; `404` when not in the caller's tenant | `core.job.read` |
 
-`JobService` is unchanged (`JobService.java:10-20`); `markRunning` already refuses to regress a
-`COMPLETED`/`FAILED` job (`JobServiceImpl.java:34-40`).
+**`JobService` gained two methods at merge** (the spec first said it was unchanged): `boolean claimForRun(jobId)`,
+backed by `JobStatusRepository.transition(jobId, QUEUED, RUNNING, now)`, and `void releaseForRetry(jobId, error)`.
+Neither the check-then-act idempotency nor retry-then-fail could be delivered without them. `markRunning` is kept and
+still refuses to regress a `COMPLETED`/`FAILED` job; `markFailed` now keeps the last attempt's error beside the
+reason the loop gave up.
 
 ## 5. Frontend changes
 

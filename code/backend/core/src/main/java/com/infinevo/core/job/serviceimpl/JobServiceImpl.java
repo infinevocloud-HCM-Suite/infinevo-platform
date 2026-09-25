@@ -5,6 +5,7 @@ import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.entity.JobStatus;
 import com.infinevo.core.job.repository.JobStatusRepository;
 import com.infinevo.core.job.service.JobService;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,6 +43,24 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
+    public boolean claimForRun(String jobId) {
+        return jobStatusRepository.transition(jobId, JobState.QUEUED, JobState.RUNNING, Instant.now()) == 1;
+    }
+
+    @Override
+    @Transactional
+    public void releaseForRetry(String jobId, String errorMessage) {
+        jobStatusRepository.findById(jobId).ifPresent(job -> {
+            if (job.getStatus() == JobState.RUNNING) {
+                job.setStatus(JobState.QUEUED);
+                job.setErrorMessage(errorMessage);
+                jobStatusRepository.save(job);
+            }
+        });
+    }
+
+    @Override
+    @Transactional
     public void updateProgress(String jobId, int progressPercentage) {
         jobStatusRepository.findById(jobId).ifPresent(job -> {
             job.setProgressPercentage(progressPercentage);
@@ -65,7 +84,12 @@ public class JobServiceImpl implements JobService {
     public void markFailed(String jobId, String errorMessage) {
         jobStatusRepository.findById(jobId).ifPresent(job -> {
             job.setStatus(JobState.FAILED);
-            job.setErrorMessage(errorMessage);
+            // Keep the last attempt's error next to the reason the loop gave up.
+            String previous = job.getErrorMessage();
+            job.setErrorMessage(
+                    previous == null || previous.isBlank()
+                            ? errorMessage
+                            : errorMessage + " (last attempt: " + previous + ")");
             jobStatusRepository.save(job);
         });
     }
