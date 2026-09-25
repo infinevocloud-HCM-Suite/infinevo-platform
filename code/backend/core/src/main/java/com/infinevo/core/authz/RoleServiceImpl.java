@@ -79,7 +79,10 @@ public class RoleServiceImpl implements RoleService {
     /** The unique index from {@code V021__role.sql}. Rename it there, rename it here. */
     private static final String CODE_INDEX = "idx_role_tenant_code";
 
-    /** The seeded role holding {@code core.tenant.provision} — V022. Never granted through this API. */
+    /**
+     * The seeded platform-staff role (V022). Since V025 no tenant-seeded role holds {@code core.tenant.provision};
+     * provisioning grants it elsewhere (W-12.1). Still never granted through this API.
+     */
     private static final String PLATFORM_ADMIN = "platform-admin";
 
     private final RoleRepository roleRepository;
@@ -272,9 +275,10 @@ public class RoleServiceImpl implements RoleService {
                 .filter(roleId -> !have.contains(roleId))
                 .map(roleId -> new UserRole(tenantId, userAccountId, roleId, actor))
                 .toList();
-        // platform-admin holds core.tenant.provision, which no customer may hold. Every tenant is seeded
-        // with the role (spec §13 decision 2), so this API refuses to hand it out; an existing holder
-        // keeps it. Platform staff are given it by provisioning, never from inside a tenant.
+        // platform-admin is the platform-staff role. Every tenant is seeded with it (spec §13 decision 2),
+        // so this API refuses to hand it out from inside a tenant; an existing holder keeps it. No
+        // tenant-seeded role holds core.tenant.provision (V025); provisioning grants that action
+        // elsewhere (W-12.1).
         Set<UUID> platformAdmin = roles.stream()
                 .filter(role -> role.isSystem() && PLATFORM_ADMIN.equals(role.getCode()))
                 .map(Role::getId)

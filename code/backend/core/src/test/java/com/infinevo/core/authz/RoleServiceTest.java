@@ -47,7 +47,7 @@ class RoleServiceTest {
     private static final UUID TENANT = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID OTHER_TENANT = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
-    private static final Set<String> CATALOGUE = Set.of("core.role.read", "core.org.read", "hrms.leave.apply");
+    private static final Set<String> CATALOGUE = Set.of("core.role.read", "core.org.read", "core.leave.apply");
 
     private RoleRepository roleRepository;
     private RoleActionRepository roleActionRepository;
@@ -278,11 +278,11 @@ class RoleServiceTest {
         when(roleActionRepository.findByTenantIdAndRoleId(TENANT, role.getId())).thenReturn(List.of(keep, drop));
 
         RoleResponse updated = service.update(
-                role.getId(), new RoleUpdateRequest("Senior Reviewer", List.of("core.role.read", "hrms.leave.apply")));
+                role.getId(), new RoleUpdateRequest("Senior Reviewer", List.of("core.role.read", "core.leave.apply")));
 
         assertThat(updated.name()).isEqualTo("Senior Reviewer");
         assertThat(updated.code()).isEqualTo("reviewer");
-        assertThat(updated.actionCodes()).containsExactly("core.role.read", "hrms.leave.apply");
+        assertThat(updated.actionCodes()).containsExactly("core.leave.apply", "core.role.read");
 
         ArgumentCaptor<Iterable<RoleAction>> removed = ArgumentCaptor.forClass(Iterable.class);
         verify(roleActionRepository).deleteAll(removed.capture());
@@ -290,7 +290,7 @@ class RoleServiceTest {
 
         ArgumentCaptor<Iterable<RoleAction>> added = ArgumentCaptor.forClass(Iterable.class);
         verify(roleActionRepository).saveAll(added.capture());
-        assertThat(added.getValue()).extracting(RoleAction::getActionCode).containsExactly("hrms.leave.apply");
+        assertThat(added.getValue()).extracting(RoleAction::getActionCode).containsExactly("core.leave.apply");
     }
 
     // ── grants

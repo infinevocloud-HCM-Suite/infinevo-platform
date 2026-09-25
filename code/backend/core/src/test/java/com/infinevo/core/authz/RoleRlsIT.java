@@ -212,22 +212,22 @@ class RoleRlsIT extends AbstractIntegrationTest {
         TenantContext.set(tenantA);
 
         RoleResponse created = roleService.create(
-                new RoleCreateRequest(null, "Leave Clerk", List.of("hrms.leave.read", "hrms.leave.approve")));
+                new RoleCreateRequest(null, "Leave Clerk", List.of("core.leave.read", "core.leave.approve")));
         assertThat(created.code()).isEqualTo("leave-clerk");
         assertThat(AuthzTestSchema.actionsOfRole(created.id()))
-                .containsExactlyInAnyOrder("hrms.leave.read", "hrms.leave.approve");
+                .containsExactlyInAnyOrder("core.leave.read", "core.leave.approve");
 
         assertThatThrownBy(() -> roleService.create(new RoleCreateRequest("leave-clerk", "Again", List.of())))
                 .isInstanceOf(RoleService.DuplicateCodeException.class);
-        assertThatThrownBy(() -> roleService.create(new RoleCreateRequest(null, "Bad", List.of("hrms.leave.invent"))))
+        assertThatThrownBy(() -> roleService.create(new RoleCreateRequest(null, "Bad", List.of("core.leave.invent"))))
                 .isInstanceOf(RoleService.ValidationException.class)
-                .hasMessageContaining("hrms.leave.invent");
+                .hasMessageContaining("core.leave.invent");
 
         RoleResponse updated = roleService.update(
-                created.id(), new RoleUpdateRequest("Leave Officer", List.of("hrms.leave.read", "hrms.holiday.read")));
+                created.id(), new RoleUpdateRequest("Leave Officer", List.of("core.leave.read", "core.holiday.read")));
         assertThat(updated.name()).isEqualTo("Leave Officer");
         assertThat(AuthzTestSchema.actionsOfRole(created.id()))
-                .containsExactlyInAnyOrder("hrms.leave.read", "hrms.holiday.read");
+                .containsExactlyInAnyOrder("core.leave.read", "core.holiday.read");
 
         UUID hr = AuthzTestSchema.roleId(tenantA, "hr");
         assertThatThrownBy(() -> roleService.update(hr, new RoleUpdateRequest("People", List.of())))

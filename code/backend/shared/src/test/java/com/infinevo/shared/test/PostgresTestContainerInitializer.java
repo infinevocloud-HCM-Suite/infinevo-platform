@@ -69,9 +69,31 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
     /** Database name matching the production schema. */
     public static final String DATABASE_NAME = "infinevo";
 
+    /**
+     * Connection slots on the test container (W-04.1). The image default is 100.
+     *
+     * <p>Spring caches one context per distinct test configuration, and every cached context holds
+     * a live HikariCP pool against this one container. {@code shared} alone has 16 such contexts;
+     * at Hikari's default pool of 10 that is 160 connections, past 100 before the last class runs,
+     * and the next {@code DriverManager} connection fails with {@code 53300 too_many_connections}.
+     * 200 slots with {@link #DEFAULT_TEST_POOL_SIZE} of 2 leaves room for roughly 80 contexts plus
+     * the raw connections tests open themselves. {@code ConnectionBudgetIT} checks the arithmetic.
+     */
+    static final int MAX_CONNECTIONS = 200;
+
+    /**
+     * Pool size given to every test context that does not choose its own (W-04.1). A test that
+     * needs a specific size sets {@code spring.datasource.hikari.maximum-pool-size} itself, as
+     * {@code TenantBindingPoolLeakIT} does, and this initializer leaves it alone.
+     */
+    static final int DEFAULT_TEST_POOL_SIZE = 2;
+
+    static final String POOL_SIZE_PROPERTY = "spring.datasource.hikari.maximum-pool-size";
+
     @SuppressWarnings("resource") // container lifecycle is managed by the JVM shutdown hook
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:16-alpine").withDatabaseName(DATABASE_NAME);
+    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName(DATABASE_NAME)
+            .withCommand("postgres", "-c", "max_connections=" + MAX_CONNECTIONS);
 
     private static volatile boolean started = false;
 
@@ -275,5 +297,13 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
                         "spring.datasource.driver-class-name=org.postgresql.Driver",
                         "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect")
                 .applyTo(ctx.getEnvironment());
+        // Inline @SpringBootTest properties and application.yml are already in the environment
+        // when initializers run, so a test (or module) that sized its own pool keeps it.
+        if (!ctx.getEnvironment().containsProperty(POOL_SIZE_PROPERTY)) {
+            TestPropertyValues.of(
+                            POOL_SIZE_PROPERTY + "=" + DEFAULT_TEST_POOL_SIZE,
+                            "spring.datasource.hikari.minimum-idle=0")
+                    .applyTo(ctx.getEnvironment());
+        }
     }
 }

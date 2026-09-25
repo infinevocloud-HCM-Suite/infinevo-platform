@@ -31,7 +31,7 @@ import org.springframework.context.ConfigurableApplicationContext;
  *
  * <p>The shipped scripts are applied as written, in version order — {@code V001} (tenant),
  * {@code V002} (user_tenant), {@code V009} (user_account), {@code V010}-{@code V014} (employee and the
- * org masters, for W-11.2's HTTP test), {@code V020} (the catalogue), {@code V021}-{@code V023} — so the
+ * org masters, for W-11.2's HTTP test), {@code V020} (the catalogue), {@code V021}-{@code V023}, {@code V025} (the catalogue correction) — so the
  * tables under test are the migrated ones and not copies that drifted.
  *
  * <p>Two connections, as in {@code OrgTestSchema}: {@link #migrationConnection()} is the schema owner
@@ -81,6 +81,9 @@ final class AuthzTestSchema {
                     executeResource(conn, "db/migration/core/V021__role.sql");
                     executeResource(conn, "db/migration/core/V022__role_action.sql");
                     executeResource(conn, "db/migration/core/V023__user_role.sql");
+                    // W-11.3: the catalogue correction — core.* leave, attendance and holiday codes,
+                    // and no core.tenant.provision on any tenant-seeded role.
+                    executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
                 }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);

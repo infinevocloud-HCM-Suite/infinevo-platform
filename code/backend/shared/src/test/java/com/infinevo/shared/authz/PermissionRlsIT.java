@@ -99,6 +99,8 @@ class PermissionRlsIT extends AbstractIntegrationTest {
                 execute(conn, "db/migration/core/V021__role.sql");
                 execute(conn, "db/migration/core/V022__role_action.sql");
                 execute(conn, "db/migration/core/V023__user_role.sql");
+                // W-11.3: the catalogue correction, so this test sees the codes main actually ships.
+                execute(conn, "db/migration/core/V025__catalogue_correction.sql");
             }
         }
         jdbcUrl = url;

@@ -74,7 +74,7 @@ PostgresTestContainerInitializer.initialize(ctx)
 | Layer | File | Change |
 |---|---|---|
 | Test infra | `shared/src/test/.../test/PostgresTestContainerInitializer.java` | `POSTGRES.withCommand("postgres", "-c", "max_connections=200")`; in `initialize`, apply `spring.datasource.hikari.maximum-pool-size=2` and `minimum-idle=0` **only when the environment does not already define them** (`TenantBindingPoolLeakIT.java:41-44` sets 1 and must keep it) |
-| Test | `shared/src/test/.../test/ConnectionBudgetIT.java` | New. Counts `@SpringBootTest` classes under `shared/src/test`, reads the effective pool size, asserts `count × pool + 20 ≤ max_connections` read from `SHOW max_connections`; and asserts `pg_stat_activity` for `app_user` never exceeds the pool during a burst of 50 repository calls |
+| Test | `shared/src/test/.../test/ConnectionBudgetIT.java` | New. Counts `@SpringBootTest` classes under `shared/src/test`, reads the effective pool size, asserts `count × pool ≤ 50% of max_connections` read from `SHOW max_connections` (the other half is headroom for raw connections, Flyway and the next context); and asserts `pg_stat_activity` for `app_user` never exceeds the pool during a burst of 50 **concurrent** queries — **tightened at merge review 2026-09-25**: the first form, `+ 20`, landed exactly on 200 at pool 10 and did not fail |
 
 No API, no DTO, no entity.
 
@@ -112,7 +112,7 @@ cd code/backend && ./mvnw -B -q -T 4 clean verify       # parallel, the case tha
 |---|---|
 | Serial | `BUILD SUCCESS`, `DatabasePrivilegesIT` 14/14 |
 | Parallel | `BUILD SUCCESS` |
-| `ConnectionBudgetIT` | passes, and when `maximum-pool-size` is forced to 10 with 16 contexts it fails — run once to prove the guard bites |
+| `ConnectionBudgetIT` | passes at pool 2 (18 × 2 = 36 ≤ 100), and when the default is forced to 10 it fails (18 × 10 = 180 > 100) — proven once at merge review, message recorded in the merge commit |
 
 ## 9. Risks
 

@@ -78,15 +78,39 @@ class ActionCatalogueIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("platform-admin holds the whole catalogue; tenant-admin all of it but tenant provisioning")
+    @DisplayName("platform-admin and tenant-admin each hold the whole catalogue but tenant provisioning")
     void adminRolesCoverTheCatalogue() throws SQLException {
         Set<String> catalogue = catalogue();
         Map<String, Set<String>> held = systemRoleActions(tenant);
 
-        assertThat(held.get("platform-admin")).isEqualTo(catalogue);
-        assertThat(held.get("tenant-admin"))
-                .doesNotContain("core.tenant.provision")
-                .hasSize(catalogue.size() - 1);
+        assertThat(catalogue).contains("core.tenant.provision");
+        Set<String> expected = new TreeSet<>(catalogue);
+        expected.remove("core.tenant.provision");
+        assertThat(held.get("platform-admin")).isEqualTo(expected).hasSize(catalogue.size() - 1);
+        assertThat(held.get("tenant-admin")).isEqualTo(expected).hasSize(catalogue.size() - 1);
+    }
+
+    @Test
+    @DisplayName(
+            "W-11.3: a tenant inserted after V025 has no provisioning grant on any role, and hr holds core.leave.read")
+    void newTenantGetsTheCorrectedGrants() throws SQLException {
+        try (Connection conn = AuthzTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        SELECT count(*)
+                          FROM core.role_action
+                         WHERE tenant_id = ? AND action_code = 'core.tenant.provision'
+                        """)) {
+            ps.setObject(1, tenant);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                assertThat(rs.getInt(1)).isZero();
+            }
+        }
+
+        Map<String, Set<String>> held = systemRoleActions(tenant);
+        assertThat(held.get("hr")).contains("core.leave.read").doesNotContain("hrms.leave.read");
+        assertThat(held.get("employee")).contains("core.leave.apply", "hrms.attendance.mark");
     }
 
     @Test

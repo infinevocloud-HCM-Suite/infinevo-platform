@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.postgresql.util.PSQLException;
 
 /**
- * W-11.1 §6 — the action catalogue, the three tenant-scoped role tables, and the seven system roles
+ * W-11.1 §6 and W-11.3 §7 — the action catalogue, the three tenant-scoped role tables, and the seven system roles
  * seeded for every tenant.
  *
  * <p>Runs the shipped scripts through Flyway against a database of its own, then inserts tenants as
@@ -126,17 +126,95 @@ class RoleCatalogueIT {
             assertThat(actionsPerRole.values()).allSatisfy(n -> assertThat(n).isPositive());
 
             int catalogue = count(conn, "SELECT count(*) FROM reference.action");
-            assertThat(actionsPerRole.get("platform-admin")).isEqualTo(catalogue);
+            assertThat(actionsPerRole.get("platform-admin"))
+                    .as("W-11.3: everything but core.tenant.provision")
+                    .isEqualTo(catalogue - 1);
             assertThat(actionsPerRole.get("tenant-admin"))
                     .as("everything but core.tenant.provision")
                     .isEqualTo(catalogue - 1);
+            assertThat(count(conn, "SELECT count(*) FROM core.role_action WHERE action_code = 'core.tenant.provision'"))
+                    .as("W-11.3: no tenant-seeded role may provision tenants")
+                    .isZero();
+        }
+    }
+
+    // ── W-11.3 catalogue correction (V025__catalogue_correction.sql)
+
+    private static final List<String> NEW_CORE_CODES = List.of(
+            "core.reporting_line.manage",
+            "core.approval_definition.manage",
+            "core.approval.read",
+            "core.approval.decide",
+            "core.approval.delegate",
+            "core.approval.manage",
+            "core.lop_policy.read",
+            "core.lop_policy.manage",
+            "core.leave.manage",
+            "core.pay_input.read",
+            "core.pay_input.write",
+            "core.pay_input.lock",
+            "core.overtime.read",
+            "core.overtime.manage",
+            "core.notification_template.manage",
+            "core.reminder_rule.manage",
+            "core.document.read",
+            "core.document.read_own",
+            "core.document.upload",
+            "core.document.delete",
+            "core.report.read",
+            "core.report.manage",
+            "core.report_schedule.manage",
+            "core.job.read");
+
+    @Test
+    void catalogueCorrection_noCoreFeatureCodeLeftUnderHrms_exceptAttendanceMark() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            assertThat(strings(
+                            conn,
+                            "SELECT code FROM reference.action WHERE code LIKE 'hrms.leave%'"
+                                    + " OR code LIKE 'hrms.holiday.%'"
+                                    + " OR (code LIKE 'hrms.attendance.%' AND code <> 'hrms.attendance.mark')"))
+                    .as("Core codes still filed under hrms")
+                    .isEmpty();
+            assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE code = 'hrms.attendance.mark'"))
+                    .isEqualTo(1);
             assertThat(count(
                             conn,
-                            "SELECT count(*) FROM core.role_action ra JOIN core.role r ON r.id = ra.role_id"
-                                    + " WHERE ra.action_code = 'core.tenant.provision' AND r.tenant_id = '"
-                                    + TENANT_A + "' AND r.code <> 'platform-admin'"))
-                    .as("only platform-admin may provision tenants")
+                            "SELECT count(*) FROM core.role_action WHERE action_code LIKE 'hrms.leave%'"
+                                    + " OR action_code LIKE 'hrms.holiday.%'"
+                                    + " OR (action_code LIKE 'hrms.attendance.%'"
+                                    + " AND action_code <> 'hrms.attendance.mark')"))
                     .isZero();
+        }
+    }
+
+    @Test
+    void catalogueCorrection_addsTheTwentyFourCoreCodes_andCoreTotalsSixtyOne() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            assertThat(strings(conn, "SELECT code FROM reference.action WHERE module = 'core'"))
+                    .containsAll(NEW_CORE_CODES);
+            assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE code LIKE 'core.%'"))
+                    .as("23 original + 14 renamed + 24 added (spec §8)")
+                    .isEqualTo(61);
+            assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE split_part(code, '.', 1) <> module"))
+                    .isZero();
+        }
+    }
+
+    @Test
+    void catalogueCorrection_functionalRolesHoldTheRenamedCodes() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            for (UUID tenant : List.of(TENANT_A, TENANT_B)) {
+                assertThat(holds(conn, tenant, "hr", "core.leave.read")).isTrue();
+                assertThat(holds(conn, tenant, "employee", "core.leave.apply")).isTrue();
+                assertThat(holds(conn, tenant, "employee", "hrms.attendance.mark"))
+                        .isTrue();
+                assertThat(holds(conn, tenant, "tenant-admin", "core.approval.decide"))
+                        .isTrue();
+                assertThat(holds(conn, tenant, "hr", "core.approval.decide"))
+                        .as("new codes reach the admin roles only (spec §2)")
+                        .isFalse();
+            }
         }
     }
 
@@ -246,6 +324,20 @@ class RoleCatalogueIT {
             }
         }
         return result;
+    }
+
+    private static boolean holds(Connection conn, UUID tenant, String role, String action) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT count(*) FROM core.role_action ra"
+                + " JOIN core.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id"
+                + " WHERE r.tenant_id = ? AND r.code = ? AND r.is_system AND ra.action_code = ?")) {
+            ps.setObject(1, tenant);
+            ps.setString(2, role);
+            ps.setString(3, action);
+            try (ResultSet rs = ps.executeQuery()) {
+                assertThat(rs.next()).isTrue();
+                return rs.getInt(1) == 1;
+            }
+        }
     }
 
     private static UUID roleId(Connection conn, UUID tenant, String code) throws SQLException {
