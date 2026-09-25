@@ -21,4 +21,34 @@ public interface EntitlementSource {
      * @return the set of active modules
      */
     Set<PlatformModule> modulesOf(UUID tenantId);
+
+    /**
+     * Whether the tenant's subscription is suspended (W-12.2 decision 1).
+     *
+     * @param tenantId the tenant id
+     * @return true if subscription is suspended
+     */
+    default boolean isSuspended(UUID tenantId) {
+        return false;
+    }
+
+    /**
+     * Modules previously held by the tenant that have been revoked (W-12.2 decision 2).
+     *
+     * @param tenantId the tenant id
+     * @return the set of revoked modules
+     */
+    default Set<PlatformModule> revokedModulesOf(UUID tenantId) {
+        return Set.of();
+    }
+
+    /**
+     * Complete snapshot of the tenant's entitlement state.
+     *
+     * @param tenantId the tenant id
+     * @return the entitlement snapshot
+     */
+    default EntitlementSnapshot snapshotOf(UUID tenantId) {
+        return new EntitlementSnapshot(modulesOf(tenantId), revokedModulesOf(tenantId), isSuspended(tenantId));
+    }
 }

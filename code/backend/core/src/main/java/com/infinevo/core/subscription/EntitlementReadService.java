@@ -1,7 +1,9 @@
 package com.infinevo.core.subscription;
 
+import com.infinevo.shared.entitlement.EntitlementSnapshot;
 import com.infinevo.shared.entitlement.EntitlementSource;
 import com.infinevo.shared.entitlement.PlatformModule;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Returns the non-revoked modules of an {@code ACTIVE} or {@code PAST_DUE} subscription.
  * A tenant without an active or past-due subscription returns an empty set, failing closed.
+ * A tenant with {@code SUSPENDED} subscription is marked suspended.
  */
 @Service
 public class EntitlementReadService implements EntitlementSource {
@@ -32,23 +35,54 @@ public class EntitlementReadService implements EntitlementSource {
 
     @Override
     @Transactional(readOnly = true)
-    public Set<PlatformModule> modulesOf(UUID tenantId) {
+    public EntitlementSnapshot snapshotOf(UUID tenantId) {
         if (tenantId == null) {
-            return Set.of();
+            return EntitlementSnapshot.empty();
         }
 
         Optional<Subscription> subscriptionOpt = subscriptionRepository.findByTenantId(tenantId);
         if (subscriptionOpt.isEmpty()) {
-            return Set.of();
+            return EntitlementSnapshot.empty();
         }
 
         Subscription subscription = subscriptionOpt.get();
-        if (!subscription.getStatus().isActiveOrPastDue()) {
-            return Set.of();
+        boolean suspended = subscription.getStatus() == SubscriptionStatus.SUSPENDED;
+        if (suspended) {
+            return new EntitlementSnapshot(Set.of(), Set.of(), true);
         }
 
-        return subscriptionModuleRepository.findByTenantIdAndRevokedOnIsNull(tenantId).stream()
+        if (!subscription.getStatus().isActiveOrPastDue()) {
+            return EntitlementSnapshot.empty();
+        }
+
+        List<SubscriptionModule> modules = subscriptionModuleRepository.findByTenantId(tenantId);
+        Set<PlatformModule> active = modules.stream()
+                .filter(m -> m.getRevokedOn() == null)
                 .map(SubscriptionModule::getModule)
                 .collect(Collectors.toUnmodifiableSet());
+        Set<PlatformModule> revoked = modules.stream()
+                .filter(m -> m.getRevokedOn() != null)
+                .map(SubscriptionModule::getModule)
+                .collect(Collectors.toUnmodifiableSet());
+
+        return new EntitlementSnapshot(active, revoked, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<PlatformModule> modulesOf(UUID tenantId) {
+        return snapshotOf(tenantId).activeModules();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isSuspended(UUID tenantId) {
+        return snapshotOf(tenantId).suspended();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<PlatformModule> revokedModulesOf(UUID tenantId) {
+        return snapshotOf(tenantId).revokedModules();
     }
 }
