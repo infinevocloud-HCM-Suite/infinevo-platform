@@ -154,8 +154,19 @@ class QueueRoundTripIT extends AbstractIntegrationTest {
             if (!tableExists(conn, "tenant")) {
                 executeSqlResource(conn, "db/migration/core/V001__tenant.sql");
             }
+            // V006 creates two tables. SchedulerLockIT creates core.shedlock on its own, and
+            // the container is shared by every IT in the module, so each half is guarded by its
+            // own table or the second class to run dies on "relation already exists".
+            String[] halves = readSqlResource("db/migration/core/V006__job_status_and_shedlock.sql")
+                    .split("-- 2\\. ShedLock Table");
+            if (halves.length != 2) {
+                throw new IllegalStateException("V006 no longer has the '-- 2. ShedLock Table' marker");
+            }
             if (!tableExists(conn, "job_status")) {
-                executeSqlResource(conn, "db/migration/core/V006__job_status_and_shedlock.sql");
+                executeSql(conn, halves[0]);
+            }
+            if (!tableExists(conn, "shedlock")) {
+                executeSql(conn, halves[1]);
             }
         }
     }
@@ -171,14 +182,21 @@ class QueueRoundTripIT extends AbstractIntegrationTest {
     }
 
     private static void executeSqlResource(Connection conn, String resourcePath) throws Exception {
+        executeSql(conn, readSqlResource(resourcePath));
+    }
+
+    private static String readSqlResource(String resourcePath) throws Exception {
         try (InputStream is = QueueRoundTripIT.class.getClassLoader().getResourceAsStream(resourcePath)) {
             if (is == null) {
                 throw new IllegalStateException("Migration script not on the test classpath: " + resourcePath);
             }
-            String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute(sql);
-            }
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static void executeSql(Connection conn, String sql) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
         }
     }
 
