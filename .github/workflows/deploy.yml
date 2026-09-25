@@ -648,7 +648,11 @@ jobs:
 
           az containerapp update -g "$rg" -n "ca-infinevo-${ENV}-app" \
             --image "$backend" --container-name app \
-            --set-env-vars "INFINEVO_ROLE=app" \
+            --set-env-vars \
+              "INFINEVO_ROLE=app" \
+              "KEYCLOAK_ISSUER_URI=https://${FD_HOST}/auth/realms/infinevo" \
+              "KEYCLOAK_JWK_SET_URI=https://${FD_HOST}/auth/realms/infinevo/protocol/openid-connect/certs" \
+              "MANAGEMENT_HEALTH_REDIS_ENABLED=false" \
             --revision-suffix "$SUFFIX" --output none
           echo "app      -> ${backend}"
 
