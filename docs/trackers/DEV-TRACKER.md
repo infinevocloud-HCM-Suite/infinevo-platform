@@ -31,7 +31,7 @@ lane so two lanes never collide on a version.
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
 | sayeed | `dev-sayeed` | Defects, then employee | `W-52.1` → `W-53.1` → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` → `W-39.2` | `V026`–`V032`, `V041` |
-| krushna | `dev-krushna` | Tenant and onboarding | `W-12.1` → `W-12.2` → `W-12.3` → `W-24.1` → `W-17` | `V033`–`V036` |
+| krushna | `dev-krushna` | Tenant and onboarding | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** → `W-12.3` → `W-24.1` → `W-17` | `V033`–`V034` used · `V035`–`V036` |
 | devashis | `dev-devashis` | Documents, notifications, reporting | `W-21` → `W-20.1` → `W-23.1` | `V037`–`V040` |
 | *unassigned* | — | Payroll | `W-26.1` → `W-26.2` → `W-27.1` → `W-27.2` → `W-28` (after `W-18.1`) → `W-29.1` (after `W-19`) → `W-29.2` → `W-29.3` (after `W-18.1`) → `W-29.4` (after `W-52.1`) → `W-30.1` (core, after `W-19`) → `W-30.2` → `W-31.1` → `W-31.2` → `W-31.3` (after `W-26.2`) → `W-31.4` (after `W-29.3`) → `W-32.1` (after `W-13.4`) → `W-32.2` → `W-32.3` → `W-32.4` | `V042`–`V081` reserved 2026-09-25 (extended by one for `W-27.2`, one for `W-28`, two for `W-29.1`, one each for `W-29.2`, `W-29.3`, `W-29.4`, `W-30.1`, `W-30.2`, eight for `W-31`, twelve for `W-32`); `V042`–`V045` are `W-26.1`, `V046`–`V050` are `W-26.2`, `V051` is `W-27.1`, `V052`–`V053` are `W-27.2`, `V054` is `W-28`, `V055`–`V056` are `W-29.1`, `V057` is `W-29.2`, `V058` is `W-29.3`, `V059` is `W-29.4`, `V060` is `W-30.1` (a `core` script), `V061` is `W-30.2`, `V062`–`V063` are `W-31.1`, `V064`–`V067` are `W-31.2` (`V064` a `reference` script), `V068`–`V069` are `W-31.3`, `V070`–`V072` are `W-32.1` (`V070` a `reference` script), `V073`–`V076` are `W-32.2`, `V077`–`V079` are `W-32.3`, `V080`–`V081` are `W-32.4` |
 
@@ -43,7 +43,7 @@ first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
 
 The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
 not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
-`V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` · `V035` `W-24.1` · `V036` `W-17` ·
+`V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` (**used, on main `b7d03ec`**) · `V035` `W-24.1` · `V036` `W-17` ·
 `V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`.
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
@@ -155,7 +155,7 @@ blocker is cleared for all of them.
 | #— | `W-22.2` Audit retention | Retention sweep and purge | spec approved; layer 3 in practice — also needs `W-20.1`, `W-20.2` |
 | #12 | `W-11.1` Role & action catalogue | 63-action catalogue in `reference.action`, tenant-scoped roles, seven system roles seeded per tenant, role and grant API | **on main `172eaaa`** · spec approved · code done |
 | #12 | `W-11.2` Permission check & cache | `@RequiresAction` on every endpoint, 403 when not held, shared Redis cache that every replica reloads on a role change | **on main `23d1126`** · spec approved · code done |
-| #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | **assigned — krushna** (`W-12.1` → `.2` → `.3`) |
+| #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | **`W-12.1` and `W-12.2` on main `b7d03ec`** · done — built by krushna · `W-12.3` **assigned — krushna** · `W-24.1`, `W-20.2`, `W-24.2` unblocked on `W-12.1` |
 | #15 | `W-14.1` Org masters | Department, designation and work location (`V011`–`V013`), plus the three nullable columns on `core.employee` (`V014`). Free-text conversion deliberately left to `W-67` | **on main `235aab2`** · code done — §8 verification not independently re-run |
 | #15 | `W-14.2` Reporting line | The new reporting line and the org chart read model | **assigned — sayeed**, after `W-13.3` |
 | #16 | `W-15` Approval engine | Approval definitions, instance lifecycle, step routing along the reporting line, delegation and escalation, history | `W-14.2` — unassigned |

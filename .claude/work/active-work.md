@@ -7,6 +7,13 @@
 > can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-25 — `W-12.1` and `W-12.2` merged (`b7d03ec`)
+
+- Subscription, module selection and entitlement enforcement are on `main`: `core.subscription`, `core.subscription_module` (`V034`), tenant locale columns (`V033`), `@RequiresModule` in `shared`.
+- Dev seed now differs: Acme holds `PAYROLL`, Globex `HRMS` + `PAYROLL` (`infra/docker/seed/04-subscriptions.sql`).
+- **Newly unblocked:** `W-12.3` (krushna, next), `W-24.1` (krushna, after `W-12.3`), and the `W-12.1` half of `W-20.2` and `W-24.2`.
+- Merged as code and tests only; the branch's harness move to `.agents/` was left out on purpose.
+
 ## 2026-09-25 — `W-04.1` and `W-11.3` merged (`3350cf2`)
 
 - The backend suite is green on `main` again (`D-1` fixed).
