@@ -7,6 +7,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -205,8 +206,18 @@ class DocumentGuardIT extends AbstractIntegrationTest {
         assertThat(DocumentTestSchema.readColumn(id, "is_deleted")).isEqualTo(true);
     }
 
+    /**
+     * The status for "no token" is the chain's, not this ticket's. This context has no
+     * {@code ResourceServerConfig} on its scan, so {@code TenantBindingAutoConfiguration}'s fallback
+     * chain answers, and with no login mechanism Spring Security refuses with a bare {@code 403}. The
+     * running application answers {@code 401} — {@code ResourceServerConfigTest} asserts that on
+     * document paths. What is asserted here is the part that is this ticket's: the download is open,
+     * and the reads are refused by the chain before any controller runs — an empty body, not the
+     * {@code FORBIDDEN} envelope a refused permission check would write.
+     */
     @Test
-    @DisplayName("Without a token only the download is open: a tampered link is 404, every other document path 401")
+    @DisplayName(
+            "Without a token only the download is open: a tampered link is 404, every other document path refused by the chain")
     void onlyTheDownloadIsPublic() throws Exception {
         UUID id = DocumentTestSchema.insertDocumentRow(tenant, DocumentKind.EMPLOYEE_DOCUMENT);
 
@@ -215,8 +226,12 @@ class DocumentGuardIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
         mvc.perform(get(PublicEndpoints.DOCUMENT_DOWNLOAD)).andExpect(status().isNotFound());
 
-        mvc.perform(get("/api/v1/documents/" + id)).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/v1/documents/" + id + "/link")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/documents/" + id))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(""));
+        mvc.perform(get("/api/v1/documents/" + id + "/link"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string(""));
     }
 
     @Test
