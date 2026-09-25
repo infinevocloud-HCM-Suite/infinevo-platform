@@ -50,8 +50,8 @@ public class PayrunQueueListener implements QueueConsumer<String> {
             Optional<JobStatusResponseDTO> currentStatus = jobService.getJobStatus(jobId, tenantId);
             if (currentStatus.isPresent()) {
                 JobState state = currentStatus.get().status();
-                if (state == JobState.COMPLETED) {
-                    log.warn("Job {} already completed. Dropping duplicate message.", jobId);
+                if (state == JobState.COMPLETED || state == JobState.RUNNING) {
+                    log.warn("Job {} is already {} - dropping duplicate message.", jobId, state);
                     return;
                 }
             }

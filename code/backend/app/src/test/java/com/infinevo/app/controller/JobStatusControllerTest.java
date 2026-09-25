@@ -44,7 +44,7 @@ class JobStatusControllerTest {
                 new JobStatusResponseDTO(jobId, "payrun", JobState.RUNNING, 45, null, Instant.now(), Instant.now());
         when(jobService.getJobStatus(jobId, tenantId)).thenReturn(Optional.of(dto));
 
-        ResponseEntity<JobStatusResponseDTO> response = controller.getJobStatus(jobId, null);
+        ResponseEntity<JobStatusResponseDTO> response = controller.getJobStatus(jobId);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -61,29 +61,14 @@ class JobStatusControllerTest {
 
         when(jobService.getJobStatus(jobId, tenantId)).thenReturn(Optional.empty());
 
-        ResponseEntity<JobStatusResponseDTO> response = controller.getJobStatus(jobId, null);
+        ResponseEntity<JobStatusResponseDTO> response = controller.getJobStatus(jobId);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
 
     @Test
-    void shouldUseOrganizationIdHeaderWhenContextNotSet() {
-        String jobId = "job-header";
-        UUID tenantId = UUID.randomUUID();
-
-        JobStatusResponseDTO dto =
-                new JobStatusResponseDTO(jobId, "payrun", JobState.COMPLETED, 100, null, Instant.now(), Instant.now());
-        when(jobService.getJobStatus(jobId, tenantId)).thenReturn(Optional.of(dto));
-
-        ResponseEntity<JobStatusResponseDTO> response = controller.getJobStatus(jobId, tenantId.toString());
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(jobId, response.getBody().jobId());
-    }
-
-    @Test
     void shouldThrowWhenNoTenantBound() {
         org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class, () -> controller.getJobStatus("job-none", null));
+                IllegalStateException.class, () -> controller.getJobStatus("job-none"));
     }
 }

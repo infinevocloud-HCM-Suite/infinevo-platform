@@ -65,6 +65,23 @@ class PayrunQueueListenerTest {
     }
 
     @Test
+    void shouldDropDuplicateMessageIfAlreadyRunning() {
+        UUID tenantId = UUID.randomUUID();
+        String jobId = "job-running";
+        QueueMessage<String> message = QueueMessage.of(jobId, tenantId, "payrun", "{\"run\":\"monthly\"}");
+
+        when(jobService.getJobStatus(jobId, tenantId))
+                .thenReturn(Optional.of(new JobStatusResponseDTO(
+                        jobId, "payrun", JobState.RUNNING, 50, null, Instant.now(), Instant.now())));
+
+        listener.onMessage(message);
+
+        verify(jobService, never()).markRunning(jobId);
+        verify(jobService, never()).updateProgress(eq(jobId), anyInt());
+        verify(jobService, never()).markCompleted(eq(jobId), anyString());
+    }
+
+    @Test
     void shouldMarkFailedWhenExceptionOccurs() {
         UUID tenantId = UUID.randomUUID();
         String jobId = "job-fail";
