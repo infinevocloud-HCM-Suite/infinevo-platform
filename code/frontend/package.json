@@ -11,7 +11,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src --ext .js,.jsx --max-warnings 0"
+    "lint": "eslint src --ext .js,.jsx --max-warnings 0",
+    "test": "node --test src/shell/navigation/useCan.test.js src/shell/navigation/useNavigation.test.js"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",

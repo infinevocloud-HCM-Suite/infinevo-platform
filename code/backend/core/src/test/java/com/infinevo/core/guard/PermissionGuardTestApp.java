@@ -40,6 +40,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         basePackages = {
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
+            "com.infinevo.core.navigation",
             "com.infinevo.core.org",
             "com.infinevo.core.subscription",
             "com.infinevo.core.tenant"

@@ -58,7 +58,7 @@ public final class AuthzTestSchema {
     }
 
     /** The database's URL, provisioning it and applying the scripts on first call. */
-    static synchronized String jdbcUrl() {
+    public static synchronized String jdbcUrl() {
         if (jdbcUrl == null) {
             String url = PostgresTestContainerInitializer.provisionAdditionalDatabase(DATABASE);
             try (Connection conn = DriverManager.getConnection(
@@ -96,7 +96,7 @@ public final class AuthzTestSchema {
         return jdbcUrl;
     }
 
-    static Connection migrationConnection() throws SQLException {
+    public static Connection migrationConnection() throws SQLException {
         return DriverManager.getConnection(
                 jdbcUrl(),
                 PostgresTestContainerInitializer.MIGRATION_USER,
