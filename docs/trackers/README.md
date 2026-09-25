@@ -3,7 +3,7 @@
 > Four files, one per kind of work. **These trackers are the source of truth** for who
 > owns a ticket and where it stands. `/plan-feature`, `/develop` and `/merge` update the
 > row; GitHub carries no status of its own.
-> Last refreshed: **2026-09-22**.
+> Last refreshed: **2026-09-25**, against `main` `c27ea24`.
 
 | Tracker | Covers |
 |---|---|
