@@ -662,7 +662,11 @@ jobs:
           # re-running this pipeline on the previous commit. Stated, not hidden.
           az containerapp update -g "$rg" -n "ca-infinevo-${ENV}-worker" \
             --image "$backend" --container-name worker \
-            --set-env-vars "INFINEVO_ROLE=worker" \
+            --set-env-vars \
+              "INFINEVO_ROLE=worker" \
+              "KEYCLOAK_ISSUER_URI=https://${FD_HOST}/auth/realms/infinevo" \
+              "KEYCLOAK_JWK_SET_URI=https://${FD_HOST}/auth/realms/infinevo/protocol/openid-connect/certs" \
+              "MANAGEMENT_HEALTH_REDIS_ENABLED=false" \
             --revision-suffix "$SUFFIX" --output none
           echo "worker   -> ${backend}"
 
