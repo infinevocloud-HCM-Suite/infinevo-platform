@@ -13,12 +13,9 @@
 -- RLS policy that never matches looks identical to one that always matches, and both pass
 -- review. Do not "simplify" this by seeding one.
 --
--- What is still missing: the module asymmetry. The original intent was acme holding
--- payroll alone while globex holds both, so that an entitlement bug shows up locally
--- rather than at a customer. That needs core.subscription, which W-12 creates — it does
--- not exist yet, and neither does the `slug` or `status` column this file used to name in
--- its commented-out draft. Until W-12 lands both tenants are indistinguishable in what
--- they have bought, and an entitlement check has nothing to fail against.
+-- What was missing and is now established in 04-subscriptions.sql: the module asymmetry.
+-- Acme holds PAYROLL alone while Globex holds both HRMS and PAYROLL, so an entitlement
+-- bug shows up locally rather than at a customer (W-12.1).
 
 INSERT INTO core.tenant (tenant_id, name, created_by, updated_by) VALUES
     ('11111111-1111-1111-1111-111111111111', 'Acme Manufacturing', 'seed', 'seed'),
