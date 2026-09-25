@@ -46,7 +46,7 @@ findings open. Splitting costs one ticket. Not splitting costs weeks.
    defer or discount each, explicitly.
 5. Spawn **explorer** if the current state is unclear.
 6. Write the spec straight into `docs/target-state/features/W-nn-<slug>.md` (for a part,
-   `W-nn-n-<slug>.md`), set `**Status**: Ready`, and commit it to `main`.
+   `W-nn-n-<slug>.md`), set `**Status**: Ready`. **Do not commit** — leave it in the working tree; the founder commits and pushes so it stays visible in their Source Control list.
 7. **Cite `file:line` for every claim about current state, and `legacy/file:line` for
    every piece of logic being ported.** This is the single most useful thing in the spec.
 8. Split the work into implementer tasks, one area per task — `core`, `hrms`, `payroll`,
@@ -63,7 +63,7 @@ findings open. Splitting costs one ticket. Not splitting costs weeks.
    - No module references another module. If it seems to need one, the data belongs in
      `core` — say so
 10. **Tracker:** set the ticket's row to `Assigned` with the developer as Owner, or
-    `Ready` with no owner if none was named. Commit with the spec.
+    `Ready` with no owner if none was named. Leave it uncommitted with the spec.
 11. Reply with the summary below, and stop.
 
 **The verification section is the part that matters.** Exact commands and their expected

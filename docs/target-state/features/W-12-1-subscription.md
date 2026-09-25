@@ -151,10 +151,10 @@ Version numbers assigned when the branch is cut — `migration/README.md:17-31`.
 `core.tenant` gains (`§6 decision 7`; `core.tenant` is built, so this is the expand half only,
 `migration/README.md:149`): `country_code char(2) NULL DEFAULT 'IN'` ·
 `timezone varchar(64) NULL DEFAULT 'Asia/Kolkata'` ·
-`leave_year_start_month smallint NULL DEFAULT 1 CHECK (leave_year_start_month BETWEEN 1 AND 12)`.
+`leave_year_start_month smallint NULL DEFAULT 4 CHECK (leave_year_start_month BETWEEN 1 AND 12)`.
 Nullable with a default so existing rows and the dev seed need no backfill; a `NOT NULL` is a
-later contract step. The `leave_year_start_month` default is provisional — §7 question 1 of
-`12-core-contracts.md` is open; the column, not the default, is what this ticket commits to.
+later contract step. The default `4` is the Indian financial year, April–March — founder
+decision 2026-09-25, `12-core-contracts.md` §7 row 1.
 
 `subscription`: `id uuid` · `tenant_id uuid NOT NULL` · `status varchar(16) NOT NULL` —
 **active, past due, suspended, cancelled** · `started_on date NOT NULL` ·

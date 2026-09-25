@@ -173,12 +173,12 @@ against the `hrms.*` names.
 | 8 | Emailed document links live 7 days | Matches `W-23.2` |
 | 9 | No employee domain events yet | No consumer needs one before `W-29`; revisit there |
 
-## 7. Open questions for the founder
+## 7. Founder decisions, 2026-09-25
 
-| # | Question | Why legacy cannot answer it |
+| # | Question | Decision |
 |---|---|---|
-| 1 | Default leave year: calendar (Jan–Dec) or financial (Apr–Mar)? Per tenant, but a default is needed | HRMS is calendar-only; Payroll stores a bare string |
-| 2 | `W-38` prior payroll import: where does past payroll data come from — a spreadsheet template, or nothing at cutover? | No source table exists in either frozen app |
+| 1 | Default leave year | **Financial year, April–March.** `core.tenant.leave_year_start_month` defaults to `4`; a tenant may change it (`W-12.1`) |
+| 2 | `W-38` prior payroll import source | **A fixed spreadsheet template**, one row per employee per month; `W-38` validates and loads it through `W-16.4b`'s import pattern (document upload, dry run, error file) |
 
 ## Related
 
