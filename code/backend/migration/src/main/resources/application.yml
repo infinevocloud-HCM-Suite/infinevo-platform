@@ -32,5 +32,12 @@ spring:
     validate-on-migrate: true
     clean-disabled: true
 
+    # No script uses Flyway's own placeholders, and V038 seeds notification templates whose
+    # text is made of the application's placeholders (employee_name and the like, in the
+    # dollar-brace form TemplateRenderer fills). With replacement on, Flyway reads those as its
+    # own and refuses the script: "No value provided for placeholder". Off, every script is
+    # applied exactly as written.
+    placeholder-replacement: false
+
 # No spring.datasource block - this module has no JPA, Flyway reads its own url/user/password.
 # No ddl-auto anywhere - property is never set (D-46, spec §13 R3).
