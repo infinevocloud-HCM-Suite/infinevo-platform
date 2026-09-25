@@ -1,13 +1,10 @@
 package com.infinevo.worker.listener;
 
-import com.infinevo.core.job.JobState;
-import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.service.JobService;
 import com.infinevo.shared.queue.QueueConsumer;
 import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.Objects;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -47,16 +44,14 @@ public class PayrunQueueListener implements QueueConsumer<String> {
 
         TenantContext.set(tenantId);
         try {
-            Optional<JobStatusResponseDTO> currentStatus = jobService.getJobStatus(jobId, tenantId);
-            if (currentStatus.isPresent()) {
-                JobState state = currentStatus.get().status();
-                if (state == JobState.COMPLETED || state == JobState.RUNNING) {
-                    log.warn("Job {} is already {} - dropping duplicate message.", jobId, state);
-                    return;
-                }
+            // One UPDATE ... WHERE status = QUEUED. A duplicate delivery, a second replica, or a
+            // job already COMPLETED / FAILED all lose the claim and are dropped here (D-50).
+            if (!jobService.claimForRun(jobId)) {
+                log.warn(
+                        "Job {} could not be claimed (missing, RUNNING, COMPLETED or FAILED) - dropping message.",
+                        jobId);
+                return;
             }
-
-            jobService.markRunning(jobId);
             jobService.updateProgress(jobId, 25);
 
             // Execute payload processing
@@ -66,12 +61,23 @@ public class PayrunQueueListener implements QueueConsumer<String> {
             jobService.markCompleted(jobId, "Pay run completed successfully");
             log.info("Payrun job {} completed successfully", jobId);
         } catch (Exception e) {
-            log.error("Failed to process payrun job {}: {}", jobId, e.getMessage(), e);
-            jobService.markFailed(jobId, e.getMessage());
+            // Retry-then-fail (12-core-contracts §5): hand the job back to QUEUED and rethrow so
+            // the loop leaves the message for redelivery. The loop marks it FAILED on the
+            // third delivery.
+            log.error("Payrun job {} failed, releasing for retry: {}", jobId, e.getMessage(), e);
+            jobService.releaseForRetry(jobId, e.getMessage());
+            throw new PayrunProcessingException(jobId, e);
         } finally {
             org.slf4j.MDC.remove(com.infinevo.shared.logging.MdcLoggingContext.CORRELATION_ID_KEY);
             org.slf4j.MDC.remove(com.infinevo.shared.logging.MdcLoggingContext.TENANT_ID_KEY);
             TenantContext.clear();
+        }
+    }
+
+    /** Thrown to the queue loop so the message stays on the queue for another delivery. */
+    public static class PayrunProcessingException extends RuntimeException {
+        public PayrunProcessingException(String jobId, Throwable cause) {
+            super("Payrun job " + jobId + " failed: " + cause.getMessage(), cause);
         }
     }
 

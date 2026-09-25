@@ -10,11 +10,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.job.service.JobService;
 import com.infinevo.shared.queue.QueueConsumer;
 import com.infinevo.shared.queue.QueueMessage;
+import com.infinevo.shared.tenant.TenantContext;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
@@ -34,6 +36,7 @@ public class QueueConsumerLoop implements SmartLifecycle {
     private final ObjectMapper objectMapper;
     private final JobService jobService;
     private final Duration pollInterval;
+    private final Duration visibilityTimeout;
     private final Map<String, QueueConsumer<String>> consumerMap = new HashMap<>();
 
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -44,11 +47,13 @@ public class QueueConsumerLoop implements SmartLifecycle {
             ObjectMapper objectMapper,
             List<QueueConsumer<String>> consumers,
             JobService jobService,
-            @Value("${azure.storage.queue.poll-interval:PT1S}") Duration pollInterval) {
+            @Value("${azure.storage.queue.poll-interval:PT1S}") Duration pollInterval,
+            @Value("${azure.storage.queue.visibility-timeout:PT5M}") Duration visibilityTimeout) {
         this.queueServiceClient = Objects.requireNonNull(queueServiceClient, "queueServiceClient must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.jobService = Objects.requireNonNull(jobService, "jobService must not be null");
         this.pollInterval = pollInterval != null ? pollInterval : Duration.ofSeconds(1);
+        this.visibilityTimeout = visibilityTimeout != null ? visibilityTimeout : Duration.ofMinutes(5);
 
         if (consumers != null) {
             for (QueueConsumer<String> consumer : consumers) {
@@ -133,7 +138,7 @@ public class QueueConsumerLoop implements SmartLifecycle {
 
         while (running.get()) {
             try {
-                var iterable = queueClient.receiveMessages(32, Duration.ofMinutes(5), null, Context.NONE);
+                var iterable = queueClient.receiveMessages(32, visibilityTimeout, null, Context.NONE);
                 List<QueueMessageItem> messages =
                         iterable != null ? iterable.stream().toList() : List.of();
 
@@ -173,19 +178,12 @@ public class QueueConsumerLoop implements SmartLifecycle {
         String rawBody = message.getMessageText() != null ? message.getMessageText() : "";
 
         if (dequeueCount >= 3) {
-            String jobId = extractJobIdFromRawJson(rawBody);
             log.error(
                     "Poison message detected on queue {} (dequeueCount={}). Deleting message.",
                     queueName,
                     dequeueCount);
-            if (jobId != null && !jobId.isBlank()) {
-                jobService.markFailed(jobId, "poison: delivered " + dequeueCount + " times");
-            }
-            try {
-                queueClient.deleteMessage(message.getMessageId(), message.getPopReceipt());
-            } catch (Exception e) {
-                log.error("Failed to delete poison message from queue {}: {}", queueName, e.getMessage(), e);
-            }
+            markFailedFromRawJson(rawBody, "poison: delivered " + dequeueCount + " times");
+            deleteQuietly(queueClient, queueName, message, "poison");
             return;
         }
 
@@ -194,15 +192,8 @@ public class QueueConsumerLoop implements SmartLifecycle {
             queueMsg = objectMapper.readValue(rawBody, new TypeReference<QueueMessage<String>>() {});
         } catch (Exception parseException) {
             log.error("Failed to parse queue message on queue {}: {}", queueName, parseException.getMessage());
-            String jobId = extractJobIdFromRawJson(rawBody);
-            if (jobId != null && !jobId.isBlank()) {
-                jobService.markFailed(jobId, "unparseable: " + parseException.getMessage());
-            }
-            try {
-                queueClient.deleteMessage(message.getMessageId(), message.getPopReceipt());
-            } catch (Exception e) {
-                log.error("Failed to delete unparseable message from queue {}: {}", queueName, e.getMessage(), e);
-            }
+            markFailedFromRawJson(rawBody, "unparseable: " + parseException.getMessage());
+            deleteQuietly(queueClient, queueName, message, "unparseable");
             return;
         }
 
@@ -215,18 +206,59 @@ public class QueueConsumerLoop implements SmartLifecycle {
                     queueName,
                     processException.getMessage(),
                     processException);
-            // Leave message on queue; it will re-appear after 5 minute visibility timeout
+            // Leave message on queue; it reappears after the visibility timeout
         }
     }
 
-    private String extractJobIdFromRawJson(String rawJson) {
+    /**
+     * Marks the job FAILED under the tenant named in the message. {@code core.job_status} is
+     * RLS-isolated, so a {@code markFailed} with no tenant bound sees no row and writes nothing;
+     * the job would sit QUEUED forever with no error. Nothing here throws: a failure to record
+     * the failure is logged and the batch carries on.
+     */
+    private void markFailedFromRawJson(String rawJson, String reason) {
+        String jobId = readField(rawJson, "jobId");
+        String tenantText = readField(rawJson, "tenantId");
+        if (jobId == null || jobId.isBlank()) {
+            log.error("Cannot mark job FAILED ({}): no jobId in message body", reason);
+            return;
+        }
+        UUID tenantId;
+        try {
+            tenantId = UUID.fromString(Objects.requireNonNull(tenantText, "tenantId missing"));
+        } catch (Exception e) {
+            log.error("Cannot mark job {} FAILED ({}): tenantId unusable: {}", jobId, reason, e.getMessage());
+            return;
+        }
+        boolean wasBound = TenantContext.isBound();
+        try {
+            TenantContext.set(tenantId);
+            jobService.markFailed(jobId, reason);
+        } catch (Exception e) {
+            log.error("Failed to mark job {} FAILED ({}): {}", jobId, reason, e.getMessage(), e);
+        } finally {
+            if (!wasBound) {
+                TenantContext.clear();
+            }
+        }
+    }
+
+    private void deleteQuietly(QueueClient queueClient, String queueName, QueueMessageItem message, String why) {
+        try {
+            queueClient.deleteMessage(message.getMessageId(), message.getPopReceipt());
+        } catch (Exception e) {
+            log.error("Failed to delete {} message from queue {}: {}", why, queueName, e.getMessage(), e);
+        }
+    }
+
+    private String readField(String rawJson, String field) {
         if (rawJson == null || rawJson.isBlank()) {
             return null;
         }
         try {
             JsonNode node = objectMapper.readTree(rawJson);
-            if (node.has("jobId")) {
-                return node.get("jobId").asText();
+            if (node.hasNonNull(field)) {
+                return node.get(field).asText();
             }
         } catch (Exception ignored) {
         }
