@@ -25,6 +25,7 @@ on:
     paths-ignore:
       - 'docs/**'
       - '.claude/**'
+      - '.agents/**'
       - 'legacy/**'
       - '**.md'
 
@@ -297,7 +298,7 @@ jobs:
           # setting: a line in YAML or .properties starting -- is not a comment and is
           # not a valid setting either.
           if git grep -nE '^[^#]*(ddl-auto|DDL_AUTO)([[:space:]]*[:=]|[^A-Za-z0-9]*$)' \
-               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).claude/' ':(exclude)*.md' \
+               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).agents/' ':(exclude).claude/' ':(exclude)*.md' \
              | grep -vE ':[0-9]+:[[:space:]]*--' ; then
             echo "::error::ddl-auto is set above - migrations go through Flyway (hard rule 4, DEBT-002)"
             exit 1
@@ -425,7 +426,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           if git grep -nE '(private|public|protected)[[:space:]]+(Double|Float|double|float)[[:space:]]+[a-zA-Z]*(amount|salary|pay|Pay|Amount|Salary|deduction|Deduction|tax|Tax)' \
-               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).claude/' ':(exclude)*.md' ; then
+               -- . ':(exclude)legacy/' ':(exclude)docs/' ':(exclude).agents/' ':(exclude).claude/' ':(exclude)*.md' ; then
             echo "::error::money field declared as a floating-point type above - use Money or BigDecimal (CONVENTIONS.md section 2)"
             exit 1
           fi
