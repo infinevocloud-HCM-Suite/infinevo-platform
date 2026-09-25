@@ -164,9 +164,9 @@ Present only when Payroll is bought.
 | Group | Tables |
 |---|---|
 | Component definitions (4) | `earning`, `deduction`, `benefit`, `reimbursement` |
-| Employee salary (10) | `ctc_structure`, `ctc_epf_component`, `ctc_esi_component`, `employee_earning`, `employee_benefit`, `employee_reimbursement`, `employee_variable_earning`, `employee_deduction`, `fbp`, `employee_fbp_component` |
+| Employee salary (8) | `ctc_structure`, `employee_earning`, `employee_benefit`, `employee_reimbursement`, `employee_statutory_profile`, `employee_deduction`, `fbp`, `employee_fbp_component` — a variable earning is an `employee_earning` whose component is flagged variable, so the legacy `employee_variable_earnings` table is not ported (`W-26.1` §13); `employee_statutory_profile` holds the eligibility flags `W-13.1` decision 1 sent to payroll |
 | Pay run (8) | `pay_schedule`, `payrun`, `employee_payrun`, `off_cycle_payrun`, `off_cycle_payrun_employee`, `off_cycle_payrun_employee_earning`, `off_cycle_payrun_employee_deduction`, `one_time_payout` |
-| Statutory (7) | `epf`, `esi`, `professional_tax`, `slab_rate_configuration`, `slab_detail`, `org_pt_override`, `pt_history` |
+| Statutory (9) | `epf`, `esi`, `professional_tax`, `slab_rate_configuration`, `slab_detail`, `org_pt_override`, `pt_history`, `ctc_epf_component`, `ctc_esi_component` — the last two moved here from employee salary 2026-09-25: they are derived from the PF and ESI rates, so `W-31` builds them (`W-26.2` §13) |
 | Tax declaration (12) | `income_tax_declaration`, `employee_investment_declaration`, and ten `employee_inv_*` detail tables (home loan, house rent, let-out property ×2, other income, pre-tax deduction, previous employment, section 6A, tax summary) |
 | Tax computation (7) | `new_tax_calculation`, `old_tax_calculation`, `old_tax_calculation_revision`, `old_tax_section_deduction`, `old_tax_revision_section_deduction`, `employee_tds`, `income_tax_detail` |
 | Investment proof (8) | `proof_of_investment`, `employee_proof_of_investment`, `employee_poi_item`, `employee_poi_item_comment`, `employee_poi_document`, `employee_poi_property_detail`, `employee_investment_proof`, `employee_investment_proof_file` |
@@ -336,14 +336,14 @@ Capability identifiers come from `01`. This section names tables only; what each
 
 | Capability | Tables | Count |
 |---|---|---|
-| `PAY-01` Salary structure & CTC | `ctc_structure`, `ctc_epf_component`, `ctc_esi_component`, `employee_earning`, `employee_benefit`, `employee_reimbursement`, `employee_variable_earning` | 7 |
+| `PAY-01` Salary structure & CTC | `ctc_structure`, `employee_earning`, `employee_benefit`, `employee_reimbursement`, `employee_statutory_profile` | 5 |
 | `PAY-02` Salary components catalogue | `earning`, `deduction`, `benefit`, `reimbursement` | 4 |
 | `PAY-03` Flexible benefit plan | `fbp`, `employee_fbp_component` | 2 |
 | `PAY-04` Pay schedule | `pay_schedule` | 1 |
 | `PAY-05` Pay run | `payrun`, `employee_payrun` | 2 |
 | `PAY-06` Off-cycle pay runs | `off_cycle_payrun`, `off_cycle_payrun_employee`, `off_cycle_payrun_employee_earning`, `off_cycle_payrun_employee_deduction` | 4 |
 | `PAY-07` One-time payouts | `one_time_payout` | 1 |
-| `PAY-08` Statutory components | `epf`, `esi`, `professional_tax`, `slab_rate_configuration`, `slab_detail`, `org_pt_override`, `pt_history` | 7 |
+| `PAY-08` Statutory components | `epf`, `esi`, `professional_tax`, `slab_rate_configuration`, `slab_detail`, `org_pt_override`, `pt_history`, `ctc_epf_component`, `ctc_esi_component` | 9 |
 | `PAY-09` Income tax declaration | `income_tax_declaration`, `employee_investment_declaration`, + 10 `employee_inv_*` detail tables | 12 |
 | `PAY-10` Tax calculator | `new_tax_calculation`, `old_tax_calculation`, `old_tax_calculation_revision`, `old_tax_section_deduction`, `old_tax_revision_section_deduction`, `income_tax_detail` | 6 |
 | `PAY-11` Proof of investment | `proof_of_investment`, `employee_proof_of_investment`, `employee_poi_item`, `employee_poi_item_comment`, `employee_poi_document`, `employee_poi_property_detail`, `employee_investment_proof`, `employee_investment_proof_file` | 8 |

@@ -20,7 +20,7 @@
 | Backend module | `core` | 1 |
 | Flyway migration | one script, one table — `core.lop_policy` | 1 |
 | Externally testable behaviour | two tenants on different settings derive different working days and loss-of-pay figures from identical data | 1 |
-| Frontend area | none | 1 |
+| Frontend area | none — the "Working-day basis" section ships on `W-47`'s pay schedule page, calling this ticket's API | 1 |
 
 Within cap.
 
@@ -122,7 +122,10 @@ All Bearer, tenant bound. Codes per `12-core-contracts.md:63`, added by `W-11.3`
 
 ## 5. Frontend changes
 
-None.
+None in this ticket. The admin screen is a "Working-day basis" section on the pay schedule
+page that `W-47` builds, so an administrator sees the work week, the basis and the two
+payable flags in one place. Until then, the policy is changed through `PUT
+/api/v1/lop-policy` only. Settled 2026-09-25, `D-60`.
 
 ## 6. Database changes
 
@@ -156,6 +159,18 @@ this — a stamp pointing at a mutable row explains nothing.
 RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 `migration/README.md:76-123`.
 
+**Seed — owned by this ticket, not `W-12.1`** (settled 2026-09-25, `D-60`). Because
+`basisFor` throws when no policy is in force, every tenant must have one before its first pay
+run:
+
+- the same migration inserts one `ACTUAL_DAYS` row, `weekends_payable = true`,
+  `holidays_payable = true`, `effective_from = '1900-01-01'`, for every row in `core.tenant`
+  that has none
+- tenant provisioning (`W-07`, `core.tenant.provision`) inserts the same row for every new
+  tenant, in the same transaction as the tenant
+
+The `W-12.1` spec never carried this seed; the earlier reference to it in §13 was wrong.
+
 ## 7. Tests
 
 | Type | File | Covers |
@@ -163,6 +178,7 @@ RLS and the `tenant_isolation` policy in the exact `CASE` form, same script —
 | Unit | `core/.../lop/WorkingDayBasisCalculatorTest.java` | each of the three bases over the same February and July; `ORG_DAYS` with `n` set and with `n` counted from a stub `WorkingWeekSource` (Mon–Fri, then Mon–Sat); weekends and holidays toggled, holidays from a stub `holidaysBetween`; rounding applied, `HALF_UP_2` when the policy says nothing; **a tenant with no policy throws `NoLopPolicyException` — there is no fallback**; a basis needing the weekday set with no bean present throws too |
 | Unit | `core/.../lop/LopPolicyVersionTest.java` | the policy in force on a date is the latest with `effective_from <= date` |
 | Integration | `core/.../lop/TwoTenantBasisIT.java` | **two tenants, identical employee and period, different bases, different payable days and divisors** |
+| Integration | `core/.../lop/LopPolicySeedIT.java` | every seeded dev tenant has exactly one `ACTUAL_DAYS` policy after migration; a newly provisioned tenant has one in the same transaction; `basisFor` on it returns calendar days, never throws |
 | Integration | `core/.../lop/LopPolicyRlsIT.java` | tenant A cannot read or edit tenant B's policy |
 | Integration | `core/.../lop/LopPolicyGuardIT.java` | `PUT` is `403` without `core.lop_policy.manage`; `GET /basis` with no policy is `409`, not `200` with a default |
 
@@ -248,8 +264,9 @@ Nothing is deployed. The script is additive and forward-only —
 | 2 | The seeded default basis | **`ACTUAL_DAYS` — calendar days in the period.** Against my recommendation of fixed 30 |
 
 **Decision 2 still delivers what decision 1 was for:** the frozen system divides by calendar
-days (`EmployeePayRunServiceImpl.java:1165`), and `W-12.1` seeds an `ACTUAL_DAYS` policy at
-tenant creation, so **payslip amounts do not change at cutover** for every tenant that exists.
+days (`EmployeePayRunServiceImpl.java:1165`), and **this ticket** seeds an `ACTUAL_DAYS` policy
+for every existing tenant and at tenant creation (§6, corrected 2026-09-25 — `W-12.1` never
+owned it), so **payslip amounts do not change at cutover** for every tenant that exists.
 What changes is the failure mode: a tenant whose policy is missing is told, per employee, per
 run, instead of being paid on a divisor nobody chose — which was the frozen system's defect.
 

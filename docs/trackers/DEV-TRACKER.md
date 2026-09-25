@@ -30,9 +30,10 @@ lane so two lanes never collide on a version.
 
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
-| sayeed | `dev-sayeed` | Defects, then employee | `W-52.1` → `W-53.1` → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` | `V026`–`V032` |
+| sayeed | `dev-sayeed` | Defects, then employee | `W-52.1` → `W-53.1` → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` → `W-39.2` | `V026`–`V032`, `V041` |
 | krushna | `dev-krushna` | Tenant and onboarding | `W-12.1` → `W-12.2` → `W-12.3` → `W-24.1` → `W-17` | `V033`–`V036` |
 | devashis | `dev-devashis` | Documents, notifications, reporting | `W-21` → `W-20.1` → `W-23.1` | `V037`–`V040` |
+| *unassigned* | — | Payroll | `W-26.1` → `W-26.2` → `W-27.1` → `W-27.2` → `W-28` (after `W-18.1`) | `V042`–`V054` reserved 2026-09-25 (extended by one for `W-27.2`, by one more for `W-28`); `V042`–`V045` are `W-26.1`, `V046`–`V050` are `W-26.2`, `V051` is `W-27.1`, `V052`–`V053` are `W-27.2`, `V054` is `W-28` |
 
 **2026-09-25.** sayeed holds every open defect (D-2, D-3, D-6, D-7, D-8, D-9) and follows
 them with the employee chain, since `W-13.4` and `W-13.3` both touch `core.employee`. No
@@ -43,7 +44,7 @@ first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
 The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
 not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
 `V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` · `V035` `W-24.1` · `V036` `W-17` ·
-`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1`.
+`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`.
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
 and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2` and `W-52.1`), `W-15`, `W-16`, `W-18`, `W-25`
@@ -168,7 +169,7 @@ blocker is cleared for all of them.
 | #28 | `W-24` Setup checklist & invitations | A module-aware checklist, progress tracking, user and employee invitation | **assigned — krushna** (`W-24.1`), after `W-12.1`; `W-24.2` needs `W-20.1` |
 | #29 | `W-25` Employee self-service portal | My profile, leave, documents, payslips (Payroll only), timesheet (HRMS only) | `W-16` — unassigned |
 | #— | `W-39.1` Attendance capture (basic) | `core.attendance` — present, absent, half day per employee per date, entered by an administrator, so a Payroll-only tenant can record it (`D-35`) | **assigned — sayeed**, after `W-14.2` |
-| #— | `W-39.2` Overtime capture (basic) | `core.overtime_request` — approved overtime entered by an administrator, written to the pay input ledger | `W-19` — no spec yet |
+| #— | `W-39.2` Overtime capture (basic) | `core.overtime_request` — approved overtime entered by an administrator, written to the pay input ledger | **assigned — sayeed**, after `W-19`; migration `V041` |
 
 ---
 
@@ -178,9 +179,11 @@ Nothing started. Everything is blocked, most of it behind `W-26`.
 
 | # | Ticket | What it is |
 |---|---|---|
-| #30 | `W-26` Salary catalogue & structure | Earning, deduction, benefit and reimbursement definitions, CTC structure, component assignment, effective-dated revisions. **Fix the floating-point money fields and the three competing amount fields while porting** |
-| #31 | `W-27` Flexible benefit plan | Plan definition, employee declaration, FBP components |
-| #32 | `W-28` Pay schedule | Schedule configuration, a working-day basis the calculation actually reads, cut-off and pay date |
+| #30 | `W-26.1` Salary component catalogue | `payroll.earning`, `deduction`, `benefit`, `reimbursement` — tenant-scoped definitions; one `default_value` + `calculation_type` replaces two amount fields and a flag; `max_limit` becomes numeric. **Spec Ready 2026-09-25 — unassigned.** Migrations `V042`–`V045` |
+| #30 | `W-26.2` CTC structure & revisions | `payroll.ctc_structure` as one row per dated version plus its component rows and the statutory eligibility profile from `W-13.1` decision 1; the split is computed server-side, the pay run reads by date and writes nothing. **Fix the three competing amount fields and the floating-point money while porting. Spec Ready 2026-09-25 — unassigned**, after `W-26.1`. Migrations `V046`–`V050` |
+| #31 | `W-27.1` FBP plan definition | `payroll.fbp`, one row per tenant: enabled, declaration window, lock, notification flags, reminder days; the plan's components are the `W-26.1` rows flagged `is_fbp_component`. Mails stored, not sent (`W-20.x`). **Spec Ready 2026-09-25 — unassigned**, after `W-26.1`. Migration `V051` |
+| #31 | `W-27.2` FBP employee declaration | `payroll.employee_fbp_component`, one row per FBP line per salary version; the employee declares under `/me/fbp-declaration` while the window is open, the officer any time; the version-in-force read shows the declared and unallocated amounts, which `W-29` consumes; carried forward on revise. Three new action codes. **Spec Ready 2026-09-25 — unassigned**, after `W-27.1`, `W-26.2`, `W-13.4`. Migrations `V052`–`V053` — size-cap exception granted 2026-09-25 |
+| #32 | `W-28` Pay schedule | `payroll.pay_schedule`, one row per tenant: work week, pay-day rule, input cut-off day, first period; implements `W-18.1`'s `WorkingWeekSource` and derives every period's dates for `W-29`. **Per `D-60`:** the basis and the payable flags stay on `core.lop_policy`; the screen is `W-47`'s. **Spec Ready 2026-09-25 — unassigned**, after `W-18.1`. Migration `V054` |
 | #33–36 | `W-29.1`–`.4` Pay run | Creation, inclusion and locking · earnings and deductions · loss-of-pay and pay input collection · async execution on the worker with status and progress. **A merge.** Needs `W-52` |
 | #37 | `W-30` Off-cycle & one-time | Off-cycle run, one-time payout, bonus |
 | #38 | `W-31` Statutory components | Provident fund, state insurance, professional tax, slab configuration, per-tenant override |
