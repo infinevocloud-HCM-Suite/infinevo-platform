@@ -213,3 +213,21 @@ the decision; the consolidated record is
 
 1. **Does the feed include items the user may see but not act on?** A read-only viewer might want the screen without the buttons. **Recommend** item-level visibility by action, and button-level by action as well, rather than a half-usable screen. *Corrected 2026-09-25:* button-level visibility is what `actions` in the response is for — the feed carries the caller's codes so screens need no second call (`12-core-contracts.md` §5 row 13).
 2. **Is menu order configurable per tenant?** **Recommend** no — one order, defined in the catalogue. Per-tenant ordering is a table, a screen and a support burden for very little.
+
+## 14. Review — sent back 2026-09-25
+
+Reviewed at `161c9d1`. CI red on frontend lint, backend green. Not merged. Fix here, re-run
+`check-done.mjs W-12.3`, then hand back. Items 1–4 block; 5–7 go in the same pass.
+
+| # | Defect | Where | Why it matters |
+|---|---|---|---|
+| 1 | `useNavigation()` is called after an early return — rules-of-hooks; the reason CI is red | `src/shell/navigation/useCan.js:16` | a screen whose action code changes between renders crashes React |
+| 2 | `NavigationMatchesEnforcementIT` walks 4 of 8 items against test-only stand-in controllers | `core/src/test/.../navigation/NavigationTestEndpointsController.java:17-41` | §7 calls this test the ticket's reason to exist; against stand-ins it cannot catch catalogue drift |
+| 3 | `core.employee` item targets `GET /api/v1/employees`, which does not exist — the controller has `POST` and `/{id}` only | `NavigationCatalogue.java:40` vs `EmployeeController.java:58-81` | every admin sees Employees and gets an error on click; item 2 hides it |
+| 4 | Routes are not registered from the feed: `routesFromFeed` is never called, there is no `<Routes>`, and `routesFor(entitlements)` is kept | `src/shell/routes.js:25,52`, `AppShell.jsx:98` | §5: a route not in the response is not registered at all |
+| 5 | Frontend tests re-implement the logic inline and never import `useCan.js`, `useNavigation.js` or `AppShell.jsx` | `useCan.test.js`, `useNavigation.test.js` | a static fallback menu would not fail them — §9's top risk |
+| 6 | `hrms.timesheets` and `payroll.runs` point at unbuilt endpoints; the §2 dev-mode "target endpoint exists" check was not written | `NavigationCatalogue.java:76,83` | Globex sees two dead items and nothing flags them |
+| 7 | Tenant-switch refetch listens for `infinevo:tenant-switched`, which nothing dispatches; the test never triggers a refetch | `useNavigation.js:113-128`, `useNavigation.test.js:144-167` | claimed and tested behaviour that never runs |
+
+What is right and must stay: the service filters by module and action, `actions` is
+`PermissionService`'s cached set, parent pruning works, an empty feed renders an empty shell.
