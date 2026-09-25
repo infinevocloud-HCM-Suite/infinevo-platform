@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-09-25**, against `main` — every row checked against a merge commit. All six open defects assigned to **sayeed** on 2026-09-25; every feature ticket is unassigned.
+> Last refreshed: **2026-09-25**, against `main` — every row checked against a merge commit. Three lanes assigned 2026-09-25: **sayeed** (defects, then employee), **krushna** (tenant and onboarding), **devashis** (documents, notifications, reporting).
 
 ## Summary
 
@@ -30,13 +30,24 @@ lane so two lanes never collide on a version.
 
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
-| sayeed | `dev-sayeed` | Defects | `W-52.1` → `W-53.1` → `W-13.4` → `W-09.1` → D-9 manual checks | `V026` (`W-13.4`), `V027` (`W-09.1`) |
+| sayeed | `dev-sayeed` | Defects, then employee | `W-52.1` → `W-53.1` → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` | `V026`–`V032` |
+| krushna | `dev-krushna` | Tenant and onboarding | `W-12.1` → `W-12.2` → `W-12.3` → `W-24.1` → `W-17` | `V033`–`V036` |
+| devashis | `dev-devashis` | Documents, notifications, reporting | `W-21` → `W-20.1` → `W-23.1` | `V037`–`V040` |
 
-**2026-09-25.** sayeed holds every open defect (D-2, D-3, D-6, D-7, D-8, D-9); every feature
-ticket is unassigned until the founder assigns it. No `dev-<name>` branch exists yet — the stray
-`dev-claude` and `W-10-identity` branches were deleted the same day. Each developer creates
-`dev-<name>` from `main` when they start their first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
-`V025`–`V027` remain reserved for `W-11.3` (used), `W-13.4` and `W-09.1`.
+**2026-09-25.** sayeed holds every open defect (D-2, D-3, D-6, D-7, D-8, D-9) and follows
+them with the employee chain, since `W-13.4` and `W-13.3` both touch `core.employee`. No
+`dev-<name>` branch exists yet — the stray `dev-claude` and `W-10-identity` branches were
+deleted the same day. Each developer creates `dev-<name>` from `main` when they start their
+first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
+
+The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
+not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
+`V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` · `V035` `W-24.1` · `V036` `W-17` ·
+`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1`.
+
+**Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
+and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2` and `W-52.1`), `W-15`, `W-16`, `W-18`, `W-25`
+(need `W-14.2`).
 
 ## Defects on `main`
 
@@ -138,25 +149,25 @@ blocker is cleared for all of them.
 | #11 | `W-10` Identity | Realm configuration, login flow, token validation, user profile sync, password reset delegated to Keycloak | **on main `ac1e531`** · code done — **spec §8 login never run by hand** |
 | #14 | `W-13.1` Employee record | The neutral root, `core.employee` (`V010`), isolated by row-level security rather than a remembered `WHERE` | **on main `7d0bab6`** · done |
 | #14 | `W-13.2` Employee detail | Five one-to-one sections (`V015`–`V019`) — personal, contact, identification, employment, bank. **Turned the audit trail on**, and fixed the `@Embedded` redaction gap | **on main `5228385`** · done |
-| #14 | `W-13.3` Employee search & listing | Search and listing over the employee record | **Ready** — unassigned; must filter `is_deleted`; `EmployeeResponse.from` is an N+1 here |
+| #14 | `W-13.3` Employee search & listing | Search and listing over the employee record | **assigned — sayeed**, after `W-13.4`; must filter `is_deleted`; `EmployeeResponse.from` is an N+1 here |
 | #26 | `W-22.1` Audit trail | Change capture, `core.audit_log` (`V008`), `GET /api/v1/audit` | **on main `6fb4012`** · done — capturing since `W-13.2` |
 | #— | `W-22.2` Audit retention | Retention sweep and purge | spec approved; layer 3 in practice — also needs `W-20.1`, `W-20.2` |
 | #12 | `W-11.1` Role & action catalogue | 63-action catalogue in `reference.action`, tenant-scoped roles, seven system roles seeded per tenant, role and grant API | **on main `172eaaa`** · spec approved · code done |
 | #12 | `W-11.2` Permission check & cache | `@RequiresAction` on every endpoint, 403 when not held, shared Redis cache that every replica reloads on a role change | **on main `23d1126`** · spec approved · code done |
-| #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | `W-10` |
+| #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | **assigned — krushna** (`W-12.1` → `.2` → `.3`) |
 | #15 | `W-14.1` Org masters | Department, designation and work location (`V011`–`V013`), plus the three nullable columns on `core.employee` (`V014`). Free-text conversion deliberately left to `W-67` | **on main `235aab2`** · code done — §8 verification not independently re-run |
-| #15 | `W-14.2` Reporting line | The new reporting line and the org chart read model | `W-13.3` — unassigned |
+| #15 | `W-14.2` Reporting line | The new reporting line and the org chart read model | **assigned — sayeed**, after `W-13.3` |
 | #16 | `W-15` Approval engine | Approval definitions, instance lifecycle, step routing along the reporting line, delegation and escalation, history | `W-14.2` — unassigned |
 | #17–20 | `W-16.1`–`.4` Leave engine | Types and policy · allocation and balance · request, approval and documents · consumption, loss-of-pay derivation and bulk import. **The other riskiest ticket — a merge** | `W-15` — unassigned |
-| #21 | `W-17` Holiday calendar | Calendar per work location, holiday management, bulk import | `W-14.1` — **unblocked** |
+| #21 | `W-17` Holiday calendar | Calendar per work location, holiday management, bulk import | **assigned — krushna**, after `W-24.1` |
 | #22 | `W-18` Loss-of-pay & working-day policy | Policy model, working-day basis, derivation rules, the policy stamped on every pay figure | `W-16`, `W-17` — unassigned |
-| #23 | `W-19` Pay input ledger | Write API for modules, read API for the pay run, period locking | **ready** |
-| #24 | `W-20` Notifications | Templates, email delivery, in-app notification, reminder rules, scheduler | **ready** (`W-20.1`); `W-20.2` follows |
-| #25 | `W-21` Document store | Upload, download by signed link, blob lifecycle and retention, access control | **ready** |
-| #27 | `W-23` Reporting & export | Report definitions, spreadsheet and CSV export, scheduled reports | **ready** (`W-23.1`); `W-23.2` needs `W-20.2` |
-| #28 | `W-24` Setup checklist & invitations | A module-aware checklist, progress tracking, user and employee invitation | `W-12` |
+| #23 | `W-19` Pay input ledger | Write API for modules, read API for the pay run, period locking | **assigned — sayeed**, after `W-39.1` |
+| #24 | `W-20` Notifications | Templates, email delivery, in-app notification, reminder rules, scheduler | **assigned — devashis** (`W-20.1`); `W-20.2` assigned later, needs `W-12.1` |
+| #25 | `W-21` Document store | Upload, download by signed link, blob lifecycle and retention, access control | **assigned — devashis** |
+| #27 | `W-23` Reporting & export | Report definitions, spreadsheet and CSV export, scheduled reports | **assigned — devashis** (`W-23.1`); `W-23.2` needs `W-20.2` |
+| #28 | `W-24` Setup checklist & invitations | A module-aware checklist, progress tracking, user and employee invitation | **assigned — krushna** (`W-24.1`), after `W-12.1`; `W-24.2` needs `W-20.1` |
 | #29 | `W-25` Employee self-service portal | My profile, leave, documents, payslips (Payroll only), timesheet (HRMS only) | `W-16` — unassigned |
-| #— | `W-39.1` Attendance capture (basic) | `core.attendance` — present, absent, half day per employee per date, entered by an administrator, so a Payroll-only tenant can record it (`D-35`) | **ready** — spec written 2026-09-24 |
+| #— | `W-39.1` Attendance capture (basic) | `core.attendance` — present, absent, half day per employee per date, entered by an administrator, so a Payroll-only tenant can record it (`D-35`) | **assigned — sayeed**, after `W-14.2` |
 | #— | `W-39.2` Overtime capture (basic) | `core.overtime_request` — approved overtime entered by an administrator, written to the pay input ledger | `W-19` — no spec yet |
 
 ---
