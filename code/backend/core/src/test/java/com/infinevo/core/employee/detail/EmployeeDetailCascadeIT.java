@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.infinevo.core.CoreFeatureTestApp;
 import com.infinevo.core.employee.EmployeeTestSchema;
+import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.sql.SQLException;
@@ -17,8 +18,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.test.context.support.WithMockUser;
 
 /**
  * W-13.2 — a detail row cannot reference an employee in another tenant (spec section 7).
@@ -40,6 +44,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * class fails rather than reporting green having run nothing (#117).
  */
 @SpringBootTest(classes = CoreFeatureTestApp.class)
+@WithMockUser(authorities = "core.employee.update")
 class EmployeeDetailCascadeIT extends AbstractIntegrationTest {
 
     @Autowired
@@ -47,6 +52,9 @@ class EmployeeDetailCascadeIT extends AbstractIntegrationTest {
 
     @Autowired
     private EmployeeBankService bankService;
+
+    @MockBean
+    private PermissionService permissionService;
 
     private UUID employeeOfA;
     private UUID employeeOfB;
@@ -64,6 +72,7 @@ class EmployeeDetailCascadeIT extends AbstractIntegrationTest {
     @BeforeEach
     void seed() throws Exception {
         TenantContext.clear();
+        BDDMockito.given(permissionService.holds("core.employee.update")).willReturn(true);
         EmployeeTestSchema.seedTenants();
         EmployeeDetailTestSchema.clearAll();
         employeeOfA = EmployeeTestSchema.seedEmployee(TENANT_A, "A-001", "Asha");

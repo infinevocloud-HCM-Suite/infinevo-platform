@@ -91,6 +91,33 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
         TenantContext.clear();
         try (Connection conn = migrationUserConnection()) {
             conn.createStatement().execute("DELETE FROM core.job_status");
+            if (tableExists(conn, "user_tenant")) {
+                conn.createStatement().execute("DELETE FROM core.user_tenant");
+            }
+            if (tableExists(conn, "user_role")) {
+                conn.createStatement().execute("DELETE FROM core.user_role");
+            }
+            if (tableExists(conn, "user_role_assignment")) {
+                conn.createStatement().execute("DELETE FROM core.user_role_assignment");
+            }
+            if (tableExists(conn, "role_action")) {
+                conn.createStatement().execute("DELETE FROM core.role_action");
+            }
+            if (tableExists(conn, "role")) {
+                conn.createStatement().execute("DELETE FROM core.role");
+            }
+            if (tableExists(conn, "employee_contact")) {
+                conn.createStatement().execute("DELETE FROM core.employee_contact");
+            }
+            if (tableExists(conn, "employee_personal")) {
+                conn.createStatement().execute("DELETE FROM core.employee_personal");
+            }
+            if (tableExists(conn, "employee")) {
+                conn.createStatement().execute("DELETE FROM core.employee");
+            }
+            if (tableExists(conn, "user_account")) {
+                conn.createStatement().execute("DELETE FROM core.user_account");
+            }
             conn.createStatement().execute("DELETE FROM core.tenant");
 
             try (PreparedStatement ps =

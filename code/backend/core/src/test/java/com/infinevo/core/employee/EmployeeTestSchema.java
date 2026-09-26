@@ -62,6 +62,9 @@ public final class EmployeeTestSchema {
             if (!tableExists(conn, "tenant")) {
                 executeResource(conn, "db/migration/core/V001__tenant.sql");
             }
+            if (!tableExists(conn, "user_tenant")) {
+                executeResource(conn, "db/migration/core/V002__user_tenant.sql");
+            }
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
             }
@@ -82,6 +85,25 @@ public final class EmployeeTestSchema {
             if (!columnExists(conn, "employee", "department_id")) {
                 executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
             }
+            if (!tableExists(conn, "user_account")) {
+                executeResource(conn, "db/migration/core/V009__user_account.sql");
+            }
+            if (!tableExists(conn, "employee_personal")) {
+                executeResource(conn, "db/migration/core/V015__employee_personal.sql");
+            }
+            if (!tableExists(conn, "employee_contact")) {
+                executeResource(conn, "db/migration/core/V016__employee_contact.sql");
+            }
+            if (!columnExists(conn, "employee", "user_account_id")) {
+                executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
+            }
+            if (!tableExists(conn, "role")) {
+                executeResource(conn, "db/migration/reference/V020__action.sql");
+                executeResource(conn, "db/migration/core/V021__role.sql");
+                executeResource(conn, "db/migration/core/V022__role_action.sql");
+                executeResource(conn, "db/migration/core/V023__user_role.sql");
+                executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
+            }
         }
     }
 
@@ -96,6 +118,46 @@ public final class EmployeeTestSchema {
             ps.setObject(1, TENANT_B);
             ps.setString(2, "Globex Corporation");
             ps.executeUpdate();
+        }
+    }
+
+    /** Binds a user to a tenant in core.user_tenant. */
+    public static void seedMembership(UUID userId, UUID tenantId) throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.user_tenant (tenant_id, user_id, created_by, updated_by)
+                        VALUES (?, ?, 'test', 'test')
+                        ON CONFLICT (user_id, tenant_id) DO NOTHING
+                        """)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, userId);
+            ps.executeUpdate();
+        }
+    }
+
+    /** Grants a role by code (e.g. "employee", "hr") to a user account. */
+    public static void grantRole(UUID tenantId, UUID userAccountId, String roleCode) throws SQLException {
+        try (Connection conn = migrationConnection()) {
+            UUID roleId;
+            try (PreparedStatement ps =
+                    conn.prepareStatement("SELECT id FROM core.role WHERE tenant_id = ? AND code = ?")) {
+                ps.setObject(1, tenantId);
+                ps.setString(2, roleCode);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new IllegalStateException("no role " + roleCode + " in tenant " + tenantId);
+                    }
+                    roleId = rs.getObject(1, UUID.class);
+                }
+            }
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO core.user_role (tenant_id, user_account_id, role_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")) {
+                ps.setObject(1, tenantId);
+                ps.setObject(2, userAccountId);
+                ps.setObject(3, roleId);
+                ps.executeUpdate();
+            }
         }
     }
 
@@ -129,6 +191,12 @@ public final class EmployeeTestSchema {
     public static void clearEmployees() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
+            if (tableExists(conn, "employee_contact")) {
+                stmt.execute("DELETE FROM core.employee_contact");
+            }
+            if (tableExists(conn, "employee_personal")) {
+                stmt.execute("DELETE FROM core.employee_personal");
+            }
             stmt.execute("DELETE FROM core.employee");
         }
     }

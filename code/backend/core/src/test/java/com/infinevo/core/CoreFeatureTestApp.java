@@ -1,7 +1,9 @@
 package com.infinevo.core;
 
+import com.infinevo.shared.identity.UserProfileSyncService;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
@@ -30,6 +32,21 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * reaches the connection the shipped way rather than a test one.
  */
 @SpringBootApplication(scanBasePackages = {"com.infinevo.core.employee", "com.infinevo.core.org"})
-@EntityScan(basePackages = {"com.infinevo.core.employee", "com.infinevo.core.org"})
-@EnableJpaRepositories(basePackages = {"com.infinevo.core.employee", "com.infinevo.core.org"})
+@EntityScan(
+        basePackages = {
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org",
+            // W-13.4: EmployeeServiceImpl now depends on UserAccountRepository (linkLogin,
+            // currentEmployee). UserAccount is a shared identity entity; without this entry
+            // Hibernate cannot map it and Spring cannot satisfy the repository autowire.
+            "com.infinevo.shared.identity"
+        })
+@EnableJpaRepositories(
+        basePackages = {
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org",
+            // W-13.4: same reason — UserAccountRepository must be registered.
+            "com.infinevo.shared.identity"
+        })
+@Import(UserProfileSyncService.class)
 public class CoreFeatureTestApp {}

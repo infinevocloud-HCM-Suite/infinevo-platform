@@ -79,6 +79,8 @@ public final class AuthzTestSchema {
                     executeResource(conn, "db/migration/core/V012__designation.sql");
                     executeResource(conn, "db/migration/core/V013__work_location.sql");
                     executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+                    executeResource(conn, "db/migration/core/V015__employee_personal.sql");
+                    executeResource(conn, "db/migration/core/V016__employee_contact.sql");
                     executeResource(conn, "db/migration/reference/V020__action.sql");
                     executeResource(conn, "db/migration/core/V021__role.sql");
                     executeResource(conn, "db/migration/core/V022__role_action.sql");
@@ -89,6 +91,9 @@ public final class AuthzTestSchema {
                     // W-12.1: subscription and tenant locale columns
                     executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
                     executeResource(conn, "db/migration/core/V034__subscription.sql");
+                    // W-13.4: user_account_id FK on core.employee; PermissionGuardIT reaches the
+                    // employee endpoint so Hibernate selects this column.
+                    executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
                 }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
@@ -130,7 +135,7 @@ public final class AuthzTestSchema {
     }
 
     /** Inserts a user account in a tenant, as the schema owner. */
-    static UUID insertUserAccount(UUID tenantId, String email) throws SQLException {
+    public static UUID insertUserAccount(UUID tenantId, String email) throws SQLException {
         return insertUserAccount(tenantId, UUID.randomUUID(), email);
     }
 

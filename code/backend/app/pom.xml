@@ -67,6 +67,23 @@
   </dependencies>
 
   <build>
+    <!--
+      W-52.1: JobStatusGuardIT applies migration scripts in @BeforeAll via
+      getResourceAsStream("db/migration/reference/V020__action.sql", …).
+      The SQL files live in the migration module; shared/pom.xml already maps them
+      onto the test classpath there, but app does not inherit that mapping.
+      Adding the same <testResource> entry here puts the scripts on app's test
+      classpath without pulling in the migration module as a compile-time dependency.
+    -->
+    <testResources>
+      <testResource>
+        <directory>${project.basedir}/../migration/src/main/resources/db/migration</directory>
+        <targetPath>db/migration</targetPath>
+        <includes>
+          <include>**/*.sql</include>
+        </includes>
+      </testResource>
+    </testResources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

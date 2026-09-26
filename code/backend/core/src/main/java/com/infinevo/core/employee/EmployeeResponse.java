@@ -33,6 +33,7 @@ public record EmployeeResponse(
         String workEmail,
         String mobile,
         boolean portalEnabled,
+        UUID userAccountId,
         UUID departmentId,
         UUID designationId,
         UUID workLocationId,
@@ -69,6 +70,7 @@ public record EmployeeResponse(
                 employee.getWorkEmail(),
                 employee.getMobile(),
                 employee.isPortalEnabled(),
+                employee.getUserAccountId(),
                 employee.getDepartment() == null
                         ? null
                         : employee.getDepartment().getId(),

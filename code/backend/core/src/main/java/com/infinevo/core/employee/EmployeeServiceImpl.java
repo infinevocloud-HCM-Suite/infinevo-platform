@@ -8,6 +8,9 @@ import com.infinevo.core.org.OrgMaster;
 import com.infinevo.core.org.OrgMasterRepository;
 import com.infinevo.core.org.WorkLocation;
 import com.infinevo.core.org.WorkLocationRepository;
+import com.infinevo.shared.identity.UserAccount;
+import com.infinevo.shared.identity.UserAccountRepository;
+import com.infinevo.shared.identity.UserProfileSyncService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -16,8 +19,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +52,8 @@ public class EmployeeServiceImpl implements EmployeeService {
      */
     private static final String EMPLOYEE_NUMBER_INDEX = "idx_employee_tenant_employee_number";
 
+    private static final String USER_ACCOUNT_INDEX = "uk_employee_tenant_user_account";
+
     private static final int MAX_EMPLOYEE_NUMBER = 64;
     private static final int MAX_NAME = 100;
     private static final int MAX_GENDER = 32;
@@ -57,12 +64,16 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final DepartmentRepository departmentRepository;
     private final DesignationRepository designationRepository;
     private final WorkLocationRepository workLocationRepository;
+    private final UserAccountRepository userAccountRepository;
+    private final UserProfileSyncService userProfileSyncService;
 
     public EmployeeServiceImpl(
             EmployeeRepository employeeRepository,
             DepartmentRepository departmentRepository,
             DesignationRepository designationRepository,
-            WorkLocationRepository workLocationRepository) {
+            WorkLocationRepository workLocationRepository,
+            UserAccountRepository userAccountRepository,
+            UserProfileSyncService userProfileSyncService) {
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
         this.departmentRepository =
                 Objects.requireNonNull(departmentRepository, "departmentRepository must not be null");
@@ -70,6 +81,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 Objects.requireNonNull(designationRepository, "designationRepository must not be null");
         this.workLocationRepository =
                 Objects.requireNonNull(workLocationRepository, "workLocationRepository must not be null");
+        this.userAccountRepository =
+                Objects.requireNonNull(userAccountRepository, "userAccountRepository must not be null");
+        this.userProfileSyncService =
+                Objects.requireNonNull(userProfileSyncService, "userProfileSyncService must not be null");
     }
 
     @Override
@@ -116,6 +131,60 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = require(id);
         employee.markDeleted(currentActor());
         employeeRepository.save(employee);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<EmployeeResponse> currentEmployee() {
+        UUID tenantId = TenantContext.require();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            return Optional.empty();
+        }
+        String subject = auth.getPrincipal() instanceof Jwt jwt ? jwt.getSubject() : auth.getName();
+        if (subject == null || subject.isBlank()) {
+            return Optional.empty();
+        }
+        UUID keycloakUserId;
+        try {
+            keycloakUserId = UUID.fromString(subject);
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+        Optional<UserAccount> account = userProfileSyncService.find(tenantId, keycloakUserId);
+        if (account.isEmpty()) {
+            return Optional.empty();
+        }
+        return employeeRepository
+                .findByTenantIdAndUserAccountIdAndDeletedFalse(
+                        tenantId, account.get().getId())
+                .map(EmployeeResponse::from);
+    }
+
+    @Override
+    @Transactional
+    public EmployeeResponse linkLogin(UUID id, UUID userAccountId) {
+        Employee employee = require(id);
+        if (userAccountId == null) {
+            employee.setUserAccountId(null);
+            return EmployeeResponse.from(save(employee, employee.getEmployeeNumber()));
+        }
+        UUID tenantId = TenantContext.require();
+        boolean userVisible = userAccountRepository
+                .findById(userAccountId)
+                .filter(account -> tenantId.equals(account.getTenantId()))
+                .isPresent();
+        if (!userVisible) {
+            throw new ValidationException(
+                    Map.of("userAccountId", "No user account " + userAccountId + " in this tenant"));
+        }
+        Optional<Employee> existing =
+                employeeRepository.findByTenantIdAndUserAccountIdAndDeletedFalse(tenantId, userAccountId);
+        if (existing.isPresent() && !existing.get().getId().equals(id)) {
+            throw new DuplicateUserAccountLinkException(userAccountId);
+        }
+        employee.setUserAccountId(userAccountId);
+        return EmployeeResponse.from(save(employee, employee.getEmployeeNumber()));
     }
 
     /**
@@ -233,6 +302,9 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (namesEmployeeNumberIndex(e)) {
                 throw new DuplicateEmployeeNumberException(employeeNumber);
             }
+            if (namesUserAccountIndex(e)) {
+                throw new DuplicateUserAccountLinkException(employee.getUserAccountId());
+            }
             throw e;
         }
     }
@@ -242,6 +314,20 @@ public class EmployeeServiceImpl implements EmployeeService {
         for (Throwable t = e; t != null; t = t.getCause()) {
             String message = t.getMessage();
             if (message != null && message.contains(EMPLOYEE_NUMBER_INDEX)) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    /** The unique index from {@code V026__employee_user_account.sql}, by name, anywhere in the cause chain. */
+    private static boolean namesUserAccountIndex(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            String message = t.getMessage();
+            if (message != null && message.contains(USER_ACCOUNT_INDEX)) {
                 return true;
             }
             if (t.getCause() == t) {

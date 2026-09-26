@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -77,10 +79,17 @@ class EmployeeDetailServiceTest {
         personalStore = new ArrayList<>();
         bankStore = new ArrayList<>();
 
-        personalService =
-                new EmployeePersonalServiceImpl(store(EmployeePersonalRepository.class, personalStore), employees);
-        contactService =
-                new EmployeeContactServiceImpl(store(EmployeeContactRepository.class, new ArrayList<>()), employees);
+        PermissionService permissionService = mock(PermissionService.class);
+        when(permissionService.holds("core.employee.update")).thenReturn(true);
+        EmployeeService employeeService = mock(EmployeeService.class);
+
+        personalService = new EmployeePersonalServiceImpl(
+                store(EmployeePersonalRepository.class, personalStore), employees, permissionService, employeeService);
+        contactService = new EmployeeContactServiceImpl(
+                store(EmployeeContactRepository.class, new ArrayList<>()),
+                employees,
+                permissionService,
+                employeeService);
         identificationService = new EmployeeIdentificationServiceImpl(
                 store(EmployeeIdentificationRepository.class, new ArrayList<>()), employees);
         employmentService = new EmployeeEmploymentServiceImpl(

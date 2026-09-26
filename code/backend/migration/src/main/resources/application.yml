@@ -32,5 +32,10 @@ spring:
     validate-on-migrate: true
     clean-disabled: true
 
+    # Lanes merge in tracker order, not version order: V033/V034 (W-12.1) reached main before
+    # V026-V032 (sayeed's lane). Without this, an environment already at V034 refuses V026.
+    # Decided 2026-09-26 at the W-13.4 merge (DEV-TRACKER § 3 risk F-9).
+    out-of-order: true
+
 # No spring.datasource block - this module has no JPA, Flyway reads its own url/user/password.
 # No ddl-auto anywhere - property is never set (D-46, spec §13 R3).

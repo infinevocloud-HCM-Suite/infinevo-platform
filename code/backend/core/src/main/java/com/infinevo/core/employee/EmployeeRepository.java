@@ -33,6 +33,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     /** The one live employee with this id in this tenant, if there is one. */
     Optional<Employee> findByIdAndTenantIdAndDeletedFalse(UUID id, UUID tenantId);
 
+    /** The live employee linked to this user account in this tenant, if there is one (W-13.4). */
+    Optional<Employee> findByTenantIdAndUserAccountIdAndDeletedFalse(UUID tenantId, UUID userAccountId);
+
     /**
      * True when this tenant already holds this employee number, <strong>deleted rows included</strong>.
      *

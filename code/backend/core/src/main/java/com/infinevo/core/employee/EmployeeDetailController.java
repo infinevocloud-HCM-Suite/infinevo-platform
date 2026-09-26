@@ -97,7 +97,7 @@ public class EmployeeDetailController {
     }
 
     @PutMapping("/personal")
-    @RequiresAction("core.employee.update")
+    @RequiresAction(value = "core.employee.update", anyOf = "core.employee.update_own")
     public EmployeePersonalResponse putPersonal(
             @PathVariable("id") UUID id, @RequestBody EmployeePersonalRequest request) {
         return personalService.put(id, request);
@@ -110,7 +110,7 @@ public class EmployeeDetailController {
     }
 
     @PutMapping("/contact")
-    @RequiresAction("core.employee.update")
+    @RequiresAction(value = "core.employee.update", anyOf = "core.employee.update_own")
     public EmployeeContactResponse putContact(
             @PathVariable("id") UUID id, @RequestBody EmployeeContactRequest request) {
         return contactService.put(id, request);

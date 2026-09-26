@@ -35,6 +35,12 @@ public interface EmployeeService {
      */
     void delete(UUID id);
 
+    /** The caller's own employee row in the bound tenant, if linked and live (W-13.4). */
+    java.util.Optional<EmployeeResponse> currentEmployee();
+
+    /** Sets or clears the user account link for an employee in the bound tenant (W-13.4). */
+    EmployeeResponse linkLogin(UUID id, UUID userAccountId);
+
     /** No such employee in the bound tenant, or it has been soft-deleted. Maps to {@code 404}. */
     class NotFoundException extends RuntimeException {
         @Serial
@@ -80,6 +86,16 @@ public interface EmployeeService {
 
         public DuplicateEmployeeNumberException(String employeeNumber) {
             super("Employee number " + employeeNumber + " is already in use in this tenant");
+        }
+    }
+
+    /** This tenant already has an employee linked to this user account. Maps to {@code 409}. */
+    class DuplicateUserAccountLinkException extends RuntimeException {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        public DuplicateUserAccountLinkException(UUID userAccountId) {
+            super("User account " + userAccountId + " is already linked to another employee in this tenant");
         }
     }
 }

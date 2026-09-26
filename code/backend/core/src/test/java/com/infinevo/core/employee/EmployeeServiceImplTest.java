@@ -13,6 +13,9 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.org.DepartmentRepository;
 import com.infinevo.core.org.DesignationRepository;
 import com.infinevo.core.org.WorkLocationRepository;
+import com.infinevo.shared.identity.UserAccount;
+import com.infinevo.shared.identity.UserAccountRepository;
+import com.infinevo.shared.identity.UserProfileSyncService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -49,27 +52,26 @@ class EmployeeServiceImplTest {
     private DepartmentRepository departmentRepository;
     private DesignationRepository designationRepository;
     private WorkLocationRepository workLocationRepository;
+    private UserAccountRepository userAccountRepository;
+    private UserProfileSyncService userProfileSyncService;
     private EmployeeServiceImpl service;
 
     @BeforeEach
     void setUp() {
         store.clear();
         repository = mock(EmployeeRepository.class);
-        // W-14.1 added the three org-master repositories to the constructor. Most tests here name no
-        // department, designation or work location, so the mocks are never asked anything — the
-        // service returns early on a null id.
-        //
-        // All three mocks are held, because one test does need them. EmployeeAssignmentIT runs
-        // against real Postgres as app_user, where row-level security ALSO hides another tenant's
-        // master — so it passes whether or not the service does its own check, and it was observed
-        // passing with that check deliberately removed. Two layers both working is the right
-        // posture, but it means the IT cannot tell them apart. The unit test below pins the service
-        // layer on its own, for all three masters and against the bound tenant specifically.
         departmentRepository = mock(DepartmentRepository.class);
         designationRepository = mock(DesignationRepository.class);
         workLocationRepository = mock(WorkLocationRepository.class);
+        userAccountRepository = mock(UserAccountRepository.class);
+        userProfileSyncService = mock(UserProfileSyncService.class);
         service = new EmployeeServiceImpl(
-                repository, departmentRepository, designationRepository, workLocationRepository);
+                repository,
+                departmentRepository,
+                designationRepository,
+                workLocationRepository,
+                userAccountRepository,
+                userProfileSyncService);
 
         when(repository.saveAndFlush(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
         when(repository.save(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
@@ -422,6 +424,44 @@ class EmployeeServiceImplTest {
                         "E-1", "Asha", null, "Rao", null, JOINED, null, null, null, null, false, null, null, null));
 
         assertThat(updated.portalEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("currentEmployee returns empty when no authenticated user or no link")
+    void currentEmployeeReturnsEmptyWhenNoLink() {
+        assertThat(service.currentEmployee()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("linkLogin throws ValidationException when user account not found in tenant")
+    void linkLoginThrowsValidationExceptionWhenUserAccountNotFound() {
+        UUID empId = service.create(request("E-1")).id();
+        UUID userAccountId = UUID.randomUUID();
+        when(userAccountRepository.findById(userAccountId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.linkLogin(empId, userAccountId))
+                .isInstanceOf(EmployeeService.ValidationException.class);
+    }
+
+    @Test
+    @DisplayName("Delete releases the login link, so a rehire's new record can take the same account")
+    void deleteClearsTheLoginLink() {
+        UUID userAccountId = UUID.randomUUID();
+        UserAccount account = mock(UserAccount.class);
+        when(account.getTenantId()).thenReturn(TENANT_A);
+        when(userAccountRepository.findById(userAccountId)).thenReturn(Optional.of(account));
+
+        UUID first = service.create(request("E-1")).id();
+        assertThat(service.linkLogin(first, userAccountId).userAccountId()).isEqualTo(userAccountId);
+
+        service.delete(first);
+        assertThat(store.get(first).getUserAccountId()).isNull();
+
+        // Postgres would now find no live row for this account; the stub mirrors that.
+        when(repository.findByTenantIdAndUserAccountIdAndDeletedFalse(TENANT_A, userAccountId))
+                .thenReturn(Optional.empty());
+        UUID rehire = service.create(request("E-2")).id();
+        assertThat(service.linkLogin(rehire, userAccountId).userAccountId()).isEqualTo(userAccountId);
     }
 
     private static EmployeeRequest withStatus(EmploymentStatus status, LocalDate terminationDate) {

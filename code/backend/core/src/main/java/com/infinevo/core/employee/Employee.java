@@ -146,6 +146,9 @@ public class Employee {
     @Column(name = "is_portal_enabled", nullable = false)
     private boolean portalEnabled = true;
 
+    @Column(name = "user_account_id")
+    private UUID userAccountId;
+
     /**
      * The org masters this employee is assigned to — W-14.1, {@code V014__employee_org_columns.sql}.
      *
@@ -259,6 +262,14 @@ public class Employee {
         return portalEnabled;
     }
 
+    public UUID getUserAccountId() {
+        return userAccountId;
+    }
+
+    public void setUserAccountId(UUID userAccountId) {
+        this.userAccountId = userAccountId;
+    }
+
     public Department getDepartment() {
         return department;
     }
@@ -353,6 +364,9 @@ public class Employee {
      */
     void markDeleted(String actor) {
         this.deleted = true;
+        // W-13.4: release the login. uk_employee_tenant_user_account (V026) covers deleted rows
+        // too, so a link left on a deleted employee could never be moved to a rehire's new record.
+        this.userAccountId = null;
         this.updatedBy = actor;
         this.updatedAt = Instant.now();
     }
