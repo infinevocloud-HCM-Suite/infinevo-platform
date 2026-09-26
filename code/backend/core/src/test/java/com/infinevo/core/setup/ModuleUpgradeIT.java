@@ -10,7 +10,6 @@ import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
