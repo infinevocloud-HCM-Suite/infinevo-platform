@@ -364,6 +364,9 @@ public class Employee {
      */
     void markDeleted(String actor) {
         this.deleted = true;
+        // W-13.4: release the login. uk_employee_tenant_user_account (V026) covers deleted rows
+        // too, so a link left on a deleted employee could never be moved to a rehire's new record.
+        this.userAccountId = null;
         this.updatedBy = actor;
         this.updatedAt = Instant.now();
     }

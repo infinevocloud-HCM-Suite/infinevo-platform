@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.org.DepartmentRepository;
 import com.infinevo.core.org.DesignationRepository;
 import com.infinevo.core.org.WorkLocationRepository;
+import com.infinevo.shared.identity.UserAccount;
 import com.infinevo.shared.identity.UserAccountRepository;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import com.infinevo.shared.tenant.TenantContext;
@@ -440,6 +441,27 @@ class EmployeeServiceImplTest {
 
         assertThatThrownBy(() -> service.linkLogin(empId, userAccountId))
                 .isInstanceOf(EmployeeService.ValidationException.class);
+    }
+
+    @Test
+    @DisplayName("Delete releases the login link, so a rehire's new record can take the same account")
+    void deleteClearsTheLoginLink() {
+        UUID userAccountId = UUID.randomUUID();
+        UserAccount account = mock(UserAccount.class);
+        when(account.getTenantId()).thenReturn(TENANT_A);
+        when(userAccountRepository.findById(userAccountId)).thenReturn(Optional.of(account));
+
+        UUID first = service.create(request("E-1")).id();
+        assertThat(service.linkLogin(first, userAccountId).userAccountId()).isEqualTo(userAccountId);
+
+        service.delete(first);
+        assertThat(store.get(first).getUserAccountId()).isNull();
+
+        // Postgres would now find no live row for this account; the stub mirrors that.
+        when(repository.findByTenantIdAndUserAccountIdAndDeletedFalse(TENANT_A, userAccountId))
+                .thenReturn(Optional.empty());
+        UUID rehire = service.create(request("E-2")).id();
+        assertThat(service.linkLogin(rehire, userAccountId).userAccountId()).isEqualTo(userAccountId);
     }
 
     private static EmployeeRequest withStatus(EmploymentStatus status, LocalDate terminationDate) {
