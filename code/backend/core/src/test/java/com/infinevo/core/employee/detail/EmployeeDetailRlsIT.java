@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.infinevo.core.CoreFeatureTestApp;
 import com.infinevo.core.employee.EmployeeTestSchema;
+import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.sql.Connection;
@@ -20,8 +21,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.test.context.support.WithMockUser;
 
 /**
  * W-13.2 — tenant A cannot read any of the five detail tables for tenant B's employee, as
@@ -50,6 +54,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * class fails rather than reporting green having run nothing (#117).
  */
 @SpringBootTest(classes = CoreFeatureTestApp.class)
+@WithMockUser(authorities = "core.employee.update")
 class EmployeeDetailRlsIT extends AbstractIntegrationTest {
 
     @Autowired
@@ -66,6 +71,9 @@ class EmployeeDetailRlsIT extends AbstractIntegrationTest {
 
     @Autowired
     private EmployeeBankService bankService;
+
+    @MockBean
+    private PermissionService permissionService;
 
     private UUID employeeOfA;
     private UUID employeeOfB;
@@ -88,6 +96,7 @@ class EmployeeDetailRlsIT extends AbstractIntegrationTest {
     @BeforeEach
     void seed() throws Exception {
         TenantContext.clear();
+        BDDMockito.given(permissionService.holds("core.employee.update")).willReturn(true);
         EmployeeTestSchema.seedTenants();
         EmployeeDetailTestSchema.clearAll();
         employeeOfA = EmployeeTestSchema.seedEmployee(TENANT_A, "A-001", "Asha");

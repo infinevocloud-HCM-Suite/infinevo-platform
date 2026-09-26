@@ -11,6 +11,8 @@ import com.infinevo.shared.identity.UserAccount;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
+import com.infinevo.shared.test.PostgresTestContainerInitializer;
+import com.infinevo.shared.test.RedisTestContainerInitializer;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +25,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -34,6 +37,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(classes = PermissionGuardTestApp.class)
 @AutoConfigureMockMvc
+@ContextConfiguration(initializers = {PostgresTestContainerInitializer.class, RedisTestContainerInitializer.class})
 class EmployeeSelfServiceIT extends AbstractIntegrationTest {
 
     private static final UUID TENANT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -66,9 +70,11 @@ class EmployeeSelfServiceIT extends AbstractIntegrationTest {
         TenantContext.set(TENANT_ID);
 
         keycloakUser1 = UUID.randomUUID();
+        EmployeeTestSchema.seedMembership(keycloakUser1, TENANT_ID);
         userProfileSyncService.sync(TENANT_ID, keycloakUser1, "emp1@example.com", "Emp", "One");
         UserAccount account1 =
                 userProfileSyncService.find(TENANT_ID, keycloakUser1).orElseThrow();
+        EmployeeTestSchema.grantRole(TENANT_ID, account1.getId(), "employee");
 
         // Create two employees
         emp1 = employeeService.create(new EmployeeRequest(
@@ -181,6 +187,12 @@ class EmployeeSelfServiceIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("HR holding update permission can update any employee's contact section (200)")
     void hrUpdatesAnyEmployeeContactSuccessfully() throws Exception {
+        UUID hrUser = UUID.randomUUID();
+        EmployeeTestSchema.seedMembership(hrUser, TENANT_ID);
+        userProfileSyncService.sync(TENANT_ID, hrUser, "hr@example.com", "HR", "User");
+        UserAccount hrAccount = userProfileSyncService.find(TENANT_ID, hrUser).orElseThrow();
+        EmployeeTestSchema.grantRole(TENANT_ID, hrAccount.getId(), "hr");
+
         EmployeeContactRequest request = new EmployeeContactRequest(
                 "emp2.personal@example.com",
                 "9998887777",
@@ -208,7 +220,8 @@ class EmployeeSelfServiceIT extends AbstractIntegrationTest {
         mvc.perform(put("/api/v1/employees/{id}/contact", emp2.id())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .with(jwt().jwt(builder -> builder.claim("tenant_id", TENANT_ID.toString()))
+                        .with(jwt().jwt(builder ->
+                                        builder.subject(hrUser.toString()).claim("tenant_id", TENANT_ID.toString()))
                                 .authorities(List.of(new SimpleGrantedAuthority("core.employee.update")))))
                 .andExpect(status().isOk());
     }

@@ -106,6 +106,12 @@ final class OrgTestSchema {
     static void clearAll() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
+            if (tableExists(conn, "employee_contact")) {
+                stmt.execute("DELETE FROM core.employee_contact");
+            }
+            if (tableExists(conn, "employee_personal")) {
+                stmt.execute("DELETE FROM core.employee_personal");
+            }
             stmt.execute("DELETE FROM core.employee");
             stmt.execute("DELETE FROM core.department");
             stmt.execute("DELETE FROM core.designation");

@@ -37,7 +37,7 @@ import org.springframework.context.ConfigurableApplicationContext;
  * <p>Two connections, as in {@code OrgTestSchema}: {@link #migrationConnection()} is the schema owner
  * and bypasses row-level security; {@link #appConnection()} is {@code app_user}, which does not.
  */
-final class AuthzTestSchema {
+public final class AuthzTestSchema {
 
     static final String DATABASE = "infinevo_authz";
 
@@ -50,7 +50,7 @@ final class AuthzTestSchema {
     private AuthzTestSchema() {}
 
     /** Points the Spring datasource at {@value #DATABASE}. Listed after {@link PostgresTestContainerInitializer}. */
-    static class Initializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+    public static class Initializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
         @Override
         public void initialize(ConfigurableApplicationContext ctx) {
             TestPropertyValues.of("spring.datasource.url=" + jdbcUrl()).applyTo(ctx.getEnvironment());
@@ -77,6 +77,8 @@ final class AuthzTestSchema {
                     executeResource(conn, "db/migration/core/V012__designation.sql");
                     executeResource(conn, "db/migration/core/V013__work_location.sql");
                     executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+                    executeResource(conn, "db/migration/core/V015__employee_personal.sql");
+                    executeResource(conn, "db/migration/core/V016__employee_contact.sql");
                     executeResource(conn, "db/migration/reference/V020__action.sql");
                     executeResource(conn, "db/migration/core/V021__role.sql");
                     executeResource(conn, "db/migration/core/V022__role_action.sql");
@@ -115,7 +117,7 @@ final class AuthzTestSchema {
      * hand call to the seed function, is what gives it its roles. Random id: the database is shared by
      * both test classes and no test cleans another's rows.
      */
-    static UUID insertTenant(String name) throws SQLException {
+    public static UUID insertTenant(String name) throws SQLException {
         UUID tenantId = UUID.randomUUID();
         try (Connection conn = migrationConnection();
                 PreparedStatement ps =
@@ -128,7 +130,7 @@ final class AuthzTestSchema {
     }
 
     /** Inserts a user account in a tenant, as the schema owner. */
-    static UUID insertUserAccount(UUID tenantId, String email) throws SQLException {
+    public static UUID insertUserAccount(UUID tenantId, String email) throws SQLException {
         return insertUserAccount(tenantId, UUID.randomUUID(), email);
     }
 
@@ -137,7 +139,7 @@ final class AuthzTestSchema {
      * {@code TenantContextFilter} checks, and a {@code core.user_account} profile, which the permission
      * check resolves the token subject to. Returns the profile row's id.
      */
-    static UUID insertMember(UUID tenantId, UUID keycloakUserId, String email) throws SQLException {
+    public static UUID insertMember(UUID tenantId, UUID keycloakUserId, String email) throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps =
                         conn.prepareStatement("INSERT INTO core.user_tenant (tenant_id, user_id) VALUES (?, ?)")) {
@@ -167,7 +169,7 @@ final class AuthzTestSchema {
     }
 
     /** Inserts a tenant's own, non-system role holding the given actions, as the schema owner. */
-    static UUID insertRole(UUID tenantId, String code, String name, String... actionCodes) throws SQLException {
+    public static UUID insertRole(UUID tenantId, String code, String name, String... actionCodes) throws SQLException {
         try (Connection conn = migrationConnection()) {
             UUID roleId;
             try (PreparedStatement ps = conn.prepareStatement(
@@ -194,7 +196,7 @@ final class AuthzTestSchema {
     }
 
     /** Grants a role to a user, as the schema owner. */
-    static void grant(UUID tenantId, UUID userAccountId, UUID roleId) throws SQLException {
+    public static void grant(UUID tenantId, UUID userAccountId, UUID roleId) throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO core.user_role (tenant_id, user_account_id, role_id) VALUES (?, ?, ?)")) {
@@ -206,7 +208,7 @@ final class AuthzTestSchema {
     }
 
     /** The id of a tenant's role by code, read as the schema owner. */
-    static UUID roleId(UUID tenantId, String code) throws SQLException {
+    public static UUID roleId(UUID tenantId, String code) throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps =
                         conn.prepareStatement("SELECT id FROM core.role WHERE tenant_id = ? AND code = ?")) {

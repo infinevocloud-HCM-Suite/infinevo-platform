@@ -2,6 +2,7 @@ package com.infinevo.core.audit;
 
 import com.infinevo.shared.audit.AuditIntegratorConfig;
 import com.infinevo.shared.audit.AuditWriter;
+import com.infinevo.shared.identity.UserProfileSyncService;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Import;
@@ -30,8 +31,19 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * {@code com.infinevo.shared}.
  */
 @SpringBootApplication(scanBasePackages = {"com.infinevo.core.employee", "com.infinevo.core.org"})
-@EntityScan(basePackages = {"com.infinevo.core.employee", "com.infinevo.core.org", "com.infinevo.shared.audit"})
+@EntityScan(
+        basePackages = {
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org",
+            "com.infinevo.shared.audit",
+            "com.infinevo.shared.identity"
+        })
 @EnableJpaRepositories(
-        basePackages = {"com.infinevo.core.employee", "com.infinevo.core.org", "com.infinevo.shared.audit"})
-@Import({AuditWriter.class, AuditIntegratorConfig.class})
+        basePackages = {
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org",
+            "com.infinevo.shared.audit",
+            "com.infinevo.shared.identity"
+        })
+@Import({AuditWriter.class, AuditIntegratorConfig.class, UserProfileSyncService.class})
 public class CoreAuditTestApp {}
