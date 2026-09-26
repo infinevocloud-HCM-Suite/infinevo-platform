@@ -48,55 +48,59 @@ public class PermissionService {
         this.userAccounts = Objects.requireNonNull(userAccounts, "userAccounts must not be null");
     }
 
+    /**
+     * Returns the full set of action codes held by the caller in the bound tenant,
+     * read from {@link PermissionCache} under the current permission version (W-12.3).
+     * Fails closed by returning an empty set on any error or missing context.
+     */
+    public Set<String> currentActions() {
+        Optional<UUID> tenantId = TenantContext.current();
+        if (tenantId.isEmpty()) {
+            log.warn("Permission check refused: no tenant bound to this request");
+            return Set.of();
+        }
+        Optional<UUID> userId = currentUserId();
+        if (userId.isEmpty()) {
+            log.warn("Permission check refused: no authenticated user with a UUID subject");
+            return Set.of();
+        }
+        try {
+            PermissionCache permissionCache = cache.get();
+            if (permissionCache == null) {
+                log.warn("Permission check refused: no PermissionCache is configured");
+                return Set.of();
+            }
+            ActionSource source = actionSource.get();
+            if (source == null) {
+                log.warn("Permission check refused: no ActionSource bean is configured");
+                return Set.of();
+            }
+            return permissionCache.actionsOf(
+                    tenantId.get(), userId.get(), () -> load(source, tenantId.get(), userId.get()));
+        } catch (RuntimeException e) {
+            log.warn(
+                    "Permission check failed for user {} in tenant {} and fails closed",
+                    userId.get(),
+                    tenantId.get(),
+                    e);
+            return Set.of();
+        }
+    }
+
     /** True only if the current caller demonstrably holds {@code actionCode}; false on any doubt. */
     public boolean holds(String actionCode) {
         if (actionCode == null || actionCode.isBlank()) {
             log.warn("Permission refused: no action code given");
             return false;
         }
-        Optional<UUID> tenantId = TenantContext.current();
-        if (tenantId.isEmpty()) {
-            log.warn("Permission refused for {}: no tenant bound to this request", actionCode);
-            return false;
+        Set<String> actions = currentActions();
+        if (actions.contains(actionCode)) {
+            return true;
         }
-        Optional<UUID> userId = currentUserId();
-        if (userId.isEmpty()) {
-            log.warn("Permission refused for {}: no authenticated user with a UUID subject", actionCode);
-            return false;
-        }
-
-        try {
-            PermissionCache permissionCache = cache.get();
-            if (permissionCache == null) {
-                log.warn("Permission refused for {}: no PermissionCache is configured", actionCode);
-                return false;
-            }
-            ActionSource source = actionSource.get();
-            if (source == null) {
-                log.warn("Permission refused for {}: no ActionSource bean is configured", actionCode);
-                return false;
-            }
-
-            Set<String> actions = permissionCache.actionsOf(
-                    tenantId.get(), userId.get(), () -> load(source, tenantId.get(), userId.get()));
-            if (actions.contains(actionCode)) {
-                return true;
-            }
-            log.info(
-                    "Permission refused for {}: user {} does not hold it in tenant {}",
-                    actionCode,
-                    userId.get(),
-                    tenantId.get());
-            return false;
-        } catch (RuntimeException e) {
-            log.warn(
-                    "Permission refused for {}: the check failed for user {} in tenant {} and fails closed",
-                    actionCode,
-                    userId.get(),
-                    tenantId.get(),
-                    e);
-            return false;
-        }
+        currentUserId().ifPresent(uid -> TenantContext.current()
+                .ifPresent(tid -> log.info(
+                        "Permission refused for {}: user {} does not hold it in tenant {}", actionCode, uid, tid)));
+        return false;
     }
 
     /**

@@ -213,3 +213,41 @@ the decision; the consolidated record is
 
 1. **Does the feed include items the user may see but not act on?** A read-only viewer might want the screen without the buttons. **Recommend** item-level visibility by action, and button-level by action as well, rather than a half-usable screen. *Corrected 2026-09-25:* button-level visibility is what `actions` in the response is for — the feed carries the caller's codes so screens need no second call (`12-core-contracts.md` §5 row 13).
 2. **Is menu order configurable per tenant?** **Recommend** no — one order, defined in the catalogue. Per-tenant ordering is a table, a screen and a support burden for very little.
+
+## 14. Review — sent back 2026-09-25
+
+Reviewed at `161c9d1`. CI red on frontend lint, backend green. Not merged. Fix here, re-run
+`check-done.mjs W-12.3`, then hand back. Items 1–4 block; 5–7 go in the same pass.
+
+| # | Defect | Where | Why it matters |
+|---|---|---|---|
+| 1 | `useNavigation()` is called after an early return — rules-of-hooks; the reason CI is red | `src/shell/navigation/useCan.js:16` | a screen whose action code changes between renders crashes React |
+| 2 | `NavigationMatchesEnforcementIT` walks 4 of 8 items against test-only stand-in controllers | `core/src/test/.../navigation/NavigationTestEndpointsController.java:17-41` | §7 calls this test the ticket's reason to exist; against stand-ins it cannot catch catalogue drift |
+| 3 | `core.employee` item targets `GET /api/v1/employees`, which does not exist — the controller has `POST` and `/{id}` only | `NavigationCatalogue.java:40` vs `EmployeeController.java:58-81` | every admin sees Employees and gets an error on click; item 2 hides it |
+| 4 | Routes are not registered from the feed: `routesFromFeed` is never called, there is no `<Routes>`, and `routesFor(entitlements)` is kept | `src/shell/routes.js:25,52`, `AppShell.jsx:98` | §5: a route not in the response is not registered at all |
+| 5 | Frontend tests re-implement the logic inline and never import `useCan.js`, `useNavigation.js` or `AppShell.jsx` | `useCan.test.js`, `useNavigation.test.js` | a static fallback menu would not fail them — §9's top risk |
+| 6 | `hrms.timesheets` and `payroll.runs` point at unbuilt endpoints; the §2 dev-mode "target endpoint exists" check was not written | `NavigationCatalogue.java:76,83` | Globex sees two dead items and nothing flags them |
+| 7 | Tenant-switch refetch listens for `infinevo:tenant-switched`, which nothing dispatches; the test never triggers a refetch | `useNavigation.js:113-128`, `useNavigation.test.js:144-167` | claimed and tested behaviour that never runs |
+
+What is right and must stay: the service filters by module and action, `actions` is
+`PermissionService`'s cached set, parent pruning works, an empty feed renders an empty shell.
+
+### 14a. Second pass — 2026-09-26
+
+Items 5, 6 and 7 were still open at `51e5f4d`; items 2 and 3 were only half closed. Fixed as follows.
+
+| # | Fix |
+|---|---|
+| 2 | `NavigationTestEndpointsController` deleted. `PermissionGuardTestApp` now holds the real `AuditController`; every catalogue leaf is walked against a real controller, by three callers (admin, hr, employee) |
+| 3, 8 | The `GET /api/v1/employees` stub is removed and the `core.employee` item with it — it returns with `W-13.3`, which ships the list endpoint. An item is added in the ticket that ships its endpoint, never before (`NavigationCatalogue` javadoc) |
+| 5 | Frontend tests run under vitest and jsdom and render the real `AppShell`, `useNavigation`, `useCan`, `routesFromFeed` and `keycloak.js`; only the HTTP client and the adapter are replaced. `npm test` is now a CI step |
+| 6 | `hrms.timesheets` and `payroll.runs` are removed until their endpoints exist. `NavigationCatalogueValidator` runs in every profile and **refuses to start the application** if a leaf has no `GET` mapping; unit-tested, and exercised by every context that scans `core.navigation` |
+| 7 | The tenant-change signal is the Keycloak adapter's own token callbacks: `keycloak.js` exports `onTenantChange`, fired when a token arrives carrying a different `tenant_id`; `useNavigation` refetches on it. The `window` event is gone. Tested against the real adapter module |
+| 9 | `NavigationMatchesEnforcementIT` asserts 2xx for a visible item, 403 for an absent one |
+| 10 | `NavigationIT` asserts `actions` equals, exactly, the codes the caller's role holds, read from the schema as its owner |
+
+**Deviation from §8, recorded:** until the HRMS and Payroll endpoints ship, the shipped catalogue holds
+core items only, so `admin.globex` sees no `hrms.*` or `payroll.*` key and the two admins' feeds are
+identical. The module filter is proven in `NavigationServiceTest` over a catalogue that has module items.
+`NavigationIT` proves two callers get different feeds by role instead. The §8 expectation for Globex
+becomes true in the ticket that adds the first module item.
