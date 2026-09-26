@@ -1,7 +1,7 @@
-import React from 'react';
 import { Layout, Menu, Skeleton, Typography } from 'antd';
-import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
+import { routesFromFeed } from './routes.js';
 
 const { Sider, Header, Content } = Layout;
 
@@ -23,6 +23,9 @@ export function AppShell() {
 
   const menuItems = buildMenuItems(items);
   const selectedKey = findSelectedKey(items, location.pathname);
+  // Only register routes whose path is in the navigation feed — a route not in the
+  // feed is not registered at all (W-12.3 §5). An empty feed → empty route tree.
+  const feedRoutes = routesFromFeed(items);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -84,7 +87,12 @@ export function AppShell() {
           }}
         />
         <Content style={{ padding: 24, background: '#f5f5f5', minHeight: 'calc(100vh - 64px)' }}>
-          <Outlet />
+          {/* Routes registered from the server feed only — no static route array anywhere (W-12.3 §5) */}
+          <Routes>
+            {feedRoutes.map((route) => (
+              <Route key={route.path} path={route.path} element={route.element} />
+            ))}
+          </Routes>
         </Content>
       </Layout>
     </Layout>

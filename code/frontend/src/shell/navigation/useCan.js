@@ -10,10 +10,13 @@ import { useNavigation } from './useNavigation.js';
  * @returns {boolean} true if caller holds the action code, false otherwise
  */
 export function useCan(actionCode) {
+  // Hook must be called unconditionally — rules-of-hooks.
+  // The early-return for invalid input comes AFTER the hook call.
+  const { actions } = useNavigation();
+
   if (!actionCode || typeof actionCode !== 'string') {
     return false;
   }
-  const { actions } = useNavigation();
   if (!actions) {
     return false;
   }

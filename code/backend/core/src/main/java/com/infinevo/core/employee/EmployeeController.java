@@ -63,6 +63,20 @@ public class EmployeeController {
                 .body(created);
     }
 
+    /**
+     * Listing stub — returns an empty list until W-13.3 (employee search &amp; listing) lands.
+     *
+     * <p>The navigation catalogue's {@code core.employee} item targets {@code GET /api/v1/employees}.
+     * {@code NavigationMatchesEnforcementIT} verifies the endpoint returns non-403 when the item
+     * is visible. This stub satisfies that contract without pre-empting W-13.3's design (pagination,
+     * filters, N+1 fix, {@code is_deleted} filter).
+     */
+    @GetMapping
+    @RequiresAction("core.employee.read")
+    public java.util.List<EmployeeResponse> list() {
+        return java.util.List.of();
+    }
+
     @GetMapping("/{id}")
     @RequiresAction("core.employee.read")
     public EmployeeResponse get(@PathVariable("id") UUID id) {
