@@ -21,7 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 /**
  * W-24.1 — tenant A cannot read tenant B's checklist under row-level security (spec §7).
  */
-@SpringBootTest(classes = SetupChecklistTestApp.class)
+@SpringBootTest(classes = SetupChecklistTestApp.class, properties = "spring.main.allow-bean-definition-overriding=true")
 class SetupChecklistRlsIT extends AbstractIntegrationTest {
 
     @BeforeAll
