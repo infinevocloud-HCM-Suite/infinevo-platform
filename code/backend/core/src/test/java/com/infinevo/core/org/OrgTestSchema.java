@@ -79,6 +79,12 @@ final class OrgTestSchema {
             if (!columnExists(conn, "employee", "department_id")) {
                 executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
             }
+            if (!tableExists(conn, "user_account")) {
+                executeResource(conn, "db/migration/core/V009__user_account.sql");
+            }
+            if (!columnExists(conn, "employee", "user_account_id")) {
+                executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
+            }
         }
     }
 
