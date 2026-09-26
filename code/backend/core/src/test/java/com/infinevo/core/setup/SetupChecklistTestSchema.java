@@ -49,6 +49,9 @@ public final class SetupChecklistTestSchema {
             if (!tableExists(conn, "tenant_setup_step")) {
                 executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
             }
+            if (!tableExists(conn, "work_location")) {
+                executeResource(conn, "db/migration/core/V013__work_location.sql");
+            }
         }
     }
 
@@ -71,6 +74,9 @@ public final class SetupChecklistTestSchema {
             stmt.execute("DELETE FROM core.tenant_setup_step");
             stmt.execute("DELETE FROM core.subscription_module");
             stmt.execute("DELETE FROM core.subscription");
+            if (tableExists(conn, "work_location")) {
+                stmt.execute("DELETE FROM core.work_location");
+            }
         }
     }
 
