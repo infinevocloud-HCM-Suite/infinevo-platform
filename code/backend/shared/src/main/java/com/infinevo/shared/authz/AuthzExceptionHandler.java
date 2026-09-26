@@ -1,5 +1,6 @@
 package com.infinevo.shared.authz;
 
+import com.infinevo.shared.entitlement.EntitlementDeniedException;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * Answers a refused permission {@code 403 FORBIDDEN} in the shared {@link ApiErrorResponse} envelope
- * (W-11.2, spec section 13 decision 2).
+ * (W-11.2, spec section 13 decision 2; W-12.2).
  *
  * <p>Without it the exception would leave the dispatcher and reach Spring Security's
  * {@code ExceptionTranslationFilter}, whose bearer-token handler answers {@code 403} with an empty
@@ -33,6 +34,11 @@ public class AuthzExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException e) {
+        if (e instanceof EntitlementDeniedException denied) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiErrorResponse.of(denied.error(), denied.getMessage(), traceId()));
+        }
         String message = e instanceof PermissionDeniedException denied
                 ? ApiError.FORBIDDEN.defaultMessage() + ": requires action '" + denied.actionCode() + "'"
                 : ApiError.FORBIDDEN.defaultMessage();

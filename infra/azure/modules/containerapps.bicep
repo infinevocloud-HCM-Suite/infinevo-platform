@@ -290,7 +290,7 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Liveness'
               httpGet: {
-                path: '/'
+                path: '/actuator/health/liveness'
                 port: 8080
               }
               initialDelaySeconds: 10

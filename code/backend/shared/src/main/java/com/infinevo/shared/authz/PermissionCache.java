@@ -3,6 +3,7 @@ package com.infinevo.shared.authz;
 import com.infinevo.shared.cache.CacheOperationException;
 import com.infinevo.shared.cache.CacheService;
 import com.infinevo.shared.cache.TenantCacheKeyGenerator;
+import com.infinevo.shared.entitlement.EntitlementSnapshot;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
@@ -15,7 +16,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Users' action sets in the shared cache, invalidated by a per-tenant version (W-11.2, spec section
- * 4).
+ * 4; W-12.2).
  *
  * <p><strong>A thin wrapper over {@link CacheService}.</strong> It opens no connection and owns no
  * configuration; it adds two key shapes and the rules for reading them. The frozen cache it replaces
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code infinevo:{tenant}:authz:perm:{user}:{version}} — one user's action codes as a JSON
  *       array, for {@link #PERMISSION_TTL}. Values are action codes only, never employee data (spec
  *       section 9).
+ *   <li>{@code infinevo:{tenant}:authz:entitlement:{version}} — tenant module entitlement snapshot.
  * </ul>
  *
  * <p><strong>Invalidation is by version, not by eviction.</strong> {@link #bumpVersion} replaces the
@@ -64,6 +66,7 @@ public class PermissionCache {
     static final String DOMAIN = "authz";
     static final String VERSION_KEY = "version";
     static final String PERMISSION_DOMAIN = "authz:perm";
+    static final String ENTITLEMENT_DOMAIN = "authz:entitlement";
 
     private final Supplier<CacheService> cacheService;
 
@@ -113,6 +116,32 @@ public class PermissionCache {
     }
 
     /**
+     * The tenant's module entitlement snapshot: from the cache under the current version, or from
+     * {@code loader} on a miss, which is then cached (W-12.2).
+     *
+     * @param tenantId the tenant id
+     * @param loader fallback supplier to load from the port on miss
+     * @return the cached or freshly loaded entitlement snapshot
+     * @throws CacheOperationException if the cache is unreachable
+     */
+    public EntitlementSnapshot entitlementOf(UUID tenantId, Supplier<EntitlementSnapshot> loader) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(loader, "loader must not be null");
+        CacheService cache = requireCache();
+
+        String key = entitlementKey(tenantId, currentVersion(cache, tenantId));
+        Optional<EntitlementSnapshot> cached = cache.get(key, EntitlementSnapshot.class);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        EntitlementSnapshot loaded = loader.get();
+        EntitlementSnapshot fresh = loaded == null ? EntitlementSnapshot.empty() : loaded;
+        cache.put(key, fresh, PERMISSION_TTL);
+        return fresh;
+    }
+
+    /**
      * Invalidates every cached action set in the tenant, on every replica.
      *
      * <p>Public because {@code core}'s {@code RoleServiceImpl} calls it after every role, action-set
@@ -150,6 +179,11 @@ public class PermissionCache {
     /** The key of one user's set under one version. Package-private for the tests. */
     static String permissionKey(UUID tenantId, UUID userId, String version) {
         return TenantCacheKeyGenerator.tenantKey(tenantId, PERMISSION_DOMAIN, userId + ":" + version);
+    }
+
+    /** The key of tenant's entitlement snapshot under one version. Package-private for the tests. */
+    static String entitlementKey(UUID tenantId, String version) {
+        return TenantCacheKeyGenerator.tenantKey(tenantId, ENTITLEMENT_DOMAIN, version);
     }
 
     private CacheService requireCache() {

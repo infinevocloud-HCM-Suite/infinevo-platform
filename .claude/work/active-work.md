@@ -7,6 +7,53 @@
 > can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-26 — `W-21`, `W-20.1`, `W-23.1` sent back again (`dev-devashis` at `dd1cda1`)
+
+- Gates and CI green, but only item 1 of six (Flyway placeholders) is fixed. Items 2–6 untouched since `1dd05f0`; item 2 (inactive template still sends the default) blocks.
+- Before this merges: run `deploy.sh` and the Bicep by hand so `document-link-secret` exists, or `app` and `worker` crash-loop on the automatic deploy.
+- Decide once: Flyway `out-of-order`, since lane numbers now merge out of order (`V033`/`V034` already above `V026`–`V032`).
+- Details in `docs/trackers/DEV-TRACKER.md` § 3d, second review.
+
+## 2026-09-26 — `W-12.3` merged (`a4f31ae`)
+
+- `W-12` is complete on `main`: navigation feed, feed-driven shell routes, `useCan`, tenant-switch refetch, boot-time catalogue check, enforcement IT against real controllers, frontend tests in CI.
+- **Newly unblocked:** `W-24.1` (krushna, next), `W-45` shell (unassigned, stream F).
+- **Deferred:** the menu holds core items only; `core.employee` returns with `W-13.3`, timesheets and pay runs with their tickets. Spec § 8's Globex expectation holds from the first module item.
+- Merged `code/`, the spec and the `ci.yml` frontend-test step only; the branch's `.agents/` move stays out. krushna resets `W-12-3-navigation-feed` (or `dev-krushna`) to `main` before `W-24.1`.
+
+- All ten review items closed on the branch; CI green; done-check 5/5. Details in `docs/trackers/DEV-TRACKER.md` § 3c "Fixed".
+- Catalogue now lists only endpoints that exist; the boot-time validator refuses a dead item. Employees, timesheets and pay runs return with their tickets.
+- Founder to accept: Globex sees core items only until a module endpoint ships (spec § 8 deviation, recorded in § 14a).
+- Founder merges: `code/`, the spec, the `ci.yml` frontend-test step. `.agents/` move stays out.
+
+- All five done gates pass and CI is green, but three of the seven 2026-09-25 review items are still open: frontend tests never import the real hooks, the two module items still point at unbuilt endpoints with an inert dev check, and the tenant-switch refetch can never fire. Commit messages say they are fixed.
+- Three same-pass items added: the employees list stub answers `200 []` to everyone, the enforcement IT accepts 404 for a visible item, and `actions` equality is not asserted.
+- Trial squash onto `main` is clean apart from the known `PermissionGuardTestApp` scan-list conflict.
+- Details in `docs/trackers/DEV-TRACKER.md` § 3c, second review. krushna's next: fix on the branch, re-run `check-done.mjs W-12.3`, come back for `/merge`.
+
+## 2026-09-25 — `W-21`, `W-20.1`, `W-23.1` sent back (`dev-devashis` at `1dd05f0`)
+
+- Not merged. CI red on the migration module: `V038` seeds template bodies with `${...}` placeholders and Flyway reads them as its own. Every deploy would stop at `V038`. With placeholder replacement off, all 52 migration ITs pass, so it is the only migration fault.
+- Second blocker: `PUT` a notification template with `active=false` does not switch the channel off — the lookup skips inactive rows and falls back to the seeded default.
+- `W-21` and `W-23.1` code is approvable; they ride on the same branch, so they wait for the `W-20.1` fix. Trial merge onto `main` is clean.
+- Details and the same-pass items in `docs/trackers/DEV-TRACKER.md` § 3d. devashis's next: fix on `dev-devashis`, re-run `check-done.mjs` per ticket, come back for `/merge`.
+- Founder to confirm: `W-23.1` was rebuilt over `employee`, `org_master` and `audit_log` instead of leave balances and pay inputs, recorded as "accepted by the owner".
+
+## 2026-09-25 — `W-52.1` and `W-53.1` merged (`5c07c45`)
+
+- The worker consumes the queue: `QueueConsumerLoop` in `worker`, `StorageQueueConfig` in `shared` so `app` can enqueue, `GET /api/v1/jobs/{jobId}` guarded by `core.job.read`. D-2, D-3 and D-7 are fixed.
+- Idempotency is an atomic claim (`JobService.claimForRun`), and a failing job is retried and marked `FAILED` on the third delivery under its tenant. `QueueRoundTripIT` proves it against Azurite and Postgres with nothing mocked.
+- **Newly unblocked:** `W-29.4` pay run async (still after `W-29.3`); the `W-52.1` half of `W-22.2` and `W-23.2` (both still need `W-20.2`).
+- **Still open from `W-52`:** a stale-`RUNNING` sweep after a worker dies mid-job (spec §9), and a local queue stand-in in `compose.yml`.
+- sayeed's next: `W-13.4`. The branch merged was `ticket/feature-sayeed`; the tracker assigns `dev-sayeed`.
+
+## 2026-09-25 — `W-12.1` and `W-12.2` merged (`b7d03ec`)
+
+- Subscription, module selection and entitlement enforcement are on `main`: `core.subscription`, `core.subscription_module` (`V034`), tenant locale columns (`V033`), `@RequiresModule` in `shared`.
+- Dev seed now differs: Acme holds `PAYROLL`, Globex `HRMS` + `PAYROLL` (`infra/docker/seed/04-subscriptions.sql`).
+- **Newly unblocked:** `W-12.3` (krushna, next), `W-24.1` (krushna, after `W-12.3`), and the `W-12.1` half of `W-20.2` and `W-24.2`.
+- Merged as code and tests only; the branch's harness move to `.agents/` was left out on purpose.
+
 ## 2026-09-25 — `W-04.1` and `W-11.3` merged (`3350cf2`)
 
 - The backend suite is green on `main` again (`D-1` fixed).

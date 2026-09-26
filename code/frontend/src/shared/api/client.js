@@ -54,13 +54,33 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     const body = error.response?.data;
-    // The backend's ApiErrorResponse envelope - see shared/error/ApiErrorResponse.java
+    const code = body?.code ?? 'INTERNAL';
+    // The backend's ApiErrorResponse envelope - see shared/error/ApiErrorResponse.java.
+    //
+    // W-12.3: MODULE_NOT_ENTITLED (403) is intentionally different from FORBIDDEN (403).
+    //   - MODULE_NOT_ENTITLED: the tenant has not purchased the module — the shell should
+    //     offer an upgrade path or an "ask your admin" message, not a "permission denied".
+    //   - FORBIDDEN: the user does not hold the action — the shell should hide/disable the
+    //     button or show an access-denied message.
+    //   - TENANT_SUSPENDED: the whole subscription is frozen — the shell should show a
+    //     suspension notice.
+    //
+    // Callers can discriminate on `err.code`:
+    //   'MODULE_NOT_ENTITLED'  → module upgrade prompt
+    //   'TENANT_SUSPENDED'     → suspension screen
+    //   'FORBIDDEN'            → action denied
+    //   'UNAUTHORIZED'         → re-login
     return Promise.reject({
-      code: body?.code ?? 'INTERNAL',
+      code,
       message: body?.message ?? 'Something went wrong',
       fieldErrors: body?.fieldErrors ?? {},
       traceId: body?.traceId,
       status: error.response?.status,
+      // Convenience booleans for common branch points
+      isModuleNotEntitled: code === 'MODULE_NOT_ENTITLED',
+      isTenantSuspended: code === 'TENANT_SUSPENDED',
+      isForbidden: code === 'FORBIDDEN',
+      isUnauthorized: code === 'UNAUTHORIZED' || error.response?.status === 401,
     });
   },
 );

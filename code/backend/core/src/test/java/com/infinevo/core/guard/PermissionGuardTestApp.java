@@ -1,5 +1,7 @@
 package com.infinevo.core.guard;
 
+import com.infinevo.shared.audit.AuditController;
+import com.infinevo.shared.audit.AuditQueryService;
 import com.infinevo.shared.cache.RedisConfig;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import org.springframework.boot.SpringBootConfiguration;
@@ -20,6 +22,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * <ul>
  *   <li>{@code com.infinevo.core.authz}, {@code .employee} and {@code .org} — the controllers under
  *       test, their services, and {@code PermissionReadServiceImpl} as the {@code ActionSource}.
+ *   <li>{@link AuditController} and {@link AuditQueryService}, imported by name, with the
+ *       {@code shared.audit} entity and repository — the real target of the {@code core.audit}
+ *       navigation item, so {@code NavigationMatchesEnforcementIT} walks no stand-in (W-12.3).
+ *       The audit <em>listener</em> is not imported; nothing here writes audit rows.
  *   <li>{@link RedisConfig}, imported by name — the real {@code CacheService} over the test Redis, so
  *       the version bump is exercised against the store every replica shares.
  *   <li>{@link UserProfileSyncService}, imported by name — what the default
@@ -37,7 +43,14 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = {"com.infinevo.core.authz", "com.infinevo.core.employee", "com.infinevo.core.org"},
+        basePackages = {
+            "com.infinevo.core.authz",
+            "com.infinevo.core.employee",
+            "com.infinevo.core.navigation",
+            "com.infinevo.core.org",
+            "com.infinevo.core.subscription",
+            "com.infinevo.core.tenant"
+        },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
@@ -47,6 +60,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.subscription",
+            "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
 @EnableJpaRepositories(
@@ -54,7 +69,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.subscription",
+            "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
-@Import({RedisConfig.class, UserProfileSyncService.class})
+@Import({RedisConfig.class, UserProfileSyncService.class, AuditController.class, AuditQueryService.class})
 public class PermissionGuardTestApp {}

@@ -42,7 +42,7 @@ public final class AuthzTestSchema {
     static final String DATABASE = "infinevo_authz";
 
     /** The seven roles {@code core.seed_system_roles} gives every tenant — spec section 13, decision 2. */
-    static final Set<String> SYSTEM_ROLES =
+    public static final Set<String> SYSTEM_ROLES =
             Set.of("platform-admin", "tenant-admin", "hr", "manager", "payroll-officer", "finance", "employee");
 
     private static String jdbcUrl;
@@ -58,7 +58,7 @@ public final class AuthzTestSchema {
     }
 
     /** The database's URL, provisioning it and applying the scripts on first call. */
-    static synchronized String jdbcUrl() {
+    public static synchronized String jdbcUrl() {
         if (jdbcUrl == null) {
             String url = PostgresTestContainerInitializer.provisionAdditionalDatabase(DATABASE);
             try (Connection conn = DriverManager.getConnection(
@@ -71,6 +71,8 @@ public final class AuthzTestSchema {
                     // membership in core.user_tenant, and reaches the employee endpoints, whose
                     // queries name the V014 org columns.
                     executeResource(conn, "db/migration/core/V002__user_tenant.sql");
+                    // W-12.3: the real AuditController answers the core.audit menu item in the guard tests
+                    executeResource(conn, "db/migration/core/V008__audit_log.sql");
                     executeResource(conn, "db/migration/core/V009__user_account.sql");
                     executeResource(conn, "db/migration/core/V010__employee.sql");
                     executeResource(conn, "db/migration/core/V011__department.sql");
@@ -86,6 +88,9 @@ public final class AuthzTestSchema {
                     // W-11.3: the catalogue correction — core.* leave, attendance and holiday codes,
                     // and no core.tenant.provision on any tenant-seeded role.
                     executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
+                    // W-12.1: subscription and tenant locale columns
+                    executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
+                    executeResource(conn, "db/migration/core/V034__subscription.sql");
                     // W-13.4: user_account_id FK on core.employee; PermissionGuardIT reaches the
                     // employee endpoint so Hibernate selects this column.
                     executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
@@ -98,7 +103,7 @@ public final class AuthzTestSchema {
         return jdbcUrl;
     }
 
-    static Connection migrationConnection() throws SQLException {
+    public static Connection migrationConnection() throws SQLException {
         return DriverManager.getConnection(
                 jdbcUrl(),
                 PostgresTestContainerInitializer.MIGRATION_USER,
@@ -224,7 +229,7 @@ public final class AuthzTestSchema {
     }
 
     /** The action codes a role holds, read as the schema owner — the control for the RLS assertions. */
-    static Set<String> actionsOfRole(UUID roleId) throws SQLException {
+    public static Set<String> actionsOfRole(UUID roleId) throws SQLException {
         return strings("SELECT action_code FROM core.role_action WHERE role_id = ?", roleId);
     }
 

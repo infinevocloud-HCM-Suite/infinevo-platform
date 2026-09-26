@@ -32,7 +32,9 @@ class EndpointGuardCoverageTest {
     /** Controllers that deliberately need no action, and why. */
     private static final Map<String, String> EXEMPT = Map.of(
             "com.infinevo.shared.identity.MeController",
-            "returns only the caller's own identity; every authenticated member may see themselves");
+            "returns only the caller's own identity; every authenticated member may see themselves",
+            "com.infinevo.core.navigation.NavigationController",
+            "every signed-in user has a menu; items inside are filtered by module and action (W-12.3)");
 
     @Test
     @DisplayName("every mapped method in core and shared names the action it requires")

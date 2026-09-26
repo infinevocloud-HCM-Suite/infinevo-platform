@@ -11,10 +11,10 @@
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
 | B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete; suite green again (`W-04.1`) |
-| C — Core platform | 26 | 9 | 9 | **Building.** `W-04.1` and `W-11.3` merged `3350cf2`; every corrected spec is now unblocked on codes |
+| C — Core platform | 26 | 12 | 12 | **Building.** `W-12` complete on `main` (`a4f31ae`); every corrected spec is unblocked on codes |
 | D — Payroll | 21 | 0 | 0 | All blocked on `W-13.3` onward and `W-26` |
 | E — HRMS | 5 | 0 | 0 | All blocked on `W-15` |
-| F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is blocked on `W-12` |
+| F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is **Ready** — `W-12` is on `main` (`a4f31ae`) |
 | G/H — product items | 3 | 1 | 1 | `W-55` merged `2ccd723`. `W-66` unassigned |
 
 **The core is being built.** The foundation is finished and eight Stream C tickets are on
@@ -30,10 +30,10 @@ lane so two lanes never collide on a version.
 
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
-| sayeed | `dev-sayeed` | Defects, then employee | `W-52.1` → `W-53.1` → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` → `W-39.2` | `V026`–`V032`, `V041` |
-| krushna | `dev-krushna` | Tenant and onboarding | `W-12.1` → `W-12.2` → `W-12.3` → `W-24.1` → `W-17` | `V033`–`V036` |
-| devashis | `dev-devashis` | Documents, notifications, reporting | `W-21` → `W-20.1` → `W-23.1` | `V037`–`V040` |
-| *unassigned* | — | Payroll | `W-26.1` → `W-26.2` → `W-27.1` → `W-27.2` → `W-28` (after `W-18.1`) | `V042`–`V054` reserved 2026-09-25 (extended by one for `W-27.2`, by one more for `W-28`); `V042`–`V045` are `W-26.1`, `V046`–`V050` are `W-26.2`, `V051` is `W-27.1`, `V052`–`V053` are `W-27.2`, `V054` is `W-28` |
+| sayeed | `dev-sayeed` | Defects, then employee | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` → `W-39.2` | `V026`–`V032`, `V041` |
+| krushna | `dev-krushna` | Tenant and onboarding | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** → `W-24.1` **Ready** → `W-17` | `V033`–`V034` used · `V035`–`V036` |
+| devashis | `dev-devashis` | Documents, notifications, reporting | `W-21` + `W-20.1` + `W-23.1` **sent back again 2026-09-26, see § 3d** | `V037`–`V040` |
+| *unassigned* | — | Payroll | `W-26.1` → `W-26.2` → `W-27.1` → `W-27.2` → `W-28` (after `W-18.1`) → `W-29.1` (after `W-19`) → `W-29.2` → `W-29.3` (after `W-18.1`) → `W-29.4` (after `W-52.1`) → `W-30.1` (core, after `W-19`) → `W-30.2` → `W-31.1` → `W-31.2` → `W-31.3` (after `W-26.2`) → `W-31.4` (after `W-29.3`) → `W-32.1` (after `W-13.4`) → `W-32.2` → `W-32.3` → `W-32.4` | `V042`–`V081` reserved 2026-09-25 (extended by one for `W-27.2`, one for `W-28`, two for `W-29.1`, one each for `W-29.2`, `W-29.3`, `W-29.4`, `W-30.1`, `W-30.2`, eight for `W-31`, twelve for `W-32`); `V042`–`V045` are `W-26.1`, `V046`–`V050` are `W-26.2`, `V051` is `W-27.1`, `V052`–`V053` are `W-27.2`, `V054` is `W-28`, `V055`–`V056` are `W-29.1`, `V057` is `W-29.2`, `V058` is `W-29.3`, `V059` is `W-29.4`, `V060` is `W-30.1` (a `core` script), `V061` is `W-30.2`, `V062`–`V063` are `W-31.1`, `V064`–`V067` are `W-31.2` (`V064` a `reference` script), `V068`–`V069` are `W-31.3`, `V070`–`V072` are `W-32.1` (`V070` a `reference` script), `V073`–`V076` are `W-32.2`, `V077`–`V079` are `W-32.3`, `V080`–`V081` are `W-32.4` |
 
 **2026-09-25.** sayeed holds every open defect (D-2, D-3, D-6, D-7, D-8, D-9) and follows
 them with the employee chain, since `W-13.4` and `W-13.3` both touch `core.employee`. No
@@ -43,11 +43,11 @@ first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
 
 The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
 not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
-`V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` · `V035` `W-24.1` · `V036` `W-17` ·
+`V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` (**used, on main `b7d03ec`**) · `V035` `W-24.1` · `V036` `W-17` ·
 `V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`.
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
-and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2` and `W-52.1`), `W-15`, `W-16`, `W-18`, `W-25`
+and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2`; `W-52.1` is on main), `W-15`, `W-16`, `W-18`, `W-25`
 (need `W-14.2`).
 
 ## Defects on `main`
@@ -58,12 +58,12 @@ One row per known defect in merged code. A row leaves this table only when its f
 | # | Defect | Found | Fixed by | Status |
 |---|---|---|---|---|
 | D-1 | `mvn verify` fails: `shared`'s `DatabasePrivilegesIT` hits `53300 too_many_connections` (16 test contexts × pool of 10 > 100 slots) | 2026-09-25, running the suite | `W-04.1` | **fixed** `3350cf2` |
-| D-2 | Worker never reads the queue; no consumer loop, producer bean only in `worker`, no retry-then-fail, `RUNNING` jobs re-run | 2026-09-24, `12-core-contracts.md` §5 | `W-52.1` | assigned — sayeed |
-| D-3 | `GET /jobs/{id}` has no `@RequiresAction` and honours a legacy `organizationId` header | 2026-09-24 | `W-52.1` | assigned — sayeed |
+| D-2 | Worker never reads the queue; no consumer loop, producer bean only in `worker`, no retry-then-fail, `RUNNING` jobs re-run | 2026-09-24, `12-core-contracts.md` §5 | `W-52.1` | **fixed** `5c07c45` |
+| D-3 | `GET /jobs/{id}` has no `@RequiresAction` and honours a legacy `organizationId` header | 2026-09-24 | `W-52.1` | **fixed** `5c07c45` |
 | D-4 | Every tenant's seeded `platform-admin` role holds `core.tenant.provision` (platform staff only) | 2026-09-24 | `W-11.3` | **fixed** `3350cf2` |
 | D-5 | Core actions catalogued as `hrms.*` (leave, holiday, attendance) — a module filter would strip them from a Payroll-only tenant | 2026-09-24 | `W-11.3` | **fixed** `3350cf2` |
 | D-6 | No link from `core.employee` to `core.user_account`; `*_own` actions and the portal cannot resolve the caller | 2026-09-24 | `W-13.4` | assigned — sayeed |
-| D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | assigned — sayeed |
+| D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | **fixed** `5c07c45` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | assigned — sayeed |
 | D-9 | `W-10` spec §8 login flow never run by hand; `W-14.1` §8 never independently re-run | at merge | sayeed runs the two §8 checks | assigned — sayeed |
 
@@ -138,8 +138,8 @@ blocker is cleared for all of them.
 |---|---|---|---|
 | `W-11.3` Catalogue correction | Rename the 14 Core actions misfiled as `hrms.*`, add 24 missing codes, take `core.tenant.provision` out of the seeded `platform-admin` role. Migration `V025` | `12-core-contracts.md` §4 | **on main `3350cf2`** · done — built by claude |
 | `W-13.4` Employee login link | `user_account_id` on `core.employee`; employees may edit their own personal and contact sections. Migration `V026` | §5 row 14 | **assigned — sayeed** |
-| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}` | §5 row 21 | **assigned — sayeed** |
-| `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and the `core.queue` package | §5 row 22 | **assigned — sayeed** |
+| `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}`. At merge: `JobService` gained `claimForRun` and `releaseForRetry` (spec §4 updated); `QueueRoundTripIT` proves the loop against Azurite | §5 row 21 | **on main `5c07c45`** · done — built by sayeed, merge-review fixes by claude |
+| `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and the `core.queue` package | §5 row 22 | **on main `5c07c45`** · done — built by sayeed |
 | `W-04.1` Test connection budget | `mvn verify` **fails on main** (2026-09-25, reproducible serially): `shared`'s `DatabasePrivilegesIT` dies with `53300 too_many_connections`. 16 `@SpringBootTest` classes each hold a Hikari pool of 10 against a 100-slot Testcontainers Postgres. Fix: one shared test context config with a small pool, or raise the container's `max_connections` | suite green | **on main `3350cf2`** · done — built by claude |
 | `W-09.1` Age category seed | Seed `SENIOR` and `SUPER_SENIOR` slab rows for three financial years (defect #146). Migration `V027` | Stream B defect | **assigned — sayeed** |
 
@@ -155,7 +155,7 @@ blocker is cleared for all of them.
 | #— | `W-22.2` Audit retention | Retention sweep and purge | spec approved; layer 3 in practice — also needs `W-20.1`, `W-20.2` |
 | #12 | `W-11.1` Role & action catalogue | 63-action catalogue in `reference.action`, tenant-scoped roles, seven system roles seeded per tenant, role and grant API | **on main `172eaaa`** · spec approved · code done |
 | #12 | `W-11.2` Permission check & cache | `@RequiresAction` on every endpoint, 403 when not held, shared Redis cache that every replica reloads on a role change | **on main `23d1126`** · spec approved · code done |
-| #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | **assigned — krushna** (`W-12.1` → `.2` → `.3`) |
+| #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | **`W-12.1` and `W-12.2` on main `b7d03ec`, `W-12.3` on main `a4f31ae`** · **done — built by krushna** · `W-24.1` Ready; `W-20.2`, `W-24.2` unblocked on `W-12.1`; `W-45` unblocked on `W-12` |
 | #15 | `W-14.1` Org masters | Department, designation and work location (`V011`–`V013`), plus the three nullable columns on `core.employee` (`V014`). Free-text conversion deliberately left to `W-67` | **on main `235aab2`** · code done — §8 verification not independently re-run |
 | #15 | `W-14.2` Reporting line | The new reporting line and the org chart read model | **assigned — sayeed**, after `W-13.3` |
 | #16 | `W-15` Approval engine | Approval definitions, instance lifecycle, step routing along the reporting line, delegation and escalation, history | `W-14.2` — unassigned |
@@ -163,15 +163,140 @@ blocker is cleared for all of them.
 | #21 | `W-17` Holiday calendar | Calendar per work location, holiday management, bulk import | **assigned — krushna**, after `W-24.1` |
 | #22 | `W-18` Loss-of-pay & working-day policy | Policy model, working-day basis, derivation rules, the policy stamped on every pay figure | `W-16`, `W-17` — unassigned |
 | #23 | `W-19` Pay input ledger | Write API for modules, read API for the pay run, period locking | **assigned — sayeed**, after `W-39.1` |
-| #24 | `W-20` Notifications | Templates, email delivery, in-app notification, reminder rules, scheduler | **assigned — devashis** (`W-20.1`); `W-20.2` assigned later, needs `W-12.1` |
-| #25 | `W-21` Document store | Upload, download by signed link, blob lifecycle and retention, access control | **assigned — devashis** |
-| #27 | `W-23` Reporting & export | Report definitions, spreadsheet and CSV export, scheduled reports | **assigned — devashis** (`W-23.1`); `W-23.2` needs `W-20.2` |
+| #24 | `W-20` Notifications | Templates, email delivery, in-app notification, reminder rules, scheduler | `W-20.1` **sent back again 2026-09-26 — devashis** (second review on `dd1cda1`, § 3d); `W-20.2` assigned later, needs `W-12.1` |
+| #25 | `W-21` Document store | Upload, download by signed link, blob lifecycle and retention, access control | **sent back again 2026-09-26 — devashis** (code approvable; spec item 6 open; rides with `W-20.1`, § 3d) |
+| #27 | `W-23` Reporting & export | Report definitions, spreadsheet and CSV export, scheduled reports | `W-23.1` **sent back again 2026-09-26 — devashis** (items 4 and 5 open; rides with `W-20.1`, § 3d); `W-23.2` needs `W-20.2` |
 | #28 | `W-24` Setup checklist & invitations | A module-aware checklist, progress tracking, user and employee invitation | **assigned — krushna** (`W-24.1`), after `W-12.1`; `W-24.2` needs `W-20.1` |
 | #29 | `W-25` Employee self-service portal | My profile, leave, documents, payslips (Payroll only), timesheet (HRMS only) | `W-16` — unassigned |
 | #— | `W-39.1` Attendance capture (basic) | `core.attendance` — present, absent, half day per employee per date, entered by an administrator, so a Payroll-only tenant can record it (`D-35`) | **assigned — sayeed**, after `W-14.2` |
 | #— | `W-39.2` Overtime capture (basic) | `core.overtime_request` — approved overtime entered by an administrator, written to the pay input ledger | **assigned — sayeed**, after `W-19`; migration `V041` |
 
 ---
+
+### 3c. `W-12.3` review — sent back 2026-09-25
+
+Branch `W-12-3-navigation-feed` at `161c9d1`. CI red on frontend lint; backend green. Not merged.
+Fix on the branch, re-run `check-done.mjs W-12.3`, then it comes back for merge. Items 1–4 block;
+5–7 are fixed in the same pass because the same files are open.
+
+| # | Defect | Where | Why it matters |
+|---|---|---|---|
+| 1 | `useNavigation()` called after an early return — rules-of-hooks; also the reason CI is red | `src/shell/navigation/useCan.js:16` | a screen whose action code changes between renders crashes React |
+| 2 | `NavigationMatchesEnforcementIT` walks 4 of 8 items against test-only stand-in controllers | `core/src/test/.../navigation/NavigationTestEndpointsController.java:17-41` | the test the spec calls the ticket's reason to exist cannot catch catalogue drift |
+| 3 | `core.employee` item targets `GET /api/v1/employees`, which does not exist — only `POST` and `/{id}` | `NavigationCatalogue.java:40` vs `EmployeeController.java:58-81` | every admin sees Employees and gets an error on click; hidden by item 2 |
+| 4 | Routes are not registered from the feed: `routesFromFeed` is never called, no `<Routes>`, `routesFor(entitlements)` kept | `src/shell/routes.js:25,52`, `AppShell.jsx:98` | spec §5: a route not in the response is not registered at all |
+| 5 | Frontend tests re-implement the logic inline and never import `useCan.js`, `useNavigation.js` or `AppShell.jsx` | `useCan.test.js`, `useNavigation.test.js` | a static fallback menu would not fail them — spec §9's top risk |
+| 6 | `hrms.timesheets` and `payroll.runs` point at unbuilt endpoints; the dev-mode "target endpoint exists" check in spec §2 was not written | `NavigationCatalogue.java:76,83` | Globex sees two dead items; nothing flags a dead item |
+| 7 | Tenant-switch refetch listens for `infinevo:tenant-switched`, which nothing dispatches; the test never triggers a refetch | `useNavigation.js:113-128`, `useNavigation.test.js:144-167` | claimed and tested behaviour that never runs |
+
+Merge notes for the founder: take `code/` only (the branch also carries the `.agents/` harness
+move, deletes `CLAUDE.md`, edits `ci.yml` and `.gitignore`); one conflict in
+`PermissionGuardTestApp.java` — keep navigation, subscription and tenant in the scan list.
+
+#### Second review — sent back again 2026-09-26
+
+Branch `W-12-3-navigation-feed` at `51e5f4d`. All five `check-done.mjs W-12.3` gates pass and CI is
+green. Not merged: items 1, 3 and 4 above are fixed, item 2 is half fixed, and items 5, 6 and 7 are
+not fixed although the commit messages and test headers say they are. Trial squash onto `main` is
+clean apart from the known scan-list conflict.
+
+| Item | Status at `51e5f4d` | Evidence |
+|---|---|---|
+| 1 rules-of-hooks | fixed | `useCan.js:15` calls the hook before any return |
+| 2 IT walks stand-ins | half fixed | 5 of 8 leaves hit real controllers; audit, timesheets and payroll runs still hit stubs at `NavigationTestEndpointsController.java:36-52`, and the two module stubs copy the catalogue's own module and action |
+| 3 `GET /api/v1/employees` missing | fixed by a stub | `EmployeeController.java:75-78` returns `200 []` to every caller — see new item 8 |
+| 4 routes from the feed | fixed | `AppShell.jsx:28,91-95` calls `routesFromFeed`; `routesFor` is dead code at `routes.js:52` |
+| 5 tests never import the real code | **not fixed** | `useCan.test.js:40-48` is a local `canHold` copy; `useNavigation.test.js` builds its own store; nothing imports `useCan.js`, `useNavigation.js` or `AppShell.jsx`. The header at `useCan.test.js:11` claims the opposite |
+| 6 dead items, no dev-mode check | **not fixed** | `NavigationCatalogue.java:76,83` unchanged; `NavigationCatalogueValidator.java:30` runs only under `dev`/`test` profiles, which nothing in `code/` or `infra/` activates, and it only logs `WARN` |
+| 7 tenant-switch refetch never runs | **not fixed** | `infinevo:tenant-switched` is dispatched only inside `fetchNavigationFeed` (`useNavigation.js:51-54`), the very fetch the listener at `:139-147` is meant to trigger; the test calls a local `setFeed` and never touches the listener |
+
+New items, same pass:
+
+| # | Defect | Where | Why it matters |
+|---|---|---|---|
+| 8 | The employees list stub returns `200 []` to everyone, indistinguishable from "no employees", and fixes a bare-list shape before `W-13.3` designs pagination | `EmployeeController.java:75-78` | a `501`, or leaving the item out until `W-13.3`, passes the non-403 check honestly |
+| 9 | For a visible item the IT asserts only "not 403", so a 404 or 405 passes — the original item 3 would still pass | `NavigationMatchesEnforcementIT.java:127-129` | the visible branch should assert 2xx |
+| 10 | Spec §7 says `actions` equals `PermissionService`'s set exactly; the IT checks `isNotEmpty` and two `contains` | `NavigationIT.java:117-118` | a leaked or extra code passes |
+
+Out of scope, noted: the ticket edits `shared` (`PermissionService.currentActions()`), which the
+spec's size cap does not name; the change is what §4 relies on and is acceptable.
+
+#### Fixed and merged — on `main` `a4f31ae`, 2026-09-26
+
+All ten items closed on `68fcb73`; CI green; `check-done.mjs W-12.3` 5/5. Record in spec § 14a.
+
+| Item | How it was closed |
+|---|---|
+| 2, 6, 8 | Catalogue holds only items whose endpoint exists (org masters, roles, audit). `core.employee`, `hrms.timesheets`, `payroll.runs` return in `W-13.3`, the timesheet ticket and `W-29`. Employees stub and the test-only stub controller deleted; the guard test app holds the real `AuditController`. The validator runs in every profile and refuses to start the app on a missing endpoint |
+| 5 | Frontend tests run under vitest and jsdom and render the real shell, hooks, routes and adapter; `npm test` added to `ci.yml` |
+| 7 | `keycloak.js` owns the token callbacks and exports `onTenantChange`; `useNavigation` refetches on it. Tested against the real adapter module |
+| 9, 10 | Enforcement IT asserts 2xx for a visible item; `NavigationIT` asserts `actions` equals the caller's granted set exactly |
+
+**Deviation for the founder to accept:** until a module endpoint ships, `admin.globex` sees core items only, so spec § 8's `hrms.*` / `payroll.*` expectation is not met yet. Module filtering is proven in `NavigationServiceTest`.
+
+Merge notes: take `code/`, the spec, and the `ci.yml` frontend-test step. Same scan-list conflict in `PermissionGuardTestApp.java` — keep navigation. The `.agents/` move, `CLAUDE.md` deletion and `.gitignore` edit stay out.
+
+### 3d. `W-21`, `W-20.1`, `W-23.1` review — sent back 2026-09-25
+
+Branch `dev-devashis` at `1dd05f0`, three tickets on one branch. CI red on the migration
+module; every other job green. Not merged. Items 1–2 block; 3–6 are fixed in the same pass
+because the same files are open. Fix on the branch, re-run `check-done.mjs` for each ticket,
+then it comes back for merge. Trial merge onto `main` is clean.
+
+| # | Ticket | Defect | Where | Why it matters |
+|---|---|---|---|---|
+| 1 | `W-20.1` | Flyway reads the `${...}` placeholders in the seeded template bodies as its own placeholders — 4 migration ITs error, and `V037`–`V040` have never applied through real Flyway | `V038__notification_template.sql:56-105` | `compose up migrate` and every deploy stop at `V038`. With `spring.flyway.placeholder-replacement=false` all 52 migration ITs pass, so this is the only migration fault |
+| 2 | `W-20.1` | `PUT` a template with `active=false` does not switch the channel off: the lookup filters `ActiveTrue` and takes the newest date, so it falls back to the older seeded default and keeps sending; no test covers it | `NotificationTemplateRepository.java:20`, `NotificationTemplateRequest.java:9` | the request record documents the opposite; spec § 15 claims it works |
+| 3 | `W-20.1` | `compose` joins the caller's transaction and throws on a missing value, missing template or invalid legacy `work_email` | `NotificationServiceImpl.java` (`compose`, `enqueueAfterCommit`) | a leave approval rolls back because its notification failed |
+| 4 | `W-23.1` | `required_action` only has to exist, so a definition over employee data can be gated on a code employees hold | `ReportDefinitionServiceImpl.java:182-186` | harmless while only `hr` holds `core.report.read`; breaks spec § 6 once a payroll source exists |
+| 5 | `W-23.1` | No test inserts a soft-deleted employee, and `ExportRlsIT` passes with RLS off because every source also filters `tenant_id` in its own query | `EmployeeReportSource.java`, `ExportRlsIT.java` | isolation is proven, RLS is not |
+| 6 | `W-21` | Spec § 4 and § 6 still say the bytes never pass through the app; as built `DocumentDownloadController` streams them, and § 14 does not say it reverses that | `W-21-document-store.md`, `DocumentDownloadController.java` | the spec contradicts the code it describes |
+
+Why the core suite did not catch item 1: `DocumentTestSchema`, `NotificationTestSchema` and
+`ReportTestSchema` run the shipped SQL files over plain JDBC, not through Flyway. Only the
+migration module's ITs go through Flyway, and they were not run before the push.
+
+Spec edits by the developer, for the founder to confirm: `W-23.1` § 2, § 4 and § 7 now ship
+`employee`, `org_master` and `audit_log` instead of leave balances and pay inputs, recorded as
+"accepted by the owner". All three specs gained an "as built" section. The compose service
+rename `azurite` → `blob` is correct.
+
+Merge notes for the founder: the branch is cut before `W-52.1` (`5c07c45`), so its "no producer
+until `W-52.1`" comments are stale but harmless — the row is the outbox. It also edits
+`05-azure-architecture.md` to list the fourth queue, `notification`, which matches `storage.bicep`.
+
+#### Second review — sent back again 2026-09-26
+
+Branch `dev-devashis` at `dd1cda1`. All five gates pass for each ticket and CI is green. Not merged:
+only item 1 is fixed. The two commits since `1dd05f0` touch the migration `application.yml`,
+`core/pom.xml`, `ci.yml` and two spec lines; no file behind items 2–6 was changed. Trial squash
+onto `main` has one conflict, `EndpointGuardCoverageTest.java` (both sides add to the exempt map —
+keep navigation and the three new controllers).
+
+| Item | Status at `dd1cda1` | Evidence |
+|---|---|---|
+| 1 Flyway placeholders | fixed | `migration/src/main/resources/application.yml:40` sets `placeholder-replacement: false`; no other `V*.sql` uses `${...}`, so nothing else is affected |
+| 2 `active=false` does not switch a channel off | **not fixed, blocks** | `NotificationTemplateRepository.java:19-21` still filters `ActiveTrue` and takes the newest date; `NotificationTemplateRequest.java:9-10` still claims the opposite; no test |
+| 3 `compose` joins the caller's transaction | not fixed, same pass | `NotificationServiceImpl.java:102-103` `@Transactional` REQUIRED; throws at `:114-115`, `:118`, `:251` |
+| 4 `required_action` only has to exist | not fixed, same pass | `ReportDefinitionServiceImpl.java:182-186` still only `actions.existsById` |
+| 5 no soft-delete test; RLS IT cannot fail | not fixed, same pass | `EmployeeReportSource.java:82` filters `tenant_id` itself; nothing under `core/src/test/.../report/` inserts a deleted employee |
+| 6 W-21 spec says bytes never pass through the app | not fixed, same pass | `W-21-document-store.md:71,109`; `DocumentDownloadController.java:99` streams an `InputStreamResource` |
+
+Also noted, not for devashis: the local compose `worker` has no `DOCUMENT_BLOB_CONNECTION_STRING`
+(`compose.yml:204-222`), harmless until `W-23.2` stores a file from the worker. The `core/pom.xml`
+JNA exclusion is safe: only `ManagedIdentityCredentialBuilder` is used (`DocumentStorageConfig.java:47`).
+
+**Deployment note for the founder, when this does merge:** `app` and `worker` refuse to start
+without `DOCUMENT_LINK_SECRET` (`app/.../application.yml:73`, `worker/.../application.yml:79`).
+`deploy.yml` ships the image automatically after CI on `main` with `--set-env-vars`, but the
+Bicep that adds the Key Vault reference and `deploy.sh` that seeds `document-link-secret` run only
+by hand (`infra.yml` is what-if only). Run `deploy.sh` and the Bicep **before** merging, or the
+dev environment crash-loops on the next deploy.
+
+**Tracker-level risk (F-9):** Flyway runs without `out-of-order`. `V033`/`V034` are on `main`
+ahead of `V026`–`V032`, and this lane's `V037`–`V040` sit above krushna's unmerged `V035`/`V036`.
+Whichever lane reaches an environment second fails `validate-on-migrate`. Decide once: enable
+`out-of-order`, or renumber at merge.
 
 ## 4. Stream D — Payroll
 
@@ -184,10 +309,20 @@ Nothing started. Everything is blocked, most of it behind `W-26`.
 | #31 | `W-27.1` FBP plan definition | `payroll.fbp`, one row per tenant: enabled, declaration window, lock, notification flags, reminder days; the plan's components are the `W-26.1` rows flagged `is_fbp_component`. Mails stored, not sent (`W-20.x`). **Spec Ready 2026-09-25 — unassigned**, after `W-26.1`. Migration `V051` |
 | #31 | `W-27.2` FBP employee declaration | `payroll.employee_fbp_component`, one row per FBP line per salary version; the employee declares under `/me/fbp-declaration` while the window is open, the officer any time; the version-in-force read shows the declared and unallocated amounts, which `W-29` consumes; carried forward on revise. Three new action codes. **Spec Ready 2026-09-25 — unassigned**, after `W-27.1`, `W-26.2`, `W-13.4`. Migrations `V052`–`V053` — size-cap exception granted 2026-09-25 |
 | #32 | `W-28` Pay schedule | `payroll.pay_schedule`, one row per tenant: work week, pay-day rule, input cut-off day, first period; implements `W-18.1`'s `WorkingWeekSource` and derives every period's dates for `W-29`. **Per `D-60`:** the basis and the payable flags stay on `core.lop_policy`; the screen is `W-47`'s. **Spec Ready 2026-09-25 — unassigned**, after `W-18.1`. Migration `V054` |
-| #33–36 | `W-29.1`–`.4` Pay run | Creation, inclusion and locking · earnings and deductions · loss-of-pay and pay input collection · async execution on the worker with status and progress. **A merge.** Needs `W-52` |
-| #37 | `W-30` Off-cycle & one-time | Off-cycle run, one-time payout, bonus |
-| #38 | `W-31` Statutory components | Provident fund, state insurance, professional tax, slab configuration, per-tenant override |
-| #39–42 | `W-32.1`–`.4` Income tax declaration | Window, submission and revision · house rent, home loan, let-out property · section 6A, pre-tax deductions, previous employment · other income and tax summary |
+| #33 | `W-29.1` Pay run — creation, inclusion, locking | `payroll.payrun` and `payroll.employee_payrun`; one non-cancelled run per tenant and period by a partial unique index; every employee considered gets a row, `INCLUDED` or `SKIPPED` with a reason; lock calls `W-19`'s `PayInputService.lock`; the eight-value status vocabulary for all four parts. **Spec Ready 2026-09-25 — unassigned**, after `W-28`, `W-26.2`, `W-19`. Migrations `V055`–`V056` — size-cap exceptions (two scripts, one `core` read method) granted 2026-09-25 |
+| #34 | `W-29.2` Pay run — earnings and deductions | `payroll.employee_payrun_line` with code and name snapshots, money columns on the two `W-29.1` tables, all `numeric(19,4)`; `POST /compute` runs every `PayLineContributor` in order and sums; this ticket ships the `STRUCTURE` contributor only — statutory is `W-31`, tax is `W-36`, LOP and pay inputs are `W-29.3`. **Spec Ready 2026-09-25 — unassigned**, after `W-29.1`, `W-26.2`, `W-27.2`. Migration `V057` |
+| #35 | `W-29.3` Pay run — loss of pay and pay inputs | Two more contributors in the `W-29.2` loop: `LOP` scales the pro-rata lines by `W-18.1`'s divisor for LOP days and days outside the employment window, leavers included; `PAY_INPUT` turns the `W-19` ledger into lines, one per kind, read once per run. No HRMS call. Negative net kept and counted; hours-only overtime counted as unpriced, not paid. The stamp columns stay `W-18.2`'s. **Spec Ready 2026-09-25 — unassigned**, after `W-29.2`, `W-18.1`, `W-19`. Migration `V058` |
+| #36 | `W-29.4` Pay run — async on the worker | `POST /compute` returns `202` and enqueues on `payrun`; `PayrunQueueListener` calls `W-29.2`'s service; progress on the run and on `core.job_status`; resume by attempt number after a dead worker, stale after 15 minutes; duplicate messages never compute twice. The last part of the merge. **Spec Ready 2026-09-25 — unassigned**, after `W-29.3` (`W-52.1` is on main `5c07c45`). Migration `V059` |
+| #37 | `W-30.1` Pay input run tag | `run_ref` on `core.pay_input` and on the lock table, no FK; `forRun`, `lockRun`; a tagged row obeys its run's lock, not the period's, and `forPeriod` returns untagged rows only. No table. **Spec Ready 2026-09-25 — unassigned**, after `W-19`. Migration `V060` |
+| #37 | `W-30.2` Off-cycle pay run | `run_type = 'OFF_CYCLE'` on `payroll.payrun`, zero new tables (founder 2026-09-25); named employees, bank only; `POST /payruns/{id}/inputs` writes tagged ledger rows; `STRUCTURE` and `LOP` contribute nothing, `PAY_INPUT` reads `forRun`; the one-per-period index narrowed to regular runs. One-time payout and bonus are `W-19`/`W-29.x`'s; withheld-salary release dropped. **Spec Ready 2026-09-25 — unassigned**, after `W-30.1`, `W-29.3`. Migration `V061` |
+| #38 | `W-31.1` EPF and ESI settings | `payroll.epf_setting`, `payroll.esi_setting`, one row per tenant; numeric rates and wage ceilings replace text like `"12.00%"` and the browser's `15000`; defaults returned without a row. **Spec Ready 2026-09-25 — unassigned.** Migrations `V062`–`V063` |
+| #38 | `W-31.2` Professional tax | Shared state slabs in `reference.pt_state` / `pt_slab` (founder decision 2026-09-25), seeded from the state Acts for the 21 states legacy supports; tenant override as rows in `payroll.org_pt_override` / `org_pt_override_slab`, every change in `pt_history`; `resolve(gross, gender, period)` for `W-31.4`; female exemption and deduction months kept as slab columns. **Spec Ready 2026-09-25 — unassigned.** Migrations `V064` (`reference`), `V065`–`V067` |
+| #38 | `W-31.3` Employee EPF and ESI lines | `payroll.ctc_epf_component`, `ctc_esi_component` — the two tables `W-26.2` §13 handed here; derived server-side on every version from `W-31.1`'s rates and the statutory profile, employee share included, scale 4, no rounding. **Spec Ready 2026-09-25 — unassigned**, after `W-31.1`, `W-26.2`. Migrations `V068`–`V069` |
+| #38 | `W-31.4` Statutory pay-run lines | `StatutoryLineContributor` `@Order(400)`, the `STATUTORY` slot `W-29.2` reserved: employee PF, employee ESI and PT deducted, employer shares as `BENEFIT` (founder decision 2026-09-25); earned-wage scaling, rupee rounding once per line, PT on the period's month. No table. **Spec Ready 2026-09-25 — unassigned**, after `W-31.3`, `W-31.2`, `W-29.3` |
+| #39 | `W-32.1` Tax declaration — window, submission and revision | `payroll.income_tax_declaration`, one row per tenant **per financial year** (window dates, manual lock, default regime, PAN-for-rent rule); `payroll.employee_investment_declaration`, one per employee per year with `DRAFT`/`SUBMITTED` and a per-employee lock; the employee submits and reopens under `/me/tax-declaration/{fy}` while the window is open, the officer any time; `editable()` for `.2`–`.4`; `FinancialYear` holds the April–March rule once; no auto-lock job (the date decides). Four action codes. **Spec Ready 2026-09-25 — unassigned**, after `W-13.4`. Migrations `V070` (`reference`), `V071`–`V072` — size-cap exception requested |
+| #40 | `W-32.2` Tax declaration — house rent, home loan, let-out property | Four tables `payroll.employee_inv_house_rent`, `_home_loan`, `_let_out_property`, `_let_out_property_line`; months as `date`, rent periods non-overlapping, landlord PAN enforced server-side over `reference.hra_rule_master`'s threshold; `net_income_loss` derived with the reference 30 %; no caps applied (that is `W-33`). **Spec Ready 2026-09-25 — unassigned**, after `W-32.1`. Migrations `V073`–`V076` — size-cap exception requested |
+| #41 | `W-32.3` Tax declaration — section 6A, pre-tax deductions, previous employment | `payroll.employee_inv_section6a` (FK to `reference.section6a_item_master`, a description, several rows per item), `_pre_tax_deduction`, `_prev_employment` (`entered_by` — the officer's rows lock the section); per-item and per-group (`80C_GROUP`) limits enforced from the seed; regime filter on the catalogue. **Spec Ready 2026-09-25 — unassigned**, after `W-32.1`. Migrations `V077`–`V079` — size-cap exception requested |
+| #42 | `W-32.4` Tax declaration — other income and tax summary | `payroll.employee_inv_other_income` (four kinds) and `payroll.employee_inv_tax_summary`, one row per declaration per regime whose computed columns are nullable and written only by `W-33` through `TaxSummaryService.record`; `GET …/summary` totals every declared section server-side, never stored. **Spec Ready 2026-09-25 — unassigned**, after `W-32.1` (reads `.2`/`.3` when present). Migrations `V080`–`V081` — size-cap exception requested |
 | #43–45 | `W-33.1`–`.3` Tax calculator | New regime · old regime with section deductions · revisions and recalculation |
 | #46 | `W-34` Proof of investment | Submission, document upload, verification workflow, reviewer comments, rejection and resubmission |
 | #47 | `W-35` Reimbursements & deductions | Claim submission, approval, payroll feed, ad-hoc salary deduction |
@@ -222,7 +357,7 @@ Nothing started. All blocked on `W-15` approval engine.
 
 ## 6. Stream F — Frontend
 
-Nothing started. Everything waits on `W-45`, which waits on `W-12` entitlement.
+Nothing started. Everything waits on `W-45`, which is **Ready** now that `W-12` is on `main` (`a4f31ae`).
 
 | # | Ticket | What it is |
 |---|---|---|
