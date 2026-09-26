@@ -40,6 +40,14 @@ public class RequiresActionAspect implements Ordered {
             // the answer to a bug in an authorization check is no.
             throw new PermissionDeniedException("<unresolved>");
         }
+        if (permissionService.holds(required.value())) {
+            return joinPoint.proceed();
+        }
+        for (String alt : required.anyOf()) {
+            if (alt != null && !alt.isBlank() && permissionService.holds(alt)) {
+                return joinPoint.proceed();
+            }
+        }
         permissionService.require(required.value());
         return joinPoint.proceed();
     }

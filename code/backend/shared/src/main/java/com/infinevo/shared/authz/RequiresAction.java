@@ -36,4 +36,10 @@ public @interface RequiresAction {
 
     /** The action code, {@code <module>.<resource>.<verb>} — e.g. {@code core.employee.read}. */
     String value();
+
+    /**
+     * Optional alternative action codes, any of which satisfies the check if the caller holds it.
+     * Intended for {@code *_own} self-service endpoints where the service layer enforces ownership.
+     */
+    String[] anyOf() default {};
 }

@@ -2,9 +2,16 @@ package com.infinevo.core.employee.detail;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.employee.EmployeeResponse;
+import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.PermissionService;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The personal section (W-13.2) — {@code core.employee_personal}, {@code V015__employee_personal.sql}.
@@ -27,8 +34,29 @@ public class EmployeePersonalServiceImpl
     private static final int MAX_FATHER_NAME = 100;
     private static final int MAX_DIFFERENTLY_ABLED_TYPE = 64;
 
-    public EmployeePersonalServiceImpl(EmployeePersonalRepository repository, EmployeeRepository employees) {
+    private final PermissionService permissionService;
+    private final EmployeeService employeeService;
+
+    public EmployeePersonalServiceImpl(
+            EmployeePersonalRepository repository,
+            EmployeeRepository employees,
+            PermissionService permissionService,
+            EmployeeService employeeService) {
         super(repository, employees);
+        this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
+        this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+    }
+
+    @Override
+    @Transactional
+    public EmployeePersonalResponse put(UUID employeeId, EmployeePersonalRequest request) {
+        if (!permissionService.holds("core.employee.update")) {
+            Optional<EmployeeResponse> current = employeeService.currentEmployee();
+            if (current.isEmpty() || !current.get().id().equals(employeeId)) {
+                throw new PermissionDeniedException("core.employee.update");
+            }
+        }
+        return super.put(employeeId, request);
     }
 
     @Override

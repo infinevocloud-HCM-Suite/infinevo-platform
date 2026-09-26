@@ -146,6 +146,9 @@ public class Employee {
     @Column(name = "is_portal_enabled", nullable = false)
     private boolean portalEnabled = true;
 
+    @Column(name = "user_account_id")
+    private UUID userAccountId;
+
     /**
      * The org masters this employee is assigned to — W-14.1, {@code V014__employee_org_columns.sql}.
      *
@@ -257,6 +260,14 @@ public class Employee {
 
     public boolean isPortalEnabled() {
         return portalEnabled;
+    }
+
+    public UUID getUserAccountId() {
+        return userAccountId;
+    }
+
+    public void setUserAccountId(UUID userAccountId) {
+        this.userAccountId = userAccountId;
     }
 
     public Department getDepartment() {

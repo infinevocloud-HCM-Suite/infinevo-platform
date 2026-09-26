@@ -75,6 +75,12 @@ public class EmployeeController {
         return employeeService.update(id, request);
     }
 
+    @PutMapping("/{id}/login")
+    @RequiresAction("core.employee.update")
+    public EmployeeResponse linkLogin(@PathVariable("id") UUID id, @RequestBody EmployeeLoginRequest request) {
+        return employeeService.linkLogin(id, request != null ? request.userAccountId() : null);
+    }
+
     /** Soft delete — {@code 204}, and the row stays. See {@link Employee#markDeleted}. */
     @DeleteMapping("/{id}")
     @RequiresAction("core.employee.delete")
@@ -101,6 +107,13 @@ public class EmployeeController {
      */
     @ExceptionHandler(EmployeeService.DuplicateEmployeeNumberException.class)
     public ResponseEntity<ApiErrorResponse> handleDuplicate(EmployeeService.DuplicateEmployeeNumberException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+    }
+
+    @ExceptionHandler(EmployeeService.DuplicateUserAccountLinkException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateUserAccountLink(
+            EmployeeService.DuplicateUserAccountLinkException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
     }

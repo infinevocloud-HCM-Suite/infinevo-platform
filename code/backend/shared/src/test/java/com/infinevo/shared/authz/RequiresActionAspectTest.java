@@ -34,13 +34,14 @@ class RequiresActionAspectTest {
     private final UUID user = UUID.randomUUID();
 
     private StubActionSource source;
+    private PermissionCache cache;
     private RequiresActionAspect aspect;
 
     @BeforeEach
     void setUp() {
         source = new StubActionSource();
         source.grant(tenant, user, "core.employee.read", "core.org.read");
-        PermissionCache cache = new PermissionCache(new FakeCacheService());
+        cache = new PermissionCache(new FakeCacheService());
         aspect = new RequiresActionAspect(new PermissionService(() -> cache, () -> source, identityResolver()));
         TenantContext.set(tenant);
         authenticate(user);
@@ -121,6 +122,22 @@ class RequiresActionAspectTest {
         return (T) factory.getProxy();
     }
 
+    @Test
+    @DisplayName("An alternative action in anyOf: proceeds if held, throws if neither is held")
+    void anyOfActionProceedsWhenHeld() {
+        source.grant(tenant, user, "core.employee.update_own");
+        cache.bumpVersion(tenant);
+        GuardedBean bean = proxy(new GuardedBean());
+
+        assertThat(bean.updateWithAnyOf()).isEqualTo("updated");
+
+        source.grant(tenant, user);
+        cache.bumpVersion(tenant);
+        assertThatThrownBy(bean::updateWithAnyOf)
+                .isInstanceOf(PermissionDeniedException.class)
+                .hasMessageContaining("core.employee.update");
+    }
+
     static class GuardedBean {
         final AtomicInteger deletes = new AtomicInteger();
 
@@ -133,6 +150,11 @@ class RequiresActionAspectTest {
         public String delete() {
             deletes.incrementAndGet();
             return "deleted";
+        }
+
+        @RequiresAction(value = "core.employee.update", anyOf = "core.employee.update_own")
+        public String updateWithAnyOf() {
+            return "updated";
         }
     }
 
