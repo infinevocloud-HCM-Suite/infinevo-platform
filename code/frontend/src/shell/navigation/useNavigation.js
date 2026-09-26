@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, createElement } from 'react';
 import { apiClient } from '../../shared/api/client.js';
 import { keycloak } from '../auth/keycloak.js';
 
@@ -92,11 +92,7 @@ export function NavigationProvider({ children, value }) {
     return () => subscribers.delete(update);
   }, [value]);
 
-  return (
-    <NavigationContext.Provider value={value || state}>
-      {children}
-    </NavigationContext.Provider>
-  );
+  return createElement(NavigationContext.Provider, { value: value || state }, children);
 }
 
 NavigationProvider.propTypes = {
