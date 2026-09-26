@@ -24,7 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 /**
  * W-24.1 — adding Payroll to an HRMS-only tenant adds the payroll steps and leaves completed ones alone.
  */
-@SpringBootTest(classes = SetupChecklistTestApp.class)
+@SpringBootTest(classes = SetupChecklistTestApp.class, properties = "spring.main.allow-bean-definition-overriding=true")
 class ModuleUpgradeIT extends AbstractIntegrationTest {
 
     @Autowired
