@@ -40,6 +40,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         basePackages = {
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
+            "com.infinevo.core.holiday",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
@@ -53,6 +54,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         basePackages = {
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
+            "com.infinevo.core.holiday",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
@@ -62,6 +64,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         basePackages = {
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
+            "com.infinevo.core.holiday",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
