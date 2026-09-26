@@ -7,6 +7,15 @@
 > can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-26 — `W-13.4` merged (`e699699`)
+
+- Employee ↔ login link is on `main`: `core.employee.user_account_id` (`V026`), `currentEmployee()`, `PUT /employees/{id}/login`, and `update_own` on the personal and contact `PUT`s through `@RequiresAction(anyOf)`. D-6 closed.
+- **Decided once:** Flyway `out-of-order` is on. Lanes merge in tracker order from here; no renumbering.
+- Merge-review fix carried in: soft delete clears the link, so a rehire can take the same account.
+- **Newly unblocked:** `W-13.3` (sayeed, next) and `W-09.1`; the `W-13.4` half of `W-24.2`, `W-25` and `W-32.1`.
+- **Deferred to `W-13.3`:** personal-section self-service IT; a `currentEmployee` unit test that reaches the no-account and no-link branches.
+- Branch merged was `ticket/feature-sayeed` again; sayeed resets it to `main` before `W-13.3`.
+
 ## 2026-09-26 — `W-21`, `W-20.1`, `W-23.1` sent back again (`dev-devashis` at `dd1cda1`)
 
 - Gates and CI green, but only item 1 of six (Flyway placeholders) is fixed. Items 2–6 untouched since `1dd05f0`; item 2 (inactive template still sends the default) blocks.

@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-09-25**, against `main` — every row checked against a merge commit. Three lanes assigned 2026-09-25: **sayeed** (defects, then employee), **krushna** (tenant and onboarding), **devashis** (documents, notifications, reporting).
+> Last refreshed: **2026-09-26**, against `main` — every row checked against a merge commit. Three lanes assigned 2026-09-25: **sayeed** (defects, then employee), **krushna** (tenant and onboarding), **devashis** (documents, notifications, reporting).
 
 ## Summary
 
@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
 | B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete; suite green again (`W-04.1`) |
-| C — Core platform | 26 | 12 | 12 | **Building.** `W-12` complete on `main` (`a4f31ae`); every corrected spec is unblocked on codes |
+| C — Core platform | 26 | 13 | 13 | **Building.** `W-13.4` on `main` (`e699699`) — employees can now be linked to a login; every corrected spec is unblocked on codes |
 | D — Payroll | 21 | 0 | 0 | All blocked on `W-13.3` onward and `W-26` |
 | E — HRMS | 5 | 0 | 0 | All blocked on `W-15` |
 | F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is **Ready** — `W-12` is on `main` (`a4f31ae`) |
@@ -30,7 +30,7 @@ lane so two lanes never collide on a version.
 
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
-| sayeed | `dev-sayeed` | Defects, then employee | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** → `W-13.4` → `W-09.1` → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` → `W-39.2` | `V026`–`V032`, `V041` |
+| sayeed | `dev-sayeed` | Defects, then employee | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** ~~`W-13.4`~~ **on main `e699699`** → `W-09.1` **Ready** → D-9 manual checks → `W-13.3` → `W-14.2` → `W-39.1` → `W-19` → `W-39.2` | `V026`–`V032`, `V041` |
 | krushna | `dev-krushna` | Tenant and onboarding | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** → `W-24.1` **Ready** → `W-17` | `V033`–`V034` used · `V035`–`V036` |
 | devashis | `dev-devashis` | Documents, notifications, reporting | `W-21` + `W-20.1` + `W-23.1` **sent back again 2026-09-26, see § 3d** | `V037`–`V040` |
 | *unassigned* | — | Payroll | `W-26.1` → `W-26.2` → `W-27.1` → `W-27.2` → `W-28` (after `W-18.1`) → `W-29.1` (after `W-19`) → `W-29.2` → `W-29.3` (after `W-18.1`) → `W-29.4` (after `W-52.1`) → `W-30.1` (core, after `W-19`) → `W-30.2` → `W-31.1` → `W-31.2` → `W-31.3` (after `W-26.2`) → `W-31.4` (after `W-29.3`) → `W-32.1` (after `W-13.4`) → `W-32.2` → `W-32.3` → `W-32.4` | `V042`–`V081` reserved 2026-09-25 (extended by one for `W-27.2`, one for `W-28`, two for `W-29.1`, one each for `W-29.2`, `W-29.3`, `W-29.4`, `W-30.1`, `W-30.2`, eight for `W-31`, twelve for `W-32`); `V042`–`V045` are `W-26.1`, `V046`–`V050` are `W-26.2`, `V051` is `W-27.1`, `V052`–`V053` are `W-27.2`, `V054` is `W-28`, `V055`–`V056` are `W-29.1`, `V057` is `W-29.2`, `V058` is `W-29.3`, `V059` is `W-29.4`, `V060` is `W-30.1` (a `core` script), `V061` is `W-30.2`, `V062`–`V063` are `W-31.1`, `V064`–`V067` are `W-31.2` (`V064` a `reference` script), `V068`–`V069` are `W-31.3`, `V070`–`V072` are `W-32.1` (`V070` a `reference` script), `V073`–`V076` are `W-32.2`, `V077`–`V079` are `W-32.3`, `V080`–`V081` are `W-32.4` |
@@ -62,7 +62,7 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-3 | `GET /jobs/{id}` has no `@RequiresAction` and honours a legacy `organizationId` header | 2026-09-24 | `W-52.1` | **fixed** `5c07c45` |
 | D-4 | Every tenant's seeded `platform-admin` role holds `core.tenant.provision` (platform staff only) | 2026-09-24 | `W-11.3` | **fixed** `3350cf2` |
 | D-5 | Core actions catalogued as `hrms.*` (leave, holiday, attendance) — a module filter would strip them from a Payroll-only tenant | 2026-09-24 | `W-11.3` | **fixed** `3350cf2` |
-| D-6 | No link from `core.employee` to `core.user_account`; `*_own` actions and the portal cannot resolve the caller | 2026-09-24 | `W-13.4` | assigned — sayeed |
+| D-6 | No link from `core.employee` to `core.user_account`; `*_own` actions and the portal cannot resolve the caller | 2026-09-24 | `W-13.4` | **fixed on main `e699699`** |
 | D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | **fixed** `5c07c45` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | assigned — sayeed |
 | D-9 | `W-10` spec §8 login flow never run by hand; `W-14.1` §8 never independently re-run | at merge | sayeed runs the two §8 checks | assigned — sayeed |
@@ -137,7 +137,7 @@ blocker is cleared for all of them.
 | Ticket | What it is | Fixes | Ready? |
 |---|---|---|---|
 | `W-11.3` Catalogue correction | Rename the 14 Core actions misfiled as `hrms.*`, add 24 missing codes, take `core.tenant.provision` out of the seeded `platform-admin` role. Migration `V025` | `12-core-contracts.md` §4 | **on main `3350cf2`** · done — built by claude |
-| `W-13.4` Employee login link | `user_account_id` on `core.employee`; employees may edit their own personal and contact sections. Migration `V026` | §5 row 14 | **assigned — sayeed** |
+| `W-13.4` Employee login link | `user_account_id` on `core.employee`; employees may edit their own personal and contact sections. Migration `V026`. At merge: soft delete clears the link (the `V026` index covers deleted rows); Flyway `out-of-order` turned on. Deferred to `W-13.3`: personal-section self-service IT, a real `currentEmployee` unit test | §5 row 14 | **on main `e699699`** · done — built by sayeed, merge-review fixes by claude |
 | `W-52.1` Worker fix | The queue consumer loop, producer bean in `app`, retry-then-fail, running-job idempotency, `@RequiresAction` on `/jobs/{id}`. At merge: `JobService` gained `claimForRun` and `releaseForRetry` (spec §4 updated); `QueueRoundTripIT` proves the loop against Azurite | §5 row 21 | **on main `5c07c45`** · done — built by sayeed, merge-review fixes by claude |
 | `W-53.1` Cache cleanup | Delete the unused `core.cache` permission classes and the `core.queue` package | §5 row 22 | **on main `5c07c45`** · done — built by sayeed |
 | `W-04.1` Test connection budget | `mvn verify` **fails on main** (2026-09-25, reproducible serially): `shared`'s `DatabasePrivilegesIT` dies with `53300 too_many_connections`. 16 `@SpringBootTest` classes each hold a Hikari pool of 10 against a 100-slot Testcontainers Postgres. Fix: one shared test context config with a small pool, or raise the container's `max_connections` | suite green | **on main `3350cf2`** · done — built by claude |
@@ -150,7 +150,7 @@ blocker is cleared for all of them.
 | #11 | `W-10` Identity | Realm configuration, login flow, token validation, user profile sync, password reset delegated to Keycloak | **on main `ac1e531`** · code done — **spec §8 login never run by hand** |
 | #14 | `W-13.1` Employee record | The neutral root, `core.employee` (`V010`), isolated by row-level security rather than a remembered `WHERE` | **on main `7d0bab6`** · done |
 | #14 | `W-13.2` Employee detail | Five one-to-one sections (`V015`–`V019`) — personal, contact, identification, employment, bank. **Turned the audit trail on**, and fixed the `@Embedded` redaction gap | **on main `5228385`** · done |
-| #14 | `W-13.3` Employee search & listing | Search and listing over the employee record | **assigned — sayeed**, after `W-13.4`; must filter `is_deleted`; `EmployeeResponse.from` is an N+1 here |
+| #14 | `W-13.3` Employee search & listing | Search and listing over the employee record | **Ready — sayeed** (`W-13.4` on `main` `e699699`); must filter `is_deleted`; `EmployeeResponse.from` is an N+1 here; carries the two tests deferred from `W-13.4` |
 | #26 | `W-22.1` Audit trail | Change capture, `core.audit_log` (`V008`), `GET /api/v1/audit` | **on main `6fb4012`** · done — capturing since `W-13.2` |
 | #— | `W-22.2` Audit retention | Retention sweep and purge | spec approved; layer 3 in practice — also needs `W-20.1`, `W-20.2` |
 | #12 | `W-11.1` Role & action catalogue | 63-action catalogue in `reference.action`, tenant-scoped roles, seven system roles seeded per tenant, role and grant API | **on main `172eaaa`** · spec approved · code done |
@@ -293,10 +293,9 @@ Bicep that adds the Key Vault reference and `deploy.sh` that seeds `document-lin
 by hand (`infra.yml` is what-if only). Run `deploy.sh` and the Bicep **before** merging, or the
 dev environment crash-loops on the next deploy.
 
-**Tracker-level risk (F-9):** Flyway runs without `out-of-order`. `V033`/`V034` are on `main`
-ahead of `V026`–`V032`, and this lane's `V037`–`V040` sit above krushna's unmerged `V035`/`V036`.
-Whichever lane reaches an environment second fails `validate-on-migrate`. Decide once: enable
-`out-of-order`, or renumber at merge.
+**Tracker-level risk (F-9) — decided 2026-09-26:** `spring.flyway.out-of-order: true` is on
+`main` since `e699699` (`W-13.4`). Lanes may now merge in tracker order; nothing is renumbered.
+`validate-on-migrate` stays on.
 
 ## 4. Stream D — Payroll
 
