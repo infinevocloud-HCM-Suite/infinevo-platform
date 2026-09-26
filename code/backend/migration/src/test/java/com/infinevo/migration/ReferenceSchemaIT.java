@@ -212,19 +212,49 @@ class ReferenceSchemaIT {
                             conn,
                             "SELECT count(*) FROM reference.tax_slab_master"
                                     + " WHERE financial_year IN ('2023-2024', '2024-2025', '2025-2026')"))
-                    .as("three financial years, two regimes each")
-                    .isEqualTo(6);
+                    .as(
+                            "three financial years: GENERAL (2 regimes × 3) + SENIOR/SUPER_SENIOR (OLD × 3 × 2) = 12 headers")
+                    .isEqualTo(12);
 
-            // The old regime has not moved across the three years.
+            // The old regime has not moved across the three years for GENERAL category.
             for (String fy : List.of("2023-2024", "2024-2025", "2025-2026")) {
-                assertThat(brackets(conn, fy, "OLD"))
-                        .as("old regime brackets for FY %s", fy)
+                assertThat(brackets(conn, fy, "OLD", "GENERAL"))
+                        .as("old regime GENERAL brackets for FY %s", fy)
                         .containsExactly(
                                 bracket("0", "250000", "0.00"),
                                 bracket("250000", "500000", "5.00"),
                                 bracket("500000", "1000000", "20.00"),
                                 bracket("1000000", null, "30.00"));
             }
+
+            // Senior citizens (60-79) old regime: nil band up to 3,00,000.
+            for (String fy : List.of("2023-2024", "2024-2025", "2025-2026")) {
+                assertThat(brackets(conn, fy, "OLD", "SENIOR"))
+                        .as("old regime SENIOR brackets for FY %s", fy)
+                        .containsExactly(
+                                bracket("0", "300000", "0.00"),
+                                bracket("300000", "500000", "5.00"),
+                                bracket("500000", "1000000", "20.00"),
+                                bracket("1000000", null, "30.00"));
+            }
+
+            // Super senior citizens (80+) old regime: nil band up to 5,00,000.
+            for (String fy : List.of("2023-2024", "2024-2025", "2025-2026")) {
+                assertThat(brackets(conn, fy, "OLD", "SUPER_SENIOR"))
+                        .as("old regime SUPER_SENIOR brackets for FY %s", fy)
+                        .containsExactly(
+                                bracket("0", "500000", "0.00"),
+                                bracket("500000", "1000000", "20.00"),
+                                bracket("1000000", null, "30.00"));
+            }
+
+            // No NEW regime header with a non-GENERAL age category exists.
+            assertThat(count(
+                            conn,
+                            "SELECT count(*) FROM reference.tax_slab_master"
+                                    + " WHERE regime = 'NEW' AND age_category != 'GENERAL'"))
+                    .as("no NEW regime headers for non-GENERAL age categories")
+                    .isEqualTo(0);
 
             assertThat(brackets(conn, "2023-2024", "NEW"))
                     .containsExactly(
@@ -257,7 +287,7 @@ class ReferenceSchemaIT {
 
             // Every header has a version-1 history row to supersede when the law changes.
             assertThat(count(conn, "SELECT count(*) FROM reference.tax_slab_master_history WHERE version = 1"))
-                    .isEqualTo(6);
+                    .isEqualTo(12);
         }
     }
 
@@ -460,11 +490,17 @@ class ReferenceSchemaIT {
     }
 
     private static List<String> brackets(Connection conn, String financialYear, String regime) throws SQLException {
+        return brackets(conn, financialYear, regime, "GENERAL");
+    }
+
+    private static List<String> brackets(Connection conn, String financialYear, String regime, String ageCategory)
+            throws SQLException {
         List<String> found = new ArrayList<>();
         String sql = "SELECT d.from_amount, d.to_amount, d.tax_rate_percent"
                 + " FROM reference.tax_slab_detail_history d"
                 + " JOIN reference.tax_slab_master m ON m.id = d.slab_master_id"
                 + " WHERE m.financial_year = '" + financialYear + "' AND m.regime = '" + regime + "'"
+                + " AND m.age_category = '" + ageCategory + "'"
                 + " ORDER BY d.slab_order";
         try (ResultSet rs = conn.createStatement().executeQuery(sql)) {
             while (rs.next()) {
