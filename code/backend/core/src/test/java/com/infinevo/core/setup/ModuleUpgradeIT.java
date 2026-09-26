@@ -33,9 +33,6 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
     @Autowired
     private SubscriptionService subscriptionService;
 
-    @Autowired
-    private TenantSetupStepRepository stepRepository;
-
     @BeforeAll
     static void applySchema() throws Exception {
         SetupChecklistTestSchema.apply();
@@ -72,23 +69,36 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("adding Payroll to HRMS-only tenant adds payroll steps and preserves completed state")
-    void moduleUpgradeAddsStepsAndPreservesCompleted() {
+    void moduleUpgradeAddsStepsAndPreservesCompleted() throws SQLException {
         TenantContext.set(TENANT_A);
         try {
-            // 1. Initial state: HRMS only -> exactly 2 core steps
+            // 1. Initial state: HRMS only -> exactly 2 core steps, both incomplete
             SetupChecklistResponse initialChecklist = checklistService.getChecklist(TENANT_A);
             assertThat(initialChecklist.steps()).hasSize(2);
             assertThat(initialChecklist.steps())
                     .extracting(SetupStepResponse::code)
                     .containsExactly("WORK_LOCATION", "EMPLOYEE");
+            assertThat(initialChecklist.steps()).allMatch(s -> !s.completed());
 
-            // Mark WORK_LOCATION as completed directly in DB
-            TenantSetupStep wl = stepRepository
-                    .findByTenantIdAndStepCode(TENANT_A, "WORK_LOCATION")
+            // Complete WORK_LOCATION by creating a work location for Tenant A
+            try (Connection conn = SetupChecklistTestSchema.migrationConnection();
+                    PreparedStatement ps = conn.prepareStatement(
+                            "INSERT INTO core.work_location (id, tenant_id, code, name, country_code, is_filing_address, is_active) "
+                                    + "VALUES (?, ?, 'HQ', 'Headquarters', 'IN', true, true)")) {
+                ps.setObject(1, UUID.randomUUID());
+                ps.setObject(2, TENANT_A);
+                ps.executeUpdate();
+            }
+
+            // Verify WORK_LOCATION is now detected as completed
+            SetupChecklistResponse checklistWithWl = checklistService.getChecklist(TENANT_A);
+            SetupStepResponse completedWl = checklistWithWl.steps().stream()
+                    .filter(s -> s.code().equals("WORK_LOCATION"))
+                    .findFirst()
                     .orElseThrow();
-            Instant completedTime = Instant.now();
-            wl.setCompletedAt(completedTime);
-            stepRepository.save(wl);
+            assertThat(completedWl.completed()).isTrue();
+            assertThat(completedWl.completedAt()).isNotNull();
+            Instant originalCompletedAt = completedWl.completedAt();
 
             // 2. Upgrade: add PAYROLL module to subscription
             subscriptionService.updateModules(TENANT_A, Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
@@ -102,13 +112,13 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
                     .extracting(SetupStepResponse::code)
                     .contains("WORK_LOCATION", "EMPLOYEE", "PAY_SCHEDULE", "EPF");
 
-            // WORK_LOCATION preserved its completion!
+            // WORK_LOCATION preserved its completion and original completedAt timestamp!
             SetupStepResponse updatedWl = upgradedChecklist.steps().stream()
                     .filter(s -> s.code().equals("WORK_LOCATION"))
                     .findFirst()
                     .orElseThrow();
             assertThat(updatedWl.completed()).isTrue();
-            assertThat(updatedWl.completedAt()).isNotNull();
+            assertThat(updatedWl.completedAt()).isEqualTo(originalCompletedAt);
 
             // Newly added steps are incomplete
             SetupStepResponse paySchedule = upgradedChecklist.steps().stream()
