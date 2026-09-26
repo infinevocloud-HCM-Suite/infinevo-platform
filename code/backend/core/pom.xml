@@ -42,6 +42,25 @@
       <dependency>
         <groupId>com.azure</groupId>
         <artifactId>azure-identity</artifactId>
+        <!-- Only desktop credentials use these: the persistent token cache and JNA serve
+             the Windows credential store, the Linux keyring, IntelliJ, VS Code and Azure
+             PowerShell (IdentityClient.authenticateWithAzurePowerShell is the one JNA call
+             outside them). ManagedIdentityCredential never reaches any of it. They are
+             4.4 MB, carried twice in the backend image (app.jar and worker.jar). -->
+        <exclusions>
+          <exclusion>
+            <groupId>com.microsoft.azure</groupId>
+            <artifactId>msal4j-persistence-extension</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna-platform</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <!-- W-23.1: xlsx export through the streaming workbook (SXSSF). The in-memory workbook
            the frozen exports use holds the whole file in heap; this one holds a window. -->

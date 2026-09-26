@@ -271,6 +271,7 @@ Also as built:
 - **CSV** is UTF-8 with a byte-order mark and CRLF line endings. A cell starting with `=`, `+`, `-`, `@`, tab or CR is prefixed with `'`, so no spreadsheet runs it as a formula.
 - **XLSX** is Apache POI `SXSSFWorkbook` with a 100-row window, asserted at 10 000 rows. The version (5.5.1) is pinned in the parent POM.
 - An unknown filter name is refused. The file is named `{code}-yyyyMMdd-HHmmss.{ext}` and stored as `DocumentKind.EXPORT` with a null employee through `storeFile`. The response returns a 15-minute link.
+- **Image size.** POI adds about 18 MB to each of `app.jar` and `worker.jar`, so the backend image budget in `ci.yml` rises from 250 to 275 MB. W-21 kept its own share to about 2 MB by excluding azure-identity's desktop token-cache libraries (JNA). Sharing one library layer between the two jars is W-49's (section 7 risk).
 - The export runs synchronously in `app`. Running it as a job on `worker` is `W-23.2`'s (`DEV-TRACKER.md`: "async export as a job").
 
 **Correction applied to this spec.** In section 8, the compose service is named `blob`, not `azurite`.

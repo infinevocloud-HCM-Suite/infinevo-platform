@@ -639,7 +639,13 @@ jobs:
               echo "OK - $img = ${size_mb} MB (< ${max_mb} MB)"
             fi
           }
-          check_size infinevo-backend:test  250
+          # backend: W-49 set 200 MB. W-53 (Redis) raised it to 250 MB. W-21/W-23.1
+          # raise it to 275 MB. Main measured 233 MB, and those tickets add Azure Blob +
+          # managed identity (~2 MB after JNA is excluded) and Apache POI for streamed
+          # XLSX (~18 MB). Both land twice, because app.jar and worker.jar are separate
+          # fat jars (W-49 section 7 accepted that). Sharing one library layer between
+          # the two jars would recover far more than this raise; that belongs to W-49.
+          check_size infinevo-backend:test  275
           check_size infinevo-frontend:test  40
           check_size infinevo-keycloak:test 300
           exit "$failed"
