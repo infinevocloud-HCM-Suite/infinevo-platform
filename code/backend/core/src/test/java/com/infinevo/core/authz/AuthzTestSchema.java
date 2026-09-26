@@ -84,6 +84,9 @@ final class AuthzTestSchema {
                     // W-11.3: the catalogue correction — core.* leave, attendance and holiday codes,
                     // and no core.tenant.provision on any tenant-seeded role.
                     executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
+                    // W-13.4: user_account_id FK on core.employee; PermissionGuardIT reaches the
+                    // employee endpoint so Hibernate selects this column.
+                    executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
                 }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
