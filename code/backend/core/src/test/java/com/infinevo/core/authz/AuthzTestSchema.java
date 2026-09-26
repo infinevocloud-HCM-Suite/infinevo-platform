@@ -87,6 +87,8 @@ public final class AuthzTestSchema {
                     // W-12.1: subscription and tenant locale columns
                     executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
                     executeResource(conn, "db/migration/core/V034__subscription.sql");
+                    // W-24.1: tenant setup step
+                    executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
                 }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);

@@ -67,4 +67,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     /** The same count for a work location. See {@link #countByTenantIdAndDepartment_Id}. */
     long countByTenantIdAndWorkLocation_Id(UUID tenantId, UUID workLocationId);
+
+    /** True if at least one active (non-deleted) employee exists in this tenant (W-24.1 setup checker). */
+    boolean existsByTenantIdAndDeletedFalse(UUID tenantId);
 }

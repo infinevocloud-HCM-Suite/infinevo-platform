@@ -41,6 +41,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
             "com.infinevo.core.tenant"
         },
@@ -53,6 +54,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
             "com.infinevo.shared.identity"
         })
@@ -61,6 +63,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
             "com.infinevo.shared.identity"
         })
