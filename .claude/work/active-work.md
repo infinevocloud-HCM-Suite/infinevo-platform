@@ -1,11 +1,19 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-24**, checked row by row against `main`.
+> Last refreshed: **2026-09-26**, checked row by row against `main`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1 is half
 > done:** `W-11.1`, `W-11.2`, `W-13.2` and `W-14.1` are merged; six branches remain and
 > can all run at once.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-09-26 — `W-09.1` merged (`c79755c`)
+
+- `V027` seeds `OLD`-regime `SENIOR` and `SUPER_SENIOR` slab headers, brackets and history for FY 2023-24 to 2025-26. D-8 (#146) closed. `NEW` regime has no age rows by design.
+- `ReferenceSchemaIT` now filters brackets on `age_category`; the join-on-year-and-regime trap from spec § 9 is gone.
+- **Deferred:** the `V099` annual-update fixture gains the age pair when `W-33` first reads them.
+- Gates 5/5, CI green on `646c1a9`, reviewer approved with two cosmetic notes. Spec § 8 Docker `psql` checks were read, not run.
+- Open defects: `D-9` only (manual § 8 checks, sayeed). sayeed's next: D-9, then `W-13.3`. sayeed resets `W-09-1-age-category-seed` (or `dev-sayeed`) to `main`.
 
 ## 2026-09-26 — `W-13.4` merged (`e699699`)
 
