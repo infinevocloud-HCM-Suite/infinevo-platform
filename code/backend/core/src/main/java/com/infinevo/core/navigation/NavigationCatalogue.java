@@ -7,7 +7,21 @@ import java.util.List;
  * Catalogue of navigation item definitions (W-12.3, spec section 4).
  *
  * <p><strong>The catalogue is code, not a table.</strong> A menu item exists because an endpoint
- * exists; a row in a table would let the two drift.
+ * exists; a row in a table would let the two drift. {@link NavigationCatalogueValidator} refuses
+ * to start the application if any leaf's {@code targetEndpoint} has no {@code GET} mapping, and
+ * {@code NavigationMatchesEnforcementIT} walks every leaf against the real controllers.
+ *
+ * <p><strong>An item is added here in the ticket that ships its endpoint, never before.</strong>
+ * Items that are not here yet, and the ticket that adds each one:
+ *
+ * <ul>
+ *   <li>{@code core.employee} → {@code GET /api/v1/employees} — W-13.3 (employee search and listing)
+ *   <li>{@code hrms.timesheets} → {@code GET /api/v1/timesheets} — the HRMS timesheet ticket
+ *   <li>{@code payroll.runs} → {@code GET /api/v1/payroll/runs} — W-29 (pay run)
+ * </ul>
+ *
+ * <p>A module item names its {@link PlatformModule}; a core item passes {@code null}. The service
+ * filters by module first, then by action, and hides a parent whose children are all hidden.
  */
 public final class NavigationCatalogue {
 
@@ -36,8 +50,6 @@ public final class NavigationCatalogue {
     }
 
     public static final List<ItemDefinition> DEFAULT_ITEMS = List.of(
-            new ItemDefinition(
-                    "core.employee", "nav.employees", "/employees", "/api/v1/employees", null, "core.employee.read"),
             new ItemDefinition(
                     "core.org",
                     "nav.organisation",
@@ -68,21 +80,7 @@ public final class NavigationCatalogue {
                                     null,
                                     "core.org.read"))),
             new ItemDefinition("core.roles", "nav.roles", "/roles", "/api/v1/roles", null, "core.role.read"),
-            new ItemDefinition("core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"),
-            new ItemDefinition(
-                    "hrms.timesheets",
-                    "nav.timesheets",
-                    "/timesheets",
-                    "/api/v1/timesheets",
-                    PlatformModule.HRMS,
-                    "hrms.timesheet.read"),
-            new ItemDefinition(
-                    "payroll.runs",
-                    "nav.payroll",
-                    "/payroll/runs",
-                    "/api/v1/payroll/runs",
-                    PlatformModule.PAYROLL,
-                    "payroll.run.read"));
+            new ItemDefinition("core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"));
 
     private NavigationCatalogue() {}
 }

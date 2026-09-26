@@ -1,24 +1,23 @@
 package com.infinevo.core.navigation;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.authz.AuthzTestSchema;
 import com.infinevo.core.guard.PermissionGuardTestApp;
+import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
 import com.infinevo.shared.authz.PermissionCache;
-import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.shared.test.RedisTestContainerInitializer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,12 +34,16 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 /**
  * Integration test for the navigation feed (W-12.3, spec section 7).
  *
- * <p>Verifies:
  * <ul>
- *   <li>Acme and Globex get different feeds from the same endpoint.
- *   <li>Actions equals the caller's {@link PermissionService} set exactly.
- *   <li>Actions change on the next call after a role grant is revoked.
+ *   <li>Two callers get different feeds from the same endpoint.
+ *   <li>{@code actions} equals, exactly, the set the caller's roles grant — read from the schema as
+ *       its owner, independently of {@code PermissionService} — and changes on the next call after
+ *       the grant is revoked.
  * </ul>
+ *
+ * <p>Until the HRMS and Payroll endpoints ship, the shipped catalogue holds core items only, so the
+ * two feeds differ by role rather than by module. Module filtering is proven in
+ * {@code NavigationServiceTest} over a catalogue that has module items.
  */
 @SpringBootTest(classes = PermissionGuardTestApp.class)
 @AutoConfigureMockMvc
@@ -58,80 +61,73 @@ class NavigationIT extends AbstractIntegrationTest {
     @Autowired
     private PermissionCache permissionCache;
 
-    @Autowired
-    private PermissionService permissionService;
-
     private final ObjectMapper json = new ObjectMapper();
 
     private UUID acmeTenant;
     private UUID globexTenant;
     private UUID acmeAdminSub;
-    private UUID globexAdminSub;
     private UUID acmeAdminAccount;
+    private UUID acmeAdminRole;
+    private UUID globexEmployeeSub;
 
     @BeforeEach
     void setUp() throws SQLException {
         acmeTenant = AuthzTestSchema.insertTenant("Acme Navigation " + UUID.randomUUID());
         globexTenant = AuthzTestSchema.insertTenant("Globex Navigation " + UUID.randomUUID());
-
-        // Acme has PAYROLL only; Globex has HRMS + PAYROLL
         provisionSubscription(acmeTenant, "ACTIVE", "PAYROLL");
         provisionSubscription(globexTenant, "ACTIVE", "HRMS", "PAYROLL");
 
         acmeAdminSub = UUID.randomUUID();
         acmeAdminAccount = AuthzTestSchema.insertMember(acmeTenant, acmeAdminSub, "admin@acme.nav.test");
-        AuthzTestSchema.grant(acmeTenant, acmeAdminAccount, AuthzTestSchema.roleId(acmeTenant, "tenant-admin"));
+        acmeAdminRole = AuthzTestSchema.roleId(acmeTenant, "tenant-admin");
+        AuthzTestSchema.grant(acmeTenant, acmeAdminAccount, acmeAdminRole);
 
-        globexAdminSub = UUID.randomUUID();
-        UUID globexAdminAccount = AuthzTestSchema.insertMember(globexTenant, globexAdminSub, "admin@globex.nav.test");
-        AuthzTestSchema.grant(globexTenant, globexAdminAccount, AuthzTestSchema.roleId(globexTenant, "tenant-admin"));
+        globexEmployeeSub = UUID.randomUUID();
+        UUID globexEmployeeAccount =
+                AuthzTestSchema.insertMember(globexTenant, globexEmployeeSub, "employee@globex.nav.test");
+        AuthzTestSchema.grant(globexTenant, globexEmployeeAccount, AuthzTestSchema.roleId(globexTenant, "employee"));
     }
 
     @Test
-    @DisplayName("Acme and Globex get different feeds from the same endpoint")
-    void acmeAndGlobexGetDifferentFeedsFromSameEndpoint() throws Exception {
-        // Acme (Payroll only): sees core and payroll, but NO hrms.*
-        mvc.perform(as(acmeTenant, acmeAdminSub, get("/api/v1/navigation")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[*].key", hasItem("core.employee")))
-                .andExpect(jsonPath("$.items[*].key", hasItem("payroll.runs")))
-                .andExpect(jsonPath("$.items[*].key", not(hasItem("hrms.timesheets"))));
+    @DisplayName("two callers get different feeds from the same endpoint; the admin sees the whole catalogue")
+    void twoCallersGetDifferentFeedsFromTheSameEndpoint() throws Exception {
+        NavigationResponse admin = feedFor(acmeTenant, acmeAdminSub);
+        NavigationResponse employee = feedFor(globexTenant, globexEmployeeSub);
 
-        // Globex (HRMS + Payroll): sees both hrms.* and payroll.*
-        mvc.perform(as(globexTenant, globexAdminSub, get("/api/v1/navigation")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[*].key", hasItem("core.employee")))
-                .andExpect(jsonPath("$.items[*].key", hasItem("hrms.timesheets")))
-                .andExpect(jsonPath("$.items[*].key", hasItem("payroll.runs")));
+        List<String> catalogueKeys = NavigationCatalogue.DEFAULT_ITEMS.stream()
+                .map(ItemDefinition::key)
+                .toList();
+        assertThat(keysOf(admin)).containsExactlyElementsOf(catalogueKeys);
+        assertThat(keysOf(employee)).isNotEqualTo(keysOf(admin));
+        assertThat(keysOf(employee)).doesNotContain("core.roles", "core.audit");
     }
 
     @Test
-    @DisplayName("actions equals the caller's PermissionService set exactly, and changes on next call after revoke")
-    void actionsEqualsCallerPermissionServiceSetExactly_andUpdatesOnRevoke() throws Exception {
-        MvcResult result = mvc.perform(as(acmeTenant, acmeAdminSub, get("/api/v1/navigation")))
-                .andExpect(status().isOk())
-                .andReturn();
+    @DisplayName("actions equals the caller's granted set exactly, and is empty on the next call after revoke")
+    void actionsEqualsGrantedSetExactly_andUpdatesOnRevoke() throws Exception {
+        Set<String> granted = AuthzTestSchema.actionsOfRole(acmeAdminRole);
+        assertThat(granted).isNotEmpty();
 
-        NavigationResponse response =
-                json.readValue(result.getResponse().getContentAsString(), NavigationResponse.class);
+        NavigationResponse before = feedFor(acmeTenant, acmeAdminSub);
+        assertThat(before.actions()).containsExactlyInAnyOrderElementsOf(granted);
 
-        assertThat(response.actions()).isNotEmpty();
-        assertThat(response.actions()).contains("core.employee.read", "payroll.run.read");
-
-        // Revoke the role from Acme admin and bump version
         revokeRoles(acmeTenant, acmeAdminAccount);
         permissionCache.bumpVersion(acmeTenant);
 
-        // Next call immediately reflects the change: empty actions and no items requiring actions
-        MvcResult updatedResult = mvc.perform(as(acmeTenant, acmeAdminSub, get("/api/v1/navigation")))
+        NavigationResponse after = feedFor(acmeTenant, acmeAdminSub);
+        assertThat(after.actions()).isEmpty();
+        assertThat(after.items()).isEmpty();
+    }
+
+    private NavigationResponse feedFor(UUID tenantId, UUID sub) throws Exception {
+        MvcResult result = mvc.perform(as(tenantId, sub, get("/api/v1/navigation")))
                 .andExpect(status().isOk())
                 .andReturn();
+        return json.readValue(result.getResponse().getContentAsString(), NavigationResponse.class);
+    }
 
-        NavigationResponse updatedResponse =
-                json.readValue(updatedResult.getResponse().getContentAsString(), NavigationResponse.class);
-
-        assertThat(updatedResponse.actions()).isEmpty();
-        assertThat(updatedResponse.items()).isEmpty();
+    private static List<String> keysOf(NavigationResponse response) {
+        return response.items().stream().map(NavigationItemResponse::key).toList();
     }
 
     private void provisionSubscription(UUID tenantId, String status, String... modules) throws SQLException {

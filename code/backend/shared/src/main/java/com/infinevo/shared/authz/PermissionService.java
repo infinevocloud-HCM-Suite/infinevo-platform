@@ -79,10 +79,10 @@ public class PermissionService {
                     tenantId.get(), userId.get(), () -> load(source, tenantId.get(), userId.get()));
         } catch (RuntimeException e) {
             log.warn(
-                    "Permission check failed for user {} in tenant {} and fails closed: {}",
+                    "Permission check failed for user {} in tenant {} and fails closed",
                     userId.get(),
                     tenantId.get(),
-                    e.getMessage());
+                    e);
             return Set.of();
         }
     }

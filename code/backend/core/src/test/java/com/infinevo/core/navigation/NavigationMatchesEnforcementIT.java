@@ -8,12 +8,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.authz.AuthzTestSchema;
 import com.infinevo.core.guard.PermissionGuardTestApp;
+import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.shared.test.RedisTestContainerInitializer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,11 +34,16 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * W-12.3 §7: For every item in the feed, the target endpoint returns non-403;
- * for every item absent, it returns 403.
+ * W-12.3 §7 — the ticket's reason to exist: for every leaf of the shipped catalogue, a visible item's
+ * endpoint answers 2xx and an absent item's endpoint answers 403, <em>against the real controllers</em>.
  *
- * <p>Catches the menu and the enforcement drifting apart in either direction —
- * a visible item that refuses, or a hidden item that works.
+ * <p>There are no stand-ins. {@link PermissionGuardTestApp} holds the org, role and audit controllers
+ * the catalogue targets, and {@code NavigationCatalogueValidator} refuses to start the context if a
+ * catalogue leaf has no mapping — so a catalogue entry for an endpoint that does not exist fails here
+ * before a single request is made.
+ *
+ * <p>The visible branch asserts 2xx, not merely "not 403": a visible item that answers 404 or 405 is
+ * as broken as one that refuses.
  */
 @SpringBootTest(classes = PermissionGuardTestApp.class)
 @AutoConfigureMockMvc
@@ -58,80 +65,103 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
 
     private UUID globexTenant;
     private UUID globexEmployeeSub;
+    private UUID globexHrSub;
 
     @BeforeEach
     void setUp() throws SQLException {
-        // Acme has PAYROLL only
         acmeTenant = AuthzTestSchema.insertTenant("Acme Match " + UUID.randomUUID());
         provisionSubscription(acmeTenant, "ACTIVE", "PAYROLL");
         acmeAdminSub = UUID.randomUUID();
         UUID acmeAdminAccount = AuthzTestSchema.insertMember(acmeTenant, acmeAdminSub, "admin@acme.match.test");
         AuthzTestSchema.grant(acmeTenant, acmeAdminAccount, AuthzTestSchema.roleId(acmeTenant, "tenant-admin"));
 
-        // Globex has HRMS + PAYROLL, but user has employee role only
         globexTenant = AuthzTestSchema.insertTenant("Globex Match " + UUID.randomUUID());
         provisionSubscription(globexTenant, "ACTIVE", "HRMS", "PAYROLL");
         globexEmployeeSub = UUID.randomUUID();
         UUID globexEmployeeAccount =
                 AuthzTestSchema.insertMember(globexTenant, globexEmployeeSub, "employee@globex.match.test");
         AuthzTestSchema.grant(globexTenant, globexEmployeeAccount, AuthzTestSchema.roleId(globexTenant, "employee"));
+        globexHrSub = UUID.randomUUID();
+        UUID globexHrAccount = AuthzTestSchema.insertMember(globexTenant, globexHrSub, "hr@globex.match.test");
+        AuthzTestSchema.grant(globexTenant, globexHrAccount, AuthzTestSchema.roleId(globexTenant, "hr"));
     }
 
     @Test
-    @DisplayName("Acme admin: present items return non-403, absent items (HRMS) return 403")
-    void acmeAdmin_presentItemsReturnNon403_absentReturn403() throws Exception {
-        MvcResult navResult = mvc.perform(as(acmeTenant, acmeAdminSub, get("/api/v1/navigation")))
-                .andExpect(status().isOk())
-                .andReturn();
+    @DisplayName("tenant admin: every leaf is visible and every target answers 2xx")
+    void tenantAdmin_everyLeafVisibleAndEveryTargetAnswers2xx() throws Exception {
+        Set<String> visible = visibleKeys(acmeTenant, acmeAdminSub);
 
-        NavigationResponse nav = json.readValue(navResult.getResponse().getContentAsString(), NavigationResponse.class);
-        Set<String> visibleKeys = collectAllKeys(nav.items());
-
-        // Catalogue items
-        for (NavigationCatalogue.ItemDefinition def : NavigationCatalogue.DEFAULT_ITEMS) {
-            verifyItemEnforcement(acmeTenant, acmeAdminSub, def, visibleKeys);
-        }
+        assertThat(visible).containsAll(leafKeys(NavigationCatalogue.DEFAULT_ITEMS));
+        walk(acmeTenant, acmeAdminSub, visible);
     }
 
     @Test
-    @DisplayName("Globex employee: unheld admin items are absent and return 403 FORBIDDEN")
-    void globexEmployee_absentAdminItemsReturn403Forbidden() throws Exception {
-        MvcResult navResult = mvc.perform(as(globexTenant, globexEmployeeSub, get("/api/v1/navigation")))
+    @DisplayName("employee: the admin-only leaves are absent and answer 403; the rest agree both ways")
+    void employee_adminLeavesAbsentAndAnswer403() throws Exception {
+        Set<String> visible = visibleKeys(globexTenant, globexEmployeeSub);
+
+        // The seeded employee role reads the org masters but neither roles nor the audit trail,
+        // so this caller exercises both branches of the walk.
+        assertThat(visible).doesNotContain("core.roles", "core.audit");
+        assertThat(visible).isNotEmpty();
+        walk(globexTenant, globexEmployeeSub, visible);
+    }
+
+    @Test
+    @DisplayName("hr: whatever the feed shows agrees with the endpoints, in both directions")
+    void hr_feedAndEnforcementAgreeBothWays() throws Exception {
+        walk(globexTenant, globexHrSub, visibleKeys(globexTenant, globexHrSub));
+    }
+
+    private Set<String> visibleKeys(UUID tenantId, UUID sub) throws Exception {
+        MvcResult navResult = mvc.perform(as(tenantId, sub, get("/api/v1/navigation")))
                 .andExpect(status().isOk())
                 .andReturn();
-
         NavigationResponse nav = json.readValue(navResult.getResponse().getContentAsString(), NavigationResponse.class);
-        Set<String> visibleKeys = collectAllKeys(nav.items());
+        return collectAllKeys(nav.items());
+    }
 
-        // Catalogue items
-        for (NavigationCatalogue.ItemDefinition def : NavigationCatalogue.DEFAULT_ITEMS) {
-            verifyItemEnforcement(globexTenant, globexEmployeeSub, def, visibleKeys);
+    private void walk(UUID tenantId, UUID sub, Set<String> visibleKeys) throws Exception {
+        for (ItemDefinition def : NavigationCatalogue.DEFAULT_ITEMS) {
+            verifyItemEnforcement(tenantId, sub, def, visibleKeys);
         }
     }
 
-    private void verifyItemEnforcement(
-            UUID tenantId, UUID sub, NavigationCatalogue.ItemDefinition def, Set<String> visibleKeys) throws Exception {
+    private void verifyItemEnforcement(UUID tenantId, UUID sub, ItemDefinition def, Set<String> visibleKeys)
+            throws Exception {
         if (def.hasChildren()) {
-            for (NavigationCatalogue.ItemDefinition child : def.children()) {
+            for (ItemDefinition child : def.children()) {
                 verifyItemEnforcement(tenantId, sub, child, visibleKeys);
             }
             return;
         }
 
-        boolean isVisible = visibleKeys.contains(def.key());
-        MvcResult endpointResult =
-                mvc.perform(as(tenantId, sub, get(def.targetEndpoint()))).andReturn();
+        int httpStatus = mvc.perform(as(tenantId, sub, get(def.targetEndpoint())))
+                .andReturn()
+                .getResponse()
+                .getStatus();
 
-        int httpStatus = endpointResult.getResponse().getStatus();
-        if (isVisible) {
+        if (visibleKeys.contains(def.key())) {
             assertThat(httpStatus)
-                    .as("Visible menu item '%s' must not return 403 on endpoint '%s'", def.key(), def.targetEndpoint())
-                    .isNotEqualTo(HttpStatus.FORBIDDEN.value());
+                    .as("Visible menu item '%s' must answer 2xx on '%s'", def.key(), def.targetEndpoint())
+                    .isBetween(200, 299);
         } else {
             assertThat(httpStatus)
-                    .as("Absent menu item '%s' must return 403 on endpoint '%s'", def.key(), def.targetEndpoint())
+                    .as("Absent menu item '%s' must answer 403 on '%s'", def.key(), def.targetEndpoint())
                     .isEqualTo(HttpStatus.FORBIDDEN.value());
         }
+    }
+
+    private static List<String> leafKeys(List<ItemDefinition> items) {
+        List<String> keys = new ArrayList<>();
+        for (ItemDefinition def : items) {
+            if (def.hasChildren()) {
+                keys.addAll(leafKeys(def.children()));
+            } else {
+                keys.add(def.key());
+            }
+        }
+        return keys;
     }
 
     private Set<String> collectAllKeys(List<NavigationItemResponse> items) {

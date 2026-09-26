@@ -231,3 +231,23 @@ Reviewed at `161c9d1`. CI red on frontend lint, backend green. Not merged. Fix h
 
 What is right and must stay: the service filters by module and action, `actions` is
 `PermissionService`'s cached set, parent pruning works, an empty feed renders an empty shell.
+
+### 14a. Second pass — 2026-09-26
+
+Items 5, 6 and 7 were still open at `51e5f4d`; items 2 and 3 were only half closed. Fixed as follows.
+
+| # | Fix |
+|---|---|
+| 2 | `NavigationTestEndpointsController` deleted. `PermissionGuardTestApp` now holds the real `AuditController`; every catalogue leaf is walked against a real controller, by three callers (admin, hr, employee) |
+| 3, 8 | The `GET /api/v1/employees` stub is removed and the `core.employee` item with it — it returns with `W-13.3`, which ships the list endpoint. An item is added in the ticket that ships its endpoint, never before (`NavigationCatalogue` javadoc) |
+| 5 | Frontend tests run under vitest and jsdom and render the real `AppShell`, `useNavigation`, `useCan`, `routesFromFeed` and `keycloak.js`; only the HTTP client and the adapter are replaced. `npm test` is now a CI step |
+| 6 | `hrms.timesheets` and `payroll.runs` are removed until their endpoints exist. `NavigationCatalogueValidator` runs in every profile and **refuses to start the application** if a leaf has no `GET` mapping; unit-tested, and exercised by every context that scans `core.navigation` |
+| 7 | The tenant-change signal is the Keycloak adapter's own token callbacks: `keycloak.js` exports `onTenantChange`, fired when a token arrives carrying a different `tenant_id`; `useNavigation` refetches on it. The `window` event is gone. Tested against the real adapter module |
+| 9 | `NavigationMatchesEnforcementIT` asserts 2xx for a visible item, 403 for an absent one |
+| 10 | `NavigationIT` asserts `actions` equals, exactly, the codes the caller's role holds, read from the schema as its owner |
+
+**Deviation from §8, recorded:** until the HRMS and Payroll endpoints ship, the shipped catalogue holds
+core items only, so `admin.globex` sees no `hrms.*` or `payroll.*` key and the two admins' feeds are
+identical. The module filter is proven in `NavigationServiceTest` over a catalogue that has module items.
+`NavigationIT` proves two callers get different feeds by role instead. The §8 expectation for Globex
+becomes true in the ticket that adds the first module item.

@@ -74,3 +74,44 @@ export async function getValidToken() {
 export function logout() {
   return keycloak.logout();
 }
+
+/**
+ * Tenant-change notifications (W-12.3 §5).
+ *
+ * The tenant rides in the token's `tenant_id` claim and nowhere else, so the only moment a
+ * different tenant can appear is when a token arrives: at login (`onAuthSuccess`) or on a
+ * refresh (`onAuthRefreshSuccess`). keycloak-js holds one callback per event, so this module
+ * owns both and fans out to the listeners registered here. The navigation feed refetches on
+ * this signal; a menu belonging to the previous tenant is otherwise left on screen.
+ */
+const tenantListeners = new Set();
+let seenTenant = false;
+let lastTenantId = null;
+
+function currentTenantId() {
+  return keycloak.tokenParsed?.tenant_id ?? null;
+}
+
+function tokenArrived() {
+  const tenantId = currentTenantId();
+  if (seenTenant && tenantId !== lastTenantId) {
+    const previous = lastTenantId;
+    lastTenantId = tenantId;
+    tenantListeners.forEach((listener) => listener(tenantId, previous));
+    return;
+  }
+  seenTenant = true;
+  lastTenantId = tenantId;
+}
+
+keycloak.onAuthSuccess = tokenArrived;
+keycloak.onAuthRefreshSuccess = tokenArrived;
+
+/**
+ * Calls `listener(newTenantId, previousTenantId)` whenever a token arrives carrying a
+ * different tenant from the last one. Returns the function that removes the listener.
+ */
+export function onTenantChange(listener) {
+  tenantListeners.add(listener);
+  return () => tenantListeners.delete(listener);
+}

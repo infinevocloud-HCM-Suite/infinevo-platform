@@ -17,4 +17,10 @@ export default defineConfig({
     },
   },
   server: { port: 5173 },
+  // `npm test` - vitest reads this file. jsdom because the shell tests render AppShell.
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.js'],
+    include: ['src/**/*.test.{js,jsx}'],
+  },
 });

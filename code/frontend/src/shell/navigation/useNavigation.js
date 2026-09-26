@@ -1,98 +1,64 @@
 import PropTypes from 'prop-types';
-import { createContext, useContext, useState, useEffect, useRef, createElement } from 'react';
+import { createContext, useContext, useState, useEffect, createElement } from 'react';
 import { apiClient } from '../../shared/api/client.js';
-import { keycloak } from '../auth/keycloak.js';
+import { onTenantChange } from '../auth/keycloak.js';
+
+/**
+ * The navigation feed (W-12.3 §5): what the server says this caller may see, and nothing else.
+ *
+ *   GET /api/v1/navigation -> { items: [...ordered...], actions: [...caller's codes...] }
+ *
+ * One store for the whole shell. It is fetched once after login and again whenever the
+ * signed-in tenant changes - the signal for that is the Keycloak adapter's token callbacks
+ * (keycloak.js, onTenantChange), which is the only place a new tenant_id claim can appear.
+ * Until the first response arrives the feed is empty and `loading`; a failed call leaves it
+ * empty. There is no default menu behind either state.
+ */
 
 export const NavigationContext = createContext(null);
 
-let globalNavigationState = {
-  items: [],
-  actions: [],
-  loading: false,
-  error: null,
-};
+const EMPTY = Object.freeze({ items: [], actions: [], loading: false, loaded: false, error: null });
 
+let state = EMPTY;
 const subscribers = new Set();
 
-function notifySubscribers() {
-  subscribers.forEach((callback) => callback(globalNavigationState));
+function publish(next) {
+  state = next;
+  subscribers.forEach((listener) => listener(state));
 }
 
-export function setNavigationFeed(feed) {
-  globalNavigationState = {
-    items: feed?.items || [],
-    actions: feed?.actions || [],
-    loading: false,
-    error: null,
-  };
-  notifySubscribers();
+/** Test seam: forget everything, as if the page had just loaded. */
+export function resetNavigationFeed() {
+  publish(EMPTY);
 }
 
-/**
- * Fetches the navigation feed from GET /api/v1/navigation (W-12.3 §5).
- *
- * Also checks whether the tenant_id in the refreshed token has changed and, if
- * so, dispatches 'infinevo:tenant-switched' on window.  That is the one place
- * the event is guaranteed to fire — the token has just been validated and the
- * new claim is available.
- */
+/** Fetches the feed and publishes it to every mounted hook. Rejects with the API error. */
 export async function fetchNavigationFeed() {
-  globalNavigationState = { ...globalNavigationState, loading: true, error: null };
-  notifySubscribers();
+  publish({ ...state, loading: true, error: null });
   try {
-    const endpoint = apiClient.defaults?.baseURL?.endsWith('/api')
-      ? '/v1/navigation'
-      : '/api/v1/navigation';
+    const endpoint = apiClient.defaults?.baseURL?.endsWith('/api') ? '/v1/navigation' : '/api/v1/navigation';
     const response = await apiClient.get(endpoint);
-    const data = response.data || {};
-
-    // Detect a tenant change so the event is dispatched even when the full
-    // Keycloak adapter is not available in tests.
-    const previousTenant = globalNavigationState._lastTenantId;
-    const currentTenant = keycloak?.tokenParsed?.tenant_id ?? null;
-    if (typeof window !== 'undefined' && previousTenant != null && currentTenant !== previousTenant) {
-      window.dispatchEvent(new CustomEvent('infinevo:tenant-switched', { detail: { tenantId: currentTenant } }));
-    }
-
-    globalNavigationState = {
-      items: data.items || [],
-      actions: data.actions || [],
+    const data = response?.data || {};
+    publish({
+      items: Array.isArray(data.items) ? data.items : [],
+      actions: Array.isArray(data.actions) ? data.actions : [],
       loading: false,
+      loaded: true,
       error: null,
-      _lastTenantId: currentTenant,
-    };
-    notifySubscribers();
-    return globalNavigationState;
+    });
+    return state;
   } catch (err) {
-    globalNavigationState = {
-      items: [],
-      actions: [],
-      loading: false,
-      error: err,
-      _lastTenantId: globalNavigationState._lastTenantId,
-    };
-    notifySubscribers();
+    publish({ items: [], actions: [], loading: false, loaded: true, error: err });
     throw err;
   }
 }
 
 /**
- * Navigation provider to wrap the shell or provide test fixtures.
+ * Supplies a fixed feed to everything beneath it. The shell does not use this - it reads the
+ * live store - but a screen test can hand its component exactly the actions it wants.
  */
 export function NavigationProvider({ children, value }) {
-  const [state, setState] = useState(value || globalNavigationState);
-
-  useEffect(() => {
-    if (value) {
-      setState(value);
-      return;
-    }
-    const update = (newState) => setState(newState);
-    subscribers.add(update);
-    return () => subscribers.delete(update);
-  }, [value]);
-
-  return createElement(NavigationContext.Provider, { value: value || state }, children);
+  return createElement(NavigationContext.Provider, { value }, children);
 }
 
 NavigationProvider.propTypes = {
@@ -102,56 +68,38 @@ NavigationProvider.propTypes = {
     actions: PropTypes.oneOfType([PropTypes.array, PropTypes.instanceOf(Set)]),
     loading: PropTypes.bool,
     error: PropTypes.object,
-  }),
+  }).isRequired,
 };
 
 /**
- * Hook to access navigation feed (items, actions, loading, error, refetch).
- * Fetches once after login and refetches on tenant switch.
+ * The feed as the shell sees it: `items`, `actions`, `loading`, `error`, and `refetch`.
+ *
+ * The first mounted hook triggers the one fetch after login; every hook refetches when the
+ * tenant changes. Inside a NavigationProvider the provided value is returned unchanged.
  */
 export function useNavigation() {
-  const context = useContext(NavigationContext);
-  const [localState, setLocalState] = useState(context || globalNavigationState);
-  const tenantRef = useRef(keycloak?.tokenParsed?.tenant_id);
+  const provided = useContext(NavigationContext);
+  const [live, setLive] = useState(state);
 
   useEffect(() => {
-    if (context) {
-      setLocalState(context);
-      return;
+    if (provided) {
+      return undefined;
     }
-
-    const update = (newState) => setLocalState(newState);
-    subscribers.add(update);
-
-    // Initial fetch once after login if not already populated or loading
-    if (globalNavigationState.items.length === 0 && !globalNavigationState.loading) {
+    subscribers.add(setLive);
+    setLive(state);
+    if (!state.loaded && !state.loading) {
       fetchNavigationFeed().catch(() => {});
     }
-
-    return () => subscribers.delete(update);
-  }, [context]);
-
-  // Refetch on tenant change
-  useEffect(() => {
-    if (context) return;
-
-    const checkTenant = () => {
-      const activeTenant = keycloak?.tokenParsed?.tenant_id;
-      if (activeTenant && activeTenant !== tenantRef.current) {
-        tenantRef.current = activeTenant;
-        fetchNavigationFeed().catch(() => {});
-      }
+    const stopWatchingTenant = onTenantChange(() => {
+      fetchNavigationFeed().catch(() => {});
+    });
+    return () => {
+      subscribers.delete(setLive);
+      stopWatchingTenant();
     };
+  }, [provided]);
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('infinevo:tenant-switched', checkTenant);
-      return () => {
-        window.removeEventListener('infinevo:tenant-switched', checkTenant);
-      };
-    }
-  }, [context]);
-
-  const active = context || localState;
+  const active = provided || live;
   return {
     items: active.items || [],
     actions: active.actions || [],

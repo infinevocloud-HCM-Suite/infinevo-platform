@@ -71,6 +71,8 @@ public final class AuthzTestSchema {
                     // membership in core.user_tenant, and reaches the employee endpoints, whose
                     // queries name the V014 org columns.
                     executeResource(conn, "db/migration/core/V002__user_tenant.sql");
+                    // W-12.3: the real AuditController answers the core.audit menu item in the guard tests
+                    executeResource(conn, "db/migration/core/V008__audit_log.sql");
                     executeResource(conn, "db/migration/core/V009__user_account.sql");
                     executeResource(conn, "db/migration/core/V010__employee.sql");
                     executeResource(conn, "db/migration/core/V011__department.sql");
@@ -222,7 +224,7 @@ public final class AuthzTestSchema {
     }
 
     /** The action codes a role holds, read as the schema owner — the control for the RLS assertions. */
-    static Set<String> actionsOfRole(UUID roleId) throws SQLException {
+    public static Set<String> actionsOfRole(UUID roleId) throws SQLException {
         return strings("SELECT action_code FROM core.role_action WHERE role_id = ?", roleId);
     }
 

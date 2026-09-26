@@ -1,91 +1,91 @@
 package com.infinevo.core.navigation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.ApplicationListener;
-import org.springframework.context.annotation.Profile;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
- * Development-mode catalogue consistency check (W-12.3, spec §2).
+ * The "every menu item's target endpoint exists" check (W-12.3, spec §2).
  *
- * <p>At application startup (after all beans are ready), walks every leaf entry in
- * {@link NavigationCatalogue#DEFAULT_ITEMS} and verifies that
- * {@link RequestMappingHandlerMapping} has a {@code GET} mapping whose path pattern
- * matches the {@code targetEndpoint}.  If any item's endpoint is missing, the check
- * logs a clear {@code WARN} so a developer sees it immediately — no silent drift.
+ * <p>Runs once all singletons are built, in every profile, and <strong>refuses to start the
+ * application</strong> if a leaf of {@link NavigationCatalogue#DEFAULT_ITEMS} names a
+ * {@code targetEndpoint} that no controller maps for {@code GET}. A menu item that leads to a
+ * 404 is the drift this ticket exists to prevent, and a warning in a log nobody reads would not
+ * prevent it.
  *
- * <p>Activated only under {@code dev} and {@code test} profiles so it never runs in
- * production.  In the test suite {@link NavigationMatchesEnforcementIT} provides the
- * authoritative two-way assertion; this check is an earlier, lower-cost signal.
+ * <p>Any Spring context that scans {@code com.infinevo.core.navigation} must therefore also
+ * hold every controller the catalogue targets — which is exactly what
+ * {@code NavigationMatchesEnforcementIT} needs to be a real test.
  */
 @Component
-@Profile({"dev", "test"})
-class NavigationCatalogueValidator implements ApplicationListener<ApplicationReadyEvent> {
+class NavigationCatalogueValidator implements SmartInitializingSingleton {
 
     private static final Logger log = LoggerFactory.getLogger(NavigationCatalogueValidator.class);
 
-    private final RequestMappingHandlerMapping handlerMapping;
+    /**
+     * Every handler mapping in the context. A web application has one; with Actuator on the
+     * classpath (the worker) there is a second one for {@code @ControllerEndpoint}s, so a single
+     * bean cannot be injected. The catalogue's targets may live in any of them.
+     */
+    private final List<RequestMappingHandlerMapping> handlerMappings;
 
-    NavigationCatalogueValidator(RequestMappingHandlerMapping handlerMapping) {
-        this.handlerMapping = handlerMapping;
+    NavigationCatalogueValidator(List<RequestMappingHandlerMapping> handlerMappings) {
+        this.handlerMappings = handlerMappings;
     }
 
     @Override
-    public void onApplicationEvent(ApplicationReadyEvent event) {
+    public void afterSingletonsInstantiated() {
+        List<String> missing = missingEndpoints(NavigationCatalogue.DEFAULT_ITEMS, registeredGetPaths());
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("Navigation catalogue names endpoints that do not exist: "
+                    + String.join("; ", missing)
+                    + ". Remove the item, or ship the controller in the same ticket (W-12.3 §2).");
+        }
+        log.info(
+                "Navigation catalogue: all {} leaf items have a GET mapping",
+                countLeaves(NavigationCatalogue.DEFAULT_ITEMS));
+    }
+
+    /**
+     * The leaves of {@code items} whose {@code targetEndpoint} is not in {@code registeredGetPaths},
+     * each described for the error message. Empty when the catalogue is consistent.
+     */
+    static List<String> missingEndpoints(
+            List<NavigationCatalogue.ItemDefinition> items, Set<String> registeredGetPaths) {
         List<String> missing = new ArrayList<>();
-        for (NavigationCatalogue.ItemDefinition def : NavigationCatalogue.DEFAULT_ITEMS) {
-            checkItem(def, missing);
-        }
-        if (missing.isEmpty()) {
-            log.info(
-                    "W-12.3 catalogue check: all {} leaf items have a registered GET endpoint",
-                    countLeaves(NavigationCatalogue.DEFAULT_ITEMS));
-        } else {
-            for (String warn : missing) {
-                log.warn("W-12.3 catalogue check: {}", warn);
+        for (NavigationCatalogue.ItemDefinition def : items) {
+            if (def.hasChildren()) {
+                missing.addAll(missingEndpoints(def.children(), registeredGetPaths));
+            } else if (!registeredGetPaths.contains(def.targetEndpoint())) {
+                missing.add("item '" + def.key() + "' targets '" + def.targetEndpoint() + "'");
             }
-            log.warn(
-                    "W-12.3 catalogue check: {} endpoint(s) missing — "
-                            + "fix the catalogue or add the controller before merging",
-                    missing.size());
         }
+        return missing;
     }
 
-    private void checkItem(NavigationCatalogue.ItemDefinition def, List<String> missing) {
-        if (def.hasChildren()) {
-            for (NavigationCatalogue.ItemDefinition child : def.children()) {
-                checkItem(child, missing);
+    /** Every path pattern that some handler method serves for {@code GET} (or for any method). */
+    private Set<String> registeredGetPaths() {
+        Set<String> paths = new HashSet<>();
+        for (RequestMappingHandlerMapping mapping : handlerMappings) {
+            for (RequestMappingInfo info : mapping.getHandlerMethods().keySet()) {
+                Set<RequestMethod> methods = info.getMethodsCondition().getMethods();
+                if (methods.isEmpty() || methods.contains(RequestMethod.GET)) {
+                    paths.addAll(info.getPatternValues());
+                }
             }
-            return;
         }
-        if (!isRegistered(def.targetEndpoint())) {
-            missing.add("item '" + def.key() + "' targets '" + def.targetEndpoint() + "' but no GET mapping found");
-        }
+        return paths;
     }
 
-    private boolean isRegistered(String targetEndpoint) {
-        for (RequestMappingInfo info : handlerMapping.getHandlerMethods().keySet()) {
-            Set<RequestMethod> methods = info.getMethodsCondition().getMethods();
-            if (!methods.isEmpty() && !methods.contains(RequestMethod.GET)) {
-                continue;
-            }
-            Set<String> patterns = info.getPatternValues();
-            if (patterns.contains(targetEndpoint)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private int countLeaves(List<NavigationCatalogue.ItemDefinition> items) {
+    private static int countLeaves(List<NavigationCatalogue.ItemDefinition> items) {
         int count = 0;
         for (NavigationCatalogue.ItemDefinition def : items) {
             count += def.hasChildren() ? countLeaves(def.children()) : 1;
