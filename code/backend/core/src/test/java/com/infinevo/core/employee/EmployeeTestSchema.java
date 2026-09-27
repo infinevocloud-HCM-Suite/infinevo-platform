@@ -104,6 +104,9 @@ public final class EmployeeTestSchema {
                 executeResource(conn, "db/migration/core/V023__user_role.sql");
                 executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
             }
+            if (!tableExists(conn, "reporting_line")) {
+                executeResource(conn, "db/migration/core/V028__reporting_line.sql");
+            }
         }
     }
 
@@ -196,6 +199,9 @@ public final class EmployeeTestSchema {
             }
             if (tableExists(conn, "employee_personal")) {
                 stmt.execute("DELETE FROM core.employee_personal");
+            }
+            if (tableExists(conn, "reporting_line")) {
+                stmt.execute("DELETE FROM core.reporting_line");
             }
             stmt.execute("DELETE FROM core.employee");
         }

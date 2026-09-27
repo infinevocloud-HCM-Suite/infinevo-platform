@@ -85,6 +85,9 @@ final class OrgTestSchema {
             if (!columnExists(conn, "employee", "user_account_id")) {
                 executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
             }
+            if (!tableExists(conn, "reporting_line")) {
+                executeResource(conn, "db/migration/core/V028__reporting_line.sql");
+            }
         }
     }
 
@@ -117,6 +120,9 @@ final class OrgTestSchema {
             }
             if (tableExists(conn, "employee_personal")) {
                 stmt.execute("DELETE FROM core.employee_personal");
+            }
+            if (tableExists(conn, "reporting_line")) {
+                stmt.execute("DELETE FROM core.reporting_line");
             }
             stmt.execute("DELETE FROM core.employee");
             stmt.execute("DELETE FROM core.department");

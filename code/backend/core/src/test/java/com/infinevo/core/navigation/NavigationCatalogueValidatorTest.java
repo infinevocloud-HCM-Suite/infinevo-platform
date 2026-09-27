@@ -86,9 +86,10 @@ class NavigationCatalogueValidatorTest {
     @Test
     @DisplayName("the shipped catalogue has no leaf without an endpoint in the current app")
     void shippedCatalogueLeavesAreAllKnownEndpoints() {
-        // The four controllers that exist on main today; the boot-time check proves the same
+        // The controllers that exist on main today; the boot-time check proves the same
         // against the live handler mapping. If this list has to grow, the controller shipped first.
         Set<String> shippedGetEndpoints = Set.of(
+                "/api/v1/employees",
                 "/api/v1/departments",
                 "/api/v1/designations",
                 "/api/v1/work-locations",

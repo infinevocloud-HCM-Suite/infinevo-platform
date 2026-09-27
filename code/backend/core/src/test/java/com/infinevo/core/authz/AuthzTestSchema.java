@@ -94,6 +94,9 @@ public final class AuthzTestSchema {
                     // W-13.4: user_account_id FK on core.employee; PermissionGuardIT reaches the
                     // employee endpoint so Hibernate selects this column.
                     executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
+                    if (!tableExists(conn, "core", "reporting_line")) {
+                        executeResource(conn, "db/migration/core/V028__reporting_line.sql");
+                    }
                 }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
@@ -132,6 +135,26 @@ public final class AuthzTestSchema {
             ps.executeUpdate();
         }
         return tenantId;
+    }
+
+    /** Inserts an employee in a tenant, as the schema owner. */
+    public static UUID insertEmployee(UUID tenantId, String employeeNumber, String firstName) throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.employee
+                            (tenant_id, employee_number, first_name, date_of_joining, status, created_by, updated_by)
+                        VALUES (?, ?, ?, '2026-01-01', 'ACTIVE', 'test', 'test')
+                        RETURNING id
+                        """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, employeeNumber);
+            ps.setString(3, firstName);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject(1, UUID.class);
+            }
+        }
     }
 
     /** Inserts a user account in a tenant, as the schema owner. */
