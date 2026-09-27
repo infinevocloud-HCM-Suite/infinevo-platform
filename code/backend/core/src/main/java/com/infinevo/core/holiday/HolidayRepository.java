@@ -31,8 +31,9 @@ public interface HolidayRepository extends JpaRepository<Holiday, UUID> {
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
-    @Query("SELECT COUNT(h) > 0 FROM Holiday h WHERE h.tenantId = :tenantId AND h.calendarId = :calendarId "
-            + "AND :date >= h.fromDate AND :date <= h.toDate")
+    @Query("SELECT CASE WHEN COUNT(h) > 0 THEN true ELSE false END FROM Holiday h "
+            + "WHERE h.tenantId = :tenantId AND h.calendarId = :calendarId "
+            + "AND h.fromDate <= :date AND h.toDate >= :date")
     boolean isHoliday(
             @Param("tenantId") UUID tenantId, @Param("calendarId") UUID calendarId, @Param("date") LocalDate date);
 }

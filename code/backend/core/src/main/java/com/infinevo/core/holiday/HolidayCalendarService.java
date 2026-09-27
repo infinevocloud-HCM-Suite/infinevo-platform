@@ -61,13 +61,25 @@ public class HolidayCalendarService {
                 .toList();
     }
 
+    public static class HolidayCalendarNotFoundException extends RuntimeException {
+        public HolidayCalendarNotFoundException(UUID id) {
+            super("Holiday calendar not found: " + id);
+        }
+    }
+
+    public static class HolidayNotFoundException extends RuntimeException {
+        public HolidayNotFoundException(UUID id) {
+            super("Holiday not found: " + id);
+        }
+    }
+
     @Transactional(readOnly = true)
     public HolidayCalendarResponse getCalendar(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
         UUID tenantId = TenantContext.require();
         HolidayCalendar calendar = calendarRepository
                 .findByTenantIdAndId(tenantId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Holiday calendar not found: " + id));
+                .orElseThrow(() -> new HolidayCalendarNotFoundException(id));
         return toCalendarResponse(calendar);
     }
 
@@ -80,7 +92,7 @@ public class HolidayCalendarService {
 
         HolidayCalendar calendar = calendarRepository
                 .findByTenantIdAndId(tenantId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Holiday calendar not found: " + id));
+                .orElseThrow(() -> new HolidayCalendarNotFoundException(id));
 
         if (request.isDefault() && !calendar.isDefault()) {
             calendarRepository.findByTenantIdAndIsDefaultTrue(tenantId).ifPresent(existing -> {
@@ -96,6 +108,7 @@ public class HolidayCalendarService {
         calendar = calendarRepository.save(calendar);
 
         locationRepository.deleteByTenantIdAndCalendarId(tenantId, id);
+        locationRepository.flush();
         assignLocations(tenantId, calendar.getId(), request.workLocationIds());
 
         return toCalendarResponse(calendar);
@@ -110,7 +123,7 @@ public class HolidayCalendarService {
 
         calendarRepository
                 .findByTenantIdAndId(tenantId, calendarId)
-                .orElseThrow(() -> new IllegalArgumentException("Holiday calendar not found: " + calendarId));
+                .orElseThrow(() -> new HolidayCalendarNotFoundException(calendarId));
 
         Holiday holiday = new Holiday(
                 tenantId,
@@ -159,11 +172,11 @@ public class HolidayCalendarService {
 
         calendarRepository
                 .findByTenantIdAndId(tenantId, calendarId)
-                .orElseThrow(() -> new IllegalArgumentException("Holiday calendar not found: " + calendarId));
+                .orElseThrow(() -> new HolidayCalendarNotFoundException(calendarId));
 
         Holiday holiday = holidayRepository
                 .findByTenantIdAndCalendarIdAndId(tenantId, calendarId, holidayId)
-                .orElseThrow(() -> new IllegalArgumentException("Holiday not found: " + holidayId));
+                .orElseThrow(() -> new HolidayNotFoundException(holidayId));
 
         holidayRepository.delete(holiday);
     }

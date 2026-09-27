@@ -131,6 +131,23 @@ class HolidayCalendarLocationIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("updating calendar reassigning existing locations succeeds without constraint violation")
+    void updatingCalendarReassigningExistingLocationsSucceeds() {
+        TenantContext.set(TENANT_A);
+
+        HolidayCalendarResponse cal1 = calendarService.createCalendar(
+                new HolidayCalendarRequest("Calendar One", false, Set.of(locationTenantA)));
+        assertThat(cal1.workLocationIds()).contains(locationTenantA);
+
+        // Updating the calendar while retaining locationTenantA must succeed
+        HolidayCalendarResponse updated = calendarService.updateCalendar(
+                cal1.id(),
+                new HolidayCalendarRequest("Calendar One Renamed", false, Set.of(locationTenantA)));
+        assertThat(updated.name()).isEqualTo("Calendar One Renamed");
+        assertThat(updated.workLocationIds()).contains(locationTenantA);
+    }
+
+    @Test
     @DisplayName("a second is_default calendar for one tenant is refused by service and partial unique index")
     void secondDefaultCalendarForOneTenantIsRefused() throws SQLException {
         TenantContext.set(TENANT_A);

@@ -84,9 +84,21 @@ public class HolidayCalendarController {
             @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate from,
             @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (from != null && to != null && to.isBefore(from)) {
+            throw new IllegalArgumentException("to date must be on or after from date");
+        }
         LocalDate fromDate = from != null ? from : LocalDate.now().withDayOfYear(1);
         LocalDate toDate = to != null ? to : fromDate.plusYears(1).minusDays(1);
         return queryService.holidaysBetween(workLocationId, fromDate, toDate);
+    }
+
+    @ExceptionHandler({
+        HolidayCalendarService.HolidayCalendarNotFoundException.class,
+        HolidayCalendarService.HolidayNotFoundException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleNotFound(RuntimeException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiErrorResponse.of(ApiError.NOT_FOUND, e.getMessage(), traceId()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

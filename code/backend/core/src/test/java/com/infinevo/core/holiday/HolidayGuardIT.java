@@ -1,8 +1,10 @@
 package com.infinevo.core.holiday;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -133,6 +135,23 @@ class HolidayGuardIT extends AbstractIntegrationTest {
                                 .param("from", "2026-01-01")
                                 .param("to", "2026-12-31")))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/holiday-calendars/{id} without core.holiday.manage is 403")
+    void updateCalendar_withoutManage_forbidden() throws Exception {
+        HolidayCalendarRequest req = new HolidayCalendarRequest("Updated", false, Set.of());
+        mvc.perform(as(readerSub, put("/api/v1/holiday-calendars/" + UUID.randomUUID())).content(json.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/holiday-calendars/{id}/holidays/{holidayId} without core.holiday.manage is 403")
+    void deleteHoliday_withoutManage_forbidden() throws Exception {
+        mvc.perform(as(readerSub, delete("/api/v1/holiday-calendars/" + UUID.randomUUID() + "/holidays/" + UUID.randomUUID())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     private MockHttpServletRequestBuilder as(UUID sub, MockHttpServletRequestBuilder request) {
