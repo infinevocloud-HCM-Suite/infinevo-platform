@@ -194,7 +194,9 @@ class SalaryRlsIT extends AbstractIntegrationTest {
                 List.of(),
                 List.of());
 
-        assertThatThrownBy(() -> salaryService.create(employeeA, req)).isInstanceOf(SalaryNotFoundException.class);
+        assertThatThrownBy(() -> salaryService.create(employeeA, req))
+                .isInstanceOf(SalaryValidationException.class)
+                .hasMessageContaining("does not exist in this tenant");
     }
 
     @Test
