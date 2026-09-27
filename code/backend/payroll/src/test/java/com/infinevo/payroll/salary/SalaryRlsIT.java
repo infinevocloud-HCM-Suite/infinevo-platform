@@ -53,6 +53,7 @@ class SalaryRlsIT extends AbstractIntegrationTest {
     private UUID ctcStructureB;
     private UUID earningLineB;
     private UUID statutoryProfileB;
+    private UUID basicBId;
 
     @BeforeAll
     static void initSchema() throws Exception {
@@ -84,6 +85,7 @@ class SalaryRlsIT extends AbstractIntegrationTest {
         basicB.setCalculationType(CalculationType.FLAT);
         basicB.setIncludedInCtc(true);
         basicB = earningRepository.save(basicB);
+        basicBId = basicB.getId();
 
         SalaryComponentItemRequest itemReq = new SalaryComponentItemRequest(
                 basicB.getId(), CalculationType.FLAT, new BigDecimal("50000.00"), null, true, "MONTHLY", null);
@@ -175,6 +177,75 @@ class SalaryRlsIT extends AbstractIntegrationTest {
                 new StatutoryProfileRequest(true, false, false, false, false, false, false, null, null, null);
         assertThatThrownBy(() -> statutoryProfileService.upsert(employeeB, request))
                 .isInstanceOf(EmployeeService.NotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("Tenant A cannot build salary version using Tenant B component")
+    void tenantACannotBuildVersionUsingTenantBComponent() {
+        TenantContext.set(TENANT_A);
+
+        SalaryComponentItemRequest crossComponent = new SalaryComponentItemRequest(
+                basicBId, CalculationType.FLAT, new BigDecimal("50000.00"), null, true, "MONTHLY", null);
+        SalaryVersionRequest req = new SalaryVersionRequest(
+                new BigDecimal("600000.00"),
+                LocalDate.of(2026, 1, 1),
+                "Cross tenant test",
+                List.of(crossComponent),
+                List.of(),
+                List.of());
+
+        assertThatThrownBy(() -> salaryService.create(employeeA, req)).isInstanceOf(SalaryNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("Tenant A raw app_user connection cannot update or delete Tenant B salary version")
+    void tenantACannotWriteTenantBSalaryVersionRawSql() throws SQLException {
+        try (Connection conn = PayrollTestSchema.appConnection()) {
+            PayrollTestSchema.bindTenant(conn, TENANT_A);
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE payroll.ctc_structure SET notes = 'Hacked by Tenant A' WHERE id = ?")) {
+                ps.setObject(1, ctcStructureB);
+                int updated = ps.executeUpdate();
+                assertThat(updated)
+                        .as("Tenant A cannot update Tenant B salary version")
+                        .isZero();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM payroll.ctc_structure WHERE id = ?")) {
+                ps.setObject(1, ctcStructureB);
+                int deleted = ps.executeUpdate();
+                assertThat(deleted)
+                        .as("Tenant A cannot delete Tenant B salary version")
+                        .isZero();
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Tenant A raw app_user connection cannot update or delete Tenant B statutory profile")
+    void tenantACannotWriteTenantBStatutoryProfileRawSql() throws SQLException {
+        try (Connection conn = PayrollTestSchema.appConnection()) {
+            PayrollTestSchema.bindTenant(conn, TENANT_A);
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE payroll.employee_statutory_profile SET uan = '999999999999' WHERE id = ?")) {
+                ps.setObject(1, statutoryProfileB);
+                int updated = ps.executeUpdate();
+                assertThat(updated)
+                        .as("Tenant A cannot update Tenant B statutory profile")
+                        .isZero();
+            }
+
+            try (PreparedStatement ps =
+                    conn.prepareStatement("DELETE FROM payroll.employee_statutory_profile WHERE id = ?")) {
+                ps.setObject(1, statutoryProfileB);
+                int deleted = ps.executeUpdate();
+                assertThat(deleted)
+                        .as("Tenant A cannot delete Tenant B statutory profile")
+                        .isZero();
+            }
+        }
     }
 
     private static int countVisibleById(Connection conn, String table, UUID id) throws SQLException {

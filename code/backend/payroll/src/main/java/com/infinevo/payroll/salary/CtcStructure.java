@@ -197,7 +197,10 @@ public class CtcStructure {
     }
 
     public void setEarnings(List<EmployeeEarning> earnings) {
-        this.earnings = earnings;
+        this.earnings.clear();
+        if (earnings != null) {
+            this.earnings.addAll(earnings);
+        }
     }
 
     public List<EmployeeBenefit> getBenefits() {
@@ -205,7 +208,10 @@ public class CtcStructure {
     }
 
     public void setBenefits(List<EmployeeBenefit> benefits) {
-        this.benefits = benefits;
+        this.benefits.clear();
+        if (benefits != null) {
+            this.benefits.addAll(benefits);
+        }
     }
 
     public List<EmployeeReimbursement> getReimbursements() {
@@ -213,6 +219,9 @@ public class CtcStructure {
     }
 
     public void setReimbursements(List<EmployeeReimbursement> reimbursements) {
-        this.reimbursements = reimbursements;
+        this.reimbursements.clear();
+        if (reimbursements != null) {
+            this.reimbursements.addAll(reimbursements);
+        }
     }
 }

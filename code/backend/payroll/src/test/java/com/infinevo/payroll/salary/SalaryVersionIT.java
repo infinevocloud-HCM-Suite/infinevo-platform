@@ -135,6 +135,47 @@ class SalaryVersionIT extends AbstractIntegrationTest {
         assertThat(history.get(1).id()).isEqualTo(v1.id());
     }
 
+    @Test
+    @DisplayName("Editing a future salary version clears and refills collections properly")
+    void editFutureVersionClearsAndRefillsCollections() {
+        TenantContext.set(TENANT_A);
+
+        LocalDate futureDate = LocalDate.now().plusMonths(2);
+
+        // 1. Create a future version
+        SalaryComponentItemRequest basicV1 = new SalaryComponentItemRequest(
+                basicEarningId, CalculationType.FLAT, new BigDecimal("50000.00"), null, true, "MONTHLY", null);
+        SalaryVersionRequest req = new SalaryVersionRequest(
+                new BigDecimal("600000.00"), futureDate, "Future Planned", List.of(basicV1), List.of(), List.of());
+
+        SalaryVersionResponse created = salaryService.create(employeeId, req);
+        assertThat(created.id()).isNotNull();
+        assertThat(created.notes()).isEqualTo("Future Planned");
+        assertThat(created.earnings()).hasSize(1);
+        assertThat(created.earnings().get(0).monthlyAmount()).isEqualByComparingTo(new BigDecimal("50000.00"));
+
+        // 2. Edit the future version (change CTC to 660,000, 55,000/mo Basic)
+        SalaryComponentItemRequest basicV2 = new SalaryComponentItemRequest(
+                basicEarningId, CalculationType.FLAT, new BigDecimal("55000.00"), null, true, "MONTHLY", null);
+        SalaryVersionRequest updateReq = new SalaryVersionRequest(
+                new BigDecimal("660000.00"), futureDate, "Future Revised", List.of(basicV2), List.of(), List.of());
+
+        SalaryVersionResponse updated = salaryService.update(employeeId, created.id(), updateReq);
+        assertThat(updated.id()).isEqualTo(created.id());
+        assertThat(updated.notes()).isEqualTo("Future Revised");
+        assertThat(updated.annualCtc()).isEqualByComparingTo(new BigDecimal("660000.00"));
+        assertThat(updated.monthlyCtc()).isEqualByComparingTo(new BigDecimal("55000.00"));
+        assertThat(updated.earnings()).hasSize(1);
+        assertThat(updated.earnings().get(0).monthlyAmount()).isEqualByComparingTo(new BigDecimal("55000.00"));
+
+        // 3. Verify retrieval reflects the updated version
+        SalaryVersionResponse fetched = salaryService.getAsOf(employeeId, futureDate);
+        assertThat(fetched.notes()).isEqualTo("Future Revised");
+        assertThat(fetched.annualCtc()).isEqualByComparingTo(new BigDecimal("660000.00"));
+        assertThat(fetched.earnings()).hasSize(1);
+        assertThat(fetched.earnings().get(0).monthlyAmount()).isEqualByComparingTo(new BigDecimal("55000.00"));
+    }
+
     private static void seedEmployee(UUID tenantId, UUID employeeId, String code, String first, String last)
             throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();

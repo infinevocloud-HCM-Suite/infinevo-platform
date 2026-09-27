@@ -273,9 +273,12 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             savedReimbursements.add(employeeReimbursementRepository.save(er));
         }
 
-        saved.setEarnings(savedEarnings);
-        saved.setBenefits(savedBenefits);
-        saved.setReimbursements(savedReimbursements);
+        saved.getEarnings().clear();
+        saved.getEarnings().addAll(savedEarnings);
+        saved.getBenefits().clear();
+        saved.getBenefits().addAll(savedBenefits);
+        saved.getReimbursements().clear();
+        saved.getReimbursements().addAll(savedReimbursements);
 
         BigDecimal change =
                 computeChangeFromPrevious(tenantId, employeeId, saved.getEffectiveFrom(), saved.getAnnualCtc());
