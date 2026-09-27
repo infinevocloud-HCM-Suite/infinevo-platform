@@ -40,6 +40,9 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "core", "tenant")) {
                 executeResource(conn, "db/migration/core/V001__tenant.sql");
             }
+            if (!tableExists(conn, "core", "employee")) {
+                executeResource(conn, "db/migration/core/V010__employee.sql");
+            }
             if (!tableExists(conn, "payroll", "earning")) {
                 executeResource(conn, "db/migration/payroll/V042__earning.sql");
             }
@@ -51,6 +54,21 @@ public final class PayrollTestSchema {
             }
             if (!tableExists(conn, "payroll", "reimbursement")) {
                 executeResource(conn, "db/migration/payroll/V045__reimbursement.sql");
+            }
+            if (!tableExists(conn, "payroll", "ctc_structure")) {
+                executeResource(conn, "db/migration/payroll/V046__ctc_structure.sql");
+            }
+            if (!tableExists(conn, "payroll", "employee_earning")) {
+                executeResource(conn, "db/migration/payroll/V047__employee_earning.sql");
+            }
+            if (!tableExists(conn, "payroll", "employee_benefit")) {
+                executeResource(conn, "db/migration/payroll/V048__employee_benefit.sql");
+            }
+            if (!tableExists(conn, "payroll", "employee_reimbursement")) {
+                executeResource(conn, "db/migration/payroll/V049__employee_reimbursement.sql");
+            }
+            if (!tableExists(conn, "payroll", "employee_statutory_profile")) {
+                executeResource(conn, "db/migration/payroll/V050__employee_statutory_profile.sql");
             }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -74,8 +92,8 @@ public final class PayrollTestSchema {
     public static void cleanTables() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement st = conn.createStatement()) {
-            st.execute(
-                    "TRUNCATE TABLE payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
+            st.execute("TRUNCATE TABLE payroll.ctc_structure, payroll.employee_statutory_profile, "
+                    + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
         }
     }
 
