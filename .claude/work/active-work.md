@@ -1,11 +1,19 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-26**, checked row by row against `main`.
-> **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1 is half
-> done:** `W-11.1`, `W-11.2`, `W-13.2` and `W-14.1` are merged; six branches remain and
-> can all run at once.
+> Last refreshed: **2026-09-27**, checked row by row against `main`.
+> **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
+> `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-09-27 — `W-13.3` and `W-14.2` merged (`ccc8e48`)
+
+- `GET /api/v1/employees` is real: paged (25, clamped at 100), sorted, status-filtered, prefix search on name, number and work email. Tenant comes from the bound context only; `includeDeleted=true` needs `core.employee.delete`. `EmployeeSearchRlsIT` proves the count is the tenant's. The `core.employee` menu item is in the catalogue.
+- `core.reporting_line` (`V028`) with RLS and the self-manage check; `PUT`/`GET` reporting-line, manager-chain, org-chart. Cycles refused on write at any depth. `chainAbove(employee, asOf)` is the seam `W-15.2` calls.
+- **Newly Ready:** `W-15` (karma), `W-39.1` (sayeed), `W-40` no longer waits. Payroll stream is no longer blocked on `W-13.3`.
+- **Deferred:** the `currentEmployee` unit test from `W-13.4`, again. No warning when a manager is deactivated; `chainAbove` stops silently there. Org chart walks every active primary line in memory, `depth` optional. Search JPQL is exercised on Postgres for first name only.
+- **Founder decision 2026-09-27:** a back-dated or same-day primary `PUT` closing a later-starting line the day before the new start is accepted behaviour, not a defect.
+- Gates 5/5 for both, CI green on `52a3241`, one squash commit for the two tickets. Spec § 8 curl and psql checks were read, not run. sayeed resets `W-13-3-employee-search` (or `dev-sayeed`) to `main`.
 
 ## 2026-09-26 — `W-09.1` merged (`c79755c`)
 
@@ -146,7 +154,7 @@ The three that unblocked the most are in. Six remain, all independent of each ot
 | ~~`W-13-2-employee-detail`~~ **merged `5228385`** | `W-25` portal; **the audit opt-in is in, the trail now captures** |
 | ~~`W-11-1-role-catalogue`~~ **merged `172eaaa`** | `W-11.2`, `W-12.2`, `W-24.2` — now unblocked |
 | ~~`W-11-2-permission-check`~~ **merged `23d1126`** | — |
-| `W-12-1-subscription` · `W-13-3-employee-search` · `W-19-pay-input-ledger` · `W-20-1-notifications` · `W-21-document-store` · `W-23-1-export` · `W-22-2-audit-retention`* | **the six still open**, plus `W-14.2` and `W-17` newly unblocked |
+| `W-12-1-subscription` · ~~`W-13-3-employee-search`~~ **merged `ccc8e48`** · `W-19-pay-input-ledger` · `W-20-1-notifications` · `W-21-document-store` · `W-23-1-export` · `W-22-2-audit-retention`* | **the six still open**, plus `W-14.2` and `W-17` newly unblocked |
 
 \* `W-22.2` is **layer 3 in practice**, not layer 1: its spec says "blocked by W-22.1", but
 it also sweeps `core.notification` (`W-20.1`) and uses the scheduler (`W-20.2`). **It still
