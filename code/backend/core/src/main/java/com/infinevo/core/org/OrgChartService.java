@@ -5,7 +5,9 @@ import com.infinevo.core.employee.EmployeeRepository;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -43,24 +45,34 @@ public class OrgChartService {
                 .orElseThrow(
                         () -> new IllegalArgumentException("Root employee not found in tenant: " + rootEmployeeId));
 
-        int targetDepth = depth != null ? Math.min(Math.max(depth, 1), MAX_DEPTH) : DEFAULT_DEPTH;
+        int targetDepth = (depth == null || depth <= 0) ? DEFAULT_DEPTH : Math.min(depth, MAX_DEPTH);
         LocalDate today = LocalDate.now();
 
-        return buildTree(tenantId, root, targetDepth, 1, today);
+        // Single query for all active primary reporting lines in the tenant (eliminates N+1 DB calls)
+        List<ReportingLine> allPrimaryLines = reportingLineRepository.findAllActivePrimaryLines(tenantId, today);
+
+        Map<UUID, List<Employee>> reportsByManager = new HashMap<>();
+        for (ReportingLine line : allPrimaryLines) {
+            Employee emp = line.getEmployee();
+            Employee mgr = line.getManager();
+            if (!emp.isDeleted() && !mgr.isDeleted()) {
+                reportsByManager
+                        .computeIfAbsent(mgr.getId(), k -> new ArrayList<>())
+                        .add(emp);
+            }
+        }
+
+        return buildInMemoryTree(root, reportsByManager, targetDepth, 1);
     }
 
-    private OrgChartNodeResponse buildTree(
-            UUID tenantId, Employee current, int maxDepth, int currentDepth, LocalDate asOf) {
+    private OrgChartNodeResponse buildInMemoryTree(
+            Employee current, Map<UUID, List<Employee>> reportsByManager, int maxDepth, int currentDepth) {
         List<OrgChartNodeResponse> children = new ArrayList<>();
 
         if (currentDepth < maxDepth) {
-            List<ReportingLine> directReports =
-                    reportingLineRepository.findDirectReports(tenantId, current.getId(), asOf);
-            for (ReportingLine line : directReports) {
-                Employee report = line.getEmployee();
-                if (!report.isDeleted()) {
-                    children.add(buildTree(tenantId, report, maxDepth, currentDepth + 1, asOf));
-                }
+            List<Employee> directReports = reportsByManager.getOrDefault(current.getId(), List.of());
+            for (Employee report : directReports) {
+                children.add(buildInMemoryTree(report, reportsByManager, maxDepth, currentDepth + 1));
             }
         }
 

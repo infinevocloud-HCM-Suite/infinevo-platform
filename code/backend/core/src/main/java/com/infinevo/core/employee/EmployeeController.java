@@ -141,6 +141,12 @@ public class EmployeeController {
                 .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiErrorResponse.of(ApiError.VALIDATION_FAILED, e.getMessage(), traceId()));
+    }
+
     /**
      * A body Jackson could not read at all — malformed JSON, or a {@code status} outside the
      * {@link EmploymentStatus} vocabulary, which fails during deserialisation and so never reaches

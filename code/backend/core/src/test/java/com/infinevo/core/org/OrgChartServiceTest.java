@@ -62,7 +62,7 @@ class OrgChartServiceTest {
     @Test
     @DisplayName("Employee with no reports returns an empty directReports list, not an error")
     void noReportsReturnsEmptyList() {
-        when(reportingLineRepository.findDirectReports(eq(TENANT), eq(rootId), any()))
+        when(reportingLineRepository.findAllActivePrimaryLines(eq(TENANT), any()))
                 .thenReturn(List.of());
 
         OrgChartNodeResponse chart = service.getOrgChart(rootId, 3);
@@ -76,10 +76,8 @@ class OrgChartServiceTest {
     void subtreeDepthHonoured() {
         ReportingLine lineChildToRoot =
                 new ReportingLine(TENANT, child, root, ReportingLineKind.PRIMARY, LocalDate.now(), "test");
-        when(reportingLineRepository.findDirectReports(eq(TENANT), eq(rootId), any()))
+        when(reportingLineRepository.findAllActivePrimaryLines(eq(TENANT), any()))
                 .thenReturn(List.of(lineChildToRoot));
-        when(reportingLineRepository.findDirectReports(eq(TENANT), eq(childId), any()))
-                .thenReturn(List.of());
 
         // Request depth = 1 (returns root only without expanding direct reports)
         OrgChartNodeResponse chartDepth1 = service.getOrgChart(rootId, 1);

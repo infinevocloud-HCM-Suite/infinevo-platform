@@ -225,4 +225,36 @@ class EmployeeSelfServiceIT extends AbstractIntegrationTest {
                                 .authorities(List.of(new SimpleGrantedAuthority("core.employee.update")))))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    @DisplayName("Employee updating their own personal section with update_own returns 200")
+    void employeeUpdatesOwnPersonalSuccessfully() throws Exception {
+        com.infinevo.core.employee.detail.EmployeePersonalRequest request =
+                new com.infinevo.core.employee.detail.EmployeePersonalRequest(
+                        LocalDate.of(1990, 5, 15), "SINGLE", "INDIAN", null, null, null, false);
+
+        mvc.perform(put("/api/v1/employees/{id}/personal", emp1.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(jwt().jwt(builder -> builder.subject(keycloakUser1.toString())
+                                        .claim("tenant_id", TENANT_ID.toString()))
+                                .authorities(List.of(new SimpleGrantedAuthority("core.employee.update_own")))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Employee updating another employee's personal section with update_own returns 403")
+    void employeeUpdatingOthersPersonalRefused() throws Exception {
+        com.infinevo.core.employee.detail.EmployeePersonalRequest request =
+                new com.infinevo.core.employee.detail.EmployeePersonalRequest(
+                        LocalDate.of(1990, 5, 15), "SINGLE", "INDIAN", null, null, null, false);
+
+        mvc.perform(put("/api/v1/employees/{id}/personal", emp2.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(jwt().jwt(builder -> builder.subject(keycloakUser1.toString())
+                                        .claim("tenant_id", TENANT_ID.toString()))
+                                .authorities(List.of(new SimpleGrantedAuthority("core.employee.update_own")))))
+                .andExpect(status().isForbidden());
+    }
 }

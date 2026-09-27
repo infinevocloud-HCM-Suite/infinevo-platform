@@ -9,9 +9,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,29 +62,36 @@ public class ReportingLineService {
 
         ReportingLineKind kind = request.resolvedKind();
         LocalDate effectiveFrom = request.effectiveFrom();
+        String actor = currentActor();
 
-        // Cycle detection: walk chain above managerId to check if employeeId is reached
+        // Cycle detection: walk chain above managerId to check if employeeId is reached (including future lines)
         detectCycle(tenantId, employeeId, manager.getId(), effectiveFrom);
 
         // Decision 1: Single primary manager in force at a time
         if (kind == ReportingLineKind.PRIMARY) {
-            Optional<ReportingLine> currentOpen =
-                    repository.findCurrentOpenLine(tenantId, employeeId, ReportingLineKind.PRIMARY);
-            if (currentOpen.isPresent()) {
-                ReportingLine existing = currentOpen.get();
-                if (existing.getEffectiveFrom().isBefore(effectiveFrom)) {
-                    existing.setEffectiveTo(effectiveFrom.minusDays(1));
-                    existing.setUpdatedBy("system");
-                    repository.save(existing);
-                } else if (existing.getEffectiveFrom().equals(effectiveFrom)) {
-                    // Overwriting on the same effective date
-                    existing.setEffectiveTo(effectiveFrom.minusDays(1));
-                    repository.save(existing);
+            List<ReportingLine> existingLines =
+                    repository.findOpenOrFutureLines(tenantId, employeeId, ReportingLineKind.PRIMARY, LocalDate.EPOCH);
+            for (ReportingLine existing : existingLines) {
+                if (existing.getEffectiveTo() == null
+                        || !existing.getEffectiveTo().isBefore(effectiveFrom)) {
+                    if (existing.getEffectiveFrom().isBefore(effectiveFrom)) {
+                        existing.setEffectiveTo(effectiveFrom.minusDays(1));
+                        existing.setUpdatedBy(actor);
+                        repository.save(existing);
+                    } else if (existing.getEffectiveFrom().equals(effectiveFrom)) {
+                        existing.setEffectiveTo(effectiveFrom);
+                        existing.setUpdatedBy(actor);
+                        repository.save(existing);
+                    } else {
+                        existing.setEffectiveTo(existing.getEffectiveFrom());
+                        existing.setUpdatedBy(actor);
+                        repository.save(existing);
+                    }
                 }
             }
         }
 
-        ReportingLine line = new ReportingLine(tenantId, employee, manager, kind, effectiveFrom, "system");
+        ReportingLine line = new ReportingLine(tenantId, employee, manager, kind, effectiveFrom, actor);
         if (request.effectiveTo() != null) {
             line.setEffectiveTo(request.effectiveTo());
         }
@@ -118,6 +127,9 @@ public class ReportingLineService {
                 break;
             }
             Employee manager = lines.get(0).getManager();
+            if (manager.isDeleted() || manager.getStatus() != EmploymentStatus.ACTIVE) {
+                break;
+            }
             if (visited.contains(manager.getId())) {
                 // Prevent infinite loop if data inconsistency exists
                 break;
@@ -175,9 +187,9 @@ public class ReportingLineService {
     }
 
     /**
-     * Walks upward starting from candidateManagerId to detect if employeeId is reached.
+     * Walks upward starting from candidateManagerId to detect if employeeId is reached (now or in future).
      */
-    private void detectCycle(UUID tenantId, UUID employeeId, UUID candidateManagerId, LocalDate asOf) {
+    private void detectCycle(UUID tenantId, UUID employeeId, UUID candidateManagerId, LocalDate effectiveFrom) {
         Set<UUID> visited = new HashSet<>();
         visited.add(employeeId);
 
@@ -195,12 +207,23 @@ public class ReportingLineService {
             visited.add(currentId);
 
             List<ReportingLine> lines =
-                    repository.findActiveLines(tenantId, currentId, ReportingLineKind.PRIMARY, asOf);
+                    repository.findOpenOrFutureLines(tenantId, currentId, ReportingLineKind.PRIMARY, effectiveFrom);
             if (lines.isEmpty()) {
                 break;
             }
             currentId = lines.get(0).getManager().getId();
             depth++;
         }
+    }
+
+    private static String currentActor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            String name = auth.getName();
+            if (name != null && !name.isBlank()) {
+                return name;
+            }
+        }
+        return "system";
     }
 }

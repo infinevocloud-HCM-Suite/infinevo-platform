@@ -127,4 +127,11 @@ class EmployeeSearchRlsIT extends AbstractIntegrationTest {
         assertThat(page.getTotalElements()).isEqualTo(EMPLOYEES_PER_TENANT);
         assertThat(page.getContent()).allMatch(e -> e.getTenantId().equals(TENANT_B));
     }
+
+    @Test
+    @DisplayName("Raw app_user connection bound to tenant A can only see tenant A's rows at DB policy level")
+    void rawAppUserConnectionIsIsolatedByRls() throws SQLException {
+        assertThat(EmployeeTestSchema.visibleRowCount(TENANT_A)).isEqualTo(EMPLOYEES_PER_TENANT);
+        assertThat(EmployeeTestSchema.visibleRowCount(TENANT_B)).isEqualTo(EMPLOYEES_PER_TENANT);
+    }
 }

@@ -77,6 +77,21 @@ class ReportingLineRlsIT extends AbstractIntegrationTest {
                 .hasMessageContaining("Manager not found in tenant");
     }
 
+    @Test
+    @DisplayName("Raw app_user connection isolates reporting lines by tenant at DB policy level")
+    void rawReportingLineRlsEnforced() throws Exception {
+        TenantContext.set(TENANT_A);
+        EmployeeResponse empA2 = employeeService.create(createRequest("RLS-A02", "Aaron", "Acme"));
+        reportingLineService.putReportingLine(
+                empA.id(),
+                new ReportingLineRequest(empA2.id(), ReportingLineKind.PRIMARY, LocalDate.of(2026, 1, 1), null));
+
+        org.assertj.core.api.Assertions.assertThat(OrgTestSchema.visibleRowCount("reporting_line", TENANT_A))
+                .isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(OrgTestSchema.visibleRowCount("reporting_line", TENANT_B))
+                .isEqualTo(0);
+    }
+
     private static EmployeeRequest createRequest(String number, String firstName, String lastName) {
         return new EmployeeRequest(
                 number,

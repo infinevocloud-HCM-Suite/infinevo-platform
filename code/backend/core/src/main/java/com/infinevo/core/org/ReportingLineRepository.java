@@ -51,11 +51,38 @@ public interface ReportingLineRepository extends JpaRepository<ReportingLine, UU
             SELECT r FROM ReportingLine r
             WHERE r.tenantId = :tenantId
               AND r.manager.id = :managerId
+              AND r.kind = com.infinevo.core.org.ReportingLineKind.PRIMARY
               AND r.effectiveFrom <= :asOf
               AND (r.effectiveTo IS NULL OR r.effectiveTo >= :asOf)
             """)
     List<ReportingLine> findDirectReports(
             @Param("tenantId") UUID tenantId, @Param("managerId") UUID managerId, @Param("asOf") LocalDate asOf);
+
+    @EntityGraph(attributePaths = {"employee", "manager"})
+    @Query(
+            """
+            SELECT r FROM ReportingLine r
+            WHERE r.tenantId = :tenantId
+              AND r.kind = com.infinevo.core.org.ReportingLineKind.PRIMARY
+              AND r.effectiveFrom <= :asOf
+              AND (r.effectiveTo IS NULL OR r.effectiveTo >= :asOf)
+            """)
+    List<ReportingLine> findAllActivePrimaryLines(@Param("tenantId") UUID tenantId, @Param("asOf") LocalDate asOf);
+
+    @EntityGraph(attributePaths = {"employee", "manager"})
+    @Query(
+            """
+            SELECT r FROM ReportingLine r
+            WHERE r.tenantId = :tenantId
+              AND r.employee.id = :employeeId
+              AND r.kind = :kind
+              AND (r.effectiveTo IS NULL OR r.effectiveTo >= :effectiveFrom)
+            """)
+    List<ReportingLine> findOpenOrFutureLines(
+            @Param("tenantId") UUID tenantId,
+            @Param("employeeId") UUID employeeId,
+            @Param("kind") ReportingLineKind kind,
+            @Param("effectiveFrom") LocalDate effectiveFrom);
 
     @EntityGraph(attributePaths = {"employee", "manager"})
     @Query(

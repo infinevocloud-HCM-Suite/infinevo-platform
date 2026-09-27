@@ -87,7 +87,7 @@ class ReportingLineServiceTest {
         // B reports to A
         ReportingLine lineBtoA =
                 new ReportingLine(TENANT, empB, empA, ReportingLineKind.PRIMARY, LocalDate.of(2026, 1, 1), "test");
-        when(repository.findActiveLines(eq(TENANT), eq(empBId), eq(ReportingLineKind.PRIMARY), any()))
+        when(repository.findOpenOrFutureLines(eq(TENANT), eq(empBId), eq(ReportingLineKind.PRIMARY), any()))
                 .thenReturn(List.of(lineBtoA));
 
         // Now trying to make A report to B
@@ -108,9 +108,9 @@ class ReportingLineServiceTest {
         ReportingLine lineCtoA =
                 new ReportingLine(TENANT, empC, empA, ReportingLineKind.PRIMARY, LocalDate.of(2026, 1, 1), "test");
 
-        when(repository.findActiveLines(eq(TENANT), eq(empBId), eq(ReportingLineKind.PRIMARY), any()))
+        when(repository.findOpenOrFutureLines(eq(TENANT), eq(empBId), eq(ReportingLineKind.PRIMARY), any()))
                 .thenReturn(List.of(lineBtoC));
-        when(repository.findActiveLines(eq(TENANT), eq(empCId), eq(ReportingLineKind.PRIMARY), any()))
+        when(repository.findOpenOrFutureLines(eq(TENANT), eq(empCId), eq(ReportingLineKind.PRIMARY), any()))
                 .thenReturn(List.of(lineCtoA));
 
         // Trying to make A report to B
@@ -131,9 +131,9 @@ class ReportingLineServiceTest {
         ReportingLine lineCtoD =
                 new ReportingLine(TENANT, empC, empD, ReportingLineKind.PRIMARY, LocalDate.of(2026, 1, 1), "test");
 
-        when(repository.findActiveLines(eq(TENANT), eq(empBId), eq(ReportingLineKind.PRIMARY), any()))
+        when(repository.findOpenOrFutureLines(eq(TENANT), eq(empBId), eq(ReportingLineKind.PRIMARY), any()))
                 .thenReturn(List.of(lineBtoD));
-        when(repository.findActiveLines(eq(TENANT), eq(empCId), eq(ReportingLineKind.PRIMARY), any()))
+        when(repository.findOpenOrFutureLines(eq(TENANT), eq(empCId), eq(ReportingLineKind.PRIMARY), any()))
                 .thenReturn(List.of(lineCtoD));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -152,8 +152,8 @@ class ReportingLineServiceTest {
         LocalDate Feb1 = LocalDate.of(2026, 2, 1);
 
         ReportingLine oldPrimary = new ReportingLine(TENANT, empA, empB, ReportingLineKind.PRIMARY, Jan1, "test");
-        when(repository.findCurrentOpenLine(TENANT, empAId, ReportingLineKind.PRIMARY))
-                .thenReturn(Optional.of(oldPrimary));
+        when(repository.findOpenOrFutureLines(eq(TENANT), eq(empAId), eq(ReportingLineKind.PRIMARY), any()))
+                .thenReturn(List.of(oldPrimary));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ReportingLineRequest req = new ReportingLineRequest(empCId, ReportingLineKind.PRIMARY, Feb1, null);
