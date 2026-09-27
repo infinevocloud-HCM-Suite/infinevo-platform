@@ -139,8 +139,7 @@ class HolidayCalendarServiceTest {
         when(holidayRepository.findByTenantIdAndCalendarIdOrderByFromDateAsc(tenantId, calendarId))
                 .thenReturn(List.of());
 
-        HolidayCalendarRequest updateReq =
-                new HolidayCalendarRequest("New Name", false, Set.of(locationId));
+        HolidayCalendarRequest updateReq = new HolidayCalendarRequest("New Name", false, Set.of(locationId));
         HolidayCalendarResponse res = service.updateCalendar(calendarId, updateReq);
 
         verify(locationRepository).deleteByTenantIdAndCalendarId(tenantId, calendarId);
@@ -206,7 +205,13 @@ class HolidayCalendarServiceTest {
         HolidayCalendar cal = new HolidayCalendar(tenantId, "Calendar", false);
         setId(cal, calendarId);
         Holiday hol = new Holiday(
-                tenantId, calendarId, "Republic Day", LocalDate.of(2026, 1, 26), LocalDate.of(2026, 1, 26), false, null);
+                tenantId,
+                calendarId,
+                "Republic Day",
+                LocalDate.of(2026, 1, 26),
+                LocalDate.of(2026, 1, 26),
+                false,
+                null);
         setId(hol, holidayId);
 
         when(calendarRepository.findByTenantIdAndId(tenantId, calendarId)).thenReturn(Optional.of(cal));

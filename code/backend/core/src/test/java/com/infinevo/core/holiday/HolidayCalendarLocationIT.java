@@ -54,8 +54,8 @@ class HolidayCalendarLocationIT extends AbstractIntegrationTest {
         try (Connection conn = HolidayTestSchema.migrationConnection()) {
             // Seed work location for Tenant A
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO core.work_location (id, tenant_id, code, name, country_code, is_filing_address, is_active) "
-                            + "VALUES (?, ?, 'LOC_A', 'Location A', 'IN', true, true)")) {
+                    "INSERT INTO core.work_location (id, tenant_id, code, name, country_code, is_filing_address,"
+                            + " is_active) VALUES (?, ?, 'LOC_A', 'Location A', 'IN', true, true)")) {
                 ps.setObject(1, locationTenantA);
                 ps.setObject(2, TENANT_A);
                 ps.executeUpdate();
@@ -63,8 +63,8 @@ class HolidayCalendarLocationIT extends AbstractIntegrationTest {
 
             // Seed work location for Tenant B
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO core.work_location (id, tenant_id, code, name, country_code, is_filing_address, is_active) "
-                            + "VALUES (?, ?, 'LOC_B', 'Location B', 'IN', true, true)")) {
+                    "INSERT INTO core.work_location (id, tenant_id, code, name, country_code, is_filing_address,"
+                            + " is_active) VALUES (?, ?, 'LOC_B', 'Location B', 'IN', true, true)")) {
                 ps.setObject(1, locationTenantB);
                 ps.setObject(2, TENANT_B);
                 ps.executeUpdate();
@@ -110,14 +110,16 @@ class HolidayCalendarLocationIT extends AbstractIntegrationTest {
         try (Connection conn = HolidayTestSchema.migrationConnection()) {
             UUID cal2Id = UUID.randomUUID();
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO core.holiday_calendar (id, tenant_id, name, is_default) VALUES (?, ?, 'Cal 2', false)")) {
+                    "INSERT INTO core.holiday_calendar (id, tenant_id, name, is_default) VALUES (?, ?, 'Cal 2',"
+                            + " false)")) {
                 ps.setObject(1, cal2Id);
                 ps.setObject(2, TENANT_A);
                 ps.executeUpdate();
             }
 
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO core.holiday_calendar_location (id, tenant_id, calendar_id, work_location_id) VALUES (?, ?, ?, ?)")) {
+                    "INSERT INTO core.holiday_calendar_location (id, tenant_id, calendar_id, work_location_id) VALUES"
+                            + " (?, ?, ?, ?)")) {
                 ps.setObject(1, UUID.randomUUID());
                 ps.setObject(2, TENANT_A);
                 ps.setObject(3, cal2Id);
@@ -141,8 +143,7 @@ class HolidayCalendarLocationIT extends AbstractIntegrationTest {
 
         // Updating the calendar while retaining locationTenantA must succeed
         HolidayCalendarResponse updated = calendarService.updateCalendar(
-                cal1.id(),
-                new HolidayCalendarRequest("Calendar One Renamed", false, Set.of(locationTenantA)));
+                cal1.id(), new HolidayCalendarRequest("Calendar One Renamed", false, Set.of(locationTenantA)));
         assertThat(updated.name()).isEqualTo("Calendar One Renamed");
         assertThat(updated.workLocationIds()).contains(locationTenantA);
     }
@@ -166,7 +167,8 @@ class HolidayCalendarLocationIT extends AbstractIntegrationTest {
         // Direct DB insert also violates partial unique index idx_holiday_calendar_tenant_default
         try (Connection conn = HolidayTestSchema.migrationConnection()) {
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO core.holiday_calendar (id, tenant_id, name, is_default) VALUES (?, ?, 'Default 3', true)")) {
+                    "INSERT INTO core.holiday_calendar (id, tenant_id, name, is_default) VALUES (?, ?, 'Default 3',"
+                            + " true)")) {
                 ps.setObject(1, UUID.randomUUID());
                 ps.setObject(2, TENANT_A);
 

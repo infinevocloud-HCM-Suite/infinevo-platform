@@ -141,7 +141,8 @@ class HolidayGuardIT extends AbstractIntegrationTest {
     @DisplayName("PUT /api/v1/holiday-calendars/{id} without core.holiday.manage is 403")
     void updateCalendar_withoutManage_forbidden() throws Exception {
         HolidayCalendarRequest req = new HolidayCalendarRequest("Updated", false, Set.of());
-        mvc.perform(as(readerSub, put("/api/v1/holiday-calendars/" + UUID.randomUUID())).content(json.writeValueAsString(req)))
+        mvc.perform(as(readerSub, put("/api/v1/holiday-calendars/" + UUID.randomUUID()))
+                        .content(json.writeValueAsString(req)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
@@ -149,7 +150,9 @@ class HolidayGuardIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("DELETE /api/v1/holiday-calendars/{id}/holidays/{holidayId} without core.holiday.manage is 403")
     void deleteHoliday_withoutManage_forbidden() throws Exception {
-        mvc.perform(as(readerSub, delete("/api/v1/holiday-calendars/" + UUID.randomUUID() + "/holidays/" + UUID.randomUUID())))
+        mvc.perform(as(
+                        readerSub,
+                        delete("/api/v1/holiday-calendars/" + UUID.randomUUID() + "/holidays/" + UUID.randomUUID())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
