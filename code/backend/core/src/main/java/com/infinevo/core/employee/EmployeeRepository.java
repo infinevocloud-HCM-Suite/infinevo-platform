@@ -2,7 +2,12 @@ package com.infinevo.core.employee;
 
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Reads and writes {@code core.employee} (W-13.1).
@@ -70,4 +75,35 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     /** The same count for a work location. See {@link #countByTenantIdAndDepartment_Id}. */
     long countByTenantIdAndWorkLocation_Id(UUID tenantId, UUID workLocationId);
+
+    /**
+     * Paginated, filtered, free-text search over a tenant's employees (W-13.3, spec section 4).
+     *
+     * <p>{@code @EntityGraph} fetches the three org master associations in a single join, so the
+     * caller can read {@code department}, {@code designation} and {@code workLocation} ids without
+     * an N+1 problem.
+     *
+     * <p>All four filters — tenant, soft-delete, status and free-text — are evaluated in the query
+     * so the page counts are correct and the database does the work rather than Java.
+     */
+    @EntityGraph(attributePaths = {"department", "designation", "workLocation"})
+    @Query(
+            """
+            SELECT e FROM Employee e
+            WHERE e.tenantId = :tenantId
+              AND (:includeDeleted = true OR e.deleted = false)
+              AND (:status IS NULL OR e.status = :status)
+              AND (:q IS NULL OR :q = '' OR (
+                   LOWER(e.firstName) LIKE LOWER(CONCAT(:q, '%'))
+                OR LOWER(e.lastName) LIKE LOWER(CONCAT(:q, '%'))
+                OR LOWER(e.employeeNumber) LIKE LOWER(CONCAT(:q, '%'))
+                OR LOWER(e.workEmail) LIKE LOWER(CONCAT(:q, '%'))
+              ))
+            """)
+    Page<Employee> search(
+            @Param("tenantId") UUID tenantId,
+            @Param("q") String q,
+            @Param("status") EmploymentStatus status,
+            @Param("includeDeleted") boolean includeDeleted,
+            Pageable pageable);
 }

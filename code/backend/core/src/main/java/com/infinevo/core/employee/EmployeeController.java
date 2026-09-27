@@ -8,6 +8,9 @@ import java.net.URI;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.MDC;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -50,9 +54,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class EmployeeController {
 
     private final EmployeeService employeeService;
+    private final EmployeeQueryService employeeQueryService;
 
-    public EmployeeController(EmployeeService employeeService) {
+    public EmployeeController(EmployeeService employeeService, EmployeeQueryService employeeQueryService) {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.employeeQueryService =
+                Objects.requireNonNull(employeeQueryService, "employeeQueryService must not be null");
+    }
+
+    /**
+     * Paginated, filtered, free-text search — W-13.3, spec section 4.
+     *
+     * <p>Thin: unpacks the query parameters, delegates to {@link EmployeeQueryService}, and returns
+     * the page. The service handles clamping, soft-delete guard and tenant scoping.
+     */
+    @GetMapping
+    @RequiresAction("core.employee.read")
+    public Page<EmployeeSummaryResponse> list(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) EmploymentStatus status,
+            @RequestParam(name = "includeDeleted", defaultValue = "false") boolean includeDeleted,
+            @PageableDefault(size = 25, sort = "lastName") Pageable pageable) {
+        return employeeQueryService.search(q, status, includeDeleted, pageable);
     }
 
     @PostMapping
