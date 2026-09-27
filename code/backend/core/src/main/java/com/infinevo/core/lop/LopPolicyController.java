@@ -4,7 +4,6 @@ import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
-import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
@@ -53,7 +52,7 @@ public class LopPolicyController {
      */
     @RequiresAction("core.lop_policy.manage")
     @PutMapping
-    public LopPolicyResponse savePolicy(@Valid @RequestBody LopPolicyRequest request) {
+    public LopPolicyResponse savePolicy(@RequestBody LopPolicyRequest request) {
         return policyService.savePolicy(request);
     }
 
