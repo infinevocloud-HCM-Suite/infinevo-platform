@@ -234,10 +234,11 @@ class ComponentRlsIT extends AbstractIntegrationTest {
         UUID id = UUID.randomUUID();
         String sql;
         if (extraCol != null) {
-            sql = "INSERT INTO payroll." + table + " (id, tenant_id, code, name, " + extraCol
-                    + ") VALUES (?, ?, ?, ?, ?)";
+            sql = "INSERT INTO payroll." + table + " (id, tenant_id, code, name, calculation_type, " + extraCol
+                    + ") VALUES (?, ?, ?, ?, 'FLAT', ?)";
         } else {
-            sql = "INSERT INTO payroll." + table + " (id, tenant_id, code, name) VALUES (?, ?, ?, ?)";
+            sql = "INSERT INTO payroll." + table
+                    + " (id, tenant_id, code, name, calculation_type) VALUES (?, ?, ?, ?, 'FLAT')";
         }
 
         try (Connection conn = PayrollTestSchema.migrationConnection();

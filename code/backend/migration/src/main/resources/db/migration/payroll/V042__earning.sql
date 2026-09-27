@@ -8,7 +8,7 @@ CREATE TABLE payroll.earning (
     name VARCHAR(128) NOT NULL,
     display_name VARCHAR(128),
     earning_type VARCHAR(32) NOT NULL,
-    calculation_type VARCHAR(16) NOT NULL,
+    calculation_type VARCHAR(16) NOT NULL DEFAULT 'FLAT',
     default_value NUMERIC(19,4),
     percentage_of VARCHAR(16),
     max_limit NUMERIC(19,4),
