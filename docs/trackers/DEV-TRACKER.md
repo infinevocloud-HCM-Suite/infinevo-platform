@@ -47,7 +47,7 @@ first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
 The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
 not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
 `V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` (**used, on main `b7d03ec`**) · `V035` `W-24.1` · `V036` `W-17` ·
-`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`.
+`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`. `V082` `W-65.1` · `V083`–`V084` `W-65.2` (reserved 2026-09-27, above the `V042`–`V081` block).
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
 and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2`; `W-52.1` is on main), `W-15`, `W-16`, `W-18`, `W-25`
@@ -359,14 +359,15 @@ Nothing started. All blocked on `W-15` approval engine.
 
 ## 6. Stream F — Frontend
 
-Nothing started. Everything waits on `W-45`, which is **Ready** now that `W-12` is on `main` (`a4f31ae`).
+Nothing started. Everything waits on `W-45`, which is **Ready with a spec** (2026-09-27) now that `W-12` is on `main` (`a4f31ae`). Unassigned.
 
 | # | Ticket | What it is |
 |---|---|---|
-| #57 | `W-45` Shell | Layout, navigation driven by entitlement, **a real API service layer** (Payroll has none today), Keycloak adapter, runtime configuration, design tokens |
+| #57 | `W-45` Shell | Layout, navigation driven by entitlement, **a real API service layer** (Payroll has none today), Keycloak adapter, runtime configuration, design tokens. **Spec written 2026-09-27** — `W-45-frontend-shell.md`; four of the six items shipped under `W-12.3`, so the ticket is the service-layer pattern, full tokens, shell error screens and the lint rules that enforce module boundaries. Size M. **Ready — unassigned** |
 | #58–62 | `W-46.1`–`.5` Core screens | Employee · leave · holiday and org setup · approvals · employee portal |
 | #63–67 | `W-47.1`–`.5` Payroll screens | Salary structure · pay run · tax and declarations · claims · dashboard |
 | #68 | `W-48` HRMS screens | Attendance, timesheet, projects, dashboards. **Rewritten from MUI to Ant Design** |
+| #85 | `W-65.3` Admin console screens | Tenant list, create, module and status switches, act-as banner, audit tab, in `src/core/admin`. **Spec written 2026-09-27** — `W-65-3-admin-console-screens.md`. Size M. **Ready — unassigned**, after `W-45`, `W-65.1`, `W-65.2` |
 
 ---
 
@@ -375,7 +376,7 @@ Nothing started. Everything waits on `W-45`, which is **Ready** now that `W-12` 
 | # | Ticket | What it is | Status |
 |---|---|---|---|
 | #75 | `W-55` Index & query standard | Tenant-leading index conventions, related-data fetching in one query, connection pooling. Calibrated to scale — the tables that matter are the ones growing with time: attendance, pay run lines, tax detail | **on main `2ccd723`** · done — checked in by biren |
-| #85 | `W-65` Admin console | Tenant list, subscription management, module toggle, support impersonation, audit view. **The real onboarding tool, since there is no payment step** | blocked on `W-12` |
+| #85 | `W-65` Admin console | Tenant list, subscription management, module toggle, support impersonation, audit view. **The real onboarding tool, since there is no payment step.** Split 2026-09-27 into three, specs written: `W-65.1` tenant list and the Infinevo platform tenant (`core`, `V082`) · `W-65.2` support impersonation (`shared`, `V083`–`V084`, after `W-65.1`) · `W-65.3` screens (frontend, after `W-45`, `W-65.1`, `W-65.2`). Audit is read one tenant at a time while impersonating, no cross-tenant view | **`W-65.1` Ready — unassigned** · `W-65.2` Ready after `W-65.1` · `W-65.3` in stream F |
 | #86 | `W-66` Marketing website | Module pages, feature comparison, pricing, lead capture, help centre, blog. Separate repo, no platform integration | unassigned — separate repo |
 
 `W-52` queue & worker and `W-53` caching are backend work but sit in
