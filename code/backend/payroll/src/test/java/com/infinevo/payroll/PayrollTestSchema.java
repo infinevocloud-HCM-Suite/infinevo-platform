@@ -1,0 +1,117 @@
+package com.infinevo.payroll;
+
+import com.infinevo.shared.test.PostgresTestContainerInitializer;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.UUID;
+
+/**
+ * Schema, seed data and connection helpers for payroll integration tests (W-26.1).
+ */
+public final class PayrollTestSchema {
+
+    public static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    public static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+    private PayrollTestSchema() {}
+
+    public static Connection migrationConnection() throws SQLException {
+        return DriverManager.getConnection(
+                PostgresTestContainerInitializer.getJdbcUrl(),
+                PostgresTestContainerInitializer.MIGRATION_USER,
+                PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD);
+    }
+
+    public static Connection appConnection() throws SQLException {
+        return DriverManager.getConnection(
+                PostgresTestContainerInitializer.getJdbcUrl(),
+                PostgresTestContainerInitializer.APP_USER,
+                PostgresTestContainerInitializer.APP_USER_PASSWORD);
+    }
+
+    public static void apply() throws Exception {
+        try (Connection conn = migrationConnection()) {
+            if (!tableExists(conn, "core", "tenant")) {
+                executeResource(conn, "db/migration/core/V001__tenant.sql");
+            }
+            if (!tableExists(conn, "payroll", "earning")) {
+                executeResource(conn, "db/migration/payroll/V042__earning.sql");
+            }
+            if (!tableExists(conn, "payroll", "deduction")) {
+                executeResource(conn, "db/migration/payroll/V043__deduction.sql");
+            }
+            if (!tableExists(conn, "payroll", "benefit")) {
+                executeResource(conn, "db/migration/payroll/V044__benefit.sql");
+            }
+            if (!tableExists(conn, "payroll", "reimbursement")) {
+                executeResource(conn, "db/migration/payroll/V045__reimbursement.sql");
+            }
+            try (Statement st = conn.createStatement()) {
+                st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
+            }
+        }
+    }
+
+    public static void seedTenants() throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
+            ps.setObject(1, TENANT_A);
+            ps.setString(2, "Acme Manufacturing");
+            ps.executeUpdate();
+            ps.setObject(1, TENANT_B);
+            ps.setString(2, "Globex Corporation");
+            ps.executeUpdate();
+        }
+    }
+
+    public static void cleanTables() throws SQLException {
+        try (Connection conn = migrationConnection();
+                Statement st = conn.createStatement()) {
+            st.execute(
+                    "TRUNCATE TABLE payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
+        }
+    }
+
+    public static void bindTenant(Connection conn, UUID tenantId) throws SQLException {
+        try (PreparedStatement bind = conn.prepareStatement("SELECT set_config('app.current_tenant_id', ?, false)")) {
+            bind.setString(1, tenantId.toString());
+            bind.execute();
+        }
+    }
+
+    public static void clearTenant(Connection conn) throws SQLException {
+        try (PreparedStatement clear = conn.prepareStatement("SELECT set_config('app.current_tenant_id', '', false)")) {
+            clear.execute();
+        }
+    }
+
+    public static boolean tableExists(Connection conn, String schema, String table) throws SQLException {
+        try (PreparedStatement ps =
+                conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = ? AND tablename = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    public static void executeResource(Connection conn, String resourcePath) throws Exception {
+        try (InputStream is = PayrollTestSchema.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                throw new IllegalStateException("Migration script not found on test classpath: " + resourcePath);
+            }
+            String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute(sql);
+            }
+        }
+    }
+}
