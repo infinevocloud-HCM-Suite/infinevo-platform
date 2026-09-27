@@ -32,35 +32,45 @@ public class PayrollTestApp {
             @Override
             public EmployeeResponse get(UUID id) {
                 UUID tenantId = TenantContext.require();
-                try (Connection conn = dataSource.getConnection();
-                        PreparedStatement ps = conn.prepareStatement(
-                                "SELECT id, employee_number, first_name, last_name, work_email FROM core.employee WHERE id = ? AND tenant_id = ? AND is_deleted = false")) {
-                    ps.setObject(1, id);
-                    ps.setObject(2, tenantId);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (!rs.next()) {
-                            throw new EmployeeService.NotFoundException(id);
+                try (Connection conn = dataSource.getConnection()) {
+                    conn.setAutoCommit(false);
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "SELECT id, employee_number, first_name, last_name, work_email FROM core.employee WHERE id = ? AND tenant_id = ? AND is_deleted = false")) {
+                        ps.setObject(1, id);
+                        ps.setObject(2, tenantId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) {
+                                throw new EmployeeService.NotFoundException(id);
+                            }
+                            EmployeeResponse response = new EmployeeResponse(
+                                    id,
+                                    tenantId,
+                                    rs.getString("employee_number"),
+                                    rs.getString("first_name"),
+                                    null,
+                                    rs.getString("last_name"),
+                                    "MALE",
+                                    LocalDate.now(),
+                                    null,
+                                    null,
+                                    rs.getString("work_email"),
+                                    null,
+                                    false,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    Instant.now(),
+                                    Instant.now());
+                            conn.commit();
+                            return response;
                         }
-                        return new EmployeeResponse(
-                                id,
-                                tenantId,
-                                rs.getString("employee_number"),
-                                rs.getString("first_name"),
-                                null,
-                                rs.getString("last_name"),
-                                "MALE",
-                                LocalDate.now(),
-                                null,
-                                null,
-                                rs.getString("work_email"),
-                                null,
-                                false,
-                                null,
-                                null,
-                                null,
-                                null,
-                                Instant.now(),
-                                Instant.now());
+                    } catch (SQLException | RuntimeException e) {
+                        try {
+                            conn.rollback();
+                        } catch (SQLException ignored) {
+                        }
+                        throw e;
                     }
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
