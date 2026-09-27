@@ -74,19 +74,9 @@ public class ReportingLineService {
             for (ReportingLine existing : existingLines) {
                 if (existing.getEffectiveTo() == null
                         || !existing.getEffectiveTo().isBefore(effectiveFrom)) {
-                    if (existing.getEffectiveFrom().isBefore(effectiveFrom)) {
-                        existing.setEffectiveTo(effectiveFrom.minusDays(1));
-                        existing.setUpdatedBy(actor);
-                        repository.save(existing);
-                    } else if (existing.getEffectiveFrom().equals(effectiveFrom)) {
-                        existing.setEffectiveTo(effectiveFrom);
-                        existing.setUpdatedBy(actor);
-                        repository.save(existing);
-                    } else {
-                        existing.setEffectiveTo(existing.getEffectiveFrom());
-                        existing.setUpdatedBy(actor);
-                        repository.save(existing);
-                    }
+                    existing.setEffectiveTo(effectiveFrom.minusDays(1));
+                    existing.setUpdatedBy(actor);
+                    repository.save(existing);
                 }
             }
         }
@@ -193,26 +183,38 @@ public class ReportingLineService {
         Set<UUID> visited = new HashSet<>();
         visited.add(employeeId);
 
-        UUID currentId = candidateManagerId;
-        int depth = 0;
+        java.util.Queue<UUID> queue = new java.util.ArrayDeque<>();
+        queue.add(candidateManagerId);
 
-        while (currentId != null && depth < MAX_CHAIN_DEPTH) {
+        int count = 0;
+        while (!queue.isEmpty() && count < MAX_CHAIN_DEPTH * 10) {
+            UUID currentId = queue.poll();
+            if (currentId == null) {
+                continue;
+            }
             if (currentId.equals(employeeId)) {
                 throw new IllegalArgumentException(
                         "Reporting line cycle detected: assigning this manager creates a loop");
             }
-            if (visited.contains(currentId)) {
-                break;
+            if (!visited.add(currentId)) {
+                continue;
             }
-            visited.add(currentId);
+            count++;
 
             List<ReportingLine> lines =
                     repository.findOpenOrFutureLines(tenantId, currentId, ReportingLineKind.PRIMARY, effectiveFrom);
-            if (lines.isEmpty()) {
-                break;
+            for (ReportingLine line : lines) {
+                if (line.getManager() != null) {
+                    UUID mgrId = line.getManager().getId();
+                    if (mgrId.equals(employeeId)) {
+                        throw new IllegalArgumentException(
+                                "Reporting line cycle detected: assigning this manager creates a loop");
+                    }
+                    if (!visited.contains(mgrId)) {
+                        queue.add(mgrId);
+                    }
+                }
             }
-            currentId = lines.get(0).getManager().getId();
-            depth++;
         }
     }
 

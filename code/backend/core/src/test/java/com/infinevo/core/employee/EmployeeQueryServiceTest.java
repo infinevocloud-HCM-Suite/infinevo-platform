@@ -186,16 +186,58 @@ class EmployeeQueryServiceTest {
         assertThat(summary.isDeleted()).isFalse();
     }
 
+    @Test
+    @DisplayName("Search q escapes special wildcard characters %, _ and \\")
+    void qSearchEscapesSpecialCharacters() {
+        when(repository.search(any(), any(), any(), eq(false), any())).thenReturn(Page.empty());
+
+        service.search("100%_test\\name", null, false, PageRequest.of(0, 25));
+
+        verify(repository).search(eq(TENANT), eq("100\\%\\_test\\\\name"), eq(null), eq(false), any());
+    }
+
+    @Test
+    @DisplayName("Search query q matches across firstName, lastName, employeeNumber, and workEmail")
+    void qMatchesFourFields() {
+        Employee e1 = employee("EMP-101", "Alice", "Smith", "alice@example.com");
+        Employee e2 = employee("EMP-102", "Bob", "Jones", "bob@example.com");
+        Employee e3 = employee("EMP-103", "Charlie", "Brown", "charlie@example.com");
+
+        when(repository.search(eq(TENANT), eq("Alice"), eq(null), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(e1)));
+        when(repository.search(eq(TENANT), eq("Jones"), eq(null), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(e2)));
+        when(repository.search(eq(TENANT), eq("EMP-103"), eq(null), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(e3)));
+        when(repository.search(eq(TENANT), eq("alice@example.com"), eq(null), eq(false), any()))
+                .thenReturn(new PageImpl<>(List.of(e1)));
+
+        Page<EmployeeSummaryResponse> res1 = service.search("Alice", null, false, PageRequest.of(0, 25));
+        Page<EmployeeSummaryResponse> res2 = service.search("Jones", null, false, PageRequest.of(0, 25));
+        Page<EmployeeSummaryResponse> res3 = service.search("EMP-103", null, false, PageRequest.of(0, 25));
+        Page<EmployeeSummaryResponse> res4 = service.search("alice@example.com", null, false, PageRequest.of(0, 25));
+
+        assertThat(res1.getContent()).extracting("firstName").containsExactly("Alice");
+        assertThat(res2.getContent()).extracting("firstName").containsExactly("Bob");
+        assertThat(res3.getContent()).extracting("employeeNumber").containsExactly("EMP-103");
+        assertThat(res4.getContent()).extracting("workEmail").containsExactly("alice@example.com");
+    }
+
     /** Builds a minimal Employee for test assertions. */
     private static Employee employee(String number, String firstName, boolean deleted) {
+        return employee(number, firstName, "Test", null);
+    }
+
+    private static Employee employee(String number, String firstName, String lastName, String workEmail) {
         Employee e = new Employee(TENANT, "test");
         ReflectionTestUtils.setField(e, "id", UUID.randomUUID());
         ReflectionTestUtils.setField(e, "employeeNumber", number);
         ReflectionTestUtils.setField(e, "firstName", firstName);
-        ReflectionTestUtils.setField(e, "lastName", "Test");
+        ReflectionTestUtils.setField(e, "lastName", lastName);
+        ReflectionTestUtils.setField(e, "workEmail", workEmail);
         ReflectionTestUtils.setField(e, "status", EmploymentStatus.ACTIVE);
         ReflectionTestUtils.setField(e, "dateOfJoining", JOINED);
-        ReflectionTestUtils.setField(e, "deleted", deleted);
+        ReflectionTestUtils.setField(e, "deleted", false);
         ReflectionTestUtils.setField(e, "portalEnabled", true);
         ReflectionTestUtils.setField(e, "createdAt", Instant.now());
         ReflectionTestUtils.setField(e, "updatedAt", Instant.now());

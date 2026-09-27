@@ -77,6 +77,7 @@ public interface ReportingLineRepository extends JpaRepository<ReportingLine, UU
               AND r.employee.id = :employeeId
               AND r.kind = :kind
               AND (r.effectiveTo IS NULL OR r.effectiveTo >= :effectiveFrom)
+            ORDER BY r.effectiveFrom DESC
             """)
     List<ReportingLine> findOpenOrFutureLines(
             @Param("tenantId") UUID tenantId,
