@@ -139,8 +139,8 @@ class SalaryVersionIT extends AbstractIntegrationTest {
             throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO core.employee (id, tenant_id, employee_number, first_name, last_name, official_email) "
-                                + "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")) {
+                        "INSERT INTO core.employee (id, tenant_id, employee_number, first_name, last_name, work_email, date_of_joining, status) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, '2026-01-01', 'ACTIVE') ON CONFLICT DO NOTHING")) {
             ps.setObject(1, employeeId);
             ps.setObject(2, tenantId);
             ps.setString(3, code);

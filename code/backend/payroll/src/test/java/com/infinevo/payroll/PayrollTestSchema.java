@@ -71,6 +71,7 @@ public final class PayrollTestSchema {
                 executeResource(conn, "db/migration/payroll/V050__employee_statutory_profile.sql");
             }
             try (Statement st = conn.createStatement()) {
+                st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
             }
         }
@@ -94,6 +95,7 @@ public final class PayrollTestSchema {
                 Statement st = conn.createStatement()) {
             st.execute("TRUNCATE TABLE payroll.ctc_structure, payroll.employee_statutory_profile, "
                     + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
+            st.execute("DELETE FROM core.employee");
         }
     }
 
