@@ -15,7 +15,6 @@ import java.util.List;
  * Items that are not here yet, and the ticket that adds each one:
  *
  * <ul>
- *   <li>{@code core.employee} → {@code GET /api/v1/employees} — W-13.3 (employee search and listing)
  *   <li>{@code hrms.timesheets} → {@code GET /api/v1/timesheets} — the HRMS timesheet ticket
  *   <li>{@code payroll.runs} → {@code GET /api/v1/payroll/runs} — W-29 (pay run)
  * </ul>
@@ -50,6 +49,8 @@ public final class NavigationCatalogue {
     }
 
     public static final List<ItemDefinition> DEFAULT_ITEMS = List.of(
+            new ItemDefinition(
+                    "core.employee", "nav.employees", "/employees", "/api/v1/employees", null, "core.employee.read"),
             new ItemDefinition(
                     "core.org",
                     "nav.organisation",
