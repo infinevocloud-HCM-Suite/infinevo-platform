@@ -22,7 +22,7 @@
 
 | # | Ticket | What it is | Spec | Code | Feature |
 |---|---|---|---|---|---|
-| #3 | `W-02` Local development stack | Nine containers from one command, schema bootstrap on start, two seeded tenants with different module sets, mail catcher | approved | on main | **done** — all healthy in 114s |
+| #3 | `W-02` Local development stack | Nine containers from one command, schema bootstrap on start, two seeded tenants with different module sets, mail catcher | approved | on main | **done** — all healthy in 114s — checked in by sanjib |
 | #69 | `W-49` Containerisation | Three production images: backend carrying both `app.jar` and `worker.jar` selected by `INFINEVO_ROLE`, unprivileged nginx on 8080, Keycloak with no realm baked in. All non-root, no secrets | approved | on main | **done** — 154 / 24 / 225 MB, built and gated by CI |
 
 Files: `infra/docker/` — `compose.yml`, `backend.Dockerfile`, `frontend.Dockerfile`,
@@ -38,8 +38,8 @@ Left behind by `W-49`, both handed to `W-59`: the container scan's "report-only 
 
 | # | Ticket | Workflow | What it does | Spec | Code | Feature |
 |---|---|---|---|---|---|---|
-| #4 | `W-03` Build & test pipeline | `.github/workflows/ci.yml` | Compile, lint, test, build images. Deploys nothing, pushes to no registry | approved | on main | **done** |
-| #70 | `W-50` (part of) | `.github/workflows/infra.yml` | Bicep lint and what-if on every change under `infra/azure/` | approved | on main | **code done** — what-if never run against a real subscription |
+| #4 | `W-03` Build & test pipeline | `.github/workflows/ci.yml` | Compile, lint, test, build images. Deploys nothing, pushes to no registry | approved | on main | **done** — checked in by sanjib |
+| #70 | `W-50` (part of) | `.github/workflows/infra.yml` | Bicep lint and what-if on every change under `infra/azure/` | approved | on main | **code done** — what-if never run against a real subscription — checked in by karmaveer |
 | #74 | `W-54` Deployment pipeline | `.github/workflows/deploy.yml` | Promote the image CI already built, never rebuild it; run the migration job; switch revision; roll back by shifting traffic. OIDC to Azure | approved | on main | **code done** — merged 2026-09-22, never executed |
 | #79 | `W-59` Scanning | `.github/workflows/security.yml` | Trivy dependencies and images, Semgrep SAST, Gitleaks, Dependabot. Carried Spring Boot 3.3.13 → 3.5.16 (`D-60`, 29 CVEs) | approved 2026-09-16 | on main `ebb1d14` | **done** |
 
@@ -54,8 +54,8 @@ Left behind by `W-49`, both handed to `W-59`: the container scan's "report-only 
 
 | # | Ticket | What it builds | Spec | Code | Feature |
 |---|---|---|---|---|---|
-| #70 | `W-50` Azure infrastructure as code | The estate in Bicep — 2 resource groups, container registry, Key Vault, Log Analytics, Container Apps environment and 4 apps, Postgres 16 Flexible, Redis, Storage blob and queue, 4 managed identities, Front Door with WAF | approved 2026-09-18 | on main | **code done** |
-| #71 | `W-51` Networking & identity | The perimeter — VNet and subnets, private endpoints and private DNS for Postgres, Redis, Storage and Key Vault, Front Door origin lock by IP, managed-identity RBAC, in-VNet migration job, Central India residency | approved 2026-09-19 rev 3 | on main | **code done** |
+| #70 | `W-50` Azure infrastructure as code | The estate in Bicep — 2 resource groups, container registry, Key Vault, Log Analytics, Container Apps environment and 4 apps, Postgres 16 Flexible, Redis, Storage blob and queue, 4 managed identities, Front Door with WAF | approved 2026-09-18 | on main | **code done** — checked in by karmaveer |
+| #71 | `W-51` Networking & identity | The perimeter — VNet and subnets, private endpoints and private DNS for Postgres, Redis, Storage and Key Vault, Front Door origin lock by IP, managed-identity RBAC, in-VNet migration job, Central India residency | approved 2026-09-19 rev 3 | on main | **code done** — checked in by karmaveer |
 | #72 | `W-52` Queue & worker | Background jobs — Storage Queue in Azure and Azurite locally, job dispatch, job status and progress, ShedLock so the two cron jobs stop firing twice on multiple replicas | approved 2026-09-21 | on main `e833196`, fixed `5c07c45` | **code done.** The consumer loop, shared producer and guarded `/jobs/{id}` landed with `W-52.1` (D-2, D-3) in [DEV-TRACKER.md](DEV-TRACKER.md) §3b. Still open: stale-`RUNNING` sweep after a worker dies mid-job; no local queue stand-in in `compose.yml` |
 | #73 | `W-53` Caching | Cache abstraction, permission cache, master data cache, invalidation. The Redis already exists from `W-50` | approved 2026-09-22 | on main `808d837`, cleaned `5c07c45` | **code done** — the two unused classes and the duplicate `core.queue` package were removed by `W-53.1` (D-7) in [DEV-TRACKER.md](DEV-TRACKER.md) §3b |
 | #76 | `W-56` Secrets | No credential anywhere in the repo — Key Vault, managed-identity resolution, dual-role zero-downtime database rotation | approved 2026-09-23 rev 6 | on main `64ec5fd` | **code done** — rotation removed in rev 6; never run in Azure |
