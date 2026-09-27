@@ -50,7 +50,7 @@ public class SetupChecklistService {
         Set<PlatformModule> activeModules = entitlementSource.modulesOf(tenantId);
         List<TenantSetupStep> existingSteps = repository.findByTenantIdOrderByDisplayOrderAsc(tenantId);
         Map<String, TenantSetupStep> existingByCode = existingSteps.stream()
-                .collect(Collectors.toMap(s -> s.getStepCode().toUpperCase(), s -> s));
+                .collect(Collectors.toMap(s -> s.getStepCode().toUpperCase(), s -> s, (s1, s2) -> s1));
 
         List<TenantSetupStep> assembled = new ArrayList<>();
         Instant now = Instant.now();
@@ -169,13 +169,18 @@ public class SetupChecklistService {
                 .findByTenantIdAndStepCode(tenantId, normalizedCode)
                 .orElseThrow(() -> new SetupStepNotFoundException(stepCode));
 
-        step.setSkipped(true);
-        step.setSkipReason(reason.trim());
-        step = repository.save(step);
-
+        Set<PlatformModule> activeModules = entitlementSource.modulesOf(tenantId);
         SetupStepCatalogue.StepDefinition def = SetupStepCatalogue.findByCode(step.getStepCode())
                 .orElse(new SetupStepCatalogue.StepDefinition(
                         step.getStepCode(), step.getStepCode(), step.getModule(), step.getDisplayOrder()));
+
+        if (!isApplicable(def, activeModules)) {
+            throw new SetupStepNotFoundException(stepCode);
+        }
+
+        step.setSkipped(true);
+        step.setSkipReason(reason.trim());
+        step = repository.save(step);
 
         return new SetupStepResponse(
                 step.getStepCode(),

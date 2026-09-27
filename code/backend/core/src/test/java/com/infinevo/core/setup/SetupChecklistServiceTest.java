@@ -195,4 +195,18 @@ class SetupChecklistServiceTest {
         assertThatThrownBy(() -> service.skipStep(tenantId, "NON_EXISTENT_STEP", "Some reason"))
                 .isInstanceOf(SetupChecklistService.SetupStepNotFoundException.class);
     }
+
+    @Test
+    @DisplayName("skipping a step not applicable to tenant throws SetupStepNotFoundException")
+    void skipInapplicableStepThrows() {
+        UUID tenantId = UUID.randomUUID();
+        when(entitlementSource.modulesOf(tenantId)).thenReturn(Set.of(PlatformModule.HRMS));
+
+        TenantSetupStep payStep =
+                new TenantSetupStep(tenantId, "PAY_SCHEDULE", PlatformModule.PAYROLL, 3, Instant.now());
+        database.put(tenantId + ":PAY_SCHEDULE", payStep);
+
+        assertThatThrownBy(() -> service.skipStep(tenantId, "PAY_SCHEDULE", "Not using payroll"))
+                .isInstanceOf(SetupChecklistService.SetupStepNotFoundException.class);
+    }
 }
