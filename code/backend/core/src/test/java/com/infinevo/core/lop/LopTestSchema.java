@@ -40,6 +40,9 @@ public final class LopTestSchema {
             if (!tableExists(conn, "tenant")) {
                 executeResource(conn, "db/migration/core/V001__tenant.sql");
             }
+            if (!columnExists(conn, "tenant", "country_code")) {
+                executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
+            }
             if (!tableExists(conn, "subscription")) {
                 executeResource(conn, "db/migration/core/V034__subscription.sql");
             }
@@ -68,6 +71,17 @@ public final class LopTestSchema {
             ps.setObject(1, TENANT_B);
             ps.setString(2, "Tenant Beta");
             ps.executeUpdate();
+        }
+        try (Connection conn = migrationConnection();
+                Statement stmt = conn.createStatement()) {
+            stmt.execute(
+                    """
+                    INSERT INTO core.lop_policy (id, tenant_id, working_day_basis, weekends_payable,
+                        holidays_payable, lop_rounding, effective_from)
+                    SELECT gen_random_uuid(), t.tenant_id, 'ACTUAL_DAYS', true, true, 'HALF_UP_2', '1900-01-01'
+                    FROM core.tenant t
+                    WHERE NOT EXISTS (SELECT 1 FROM core.lop_policy p WHERE p.tenant_id = t.tenant_id)
+                    """);
         }
     }
 
@@ -102,6 +116,12 @@ public final class LopTestSchema {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
+        try (ResultSet rs = conn.getMetaData().getColumns(null, "core", table, column)) {
+            return rs.next();
         }
     }
 

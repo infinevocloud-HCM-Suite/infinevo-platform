@@ -67,23 +67,33 @@ public class WorkingDayBasisCalculator {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(period, "period must not be null");
 
-        LocalDate endOfPeriod = period.atEndOfMonth();
-        LopPolicy policy = policyService
-                .findPolicyInForceEntity(tenantId, endOfPeriod)
-                .orElseThrow(() -> new NoLopPolicyException(
-                        "No loss-of-pay policy in force for tenant " + tenantId + " in period " + period));
+        UUID previousTenant = TenantContext.current().orElse(null);
+        try {
+            TenantContext.set(tenantId);
+            LocalDate endOfPeriod = period.atEndOfMonth();
+            LopPolicy policy = policyService
+                    .findPolicyInForceEntity(tenantId, endOfPeriod)
+                    .orElseThrow(() -> new NoLopPolicyException(
+                            "No loss-of-pay policy in force for tenant " + tenantId + " in period " + period));
 
-        LocalDate from = period.atDay(1);
-        LocalDate to = period.atEndOfMonth();
+            LocalDate from = period.atDay(1);
+            LocalDate to = period.atEndOfMonth();
 
-        return switch (policy.getWorkingDayBasis()) {
-            case FIXED_30 -> {
-                BigDecimal days = applyRounding(BigDecimal.valueOf(30), policy.getLopRounding());
-                yield new WorkingDayBasisResponse(days, days, policy.getId());
+            return switch (policy.getWorkingDayBasis()) {
+                case FIXED_30 -> {
+                    BigDecimal days = applyRounding(BigDecimal.valueOf(30), policy.getLopRounding());
+                    yield new WorkingDayBasisResponse(days, days, policy.getId());
+                }
+                case ORG_DAYS -> computeOrgDays(tenantId, period, employeeId, policy, from, to);
+                case ACTUAL_DAYS -> computeActualDays(tenantId, period, employeeId, policy, from, to);
+            };
+        } finally {
+            if (previousTenant != null) {
+                TenantContext.set(previousTenant);
+            } else {
+                TenantContext.clear();
             }
-            case ORG_DAYS -> computeOrgDays(tenantId, period, employeeId, policy, from, to);
-            case ACTUAL_DAYS -> computeActualDays(tenantId, period, employeeId, policy, from, to);
-        };
+        }
     }
 
     private WorkingDayBasisResponse computeActualDays(
