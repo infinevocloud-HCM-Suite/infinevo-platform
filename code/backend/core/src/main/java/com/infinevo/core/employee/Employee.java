@@ -190,7 +190,7 @@ public class Employee {
 
     protected Employee() {}
 
-    Employee(UUID tenantId, String actor) {
+    public Employee(UUID tenantId, String actor) {
         this.tenantId = tenantId;
         this.createdBy = actor;
         this.updatedBy = actor;
