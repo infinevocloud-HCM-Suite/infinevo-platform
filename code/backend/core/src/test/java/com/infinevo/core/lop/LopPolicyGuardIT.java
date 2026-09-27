@@ -86,6 +86,17 @@ class LopPolicyGuardIT extends AbstractIntegrationTest {
                 "core.lop_policy.read",
                 "core.lop_policy.manage");
         AuthzTestSchema.grant(tenant, managerAccount, managerRole);
+
+        // Seed initial policy for the tenant so getPolicy returns 200
+        try (Connection conn = AuthzTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO core.lop_policy (id, tenant_id, working_day_basis, weekends_payable,"
+                            + " holidays_payable, lop_rounding, effective_from, created_by, updated_by) VALUES (?, ?,"
+                            + " 'ACTUAL_DAYS', true, true, 'HALF_UP_2', '1900-01-01', 'system', 'system')")) {
+            ps.setObject(1, UUID.randomUUID());
+            ps.setObject(2, tenant);
+            ps.executeUpdate();
+        }
     }
 
     @Test
