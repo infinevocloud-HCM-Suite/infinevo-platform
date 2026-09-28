@@ -4,10 +4,10 @@
 |---|---|
 | **Feature ID** | `W-39.1` · from ticket `W-39` · `CORE-20` |
 | **Promoted to** | `docs/target-state/features/W-39-1-attendance-capture.md` on branch `W-39-1-attendance-capture` — **`W-39-1` with hyphens**, never `W-39.1`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | sayeed |
 | **Apps touched** | `code/backend/core`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for this table), DEBT-018 (honoured), DEBT-013 (discounted) |
-| **Status** | **Ready** |
+| **Status** | **Done** — on `main` `3bf5b10`, 2026-09-28 |
 | **Written by** | founder, 2026-09-24 |
 | **Blocked by** | nothing — `W-13.1` is on main (`7d0bab6`) |
 
@@ -106,14 +106,14 @@ Package `com.infinevo.core.attendance`, following `com.infinevo.core.org`.
 | Existing row for `(employeeId, date)` | Updated, not duplicated — the call is idempotent |
 | One bad entry | Whole request rejected, nothing saved |
 
-**Decision — the permission names.** The catalogue already holds `hrms.attendance.read` and
-`hrms.attendance.manage` (`V020__action.sql:92-93`), granted to `hr`, `payroll-officer` (read)
-and `tenant-admin` (`V022__role_action.sql:114-116,136`). This ticket uses them rather than
-adding `core.attendance.*`, which would need a second migration and a rewrite of
-`core.seed_system_roles`. The prefix is only a name: entitlement is checked by
-`@RequiresModule` on the controller (`W-12-2-entitlement-enforcement.md` §2), and this
-controller carries none, so a Payroll-only tenant reaches it. Leave and holiday have the same
-misnamed prefix (`V020__action.sql`, `hrms.leave.*`, `hrms.holiday.*`). Renaming all three is one later catalogue ticket.
+**Decision — the permission names.** The controller uses `core.attendance.read` and
+`core.attendance.manage`. When this spec was written those codes were `hrms.attendance.*`
+(`V020__action.sql:92-93`); `W-11.3` moved administrator-entered attendance, leave and holiday
+codes to the `core` prefix (`V025__catalogue_correction.sql:1-9,169-191`), granted to `hr`,
+`payroll-officer` (read) and `tenant-admin`. No new codes were needed. Entitlement is checked
+by `@RequiresModule` on the controller (`W-12-2-entitlement-enforcement.md` §2), and this
+controller carries none, so a Payroll-only tenant reaches it. *(Corrected 2026-09-28 at merge;
+the original paragraph pre-dated `V025`.)*
 
 ## 5. Frontend changes
 

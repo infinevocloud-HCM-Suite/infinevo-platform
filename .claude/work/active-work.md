@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-28 — `W-39.1` merged (`3bf5b10`)
+
+- Attendance capture is on `main`: `core.attendance` (`V030`) with RLS and two tenant-led indexes; `PUT /api/v1/attendance` (1–1000 entries, all-or-nothing, idempotent per employee-date), `GET` by date range (≤ 93 days), `DELETE` one row. `AttendanceQuery.days()` is `W-18`'s read. Permissions are `core.attendance.read` / `core.attendance.manage` (the `V025` names; the spec's `hrms.*` paragraph was corrected at merge).
+- Gates 5/5, CI green on `0dabf74`, one independent read, no send-back. Three shared test schemas conflicted with `W-15` and `W-27` on adjacent lines; both sides kept, merged tree compiles and passes spotless.
+- **Accepted as outstanding by the founder:** remarks over 255 chars returns 500 not 400; no database-level cross-tenant write IT (as `W-26`, `W-27`, `W-32`); audit assertion is `>= 1`, cannot tell insert from update; future-date check uses the server zone until a tenant locale exists.
+- **Not merged:** `663f84a` (`W-31.1`) was pushed to the same branch after the review. It stays on `W-39-1-attendance-capture` and goes through its own `/merge`. sayeed must **not** reset that branch to `main`; rebase it onto `main` instead so the `W-39.1` commits drop out.
+- **Unblocking:** `W-40` now waits only on `W-39.2` and `W-16`. `W-18` unchanged (waits on `W-16`, `W-17`). Nothing newly Ready.
+
 ## 2026-09-28 — `W-27.1` and `W-27.2` merged (`79c8825`)
 
 - FBP is on `main`: `payroll.fbp` (`V051`), the three `payroll.fbp.*` action codes with grants for new and existing tenants (`V052`), and `payroll.employee_fbp_component` (`V053`), all with RLS. Employee declares under `/me/fbp-declaration` while the window is open, the officer any time; each line capped at its salary line; revise carries forward capped; editing a future version re-caps. The version-in-force read shows declared and unallocated amounts for `W-29`.

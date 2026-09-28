@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
 | B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete; suite green again (`W-04.1`) |
-| C — Core platform | 26 | 18 | 18 | **Building.** `W-15.1`–`W-15.3` on `main` (`a34c14f`) — the approval engine: definitions, lifecycle and routing, delegation and escalation; `W-16.1` and `W-39.1` are Ready |
+| C — Core platform | 26 | 19 | 19 | **Building.** `W-39.1` on `main` (`3bf5b10`) — administrator-entered attendance for Payroll-only tenants; `W-15.1`–`W-15.3` on `main` (`a34c14f`); `W-16.1` is Ready |
 | D — Payroll | 21 | 4 | 4 | **Building.** `W-26.1`–`W-27.2` on `main` (`79c8825`) — component catalogue, dated CTC versions, FBP plan and declaration; `W-28` next, `W-29.1` waits on `W-28` and `W-19` |
 | E — HRMS | 5 | 0 | 0 | `W-15` is on `main` (`a34c14f`); `W-16.1` is Ready, the rest wait on `W-16` |
 | F — Frontend | 13 | 0 | 0 | **Assigned 2026-09-28: `W-45` and all six `W-46` parts to biren.** `W-12` is on `main` (`a4f31ae`); `W-46` specs written 2026-09-28, six tickets after the `W-46.3` split |
@@ -30,7 +30,7 @@ lane so two lanes never collide on a version.
 
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
-| sayeed | `dev-sayeed` | 1a employee & org · 5 statutory settings | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** ~~`W-13.4`~~ **on main `e699699`** ~~`W-09.1`~~ **on main `c79755c`** ~~`W-13.3`~~ ~~`W-14.2`~~ **on main `ccc8e48`** → D-9 manual checks → `W-39.1` **Ready** · `W-31.1` → `W-31.2` → `W-31.3` | `V026`–`V032` · `V062`–`V069` |
+| sayeed | `dev-sayeed` | 1a employee & org · 5 statutory settings | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** ~~`W-13.4`~~ **on main `e699699`** ~~`W-09.1`~~ **on main `c79755c`** ~~`W-13.3`~~ ~~`W-14.2`~~ **on main `ccc8e48`** ~~`W-39.1`~~ **on main `3bf5b10`** → D-9 manual checks → `W-31.1` (in progress on `W-39-1-attendance-capture`, commit `663f84a`) → `W-31.2` → `W-31.3` | `V026`–`V032` (`V030` used) · `V062`–`V069` |
 | krushna | `dev-krushna` | 2 tenant & onboarding · 7a working-day policy & schedule | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** → `W-24.1` **Ready** → `W-17` → `W-24.2` → `W-18.1` → `W-18.2` → `W-28` | `V033`–`V034` used · `V035`–`V036` · `V054` |
 | devashis | `dev-devashis` | 3 documents, notifications, reporting · 7b pay input ledger & captures | `W-21` + `W-20.1` + `W-23.1` **sent back again 2026-09-26, see § 3d** → `W-20.2` → `W-22.2` → `W-23.2` · `W-19` → `W-30.1` → `W-39.2` | `V037`–`V040` · `V041`, `V060` |
 | karma | `dev-karma` | 1b approvals, leave & portal | ~~`W-15.1`~~ ~~`W-15.2`~~ ~~`W-15.3`~~ **on main `a34c14f`** → `W-16.1` **Ready** → `W-16.2` → `W-16.3` → `W-16.4a` → `W-16.4b` → `W-25` → `W-40` | `V089`–`V092` used |
@@ -46,7 +46,7 @@ first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
 
 The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
 not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
-`V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` (**used, on main `b7d03ec`**) · `V035` `W-24.1` · `V036` `W-17` ·
+`V030` `W-39.1` (**used, on main `3bf5b10`**) · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` (**used, on main `b7d03ec`**) · `V035` `W-24.1` · `V036` `W-17` ·
 `V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`. `V082` `W-65.1` · `V083`–`V084` `W-65.2` (reserved 2026-09-27, above the `V042`–`V081` block) · `V085`–`V088` `W-41` (reserved 2026-09-28) · `V089`–`V092` `W-15.1`–`W-15.3` (**used, on main `a34c14f`**).
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
@@ -171,7 +171,7 @@ blocker is cleared for all of them.
 | #27 | `W-23` Reporting & export | Report definitions, spreadsheet and CSV export, scheduled reports | `W-23.1` **sent back again 2026-09-26 — devashis** (items 4 and 5 open; rides with `W-20.1`, § 3d); `W-23.2` needs `W-20.2` |
 | #28 | `W-24` Setup checklist & invitations | A module-aware checklist, progress tracking, user and employee invitation | **assigned — krushna** (`W-24.1`), after `W-12.1`; `W-24.2` needs `W-20.1` |
 | #29 | `W-25` Employee self-service portal | My profile, leave, documents, payslips (Payroll only), timesheet (HRMS only) | **assigned — karma**, after `W-16` |
-| #— | `W-39.1` Attendance capture (basic) | `core.attendance` — present, absent, half day per employee per date, entered by an administrator, so a Payroll-only tenant can record it (`D-35`) | **Ready — sayeed** (`W-14.2` on `main` `ccc8e48`) |
+| #— | `W-39.1` Attendance capture (basic) | `core.attendance` — present, absent, half day per employee per date, entered by an administrator, so a Payroll-only tenant can record it (`D-35`); `AttendanceQuery.days()` is `W-18`'s read. **Done 2026-09-28 on `3bf5b10` — Built by sayeed.** Outstanding in the merge commit. Migration `V030` |
 | #— | `W-39.2` Overtime capture (basic) | `core.overtime_request` — approved overtime entered by an administrator, written to the pay input ledger | **assigned — devashis**, after `W-19`; migration `V041` |
 
 ---
@@ -349,7 +349,7 @@ Nothing started. `W-41` is Ready and needs only `W-13`; the rest wait on `W-15`.
 
 | # | Ticket | What it is |
 |---|---|---|
-| #51–52 | `W-40` Clock attendance & request workflows | Clock in and out, multiple sessions a day, attendance preferences moved over from Payroll, and the employee-submitted, manager-approved regularization and overtime requests. Blocked on `W-39`, `W-16` (`W-15` on `main`) — **assigned — karma** |
+| #51–52 | `W-40` Clock attendance & request workflows | Clock in and out, multiple sessions a day, attendance preferences moved over from Payroll, and the employee-submitted, manager-approved regularization and overtime requests. Blocked on `W-39.2`, `W-16` (`W-39.1` and `W-15` on `main`) — **assigned — karma** |
 | #53 | `W-41` Projects, tasks, assignments | Project and task management, employee assignment — **Ready** (spec 2026-09-28; needs only `W-13`, on `main`) |
 | #54 | `W-42` Timesheets | Weekly timesheet, project, day and task entry, submit, approve |
 | #55 | `W-43` Timesheet reminders | Reminder rules, escalation, notification trigger |
