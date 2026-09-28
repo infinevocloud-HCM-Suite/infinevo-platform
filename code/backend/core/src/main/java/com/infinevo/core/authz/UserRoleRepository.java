@@ -13,6 +13,9 @@ public interface UserRoleRepository extends JpaRepository<UserRole, UUID> {
     /** The user's current grants. Served by {@code idx_user_role_tenant_user_role}. */
     List<UserRole> findByTenantIdAndUserAccountId(UUID tenantId, UUID userAccountId);
 
+    /** The users holding this role in this tenant. */
+    List<UserRole> findByTenantIdAndRoleId(UUID tenantId, UUID roleId);
+
     /** How many users hold this role — the check that refuses a delete. Served by {@code idx_user_role_tenant_role}. */
     long countByTenantIdAndRoleId(UUID tenantId, UUID roleId);
 }

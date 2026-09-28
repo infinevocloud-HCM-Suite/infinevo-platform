@@ -44,6 +44,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EnableAutoConfiguration
 @ComponentScan(
         basePackages = {
+            "com.infinevo.core.approval",
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.navigation",
@@ -57,6 +58,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         })
 @EntityScan(
         basePackages = {
+            "com.infinevo.core.approval",
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
@@ -66,6 +68,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         })
 @EnableJpaRepositories(
         basePackages = {
+            "com.infinevo.core.approval",
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",

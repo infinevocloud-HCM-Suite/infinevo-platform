@@ -97,7 +97,20 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "reporting_line")) {
                         executeResource(conn, "db/migration/core/V028__reporting_line.sql");
                     }
+                    if (!tableExists(conn, "core", "approval_definition")) {
+                        executeResource(conn, "db/migration/core/V089__approval_definition.sql");
+                    }
+                    if (!tableExists(conn, "core", "approval_instance")) {
+                        executeResource(conn, "db/migration/core/V090__approval_instance.sql");
+                    }
+                    if (!tableExists(conn, "core", "approval_step")) {
+                        executeResource(conn, "db/migration/core/V091__approval_step.sql");
+                    }
+                    if (!tableExists(conn, "core", "approval_delegation")) {
+                        executeResource(conn, "db/migration/core/V092__approval_delegation.sql");
+                    }
                 }
+
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
             }

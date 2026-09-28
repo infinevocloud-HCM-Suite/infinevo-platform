@@ -24,5 +24,7 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
     /** The roles of a grant that exist in this tenant. Ids from another tenant simply do not come back. */
     List<Role> findByTenantIdAndIdIn(UUID tenantId, Collection<UUID> ids);
 
+    Optional<Role> findByTenantIdAndCode(UUID tenantId, String code);
+
     boolean existsByTenantIdAndCode(UUID tenantId, String code);
 }

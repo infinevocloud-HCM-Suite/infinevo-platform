@@ -30,6 +30,10 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-json</artifactId>
       </dependency>
+      <dependency>
+        <groupId>net.javacrumbs.shedlock</groupId>
+        <artifactId>shedlock-spring</artifactId>
+      </dependency>
       <!-- W-04: Shared test infrastructure (AbstractIntegrationTest, initializers) -->
       <dependency>
         <groupId>com.infinevo</groupId>
