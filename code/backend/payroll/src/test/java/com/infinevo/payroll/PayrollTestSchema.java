@@ -76,9 +76,24 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "employee_fbp_component")) {
                 executeResource(conn, "db/migration/payroll/V053__employee_fbp_component.sql");
             }
+            if (!tableExists(conn, "payroll", "epf_setting")) {
+                executeResource(conn, "db/migration/payroll/V062__epf_setting.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.epf_setting NO FORCE ROW LEVEL SECURITY");
+                }
+            }
+            if (!tableExists(conn, "payroll", "esi_setting")) {
+                executeResource(conn, "db/migration/payroll/V063__esi_setting.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.esi_setting NO FORCE ROW LEVEL SECURITY");
+                }
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
+                st.execute("GRANT SELECT ON ALL TABLES IN SCHEMA reference TO app_user");
             }
         }
     }
@@ -102,6 +117,12 @@ public final class PayrollTestSchema {
             st.execute(
                     "TRUNCATE TABLE payroll.employee_fbp_component, payroll.fbp, payroll.ctc_structure, payroll.employee_statutory_profile, "
                             + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
+            if (tableExists(conn, "payroll", "epf_setting")) {
+                st.execute("DELETE FROM payroll.epf_setting");
+            }
+            if (tableExists(conn, "payroll", "esi_setting")) {
+                st.execute("DELETE FROM payroll.esi_setting");
+            }
             if (tableExists(conn, "core", "attendance")) {
                 st.execute("DELETE FROM core.attendance");
             }
