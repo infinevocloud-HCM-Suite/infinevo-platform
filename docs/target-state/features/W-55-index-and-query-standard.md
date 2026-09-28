@@ -81,7 +81,7 @@ The legacy system suffered from two pervasive database performance anti-patterns
 4. **HikariCP Connection Pool Calibration (`D-10`, `D-18`, `D-19`, `D-57`)**:
    - Tune `code/backend/app/src/main/resources/application.yml` (and `application-local.yml`):
      - `maximum-pool-size: 10`
-     - `minimum-idle: 5`
+     - `minimum-idle: 2` (was 5; lowered by W-55.1 `f019b88` to fit the dev connection budget)
      - `idle-timeout: 300000` (5 minutes)
      - `max-lifetime: 1800000` (30 minutes)
      - `connection-timeout: 5000` (5 seconds)
@@ -89,13 +89,14 @@ The legacy system suffered from two pervasive database performance anti-patterns
      - `pool-name: InfinevoAppHikariPool`
    - Tune `code/backend/worker/src/main/resources/application.yml`:
      - `maximum-pool-size: 5`
-     - `minimum-idle: 2`
+     - `minimum-idle: 1` (was 2; lowered by W-55.1 `f019b88` to fit the dev connection budget)
      - `idle-timeout: 300000` (5 minutes)
      - `max-lifetime: 1800000` (30 minutes)
      - `connection-timeout: 5000` (5 seconds)
      - `leak-detection-threshold: 30000` (30 seconds)
      - `pool-name: InfinevoWorkerHikariPool`
    - Verify non-interference with `TenantBindingDataSourceProxy` (`shared` module) to ensure lazy statement-level binding (`D-57`) remains intact.
+   - W-55.1 (`f019b88`, on `main` without a tracker row): Keycloak pool capped at `KC_DB_POOL_MAX_SIZE=5` (initial and min 2) in `infra/azure/modules/containerapps.bicep`; the deploy workflow deactivates previous revisions after `verify` passes so their pools release their connections. Budget on `Standard_B1ms`: app 10 + worker 5 + Keycloak 5 = 20 of ~50 `max_connections`, one revision each.
 
 ### Out of Scope
 
