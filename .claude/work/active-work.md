@@ -6,6 +6,16 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-28 — `W-27.1` and `W-27.2` merged (`79c8825`)
+
+- FBP is on `main`: `payroll.fbp` (`V051`), the three `payroll.fbp.*` action codes with grants for new and existing tenants (`V052`), and `payroll.employee_fbp_component` (`V053`), all with RLS. Employee declares under `/me/fbp-declaration` while the window is open, the officer any time; each line capped at its salary line; revise carries forward capped; editing a future version re-caps. The version-in-force read shows declared and unallocated amounts for `W-29`.
+- Gates 5/5 for both, CI green on `ad569bb`, one send-back: empty reminder list and future-version re-cap fixed and proven by ITs; RLS write and re-submit ITs added.
+- **Accepted as outstanding by the founder:** lock and unlock create a plan row; plan RLS IT has no cross-tenant INSERT; no test of the four permission gates; window-closed IT does not assert rows unchanged; pool excludes inactive components while the declared sum includes them; bare DTOs and camelCase JSON as for `W-26`. Full list in the merge commit.
+- **Carried into `W-29.1`:** a declaration made after a future-dated revise lands only on today's version.
+- **Still outstanding from `W-26`:** raw-SQL RLS write check in `ComponentRlsIT`; unused `spring-boot-starter-validation` in the payroll pom.
+- **Unblocking:** `W-29.2` and `W-47.1b` lose their `W-27` wait but still wait on `W-29.1` and on `W-45`, `W-28`, `W-31`. Nothing newly Ready. biren's next is `W-45`.
+- biren resets `dev-biren` to `main` before `W-45`; the ticket-named branch `W-27-1-fbp-plan` can be deleted.
+
 ## 2026-09-28 — `W-15.1`, `W-15.2`, `W-15.3` merged (`a34c14f`)
 
 - The approval engine is on `main`: `core.approval_definition`, `approval_instance`, `approval_step`, `approval_delegation` (`V089`–`V092`), all with RLS. Seven flows seeded per tenant. Sequential and any-order routing along `chainAbove`; outcome handler called once after commit and retried by the sweep; delegation, working-day escalation, reassign and history.
@@ -21,7 +31,7 @@
 - Payroll has started. `payroll.earning`, `deduction`, `benefit`, `reimbursement` (`V042`–`V045`) and `payroll.ctc_structure` with its three component-row tables and `employee_statutory_profile` (`V046`–`V050`) are on `main`. Split computed server-side at scale 4; `versionInForce(tenant, employee, date)` is the pay run's read.
 - Gates 5/5 for both, CI green on `5eec96d`, one review round: the future-version `PUT` crash was fixed and covered by an IT before merge.
 - **Accepted as-is by the founder:** `PUT` does not check the new date; BASIC matched by code for benefits; missing `calculation_type` defaults to `FLAT`; bare DTOs until a shared envelope exists.
-- **Outstanding, carry into `W-27.1`:** raw-SQL RLS write check in `ComponentRlsIT`; unused `spring-boot-starter-validation` in the payroll pom. Payroll ITs use a test stand-in for `EmployeeService`.
+- **Outstanding, carried past `W-27.1`:** raw-SQL RLS write check in `ComponentRlsIT`; unused `spring-boot-starter-validation` in the payroll pom. Payroll ITs use a test stand-in for `EmployeeService`.
 - **Newly unblocked:** `W-27.1` (biren, next). `W-27.2` still waits on `W-27.1`; `W-29.1` on `W-28` and `W-19`; `W-31.3` on `W-31.1`.
 - biren resets `dev-biren` to `main` before `W-27.1`.
 
