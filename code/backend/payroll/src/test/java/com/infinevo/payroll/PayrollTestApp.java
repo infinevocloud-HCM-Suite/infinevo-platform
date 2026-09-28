@@ -105,4 +105,73 @@ public class PayrollTestApp {
             }
         };
     }
+
+    @Bean
+    public com.infinevo.core.org.WorkLocationService workLocationService(DataSource dataSource) {
+        return new com.infinevo.core.org.WorkLocationService() {
+            @Override
+            public java.util.List<com.infinevo.core.org.WorkLocationResponse> list(boolean activeOnly) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        String sql =
+                                "SELECT id, tenant_id, code, name, address_line1, address_line2, city, state, state_code, zip_code, country_code, is_filing_address, is_active, created_at, updated_at "
+                                        + "FROM core.work_location WHERE tenant_id = ? "
+                                        + (activeOnly ? "AND is_active = true " : "")
+                                        + "ORDER BY code ASC";
+                        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                            ps.setObject(1, tenantId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                java.util.List<com.infinevo.core.org.WorkLocationResponse> list =
+                                        new java.util.ArrayList<>();
+                                while (rs.next()) {
+                                    list.add(new com.infinevo.core.org.WorkLocationResponse(
+                                            (UUID) rs.getObject("id"),
+                                            (UUID) rs.getObject("tenant_id"),
+                                            rs.getString("code"),
+                                            rs.getString("name"),
+                                            rs.getString("address_line1"),
+                                            rs.getString("address_line2"),
+                                            rs.getString("city"),
+                                            rs.getString("state"),
+                                            rs.getString("state_code"),
+                                            rs.getString("zip_code"),
+                                            rs.getString("country_code"),
+                                            rs.getBoolean("is_filing_address"),
+                                            rs.getBoolean("is_active"),
+                                            rs.getTimestamp("created_at").toInstant(),
+                                            rs.getTimestamp("updated_at").toInstant()));
+                                }
+                                conn.commit();
+                                return list;
+                            }
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public com.infinevo.core.org.WorkLocationResponse create(
+                    com.infinevo.core.org.WorkLocationRequest request) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public com.infinevo.core.org.WorkLocationResponse update(
+                    UUID id, com.infinevo.core.org.WorkLocationRequest request) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void delete(UUID id) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
 }
