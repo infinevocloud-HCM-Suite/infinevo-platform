@@ -40,6 +40,9 @@ public final class LeaveTestSchema {
             if (!tableExists(conn, "tenant")) {
                 executeResource(conn, "db/migration/core/V001__tenant.sql");
             }
+            if (!tableExists(conn, "audit_log")) {
+                executeResource(conn, "db/migration/core/V008__audit_log.sql");
+            }
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
             }
@@ -64,6 +67,9 @@ public final class LeaveTestSchema {
             if (!tableExists(conn, "leave_policy_eligibility")) {
                 executeResource(conn, "db/migration/core/V095__leave_policy_eligibility.sql");
             }
+            if (!tableExists(conn, "leave_allocation")) {
+                executeResource(conn, "db/migration/core/V096__leave_allocation.sql");
+            }
         }
     }
 
@@ -80,9 +86,29 @@ public final class LeaveTestSchema {
         }
     }
 
+    public static UUID insertEmployee(UUID tenantId, String employeeNumber, String firstName, String email)
+            throws SQLException {
+        UUID empId = UUID.randomUUID();
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO core.employee (id, tenant_id, employee_number, first_name, date_of_joining, status, work_email) "
+                                + "VALUES (?, ?, ?, ?, '2024-01-01', 'ACTIVE', ?)")) {
+            ps.setObject(1, empId);
+            ps.setObject(2, tenantId);
+            ps.setString(3, employeeNumber);
+            ps.setString(4, firstName);
+            ps.setString(5, email);
+            ps.executeUpdate();
+        }
+        return empId;
+    }
+
     public static void clearAll() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
+            if (tableExists(conn, "leave_allocation")) {
+                stmt.execute("DELETE FROM core.leave_allocation");
+            }
             if (tableExists(conn, "leave_policy_eligibility")) {
                 stmt.execute("DELETE FROM core.leave_policy_eligibility");
             }
@@ -91,6 +117,25 @@ public final class LeaveTestSchema {
             }
             if (tableExists(conn, "leave_type")) {
                 stmt.execute("DELETE FROM core.leave_type");
+            }
+            if (tableExists(conn, "employee")) {
+                stmt.execute("DELETE FROM core.employee");
+            }
+        }
+    }
+
+    public static int visibleLeaveAllocationCount(UUID tenantId) throws SQLException {
+        try (Connection conn = appConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                bindTenant(conn, tenantId);
+                try (Statement stmt = conn.createStatement();
+                        ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_allocation")) {
+                    rs.next();
+                    return rs.getInt(1);
+                }
+            } finally {
+                conn.rollback();
             }
         }
     }
