@@ -12,7 +12,9 @@
 #            call. A failure part-way through shifts traffic back from inside this
 #            job, because `verify` never runs when `shift` fails (round-2 F-12).
 #   verify   assert revision name, image tag, traffic weight, HTTP 200 through
-#            Front Door. Any failure shifts traffic back.
+#            Front Door. Any failure shifts traffic back. Then, and only then,
+#            deactivate the previous revisions so their pools release their
+#            connections (W-55.1) - a cleanup that can warn but never fail.
 #
 # WHAT THIS WORKFLOW DOES NOT DO
 #   - It sets no Container App secret. W-56 owns the Key Vault contract end to end
@@ -263,6 +265,17 @@ jobs:
             --platform linux/amd64 \
             --file infra/docker/migration-runner.Dockerfile \
             .
+
+      # The GitHub OIDC assertion azure/login exchanges is valid for five minutes. The
+      # four `az acr build` steps above take longer than that, and `az acr manifest`
+      # needs a fresh registry token, so it re-uses the expired assertion and fails
+      # with AADSTS700024. Logging in again here gives it a fresh one.
+      - name: Azure login again (OIDC assertion expired during the builds)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: All four tags are in the registry
         run: |
@@ -706,10 +719,12 @@ jobs:
             --set-env-vars \
               "KC_HOSTNAME=${FD_HOST}" \
               "KC_HOSTNAME_STRICT_HTTPS=true" \
-              "KC_DB_POOL_INITIAL_SIZE=2" \
-              "KC_DB_POOL_MIN_SIZE=2" \
-              "KC_DB_POOL_MAX_SIZE=5" \
             --revision-suffix "$SUFFIX" --output none
+          # KC_DB_POOL_INITIAL_SIZE, KC_DB_POOL_MIN_SIZE and KC_DB_POOL_MAX_SIZE (W-55.1)
+          # are NOT set here. They live in containerapps.bicep, and the pipeline sets no
+          # property Bicep also sets (spec section 7, last row; header of this file).
+          # `--set-env-vars` merges, so the values already on the app's template carry
+          # into every new revision without being repeated.
           echo "keycloak -> ${ACR_LOGIN_SERVER}/infinevo-keycloak:${IMAGE_TAG}"
 
       # Belt and braces. Under activeRevisionsMode Multiple a new revision takes 0%
@@ -1072,7 +1087,15 @@ jobs:
       # PostgreSQL connection budget (~50 max connections on B1ms).
       # Once verification succeeds, deactivate all previous revisions across app, web, and
       # keycloak so only the single traffic-bearing revision remains running.
+      #
+      # This is CLEANUP, and it runs only after every verification above has passed. It
+      # must therefore never fail the job: the step below is `if: failure()`, and a
+      # transient CLI error here would roll a VERIFIED release back to a revision this
+      # loop may already have deactivated - which is a rollback that cannot succeed.
+      # Hence `continue-on-error` on the step and an explicit `if !` on every az call,
+      # each of which warns and moves on. Nothing is hidden: every skip is a ::warning.
       - name: Deactivate old revisions
+        continue-on-error: true
         run: |
           set -euo pipefail
           rg="rg-infinevo-${ENV}"
@@ -1080,13 +1103,16 @@ jobs:
             name="ca-infinevo-${ENV}-${app}"
             current_rev="${name}--${SUFFIX}"
             echo "Checking active revisions for ${name} (keeping ${current_rev})..."
-            old_revs=$(az containerapp revision list -g "$rg" -n "$name" \
-              --query "[?properties.active && name != '${current_rev}'].name" -o tsv)
+            if ! old_revs=$(az containerapp revision list -g "$rg" -n "$name" \
+                  --query "[?properties.active && name != '${current_rev}'].name" -o tsv); then
+              echo "::warning::${name}: could not list revisions - old revisions left active, deactivate by hand"
+              continue
+            fi
             for old in $old_revs; do
               echo "Deactivating old revision ${old} on ${name}..."
-              az containerapp revision deactivate -g "$rg" -n "$name" --revision "$old" --output none || {
-                echo "::warning::failed to deactivate ${old}"
-              }
+              if ! az containerapp revision deactivate -g "$rg" -n "$name" --revision "$old" --output none; then
+                echo "::warning::${name}: failed to deactivate ${old} - deactivate by hand"
+              fi
             done
           done
 
@@ -1094,6 +1120,12 @@ jobs:
       # the three ingress apps run activeRevisionsMode Multiple. Under Single this step
       # could not exist - review finding F-9, where the printed command was a revision
       # activate against an app that had no traffic block at all.
+      #
+      # WITHIN THIS RUN that still holds: this step runs on a failure of the assertions
+      # above, which all precede the deactivation step, so the previous revision is still
+      # active when it is needed. AFTER THIS RUN it no longer holds: the previous
+      # revision has been deactivated (W-55.1), so a rollback by hand is
+      # `az containerapp revision activate` on it first, then the traffic set below.
       #
       # WATCH (spec section 7, row 1): this returns the previous CODE to the CURRENT
       # SCHEMA. It is safe only while the last migration was additive. A destructive
