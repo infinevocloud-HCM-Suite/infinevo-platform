@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-46.3b` · from ticket #60 · `CORE-08` |
 | **Spec file** | `docs/target-state/features/W-46-3b-holiday-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | biren |
 | **Apps touched** | `code/frontend/src/core/holiday` · `code/backend/core` — `NavigationCatalogue.java` menu item only |
 | **Related gaps** | none |
 | **Status** | **Ready** |

@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-45` · from ticket #57 · `PLAT-01` |
 | **Spec file** | `docs/target-state/features/W-45-frontend-shell.md` |
-| **Owner** | unassigned |
+| **Owner** | biren |
 | **Apps touched** | `code/frontend` only. No backend, no migration |
 | **Related gaps** | DEBT-012 (closed by the target choice), BUG-006 (deferred), DEBT-008 (already closed by the envelope) |
 | **Status** | **Ready** |

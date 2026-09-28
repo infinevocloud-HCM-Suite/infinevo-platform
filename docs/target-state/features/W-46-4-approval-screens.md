@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-46.4` · from ticket #61 · `CORE-11` |
 | **Spec file** | `docs/target-state/features/W-46-4-approval-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | biren |
 | **Apps touched** | `code/frontend/src/core/approvals` · `code/backend/core` — `NavigationCatalogue.java` menu items only |
 | **Related gaps** | DEBT-025 (discounted), DEBT-026 (prevented) |
 | **Status** | **Ready** |

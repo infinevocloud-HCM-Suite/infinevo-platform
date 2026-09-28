@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-46.5` · from ticket #62 · `CORE-19`, `CORE-07` |
 | **Spec file** | `docs/target-state/features/W-46-5-self-service-actions.md` |
-| **Owner** | unassigned |
+| **Owner** | biren |
 | **Apps touched** | `code/frontend/src/core/portal` only. No backend, no migration |
 | **Related gaps** | DEBT-026 (prevented), DEBT-013 (discounted) |
 | **Status** | **Ready** |

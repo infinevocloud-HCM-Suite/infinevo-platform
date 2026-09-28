@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-46.2` · from ticket #59 · `CORE-07` |
 | **Spec file** | `docs/target-state/features/W-46-2-leave-admin-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | biren |
 | **Apps touched** | `code/frontend/src/core/leave` · `code/backend/core` — `NavigationCatalogue.java` menu items only, no table |
 | **Related gaps** | BUG-007 / DEBT-006 (closed by `W-16.3`), DEBT-026 (prevented) |
 | **Status** | **Ready** |

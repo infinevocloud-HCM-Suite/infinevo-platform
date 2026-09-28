@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-46.3a` · from ticket #60 · `CORE-05` |
 | **Spec file** | `docs/target-state/features/W-46-3a-org-setup-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | biren |
 | **Apps touched** | `code/frontend/src/core/org` only. No backend, no migration |
 | **Related gaps** | DEBT-022 (closed by `W-14.1`) |
 | **Status** | **Ready** |

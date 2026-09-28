@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-46.1` · from ticket #58 · `CORE-04`, `CORE-06` |
 | **Spec file** | `docs/target-state/features/W-46-1-employee-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | biren |
 | **Apps touched** | `code/frontend/src/core/employee` only. No backend, no migration |
 | **Related gaps** | BUG-002 (closed by `W-13.1`), DEBT-026 (prevented), BUG-006 (deferred) |
 | **Status** | **Ready** |
