@@ -106,6 +106,9 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
             if (tableExists(conn, "role")) {
                 conn.createStatement().execute("DELETE FROM core.role");
             }
+            if (tableExists(conn, "attendance")) {
+                conn.createStatement().execute("DELETE FROM core.attendance");
+            }
             if (tableExists(conn, "employee_contact")) {
                 conn.createStatement().execute("DELETE FROM core.employee_contact");
             }

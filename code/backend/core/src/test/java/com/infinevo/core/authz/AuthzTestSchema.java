@@ -109,6 +109,9 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "approval_delegation")) {
                         executeResource(conn, "db/migration/core/V092__approval_delegation.sql");
                     }
+                    if (!tableExists(conn, "core", "attendance")) {
+                        executeResource(conn, "db/migration/core/V030__attendance.sql");
+                    }
                 }
 
             } catch (Exception e) {

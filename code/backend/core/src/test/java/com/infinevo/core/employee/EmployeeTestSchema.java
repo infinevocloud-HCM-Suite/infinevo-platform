@@ -194,6 +194,9 @@ public final class EmployeeTestSchema {
     public static void clearEmployees() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
+            if (tableExists(conn, "attendance")) {
+                stmt.execute("DELETE FROM core.attendance");
+            }
             if (tableExists(conn, "employee_contact")) {
                 stmt.execute("DELETE FROM core.employee_contact");
             }

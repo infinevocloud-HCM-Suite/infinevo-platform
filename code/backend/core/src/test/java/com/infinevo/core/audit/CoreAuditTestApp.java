@@ -30,11 +30,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * find a second {@code @SpringBootApplication} and recurse into the whole of
  * {@code com.infinevo.shared}.
  */
-@SpringBootApplication(scanBasePackages = {"com.infinevo.core.employee", "com.infinevo.core.org"})
+@SpringBootApplication(
+        scanBasePackages = {"com.infinevo.core.employee", "com.infinevo.core.org", "com.infinevo.core.attendance"})
 @EntityScan(
         basePackages = {
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.attendance",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
@@ -42,6 +44,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         basePackages = {
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.attendance",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })

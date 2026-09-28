@@ -31,11 +31,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * {@code TenantBindingAutoConfiguration}, exactly as they do in the real applications, so the tenant
  * reaches the connection the shipped way rather than a test one.
  */
-@SpringBootApplication(scanBasePackages = {"com.infinevo.core.employee", "com.infinevo.core.org"})
+@SpringBootApplication(
+        scanBasePackages = {"com.infinevo.core.employee", "com.infinevo.core.org", "com.infinevo.core.attendance"})
 @EntityScan(
         basePackages = {
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.attendance",
             // W-13.4: EmployeeServiceImpl now depends on UserAccountRepository (linkLogin,
             // currentEmployee). UserAccount is a shared identity entity; without this entry
             // Hibernate cannot map it and Spring cannot satisfy the repository autowire.
@@ -45,6 +47,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         basePackages = {
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.attendance",
             // W-13.4: same reason — UserAccountRepository must be registered.
             "com.infinevo.shared.identity"
         })
