@@ -1,0 +1,169 @@
+package com.infinevo.core.leave;
+
+import com.infinevo.shared.test.PostgresTestContainerInitializer;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.UUID;
+
+/**
+ * Schema management and raw JDBC helpers for leave integration tests (W-16.1).
+ */
+public final class LeaveTestSchema {
+
+    public static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    public static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+    private LeaveTestSchema() {}
+
+    public static Connection migrationConnection() throws SQLException {
+        return DriverManager.getConnection(
+                PostgresTestContainerInitializer.getJdbcUrl(),
+                PostgresTestContainerInitializer.MIGRATION_USER,
+                PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD);
+    }
+
+    public static Connection appConnection() throws SQLException {
+        return DriverManager.getConnection(
+                PostgresTestContainerInitializer.getJdbcUrl(),
+                PostgresTestContainerInitializer.APP_USER,
+                PostgresTestContainerInitializer.APP_USER_PASSWORD);
+    }
+
+    public static void apply() throws Exception {
+        try (Connection conn = migrationConnection()) {
+            if (!tableExists(conn, "tenant")) {
+                executeResource(conn, "db/migration/core/V001__tenant.sql");
+            }
+            if (!tableExists(conn, "employee")) {
+                executeResource(conn, "db/migration/core/V010__employee.sql");
+            }
+            if (!tableExists(conn, "department")) {
+                executeResource(conn, "db/migration/core/V011__department.sql");
+            }
+            if (!tableExists(conn, "designation")) {
+                executeResource(conn, "db/migration/core/V012__designation.sql");
+            }
+            if (!tableExists(conn, "work_location")) {
+                executeResource(conn, "db/migration/core/V013__work_location.sql");
+            }
+            if (!columnExists(conn, "employee", "department_id")) {
+                executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
+            if (!tableExists(conn, "leave_type")) {
+                executeResource(conn, "db/migration/core/V093__leave_type.sql");
+            }
+            if (!tableExists(conn, "leave_policy")) {
+                executeResource(conn, "db/migration/core/V094__leave_policy.sql");
+            }
+            if (!tableExists(conn, "leave_policy_eligibility")) {
+                executeResource(conn, "db/migration/core/V095__leave_policy_eligibility.sql");
+            }
+        }
+    }
+
+    public static void seedTenants() throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
+            ps.setObject(1, TENANT_A);
+            ps.setString(2, "Acme Manufacturing");
+            ps.executeUpdate();
+            ps.setObject(1, TENANT_B);
+            ps.setString(2, "Globex Corporation");
+            ps.executeUpdate();
+        }
+    }
+
+    public static void clearAll() throws SQLException {
+        try (Connection conn = migrationConnection();
+                Statement stmt = conn.createStatement()) {
+            if (tableExists(conn, "leave_policy_eligibility")) {
+                stmt.execute("DELETE FROM core.leave_policy_eligibility");
+            }
+            if (tableExists(conn, "leave_policy")) {
+                stmt.execute("DELETE FROM core.leave_policy");
+            }
+            if (tableExists(conn, "leave_type")) {
+                stmt.execute("DELETE FROM core.leave_type");
+            }
+        }
+    }
+
+    public static int visibleLeaveTypeCount(UUID tenantId) throws SQLException {
+        try (Connection conn = appConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                bindTenant(conn, tenantId);
+                try (Statement stmt = conn.createStatement();
+                        ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_type")) {
+                    rs.next();
+                    return rs.getInt(1);
+                }
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    public static int visibleLeavePolicyCount(UUID tenantId) throws SQLException {
+        try (Connection conn = appConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                bindTenant(conn, tenantId);
+                try (Statement stmt = conn.createStatement();
+                        ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_policy")) {
+                    rs.next();
+                    return rs.getInt(1);
+                }
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    public static void bindTenant(Connection conn, UUID tenantId) throws SQLException {
+        try (PreparedStatement bind = conn.prepareStatement("SELECT set_config('app.current_tenant_id', ?, true)")) {
+            bind.setString(1, tenantId.toString());
+            bind.execute();
+        }
+    }
+
+    private static boolean tableExists(Connection conn, String table) throws SQLException {
+        try (PreparedStatement ps =
+                conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
+            ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = 'core' AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, table);
+            ps.setString(2, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static void executeResource(Connection conn, String resourcePath) throws Exception {
+        try (InputStream is = LeaveTestSchema.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                throw new IllegalStateException("migration not on the test classpath: " + resourcePath);
+            }
+            String sql = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute(sql);
+            }
+        }
+    }
+}
