@@ -47,7 +47,7 @@ first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
 The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
 not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
 `V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` (**used, on main `b7d03ec`**) · `V035` `W-24.1` · `V036` `W-17` ·
-`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`. `V082` `W-65.1` · `V083`–`V084` `W-65.2` (reserved 2026-09-27, above the `V042`–`V081` block).
+`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`. `V082` `W-65.1` · `V083`–`V084` `W-65.2` (reserved 2026-09-27, above the `V042`–`V081` block) · `V085`–`V088` `W-41` (reserved 2026-09-28).
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
 and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2`; `W-52.1` is on main), `W-15`, `W-16`, `W-18`, `W-25`
@@ -341,7 +341,7 @@ dev environment crash-loops on the next deploy.
 
 ## 5. Stream E — HRMS
 
-Nothing started. All blocked on `W-15` approval engine.
+Nothing started. `W-41` is Ready and needs only `W-13`; the rest wait on `W-15`.
 
 > **Renumbered 2026-09-24**, following `10-scoping.md:93,117`. `W-39` is Core's basic
 > attendance and overtime capture (`D-35`), now in Stream C. HRMS attendance and the
@@ -350,7 +350,7 @@ Nothing started. All blocked on `W-15` approval engine.
 | # | Ticket | What it is |
 |---|---|---|
 | #51–52 | `W-40` Clock attendance & request workflows | Clock in and out, multiple sessions a day, attendance preferences moved over from Payroll, and the employee-submitted, manager-approved regularization and overtime requests. Blocked on `W-39`, `W-15`, `W-16` — **assigned — karma** |
-| #53 | `W-41` Projects, tasks, assignments | Project and task management, employee assignment |
+| #53 | `W-41` Projects, tasks, assignments | Project and task management, employee assignment — **Ready** (spec 2026-09-28; needs only `W-13`, on `main`) |
 | #54 | `W-42` Timesheets | Weekly timesheet, project, day and task entry, submit, approve |
 | #55 | `W-43` Timesheet reminders | Reminder rules, escalation, notification trigger |
 | #56 | `W-44` HRMS dashboards | Manager view, employee view |
