@@ -1,10 +1,19 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-27**, checked row by row against `main`.
+> Last refreshed: **2026-09-28**, checked row by row against `main`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-09-28 — `W-26.1` and `W-26.2` merged (`a3ad0a3`)
+
+- Payroll has started. `payroll.earning`, `deduction`, `benefit`, `reimbursement` (`V042`–`V045`) and `payroll.ctc_structure` with its three component-row tables and `employee_statutory_profile` (`V046`–`V050`) are on `main`. Split computed server-side at scale 4; `versionInForce(tenant, employee, date)` is the pay run's read.
+- Gates 5/5 for both, CI green on `5eec96d`, one review round: the future-version `PUT` crash was fixed and covered by an IT before merge.
+- **Accepted as-is by the founder:** `PUT` does not check the new date; BASIC matched by code for benefits; missing `calculation_type` defaults to `FLAT`; bare DTOs until a shared envelope exists.
+- **Outstanding, carry into `W-27.1`:** raw-SQL RLS write check in `ComponentRlsIT`; unused `spring-boot-starter-validation` in the payroll pom. Payroll ITs use a test stand-in for `EmployeeService`.
+- **Newly unblocked:** `W-27.1` (biren, next). `W-27.2` still waits on `W-27.1`; `W-29.1` on `W-28` and `W-19`; `W-31.3` on `W-31.1`.
+- biren resets `dev-biren` to `main` before `W-27.1`.
 
 ## 2026-09-27 — `W-13.3` and `W-14.2` merged (`ccc8e48`)
 
