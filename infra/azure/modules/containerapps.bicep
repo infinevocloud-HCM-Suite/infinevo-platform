@@ -540,6 +540,18 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'KC_DB_PASSWORD'
               secretRef: 'psql-keycloak-pw'
             }
+            {
+              name: 'KC_DB_POOL_INITIAL_SIZE'
+              value: '2'
+            }
+            {
+              name: 'KC_DB_POOL_MIN_SIZE'
+              value: '2'
+            }
+            {
+              name: 'KC_DB_POOL_MAX_SIZE'
+              value: '5'
+            }
           ]
           // ON PORT 9000, NOT THE INGRESS PORT (W-54 round-2 finding F-20). The image bakes
           // KC_HTTP_RELATIVE_PATH=/auth at build time (infra/docker/keycloak.Dockerfile:47),

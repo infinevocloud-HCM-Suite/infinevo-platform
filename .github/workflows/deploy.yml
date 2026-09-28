@@ -706,6 +706,9 @@ jobs:
             --set-env-vars \
               "KC_HOSTNAME=${FD_HOST}" \
               "KC_HOSTNAME_STRICT_HTTPS=true" \
+              "KC_DB_POOL_INITIAL_SIZE=2" \
+              "KC_DB_POOL_MIN_SIZE=2" \
+              "KC_DB_POOL_MAX_SIZE=5" \
             --revision-suffix "$SUFFIX" --output none
           echo "keycloak -> ${ACR_LOGIN_SERVER}/infinevo-keycloak:${IMAGE_TAG}"
 
@@ -1062,6 +1065,30 @@ jobs:
             exit 1
           fi
           echo "OK - https://${FD_HOST}/ returned 200"
+
+      # W-55.1: Connection budget and resource cleanup.
+      # Under activeRevisionsMode Multiple, previous revisions remain active with their own
+      # connection pools (HikariCP on app, Agroal on Keycloak), quickly exhausting the
+      # PostgreSQL connection budget (~50 max connections on B1ms).
+      # Once verification succeeds, deactivate all previous revisions across app, web, and
+      # keycloak so only the single traffic-bearing revision remains running.
+      - name: Deactivate old revisions
+        run: |
+          set -euo pipefail
+          rg="rg-infinevo-${ENV}"
+          for app in app web keycloak; do
+            name="ca-infinevo-${ENV}-${app}"
+            current_rev="${name}--${SUFFIX}"
+            echo "Checking active revisions for ${name} (keeping ${current_rev})..."
+            old_revs=$(az containerapp revision list -g "$rg" -n "$name" \
+              --query "[?properties.active && name != '${current_rev}'].name" -o tsv)
+            for old in $old_revs; do
+              echo "Deactivating old revision ${old} on ${name}..."
+              az containerapp revision deactivate -g "$rg" -n "$name" --revision "$old" --output none || {
+                echo "::warning::failed to deactivate ${old}"
+              }
+            done
+          done
 
       # Rollback is a traffic weight change and nothing else, which is the whole reason
       # the three ingress apps run activeRevisionsMode Multiple. Under Single this step

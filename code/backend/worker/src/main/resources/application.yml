@@ -37,7 +37,7 @@ spring:
       pool-name: InfinevoWorkerHikariPool
       # Smaller than the app's pool: the worker runs batches, not concurrent requests.
       maximum-pool-size: 5
-      minimum-idle: 2
+      minimum-idle: 1
       idle-timeout: 300000
       max-lifetime: 1800000
       connection-timeout: 5000

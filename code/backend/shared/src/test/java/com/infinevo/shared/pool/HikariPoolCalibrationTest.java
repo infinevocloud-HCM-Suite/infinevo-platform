@@ -16,8 +16,8 @@ import org.yaml.snakeyaml.Yaml;
  *
  * <p>Asserts that:
  * <ul>
- *   <li>The web application pool ({@code app}) is calibrated for 10 concurrent connections, 5 idle, 30s leak detection.</li>
- *   <li>The batch worker pool ({@code worker}) is calibrated for 5 max connections, 2 idle, 30s leak detection.</li>
+ *   <li>The web application pool ({@code app}) is calibrated for 10 concurrent connections, 2 idle, 30s leak detection.</li>
+ *   <li>The batch worker pool ({@code worker}) is calibrated for 5 max connections, 1 idle, 30s leak detection.</li>
  *   <li>Both modules configure {@code spring.jpa.properties.hibernate.default_batch_fetch_size: 25}.</li>
  *   <li>Connection leak detection is strictly positive (> 0) to prevent silent pool starvation.</li>
  * </ul>
@@ -32,7 +32,7 @@ class HikariPoolCalibrationTest {
 
         assertThat(hikari.get("pool-name")).isEqualTo("InfinevoAppHikariPool");
         assertThat(Integer.valueOf(hikari.get("maximum-pool-size").toString())).isEqualTo(10);
-        assertThat(Integer.valueOf(hikari.get("minimum-idle").toString())).isEqualTo(5);
+        assertThat(Integer.valueOf(hikari.get("minimum-idle").toString())).isEqualTo(2);
         assertThat(Long.valueOf(hikari.get("idle-timeout").toString())).isEqualTo(300000L);
         assertThat(Long.valueOf(hikari.get("max-lifetime").toString())).isEqualTo(1800000L);
         assertThat(Long.valueOf(hikari.get("connection-timeout").toString())).isEqualTo(5000L);
@@ -52,7 +52,7 @@ class HikariPoolCalibrationTest {
 
         assertThat(hikari.get("pool-name")).isEqualTo("InfinevoWorkerHikariPool");
         assertThat(Integer.valueOf(hikari.get("maximum-pool-size").toString())).isEqualTo(5);
-        assertThat(Integer.valueOf(hikari.get("minimum-idle").toString())).isEqualTo(2);
+        assertThat(Integer.valueOf(hikari.get("minimum-idle").toString())).isEqualTo(1);
         assertThat(Long.valueOf(hikari.get("idle-timeout").toString())).isEqualTo(300000L);
         assertThat(Long.valueOf(hikari.get("max-lifetime").toString())).isEqualTo(1800000L);
         assertThat(Long.valueOf(hikari.get("connection-timeout").toString())).isEqualTo(5000L);
