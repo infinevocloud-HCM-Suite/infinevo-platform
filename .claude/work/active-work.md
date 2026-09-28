@@ -6,6 +6,16 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-28 — `W-15.1`, `W-15.2`, `W-15.3` merged (`a34c14f`)
+
+- The approval engine is on `main`: `core.approval_definition`, `approval_instance`, `approval_step`, `approval_delegation` (`V089`–`V092`), all with RLS. Seven flows seeded per tenant. Sequential and any-order routing along `chainAbove`; outcome handler called once after commit and retried by the sweep; delegation, working-day escalation, reassign and history.
+- Gates 5/5, CI green on `4313f54`, two independent reads and a third pass; one blocker (retry ran without a transaction) fixed and proven by an IT before merge.
+- **Accepted as outstanding by the founder:** no-handler flow silently claimed; no row lock on completion; `ROLE` routes to the first holder; holiday clock is a stub until `W-17`; escalation and reassign ignore delegations; five FK columns unindexed; assignee not validated; handler receives the instance id. Full list in the merge commit.
+- **Deferred to `W-16.3`:** same-day `PUT` should version, not rewrite; a `CANCELLED` decision value for steps never seen.
+- **Consumers:** `hrms` and `payroll` implement `ApprovalOutcomeHandler` per flow and `hrms` supplies the `PROJECT_MANAGER` `ApproverResolver`. A flow with no handler is not yet a startup failure.
+- **Newly unblocked:** `W-16.1` (karma, next). Stream E can start. `W-40` still waits on `W-39` and `W-16`.
+- karma resets `dev-karma` to `main` before `W-16.1`; the ticket-named branch `W-15-1-approval-definition` can be deleted.
+
 ## 2026-09-28 — `W-26.1` and `W-26.2` merged (`a3ad0a3`)
 
 - Payroll has started. `payroll.earning`, `deduction`, `benefit`, `reimbursement` (`V042`–`V045`) and `payroll.ctc_structure` with its three component-row tables and `employee_statutory_profile` (`V046`–`V050`) are on `main`. Split computed server-side at scale 4; `versionInForce(tenant, employee, date)` is the pay run's read.

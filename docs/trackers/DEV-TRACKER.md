@@ -11,9 +11,9 @@
 |---|---|---|---|---|
 | A — Foundation | 2 | 2 | 2 | Done |
 | B — Data foundation | 5 | 5 | 5 | **Done.** Tenancy chain complete; suite green again (`W-04.1`) |
-| C — Core platform | 26 | 15 | 15 | **Building.** `W-13.3` and `W-14.2` on `main` (`ccc8e48`) — employees can be listed and searched, and a manager can be resolved for any employee; `W-15` and `W-39.1` are Ready |
+| C — Core platform | 26 | 18 | 18 | **Building.** `W-15.1`–`W-15.3` on `main` (`a34c14f`) — the approval engine: definitions, lifecycle and routing, delegation and escalation; `W-16.1` and `W-39.1` are Ready |
 | D — Payroll | 21 | 2 | 2 | **Building.** `W-26.1` and `W-26.2` on `main` (`a3ad0a3`) — component catalogue and dated CTC versions; `W-27.1` is Ready |
-| E — HRMS | 5 | 0 | 0 | All blocked on `W-15` |
+| E — HRMS | 5 | 0 | 0 | `W-15` is on `main` (`a34c14f`); `W-16.1` is Ready, the rest wait on `W-16` |
 | F — Frontend | 13 | 0 | 0 | All blocked on `W-45`, which is **Ready** — `W-12` is on `main` (`a4f31ae`). `W-46` specs written 2026-09-28, six tickets after the `W-46.3` split |
 | G/H — product items | 3 | 1 | 1 | `W-55` merged `2ccd723`. `W-66` unassigned |
 
@@ -33,7 +33,7 @@ lane so two lanes never collide on a version.
 | sayeed | `dev-sayeed` | 1a employee & org · 5 statutory settings | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** ~~`W-13.4`~~ **on main `e699699`** ~~`W-09.1`~~ **on main `c79755c`** ~~`W-13.3`~~ ~~`W-14.2`~~ **on main `ccc8e48`** → D-9 manual checks → `W-39.1` **Ready** · `W-31.1` → `W-31.2` → `W-31.3` | `V026`–`V032` · `V062`–`V069` |
 | krushna | `dev-krushna` | 2 tenant & onboarding · 7a working-day policy & schedule | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** → `W-24.1` **Ready** → `W-17` → `W-24.2` → `W-18.1` → `W-18.2` → `W-28` | `V033`–`V034` used · `V035`–`V036` · `V054` |
 | devashis | `dev-devashis` | 3 documents, notifications, reporting · 7b pay input ledger & captures | `W-21` + `W-20.1` + `W-23.1` **sent back again 2026-09-26, see § 3d** → `W-20.2` → `W-22.2` → `W-23.2` · `W-19` → `W-30.1` → `W-39.2` | `V037`–`V040` · `V041`, `V060` |
-| karma | `dev-karma` | 1b approvals, leave & portal | `W-15.1` → `W-15.2` → `W-15.3` → `W-16.1` → `W-16.2` → `W-16.3` → `W-16.4a` → `W-16.4b` → `W-25` → `W-40` | to reserve |
+| karma | `dev-karma` | 1b approvals, leave & portal | ~~`W-15.1`~~ ~~`W-15.2`~~ ~~`W-15.3`~~ **on main `a34c14f`** → `W-16.1` **Ready** → `W-16.2` → `W-16.3` → `W-16.4a` → `W-16.4b` → `W-25` → `W-40` | `V089`–`V092` used |
 | biren | `dev-biren` | 4 salary structure & FBP | ~~`W-26.1`~~ ~~`W-26.2`~~ **on main `a3ad0a3`** → `W-27.1` **Ready** → `W-27.2` | `V042`–`V053` |
 | mohit | `dev-mohit` | 6 tax declaration & calculator | `W-32.1` → `W-32.2` → `W-32.3` → `W-32.4` → `W-33.1` → `W-33.2` → `W-33.3` → `W-34` | `V070`–`V081` |
 | *unassigned* | — | 7c pay run compute · 7d payroll outputs | `W-29.1` (after `W-28`, `W-26.2`, `W-19`) → `W-29.2` → `W-29.3` → `W-29.4` → `W-30.2` → `W-31.4` → `W-35` → `W-36` → `W-37` → `W-38` | `V042`–`V081` reserved 2026-09-25 (extended by one for `W-27.2`, one for `W-28`, two for `W-29.1`, one each for `W-29.2`, `W-29.3`, `W-29.4`, `W-30.1`, `W-30.2`, eight for `W-31`, twelve for `W-32`); `V042`–`V045` are `W-26.1`, `V046`–`V050` are `W-26.2`, `V051` is `W-27.1`, `V052`–`V053` are `W-27.2`, `V054` is `W-28`, `V055`–`V056` are `W-29.1`, `V057` is `W-29.2`, `V058` is `W-29.3`, `V059` is `W-29.4`, `V060` is `W-30.1` (a `core` script), `V061` is `W-30.2`, `V062`–`V063` are `W-31.1`, `V064`–`V067` are `W-31.2` (`V064` a `reference` script), `V068`–`V069` are `W-31.3`, `V070`–`V072` are `W-32.1` (`V070` a `reference` script), `V073`–`V076` are `W-32.2`, `V077`–`V079` are `W-32.3`, `V080`–`V081` are `W-32.4` |
@@ -47,7 +47,7 @@ first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
 The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
 not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
 `V030` `W-39.1` · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` (**used, on main `b7d03ec`**) · `V035` `W-24.1` · `V036` `W-17` ·
-`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`. `V082` `W-65.1` · `V083`–`V084` `W-65.2` (reserved 2026-09-27, above the `V042`–`V081` block) · `V085`–`V088` `W-41` (reserved 2026-09-28).
+`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`. `V082` `W-65.1` · `V083`–`V084` `W-65.2` (reserved 2026-09-27, above the `V042`–`V081` block) · `V085`–`V088` `W-41` (reserved 2026-09-28) · `V089`–`V092` `W-15.1`–`W-15.3` (**used, on main `a34c14f`**).
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
 and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2`; `W-52.1` is on main), `W-15`, `W-16`, `W-18`, `W-25`
@@ -161,8 +161,8 @@ blocker is cleared for all of them.
 | #13 | `W-12` Tenant, subscription & entitlement | Tenant management, organisation creation, module selection, subscription status — the payment seam — and entitlement enforcement on both API and navigation | **`W-12.1` and `W-12.2` on main `b7d03ec`, `W-12.3` on main `a4f31ae`** · **done — built by krushna** · `W-24.1` Ready; `W-20.2`, `W-24.2` unblocked on `W-12.1`; `W-45` unblocked on `W-12` |
 | #15 | `W-14.1` Org masters | Department, designation and work location (`V011`–`V013`), plus the three nullable columns on `core.employee` (`V014`). Free-text conversion deliberately left to `W-67` | **on main `235aab2`** · code done — §8 verification not independently re-run — checked in by sanjib |
 | #15 | `W-14.2` Reporting line | The new reporting line and the org chart read model (`V028`) | **on main `ccc8e48`** · done — built by sayeed. Outstanding: no warning on deactivating a manager (spec § 9); org chart is an in-memory walk, `depth` optional; back-dated primary `PUT` date behaviour accepted by the founder 2026-09-27 |
-| #16 | `W-15` Approval engine | Approval definitions, instance lifecycle, step routing along the reporting line, delegation and escalation, history | **Ready — karma** (`W-14.2` on `main` `ccc8e48`) |
-| #17–20 | `W-16.1`–`.4` Leave engine | Types and policy · allocation and balance · request, approval and documents · consumption, loss-of-pay derivation and bulk import. **The other riskiest ticket — a merge** | **assigned — karma**, after `W-15` |
+| #16 | `W-15` Approval engine | Approval definitions, instance lifecycle, step routing along the reporting line, delegation and escalation, history (`V089`–`V092`) | **on main `a34c14f`** · done — built by karma. Outstanding, accepted 2026-09-28: no-handler flow silently claimed; no row lock on completion; ROLE routes to the first holder; holiday clock is a stub until `W-17`; escalation and reassign ignore delegations; five FK columns unindexed. Deferred to `W-16.3`: same-day `PUT` versioning, a `CANCELLED` decision value |
+| #17–20 | `W-16.1`–`.4` Leave engine | Types and policy · allocation and balance · request, approval and documents · consumption, loss-of-pay derivation and bulk import. **The other riskiest ticket — a merge** | **`W-16.1` Ready — karma** (`W-15` on `main` `a34c14f`); `.2`–`.4b` follow |
 | #21 | `W-17` Holiday calendar | Calendar per work location, holiday management, bulk import | **assigned — krushna**, after `W-24.1` |
 | #22 | `W-18` Loss-of-pay & working-day policy | Policy model, working-day basis, derivation rules, the policy stamped on every pay figure | **assigned — krushna**, after `W-16`, `W-17` |
 | #23 | `W-19` Pay input ledger | Write API for modules, read API for the pay run, period locking | **assigned — devashis** |
@@ -349,7 +349,7 @@ Nothing started. `W-41` is Ready and needs only `W-13`; the rest wait on `W-15`.
 
 | # | Ticket | What it is |
 |---|---|---|
-| #51–52 | `W-40` Clock attendance & request workflows | Clock in and out, multiple sessions a day, attendance preferences moved over from Payroll, and the employee-submitted, manager-approved regularization and overtime requests. Blocked on `W-39`, `W-15`, `W-16` — **assigned — karma** |
+| #51–52 | `W-40` Clock attendance & request workflows | Clock in and out, multiple sessions a day, attendance preferences moved over from Payroll, and the employee-submitted, manager-approved regularization and overtime requests. Blocked on `W-39`, `W-16` (`W-15` on `main`) — **assigned — karma** |
 | #53 | `W-41` Projects, tasks, assignments | Project and task management, employee assignment — **Ready** (spec 2026-09-28; needs only `W-13`, on `main`) |
 | #54 | `W-42` Timesheets | Weekly timesheet, project, day and task entry, submit, approve |
 | #55 | `W-43` Timesheet reminders | Reminder rules, escalation, notification trigger |
