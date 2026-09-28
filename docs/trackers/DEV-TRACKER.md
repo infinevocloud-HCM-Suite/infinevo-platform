@@ -14,7 +14,7 @@
 | C — Core platform | 26 | 15 | 15 | **Building.** `W-13.3` and `W-14.2` on `main` (`ccc8e48`) — employees can be listed and searched, and a manager can be resolved for any employee; `W-15` and `W-39.1` are Ready |
 | D — Payroll | 21 | 2 | 2 | **Building.** `W-26.1` and `W-26.2` on `main` (`a3ad0a3`) — component catalogue and dated CTC versions; `W-27.1` is Ready |
 | E — HRMS | 5 | 0 | 0 | All blocked on `W-15` |
-| F — Frontend | 12 | 0 | 0 | All blocked on `W-45`, which is **Ready** — `W-12` is on `main` (`a4f31ae`) |
+| F — Frontend | 13 | 0 | 0 | All blocked on `W-45`, which is **Ready** — `W-12` is on `main` (`a4f31ae`). `W-46` specs written 2026-09-28, six tickets after the `W-46.3` split |
 | G/H — product items | 3 | 1 | 1 | `W-55` merged `2ccd723`. `W-66` unassigned |
 
 **The core is being built.** The foundation is finished and eight Stream C tickets are on
@@ -364,7 +364,12 @@ Nothing started. Everything waits on `W-45`, which is **Ready with a spec** (202
 | # | Ticket | What it is |
 |---|---|---|
 | #57 | `W-45` Shell | Layout, navigation driven by entitlement, **a real API service layer** (Payroll has none today), Keycloak adapter, runtime configuration, design tokens. **Spec written 2026-09-27** — `W-45-frontend-shell.md`; four of the six items shipped under `W-12.3`, so the ticket is the service-layer pattern, full tokens, shell error screens and the lint rules that enforce module boundaries. Size M. **Ready — unassigned** |
-| #58–62 | `W-46.1`–`.5` Core screens | Employee · leave · holiday and org setup · approvals · employee portal |
+| #58 | `W-46.1` Employee screens | List, create, employee page with the five detail sections and reporting line. **Spec written 2026-09-28** — `W-46-1-employee-screens.md`. Size M. **Ready — unassigned**, after `W-45` only |
+| #59 | `W-46.2` Leave administration screens | Types and policy, allocations, record on behalf (`D-35`), all requests, consumption and LOP, import; adds the `core.leave` menu items. **Spec written 2026-09-28** — `W-46-2-leave-admin-screens.md`. Size L. **Ready — unassigned**, after `W-45`, `W-16.1`–`.4b` |
+| #60 | `W-46.3a` Organisation setup screens | Departments, designations, work locations. **Split 2026-09-28** from `W-46.3`; spec `W-46-3a-org-setup-screens.md`. Size S. **Ready — unassigned**, after `W-45` only |
+| #60 | `W-46.3b` Holiday calendar screens | Calendars per location, holidays, lookup; adds the `core.holiday` menu item. Spec `W-46-3b-holiday-screens.md`. Size S. **Ready — unassigned**, after `W-45`, `W-17` |
+| #61 | `W-46.4` Approval screens | One inbox for every flow type, decide, delegations, definitions, history, reassign; adds the `core.approvals` menu items. **Spec written 2026-09-28** — `W-46-4-approval-screens.md`. Size M. **Ready — unassigned**, after `W-45`, `W-15.1`–`.3` |
+| #62 | `W-46.5` Employee self-service actions | Apply, withdraw, cancel leave; edit own personal and contact, inside `W-25`'s portal panels. Owns the apply screen `W-25` and `W-16.3` each assign to the other. **Spec written 2026-09-28** — `W-46-5-self-service-actions.md`. Size M. **Ready — unassigned**, after `W-45`, `W-25`, `W-16.3` |
 | #63–67 | `W-47.1`–`.5` Payroll screens | Salary structure · pay run · tax and declarations · claims · dashboard |
 | #68 | `W-48` HRMS screens | Attendance, timesheet, projects, dashboards. **Rewritten from MUI to Ant Design** |
 | #85 | `W-65.3` Admin console screens | Tenant list, create, module and status switches, act-as banner, audit tab, in `src/core/admin`. **Spec written 2026-09-27** — `W-65-3-admin-console-screens.md`. Size M. **Ready — unassigned**, after `W-45`, `W-65.1`, `W-65.2` |
