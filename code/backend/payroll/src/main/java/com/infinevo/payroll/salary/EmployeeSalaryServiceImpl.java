@@ -1,0 +1,511 @@
+package com.infinevo.payroll.salary;
+
+import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.payroll.component.Benefit;
+import com.infinevo.payroll.component.BenefitRepository;
+import com.infinevo.payroll.component.Earning;
+import com.infinevo.payroll.component.EarningRepository;
+import com.infinevo.payroll.component.Reimbursement;
+import com.infinevo.payroll.component.ReimbursementRepository;
+import com.infinevo.shared.tenant.TenantContext;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Implementation of {@link EmployeeSalaryService} (W-26.2).
+ */
+@Service
+@Transactional
+public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
+
+    private static final int MAX_ACTOR_LEN = 100;
+
+    private final CtcStructureRepository ctcStructureRepository;
+    private final EmployeeEarningRepository employeeEarningRepository;
+    private final EmployeeBenefitRepository employeeBenefitRepository;
+    private final EmployeeReimbursementRepository employeeReimbursementRepository;
+    private final EarningRepository earningRepository;
+    private final BenefitRepository benefitRepository;
+    private final ReimbursementRepository reimbursementRepository;
+    private final EmployeeService employeeService;
+
+    public EmployeeSalaryServiceImpl(
+            CtcStructureRepository ctcStructureRepository,
+            EmployeeEarningRepository employeeEarningRepository,
+            EmployeeBenefitRepository employeeBenefitRepository,
+            EmployeeReimbursementRepository employeeReimbursementRepository,
+            EarningRepository earningRepository,
+            BenefitRepository benefitRepository,
+            ReimbursementRepository reimbursementRepository,
+            EmployeeService employeeService) {
+        this.ctcStructureRepository =
+                Objects.requireNonNull(ctcStructureRepository, "ctcStructureRepository must not be null");
+        this.employeeEarningRepository =
+                Objects.requireNonNull(employeeEarningRepository, "employeeEarningRepository must not be null");
+        this.employeeBenefitRepository =
+                Objects.requireNonNull(employeeBenefitRepository, "employeeBenefitRepository must not be null");
+        this.employeeReimbursementRepository = Objects.requireNonNull(
+                employeeReimbursementRepository, "employeeReimbursementRepository must not be null");
+        this.earningRepository = Objects.requireNonNull(earningRepository, "earningRepository must not be null");
+        this.benefitRepository = Objects.requireNonNull(benefitRepository, "benefitRepository must not be null");
+        this.reimbursementRepository =
+                Objects.requireNonNull(reimbursementRepository, "reimbursementRepository must not be null");
+        this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+    }
+
+    @Override
+    public SalaryVersionResponse create(UUID employeeId, SalaryVersionRequest request) {
+        validateRequest(request);
+        UUID tenantId = TenantContext.require();
+        validateEmployeeExists(employeeId);
+
+        if (ctcStructureRepository.existsByTenantIdAndEmployeeId(tenantId, employeeId)) {
+            throw new SalaryConflictException("A salary structure already exists for employee " + employeeId
+                    + ". Use revisions endpoint to add a new version.");
+        }
+
+        return buildAndSaveVersion(tenantId, employeeId, request, null, false);
+    }
+
+    @Override
+    public SalaryVersionResponse revise(UUID employeeId, SalaryVersionRequest request) {
+        validateRequest(request);
+        UUID tenantId = TenantContext.require();
+        validateEmployeeExists(employeeId);
+
+        if (ctcStructureRepository.existsByTenantIdAndEmployeeIdAndEffectiveFrom(
+                tenantId, employeeId, request.effectiveFrom())) {
+            throw new SalaryConflictException("A salary version for employee " + employeeId + " with effective_from "
+                    + request.effectiveFrom() + " already exists");
+        }
+
+        return buildAndSaveVersion(tenantId, employeeId, request, null, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SalaryVersionResponse getAsOf(UUID employeeId, LocalDate asOf) {
+        UUID tenantId = TenantContext.require();
+        validateEmployeeExists(employeeId);
+        LocalDate targetDate = asOf != null ? asOf : LocalDate.now();
+
+        CtcStructure version = ctcStructureRepository
+                .findFirstByTenantIdAndEmployeeIdAndCancelledFalseAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc(
+                        tenantId, employeeId, targetDate)
+                .orElseThrow(() -> new SalaryNotFoundException(
+                        "No active salary version in force as of " + targetDate + " for employee " + employeeId));
+
+        return toResponse(version, tenantId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SalaryVersionResponse> listVersions(UUID employeeId) {
+        UUID tenantId = TenantContext.require();
+        validateEmployeeExists(employeeId);
+
+        List<CtcStructure> list =
+                ctcStructureRepository.findAllByTenantIdAndEmployeeIdOrderByEffectiveFromDesc(tenantId, employeeId);
+        List<SalaryVersionResponse> responses = new ArrayList<>();
+        for (int i = 0; i < list.size(); i++) {
+            CtcStructure current = list.get(i);
+            BigDecimal change = null;
+            if (i < list.size() - 1) {
+                CtcStructure prev = list.get(i + 1);
+                change = computeChangePercent(current.getAnnualCtc(), prev.getAnnualCtc());
+            }
+            responses.add(toResponse(current, tenantId, change));
+        }
+        return responses;
+    }
+
+    @Override
+    public SalaryVersionResponse update(UUID employeeId, UUID versionId, SalaryVersionRequest request) {
+        validateRequest(request);
+        UUID tenantId = TenantContext.require();
+        validateEmployeeExists(employeeId);
+
+        CtcStructure existing = ctcStructureRepository
+                .findByIdAndTenantId(versionId, tenantId)
+                .orElseThrow(() -> new SalaryNotFoundException("CtcStructure", versionId));
+
+        if (!existing.getEmployeeId().equals(employeeId)) {
+            throw new SalaryNotFoundException("Salary version does not belong to employee " + employeeId);
+        }
+
+        LocalDate today = LocalDate.now();
+        if (!existing.getEffectiveFrom().isAfter(today)) {
+            throw new SalaryConflictException("Cannot edit salary version with effective_from "
+                    + existing.getEffectiveFrom() + " because it is already in force or past. Revisions must be used.");
+        }
+
+        if (ctcStructureRepository.existsByTenantIdAndEmployeeIdAndEffectiveFromAndIdNot(
+                tenantId, employeeId, request.effectiveFrom(), versionId)) {
+            throw new SalaryConflictException("A salary version for employee " + employeeId + " with effective_from "
+                    + request.effectiveFrom() + " already exists");
+        }
+
+        return buildAndSaveVersion(tenantId, employeeId, request, existing, true);
+    }
+
+    @Override
+    public void cancel(UUID employeeId, UUID versionId) {
+        UUID tenantId = TenantContext.require();
+        validateEmployeeExists(employeeId);
+
+        CtcStructure existing = ctcStructureRepository
+                .findByIdAndTenantId(versionId, tenantId)
+                .orElseThrow(() -> new SalaryNotFoundException("CtcStructure", versionId));
+
+        if (!existing.getEmployeeId().equals(employeeId)) {
+            throw new SalaryNotFoundException("Salary version does not belong to employee " + employeeId);
+        }
+
+        LocalDate today = LocalDate.now();
+        if (!existing.getEffectiveFrom().isAfter(today)) {
+            throw new SalaryConflictException("Cannot cancel salary version with effective_from "
+                    + existing.getEffectiveFrom() + " because it is already in force or past.");
+        }
+
+        existing.setCancelled(true);
+        existing.setCancelledAt(Instant.now());
+        existing.setUpdatedBy(currentActor());
+        ctcStructureRepository.save(existing);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SalaryVersionResponse versionInForce(UUID tenantId, UUID employeeId, LocalDate date) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(employeeId, "employeeId must not be null");
+        LocalDate targetDate = date != null ? date : LocalDate.now();
+
+        CtcStructure version = ctcStructureRepository
+                .findFirstByTenantIdAndEmployeeIdAndCancelledFalseAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc(
+                        tenantId, employeeId, targetDate)
+                .orElseThrow(() -> new SalaryNotFoundException(
+                        "No active salary version in force as of " + targetDate + " for employee " + employeeId));
+
+        return toResponse(version, tenantId, null);
+    }
+
+    private SalaryVersionResponse buildAndSaveVersion(
+            UUID tenantId,
+            UUID employeeId,
+            SalaryVersionRequest request,
+            CtcStructure existingVersion,
+            boolean isUpdate) {
+
+        String actor = currentActor();
+        List<SalarySplitCalculator.ComponentInput> earningInputs = resolveEarningInputs(tenantId, request.earnings());
+        List<SalarySplitCalculator.ComponentInput> benefitInputs = resolveBenefitInputs(tenantId, request.benefits());
+        List<SalarySplitCalculator.ComponentInput> reimbursementInputs =
+                resolveReimbursementInputs(tenantId, request.reimbursements());
+
+        SalarySplitCalculator.SplitOutput split =
+                SalarySplitCalculator.calculate(request.annualCtc(), earningInputs, benefitInputs, reimbursementInputs);
+
+        CtcStructure ctcStructure =
+                isUpdate ? existingVersion : new CtcStructure(tenantId, employeeId, request.effectiveFrom(), actor);
+        ctcStructure.setEffectiveFrom(request.effectiveFrom());
+        ctcStructure.setAnnualCtc(split.annualCtc());
+        ctcStructure.setMonthlyCtc(split.monthlyCtc());
+        ctcStructure.setNotes(request.notes());
+        ctcStructure.setUpdatedBy(actor);
+
+        if (isUpdate) {
+            employeeEarningRepository.deleteAllByTenantIdAndCtcStructureId(tenantId, ctcStructure.getId());
+            employeeBenefitRepository.deleteAllByTenantIdAndCtcStructureId(tenantId, ctcStructure.getId());
+            employeeReimbursementRepository.deleteAllByTenantIdAndCtcStructureId(tenantId, ctcStructure.getId());
+            ctcStructure.getEarnings().clear();
+            ctcStructure.getBenefits().clear();
+            ctcStructure.getReimbursements().clear();
+        }
+
+        CtcStructure saved = ctcStructureRepository.save(ctcStructure);
+
+        List<EmployeeEarning> savedEarnings = new ArrayList<>();
+        for (SalarySplitCalculator.CalculatedResult res : split.earnings()) {
+            EmployeeEarning ee = new EmployeeEarning(tenantId, res.componentId(), saved, actor);
+            ee.setCalculationType(res.calculationType());
+            ee.setValue(res.value());
+            ee.setPercentageOf(res.percentageOf());
+            ee.setMonthlyAmount(res.monthlyAmount());
+            ee.setAnnualAmount(res.annualAmount());
+            ee.setEarningFrequency(res.earningFrequency());
+            ee.setEnabled(true);
+            savedEarnings.add(employeeEarningRepository.save(ee));
+        }
+
+        List<EmployeeBenefit> savedBenefits = new ArrayList<>();
+        for (SalarySplitCalculator.CalculatedResult res : split.benefits()) {
+            EmployeeBenefit eb = new EmployeeBenefit(tenantId, res.componentId(), saved, actor);
+            eb.setCalculationType(res.calculationType());
+            eb.setValue(res.value());
+            eb.setPercentageOf(res.percentageOf());
+            eb.setMonthlyAmount(res.monthlyAmount());
+            eb.setAnnualAmount(res.annualAmount());
+            eb.setEnabled(true);
+            savedBenefits.add(employeeBenefitRepository.save(eb));
+        }
+
+        List<EmployeeReimbursement> savedReimbursements = new ArrayList<>();
+        for (SalarySplitCalculator.CalculatedResult res : split.reimbursements()) {
+            EmployeeReimbursement er = new EmployeeReimbursement(tenantId, res.componentId(), saved, actor);
+            er.setCalculationType(res.calculationType());
+            er.setValue(res.value());
+            er.setPercentageOf(res.percentageOf());
+            er.setMonthlyAmount(res.monthlyAmount());
+            er.setAnnualAmount(res.annualAmount());
+            er.setCarryForwardOption(res.carryForwardOption());
+            er.setEnabled(true);
+            savedReimbursements.add(employeeReimbursementRepository.save(er));
+        }
+
+        saved.getEarnings().clear();
+        saved.getEarnings().addAll(savedEarnings);
+        saved.getBenefits().clear();
+        saved.getBenefits().addAll(savedBenefits);
+        saved.getReimbursements().clear();
+        saved.getReimbursements().addAll(savedReimbursements);
+
+        BigDecimal change =
+                computeChangeFromPrevious(tenantId, employeeId, saved.getEffectiveFrom(), saved.getAnnualCtc());
+        return toResponse(saved, tenantId, change);
+    }
+
+    private BigDecimal computeChangeFromPrevious(
+            UUID tenantId, UUID employeeId, LocalDate effectiveFrom, BigDecimal currentAnnualCtc) {
+        Optional<CtcStructure> prevOpt =
+                ctcStructureRepository
+                        .findFirstByTenantIdAndEmployeeIdAndCancelledFalseAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc(
+                                tenantId, employeeId, effectiveFrom.minusDays(1));
+        return prevOpt.map(prev -> computeChangePercent(currentAnnualCtc, prev.getAnnualCtc()))
+                .orElse(null);
+    }
+
+    private static BigDecimal computeChangePercent(BigDecimal current, BigDecimal previous) {
+        if (previous == null || previous.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        return current.subtract(previous)
+                .divide(previous, 6, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private void validateRequest(SalaryVersionRequest request) {
+        if (request == null) {
+            throw new SalaryValidationException("request", "Request body must not be null");
+        }
+        if (request.annualCtc() == null || request.annualCtc().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new SalaryValidationException("annualCtc", "Annual CTC must be greater than zero");
+        }
+        if (request.effectiveFrom() == null) {
+            throw new SalaryValidationException("effectiveFrom", "Effective from date is required");
+        }
+    }
+
+    private void validateEmployeeExists(UUID employeeId) {
+        employeeService.get(employeeId);
+    }
+
+    private List<SalarySplitCalculator.ComponentInput> resolveEarningInputs(
+            UUID tenantId, List<SalaryComponentItemRequest> items) {
+        if (items == null) return List.of();
+        List<SalarySplitCalculator.ComponentInput> list = new ArrayList<>();
+        for (SalaryComponentItemRequest item : items) {
+            Earning earning = earningRepository
+                    .findByIdAndTenantIdAndDeletedFalse(item.componentId(), tenantId)
+                    .orElseThrow(() -> new SalaryValidationException(
+                            "earnings.componentId",
+                            "Earning component " + item.componentId() + " does not exist in this tenant"));
+            if (!earning.isActive()) {
+                throw new SalaryValidationException(
+                        "earnings.componentId", "Earning component " + earning.getCode() + " is inactive");
+            }
+            list.add(new SalarySplitCalculator.ComponentInput(
+                    item.componentId(),
+                    earning.getCode(),
+                    earning.getName(),
+                    item.calculationType(),
+                    item.value(),
+                    item.percentageOf(),
+                    earning.isIncludedInCtc(),
+                    earning.getEarningType(),
+                    item.earningFrequency() != null ? item.earningFrequency() : earning.getEarningFrequency(),
+                    null));
+        }
+        return list;
+    }
+
+    private List<SalarySplitCalculator.ComponentInput> resolveBenefitInputs(
+            UUID tenantId, List<SalaryComponentItemRequest> items) {
+        if (items == null) return List.of();
+        List<SalarySplitCalculator.ComponentInput> list = new ArrayList<>();
+        for (SalaryComponentItemRequest item : items) {
+            Benefit benefit = benefitRepository
+                    .findByIdAndTenantIdAndDeletedFalse(item.componentId(), tenantId)
+                    .orElseThrow(() -> new SalaryValidationException(
+                            "benefits.componentId",
+                            "Benefit component " + item.componentId() + " does not exist in this tenant"));
+            if (!benefit.isActive()) {
+                throw new SalaryValidationException(
+                        "benefits.componentId", "Benefit component " + benefit.getCode() + " is inactive");
+            }
+            list.add(new SalarySplitCalculator.ComponentInput(
+                    item.componentId(),
+                    benefit.getCode(),
+                    benefit.getName(),
+                    item.calculationType(),
+                    item.value(),
+                    item.percentageOf(),
+                    benefit.isIncludedInCtc(),
+                    null,
+                    null,
+                    null));
+        }
+        return list;
+    }
+
+    private List<SalarySplitCalculator.ComponentInput> resolveReimbursementInputs(
+            UUID tenantId, List<SalaryComponentItemRequest> items) {
+        if (items == null) return List.of();
+        List<SalarySplitCalculator.ComponentInput> list = new ArrayList<>();
+        for (SalaryComponentItemRequest item : items) {
+            Reimbursement reimbursement = reimbursementRepository
+                    .findByIdAndTenantIdAndDeletedFalse(item.componentId(), tenantId)
+                    .orElseThrow(() -> new SalaryValidationException(
+                            "reimbursements.componentId",
+                            "Reimbursement component " + item.componentId() + " does not exist in this tenant"));
+            if (!reimbursement.isActive()) {
+                throw new SalaryValidationException(
+                        "reimbursements.componentId",
+                        "Reimbursement component " + reimbursement.getCode() + " is inactive");
+            }
+            list.add(new SalarySplitCalculator.ComponentInput(
+                    item.componentId(),
+                    reimbursement.getCode(),
+                    reimbursement.getName(),
+                    item.calculationType(),
+                    item.value(),
+                    item.percentageOf(),
+                    reimbursement.isIncludedInCtc(),
+                    null,
+                    null,
+                    item.carryForwardOption() != null
+                            ? item.carryForwardOption()
+                            : reimbursement.getCarryForwardOption()));
+        }
+        return list;
+    }
+
+    private SalaryVersionResponse toResponse(CtcStructure version, UUID tenantId, BigDecimal changePercent) {
+        List<EmployeeEarning> earnings =
+                employeeEarningRepository.findAllByTenantIdAndCtcStructureId(tenantId, version.getId());
+        List<EmployeeBenefit> benefits =
+                employeeBenefitRepository.findAllByTenantIdAndCtcStructureId(tenantId, version.getId());
+        List<EmployeeReimbursement> reimbursements =
+                employeeReimbursementRepository.findAllByTenantIdAndCtcStructureId(tenantId, version.getId());
+
+        List<SalaryComponentItemResponse> earningResponses = earnings.stream()
+                .map(e -> {
+                    Optional<Earning> def =
+                            earningRepository.findByIdAndTenantIdAndDeletedFalse(e.getComponentId(), tenantId);
+                    return new SalaryComponentItemResponse(
+                            e.getId(),
+                            e.getComponentId(),
+                            def.map(Earning::getCode).orElse("UNKNOWN"),
+                            def.map(Earning::getName).orElse("Unknown"),
+                            e.getCalculationType(),
+                            e.getValue(),
+                            e.getPercentageOf(),
+                            e.getMonthlyAmount(),
+                            e.getAnnualAmount(),
+                            e.isEnabled(),
+                            def.map(Earning::isIncludedInCtc).orElse(false),
+                            e.getEarningFrequency(),
+                            null);
+                })
+                .toList();
+
+        List<SalaryComponentItemResponse> benefitResponses = benefits.stream()
+                .map(b -> {
+                    Optional<Benefit> def =
+                            benefitRepository.findByIdAndTenantIdAndDeletedFalse(b.getComponentId(), tenantId);
+                    return new SalaryComponentItemResponse(
+                            b.getId(),
+                            b.getComponentId(),
+                            def.map(Benefit::getCode).orElse("UNKNOWN"),
+                            def.map(Benefit::getName).orElse("Unknown"),
+                            b.getCalculationType(),
+                            b.getValue(),
+                            b.getPercentageOf(),
+                            b.getMonthlyAmount(),
+                            b.getAnnualAmount(),
+                            b.isEnabled(),
+                            def.map(Benefit::isIncludedInCtc).orElse(false),
+                            null,
+                            null);
+                })
+                .toList();
+
+        List<SalaryComponentItemResponse> reimbursementResponses = reimbursements.stream()
+                .map(r -> {
+                    Optional<Reimbursement> def =
+                            reimbursementRepository.findByIdAndTenantIdAndDeletedFalse(r.getComponentId(), tenantId);
+                    return new SalaryComponentItemResponse(
+                            r.getId(),
+                            r.getComponentId(),
+                            def.map(Reimbursement::getCode).orElse("UNKNOWN"),
+                            def.map(Reimbursement::getName).orElse("Unknown"),
+                            r.getCalculationType(),
+                            r.getValue(),
+                            r.getPercentageOf(),
+                            r.getMonthlyAmount(),
+                            r.getAnnualAmount(),
+                            r.isEnabled(),
+                            def.map(Reimbursement::isIncludedInCtc).orElse(false),
+                            null,
+                            r.getCarryForwardOption());
+                })
+                .toList();
+
+        return new SalaryVersionResponse(
+                version.getId(),
+                version.getEmployeeId(),
+                version.getEffectiveFrom(),
+                version.getAnnualCtc(),
+                version.getMonthlyCtc(),
+                version.isCancelled(),
+                version.getCancelledAt(),
+                version.getNotes(),
+                changePercent,
+                earningResponses,
+                benefitResponses,
+                reimbursementResponses);
+    }
+
+    private static String currentActor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null
+                || !auth.isAuthenticated()
+                || auth.getName() == null
+                || auth.getName().isBlank()) {
+            return CtcStructure.ACTOR_SYSTEM;
+        }
+        String name = auth.getName();
+        return name.length() > MAX_ACTOR_LEN ? name.substring(0, MAX_ACTOR_LEN) : name;
+    }
+}
