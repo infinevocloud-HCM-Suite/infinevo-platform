@@ -26,6 +26,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EnableJpaRepositories(basePackages = {"com.infinevo.payroll"})
 public class PayrollTestApp {
 
+    public static final ThreadLocal<EmployeeResponse> CURRENT_EMPLOYEE = new ThreadLocal<>();
+
     @Bean
     public EmployeeService employeeService(DataSource dataSource) {
         return new EmployeeService() {
@@ -94,7 +96,7 @@ public class PayrollTestApp {
 
             @Override
             public Optional<EmployeeResponse> currentEmployee() {
-                return Optional.empty();
+                return Optional.ofNullable(CURRENT_EMPLOYEE.get());
             }
 
             @Override

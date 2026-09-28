@@ -7,16 +7,24 @@ import com.infinevo.payroll.component.Earning;
 import com.infinevo.payroll.component.EarningRepository;
 import com.infinevo.payroll.component.Reimbursement;
 import com.infinevo.payroll.component.ReimbursementRepository;
+import com.infinevo.payroll.fbp.EmployeeFbpComponent;
+import com.infinevo.payroll.fbp.EmployeeFbpComponentRepository;
+import com.infinevo.payroll.fbp.FbpDeclarationService;
+import com.infinevo.payroll.fbp.FbpSummaryResponse;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -39,6 +47,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final BenefitRepository benefitRepository;
     private final ReimbursementRepository reimbursementRepository;
     private final EmployeeService employeeService;
+    private final EmployeeFbpComponentRepository employeeFbpComponentRepository;
+    private final FbpDeclarationService fbpDeclarationService;
 
     public EmployeeSalaryServiceImpl(
             CtcStructureRepository ctcStructureRepository,
@@ -49,6 +59,31 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             BenefitRepository benefitRepository,
             ReimbursementRepository reimbursementRepository,
             EmployeeService employeeService) {
+        this(
+                ctcStructureRepository,
+                employeeEarningRepository,
+                employeeBenefitRepository,
+                employeeReimbursementRepository,
+                earningRepository,
+                benefitRepository,
+                reimbursementRepository,
+                employeeService,
+                null,
+                null);
+    }
+
+    @Autowired
+    public EmployeeSalaryServiceImpl(
+            CtcStructureRepository ctcStructureRepository,
+            EmployeeEarningRepository employeeEarningRepository,
+            EmployeeBenefitRepository employeeBenefitRepository,
+            EmployeeReimbursementRepository employeeReimbursementRepository,
+            EarningRepository earningRepository,
+            BenefitRepository benefitRepository,
+            ReimbursementRepository reimbursementRepository,
+            EmployeeService employeeService,
+            @Autowired(required = false) EmployeeFbpComponentRepository employeeFbpComponentRepository,
+            @Autowired(required = false) FbpDeclarationService fbpDeclarationService) {
         this.ctcStructureRepository =
                 Objects.requireNonNull(ctcStructureRepository, "ctcStructureRepository must not be null");
         this.employeeEarningRepository =
@@ -62,6 +97,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         this.reimbursementRepository =
                 Objects.requireNonNull(reimbursementRepository, "reimbursementRepository must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.employeeFbpComponentRepository = employeeFbpComponentRepository;
+        this.fbpDeclarationService = fbpDeclarationService;
     }
 
     @Override
@@ -90,7 +127,21 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                     + request.effectiveFrom() + " already exists");
         }
 
-        return buildAndSaveVersion(tenantId, employeeId, request, null, false);
+        CtcStructure previous = ctcStructureRepository
+                .findFirstByTenantIdAndEmployeeIdAndCancelledFalseAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc(
+                        tenantId, employeeId, request.effectiveFrom())
+                .orElse(null);
+
+        SalaryVersionResponse created = buildAndSaveVersion(tenantId, employeeId, request, null, false);
+
+        if (previous != null && fbpDeclarationService != null) {
+            fbpDeclarationService.carryForward(previous.getId(), created.id(), tenantId, employeeId);
+        }
+
+        CtcStructure saved = ctcStructureRepository
+                .findByIdAndTenantId(created.id(), tenantId)
+                .orElseThrow(() -> new SalaryNotFoundException("Salary version not found: " + created.id()));
+        return toResponse(saved, tenantId, created.changeInPercent());
     }
 
     @Override
@@ -280,6 +331,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         saved.getReimbursements().clear();
         saved.getReimbursements().addAll(savedReimbursements);
 
+        if (isUpdate && fbpDeclarationService != null) {
+            fbpDeclarationService.recapAfterSalaryUpdate(saved.getId(), tenantId);
+        }
+
         BigDecimal change =
                 computeChangeFromPrevious(tenantId, employeeId, saved.getEffectiveFrom(), saved.getAnnualCtc());
         return toResponse(saved, tenantId, change);
@@ -419,10 +474,32 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         List<EmployeeReimbursement> reimbursements =
                 employeeReimbursementRepository.findAllByTenantIdAndCtcStructureId(tenantId, version.getId());
 
+        List<EmployeeFbpComponent> declarations = employeeFbpComponentRepository != null
+                ? employeeFbpComponentRepository.findAllByTenantIdAndCtcStructureId(tenantId, version.getId())
+                : Collections.emptyList();
+
+        Map<UUID, EmployeeFbpComponent> earningDeclMap = new HashMap<>();
+        Map<UUID, EmployeeFbpComponent> reimbDeclMap = new HashMap<>();
+        for (EmployeeFbpComponent decl : declarations) {
+            if (decl.getEarningId() != null) {
+                earningDeclMap.put(decl.getEarningId(), decl);
+            } else if (decl.getReimbursementId() != null) {
+                reimbDeclMap.put(decl.getReimbursementId(), decl);
+            }
+        }
+
         List<SalaryComponentItemResponse> earningResponses = earnings.stream()
                 .map(e -> {
                     Optional<Earning> def =
                             earningRepository.findByIdAndTenantIdAndDeletedFalse(e.getComponentId(), tenantId);
+                    boolean isFbp = def.map(Earning::isFbpComponent).orElse(false);
+                    BigDecimal declaredAnnual = null;
+                    BigDecimal declaredMonthly = null;
+                    if (isFbp) {
+                        EmployeeFbpComponent decl = earningDeclMap.get(e.getComponentId());
+                        declaredAnnual = decl != null ? decl.getAnnualAmount() : BigDecimal.ZERO.setScale(4);
+                        declaredMonthly = decl != null ? decl.getMonthlyAmount() : BigDecimal.ZERO.setScale(4);
+                    }
                     return new SalaryComponentItemResponse(
                             e.getId(),
                             e.getComponentId(),
@@ -436,7 +513,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                             e.isEnabled(),
                             def.map(Earning::isIncludedInCtc).orElse(false),
                             e.getEarningFrequency(),
-                            null);
+                            null,
+                            isFbp,
+                            declaredAnnual,
+                            declaredMonthly);
                 })
                 .toList();
 
@@ -465,6 +545,14 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 .map(r -> {
                     Optional<Reimbursement> def =
                             reimbursementRepository.findByIdAndTenantIdAndDeletedFalse(r.getComponentId(), tenantId);
+                    boolean isFbp = def.map(Reimbursement::isFbpComponent).orElse(false);
+                    BigDecimal declaredAnnual = null;
+                    BigDecimal declaredMonthly = null;
+                    if (isFbp) {
+                        EmployeeFbpComponent decl = reimbDeclMap.get(r.getComponentId());
+                        declaredAnnual = decl != null ? decl.getAnnualAmount() : BigDecimal.ZERO.setScale(4);
+                        declaredMonthly = decl != null ? decl.getMonthlyAmount() : BigDecimal.ZERO.setScale(4);
+                    }
                     return new SalaryComponentItemResponse(
                             r.getId(),
                             r.getComponentId(),
@@ -478,9 +566,15 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                             r.isEnabled(),
                             def.map(Reimbursement::isIncludedInCtc).orElse(false),
                             null,
-                            r.getCarryForwardOption());
+                            r.getCarryForwardOption(),
+                            isFbp,
+                            declaredAnnual,
+                            declaredMonthly);
                 })
                 .toList();
+
+        FbpSummaryResponse fbpSummary =
+                fbpDeclarationService != null ? fbpDeclarationService.summary(version.getId(), tenantId) : null;
 
         return new SalaryVersionResponse(
                 version.getId(),
@@ -494,7 +588,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 changePercent,
                 earningResponses,
                 benefitResponses,
-                reimbursementResponses);
+                reimbursementResponses,
+                fbpSummary);
     }
 
     private static String currentActor() {

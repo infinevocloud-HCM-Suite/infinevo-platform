@@ -16,6 +16,8 @@ public interface ReimbursementRepository extends JpaRepository<Reimbursement, UU
 
     List<Reimbursement> findAllByTenantIdAndActiveAndDeletedFalse(UUID tenantId, boolean active);
 
+    List<Reimbursement> findAllByTenantIdAndActiveAndDeletedFalseAndFbpComponentTrue(UUID tenantId, boolean active);
+
     Optional<Reimbursement> findByTenantIdAndCodeAndDeletedFalse(UUID tenantId, String code);
 
     boolean existsByTenantIdAndCode(UUID tenantId, String code);

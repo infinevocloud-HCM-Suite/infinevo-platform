@@ -16,6 +16,8 @@ public interface EarningRepository extends JpaRepository<Earning, UUID> {
 
     List<Earning> findAllByTenantIdAndActiveAndDeletedFalse(UUID tenantId, boolean active);
 
+    List<Earning> findAllByTenantIdAndActiveAndDeletedFalseAndFbpComponentTrue(UUID tenantId, boolean active);
+
     Optional<Earning> findByTenantIdAndCodeAndDeletedFalse(UUID tenantId, String code);
 
     boolean existsByTenantIdAndCode(UUID tenantId, String code);

@@ -70,6 +70,12 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "employee_statutory_profile")) {
                 executeResource(conn, "db/migration/payroll/V050__employee_statutory_profile.sql");
             }
+            if (!tableExists(conn, "payroll", "fbp")) {
+                executeResource(conn, "db/migration/payroll/V051__fbp.sql");
+            }
+            if (!tableExists(conn, "payroll", "employee_fbp_component")) {
+                executeResource(conn, "db/migration/payroll/V053__employee_fbp_component.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -93,8 +99,9 @@ public final class PayrollTestSchema {
     public static void cleanTables() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement st = conn.createStatement()) {
-            st.execute("TRUNCATE TABLE payroll.ctc_structure, payroll.employee_statutory_profile, "
-                    + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
+            st.execute(
+                    "TRUNCATE TABLE payroll.employee_fbp_component, payroll.fbp, payroll.ctc_structure, payroll.employee_statutory_profile, "
+                            + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
             st.execute("DELETE FROM core.employee");
         }
     }
