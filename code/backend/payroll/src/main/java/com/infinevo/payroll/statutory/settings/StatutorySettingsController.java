@@ -37,28 +37,32 @@ public class StatutorySettingsController {
 
     @GetMapping("/epf")
     @RequiresAction("payroll.salary.read")
-    public ResponseEntity<EpfSettingResponse> getEpf() {
+    public ResponseEntity<StatutoryApiResponse<EpfSettingResponse>> getEpf() {
         UUID tenantId = TenantContext.require();
-        return ResponseEntity.ok(statutorySettingsService.epf(tenantId));
+        return ResponseEntity.ok(
+                StatutoryApiResponse.ok("EPF settings retrieved successfully", statutorySettingsService.epf(tenantId)));
     }
 
     @PutMapping("/epf")
     @RequiresAction("payroll.settings.manage")
-    public ResponseEntity<EpfSettingResponse> putEpf(@RequestBody EpfSettingRequest request) {
-        return ResponseEntity.ok(statutorySettingsService.saveEpf(request));
+    public ResponseEntity<StatutoryApiResponse<EpfSettingResponse>> putEpf(@RequestBody EpfSettingRequest request) {
+        return ResponseEntity.ok(
+                StatutoryApiResponse.ok("EPF settings saved successfully", statutorySettingsService.saveEpf(request)));
     }
 
     @GetMapping("/esi")
     @RequiresAction("payroll.salary.read")
-    public ResponseEntity<EsiSettingResponse> getEsi() {
+    public ResponseEntity<StatutoryApiResponse<EsiSettingResponse>> getEsi() {
         UUID tenantId = TenantContext.require();
-        return ResponseEntity.ok(statutorySettingsService.esi(tenantId));
+        return ResponseEntity.ok(
+                StatutoryApiResponse.ok("ESI settings retrieved successfully", statutorySettingsService.esi(tenantId)));
     }
 
     @PutMapping("/esi")
     @RequiresAction("payroll.settings.manage")
-    public ResponseEntity<EsiSettingResponse> putEsi(@RequestBody EsiSettingRequest request) {
-        return ResponseEntity.ok(statutorySettingsService.saveEsi(request));
+    public ResponseEntity<StatutoryApiResponse<EsiSettingResponse>> putEsi(@RequestBody EsiSettingRequest request) {
+        return ResponseEntity.ok(
+                StatutoryApiResponse.ok("ESI settings saved successfully", statutorySettingsService.saveEsi(request)));
     }
 
     @ExceptionHandler(StatutorySettingsValidationException.class)

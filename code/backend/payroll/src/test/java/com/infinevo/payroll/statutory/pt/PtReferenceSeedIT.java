@@ -92,7 +92,7 @@ class PtReferenceSeedIT extends AbstractIntegrationTest {
     @DisplayName("8. Kerala (KL) — Kerala Municipality Act, 1994, Section 245 (Half-yearly: Sep)")
     void keralaStatutorySlab() {
         Money pt = professionalTaxService.resolve(
-                TENANT_A, "KL", Money.of("50000.0000"), "male", LocalDate.of(2025, 9, 30));
+                TENANT_A, "KL", Money.of("8000.0000"), "male", LocalDate.of(2025, 9, 30));
         assertThat(pt).isEqualTo(Money.of("450.0000"));
     }
 
@@ -156,7 +156,7 @@ class PtReferenceSeedIT extends AbstractIntegrationTest {
     @DisplayName("16. Puducherry (PY) — Puducherry Municipalities Act, 1973 (Half-yearly: Mar)")
     void puducherryStatutorySlab() {
         Money pt = professionalTaxService.resolve(
-                TENANT_A, "PY", Money.of("250000.0000"), "male", LocalDate.of(2025, 3, 31));
+                TENANT_A, "PY", Money.of("40000.0000"), "male", LocalDate.of(2025, 3, 31));
         assertThat(pt).isEqualTo(Money.of("500.0000"));
     }
 
@@ -172,7 +172,7 @@ class PtReferenceSeedIT extends AbstractIntegrationTest {
     @DisplayName("18. Tamil Nadu (TN) — Tamil Nadu Municipal Laws Act, 1998 (Half-yearly: Mar)")
     void tamilNaduStatutorySlab() {
         Money pt = professionalTaxService.resolve(
-                TENANT_A, "TN", Money.of("50000.0000"), "male", LocalDate.of(2025, 3, 31));
+                TENANT_A, "TN", Money.of("9000.0000"), "male", LocalDate.of(2025, 3, 31));
         assertThat(pt).isEqualTo(Money.of("690.0000"));
     }
 
@@ -189,7 +189,7 @@ class PtReferenceSeedIT extends AbstractIntegrationTest {
     void tripuraStatutorySlab() {
         Money pt = professionalTaxService.resolve(
                 TENANT_A, "TR", Money.of("20000.0000"), "male", LocalDate.of(2025, 5, 31));
-        assertThat(pt).isEqualTo(Money.of("200.0000"));
+        assertThat(pt).isEqualTo(Money.of("208.0000"));
     }
 
     @Test

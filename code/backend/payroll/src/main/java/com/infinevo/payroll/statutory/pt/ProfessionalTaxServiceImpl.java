@@ -327,11 +327,20 @@ public class ProfessionalTaxServiceImpl implements ProfessionalTaxService {
 
     private UUID resolveActorUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
-            try {
-                return UUID.fromString(jwt.getSubject());
-            } catch (IllegalArgumentException e) {
-                // Not a UUID subject
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            String subject = null;
+            if (auth.getPrincipal() instanceof Jwt jwt) {
+                subject = jwt.getSubject();
+            }
+            if (subject == null || subject.isBlank()) {
+                subject = auth.getName();
+            }
+            if (subject != null) {
+                try {
+                    return UUID.fromString(subject);
+                } catch (IllegalArgumentException e) {
+                    // Not a UUID subject
+                }
             }
         }
         return new UUID(0L, 0L);
@@ -340,7 +349,16 @@ public class ProfessionalTaxServiceImpl implements ProfessionalTaxService {
     private String resolveActorLabel() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
-            return auth.getName();
+            String name = null;
+            if (auth.getPrincipal() instanceof Jwt jwt) {
+                name = jwt.getSubject();
+            }
+            if (name == null || name.isBlank()) {
+                name = auth.getName();
+            }
+            if (name != null && !name.isBlank()) {
+                return name;
+            }
         }
         return "system";
     }

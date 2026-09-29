@@ -6,6 +6,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,7 +58,10 @@ public class StatutorySettingsServiceImpl implements StatutorySettingsService {
 
         validateEpfRequest(request);
 
-        EpfSetting entity = epfSettingRepository.findByTenantId(tenantId).orElseGet(() -> new EpfSetting(tenantId));
+        String actor = resolveActor();
+        EpfSetting entity =
+                epfSettingRepository.findByTenantId(tenantId).orElseGet(() -> new EpfSetting(tenantId, actor));
+        entity.setUpdatedBy(actor);
 
         boolean enabled = Boolean.TRUE.equals(request.isEnabled());
         entity.setEnabled(enabled);
@@ -90,7 +97,10 @@ public class StatutorySettingsServiceImpl implements StatutorySettingsService {
 
         validateEsiRequest(request);
 
-        EsiSetting entity = esiSettingRepository.findByTenantId(tenantId).orElseGet(() -> new EsiSetting(tenantId));
+        String actor = resolveActor();
+        EsiSetting entity =
+                esiSettingRepository.findByTenantId(tenantId).orElseGet(() -> new EsiSetting(tenantId, actor));
+        entity.setUpdatedBy(actor);
 
         boolean enabled = Boolean.TRUE.equals(request.isEnabled());
         entity.setEnabled(enabled);
@@ -190,5 +200,20 @@ public class StatutorySettingsServiceImpl implements StatutorySettingsService {
         if (rate.compareTo(BigDecimal.ZERO) < 0 || rate.compareTo(new BigDecimal("100")) > 0) {
             errors.put(fieldName, fieldName + " must be between 0 and 100");
         }
+    }
+
+    private String resolveActor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            return EpfSetting.ACTOR_SYSTEM;
+        }
+        String subject = null;
+        if (auth.getPrincipal() instanceof Jwt jwt) {
+            subject = jwt.getSubject();
+        }
+        if (subject == null || subject.isBlank()) {
+            subject = auth.getName();
+        }
+        return (subject == null || subject.isBlank()) ? EpfSetting.ACTOR_SYSTEM : subject;
     }
 }

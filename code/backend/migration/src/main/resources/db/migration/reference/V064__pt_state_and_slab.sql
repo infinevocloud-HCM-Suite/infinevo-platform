@@ -89,16 +89,16 @@ VALUES
     ('KA', DATE '2024-04-01', NULL, 0.0000, 24999.0000, 0.0000, false, NULL, 1),
     ('KA', DATE '2024-04-01', NULL, 24999.0000, NULL, 200.0000, false, NULL, 2),
 
-    -- Kerala (KL) — Kerala Municipality Act, 1994, Section 245 (Half-yearly, Months 3 and 9)
-    ('KL', DATE '2024-04-01', NULL, 0.0000, 11999.0000, 0.0000, false, '3,9', 1),
-    ('KL', DATE '2024-04-01', NULL, 11999.0000, 17999.0000, 120.0000, false, '3,9', 2),
-    ('KL', DATE '2024-04-01', NULL, 17999.0000, 29999.0000, 180.0000, false, '3,9', 3),
-    ('KL', DATE '2024-04-01', NULL, 29999.0000, 44999.0000, 300.0000, false, '3,9', 4),
-    ('KL', DATE '2024-04-01', NULL, 44999.0000, 59999.0000, 450.0000, false, '3,9', 5),
-    ('KL', DATE '2024-04-01', NULL, 59999.0000, 74999.0000, 600.0000, false, '3,9', 6),
-    ('KL', DATE '2024-04-01', NULL, 74999.0000, 99999.0000, 750.0000, false, '3,9', 7),
-    ('KL', DATE '2024-04-01', NULL, 99999.0000, 124999.0000, 1000.0000, false, '3,9', 8),
-    ('KL', DATE '2024-04-01', NULL, 124999.0000, NULL, 1250.0000, false, '3,9', 9),
+    -- Kerala (KL) — Kerala Municipality Act, 1994, Section 245 (Half-yearly, Months 3 and 9; monthly wage equivalent)
+    ('KL', DATE '2024-04-01', NULL, 0.0000, 2000.0000, 0.0000, false, '3,9', 1),
+    ('KL', DATE '2024-04-01', NULL, 2000.0000, 3000.0000, 120.0000, false, '3,9', 2),
+    ('KL', DATE '2024-04-01', NULL, 3000.0000, 5000.0000, 180.0000, false, '3,9', 3),
+    ('KL', DATE '2024-04-01', NULL, 5000.0000, 7500.0000, 300.0000, false, '3,9', 4),
+    ('KL', DATE '2024-04-01', NULL, 7500.0000, 10000.0000, 450.0000, false, '3,9', 5),
+    ('KL', DATE '2024-04-01', NULL, 10000.0000, 12500.0000, 600.0000, false, '3,9', 6),
+    ('KL', DATE '2024-04-01', NULL, 12500.0000, 16667.0000, 750.0000, false, '3,9', 7),
+    ('KL', DATE '2024-04-01', NULL, 16667.0000, 20833.0000, 1000.0000, false, '3,9', 8),
+    ('KL', DATE '2024-04-01', NULL, 20833.0000, NULL, 1250.0000, false, '3,9', 9),
 
     -- Madhya Pradesh (MP) — Madhya Pradesh Vritti Kar Adhiniyam, 1995
     ('MP', DATE '2024-04-01', NULL, 0.0000, 18750.0000, 0.0000, false, NULL, 1),
@@ -148,13 +148,13 @@ VALUES
     ('PB', DATE '2024-04-01', NULL, 0.0000, 20833.0000, 0.0000, false, NULL, 1),
     ('PB', DATE '2024-04-01', NULL, 20833.0000, NULL, 200.0000, false, NULL, 2),
 
-    -- Puducherry (PY) — Puducherry Municipalities Act, 1973 (Half-yearly, Months 3 and 9)
-    ('PY', DATE '2024-04-01', NULL, 0.0000, 99999.0000, 0.0000, false, '3,9', 1),
-    ('PY', DATE '2024-04-01', NULL, 99999.0000, 199999.0000, 250.0000, false, '3,9', 2),
-    ('PY', DATE '2024-04-01', NULL, 199999.0000, 299999.0000, 500.0000, false, '3,9', 3),
-    ('PY', DATE '2024-04-01', NULL, 299999.0000, 399999.0000, 750.0000, false, '3,9', 4),
-    ('PY', DATE '2024-04-01', NULL, 399999.0000, 499999.0000, 1000.0000, false, '3,9', 5),
-    ('PY', DATE '2024-04-01', NULL, 499999.0000, NULL, 1250.0000, false, '3,9', 6),
+    -- Puducherry (PY) — Puducherry Municipalities Act, 1973 (Half-yearly, Months 3 and 9; monthly wage equivalent)
+    ('PY', DATE '2024-04-01', NULL, 0.0000, 16667.0000, 0.0000, false, '3,9', 1),
+    ('PY', DATE '2024-04-01', NULL, 16667.0000, 33333.0000, 250.0000, false, '3,9', 2),
+    ('PY', DATE '2024-04-01', NULL, 33333.0000, 50000.0000, 500.0000, false, '3,9', 3),
+    ('PY', DATE '2024-04-01', NULL, 50000.0000, 66667.0000, 750.0000, false, '3,9', 4),
+    ('PY', DATE '2024-04-01', NULL, 66667.0000, 83333.0000, 1000.0000, false, '3,9', 5),
+    ('PY', DATE '2024-04-01', NULL, 83333.0000, NULL, 1250.0000, false, '3,9', 6),
 
     -- Sikkim (SK) — Sikkim Tax on Professions, Trades, Callings and Employments Act, 2006
     ('SK', DATE '2024-04-01', NULL, 0.0000, 20000.0000, 0.0000, false, NULL, 1),
@@ -162,13 +162,13 @@ VALUES
     ('SK', DATE '2024-04-01', NULL, 30000.0000, 40000.0000, 150.0000, false, NULL, 3),
     ('SK', DATE '2024-04-01', NULL, 40000.0000, NULL, 200.0000, false, NULL, 4),
 
-    -- Tamil Nadu (TN) — Tamil Nadu Municipal Laws Act, 1998 (Half-yearly, Months 3 and 9)
-    ('TN', DATE '2024-04-01', NULL, 0.0000, 21000.0000, 0.0000, false, '3,9', 1),
-    ('TN', DATE '2024-04-01', NULL, 21000.0000, 30000.0000, 135.0000, false, '3,9', 2),
-    ('TN', DATE '2024-04-01', NULL, 30000.0000, 45000.0000, 315.0000, false, '3,9', 3),
-    ('TN', DATE '2024-04-01', NULL, 45000.0000, 60000.0000, 690.0000, false, '3,9', 4),
-    ('TN', DATE '2024-04-01', NULL, 60000.0000, 75000.0000, 1025.0000, false, '3,9', 5),
-    ('TN', DATE '2024-04-01', NULL, 75000.0000, NULL, 1250.0000, false, '3,9', 6),
+    -- Tamil Nadu (TN) — Tamil Nadu Municipal Laws Act, 1998 (Half-yearly, Months 3 and 9; monthly wage equivalent)
+    ('TN', DATE '2024-04-01', NULL, 0.0000, 3500.0000, 0.0000, false, '3,9', 1),
+    ('TN', DATE '2024-04-01', NULL, 3500.0000, 5000.0000, 135.0000, false, '3,9', 2),
+    ('TN', DATE '2024-04-01', NULL, 5000.0000, 7500.0000, 315.0000, false, '3,9', 3),
+    ('TN', DATE '2024-04-01', NULL, 7500.0000, 10000.0000, 690.0000, false, '3,9', 4),
+    ('TN', DATE '2024-04-01', NULL, 10000.0000, 12500.0000, 1025.0000, false, '3,9', 5),
+    ('TN', DATE '2024-04-01', NULL, 12500.0000, NULL, 1250.0000, false, '3,9', 6),
 
     -- Telangana (TS) — Telangana Tax on Professions, Trades, Callings and Employments Act, 1987
     ('TS', DATE '2024-04-01', NULL, 0.0000, 15000.0000, 0.0000, false, NULL, 1),
@@ -176,9 +176,9 @@ VALUES
     ('TS', DATE '2024-04-01', NULL, 20000.0000, NULL, 200.0000, false, NULL, 3),
 
     -- Tripura (TR) — Tripura Professions, Trades, Callings and Employments Taxation Act, 1997
-    ('TR', DATE '2024-04-01', NULL, 0.0000, 15000.0000, 150.0000, false, NULL, 1),
-    ('TR', DATE '2024-04-01', NULL, 15000.0000, 25000.0000, 200.0000, false, NULL, 2),
-    ('TR', DATE '2024-04-01', NULL, 25000.0000, NULL, 208.0000, false, NULL, 3),
+    ('TR', DATE '2024-04-01', NULL, 0.0000, 7500.0000, 0.0000, false, NULL, 1),
+    ('TR', DATE '2024-04-01', NULL, 7500.0000, 15000.0000, 150.0000, false, NULL, 2),
+    ('TR', DATE '2024-04-01', NULL, 15000.0000, NULL, 208.0000, false, NULL, 3),
 
     -- West Bengal (WB) — West Bengal State Tax on Professions, Trades, Callings and Employments Act, 1979
     ('WB', DATE '2024-04-01', NULL, 0.0000, 10000.0000, 0.0000, false, NULL, 1),

@@ -84,6 +84,12 @@ public class EsiSetting {
         this.tenantId = tenantId;
     }
 
+    public EsiSetting(UUID tenantId, String createdBy) {
+        this.tenantId = tenantId;
+        this.createdBy = (createdBy != null && !createdBy.isBlank()) ? createdBy : ACTOR_SYSTEM;
+        this.updatedBy = this.createdBy;
+    }
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

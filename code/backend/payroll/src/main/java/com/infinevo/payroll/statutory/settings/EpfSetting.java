@@ -117,6 +117,12 @@ public class EpfSetting {
         this.tenantId = tenantId;
     }
 
+    public EpfSetting(UUID tenantId, String createdBy) {
+        this.tenantId = tenantId;
+        this.createdBy = (createdBy != null && !createdBy.isBlank()) ? createdBy : ACTOR_SYSTEM;
+        this.updatedBy = this.createdBy;
+    }
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

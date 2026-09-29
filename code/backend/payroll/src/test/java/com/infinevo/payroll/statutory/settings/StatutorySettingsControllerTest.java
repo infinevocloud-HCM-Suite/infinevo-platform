@@ -52,10 +52,11 @@ class StatutorySettingsControllerTest {
 
         mvc.perform(get("/api/v1/payroll/settings/epf"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
-                .andExpect(jsonPath("$.isEnabled").value(false))
-                .andExpect(jsonPath("$.source").value("DEFAULT"))
-                .andExpect(jsonPath("$.employeeRate").value(12.0));
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.data.tenantId").value(TENANT_ID.toString()))
+                .andExpect(jsonPath("$.data.isEnabled").value(false))
+                .andExpect(jsonPath("$.data.source").value("DEFAULT"))
+                .andExpect(jsonPath("$.data.employeeRate").value(12.0));
     }
 
     @Test
@@ -105,9 +106,10 @@ class StatutorySettingsControllerTest {
                         }
                         """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isEnabled").value(true))
-                .andExpect(jsonPath("$.registrationNumber").value("REG-1234"))
-                .andExpect(jsonPath("$.source").value("PERSISTED"));
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.data.isEnabled").value(true))
+                .andExpect(jsonPath("$.data.registrationNumber").value("REG-1234"))
+                .andExpect(jsonPath("$.data.source").value("PERSISTED"));
     }
 
     @Test
@@ -118,10 +120,11 @@ class StatutorySettingsControllerTest {
 
         mvc.perform(get("/api/v1/payroll/settings/esi"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
-                .andExpect(jsonPath("$.isEnabled").value(false))
-                .andExpect(jsonPath("$.source").value("DEFAULT"))
-                .andExpect(jsonPath("$.wageCeiling").value(21000.0));
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.data.tenantId").value(TENANT_ID.toString()))
+                .andExpect(jsonPath("$.data.isEnabled").value(false))
+                .andExpect(jsonPath("$.data.source").value("DEFAULT"))
+                .andExpect(jsonPath("$.data.wageCeiling").value(21000.0));
     }
 
     @Test
@@ -157,9 +160,10 @@ class StatutorySettingsControllerTest {
                         }
                         """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isEnabled").value(true))
-                .andExpect(jsonPath("$.registrationNumber").value("ESI-REG-1"))
-                .andExpect(jsonPath("$.source").value("PERSISTED"));
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.data.isEnabled").value(true))
+                .andExpect(jsonPath("$.data.registrationNumber").value("ESI-REG-1"))
+                .andExpect(jsonPath("$.data.source").value("PERSISTED"));
     }
 
     @Test
