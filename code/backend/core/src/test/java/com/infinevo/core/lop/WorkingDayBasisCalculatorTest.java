@@ -1,0 +1,322 @@
+package com.infinevo.core.lop;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.infinevo.core.employee.Employee;
+import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.holiday.HolidayQueryService;
+import com.infinevo.core.holiday.HolidayResponse;
+import com.infinevo.core.org.WorkLocation;
+import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Unit tests for {@link WorkingDayBasisCalculator} (W-18.1 §7).
+ */
+class WorkingDayBasisCalculatorTest {
+
+    private LopPolicyService policyService;
+    private EmployeeRepository employeeRepository;
+    private HolidayQueryService holidayQueryService;
+    private WorkingDayBasisCalculator calculator;
+
+    private final UUID tenantId = UUID.randomUUID();
+    private final UUID employeeId = UUID.randomUUID();
+    private final UUID locationId = UUID.randomUUID();
+
+    private final YearMonth feb2026 = YearMonth.of(2026, 2); // 28 days
+    private final YearMonth jul2026 = YearMonth.of(2026, 7); // 31 days
+
+    @BeforeEach
+    void setUp() {
+        policyService = mock(LopPolicyService.class);
+        employeeRepository = mock(EmployeeRepository.class);
+        holidayQueryService = mock(HolidayQueryService.class);
+
+        Employee employee = mock(Employee.class);
+        WorkLocation location = mock(WorkLocation.class);
+        when(location.getId()).thenReturn(locationId);
+        when(employee.getWorkLocation()).thenReturn(location);
+        when(employeeRepository.findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId))
+                .thenReturn(Optional.of(employee));
+
+        calculator = new WorkingDayBasisCalculator(policyService, employeeRepository, holidayQueryService);
+    }
+
+    @Test
+    @DisplayName("FIXED_30 basis produces 30 days for February and July regardless of month length")
+    void fixed30_februaryAndJuly_produces30() {
+        LopPolicy policy = new LopPolicy(
+                tenantId, WorkingDayBasis.FIXED_30, null, true, true, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        WorkingDayBasisResponse febResponse = calculator.basisFor(tenantId, feb2026, employeeId);
+        WorkingDayBasisResponse julResponse = calculator.basisFor(tenantId, jul2026, employeeId);
+
+        assertThat(febResponse.payableDays()).isEqualByComparingTo(new BigDecimal("30.00"));
+        assertThat(febResponse.divisor()).isEqualByComparingTo(new BigDecimal("30.00"));
+        assertThat(febResponse.policyId()).isEqualTo(policy.getId());
+
+        assertThat(julResponse.payableDays()).isEqualByComparingTo(new BigDecimal("30.00"));
+        assertThat(julResponse.divisor()).isEqualByComparingTo(new BigDecimal("30.00"));
+    }
+
+    @Test
+    @DisplayName("ACTUAL_DAYS basis with weekends and holidays payable produces period calendar days")
+    void actualDays_allPayable_producesMonthLength() {
+        LopPolicy policy = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
+                true,
+                true,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        WorkingDayBasisResponse febResponse = calculator.basisFor(tenantId, feb2026, employeeId);
+        WorkingDayBasisResponse julResponse = calculator.basisFor(tenantId, jul2026, employeeId);
+
+        // February 2026 has 28 days, July 2026 has 31 days
+        assertThat(febResponse.payableDays()).isEqualByComparingTo(new BigDecimal("28.00"));
+        assertThat(julResponse.payableDays()).isEqualByComparingTo(new BigDecimal("31.00"));
+    }
+
+    @Test
+    @DisplayName("ACTUAL_DAYS with weekends_payable=false subtracts non-working days using WorkingWeekSource")
+    void actualDays_weekendsNotPayable_subtractsWeekends() {
+        LopPolicy policy = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
+                false,
+                true,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        // Mon-Fri working days
+        WorkingWeekSource monFri = (t, e) ->
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY);
+        calculator.setWorkingWeekSource(monFri);
+
+        WorkingDayBasisResponse febResponse = calculator.basisFor(tenantId, feb2026, employeeId);
+        WorkingDayBasisResponse julResponse = calculator.basisFor(tenantId, jul2026, employeeId);
+
+        // Feb 2026 has 20 weekdays; July 2026 has 23 weekdays
+        assertThat(febResponse.payableDays()).isEqualByComparingTo(new BigDecimal("20.00"));
+        assertThat(julResponse.payableDays()).isEqualByComparingTo(new BigDecimal("23.00"));
+    }
+
+    @Test
+    @DisplayName("ACTUAL_DAYS with holidays_payable=false subtracts holidays from HolidayQueryService")
+    void actualDays_holidaysNotPayable_subtractsHolidays() {
+        LopPolicy policy = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
+                true,
+                false,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        // Mock 2 holiday days in July 2026 (July 15 and July 16)
+        when(holidayQueryService.holidaysBetween(eq(locationId), any(), any()))
+                .thenReturn(List.of(new HolidayResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "Summer Break",
+                        LocalDate.of(2026, 7, 15),
+                        LocalDate.of(2026, 7, 16),
+                        false,
+                        null)));
+
+        WorkingDayBasisResponse julResponse = calculator.basisFor(tenantId, jul2026, employeeId);
+
+        // 31 - 2 = 29
+        assertThat(julResponse.payableDays()).isEqualByComparingTo(new BigDecimal("29.00"));
+    }
+
+    @Test
+    @DisplayName("ACTUAL_DAYS with both weekends and holidays non-payable does not double-count weekend holidays")
+    void actualDays_bothNonPayable_doesNotDoubleCount() {
+        LopPolicy policy = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
+                false,
+                false,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        // Mon-Fri working days
+        WorkingWeekSource monFri = (t, e) ->
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY);
+        calculator.setWorkingWeekSource(monFri);
+
+        // July 4, 2026 is a Saturday (already non-working weekend)
+        when(holidayQueryService.holidaysBetween(eq(locationId), any(), any()))
+                .thenReturn(List.of(new HolidayResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "Saturday Holiday",
+                        LocalDate.of(2026, 7, 4),
+                        LocalDate.of(2026, 7, 4),
+                        false,
+                        null)));
+
+        WorkingDayBasisResponse julResponse = calculator.basisFor(tenantId, jul2026, employeeId);
+
+        // July 2026 has 23 weekdays. Since July 4 is Saturday, weekday count remains 23.
+        assertThat(julResponse.payableDays()).isEqualByComparingTo(new BigDecimal("23.00"));
+    }
+
+    @Test
+    @DisplayName("ORG_DAYS with configured_days_per_month returns fixed n")
+    void orgDays_configuredN_returnsN() {
+        BigDecimal configuredN = new BigDecimal("26.50");
+        LopPolicy policy = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ORG_DAYS,
+                configuredN,
+                true,
+                true,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        WorkingDayBasisResponse febResponse = calculator.basisFor(tenantId, feb2026, employeeId);
+        WorkingDayBasisResponse julResponse = calculator.basisFor(tenantId, jul2026, employeeId);
+
+        assertThat(febResponse.payableDays()).isEqualByComparingTo(new BigDecimal("26.50"));
+        assertThat(julResponse.payableDays()).isEqualByComparingTo(new BigDecimal("26.50"));
+    }
+
+    @Test
+    @DisplayName("ORG_DAYS without n counts from WorkingWeekSource: Mon-Fri gives 23 and Mon-Sat gives 27 for July")
+    void orgDays_withoutN_countsWorkingWeekdays() {
+        LopPolicy policy = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, true, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        // 1. Mon-Fri
+        WorkingWeekSource monFri = (t, e) ->
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY);
+        calculator.setWorkingWeekSource(monFri);
+
+        WorkingDayBasisResponse julMonFri = calculator.basisFor(tenantId, jul2026, employeeId);
+        assertThat(julMonFri.payableDays()).isEqualByComparingTo(new BigDecimal("23.00"));
+
+        // 2. Mon-Sat
+        WorkingWeekSource monSat = (t, e) -> Set.of(
+                DayOfWeek.MONDAY,
+                DayOfWeek.TUESDAY,
+                DayOfWeek.WEDNESDAY,
+                DayOfWeek.THURSDAY,
+                DayOfWeek.FRIDAY,
+                DayOfWeek.SATURDAY);
+        calculator.setWorkingWeekSource(monSat);
+
+        WorkingDayBasisResponse julMonSat = calculator.basisFor(tenantId, jul2026, employeeId);
+        assertThat(julMonSat.payableDays()).isEqualByComparingTo(new BigDecimal("27.00"));
+    }
+
+    @Test
+    @DisplayName("ORG_DAYS without n subtracts holidays when holidays_payable=false")
+    void orgDays_withoutN_holidaysNotPayable_subtractsHolidays() {
+        LopPolicy policy = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, false, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        WorkingWeekSource monFri = (t, e) ->
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY);
+        calculator.setWorkingWeekSource(monFri);
+
+        // July 15, 2026 is a Wednesday (working day)
+        when(holidayQueryService.holidaysBetween(eq(locationId), any(), any()))
+                .thenReturn(List.of(new HolidayResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "Holiday",
+                        LocalDate.of(2026, 7, 15),
+                        LocalDate.of(2026, 7, 15),
+                        false,
+                        null)));
+
+        WorkingDayBasisResponse julResponse = calculator.basisFor(tenantId, jul2026, employeeId);
+
+        // 23 weekdays - 1 holiday = 22
+        assertThat(julResponse.payableDays()).isEqualByComparingTo(new BigDecimal("22.00"));
+    }
+
+    @Test
+    @DisplayName("Rounding rules applied: HALF_UP_0 rounds 26.50 to 27")
+    void roundingRules_appliedCorrectly() {
+        LopPolicy policyHalfUp0 = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ORG_DAYS,
+                new BigDecimal("26.50"),
+                true,
+                true,
+                LopRounding.HALF_UP_0,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policyHalfUp0));
+
+        WorkingDayBasisResponse response0 = calculator.basisFor(tenantId, jul2026, employeeId);
+        assertThat(response0.payableDays()).isEqualByComparingTo(new BigDecimal("27.00"));
+
+        LopPolicy policyHalfUp2 = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ORG_DAYS,
+                new BigDecimal("26.555"),
+                true,
+                true,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policyHalfUp2));
+
+        WorkingDayBasisResponse response2 = calculator.basisFor(tenantId, jul2026, employeeId);
+        assertThat(response2.payableDays()).isEqualByComparingTo(new BigDecimal("26.56"));
+    }
+
+    @Test
+    @DisplayName("Tenant with no policy throws NoLopPolicyException — there is no silent default")
+    void noPolicy_throwsNoLopPolicyException() {
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("No loss-of-pay policy in force");
+    }
+
+    @Test
+    @DisplayName("Basis requiring weekday set throws NoLopPolicyException when WorkingWeekSource bean is absent")
+    void missingWorkingWeekSource_throwsNoLopPolicyException() {
+        LopPolicy policy = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, true, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        // WorkingWeekSource is null
+        calculator.setWorkingWeekSource(null);
+
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("WorkingWeekSource bean is required");
+    }
+}

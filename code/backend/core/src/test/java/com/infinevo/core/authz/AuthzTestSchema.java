@@ -116,6 +116,8 @@ public final class AuthzTestSchema {
                     executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
                     // W-17: holiday calendar
                     executeResource(conn, "db/migration/core/V036__holiday_calendar.sql");
+                    // W-18.1: loss-of-pay policy
+                    executeResource(conn, "db/migration/core/V082__lop_policy.sql");
                 }
 
             } catch (Exception e) {
@@ -133,7 +135,7 @@ public final class AuthzTestSchema {
                 PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD);
     }
 
-    static Connection appConnection() throws SQLException {
+    public static Connection appConnection() throws SQLException {
         return DriverManager.getConnection(
                 jdbcUrl(),
                 PostgresTestContainerInitializer.APP_USER,
