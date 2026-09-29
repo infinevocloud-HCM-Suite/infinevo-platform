@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-41` · ticket #53 · `HRMS-06`, `HRMS-07`, `HRMS-08` |
 | **Promoted to** | `docs/target-state/features/W-41-projects-tasks-assignments.md` on the developer's `dev-<name>` branch |
-| **Owner** | unassigned |
+| **Owner** | devashis |
 | **Apps touched** | `code/backend/hrms`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for these tables), DEBT-007 (fixed), DEBT-008 (fixed), DEBT-018 (honoured), DEBT-022 (fixed) |
 | **Status** | **Ready** |

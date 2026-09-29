@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-29.1` · from ticket #33 · `PAY-05` part 1 of 4 |
 | **Promoted to** | `docs/target-state/features/W-29-1-pay-run-creation.md` on the developer's `dev-<name>` branch — **`W-29-1` with hyphens**, never `W-29.1`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | krushna |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration`, one read-only method in `code/backend/core` (§4, exception) |
 | **Related gaps** | BUG-005 (discounted), BUG-010 and BUG-011 (proposed in `.claude/outputs/2026-09-25-analyze-w29-pay-run.md`), DEBT-007, DEBT-008, DEBT-018, DEBT-022 |
 | **Status** | **Ready** |

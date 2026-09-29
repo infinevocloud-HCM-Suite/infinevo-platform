@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-29.3` · from ticket #35 · `PAY-05` part 3 of 4 |
 | **Promoted to** | `docs/target-state/features/W-29-3-pay-run-lop-and-inputs.md` on the developer's `dev-<name>` branch — **`W-29-3` with hyphens**, never `W-29.3`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | krushna |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
 | **Related gaps** | BUG-003 (fixed by `W-19`, honoured here), BUG-005 (fixed by replacement), DEBT-018, DEBT-022; BUG-015 proposed below |
 | **Status** | **Ready** |

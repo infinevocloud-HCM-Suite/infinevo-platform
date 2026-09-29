@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-65.1` · from ticket #85 · `PLAT-02` |
 | **Promoted to** | `docs/target-state/features/W-65-1-tenant-list.md` — **`W-65-1` with hyphens**, never `W-65.1`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | devashis |
 | **Apps touched** | `code/backend/core`, `code/backend/shared` (one class), `code/backend/migration`, `infra/docker/seed`, `infra/keycloak` |
 | **Related gaps** | BUG-002, DEBT-018 (both honoured, neither fixed here) |
 | **Status** | **Ready** |
