@@ -86,13 +86,16 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
     void moduleUpgradeAddsStepsAndPreservesCompleted() throws SQLException {
         TenantContext.set(TENANT_A);
         try {
-            // 1. Initial state: HRMS only -> exactly 2 core steps, both incomplete
+            // 1. Initial state: HRMS only -> exactly 2 core steps, WORK_LOCATION incomplete.
+            // EMPLOYEE is not asserted: other suites seed core.employee rows for the same tenant id.
             SetupChecklistResponse initialChecklist = checklistService.getChecklist(TENANT_A);
             assertThat(initialChecklist.steps()).hasSize(2);
             assertThat(initialChecklist.steps())
                     .extracting(SetupStepResponse::code)
                     .containsExactly("WORK_LOCATION", "EMPLOYEE");
-            assertThat(initialChecklist.steps()).allMatch(s -> !s.completed());
+            assertThat(initialChecklist.steps())
+                    .filteredOn(s -> s.code().equals("WORK_LOCATION"))
+                    .allMatch(s -> !s.completed());
 
             // Complete WORK_LOCATION by creating a work location for Tenant A
             try (Connection conn = SetupChecklistTestSchema.migrationConnection();

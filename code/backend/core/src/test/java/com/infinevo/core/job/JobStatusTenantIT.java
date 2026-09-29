@@ -125,10 +125,11 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
             if (tableExists(conn, "user_account")) {
                 conn.createStatement().execute("DELETE FROM core.user_account");
             }
-            conn.createStatement().execute("DELETE FROM core.tenant");
-
-            try (PreparedStatement ps =
-                    conn.prepareStatement("INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?)")) {
+            // No blanket DELETE FROM core.tenant: tenants provisioned by other classes (LopPolicySeedIT,
+            // TenantCreationIT) carry subscription and policy rows this class does not know about.
+            // The two tenants are only foreign-key targets here, so keeping them is enough.
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
                 ps.setObject(1, TENANT_A);
                 ps.setString(2, "Tenant A");
                 ps.executeUpdate();
