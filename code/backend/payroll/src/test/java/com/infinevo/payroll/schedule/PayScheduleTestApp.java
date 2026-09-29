@@ -1,11 +1,13 @@
 package com.infinevo.payroll.schedule;
 
+import com.infinevo.shared.identity.UserProfileSyncService;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.TypeExcludeFilter;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
@@ -33,13 +35,15 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
         })
+// shared.identity: EmployeeServiceImpl needs UserAccountRepository since W-13.4.
 @EntityScan(
         basePackages = {
             "com.infinevo.payroll.schedule",
             "com.infinevo.core.lop",
             "com.infinevo.core.holiday",
             "com.infinevo.core.org",
-            "com.infinevo.core.employee"
+            "com.infinevo.core.employee",
+            "com.infinevo.shared.identity"
         })
 @EnableJpaRepositories(
         basePackages = {
@@ -47,6 +51,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.lop",
             "com.infinevo.core.holiday",
             "com.infinevo.core.org",
-            "com.infinevo.core.employee"
+            "com.infinevo.core.employee",
+            "com.infinevo.shared.identity"
         })
+// UserProfileSyncService: EmployeeServiceImpl constructor dependency since W-13.4.
+@Import(UserProfileSyncService.class)
 public class PayScheduleTestApp {}

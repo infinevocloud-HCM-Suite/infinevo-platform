@@ -126,7 +126,10 @@ class PayScheduleRlsIT extends AbstractIntegrationTest {
         }
     }
 
+    // SET LOCAL lasts only for the open transaction: on an auto-commit connection it is gone
+    // before the next statement, and every query would see zero rows whatever the policy says.
     private void bindTenant(Connection conn, UUID tenantId) throws SQLException {
+        conn.setAutoCommit(false);
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("SET LOCAL app.current_tenant_id = '" + tenantId + "'");
         }

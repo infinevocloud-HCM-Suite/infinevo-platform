@@ -44,11 +44,25 @@ final class PayScheduleTestSchema {
             if (!tableExists(conn, "core", "tenant")) {
                 executeResource(conn, "db/migration/core/V001__tenant.sql");
             }
+            // Another test class in this JVM may already have installed core.seed_system_roles
+            // (V052), which grants core.leave.* to every new tenant; those codes arrive with V025.
+            if (tableExists(conn, "reference", "action")
+                    && tableExists(conn, "core", "role_action")
+                    && !actionExists(conn, "core.leave.apply")) {
+                executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
+            }
             if (!columnExists(conn, "core", "tenant", "country_code")) {
                 executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
             }
             if (!tableExists(conn, "core", "subscription")) {
                 executeResource(conn, "db/migration/core/V034__subscription.sql");
+            }
+            // WorkingDayBasisCalculator reads the tenant's default holiday calendar.
+            if (!tableExists(conn, "core", "work_location")) {
+                executeResource(conn, "db/migration/core/V013__work_location.sql");
+            }
+            if (!tableExists(conn, "core", "holiday_calendar")) {
+                executeResource(conn, "db/migration/core/V036__holiday_calendar.sql");
             }
             if (!tableExists(conn, "core", "lop_policy")) {
                 executeResource(conn, "db/migration/core/V116__lop_policy.sql");
@@ -103,6 +117,15 @@ final class PayScheduleTestSchema {
                 "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?")) {
             ps.setString(1, schema);
             ps.setString(2, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean actionExists(Connection conn, String code) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM reference.action WHERE code = ?")) {
+            ps.setString(1, code);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
