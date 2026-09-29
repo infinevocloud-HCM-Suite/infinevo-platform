@@ -121,6 +121,9 @@ public final class LeaveTestSchema {
             if (tableExists(conn, "employee")) {
                 stmt.execute("DELETE FROM core.employee");
             }
+            if (tableExists(conn, "audit_log")) {
+                stmt.execute("DELETE FROM core.audit_log");
+            }
         }
     }
 

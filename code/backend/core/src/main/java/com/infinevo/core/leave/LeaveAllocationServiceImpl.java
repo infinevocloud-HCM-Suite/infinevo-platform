@@ -9,7 +9,6 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -47,7 +46,7 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
         // Verify leave type exists
         typeRepository
                 .findByTenantIdAndId(tenantId, request.leaveTypeId())
-                .orElseThrow(() -> new NoSuchElementException("Leave type not found: " + request.leaveTypeId()));
+                .orElseThrow(() -> new IllegalArgumentException("Leave type not found: " + request.leaveTypeId()));
 
         // Lookup employee joining date for pro-rate factor
         LocalDate joinDate = null;

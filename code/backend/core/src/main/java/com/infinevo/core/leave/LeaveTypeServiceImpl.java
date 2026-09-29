@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -77,7 +76,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
 
         LeaveType type = leaveTypeRepository
                 .findByTenantIdAndId(tenantId, id)
-                .orElseThrow(() -> new NoSuchElementException("Leave type not found with ID: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Leave type not found with ID: " + id));
 
         String newCode = request.code().trim();
         if (!type.getCode().equalsIgnoreCase(newCode)
@@ -154,7 +153,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         // Verify leave type exists
         leaveTypeRepository
                 .findByTenantIdAndId(tenantId, leaveTypeId)
-                .orElseThrow(() -> new NoSuchElementException("Leave type not found with ID: " + leaveTypeId));
+                .orElseThrow(() -> new IllegalArgumentException("Leave type not found with ID: " + leaveTypeId));
 
         LeavePolicy policy = new LeavePolicy();
         policy.setTenantId(tenantId);
