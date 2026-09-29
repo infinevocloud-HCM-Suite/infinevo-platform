@@ -6,6 +6,16 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-29 — `W-32.1`, `W-32.2`, `W-32.3`, `W-32.4` merged (`b704f3c`)
+
+- Tax declaration is on `main`: window per tenant per FY and the employee header with submit, reopen and lock (`V070`–`V072`); house rent, home loan and let-out property (`V073`–`V076`); Section 6A with seed caps, pre-tax deductions, previous employment (`V077`–`V079`); other income and the tax summary, totals computed on read (`V080`–`V081`).
+- Gates 5/5 for all four, CI green on `f81194c`, one independent read per ticket. Two blockers fixed before merge: every NEW-regime house-rent or let-out save returned 500; the branch's `reference/V096` clashed with main's `core/V096`.
+- **Migration numbers:** the two FY 2026-27 reference scripts are `V105` and `V106`. `V097`–`V098` stay `W-35.1`'s and `V104` `W-33.3`'s. The founder's `W-36.3` and `W-36.5` specs move to `V107` and `V108`–`V109`.
+- **Founder decision:** `V105` and `V106` carry the FY 2025-26 statutory values into 2026-27 unchanged, as in the frozen system. The tax-rule owner re-checks them before the first real pay run.
+- **Accepted as outstanding:** the declaration FK does not tie employee to tenant at the database level (the service check covers it); two concurrent first reads can race to a 500; the 409 and 404 mappings are not proven over HTTP.
+- **Newly Ready:** `W-33.1` (mohit). `W-33.2` waits on `W-33.1`; `W-36.1` on `W-29.2`; `W-47.3` on `W-45` and `W-25`.
+- mohit resets `Dev-Mohit` to `main` before `W-33.1`.
+
 ## 2026-09-29 — devashis lane merged (`b6e6012`): `W-19`, `W-20.1`, `W-20.2`, `W-21`, `W-22.2`, `W-23.1`, `W-23.2`, `W-30.1`, `W-39.2`
 
 - Nine tickets in one squash of `dev-devashis` at `46a13dd`. Pay input ledger with period and run locks (`V031`, `V032`, `V060`), overtime capture through the ledger (`V041`), document store (`V037`), notifications and reminder rules (`V038`, `V039`, `V093`), export and scheduled reports (`V040`, `V095`, `V096`), audit and notification retention (`V094`).

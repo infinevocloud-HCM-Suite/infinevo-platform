@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-36.1` · from ticket #48 (`W-36`) · `PAY-14` · the `TAX` contributor `W-29.2` reserved |
 | **Promoted to** | `docs/target-state/features/W-36-1-employee-tds.md` on the developer's `dev-<name>` branch — **`W-36-1` with hyphens**, never `W-36.1`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | mohit |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for this table), BUG-011 (fixed), DEBT-007 (fixed), DEBT-008 (fixed), DEBT-018 (honoured), DEBT-019 (fixed), DEBT-022 (fixed); proposed BUG-014 / DEBT-034 (`.claude/outputs/2026-09-29-analyze-w-36-tds-payslips.md`) belong to `W-36.2` |
 | **Status** | **Ready** |
