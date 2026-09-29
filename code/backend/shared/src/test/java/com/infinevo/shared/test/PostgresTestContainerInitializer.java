@@ -335,7 +335,8 @@ public class PostgresTestContainerInitializer
                         "spring.datasource.username=" + APP_USER,
                         "spring.datasource.password=" + APP_USER_PASSWORD,
                         "spring.datasource.driver-class-name=org.postgresql.Driver",
-                        "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect")
+                        "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
+                        "spring.data.redis.repositories.enabled=false")
                 .applyTo(ctx.getEnvironment());
         // Inline @SpringBootTest properties and application.yml are already in the environment
         // when initializers run, so a test (or module) that sized its own pool keeps it.

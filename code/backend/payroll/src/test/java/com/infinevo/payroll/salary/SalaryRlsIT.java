@@ -110,8 +110,9 @@ class SalaryRlsIT extends AbstractIntegrationTest {
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws SQLException {
         TenantContext.clear();
+        PayrollTestSchema.cleanTables();
     }
 
     @Test

@@ -56,6 +56,7 @@ public class RedisTestContainerInitializer implements ApplicationContextInitiali
                         "spring.data.redis.host=" + REDIS.getHost(),
                         "spring.data.redis.port=" + REDIS.getMappedPort(REDIS_PORT),
                         "spring.data.redis.timeout=2000ms",
+                        "spring.data.redis.repositories.enabled=false",
                         "infinevo.cache.enabled=true")
                 .applyTo(context.getEnvironment());
     }

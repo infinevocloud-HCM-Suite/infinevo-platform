@@ -33,3 +33,6 @@ infra/docker/.env
 # beside them stay tracked; a running commentary of one machine's session does not
 # need to be.
 .claude/outputs/*-session-*.md
+.agents/outputs/*-session-*.md
+.agents/outputs/.verify-cache/
+.agents/outputs/.merge-receipts/

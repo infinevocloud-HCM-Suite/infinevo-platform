@@ -102,6 +102,12 @@ public final class PayrollTestSchema {
             st.execute(
                     "TRUNCATE TABLE payroll.employee_fbp_component, payroll.fbp, payroll.ctc_structure, payroll.employee_statutory_profile, "
                             + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
+            if (tableExists(conn, "payroll", "employee_investment_declaration")) {
+                st.execute("TRUNCATE TABLE payroll.employee_investment_declaration CASCADE");
+            }
+            if (tableExists(conn, "payroll", "income_tax_declaration")) {
+                st.execute("TRUNCATE TABLE payroll.income_tax_declaration CASCADE");
+            }
             if (tableExists(conn, "core", "attendance")) {
                 st.execute("DELETE FROM core.attendance");
             }

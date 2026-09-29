@@ -132,16 +132,31 @@ jobs:
       # No -DskipTests - the test run is the point of the gate.
       - name: Build and test
         working-directory: code/backend
+        env:
+          MAVEN_OPTS: "-Xmx1024m -XX:+UseG1GC"
         run: ./mvnw -B clean verify
 
-      - name: Upload surefire reports
+      - name: Dump test failures
+        if: failure()
+        run: |
+          echo "=== DUMPING FAILED TEST RESULTS ==="
+          find code/backend \( -path "*/failsafe-reports/*.txt" -o -path "*/surefire-reports/*.txt" \) | while read -r f; do
+            if grep -qE "FAILURE!|ERROR!" "$f" 2>/dev/null; then
+              echo "----------------------------------------"
+              echo "FILE: $f"
+              echo "----------------------------------------"
+              cat "$f"
+            fi
+          done
+
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports
-          path: code/backend/**/target/surefire-reports/*.xml
-          # error, not warn: a backend job that produced no surefire XML ran no
-          # tests, and a green run that proves nothing is worse than a red one.
+          name: test-reports
+          path: |
+            code/backend/**/target/surefire-reports/*.xml
+            code/backend/**/target/failsafe-reports/*.xml
           if-no-files-found: error
 
   # ── lint + build the SPA ────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Duration;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,11 @@ class LoginFlowIT extends AbstractIntegrationTest {
         // answered 401 TENANT_NOT_BOUND - spec section 13, decision 2.
         IdentityTestSchema.seedMembership(USER_ADMIN_GLOBEX, TENANT_GLOBEX);
         accessToken = mintToken();
+    }
+
+    @AfterAll
+    static void cleanup() {
+        KeycloakContainerInitializer.stopIfStarted();
     }
 
     @Test
@@ -182,6 +188,7 @@ class LoginFlowIT extends AbstractIntegrationTest {
         private static final GenericContainer<?> KEYCLOAK = new GenericContainer<>(IMAGE)
                 .withEnv("KEYCLOAK_ADMIN", "admin")
                 .withEnv("KEYCLOAK_ADMIN_PASSWORD", "local_keycloak_pw")
+                .withEnv("JAVA_OPTS_KC_HEAP", "-Xms128m -Xmx512m")
                 .withCopyFileToContainer(
                         MountableFile.forClasspathResource("keycloak/dev-realm.json"),
                         "/opt/keycloak/data/import/dev-realm.json")
@@ -198,6 +205,13 @@ class LoginFlowIT extends AbstractIntegrationTest {
             if (!started) {
                 KEYCLOAK.start();
                 started = true;
+            }
+        }
+
+        static synchronized void stopIfStarted() {
+            if (started) {
+                KEYCLOAK.stop();
+                started = false;
             }
         }
 
