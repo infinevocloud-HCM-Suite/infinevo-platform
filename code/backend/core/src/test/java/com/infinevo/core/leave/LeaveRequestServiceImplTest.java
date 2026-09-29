@@ -35,6 +35,7 @@ class LeaveRequestServiceImplTest {
     private ApprovalService approvalService;
     private ApprovalInstanceRepository approvalInstanceRepository;
     private EmployeeRepository employeeRepository;
+    private LeaveConsumptionService leaveConsumptionService;
 
     private LeaveRequestServiceImpl service;
 
@@ -54,6 +55,7 @@ class LeaveRequestServiceImplTest {
         approvalService = mock(ApprovalService.class);
         approvalInstanceRepository = mock(ApprovalInstanceRepository.class);
         employeeRepository = mock(EmployeeRepository.class);
+        leaveConsumptionService = mock(LeaveConsumptionService.class);
 
         service = new LeaveRequestServiceImpl(
                 leaveRequestRepository,
@@ -65,7 +67,8 @@ class LeaveRequestServiceImplTest {
                 workingDayCalculator,
                 approvalService,
                 approvalInstanceRepository,
-                employeeRepository);
+                employeeRepository,
+                leaveConsumptionService);
     }
 
     private LeaveType createLeaveType(String code, String name) {

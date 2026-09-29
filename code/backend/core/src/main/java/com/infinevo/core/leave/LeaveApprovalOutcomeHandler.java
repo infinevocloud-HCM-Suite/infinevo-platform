@@ -26,12 +26,17 @@ public class LeaveApprovalOutcomeHandler implements ApprovalOutcomeHandler {
 
     private final ApprovalInstanceRepository instanceRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final LeaveConsumptionService leaveConsumptionService;
 
     public LeaveApprovalOutcomeHandler(
-            ApprovalInstanceRepository instanceRepository, LeaveRequestRepository leaveRequestRepository) {
+            ApprovalInstanceRepository instanceRepository,
+            LeaveRequestRepository leaveRequestRepository,
+            LeaveConsumptionService leaveConsumptionService) {
         this.instanceRepository = Objects.requireNonNull(instanceRepository, "instanceRepository must not be null");
         this.leaveRequestRepository =
                 Objects.requireNonNull(leaveRequestRepository, "leaveRequestRepository must not be null");
+        this.leaveConsumptionService =
+                Objects.requireNonNull(leaveConsumptionService, "leaveConsumptionService must not be null");
     }
 
     @Override
@@ -60,6 +65,7 @@ public class LeaveApprovalOutcomeHandler implements ApprovalOutcomeHandler {
                     req.setStatus(LeaveRequestStatus.APPROVED);
                     req.setDecidedAt(Instant.now());
                     leaveRequestRepository.save(req);
+                    leaveConsumptionService.consume(req);
                     log.info("Leave request {} approved via approval instance {}", requestId, instanceId);
                 }
             });

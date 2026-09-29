@@ -23,7 +23,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
             "com.infinevo.core.approval",
-            "com.infinevo.core.authz"
+            "com.infinevo.core.authz",
+            "com.infinevo.core.payinput"
         },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
@@ -36,6 +37,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.org",
             "com.infinevo.core.approval",
             "com.infinevo.core.authz",
+            "com.infinevo.core.payinput",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
@@ -46,6 +48,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.org",
             "com.infinevo.core.approval",
             "com.infinevo.core.authz",
+            "com.infinevo.core.payinput",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })

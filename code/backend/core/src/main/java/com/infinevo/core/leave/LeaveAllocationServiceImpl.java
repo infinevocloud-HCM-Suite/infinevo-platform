@@ -25,17 +25,29 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
     private final LeavePolicyRepository policyRepository;
     private final LeaveTypeRepository typeRepository;
     private final EmployeeRepository employeeRepository;
+    private final LeaveConsumptionRepository leaveConsumptionRepository;
 
     public LeaveAllocationServiceImpl(
             LeaveAllocationRepository allocationRepository,
             LeavePolicyRepository policyRepository,
             LeaveTypeRepository typeRepository,
             EmployeeRepository employeeRepository) {
+        this(allocationRepository, policyRepository, typeRepository, employeeRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LeaveAllocationServiceImpl(
+            LeaveAllocationRepository allocationRepository,
+            LeavePolicyRepository policyRepository,
+            LeaveTypeRepository typeRepository,
+            EmployeeRepository employeeRepository,
+            LeaveConsumptionRepository leaveConsumptionRepository) {
         this.allocationRepository =
                 Objects.requireNonNull(allocationRepository, "allocationRepository must not be null");
         this.policyRepository = Objects.requireNonNull(policyRepository, "policyRepository must not be null");
         this.typeRepository = Objects.requireNonNull(typeRepository, "typeRepository must not be null");
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
+        this.leaveConsumptionRepository = leaveConsumptionRepository;
     }
 
     @Override
@@ -115,7 +127,13 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
             BigDecimal accrued = allocation.getAccruedDays() != null ? allocation.getAccruedDays() : BigDecimal.ZERO;
             BigDecimal carried =
                     allocation.getCarriedForwardDays() != null ? allocation.getCarriedForwardDays() : BigDecimal.ZERO;
-            BigDecimal consumed = BigDecimal.ZERO; // W-16.4a owns consumption
+            BigDecimal consumed = BigDecimal.ZERO;
+            if (leaveConsumptionRepository != null && allocation.getId() != null) {
+                BigDecimal sum = leaveConsumptionRepository.sumConsumedDaysByAllocation(tenantId, allocation.getId());
+                if (sum != null) {
+                    consumed = sum;
+                }
+            }
 
             BigDecimal newRemaining = newEntitlement.add(accrued).add(carried).subtract(consumed);
             if (newRemaining.compareTo(BigDecimal.ZERO) < 0) {

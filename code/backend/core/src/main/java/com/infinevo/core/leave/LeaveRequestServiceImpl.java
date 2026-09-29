@@ -39,6 +39,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final ApprovalService approvalService;
     private final ApprovalInstanceRepository approvalInstanceRepository;
     private final EmployeeRepository employeeRepository;
+    private final LeaveConsumptionService leaveConsumptionService;
 
     public LeaveRequestServiceImpl(
             LeaveRequestRepository leaveRequestRepository,
@@ -50,7 +51,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             WorkingDayCalculator workingDayCalculator,
             ApprovalService approvalService,
             ApprovalInstanceRepository approvalInstanceRepository,
-            EmployeeRepository employeeRepository) {
+            EmployeeRepository employeeRepository,
+            LeaveConsumptionService leaveConsumptionService) {
         this.leaveRequestRepository = Objects.requireNonNull(leaveRequestRepository);
         this.leaveRequestDocumentRepository = Objects.requireNonNull(leaveRequestDocumentRepository);
         this.leaveTypeRepository = Objects.requireNonNull(leaveTypeRepository);
@@ -61,6 +63,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         this.approvalService = Objects.requireNonNull(approvalService);
         this.approvalInstanceRepository = Objects.requireNonNull(approvalInstanceRepository);
         this.employeeRepository = Objects.requireNonNull(employeeRepository);
+        this.leaveConsumptionService = Objects.requireNonNull(leaveConsumptionService);
     }
 
     @Override
@@ -223,6 +226,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             }
         }
 
+        leaveConsumptionService.consume(entity);
+
         return LeaveRequestResponse.from(entity, docIds);
     }
 
@@ -333,6 +338,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     req.getReason() != null ? req.getReason() + " | Cancelled: " + reason : "Cancelled: " + reason);
         }
         req = leaveRequestRepository.save(req);
+
+        leaveConsumptionService.cancel(req, reason);
 
         List<UUID> docIds =
                 leaveRequestDocumentRepository.findByTenantIdAndLeaveRequestId(tenantId, req.getId()).stream()

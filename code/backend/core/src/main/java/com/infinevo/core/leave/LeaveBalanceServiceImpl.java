@@ -22,12 +22,22 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
 
     private final LeaveAllocationRepository allocationRepository;
     private final LeaveTypeRepository leaveTypeRepository;
+    private final LeaveConsumptionRepository leaveConsumptionRepository;
 
     public LeaveBalanceServiceImpl(
             LeaveAllocationRepository allocationRepository, LeaveTypeRepository leaveTypeRepository) {
+        this(allocationRepository, leaveTypeRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LeaveBalanceServiceImpl(
+            LeaveAllocationRepository allocationRepository,
+            LeaveTypeRepository leaveTypeRepository,
+            LeaveConsumptionRepository leaveConsumptionRepository) {
         this.allocationRepository =
                 Objects.requireNonNull(allocationRepository, "allocationRepository must not be null");
         this.leaveTypeRepository = Objects.requireNonNull(leaveTypeRepository, "leaveTypeRepository must not be null");
+        this.leaveConsumptionRepository = leaveConsumptionRepository;
     }
 
     @Override
@@ -88,8 +98,14 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
             carried = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
 
-        // Consumption is 0 until W-16.4a provides core.leave_consumption
+        // Sum real consumption from core.leave_consumption (W-16.4a)
         BigDecimal consumed = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (leaveConsumptionRepository != null && allocation.getId() != null) {
+            BigDecimal sum = leaveConsumptionRepository.sumConsumedDaysByAllocation(tenantId, allocation.getId());
+            if (sum != null) {
+                consumed = sum.setScale(2, RoundingMode.HALF_UP);
+            }
+        }
 
         // remaining = entitlement + accrued + carried_forward - consumed (W-16.2 spec section 3 & 7)
         BigDecimal remaining = entitlement.add(accrued).add(carried).subtract(consumed);

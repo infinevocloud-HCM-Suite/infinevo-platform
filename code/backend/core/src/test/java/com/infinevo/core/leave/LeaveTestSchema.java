@@ -91,6 +91,15 @@ public final class LeaveTestSchema {
             if (!tableExists(conn, "leave_request_document")) {
                 executeResource(conn, "db/migration/core/V115__leave_request_document.sql");
             }
+            if (!tableExists(conn, "pay_input")) {
+                executeResource(conn, "db/migration/core/V031__pay_input.sql");
+            }
+            if (!tableExists(conn, "leave_consumption")) {
+                executeResource(conn, "db/migration/core/V116__leave_consumption.sql");
+            }
+            if (!tableExists(conn, "leave_monthly_lop")) {
+                executeResource(conn, "db/migration/core/V117__leave_monthly_lop.sql");
+            }
         }
     }
 
@@ -127,6 +136,15 @@ public final class LeaveTestSchema {
     public static void clearAll() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
+            if (tableExists(conn, "leave_monthly_lop")) {
+                stmt.execute("DELETE FROM core.leave_monthly_lop");
+            }
+            if (tableExists(conn, "leave_consumption")) {
+                stmt.execute("DELETE FROM core.leave_consumption");
+            }
+            if (tableExists(conn, "pay_input")) {
+                stmt.execute("DELETE FROM core.pay_input");
+            }
             if (tableExists(conn, "leave_request_document")) {
                 stmt.execute("DELETE FROM core.leave_request_document");
             }
@@ -240,6 +258,38 @@ public final class LeaveTestSchema {
                 bindTenant(conn, tenantId);
                 try (Statement stmt = conn.createStatement();
                         ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_request_document")) {
+                    rs.next();
+                    return rs.getInt(1);
+                }
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    public static int visibleLeaveConsumptionCount(UUID tenantId) throws SQLException {
+        try (Connection conn = appConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                bindTenant(conn, tenantId);
+                try (Statement stmt = conn.createStatement();
+                        ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_consumption")) {
+                    rs.next();
+                    return rs.getInt(1);
+                }
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    public static int visibleLeaveMonthlyLopCount(UUID tenantId) throws SQLException {
+        try (Connection conn = appConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                bindTenant(conn, tenantId);
+                try (Statement stmt = conn.createStatement();
+                        ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_monthly_lop")) {
                     rs.next();
                     return rs.getInt(1);
                 }
