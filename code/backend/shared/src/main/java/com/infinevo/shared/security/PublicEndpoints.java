@@ -32,8 +32,14 @@ public final class PublicEndpoints {
      */
     public static final String DOCUMENT_DOWNLOAD = "/api/v1/documents/download";
 
+    /** {@code GET/POST} — public acceptance of tenant or employee invitation (W-24.2). */
+    public static final String INVITATION_ACCEPT = "/api/v1/invitations/accept";
+
+    /** {@code GET/POST} — public decline of tenant or employee invitation (W-24.2). */
+    public static final String INVITATION_DECLINE = "/api/v1/invitations/decline";
+
     /** Every exact path a request may reach with no bearer token. Grows only on purpose. */
-    public static final List<String> PATHS = List.of(DOCUMENT_DOWNLOAD);
+    public static final List<String> PATHS = List.of(DOCUMENT_DOWNLOAD, INVITATION_ACCEPT, INVITATION_DECLINE);
 
     static {
         for (String path : PATHS) {
