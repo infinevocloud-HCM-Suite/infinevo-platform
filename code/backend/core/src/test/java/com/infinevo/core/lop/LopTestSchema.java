@@ -56,6 +56,24 @@ public final class LopTestSchema {
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
             }
+            // The Employee entity maps the V014 org columns and the V026 login link. Whichever
+            // test schema runs first creates core.employee for every IT sharing the container,
+            // so each one has to bring the table up to what the entity reads.
+            if (!tableExists(conn, "department")) {
+                executeResource(conn, "db/migration/core/V011__department.sql");
+            }
+            if (!tableExists(conn, "designation")) {
+                executeResource(conn, "db/migration/core/V012__designation.sql");
+            }
+            if (!columnExists(conn, "employee", "department_id")) {
+                executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
+            if (!tableExists(conn, "user_account")) {
+                executeResource(conn, "db/migration/core/V009__user_account.sql");
+            }
+            if (!columnExists(conn, "employee", "user_account_id")) {
+                executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
+            }
             if (!tableExists(conn, "holiday_calendar")) {
                 executeResource(conn, "db/migration/core/V036__holiday_calendar.sql");
             }

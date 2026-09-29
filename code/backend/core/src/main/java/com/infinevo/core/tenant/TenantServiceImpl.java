@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,10 @@ public class TenantServiceImpl implements TenantService {
         this(jdbcTemplate, (SetupChecklistService) null);
     }
 
+    // The constructor Spring uses. With more than one constructor Spring needs one marked,
+    // or it falls back to a no-arg constructor that does not exist. ObjectProvider keeps
+    // contexts that do not scan SetupChecklistService (the guard test slices) starting.
+    @Autowired
     public TenantServiceImpl(
             JdbcTemplate jdbcTemplate,
             org.springframework.beans.factory.ObjectProvider<SetupChecklistService> setupChecklistServiceProvider) {

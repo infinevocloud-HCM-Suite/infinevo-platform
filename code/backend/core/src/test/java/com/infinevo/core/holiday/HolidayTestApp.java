@@ -24,7 +24,19 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
         })
-@EntityScan(basePackages = {"com.infinevo.core.holiday", "com.infinevo.core.org", "com.infinevo.core.employee"})
+// shared.identity: EmployeeServiceImpl needs UserAccountRepository since W-13.4.
+@EntityScan(
+        basePackages = {
+            "com.infinevo.core.holiday",
+            "com.infinevo.core.org",
+            "com.infinevo.core.employee",
+            "com.infinevo.shared.identity"
+        })
 @EnableJpaRepositories(
-        basePackages = {"com.infinevo.core.holiday", "com.infinevo.core.org", "com.infinevo.core.employee"})
+        basePackages = {
+            "com.infinevo.core.holiday",
+            "com.infinevo.core.org",
+            "com.infinevo.core.employee",
+            "com.infinevo.shared.identity"
+        })
 public class HolidayTestApp {}
