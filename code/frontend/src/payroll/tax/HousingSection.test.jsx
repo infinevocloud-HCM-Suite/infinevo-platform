@@ -1,0 +1,109 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { HousingSection } from './HousingSection';
+import { declarationService } from './declarationService';
+
+vi.mock('./declarationService', () => ({
+  declarationService: {
+    housing: vi.fn(),
+    saveHouseRent: vi.fn(),
+    saveHomeLoan: vi.fn(),
+    saveLetOut: vi.fn(),
+  },
+}));
+
+describe('HousingSection', () => {
+  const sampleHousing = {
+    house_rent: [
+      {
+        from_month: '2026-04',
+        to_month: '2027-03',
+        address: 'Flat 101, Palm Heights, Mumbai',
+        landlord_name: 'Rajesh Sharma',
+        landlord_pan: 'ABCDE1234F',
+        is_metro: true,
+        amount_per_month: 25000,
+      },
+    ],
+    home_loans: [
+      {
+        lender_name: 'HDFC Bank',
+        lender_pan: 'AAACH1234K',
+        principal_paid: 60000,
+        interest_paid: 180000,
+        is_first_time_buyer: false,
+        loan_sanctioned_on: '2023-05-10',
+      },
+    ],
+    let_out_properties: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders existing housing declarations on load', async () => {
+    declarationService.housing.mockResolvedValueOnce(sampleHousing);
+
+    render(<HousingSection fy="2026-27" editable={true} />);
+
+    expect(declarationService.housing).toHaveBeenCalledWith('2026-27');
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Rajesh Sharma')).toBeTruthy();
+      expect(screen.getByDisplayValue('HDFC Bank')).toBeTruthy();
+    });
+  });
+
+  it('displays warning when rent exceeds landlord PAN threshold', async () => {
+    declarationService.housing.mockResolvedValueOnce(sampleHousing); // 25000 * 12 = 300,000 > 100,000
+
+    render(<HousingSection fy="2026-27" editable={true} header={{ pan_required_for_rent_over_threshold: 100000 }} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Landlord PAN Required')).toBeTruthy();
+    });
+  });
+
+  it('adds and saves house rent row', async () => {
+    declarationService.housing.mockResolvedValueOnce({ house_rent: [], home_loans: [], let_out_properties: [] });
+    declarationService.saveHouseRent.mockResolvedValueOnce({ success: true });
+
+    render(<HousingSection fy="2026-27" editable={true} />);
+
+    await waitFor(() => {
+      expect(declarationService.housing).toHaveBeenCalled();
+    });
+
+    const addBtn = screen.getByTestId('add-rent-row-btn');
+    fireEvent.click(addBtn);
+
+    const saveRentBtn = screen.getByTestId('save-rent-btn');
+    fireEvent.click(saveRentBtn);
+
+    await waitFor(() => {
+      expect(declarationService.saveHouseRent).toHaveBeenCalledWith('2026-27', expect.any(Array));
+    });
+  });
+
+  it('adds and saves home loan', async () => {
+    declarationService.housing.mockResolvedValueOnce({ house_rent: [], home_loans: [], let_out_properties: [] });
+    declarationService.saveHomeLoan.mockResolvedValueOnce({ success: true });
+
+    render(<HousingSection fy="2026-27" editable={true} />);
+
+    await waitFor(() => {
+      expect(declarationService.housing).toHaveBeenCalled();
+    });
+
+    const addLoanBtn = screen.getByTestId('add-home-loan-btn');
+    fireEvent.click(addLoanBtn);
+
+    const saveLoanBtn = screen.getByTestId('save-loan-btn');
+    fireEvent.click(saveLoanBtn);
+
+    await waitFor(() => {
+      expect(declarationService.saveHomeLoan).toHaveBeenCalledWith('2026-27', expect.any(Array));
+    });
+  });
+});

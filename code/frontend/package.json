@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "preview:tax": "vite --open /preview.html",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .js,.jsx --max-warnings 0",
