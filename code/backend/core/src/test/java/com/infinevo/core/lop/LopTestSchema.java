@@ -56,7 +56,7 @@ public final class LopTestSchema {
                 executeResource(conn, "db/migration/core/V036__holiday_calendar.sql");
             }
             if (!tableExists(conn, "lop_policy")) {
-                executeResource(conn, "db/migration/core/V082__lop_policy.sql");
+                executeResource(conn, "db/migration/core/V116__lop_policy.sql");
             }
         }
     }

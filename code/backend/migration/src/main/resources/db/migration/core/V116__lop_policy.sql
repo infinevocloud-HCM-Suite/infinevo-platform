@@ -1,4 +1,4 @@
--- Migration: V082__lop_policy.sql
+-- Migration: V116__lop_policy.sql
 -- Description: W-18.1 Loss-of-pay and working-day policy model with row-level security and seed (CORE-09, D-60)
 
 -- 1. core.lop_policy — per-tenant, effective-dated policy deciding what a day of pay is worth
