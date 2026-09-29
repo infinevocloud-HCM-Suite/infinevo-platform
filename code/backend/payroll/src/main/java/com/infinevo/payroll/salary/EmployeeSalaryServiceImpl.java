@@ -360,10 +360,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         LocalDate dob = null;
         if (employeePersonalService != null) {
             try {
-                EmployeePersonalResponse personal = employeePersonalService.get(employeeId);
-                if (personal != null) {
-                    dob = personal.dateOfBirth();
-                }
+                dob = employeePersonalService
+                        .find(employeeId)
+                        .map(EmployeePersonalResponse::dateOfBirth)
+                        .orElse(null);
             } catch (Exception e) {
                 dob = null;
             }

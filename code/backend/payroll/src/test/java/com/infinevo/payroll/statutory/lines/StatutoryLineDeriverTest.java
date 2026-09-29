@@ -298,4 +298,33 @@ class StatutoryLineDeriverTest {
         DerivedStatutoryLine eePf = map.get(StatutoryComponentCode.EPF_EMPLOYEE);
         assertThat(eePf.monthlyAmount().raw()).isEqualByComparingTo(new BigDecimal("1800.0600"));
     }
+
+    @Test
+    @DisplayName("Null date of birth treats employee as non-senior; EPS applies normally")
+    void nullDateOfBirth_epsAppliesNormally() {
+        Money basic = Money.of(new BigDecimal("25000.0000"));
+        Money gross = Money.of(new BigDecimal("45000.0000"));
+        EmployeeStatutoryProfile profile = createProfile(true, true, true);
+        EpfSetting epf = createDefaultEpfSetting();
+        EsiSetting esi = createDefaultEsiSetting();
+        LocalDate dob = null;
+        LocalDate effectiveFrom = LocalDate.of(2026, 1, 1);
+
+        List<DerivedStatutoryLine> lines =
+                StatutoryLineDeriver.derive(basic, gross, profile, epf, esi, dob, effectiveFrom);
+
+        assertThat(lines).hasSize(5);
+        Map<StatutoryComponentCode, DerivedStatutoryLine> map =
+                lines.stream().collect(Collectors.toMap(DerivedStatutoryLine::code, l -> l));
+
+        DerivedStatutoryLine eps = map.get(StatutoryComponentCode.EPS_EMPLOYER);
+        assertThat(eps).isNotNull();
+        assertThat(eps.rate()).isEqualByComparingTo(new BigDecimal("8.3300"));
+        assertThat(eps.monthlyAmount().raw()).isEqualByComparingTo(new BigDecimal("1249.5000"));
+
+        DerivedStatutoryLine erPf = map.get(StatutoryComponentCode.EPF_EMPLOYER);
+        assertThat(erPf).isNotNull();
+        assertThat(erPf.rate()).isEqualByComparingTo(new BigDecimal("3.6700"));
+        assertThat(erPf.monthlyAmount().raw()).isEqualByComparingTo(new BigDecimal("550.5000"));
+    }
 }

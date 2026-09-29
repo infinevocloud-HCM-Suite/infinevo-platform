@@ -277,8 +277,36 @@ class EmployeeDetailServiceTest {
             TenantContext.clear();
 
             assertThatThrownBy(() -> personalService.get(EMPLOYEE_A)).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> personalService.find(EMPLOYEE_A)).isInstanceOf(IllegalStateException.class);
             assertThatThrownBy(() -> personalService.put(EMPLOYEE_A, personal("Indian")))
                     .isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("find returns Optional without throwing NotFoundException")
+    class FindSection {
+
+        @Test
+        @DisplayName("find returns empty when section has not been written")
+        void findReturnsEmptyWhenUnwritten() {
+            assertThat(personalService.find(EMPLOYEE_A)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("find returns present section when written")
+        void findReturnsPresentWhenWritten() {
+            personalService.put(EMPLOYEE_A, personal("Indian"));
+            Optional<EmployeePersonalResponse> res = personalService.find(EMPLOYEE_A);
+            assertThat(res).isPresent();
+            assertThat(res.get().nationality()).isEqualTo("Indian");
+            assertThat(res.get().dateOfBirth()).isEqualTo(LocalDate.of(1990, 5, 17));
+        }
+
+        @Test
+        @DisplayName("find returns empty when employee does not exist")
+        void findReturnsEmptyWhenEmployeeNotFound() {
+            assertThat(personalService.find(UUID.randomUUID())).isEmpty();
         }
     }
 

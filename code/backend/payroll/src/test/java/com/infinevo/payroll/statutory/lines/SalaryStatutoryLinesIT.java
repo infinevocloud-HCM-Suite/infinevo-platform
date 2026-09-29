@@ -281,6 +281,77 @@ class SalaryStatutoryLinesIT extends AbstractIntegrationTest {
         });
     }
 
+    @Test
+    @DisplayName("Salary save succeeds and derives statutory lines when employee has no personal row (W-31.3)")
+    void salarySaveWithoutPersonalRow_succeedsAndDerivesStatutoryLines() throws SQLException {
+        TenantContext.set(TENANT_A);
+        UUID empNoPersonal = UUID.randomUUID();
+        seedEmployee(TENANT_A, empNoPersonal, "EMP-NO-PERSONAL", "Bob", "Jones");
+        // No personal row seeded!
+        seedStatutoryProfile(TENANT_A, empNoPersonal, true, true, true);
+
+        SalaryComponentItemRequest basicItem = new SalaryComponentItemRequest(
+                basicEarningId, CalculationType.FLAT, new BigDecimal("10000.0000"), null, true, "MONTHLY", null);
+        SalaryComponentItemRequest hraItem = new SalaryComponentItemRequest(
+                hraEarningId, CalculationType.FLAT, new BigDecimal("5000.0000"), null, true, "MONTHLY", null);
+
+        SalaryVersionRequest req = new SalaryVersionRequest(
+                new BigDecimal("201450.0000"),
+                LocalDate.of(2026, 1, 1),
+                "Initial Salary without Personal",
+                List.of(basicItem, hraItem),
+                List.of(),
+                List.of());
+
+        SalaryVersionResponse response = salaryService.create(empNoPersonal, req);
+        assertThat(response).isNotNull();
+        assertThat(response.statutory()).hasSize(7);
+        assertThat(response.statutory()).anySatisfy(line -> {
+            assertThat(line.componentCode()).isEqualTo("EPS_EMPLOYER");
+            assertThat(line.monthlyAmount()).isEqualByComparingTo(new BigDecimal("833.0000"));
+        });
+        assertThat(response.statutory()).anySatisfy(line -> {
+            assertThat(line.componentCode()).isEqualTo("EPF_EMPLOYER");
+            assertThat(line.monthlyAmount()).isEqualByComparingTo(new BigDecimal("367.0000"));
+        });
+    }
+
+    @Test
+    @DisplayName(
+            "Salary save succeeds and derives statutory lines when employee has null date_of_birth in personal row (W-31.3)")
+    void salarySaveWithNullDateOfBirthInPersonalRow_succeedsAndDerivesStatutoryLines() throws SQLException {
+        TenantContext.set(TENANT_A);
+        UUID empNullDob = UUID.randomUUID();
+        seedEmployee(TENANT_A, empNullDob, "EMP-NULL-DOB", "Charlie", "Brown");
+        seedEmployeePersonal(TENANT_A, empNullDob, null);
+        seedStatutoryProfile(TENANT_A, empNullDob, true, true, true);
+
+        SalaryComponentItemRequest basicItem = new SalaryComponentItemRequest(
+                basicEarningId, CalculationType.FLAT, new BigDecimal("10000.0000"), null, true, "MONTHLY", null);
+        SalaryComponentItemRequest hraItem = new SalaryComponentItemRequest(
+                hraEarningId, CalculationType.FLAT, new BigDecimal("5000.0000"), null, true, "MONTHLY", null);
+
+        SalaryVersionRequest req = new SalaryVersionRequest(
+                new BigDecimal("201450.0000"),
+                LocalDate.of(2026, 1, 1),
+                "Initial Salary with Null DOB",
+                List.of(basicItem, hraItem),
+                List.of(),
+                List.of());
+
+        SalaryVersionResponse response = salaryService.create(empNullDob, req);
+        assertThat(response).isNotNull();
+        assertThat(response.statutory()).hasSize(7);
+        assertThat(response.statutory()).anySatisfy(line -> {
+            assertThat(line.componentCode()).isEqualTo("EPS_EMPLOYER");
+            assertThat(line.monthlyAmount()).isEqualByComparingTo(new BigDecimal("833.0000"));
+        });
+        assertThat(response.statutory()).anySatisfy(line -> {
+            assertThat(line.componentCode()).isEqualTo("EPF_EMPLOYER");
+            assertThat(line.monthlyAmount()).isEqualByComparingTo(new BigDecimal("367.0000"));
+        });
+    }
+
     private static int countDbRows(String table, UUID ctcStructureId) throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps =

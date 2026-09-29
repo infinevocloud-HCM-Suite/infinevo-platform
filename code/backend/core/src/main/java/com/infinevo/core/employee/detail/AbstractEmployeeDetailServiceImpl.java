@@ -7,6 +7,7 @@ import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
@@ -93,6 +94,18 @@ abstract class AbstractEmployeeDetailServiceImpl<E extends EmployeeDetail, Q, R>
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<R> find(UUID employeeId) {
+        UUID tenantId = TenantContext.require();
+        if (employees.findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId).isEmpty()) {
+            return Optional.empty();
+        }
+        return repository.findByTenantIdAndEmployeeId(tenantId, employeeId).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional(
+            readOnly = true,
+            noRollbackFor = {NotFoundException.class})
     public R get(UUID employeeId) {
         UUID tenantId = TenantContext.require();
         requireEmployee(employeeId, tenantId);

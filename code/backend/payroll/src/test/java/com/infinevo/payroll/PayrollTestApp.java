@@ -265,4 +265,66 @@ public class PayrollTestApp {
             }
         };
     }
+
+    @Bean
+    public com.infinevo.core.employee.detail.EmployeePersonalService employeePersonalService(DataSource dataSource) {
+        return new com.infinevo.core.employee.detail.EmployeePersonalService() {
+            @Override
+            public Optional<com.infinevo.core.employee.detail.EmployeePersonalResponse> find(UUID employeeId) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        String sql =
+                                "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, eligible_for_full_tax_exemption, created_at, updated_at "
+                                        + "FROM core.employee_personal WHERE employee_id = ? AND tenant_id = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                            ps.setObject(1, employeeId);
+                            ps.setObject(2, tenantId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                if (rs.next()) {
+                                    java.sql.Date dob = rs.getDate("date_of_birth");
+                                    conn.commit();
+                                    return Optional.of(new com.infinevo.core.employee.detail.EmployeePersonalResponse(
+                                            (UUID) rs.getObject("id"),
+                                            tenantId,
+                                            employeeId,
+                                            dob != null ? dob.toLocalDate() : null,
+                                            rs.getString("marital_status"),
+                                            rs.getString("nationality"),
+                                            rs.getString("ethnicity"),
+                                            rs.getString("father_name"),
+                                            rs.getString("differently_abled_type"),
+                                            rs.getBoolean("eligible_for_full_tax_exemption"),
+                                            rs.getTimestamp("created_at").toInstant(),
+                                            rs.getTimestamp("updated_at").toInstant()));
+                                }
+                                conn.commit();
+                                return Optional.empty();
+                            }
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public com.infinevo.core.employee.detail.EmployeePersonalResponse get(UUID employeeId) {
+                return find(employeeId)
+                        .orElseThrow(
+                                () -> new com.infinevo.core.employee.detail.EmployeeDetailService.NotFoundException(
+                                        "personal", employeeId));
+            }
+
+            @Override
+            public com.infinevo.core.employee.detail.EmployeePersonalResponse put(
+                    UUID employeeId, com.infinevo.core.employee.detail.EmployeePersonalRequest request) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
 }
