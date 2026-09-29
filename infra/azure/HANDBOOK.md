@@ -111,6 +111,7 @@ The Infinevo platform runs on a **Zero-Trust, Private-by-Default Architecture** 
      - `psql-migration-pw`: Migration runner (`migration_user`) credential.
      - `psql-readonly-pw`: Read-only reporting (`readonly_user`) credential.
      - `psql-keycloak-pw`: Keycloak database (`keycloak_user`) credential.
+     - `psql-retention-pw`: Retention sweep (`retention_user`) credential - the only role allowed to delete audit rows and notifications (W-22.2).
 
 4. **`law-infinevo-shared` (Log Analytics Workspace)**:
    - **SKU**: PerGB2018 (30-day retention).

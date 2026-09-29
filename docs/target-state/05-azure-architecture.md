@@ -43,7 +43,7 @@ rehearsal that runs in acceptance therefore means something for production.
 | Container Apps Environment | Runs the five containers, injected into `snet-cae` | Manual deploys on DigitalOcean |
 | Database for PostgreSQL, Flexible Server | One server. Two databases: platform (4 schemas) and Keycloak | Two MySQL databases |
 | Azure Managed Redis | Permissions, master data, tenant config, sessions (`D-59`) | The in-process cache that breaks with two instances |
-| Storage Queue | Pay run, report and import job queue (`D-50`). Three queues — `payrun`, `import`, `report` — in the same storage account as Blob, reached over its own private endpoint | Nothing — everything is synchronous today |
+| Storage Queue | Pay run, report and import job queue (`D-50`). Four queues — `payrun`, `import`, `report` and `notification` (`W-20.1`) — in the same storage account as Blob, reached over its own private endpoint | Nothing — everything is synchronous today |
 | Blob Storage | Employee documents, payslips, investment proofs | **Cloudinary**, which is outside Azure |
 | Key Vault (shared) | Every secret | Passwords in `application.properties`, committed |
 | Container Registry (shared) | Built images | Nothing |

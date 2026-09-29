@@ -91,6 +91,25 @@ class ResourceServerConfigTest {
     }
 
     @Test
+    @DisplayName("The D-22 exception list is exactly the document download, and grows only on purpose")
+    void publicApplicationEndpointsAreTheReviewedList() {
+        assertThat(PublicEndpoints.PATHS).containsExactly("/api/v1/documents/download");
+    }
+
+    @Test
+    @DisplayName("The document download path is reachable with no token - its signed link is the authorisation")
+    void documentDownloadIsPermitted() throws Exception {
+        mockMvc.perform(get(PublicEndpoints.DOCUMENT_DOWNLOAD)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Only that exact path: a sub-path and a sibling still need a token - no prefix grant")
+    void documentDownloadIsNotAPrefix() throws Exception {
+        mockMvc.perform(get(PublicEndpoints.DOCUMENT_DOWNLOAD + "/extra")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/documents/metadata")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("A health sub-path is permitted, because that is what the orchestrator actually probes")
     void healthSubPathsArePermitted() throws Exception {
         // probes.enabled turns these on, and they are what the liveness and readiness probes
@@ -149,6 +168,18 @@ class ResourceServerConfigTest {
             /** Same, and a second one so the assertion is not about one lucky path. */
             @GetMapping("/actuator/env")
             String env() {
+                return "{}";
+            }
+
+            /** Stands in for the document download, so "permitted" is told apart from "no handler". */
+            @GetMapping(PublicEndpoints.DOCUMENT_DOWNLOAD)
+            String download() {
+                return "bytes";
+            }
+
+            /** Beneath and beside the download, and both must stay closed. */
+            @GetMapping({PublicEndpoints.DOCUMENT_DOWNLOAD + "/extra", "/api/v1/documents/metadata"})
+            String notPublic() {
                 return "{}";
             }
         }

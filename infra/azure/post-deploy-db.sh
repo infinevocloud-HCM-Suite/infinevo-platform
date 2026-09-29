@@ -82,6 +82,7 @@ declare -A ROLE_SECRETS=(
   ["MIGRATION_PW"]="psql-migration-pw"
   ["READONLY_PW"]="psql-readonly-pw"
   ["KEYCLOAK_PW"]="psql-keycloak-pw"
+  ["RETENTION_PW"]="psql-retention-pw"
 )
 
 echo "Verifying / seeding application role passwords in Key Vault..."
@@ -101,7 +102,7 @@ for VAR_NAME in "${!ROLE_SECRETS[@]}"; do
 done
 
 # Double check that no password uses local repo fallbacks
-for VAR_NAME in APP_PW WORKER_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW; do
+for VAR_NAME in APP_PW WORKER_PW MIGRATION_PW READONLY_PW KEYCLOAK_PW RETENTION_PW; do
   VAL="${!VAR_NAME}"
   if [[ "$VAL" =~ ^local_.*_pw$ ]]; then
     echo "ERROR: $VAR_NAME is using committed repo default literal '$VAL'" >&2

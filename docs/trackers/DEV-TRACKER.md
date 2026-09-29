@@ -32,7 +32,7 @@ lane so two lanes never collide on a version.
 |---|---|---|---|---|
 | sayeed | `dev-sayeed` | 1a employee & org · 5 statutory settings | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** ~~`W-13.4`~~ **on main `e699699`** ~~`W-09.1`~~ **on main `c79755c`** ~~`W-13.3`~~ ~~`W-14.2`~~ **on main `ccc8e48`** ~~`W-39.1`~~ **on main `3bf5b10`** → D-9 manual checks → `W-31.1` (in progress on `W-39-1-attendance-capture`, commit `663f84a`) → `W-31.2` → `W-31.3` | `V026`–`V032` (`V030` used) · `V062`–`V069` |
 | krushna | `dev-krushna` | 2 tenant & onboarding · 7a working-day policy & schedule | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** → `W-24.1` **Ready** → `W-17` → `W-24.2` → `W-18.1` → `W-18.2` → `W-28` | `V033`–`V034` used · `V035`–`V036` · `V054` |
-| devashis | `dev-devashis` | 3 documents, notifications, reporting · 7b pay input ledger & captures | `W-21` + `W-20.1` + `W-23.1` **sent back again 2026-09-26, see § 3d** → `W-20.2` → `W-22.2` → `W-23.2` · `W-19` → `W-30.1` → `W-39.2` | `V037`–`V040` · `V041`, `V060` |
+| devashis | `dev-devashis` | 3 documents, notifications, reporting · 7b pay input ledger & captures | `W-21` + `W-20.1` + `W-23.1` **sent back again 2026-09-26, see § 3d** → `W-20.2` → `W-22.2` → `W-23.2` · `W-19` → `W-30.1` → `W-39.2` (**all done**) | `V037`–`V040` · `V031`–`V032` `W-19`, `V041` `W-39.2`, `V060` `W-30.1` (**used**) · `V093` `W-20.2`, `V094` `W-22.2`, `V095`–`V096` `W-23.2` (**used**, renumbered from the colliding `V082`–`V085` — review item B-1) |
 | karma | `dev-karma` | 1b approvals, leave & portal | ~~`W-15.1`~~ ~~`W-15.2`~~ ~~`W-15.3`~~ **on main `a34c14f`** → `W-16.1` **Ready** → `W-16.2` → `W-16.3` → `W-16.4a` → `W-16.4b` → `W-25` → `W-40` | `V089`–`V092` used |
 | biren | `dev-biren` | 4 salary structure & FBP · 8 frontend shell & core screens | ~~`W-26.1`~~ ~~`W-26.2`~~ **on main `a3ad0a3`** ~~`W-27.1`~~ ~~`W-27.2`~~ **on main `79c8825`** → `W-45` **Ready** → `W-46.1` → `W-46.3a` → `W-46.3b` (after `W-17`) → `W-46.4` (after `W-15`) → `W-46.2` (after `W-16`) → `W-46.5` (after `W-25`) | `V042`–`V053` used · frontend: none |
 | mohit | `dev-mohit` | 6 tax declaration & calculator | `W-32.1` → `W-32.2` → `W-32.3` → `W-32.4` → `W-33.1` → `W-33.2` → `W-33.3` → `W-34` | `V070`–`V081` |
@@ -47,7 +47,7 @@ first ticket. `W-11.3` is on `main`, so nothing waits on permission codes.
 The specs still cite migration numbers already used on `main`; **use the lane's reserved block,
 not the number in the spec.** `V026` `W-13.4` · `V027` `W-09.1` · `V028`–`V029` `W-14.2` ·
 `V030` `W-39.1` (**used, on main `3bf5b10`**) · `V031`–`V032` `W-19` · `V033`–`V034` `W-12.1` (**used, on main `b7d03ec`**) · `V035` `W-24.1` · `V036` `W-17` ·
-`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`. `V082` `W-65.1` · `V083`–`V084` `W-65.2` (reserved 2026-09-27, above the `V042`–`V081` block) · `V085`–`V088` `W-41` (reserved 2026-09-28) · `V089`–`V092` `W-15.1`–`W-15.3` (**used, on main `a34c14f`**).
+`V037` `W-21` · `V038`–`V039` `W-20.1` · `V040` `W-23.1` · `V041` `W-39.2`. `V082` `W-65.1` · `V083`–`V084` `W-65.2` (reserved 2026-09-27, above the `V042`–`V081` block) · `V085`–`V088` `W-41` (reserved 2026-09-28) · `V089`–`V092` `W-15.1`–`W-15.3` (**used, on main `a34c14f`**) · `V093` `W-20.2` · `V094` `W-22.2` · `V095`–`V096` `W-23.2` (reserved 2026-09-28, above the `V089`–`V092` block — manager's review item B-1: devashis's branch first shipped these as `V082`–`V085`, which collided with `W-65.1`, `W-65.2` and `W-41`'s reservations above; renumbered before merge).
 
 **Assign later, cross-lane:** `W-24.2` (needs `W-12.1` and `W-20.1`), `W-20.2` (needs `W-20.1`
 and `W-12.1`), `W-22.2` and `W-23.2` (need `W-20.2`; `W-52.1` is on main), `W-15`, `W-16`, `W-18`, `W-25`
@@ -172,7 +172,7 @@ blocker is cleared for all of them.
 | #28 | `W-24` Setup checklist & invitations | A module-aware checklist, progress tracking, user and employee invitation | **assigned — krushna** (`W-24.1`), after `W-12.1`; `W-24.2` needs `W-20.1` |
 | #29 | `W-25` Employee self-service portal | My profile, leave, documents, payslips (Payroll only), timesheet (HRMS only) | **assigned — karma**, after `W-16` |
 | #— | `W-39.1` Attendance capture (basic) | `core.attendance` — present, absent, half day per employee per date, entered by an administrator, so a Payroll-only tenant can record it (`D-35`); `AttendanceQuery.days()` is `W-18`'s read. **Done 2026-09-28 on `3bf5b10` — Built by sayeed.** Outstanding in the merge commit. Migration `V030` |
-| #— | `W-39.2` Overtime capture (basic) | `core.overtime_request` — approved overtime entered by an administrator, written to the pay input ledger | **assigned — devashis**, after `W-19`; migration `V041` |
+| #— | `W-39.2` Overtime capture (basic) | `core.overtime_request` — approved overtime entered by an administrator, written to the pay input ledger | **done — built by devashis**, after `W-19`; migration `V041` |
 
 ---
 

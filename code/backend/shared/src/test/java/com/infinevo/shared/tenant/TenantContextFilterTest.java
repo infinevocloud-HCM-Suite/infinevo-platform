@@ -69,6 +69,27 @@ class TenantContextFilterTest {
     }
 
     @Test
+    @DisplayName("A D-22 public endpoint passes through unbound - it binds its tenant from its own signed token")
+    void publicEndpoint_passesThroughUnbound() throws Exception {
+        request.setRequestURI(com.infinevo.shared.security.PublicEndpoints.DOCUMENT_DOWNLOAD);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        assertThat(TenantContext.isBound()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Only the exact public path: one segment deeper is filtered like any other request")
+    void publicEndpoint_isNotAPrefix() throws Exception {
+        request.setRequestURI(com.infinevo.shared.security.PublicEndpoints.DOCUMENT_DOWNLOAD + "/x");
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(401);
+    }
+
+    @Test
     @DisplayName("Unauthenticated request to protected endpoint returns 401 Unauthorized")
     void unauthenticatedRequest_returns401() throws Exception {
         request.setRequestURI("/api/v1/employees");

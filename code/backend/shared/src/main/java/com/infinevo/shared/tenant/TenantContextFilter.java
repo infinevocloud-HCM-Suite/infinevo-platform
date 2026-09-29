@@ -5,6 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
+import com.infinevo.shared.security.PublicEndpoints;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -68,10 +69,17 @@ public class TenantContextFilter extends OncePerRequestFilter {
                 : new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
+    /**
+     * Health, error dispatch and the API description by pattern; the application endpoints of
+     * {@link PublicEndpoints} by exact path. Those bind their tenant from their own signed token, so a
+     * tenant bound here would be the wrong one or none — and the request carries no identity to bind
+     * from in any case.
+     */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return EXEMPT_PATH_PATTERNS.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
+        return PublicEndpoints.PATHS.contains(path)
+                || EXEMPT_PATH_PATTERNS.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
     }
 
     @Override

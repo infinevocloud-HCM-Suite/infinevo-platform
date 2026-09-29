@@ -3,13 +3,18 @@ package com.infinevo.core.cache;
 import com.infinevo.shared.cache.CacheService;
 import com.infinevo.shared.cache.TenantCacheKeyGenerator;
 import java.time.Duration;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
  * Domain cache adapter for tenant master data and global statutory reference data.
+ *
+ * <p>The cache is optional: with {@code infinevo.cache.enabled=false} there is no {@link CacheService}
+ * bean (Redis is off), and every read here misses and every write and eviction does nothing, so
+ * callers fall through to the database.
  */
 @Service
 public class MasterDataCacheService {
@@ -19,14 +24,24 @@ public class MasterDataCacheService {
 
     private final CacheService cacheService;
 
+    /** The cache if one is configured, otherwise none. */
+    @Autowired
+    public MasterDataCacheService(ObjectProvider<CacheService> cacheServiceProvider) {
+        this(cacheServiceProvider.getIfAvailable());
+    }
+
+    /** @param cacheService the cache, or {@code null} for none */
     public MasterDataCacheService(CacheService cacheService) {
-        this.cacheService = Objects.requireNonNull(cacheService, "cacheService must not be null");
+        this.cacheService = cacheService;
     }
 
     /**
      * Retrieves tenant-scoped master data.
      */
     public <T> Optional<T> getTenantMasterData(UUID tenantId, String domain, String id, Class<T> clazz) {
+        if (cacheService == null) {
+            return Optional.empty();
+        }
         String key = TenantCacheKeyGenerator.tenantKey(tenantId, "master:" + domain, id);
         return cacheService.get(key, clazz);
     }
@@ -42,6 +57,9 @@ public class MasterDataCacheService {
      * Caches tenant-scoped master data with custom TTL.
      */
     public <T> void putTenantMasterData(UUID tenantId, String domain, String id, T data, Duration ttl) {
+        if (cacheService == null) {
+            return;
+        }
         String key = TenantCacheKeyGenerator.tenantKey(tenantId, "master:" + domain, id);
         cacheService.put(key, data, ttl != null ? ttl : DEFAULT_MASTER_TTL);
     }
@@ -50,6 +68,9 @@ public class MasterDataCacheService {
      * Evicts tenant-scoped master data.
      */
     public void evictTenantMasterData(UUID tenantId, String domain, String id) {
+        if (cacheService == null) {
+            return;
+        }
         String key = TenantCacheKeyGenerator.tenantKey(tenantId, "master:" + domain, id);
         cacheService.evict(key);
     }
@@ -58,6 +79,9 @@ public class MasterDataCacheService {
      * Retrieves global (un-tenanted) statutory reference data.
      */
     public <T> Optional<T> getGlobalReferenceData(String domain, String lookupKey, Class<T> clazz) {
+        if (cacheService == null) {
+            return Optional.empty();
+        }
         String key = TenantCacheKeyGenerator.globalKey("ref:" + domain, lookupKey);
         return cacheService.get(key, clazz);
     }
@@ -73,6 +97,9 @@ public class MasterDataCacheService {
      * Caches global statutory reference data with custom TTL.
      */
     public <T> void putGlobalReferenceData(String domain, String lookupKey, T data, Duration ttl) {
+        if (cacheService == null) {
+            return;
+        }
         String key = TenantCacheKeyGenerator.globalKey("ref:" + domain, lookupKey);
         cacheService.put(key, data, ttl != null ? ttl : DEFAULT_GLOBAL_TTL);
     }
@@ -81,6 +108,9 @@ public class MasterDataCacheService {
      * Evicts global statutory reference data.
      */
     public void evictGlobalReferenceData(String domain, String lookupKey) {
+        if (cacheService == null) {
+            return;
+        }
         String key = TenantCacheKeyGenerator.globalKey("ref:" + domain, lookupKey);
         cacheService.evict(key);
     }

@@ -69,3 +69,62 @@ management:
 
 brevo:
   api-key: ${BREVO_API_KEY}
+  url: ${BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
+  from-email: ${BREVO_FROM_EMAIL:notifications@infinevocloud.com}
+  from-name: ${BREVO_FROM_NAME:Infinevo}
+
+azure:
+  storage:
+    queue:
+      poll-interval: ${AZURE_STORAGE_QUEUE_POLL_INTERVAL:PT1S}
+      visibility-timeout: ${AZURE_STORAGE_QUEUE_VISIBILITY_TIMEOUT:PT5M}
+
+worker:
+  reminder:
+    cron: ${WORKER_REMINDER_CRON:0 */15 * * * *}
+    batch-size: ${WORKER_REMINDER_BATCH_SIZE:50}
+  notification:
+    # W-20.2 delivery: a transient failure goes back to the outbox and is retried after 1, 2, 4, 8
+    # minutes, then marked FAILED. The sweep sends what the queue did not deliver.
+    max-attempts: ${WORKER_NOTIFICATION_MAX_ATTEMPTS:5}
+    initial-backoff: ${WORKER_NOTIFICATION_INITIAL_BACKOFF:PT1M}
+    sweep-interval: ${WORKER_NOTIFICATION_SWEEP_INTERVAL:PT1M}
+    sweep-grace: ${WORKER_NOTIFICATION_SWEEP_GRACE:PT2M}
+    sweep-batch: ${WORKER_NOTIFICATION_SWEEP_BATCH:50}
+    stale-claim: ${WORKER_NOTIFICATION_STALE_CLAIM:PT10M}
+  retention:
+    cron: ${WORKER_RETENTION_CRON:0 0 2 * * *}
+    # Manager's review item B-2: defaults to true so a deployment that never sets this
+    # explicitly reports what it would delete rather than deleting it. Set
+    # WORKER_RETENTION_DRY_RUN=false deliberately, once the dry run's log has been read.
+    dry-run: ${WORKER_RETENTION_DRY_RUN:true}
+    batch-size: ${WORKER_RETENTION_BATCH_SIZE:500}
+    default-audit-months: ${WORKER_RETENTION_AUDIT_MONTHS:84}
+    default-notification-months: ${WORKER_RETENTION_NOTIFICATION_MONTHS:12}
+    datasource:
+      url: ${RETENTION_DB_URL:${DB_URL}}
+      username: ${RETENTION_DB_USERNAME:retention_user}
+      password: ${RETENTION_DB_PASSWORD}
+  report:
+    cron: ${WORKER_REPORT_CRON:0 */15 * * * *}
+    datasource:
+      url: ${REPORT_READ_DB_URL:${DB_URL}}
+      username: ${REPORT_READ_DB_USERNAME:readonly_user}
+      password: ${REPORT_READ_DB_PASSWORD}
+
+# W-21 document store. The worker scans com.infinevo, so it builds the link signer too -
+# and it is the runtime that will sign the seven-day links in emailed reports (W-23.2)
+# and payslips (W-36). Same rule as the app: no default secret, and the process does not
+# start without one. See the app module's application.yml.
+document:
+  link:
+    secret: ${DOCUMENT_LINK_SECRET}
+  system:
+    max-bytes: 52428800
+  blob:
+    container: documents
+    # See the app module: a connection string for an emulator, or an endpoint reached by
+    # this container's own managed identity in Azure (decision D5).
+    connection-string: ${DOCUMENT_BLOB_CONNECTION_STRING:}
+    endpoint: ${DOCUMENT_BLOB_ENDPOINT:}
+    managed-identity-client-id: ${AZURE_CLIENT_ID:}

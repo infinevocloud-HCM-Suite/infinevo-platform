@@ -296,3 +296,30 @@ lost.
 | 1 | How does the scheduler stop two replicas running one job? | **ShedLock, already on `main` from `W-52`.** Your 2026-09-22 answer — Postgres, not Redis — is satisfied by what exists. The lease-table and advisory-lock proposals are both withdrawn |
 | 2 | Stay on Brevo? | **Yes** — settled 2026-09-23 — behind a `DeliveryClient` interface so Azure Communication Services is a swap rather than a rewrite |
 | 3 | Does `W-22.2`'s retention sweep register here? | **Yes** — settled 2026-09-23. Two answers to one problem is how the frozen system got four schedulers |
+
+## 14. As built — 2026-09-28, branch `dev-devashis`
+
+| # | Question | As built |
+|---|---|---|
+| D1 | Migration number | `V093__reminder_rule.sql`. First shipped as V082, which collided with the tracker's reservation for `W-65.1`; renumbered 2026-09-28 per the manager's review (item B-1) to the first free number after every block reserved as of that date (`DEV-TRACKER.md`). |
+
+Also as built:
+
+- **Delivery is claim-first.** `NotificationDeliveryConsumer.deliver` begins with one conditional `UPDATE`: `QUEUED` → `SENDING`, which also increments `attempt_count`. It only sends if that update changed a row. As a result, a queue redelivery, a second replica and the sweep can all hold the same id and only one of them sends. `V093` adds `SENDING` to the status `CHECK`. It also adds `attempt_count`, `next_attempt_at`, `last_error` (500 characters, never the address or the provider's body) and `sent_at` to `core.notification`.
+- **Retries are rows, not sleeps.** Each call makes one attempt, and there are three outcomes:
+  - A transient failure (a 5xx, a 429, or an I/O error) returns the row to `QUEUED` with `next_attempt_at` one backoff later. The backoff starts at `worker.notification.initial-backoff` (`PT1M`) and doubles.
+  - A permanent failure (other 4xx, or no address) dead-letters the row to `FAILED` with the reason.
+  - After `worker.notification.max-attempts` (5), the row goes to `FAILED` with "gave up after N attempts".
+  - The queue message is deleted after every one of these outcomes. Only an error before the attempt, such as the database being unreachable, leaves the message for redelivery.
+- **The outbox sweep.** `NotificationDeliverySweep` runs as `@Scheduled` + `@SchedulerLock("notification_delivery_sweep")`, every `sweep-interval` (`PT1M`), once per tenant from `core.list_tenants_for_sweep()`. Each pass does three things:
+  1. It returns claims left `SENDING` for longer than `stale-claim` (`PT10M`) to `QUEUED`, so a crash mid-send is retried, not lost.
+  2. It sends emails whose `next_attempt_at` has come.
+  3. It sends emails queued more than `sweep-grace` (`PT2M`) ago that have no retry pending. This picks up rows whose queue message never arrived (`W-20.1`'s outbox).
+  - Every send goes through the same claim.
+- **Reminders are claim-first too.** `ReminderRuleRepository.claimRun` moves `last_executed_at` from the value that was read to now, and fails if another run got there first. It runs before anything is composed, so a crashed or overlapping run cannot send a reminder twice. Recipients are resolved just before the claim, in their own read-only transaction, so a failure there leaves the rule unclaimed and the next sweep tries it again. One rule failing does not stop the tenant's other rules. An offset rule is due only inside `[anchor − offset_days, anchor]`. It fires once when the window opens, then every `repeat_every_days` up to `max_repeats`. A new deadline starts a new cycle, and `repeat_count` resets to 1. For an offset rule, `due_date` is the deadline itself.
+- **Refused at `POST`/`PUT`, not discovered at sweep time.** The same rule as for audiences now covers two more cases:
+  - an `anchor` other than `WEEKLY` with no `ReminderAnchorResolver` registered. None exists yet, so only `WEEKLY` rules are accepted.
+  - an `event` whose template needs placeholders a reminder cannot supply. A reminder supplies `employee_name`, `due_date`, `week_start`, `financial_year` and `period`.
+- **`SUBJECT` audience.** The ids of the tenant's active employees, from a single query. Terminated and suspended employees, and soft-deleted rows, are not reminded.
+- **Brevo.** Only `htmlContent` is sent. Neither the recipient nor the provider's response body is logged or put in an exception.
+- **Grants.** `V093` revokes `DELETE` on `core.reminder_rule` from `app_user`. A rule is retired by `is_active = false`.

@@ -15,6 +15,7 @@ WORKER_PW="${WORKER_PW:-local_worker_pw}"
 MIGRATION_PW="${MIGRATION_PW:-local_migration_pw}"
 READONLY_PW="${READONLY_PW:-local_readonly_pw}"
 KEYCLOAK_PW="${KEYCLOAK_PW:-local_keycloak_pw}"
+RETENTION_PW="${RETENTION_PW:-local_retention_pw}"
 
 PGHOST_ARG=()
 if [ -n "${PGHOST:-}" ]; then
@@ -29,6 +30,7 @@ psql "${PGHOST_ARG[@]}" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_S
   -v migration_pw="$MIGRATION_PW" \
   -v readonly_pw="$READONLY_PW" \
   -v keycloak_pw="$KEYCLOAK_PW" \
+  -v retention_pw="$RETENTION_PW" \
   -f "$DIR/01-roles.sql"
 
 psql "${PGHOST_ARG[@]}" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=1 \

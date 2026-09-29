@@ -1,6 +1,7 @@
 package com.infinevo.shared.tenant;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.infinevo.shared.security.PublicEndpoints;
 import javax.sql.DataSource;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
@@ -83,6 +84,10 @@ public class TenantBindingAutoConfiguration {
     public SecurityFilterChain tenantDefaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(auth -> auth.requestMatchers(
                         "/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                .permitAll()
+                // The same D-22 list ResourceServerConfig permits, so a slice test meets the same
+                // boundary the running application does.
+                .requestMatchers(PublicEndpoints.paths())
                 .permitAll()
                 .anyRequest()
                 .authenticated());

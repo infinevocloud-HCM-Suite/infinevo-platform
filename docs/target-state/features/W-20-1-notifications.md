@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-20.1` · from ticket #24 · `CORE-12` |
 | **Promoted to** | `docs/target-state/features/W-20-1-notifications.md` on branch `W-20-1-notifications` — **`W-20-1` with hyphens**, never `W-20.1`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | devashis (`dev-devashis`) |
 | **Apps touched** | `code/backend/core`, `code/backend/migration` |
 | **Related gaps** | DEBT-004 (discounted), DEBT-018 (honoured) |
 | **Status** | **Approved** |
@@ -187,7 +187,7 @@ leave reason, and the email channel renders HTML.
 ## 8. Verification
 
 ```bash
-docker compose -f infra/docker/compose.yml up -d postgres azurite
+docker compose -f infra/docker/compose.yml up -d postgres blob
 docker compose -f infra/docker/compose.yml up --build migrate
 for t in notification notification_template; do
   docker compose -f infra/docker/compose.yml exec -T postgres psql -U migration_user -d infinevo -c \
@@ -259,3 +259,29 @@ the decision; the consolidated record is
 `09-build-order.md` stated Payroll has never sent an email for a payroll event. It sends the
 salary slip at `PayRunServiceImpl.java:975`. The build order now says the gap is the absence
 of a framework, not of any email.
+
+## 15. As built — 2026-09-25, branch `dev-devashis`
+
+**Decisions accepted by the owner on 2026-09-25.**
+
+| # | Question | As built |
+|---|---|---|
+| D4 | Migration numbers | `V038__notification_template.sql` and `V039__notification.sql`, the lane's reservation (`DEV-TRACKER.md`). |
+
+Also as built:
+
+- **Events.** The enum `NotificationEvent` holds 16 events, each naming the placeholders its caller supplies. `V038`'s `CHECK` lists the same 16. Every tenant is seeded, by trigger and by backfill, with 32 defaults (in-app and email per event), effective `2026-01-01`. `NotificationEventTest` reads `V038` itself and fails if the enum, the `CHECK` and the seed disagree.
+- **Delivery states.** An in-app notification is delivered by being stored, so it is written `SENT`. An email is written `QUEUED`. After the transaction commits, one message goes to the `notification` queue, with the notification's id as payload.
+  - If no `QueueProducer` exists, or the send fails, the row stays `QUEUED`: the row is the outbox. `app` has a producer when `azure.storage.queue.connection-string` is set (`W-52.1`'s `StorageQueueConfig`), and `W-20.2`'s sweep picks up rows left behind through `idx_notification_tenant_status_queued`.
+- **Migration config.** The migration module runs Flyway with `placeholder-replacement: false`. The seeded template text is made of the application's `${...}` placeholders, which Flyway would otherwise read as its own and refuse. No script uses Flyway placeholders.
+- **Rendering.** Email values are HTML-escaped, and line breaks are stripped from subjects.
+- **Failures never reach the caller** (review item 3). `compose` joins the caller's transaction, so its rows and queue message commit and roll back with the change that raised them. A channel that cannot be composed (no template in force, a placeholder with no value, an employee work email that is not an address) is logged as an error and skipped. It is never thrown, so a leave approval cannot roll back because its notification failed. Only a caller's mistake throws: no event, no recipient, or an employee outside the tenant. Logs name the placeholder, never its value or the address. `NotificationServiceTest` pins the propagation to `REQUIRED`, and `NotificationQueueIT` checks a rolled-back caller leaves no row and no message.
+- **Switching a channel off** (review item 2). The newest template version in force decides. If it is inactive, that channel is skipped; the older seeded default is not used as a fallback.
+- **Templates.** `GET /api/v1/notification-templates?event=` and `PUT /api/v1/notification-templates/{event}` (body: channel, subject, body, active) both need `core.notification_template.manage`.
+  - An edit is a new version from today, and a second edit on the same day replaces that day's version.
+  - A placeholder the event does not supply is refused with `400`, and an email template needs a subject.
+  - No grant: the code stays with the admin roles (decision 1). `V038` says so.
+- **Recipient.** `EmployeeNotificationRecipientResolver` calls `W-13.4`'s `EmployeeService.currentEmployee()`. A login linked to no employee sees an empty page, and mark-read returns `404`. The integration tests stand in their own resolver to prove callers see only their own notifications.
+- **Infra.** `storage.bicep` creates the fourth queue, `notification`, and `05-azure-architecture.md` now lists four.
+
+**Correction applied to this spec.** In section 8, the compose service is named `blob`, not `azurite`.

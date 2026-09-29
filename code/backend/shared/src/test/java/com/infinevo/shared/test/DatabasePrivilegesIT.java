@@ -145,19 +145,18 @@ class DatabasePrivilegesIT extends AbstractIntegrationTest {
                 jdbcUrl,
                 PostgresTestContainerInitializer.MIGRATION_USER,
                 PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
-            // worker_user joined the set at W-56. app_user is unchanged by that ticket: it
-            // keeps LOGIN and its password, and stays the role the application connects as.
+            // worker_user joined at W-56, retention_user at W-22.2.
             ResultSet rs = conn.createStatement()
                     .executeQuery("SELECT rolname, rolsuper, rolbypassrls FROM pg_roles "
                             + "WHERE rolname IN ('app_user', 'worker_user', 'migration_user', "
-                            + "'readonly_user', 'keycloak_user')");
+                            + "'readonly_user', 'keycloak_user', 'retention_user')");
             int count = 0;
             while (rs.next()) {
                 count++;
                 assertFalse(rs.getBoolean("rolsuper"), "Role " + rs.getString("rolname") + " must not be superuser");
                 assertFalse(rs.getBoolean("rolbypassrls"), "Role " + rs.getString("rolname") + " must not bypass RLS");
             }
-            assertEquals(5, count, "All 5 platform roles must exist");
+            assertEquals(6, count, "All 6 platform roles must exist");
         }
     }
 
@@ -339,6 +338,45 @@ class DatabasePrivilegesIT extends AbstractIntegrationTest {
                 ResultSet rs = conn.createStatement().executeQuery("SELECT count(*) FROM " + table);
                 assertTrue(rs.next(), "readonly_user must be able to SELECT from " + schema);
             }
+        }
+    }
+
+    @Test
+    @DisplayName("retention_user is refused DDL execution")
+    void retentionUserDeniedDdl() {
+        String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        SQLException ex = assertThrows(SQLException.class, () -> {
+            try (Connection conn = DriverManager.getConnection(
+                    jdbcUrl,
+                    PostgresTestContainerInitializer.RETENTION_USER,
+                    PostgresTestContainerInitializer.RETENTION_USER_PASSWORD)) {
+                conn.createStatement().execute("CREATE TABLE core.retention_test_ddl (id INT)");
+            }
+        });
+        assertEquals("42501", ex.getSQLState(), "SQLState must be 42501 (insufficient_privilege)");
+    }
+
+    @Test
+    @DisplayName("retention_user is refused write and read operations on hrms, payroll, and reference schemas")
+    void retentionUserDeniedOnOtherSchemas() throws SQLException {
+        String jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        for (String schema : new String[] {"hrms", "payroll", "reference"}) {
+            String table = schema + ".retention_probe";
+            try (Connection conn = DriverManager.getConnection(
+                    jdbcUrl,
+                    PostgresTestContainerInitializer.MIGRATION_USER,
+                    PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD)) {
+                conn.createStatement().execute("CREATE TABLE IF NOT EXISTS " + table + " (id INT)");
+            }
+            SQLException ex = assertThrows(SQLException.class, () -> {
+                try (Connection conn = DriverManager.getConnection(
+                        jdbcUrl,
+                        PostgresTestContainerInitializer.RETENTION_USER,
+                        PostgresTestContainerInitializer.RETENTION_USER_PASSWORD)) {
+                    conn.createStatement().execute("SELECT count(*) FROM " + table);
+                }
+            });
+            assertEquals("42501", ex.getSQLState(), "retention_user must not access " + schema);
         }
     }
 }
