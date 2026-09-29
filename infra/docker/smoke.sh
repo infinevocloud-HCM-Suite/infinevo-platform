@@ -53,7 +53,7 @@ check "worker_user inherits from app_user" \
   "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_auth_members m join pg_roles r on r.oid=m.roleid join pg_roles g on g.oid=m.member where r.rolname='app_user' and g.rolname='worker_user'\" | grep -q 1"
 
 # 2. Declared attributes, for the new role as well as the four original ones.
-for r in app_user worker_user migration_user readonly_user keycloak_user; do
+for r in app_user worker_user migration_user readonly_user keycloak_user retention_user; do
   check "role $r exists" \
     "$C exec -T postgres psql -tAU postgres -c \"select 1 from pg_roles where rolname='$r'\" | grep -q 1"
   check "role $r has declared attributes (nosuper, nobypassrls, nocreatedb, nocreaterole)" \

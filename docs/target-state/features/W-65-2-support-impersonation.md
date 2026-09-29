@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-65.2` · from ticket #85 · `PLAT-02` |
 | **Promoted to** | `docs/target-state/features/W-65-2-support-impersonation.md` — **`W-65-2` with hyphens**, never `W-65.2` |
-| **Owner** | unassigned |
+| **Owner** | devashis |
 | **Apps touched** | `code/backend/shared`, `code/backend/migration` |
 | **Related gaps** | none in `GAP_INVENTORY.md`; the frozen apps have no impersonation |
 | **Status** | **Ready** |

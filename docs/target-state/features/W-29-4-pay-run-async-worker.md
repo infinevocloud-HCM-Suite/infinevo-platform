@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-29.4` · from ticket #36 · `PAY-05` part 4 of 4 · `PLAT-04` |
 | **Promoted to** | `docs/target-state/features/W-29-4-pay-run-async-worker.md` on the developer's `dev-<name>` branch — **`W-29-4` with hyphens**, never `W-29.4`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | krushna |
 | **Apps touched** | `code/backend/payroll`, `code/backend/worker` (the runtime that hosts it), `code/backend/migration` |
 | **Related gaps** | DEBT-020 (discounted), DEBT-018; D-2 (`W-52.1`) is the blocker |
 | **Status** | **Ready** |

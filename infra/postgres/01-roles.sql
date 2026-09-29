@@ -48,6 +48,12 @@ BEGIN
     ELSE
         ALTER ROLE keycloak_user WITH NOCREATEROLE NOCREATEDB NOBYPASSRLS;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'retention_user') THEN
+        CREATE ROLE retention_user WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    ELSE
+        ALTER ROLE retention_user WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    END IF;
 END
 $$;
 
@@ -56,3 +62,5 @@ ALTER ROLE worker_user WITH PASSWORD :'worker_pw';
 ALTER ROLE migration_user WITH PASSWORD :'migration_pw';
 ALTER ROLE readonly_user WITH PASSWORD :'readonly_pw';
 ALTER ROLE keycloak_user WITH PASSWORD :'keycloak_pw';
+ALTER ROLE retention_user WITH PASSWORD :'retention_pw';
+

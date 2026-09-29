@@ -1,4 +1,4 @@
-package com.infinevo.app.controller;
+package com.infinevo.core.job;
 
 import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.service.JobService;
@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * REST controller providing status and progress for asynchronous background jobs (W-52).
+ * REST controller providing status and progress for asynchronous background jobs (W-52, W-23.2).
  */
 @RestController
 @RequestMapping("/api/v1/jobs")

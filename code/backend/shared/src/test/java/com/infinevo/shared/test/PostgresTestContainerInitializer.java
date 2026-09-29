@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.Ordered;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 
@@ -26,8 +27,17 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * <p>The Spring datasource is pointed at the non-owner {@code app_user} role, so that
  * PostgreSQL Row-Level Security policies are enforced during tests — the owner role
  * ({@code BYPASSRLS}) is never used for application queries.
+ *
+ * <p><strong>Runs first, and always points at the container.</strong> A test that needs a database
+ * of its own (the {@code *TestSchema.Initializer}s) sets {@code spring.datasource.url} after this
+ * one and wins. That order is fixed by {@link #getOrder()}, not by the order a test happens to list
+ * its initializers in: an inherited initializer is applied after the test's own, so without it, a
+ * test naming only its schema initializer had its database silently replaced by this one. The URL
+ * is set unconditionally, so a {@code DB_URL} exported in the shell can never point a test at a
+ * real database.
  */
-public class PostgresTestContainerInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+public class PostgresTestContainerInitializer
+        implements ApplicationContextInitializer<ConfigurableApplicationContext>, Ordered {
 
     /**
      * Non-owner application login role. Holds every grant and every RLS policy, and is what
@@ -65,6 +75,12 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
 
     /** Password for the {@code keycloak_user} role. Test-only — not a secret. */
     public static final String KEYCLOAK_USER_PASSWORD = "local_keycloak_pw";
+
+    /** Dedicated role for audit and notification retention sweep (W-22.2). */
+    public static final String RETENTION_USER = "retention_user";
+
+    /** Password for the {@code retention_user} role. Test-only — not a secret. */
+    public static final String RETENTION_USER_PASSWORD = "retention_user_pass";
 
     /** Database name matching the production schema. */
     public static final String DATABASE_NAME = "infinevo";
@@ -195,7 +211,8 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
             "worker_pw", WORKER_USER_PASSWORD,
             "migration_pw", MIGRATION_USER_PASSWORD,
             "readonly_pw", READONLY_USER_PASSWORD,
-            "keycloak_pw", KEYCLOAK_USER_PASSWORD);
+            "keycloak_pw", KEYCLOAK_USER_PASSWORD,
+            "retention_pw", RETENTION_USER_PASSWORD);
 
     /** Matches a psql variable reference in single-quote form, e.g. {@code :'app_pw'}. */
     private static final Pattern PSQL_VARIABLE = Pattern.compile(":'([a-z_][a-z0-9_]*)'");
@@ -285,12 +302,35 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
      */
     private static final String UNREACHABLE_ISSUER_URI = "http://127.0.0.1:1/realms/infinevo";
 
+    /**
+     * The value behind {@code ${DOCUMENT_LINK_SECRET}}, supplied for the reason
+     * {@link #UNREACHABLE_ISSUER_URI} is: the {@code app} and {@code worker} profiles reference it with
+     * no default (W-21), so a deployment cannot sign document links with a known key, and a context
+     * loading either profile would otherwise fail at placeholder resolution. It signs nothing that
+     * leaves the test JVM. A test that exercises links sets its own.
+     */
+    private static final String TEST_DOCUMENT_LINK_SECRET = "test-only-document-link-secret-not-for-use";
+
+    /**
+     * The worker's Brevo key (W-20.2) has no default either, so every full worker context needs one. Tests
+     * never reach Brevo: DeliveryIT replaces the delivery client.
+     */
+    private static final String TEST_BREVO_API_KEY = "test-only-brevo-key-not-for-use";
+
     @Override
     public void initialize(ConfigurableApplicationContext ctx) {
         startIfNeeded();
         TestPropertyValues.of(
                         "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=" + UNREACHABLE_JWK_SET_URI,
                         "KEYCLOAK_ISSUER_URI=" + UNREACHABLE_ISSUER_URI,
+                        "DOCUMENT_LINK_SECRET=" + TEST_DOCUMENT_LINK_SECRET,
+                        "BREVO_API_KEY=" + TEST_BREVO_API_KEY,
+                        // The worker's retention (W-22.2) and report-read (W-23.2) pools default their URL to
+                        // DB_URL and have no default password. Their own ITs point them at their own database;
+                        // every other worker context gets the test roles on the container database.
+                        "RETENTION_DB_PASSWORD=" + RETENTION_USER_PASSWORD,
+                        "REPORT_READ_DB_PASSWORD=" + READONLY_USER_PASSWORD,
+                        "DB_URL=" + POSTGRES.getJdbcUrl(),
                         "spring.datasource.url=" + POSTGRES.getJdbcUrl(),
                         "spring.datasource.username=" + APP_USER,
                         "spring.datasource.password=" + APP_USER_PASSWORD,
@@ -305,5 +345,11 @@ public class PostgresTestContainerInitializer implements ApplicationContextIniti
                             "spring.datasource.hikari.minimum-idle=0")
                     .applyTo(ctx.getEnvironment());
         }
+    }
+
+    /** Before every other initializer, so a test's own database settings always override these. */
+    @Override
+    public int getOrder() {
+        return Ordered.HIGHEST_PRECEDENCE;
     }
 }

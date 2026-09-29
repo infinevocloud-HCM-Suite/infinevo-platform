@@ -3,6 +3,7 @@ package com.infinevo.shared.identity;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Reads and writes {@code core.user_account} (W-10).
@@ -13,6 +14,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * repository whose signatures name the tenant cannot be reused by accident from a code path where
  * none is bound.
  */
+@Transactional(readOnly = true)
 public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> {
 
     /** The one profile row for this user in this tenant, if it has been synced yet. */

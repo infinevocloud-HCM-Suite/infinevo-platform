@@ -33,6 +33,12 @@ class EndpointGuardCoverageTest {
     private static final Map<String, String> EXEMPT = Map.of(
             "com.infinevo.shared.identity.MeController",
             "returns only the caller's own identity; every authenticated member may see themselves",
+            "com.infinevo.core.document.DocumentDownloadController",
+            "the D-22 public download (PublicEndpoints): no bearer token exists to check an action against;"
+                    + " the signed, expiring link is the authorisation",
+            "com.infinevo.core.notification.NotificationController",
+            "recipient only (W-20.1 spec section 4): every member reads their own notifications and nobody"
+                    + " else's; the query is scoped to tenant and recipient, so there is no action to hold",
             "com.infinevo.core.navigation.NavigationController",
             "every signed-in user has a menu; items inside are filtered by module and action (W-12.3)");
 

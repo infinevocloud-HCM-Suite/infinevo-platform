@@ -52,6 +52,9 @@ param postgresFqdn string = ''
 @description('PostgreSQL database name')
 param postgresDatabase string = 'infinevo'
 
+@description('Blob service endpoint of the environment storage account, e.g. https://stinfinevodev.blob.core.windows.net/. The document store (W-21) reaches it with the container app managed identity - W-51 forbids account keys - and it resolves to the private endpoint through the privatelink zone. Empty leaves the store unconfigured: uploads answer 503.')
+param blobEndpoint string = ''
+
 // Origin protection (W-51 section 2.5). Front Door Standard has no Private Link origin and
 // Container Apps ingress has no header-matching rule, so ipSecurityRestrictions is the only
 // control the ingress schema offers. Anything not arriving from a Front Door backend address
@@ -238,6 +241,14 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-app-pw'
           identity: identities.app.id
         }
+        // W-21: the key that signs document links. The app refuses to start without it -
+        // there is no default, because the legacy payslip link had one and every link it
+        // signed was forgeable. Seeded by deploy.sh with the other platform secrets.
+        {
+          name: 'document-link-secret'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/document-link-secret'
+          identity: identities.app.id
+        }
       ]
       registries: [
         {
@@ -284,6 +295,22 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'DB_PASSWORD'
               secretRef: 'psql-app-pw'
+            }
+            {
+              name: 'DOCUMENT_LINK_SECRET'
+              secretRef: 'document-link-secret'
+            }
+            // W-21 D5: the document store reaches Blob with this app's user-assigned identity,
+            // which already holds Storage Blob Data Contributor (rbac.bicep, W-51 3f row 2).
+            // AZURE_CLIENT_ID names which identity - the app carries only one, but the SDK
+            // cannot guess a user-assigned identity. No key and no connection string.
+            {
+              name: 'DOCUMENT_BLOB_ENDPOINT'
+              value: blobEndpoint
+            }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: identities.app.clientId
             }
           ]
           probes: [
@@ -340,6 +367,26 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-worker-pw'
           identity: identities.worker.id
         }
+        // W-21: the worker builds the document link signer too - it scans com.infinevo - and
+        // refuses to start without the key. It will sign the emailed links of W-23.2 and W-36.
+        {
+          name: 'document-link-secret'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/document-link-secret'
+          identity: identities.worker.id
+        }
+        // W-22.2: the retention sweep's own pool, retention_user - the only role allowed to delete
+        // audit rows and notifications. W-23.2: report rows are read as readonly_user.
+        // The worker refuses to start without either password.
+        {
+          name: 'psql-retention-pw'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-retention-pw'
+          identity: identities.worker.id
+        }
+        {
+          name: 'psql-readonly-pw'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-readonly-pw'
+          identity: identities.worker.id
+        }
       ]
       registries: [
         {
@@ -375,6 +422,37 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'DB_PASSWORD'
               secretRef: 'psql-worker-pw'
+            }
+            {
+              name: 'DOCUMENT_LINK_SECRET'
+              secretRef: 'document-link-secret'
+            }
+            // The two extra pools reuse DB_URL; only the role and its password differ.
+            {
+              name: 'RETENTION_DB_USERNAME'
+              value: 'retention_user'
+            }
+            {
+              name: 'RETENTION_DB_PASSWORD'
+              secretRef: 'psql-retention-pw'
+            }
+            {
+              name: 'REPORT_READ_DB_USERNAME'
+              value: 'readonly_user'
+            }
+            {
+              name: 'REPORT_READ_DB_PASSWORD'
+              secretRef: 'psql-readonly-pw'
+            }
+            // W-21 D5, as for the app: Blob through the worker's own identity, which holds
+            // Storage Blob Data Contributor too (W-51 3f row 5).
+            {
+              name: 'DOCUMENT_BLOB_ENDPOINT'
+              value: blobEndpoint
+            }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: identities.worker.clientId
             }
           ]
         }

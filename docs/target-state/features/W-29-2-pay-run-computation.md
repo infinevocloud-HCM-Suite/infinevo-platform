@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-29.2` · from ticket #34 · `PAY-05` part 2 of 4 |
 | **Promoted to** | `docs/target-state/features/W-29-2-pay-run-computation.md` on the developer's `dev-<name>` branch — **`W-29-2` with hyphens**, never `W-29.2`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | krushna |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
 | **Related gaps** | BUG-011 (proposed, fixed here), BUG-012–BUG-014 (proposed below), DEBT-008, DEBT-018, DEBT-022 |
 | **Status** | **Ready** |

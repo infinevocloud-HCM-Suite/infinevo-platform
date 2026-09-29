@@ -44,3 +44,21 @@ management:
 
 brevo:
   api-key: ${BREVO_API_KEY:local_brevo_key}
+
+document:
+  link:
+    # Local default, as in the app module's local profile. The base profile has none.
+    secret: ${DOCUMENT_LINK_SECRET:local_document_link_secret}
+
+worker:
+  retention:
+    datasource:
+      url: ${RETENTION_DB_URL:${DB_URL:jdbc:postgresql://localhost:5432/infinevo}}
+      username: ${RETENTION_DB_USERNAME:retention_user}
+      password: ${RETENTION_DB_PASSWORD:local_retention_pw}
+  report:
+    datasource:
+      url: ${REPORT_READ_DB_URL:${DB_URL:jdbc:postgresql://localhost:5432/infinevo}}
+      username: ${REPORT_READ_DB_USERNAME:readonly_user}
+      password: ${REPORT_READ_DB_PASSWORD:local_readonly_pw}
+

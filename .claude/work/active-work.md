@@ -1,10 +1,20 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-28**, checked row by row against `main`.
+> Last refreshed: **2026-09-29**, checked row by row against `main`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-09-29 — devashis lane merged (`b6e6012`): `W-19`, `W-20.1`, `W-20.2`, `W-21`, `W-22.2`, `W-23.1`, `W-23.2`, `W-30.1`, `W-39.2`
+
+- Nine tickets in one squash of `dev-devashis` at `46a13dd`. Pay input ledger with period and run locks (`V031`, `V032`, `V060`), overtime capture through the ledger (`V041`), document store (`V037`), notifications and reminder rules (`V038`, `V039`, `V093`), export and scheduled reports (`V040`, `V095`, `V096`), audit and notification retention (`V094`).
+- Gates 5/5 for all nine, CI green on `46a13dd`, one independent read per ticket. Three defects fixed before merge: a ledger row could be reversed twice (a retried reverse or a double-clicked overtime cancel flipped the pay total); a 23:50 report schedule or reminder never ran because no quarter-hour sweep lands before midnight. Review items B-1 to B-4 and the 2026-09-26 send-back items 1–6 all verified fixed.
+- **Build:** `jackson-bom` pinned to 2.21.6 for CVE-2026-68497, which turned the dependency scan red on every branch on 2026-09-29. Drop the pin when the Boot parent moves past it.
+- **Accepted as outstanding by the founder:** the full list is in the merge commit. The ones that need a decision: a retried overtime POST posts twice because the spec's idempotency key is the new row's own id; W-23.2 does not yet read report rows as `readonly_user`; a W-19 write does not check the employee belongs to the tenant.
+- **Before the automatic deploy:** run `deploy.sh` and the Bicep by hand so `document-link-secret` and the retention secret exist, or `app` and `worker` crash-loop.
+- **Local databases:** `V031` was edited in place before it reached `main`; a database that applied the earlier version needs `flyway repair` or `compose down -v`.
+- **Newly Ready:** `W-24.2` (krushna, after `W-24.1`). `W-29.1` now waits on `W-28` only; `W-29.3` on `W-29.2` and `W-18.1`; `W-30.2` on `W-29.3`; `W-40` on `W-16` only. devashis has nothing assigned and resets `dev-devashis` to `main`.
 
 ## 2026-09-28 — `W-39.1` merged (`3bf5b10`)
 

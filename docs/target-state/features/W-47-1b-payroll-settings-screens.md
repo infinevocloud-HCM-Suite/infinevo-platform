@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-47.1b` · from ticket #63 · `PAY-03`, `PAY-04`, `PAY-08` |
 | **Spec file** | `docs/target-state/features/W-47-1b-payroll-settings-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | sayeed |
 | **Apps touched** | `code/frontend/src/payroll/settings` only. No backend, no migration |
 | **Related gaps** | DEBT-026 (prevented), BUG-006 (deferred) |
 | **Status** | **Ready** |

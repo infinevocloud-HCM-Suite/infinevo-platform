@@ -104,6 +104,7 @@ public class JobServiceImpl implements JobService {
                         job.getQueueName(),
                         job.getStatus(),
                         job.getProgressPercentage(),
+                        job.getResultPayload(),
                         job.getErrorMessage(),
                         job.getCreatedAt(),
                         job.getUpdatedAt()));

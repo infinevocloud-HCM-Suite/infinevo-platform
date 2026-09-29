@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.job.JobState;
+import com.infinevo.core.job.JobStatusController;
 import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.service.JobService;
 import com.infinevo.shared.tenant.TenantContext;

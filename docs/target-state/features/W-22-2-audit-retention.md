@@ -237,3 +237,19 @@ dry run exists and why the first production sweep should be run with it.
 | 3 | Is there a floor on the tenant's window? | **Twelve months minimum** — settled 2026-09-23, so nobody disables their own audit trail by setting retention to zero |
 | 4 | Does `W-20.1`'s notification table get swept too? | **Yes** — settled 2026-09-22. `core.notification` is a second target of this sweep rather than a second sweep of its own; it is in the flow in §3 and tested by `NotificationRetentionIT` |
 | 5 | Who builds the scheduler? | **`W-20.2` owns it** — corrected 2026-09-25 (contracts §5 row 17). The earlier wording "this job registers with it" implied a registry; there is none. This job is a `@Scheduled` + `@SchedulerLock` method and a call to `W-20.2`'s tenant list |
+
+## 14. As built — 2026-09-28, branch `dev-devashis`
+
+| # | Question | As built |
+|---|---|---|
+| D1 | Migration number | `V094__retention_run.sql`. First shipped as V083, which collided with the tracker's reservation for `W-65.2`; renumbered 2026-09-28 per the manager's review (item B-1) to the first free number after every block reserved as of that date (`DEV-TRACKER.md`). |
+
+Also as built:
+
+- **The run record is written as `retention_user`.** `V094` revokes `UPDATE` and `DELETE` on `core.retention_run` from `app_user`, and the worker's JPA pool is `worker_user`, a member of `app_user`. So `RetentionRunStore` writes each run on the retention pool, binding the tenant for RLS in every transaction. `RetentionRunRepository` is kept for reading.
+- **Every delete names its tenant.** Each batch `DELETE` and count carries `tenant_id = ?` as well as the bound tenant, so a mistake in RLS setup alone cannot reach another tenant's rows.
+- **Resuming.** A run left `RUNNING` is resumed only by a run of the same kind (dry or real), table and cutoff. Before a sweep looks for one, runs left `RUNNING` under an earlier cutoff are closed as `PARTIAL`, because they can never be resumed.
+- **Floors.** `audit_retention_months >= 12` (decision 3) and `notification_retention_months >= 1`, both as `CHECK` constraints on `core.tenant`.
+- **No secret defaults in code.** The retention pool's URL, user and password come only from configuration (`worker.retention.datasource.*`). The same applies to `W-23.2`'s `readonly_user` pool. With either missing, the worker fails to start, so it never runs on a guessed credential.
+- **Dry run by default (manager's review item B-2).** `AuditRetentionJob` no longer hardcodes a real sweep. `worker.retention.dry-run` (`WORKER_RETENTION_DRY_RUN`) defaults to `true`, so a deployment that never sets it reports what it would delete rather than deleting it — the safety this spec's §10 asks for is now the thing that happens when nobody remembers to configure it, not the thing an operator has to remember to request.
+- **Azure.** `deploy.sh` seeds `psql-retention-pw` in Key Vault. `post-deploy-db.sh` and `migration-runner-entrypoint.sh` pass it to `provision.sh`, which creates `retention_user` with it. `containerapps.bicep` gives the worker `RETENTION_DB_USERNAME` and `RETENTION_DB_PASSWORD`, plus `REPORT_READ_DB_USERNAME` and `REPORT_READ_DB_PASSWORD` for `W-23.2`, from Key Vault.

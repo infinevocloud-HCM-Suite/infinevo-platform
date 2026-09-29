@@ -8,6 +8,19 @@ public record JobStatusResponseDTO(
         String queueName,
         JobState status,
         Integer progressPercentage,
+        String resultPayload,
         String errorMessage,
         Instant createdAt,
-        Instant updatedAt) {}
+        Instant updatedAt) {
+
+    public JobStatusResponseDTO(
+            String jobId,
+            String queueName,
+            JobState status,
+            Integer progressPercentage,
+            String errorMessage,
+            Instant createdAt,
+            Instant updatedAt) {
+        this(jobId, queueName, status, progressPercentage, null, errorMessage, createdAt, updatedAt);
+    }
+}

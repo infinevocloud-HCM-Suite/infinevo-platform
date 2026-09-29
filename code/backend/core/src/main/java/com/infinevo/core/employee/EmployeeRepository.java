@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Reads and writes {@code core.employee} (W-13.1).
@@ -33,6 +34,7 @@ import org.springframework.data.repository.query.Param;
  * silently: they are valid rows, and the only thing marking them dead is a boolean nobody asked
  * about. Every query added there needs {@code AndDeletedFalse} or an explicit predicate.
  */
+@Transactional(readOnly = true)
 public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     /** The one live employee with this id in this tenant, if there is one. */

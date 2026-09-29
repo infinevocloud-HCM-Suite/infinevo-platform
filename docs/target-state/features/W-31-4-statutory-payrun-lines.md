@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-31.4` · from ticket #38 (`W-31`) · `PAY-08` part 4 of 4 · the `STATUTORY` contributor `W-29.2` reserved |
 | **Promoted to** | `docs/target-state/features/W-31-4-statutory-payrun-lines.md` on the developer's `dev-<name>` branch — **`W-31-4` with hyphens**, never `W-31.4`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | sayeed |
 | **Apps touched** | `code/backend/payroll` |
 | **Related gaps** | BUG-012 (proposed in `W-29.2` §12, fixed here), BUG-015 (proposed below, fixed here), DEBT-037 (proposed in `W-31.2`, fixed here) |
 | **Status** | **Ready** |
