@@ -52,8 +52,7 @@ public class InvitationServiceImpl implements InvitationService {
     @Autowired(required = false)
     private NotificationService notificationService;
 
-    @Autowired(required = false)
-    private InvitationExpirationService invitationExpirationService;
+    private final InvitationExpirationService invitationExpirationService;
 
     public InvitationServiceImpl(
             UserInvitationRepository userInvitationRepository,
@@ -80,6 +79,9 @@ public class InvitationServiceImpl implements InvitationService {
                 null);
     }
 
+    // The constructor Spring uses. With more than one constructor Spring needs one marked,
+    // or it falls back to a no-arg constructor that does not exist.
+    @Autowired
     public InvitationServiceImpl(
             UserInvitationRepository userInvitationRepository,
             UserInvitationRoleRepository userInvitationRoleRepository,
