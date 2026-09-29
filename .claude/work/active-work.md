@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-29 — `W-31.3` merged (`ed180b1`)
+
+- Employee EPF and ESI lines are on `main`: `payroll.ctc_epf_component` (`V068`) and `ctc_esi_component` (`V069`) with RLS, derived server-side on every salary version at scale 4. EPS stops at 58; no personal row or no date of birth means EPS applies.
+- Gates 5/5 on `edb9fdb`, CI green there. The review of `a8632c5` found the salary-save rollback; sayeed's fix `edb9fdb` adds `EmployeeDetailService.find()` returning `Optional`. Cherry-picked `a8632c5` + `edb9fdb`; the shared `PayrollTestSchema` conflicted again, both sides kept. Local on the merged tree: core unit, payroll, migration and app suites green.
+- **Accepted as outstanding by the founder:** the "no personal row" IT runs against a stand-in service, so it would also pass on the old code; nothing proves the rollback path end to end. Full list in the merge commit.
+- **Unblocking:** `W-31.4` now waits on `W-29.3` only. Nothing newly Ready.
+- `W-39-1-attendance-capture` has nothing left to merge. sayeed resets to `main` (or starts `dev-sayeed` from `main`) before `W-31.4`.
+
 ## 2026-09-29 — `W-35.1` merged (`840bf2e`)
 
 - Reimbursement claims are on `main`: `payroll.employee_reimbursement_request` (`V098`) with RLS, action codes and grants (`V097` reference). Submit starts the `REIMBURSEMENT` flow; the outcome handler posts one `REIMBURSEMENT` ledger row for the approved amount and moves a locked period to the next month.
