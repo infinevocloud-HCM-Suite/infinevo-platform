@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-29 — `W-35.1` merged (`840bf2e`)
+
+- Reimbursement claims are on `main`: `payroll.employee_reimbursement_request` (`V098`) with RLS, action codes and grants (`V097` reference). Submit starts the `REIMBURSEMENT` flow; the outcome handler posts one `REIMBURSEMENT` ledger row for the approved amount and moves a locked period to the next month.
+- Gates 5/5 on `943a5e7`, CI green there, one independent read, no defects. Cherry-picked alone from `W-39-1-attendance-capture`; the shared `PayrollTestSchema` conflicted with `W-32`, main's side kept and the `W-31.3` lines left out. Local on the merged tree: payroll, migration and app suites green.
+- **Accepted as outstanding:** full list in the merge commit. The one that matters next: `PayrollTestApp` now allows every permission, so no payroll test can prove a 403.
+- **Still on the branch:** `W-31.3` (`a8632c5`) and its fix `edb9fdb` (pushed 2026-09-29, not yet reviewed). sayeed rebases onto `main` so `943a5e7` drops out.
+- **Unblocking:** `W-47.4` now waits on `W-35.2` only. Nothing newly Ready.
+
 ## 2026-09-29 — `W-31.1` and `W-31.2` merged (`ac94662`)
 
 - EPF and ESI settings (`V062`–`V063`) and professional tax (`V064` reference slabs for 21 states, `V065`–`V067` tenant overrides and history) are on `main`. Tamil Nadu at the 2024 rates; month-split override slabs allowed, as legacy.
