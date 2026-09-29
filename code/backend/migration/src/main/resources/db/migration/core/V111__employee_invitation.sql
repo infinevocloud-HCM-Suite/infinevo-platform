@@ -1,4 +1,4 @@
--- Migration: V105__employee_invitation.sql
+-- Migration: V111__employee_invitation.sql
 -- Description: W-24.2 core.employee_invitation with row-level security and lookup function (CORE-18)
 
 -- 1. core.employee_invitation — employee invitation with 7-day expiry and hashed single-use token

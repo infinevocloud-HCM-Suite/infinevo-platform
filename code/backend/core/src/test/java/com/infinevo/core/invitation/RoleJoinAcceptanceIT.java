@@ -47,6 +47,21 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
         TenantContext.clear();
     }
 
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private KeycloakProvisioningService keycloakProvisioningService;
+
+    @Autowired
+    private UserInvitationRepository userInvitationRepository;
+
+    @Autowired
+    private UserInvitationRoleRepository userInvitationRoleRepository;
+
+    @Autowired
+    private com.infinevo.shared.identity.UserAccountRepository userAccountRepository;
+
+    @Autowired
+    private com.infinevo.core.authz.UserRoleRepository userRoleRepository;
+
     @Test
     @DisplayName("an invitation naming a role that does not exist is refused at create, not at acceptance")
     void nonExistentRoleRefusedAtCreate() {
@@ -70,5 +85,45 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
 
         assertThat(response).isNotNull();
         assertThat(response.roleIds()).containsExactlyInAnyOrder(hrRole, employeeRole);
+    }
+
+    @Test
+    @DisplayName("an invitation with roles produces the exact user_role rows on acceptance")
+    void invitationWithRolesProducesUserRolesOnAcceptance() throws SQLException {
+        UUID hrRole = AuthzTestSchema.roleId(tenant, "hr");
+        UUID employeeRole = AuthzTestSchema.roleId(tenant, "employee");
+        UUID keycloakUserId = UUID.randomUUID();
+
+        org.mockito.Mockito.when(keycloakProvisioningService.getOrCreateKeycloakUser(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(keycloakUserId);
+
+        String testToken = InvitationTokenUtils.generateToken();
+        String testTokenHash = InvitationTokenUtils.hashToken(testToken);
+
+        UserInvitation inv = new UserInvitation(
+                tenant,
+                "role-join-test@example.com",
+                testTokenHash,
+                java.time.Instant.now().plus(7, java.time.temporal.ChronoUnit.DAYS),
+                adminUserId,
+                "admin");
+        UserInvitation saved = userInvitationRepository.save(inv);
+        userInvitationRoleRepository.save(new UserInvitationRole(tenant, saved.getId(), hrRole, "admin"));
+        userInvitationRoleRepository.save(new UserInvitationRole(tenant, saved.getId(), employeeRole, "admin"));
+
+        TenantContext.clear();
+        invitationService.acceptInvitation(testToken);
+
+        TenantContext.set(tenant);
+        com.infinevo.shared.identity.UserAccount account = userAccountRepository
+                .findByTenantIdAndKeycloakUserId(tenant, keycloakUserId)
+                .orElseThrow();
+        java.util.List<com.infinevo.core.authz.UserRole> assignedRoles =
+                userRoleRepository.findByTenantIdAndUserAccountId(tenant, account.getId());
+        assertThat(assignedRoles.stream().map(com.infinevo.core.authz.UserRole::getRoleId))
+                .containsExactlyInAnyOrder(hrRole, employeeRole);
     }
 }

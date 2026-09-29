@@ -69,27 +69,55 @@ class AcceptanceIT extends AbstractIntegrationTest {
         TenantContext.clear();
     }
 
+    @Autowired
+    private UserInvitationRoleRepository userInvitationRoleRepository;
+
+    @Autowired
+    private com.infinevo.core.authz.RoleService roleService;
+
     @Test
     @DisplayName("acceptance creates account, tenant mapping, roles, and a second acceptance is refused")
     void acceptanceCreatesAccountAndRefusesSecondAttempt() {
-        // 1. Create invitation
+        // 1. Create invitation via service — proves Keycloak user is NOT created at invitation time
         UserInvitationRequest req = new UserInvitationRequest("accept-test@example.com", Set.of(assignedRole));
         UserInvitationResponse created = invitationService.createUserInvitation(req, adminUserId);
 
-        // Fetch saved invitation to retrieve tokenHash
-        UserInvitation savedInv =
-                userInvitationRepository.findById(created.id()).orElseThrow();
-        String tokenHash = savedInv.getTokenHash();
-
-        // 2. Unauthenticated accept using raw token
-        // In this integration test we simulate acceptance by retrieving invitation via tokenHash
-        TenantContext.clear();
-
-        // Ensure invitation is pending
-        assertThat(savedInv.getStatus()).isEqualTo(InvitationStatus.PENDING);
-
-        // We verify that Keycloak provisioning is only triggered upon acceptance
         verify(keycloakProvisioningService, org.mockito.Mockito.never())
                 .getOrCreateKeycloakUser(anyString(), any(), any());
+
+        // 2. Perform acceptance with a known single-use bearer token
+        String testToken = InvitationTokenUtils.generateToken();
+        String testTokenHash = InvitationTokenUtils.hashToken(testToken);
+
+        UserInvitation inv = new UserInvitation(
+                tenant,
+                "accept-test-2@example.com",
+                testTokenHash,
+                java.time.Instant.now().plus(7, java.time.temporal.ChronoUnit.DAYS),
+                adminUserId,
+                "admin");
+        UserInvitation savedInv = userInvitationRepository.save(inv);
+        userInvitationRoleRepository.save(new UserInvitationRole(tenant, savedInv.getId(), assignedRole, "admin"));
+
+        TenantContext.clear();
+
+        // 3. Accept using the token (unauthenticated)
+        invitationService.acceptInvitation(testToken);
+
+        // Verify Keycloak user was provisioned upon acceptance
+        verify(keycloakProvisioningService).getOrCreateKeycloakUser("accept-test-2@example.com", null, null);
+
+        // Verify invitation status updated to ACCEPTED
+        TenantContext.set(tenant);
+        UserInvitation reloaded =
+                userInvitationRepository.findById(savedInv.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
+        assertThat(reloaded.getAcceptedAt()).isNotNull();
+
+        // 4. A second acceptance with the same token is refused
+        TenantContext.clear();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> invitationService.acceptInvitation(testToken))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already been accepted");
     }
 }

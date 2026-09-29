@@ -386,45 +386,50 @@ public class InvitationServiceImpl implements InvitationService {
         if (inv.getStatus() == InvitationStatus.DECLINED) {
             throw new IllegalStateException("Invitation has been declined");
         }
-        if (inv.getStatus() == InvitationStatus.EXPIRED || inv.isExpired()) {
-            inv.setStatus(InvitationStatus.EXPIRED);
-            userInvitationRepository.save(inv);
-            throw new IllegalStateException("Invitation has expired");
-        }
 
         UUID tenantId = inv.getTenantId();
         TenantContext.set(tenantId);
+        try {
+            if (inv.getStatus() == InvitationStatus.EXPIRED || inv.isExpired()) {
+                inv.setStatus(InvitationStatus.EXPIRED);
+                userInvitationRepository.save(inv);
+                throw new IllegalStateException("Invitation has expired");
+            }
 
-        // 1. Provision or reuse Keycloak user (W-24.2 §13 decision 2)
-        UUID keycloakUserId = keycloakProvisioningService.getOrCreateKeycloakUser(inv.getEmail(), null, null);
+            // 1. Provision or reuse Keycloak user (W-24.2 §13 decision 2)
+            UUID keycloakUserId = keycloakProvisioningService.getOrCreateKeycloakUser(inv.getEmail(), null, null);
 
-        // 2. Provision or sync core.user_account
-        userProfileSyncService.sync(tenantId, keycloakUserId, inv.getEmail(), null, null);
-        UserAccount account = userAccountRepository
-                .findByTenantIdAndKeycloakUserId(tenantId, keycloakUserId)
-                .orElseThrow(
-                        () -> new IllegalStateException("Failed to find or create user account for " + keycloakUserId));
+            // 2. Provision or sync core.user_account
+            userProfileSyncService.sync(tenantId, keycloakUserId, inv.getEmail(), null, null);
+            UserAccount account = userAccountRepository
+                    .findByTenantIdAndKeycloakUserId(tenantId, keycloakUserId)
+                    .orElseThrow(() ->
+                            new IllegalStateException("Failed to find or create user account for " + keycloakUserId));
 
-        // 3. Provision core.user_tenant mapping
-        jdbcTemplate.update(
-                "INSERT INTO core.user_tenant (tenant_id, user_id, created_by, updated_by) VALUES (?, ?, 'invitation-accept', 'invitation-accept') ON CONFLICT (user_id, tenant_id) DO NOTHING",
-                tenantId,
-                keycloakUserId);
+            // 3. Provision core.user_tenant mapping
+            jdbcTemplate.update(
+                    "INSERT INTO core.user_tenant (tenant_id, user_id, created_by, updated_by) VALUES (?, ?, 'invitation-accept', 'invitation-accept') ON CONFLICT (user_id, tenant_id) DO NOTHING",
+                    tenantId,
+                    keycloakUserId);
 
-        // 4. Copy invitation roles into core.user_role
-        List<UUID> roles = userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantId, inv.getId()).stream()
-                .map(UserInvitationRole::getRoleId)
-                .toList();
-        if (!roles.isEmpty()) {
-            roleService.replaceUserRoles(account.getId(), new UserRolesRequest(roles));
+            // 4. Copy invitation roles into core.user_role
+            List<UUID> roles =
+                    userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantId, inv.getId()).stream()
+                            .map(UserInvitationRole::getRoleId)
+                            .toList();
+            if (!roles.isEmpty()) {
+                roleService.replaceUserRoles(account.getId(), new UserRolesRequest(roles));
+            }
+
+            // 5. Mark invitation accepted
+            inv.setStatus(InvitationStatus.ACCEPTED);
+            inv.setAcceptedAt(Instant.now());
+            inv.setUpdatedAt(Instant.now());
+            inv.setUpdatedBy("invitation-accept");
+            userInvitationRepository.save(inv);
+        } finally {
+            TenantContext.clear();
         }
-
-        // 5. Mark invitation accepted
-        inv.setStatus(InvitationStatus.ACCEPTED);
-        inv.setAcceptedAt(Instant.now());
-        inv.setUpdatedAt(Instant.now());
-        inv.setUpdatedBy("invitation-accept");
-        userInvitationRepository.save(inv);
     }
 
     private void acceptEmployeeInvitation(EmployeeInvitation inv) {
@@ -437,53 +442,58 @@ public class InvitationServiceImpl implements InvitationService {
         if (inv.getStatus() == InvitationStatus.DECLINED) {
             throw new IllegalStateException("Invitation has been declined");
         }
-        if (inv.getStatus() == InvitationStatus.EXPIRED || inv.isExpired()) {
-            inv.setStatus(InvitationStatus.EXPIRED);
-            employeeInvitationRepository.save(inv);
-            throw new IllegalStateException("Invitation has expired");
-        }
 
         UUID tenantId = inv.getTenantId();
         TenantContext.set(tenantId);
+        try {
+            if (inv.getStatus() == InvitationStatus.EXPIRED || inv.isExpired()) {
+                inv.setStatus(InvitationStatus.EXPIRED);
+                employeeInvitationRepository.save(inv);
+                throw new IllegalStateException("Invitation has expired");
+            }
 
-        Employee employee = employeeRepository
-                .findByIdAndTenantIdAndDeletedFalse(inv.getEmployeeId(), tenantId)
-                .orElseThrow(
-                        () -> new IllegalStateException("Employee not found for invitation: " + inv.getEmployeeId()));
+            Employee employee = employeeRepository
+                    .findByIdAndTenantIdAndDeletedFalse(inv.getEmployeeId(), tenantId)
+                    .orElseThrow(() ->
+                            new IllegalStateException("Employee not found for invitation: " + inv.getEmployeeId()));
 
-        // 1. Provision Keycloak user
-        UUID keycloakUserId = keycloakProvisioningService.getOrCreateKeycloakUser(
-                inv.getEmail(), employee.getFirstName(), employee.getLastName());
+            // 1. Provision Keycloak user
+            UUID keycloakUserId = keycloakProvisioningService.getOrCreateKeycloakUser(
+                    inv.getEmail(), employee.getFirstName(), employee.getLastName());
 
-        // 2. Provision core.user_account
-        userProfileSyncService.sync(
-                tenantId, keycloakUserId, inv.getEmail(), employee.getFirstName(), employee.getLastName());
-        UserAccount account = userAccountRepository
-                .findByTenantIdAndKeycloakUserId(tenantId, keycloakUserId)
-                .orElseThrow(
-                        () -> new IllegalStateException("Failed to find or create user account for " + keycloakUserId));
+            // 2. Provision core.user_account
+            userProfileSyncService.sync(
+                    tenantId, keycloakUserId, inv.getEmail(), employee.getFirstName(), employee.getLastName());
+            UserAccount account = userAccountRepository
+                    .findByTenantIdAndKeycloakUserId(tenantId, keycloakUserId)
+                    .orElseThrow(() ->
+                            new IllegalStateException("Failed to find or create user account for " + keycloakUserId));
 
-        // 3. Provision core.user_tenant mapping
-        jdbcTemplate.update(
-                "INSERT INTO core.user_tenant (tenant_id, user_id, created_by, updated_by) VALUES (?, ?, 'invitation-accept', 'invitation-accept') ON CONFLICT (user_id, tenant_id) DO NOTHING",
-                tenantId,
-                keycloakUserId);
+            // 3. Provision core.user_tenant mapping
+            jdbcTemplate.update(
+                    "INSERT INTO core.user_tenant (tenant_id, user_id, created_by, updated_by) VALUES (?, ?, 'invitation-accept', 'invitation-accept') ON CONFLICT (user_id, tenant_id) DO NOTHING",
+                    tenantId,
+                    keycloakUserId);
 
-        // 4. Grant seeded 'employee' role (W-24.2 §6: employee role is the seeded employee role)
-        Role employeeRole = roleRepository
-                .findByTenantIdAndCode(tenantId, "employee")
-                .orElseThrow(() -> new IllegalStateException("Seeded 'employee' role not found in tenant " + tenantId));
-        roleService.replaceUserRoles(account.getId(), new UserRolesRequest(List.of(employeeRole.getId())));
+            // 4. Grant seeded 'employee' role (W-24.2 §6: employee role is the seeded employee role)
+            Role employeeRole = roleRepository
+                    .findByTenantIdAndCode(tenantId, "employee")
+                    .orElseThrow(
+                            () -> new IllegalStateException("Seeded 'employee' role not found in tenant " + tenantId));
+            roleService.replaceUserRoles(account.getId(), new UserRolesRequest(List.of(employeeRole.getId())));
 
-        // 5. Link employee to user_account_id if supported
-        linkEmployeeUserAccount(employee, account.getId());
+            // 5. Link employee to user_account_id if supported
+            linkEmployeeUserAccount(employee, account.getId());
 
-        // 6. Mark invitation accepted
-        inv.setStatus(InvitationStatus.ACCEPTED);
-        inv.setAcceptedAt(Instant.now());
-        inv.setUpdatedAt(Instant.now());
-        inv.setUpdatedBy("invitation-accept");
-        employeeInvitationRepository.save(inv);
+            // 6. Mark invitation accepted
+            inv.setStatus(InvitationStatus.ACCEPTED);
+            inv.setAcceptedAt(Instant.now());
+            inv.setUpdatedAt(Instant.now());
+            inv.setUpdatedBy("invitation-accept");
+            employeeInvitationRepository.save(inv);
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     private void linkEmployeeUserAccount(Employee employee, UUID userAccountId) {
@@ -525,37 +535,51 @@ public class InvitationServiceImpl implements InvitationService {
         Optional<UserInvitation> userInvOpt = userInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (userInvOpt.isPresent()) {
             UserInvitation inv = userInvOpt.get();
-            if (inv.getStatus() == InvitationStatus.EXPIRED || inv.isExpired()) {
-                throw new IllegalStateException("Invitation has expired");
+            TenantContext.set(inv.getTenantId());
+            try {
+                if (inv.getStatus() == InvitationStatus.EXPIRED || inv.isExpired()) {
+                    inv.setStatus(InvitationStatus.EXPIRED);
+                    userInvitationRepository.save(inv);
+                    throw new IllegalStateException("Invitation has expired");
+                }
+                if (inv.getStatus() != InvitationStatus.PENDING) {
+                    throw new IllegalStateException("Invitation is not in pending status");
+                }
+                inv.setStatus(InvitationStatus.DECLINED);
+                inv.setDeclinedAt(Instant.now());
+                inv.setDeclineReason(reason.trim());
+                inv.setUpdatedAt(Instant.now());
+                inv.setUpdatedBy("invitation-decline");
+                userInvitationRepository.save(inv);
+                return;
+            } finally {
+                TenantContext.clear();
             }
-            if (inv.getStatus() != InvitationStatus.PENDING) {
-                throw new IllegalStateException("Invitation is not in pending status");
-            }
-            inv.setStatus(InvitationStatus.DECLINED);
-            inv.setDeclinedAt(Instant.now());
-            inv.setDeclineReason(reason.trim());
-            inv.setUpdatedAt(Instant.now());
-            inv.setUpdatedBy("invitation-decline");
-            userInvitationRepository.save(inv);
-            return;
         }
 
         Optional<EmployeeInvitation> empInvOpt = employeeInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (empInvOpt.isPresent()) {
             EmployeeInvitation inv = empInvOpt.get();
-            if (inv.getStatus() == InvitationStatus.EXPIRED || inv.isExpired()) {
-                throw new IllegalStateException("Invitation has expired");
+            TenantContext.set(inv.getTenantId());
+            try {
+                if (inv.getStatus() == InvitationStatus.EXPIRED || inv.isExpired()) {
+                    inv.setStatus(InvitationStatus.EXPIRED);
+                    employeeInvitationRepository.save(inv);
+                    throw new IllegalStateException("Invitation has expired");
+                }
+                if (inv.getStatus() != InvitationStatus.PENDING) {
+                    throw new IllegalStateException("Invitation is not in pending status");
+                }
+                inv.setStatus(InvitationStatus.DECLINED);
+                inv.setDeclinedAt(Instant.now());
+                inv.setDeclineReason(reason.trim());
+                inv.setUpdatedAt(Instant.now());
+                inv.setUpdatedBy("invitation-decline");
+                employeeInvitationRepository.save(inv);
+                return;
+            } finally {
+                TenantContext.clear();
             }
-            if (inv.getStatus() != InvitationStatus.PENDING) {
-                throw new IllegalStateException("Invitation is not in pending status");
-            }
-            inv.setStatus(InvitationStatus.DECLINED);
-            inv.setDeclinedAt(Instant.now());
-            inv.setDeclineReason(reason.trim());
-            inv.setUpdatedAt(Instant.now());
-            inv.setUpdatedBy("invitation-decline");
-            employeeInvitationRepository.save(inv);
-            return;
         }
 
         throw new IllegalArgumentException("Invalid invitation token");
@@ -568,7 +592,7 @@ public class InvitationServiceImpl implements InvitationService {
     private String getTenantName(UUID tenantId) {
         try {
             List<String> names = jdbcTemplate.query(
-                    "SELECT name FROM core.tenant WHERE id = ?", (rs, rowNum) -> rs.getString("name"), tenantId);
+                    "SELECT name FROM core.tenant WHERE tenant_id = ?", (rs, rowNum) -> rs.getString("name"), tenantId);
             return names.isEmpty() ? "Infinevo" : names.get(0);
         } catch (Exception e) {
             return "Infinevo";
