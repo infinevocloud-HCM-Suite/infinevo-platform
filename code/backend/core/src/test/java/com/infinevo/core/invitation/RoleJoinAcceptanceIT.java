@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Asserts invitation role assignment rules (W-24.2, spec §7):
@@ -32,6 +34,11 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
     @Autowired
     private InvitationService invitationService;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    private TransactionTemplate transactionTemplate;
+
     private UUID tenant;
     private UUID adminUserId;
 
@@ -39,6 +46,7 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
     void seed() throws SQLException {
         tenant = AuthzTestSchema.insertTenant("RoleJoin " + UUID.randomUUID());
         adminUserId = UUID.randomUUID();
+        transactionTemplate = new TransactionTemplate(transactionManager);
         TenantContext.set(tenant);
     }
 
@@ -118,11 +126,11 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
         invitationService.acceptInvitation(testToken);
 
         TenantContext.set(tenant);
-        com.infinevo.shared.identity.UserAccount account = userAccountRepository
+        com.infinevo.shared.identity.UserAccount account = transactionTemplate.execute(status -> userAccountRepository
                 .findByTenantIdAndKeycloakUserId(tenant, keycloakUserId)
-                .orElseThrow();
-        java.util.List<com.infinevo.core.authz.UserRole> assignedRoles =
-                userRoleRepository.findByTenantIdAndUserAccountId(tenant, account.getId());
+                .orElseThrow());
+        java.util.List<com.infinevo.core.authz.UserRole> assignedRoles = transactionTemplate.execute(
+                status -> userRoleRepository.findByTenantIdAndUserAccountId(tenant, account.getId()));
         assertThat(assignedRoles.stream().map(com.infinevo.core.authz.UserRole::getRoleId))
                 .containsExactlyInAnyOrder(hrRole, employeeRole);
     }

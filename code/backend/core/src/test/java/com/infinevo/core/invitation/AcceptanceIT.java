@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Asserts end-to-end acceptance flow (W-24.2, spec §7):
@@ -43,6 +45,11 @@ class AcceptanceIT extends AbstractIntegrationTest {
     @Autowired
     private UserAccountRepository userAccountRepository;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    private TransactionTemplate transactionTemplate;
+
     @MockBean
     private KeycloakProvisioningService keycloakProvisioningService;
 
@@ -57,6 +64,7 @@ class AcceptanceIT extends AbstractIntegrationTest {
         adminUserId = UUID.randomUUID();
         assignedRole = AuthzTestSchema.roleId(tenant, "hr");
         mockKeycloakUserId = UUID.randomUUID();
+        transactionTemplate = new TransactionTemplate(transactionManager);
 
         when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
                 .thenReturn(mockKeycloakUserId);
@@ -109,8 +117,8 @@ class AcceptanceIT extends AbstractIntegrationTest {
 
         // Verify invitation status updated to ACCEPTED
         TenantContext.set(tenant);
-        UserInvitation reloaded =
-                userInvitationRepository.findById(savedInv.getId()).orElseThrow();
+        UserInvitation reloaded = transactionTemplate.execute(
+                status -> userInvitationRepository.findById(savedInv.getId()).orElseThrow());
         assertThat(reloaded.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
         assertThat(reloaded.getAcceptedAt()).isNotNull();
 
