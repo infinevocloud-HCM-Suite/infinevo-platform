@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -278,8 +279,10 @@ public class ProfessionalTaxServiceImpl implements ProfessionalTaxService {
     }
 
     private void validateSlabs(List<PtSlabDto> slabs) {
-        for (int i = 0; i < slabs.size(); i++) {
-            PtSlabDto current = slabs.get(i);
+        if (slabs == null || slabs.isEmpty()) {
+            throw new PtValidationException("At least one slab is required");
+        }
+        for (PtSlabDto current : slabs) {
             if (current.fromAmount() == null || current.fromAmount().compareTo(BigDecimal.ZERO) < 0) {
                 throw new PtValidationException("from_amount must be non-negative");
             }
@@ -287,31 +290,51 @@ public class ProfessionalTaxServiceImpl implements ProfessionalTaxService {
                 throw new PtValidationException("amount must be non-negative");
             }
             if (current.deductionMonths() != null) {
+                if (current.deductionMonths().isEmpty()) {
+                    throw new PtValidationException("deduction_months cannot be empty if specified");
+                }
                 for (Integer m : current.deductionMonths()) {
                     if (m == null || m < 1 || m > 12) {
                         throw new PtValidationException("deduction_months values must be between 1 and 12");
                     }
                 }
             }
+            if (current.toAmount() != null && current.toAmount().compareTo(current.fromAmount()) <= 0) {
+                throw new PtValidationException("to_amount must be greater than from_amount");
+            }
+        }
 
-            if (i < slabs.size() - 1) {
-                if (current.toAmount() == null) {
-                    throw new PtValidationException("Only the last slab may have to_amount null");
-                }
-                if (current.toAmount().compareTo(current.fromAmount()) <= 0) {
-                    throw new PtValidationException("to_amount must be greater than from_amount");
-                }
-                PtSlabDto next = slabs.get(i + 1);
-                if (next.fromAmount() == null) {
-                    throw new PtValidationException("from_amount must not be null");
-                }
-                if (next.fromAmount().compareTo(current.toAmount()) < 0) {
-                    throw new PtValidationException("Overlapping slabs: slab " + (i + 1) + " ends at "
-                            + current.toAmount() + " but slab " + (i + 2) + " starts at " + next.fromAmount());
-                }
-                if (next.fromAmount().compareTo(current.toAmount()) > 0) {
-                    throw new PtValidationException("Gap between slabs: slab " + (i + 1) + " ends at "
-                            + current.toAmount() + " but slab " + (i + 2) + " starts at " + next.fromAmount());
+        // Validate per-month contiguity and non-overlapping (allowing month-split override slabs)
+        for (int month = 1; month <= 12; month++) {
+            final int m = month;
+            List<PtSlabDto> monthSlabs = slabs.stream()
+                    .filter(s -> s.deductionMonths() == null
+                            || s.deductionMonths().isEmpty()
+                            || s.deductionMonths().contains(m))
+                    .sorted(Comparator.comparing(PtSlabDto::fromAmount, Comparator.nullsLast(BigDecimal::compareTo))
+                            .thenComparing(s -> s.toAmount() == null ? 1 : 0)
+                            .thenComparing(s -> s.toAmount() != null ? s.toAmount() : BigDecimal.ZERO))
+                    .toList();
+
+            if (monthSlabs.isEmpty()) {
+                continue;
+            }
+
+            for (int i = 0; i < monthSlabs.size(); i++) {
+                PtSlabDto current = monthSlabs.get(i);
+                if (i < monthSlabs.size() - 1) {
+                    if (current.toAmount() == null) {
+                        throw new PtValidationException("Only the last slab may have to_amount null");
+                    }
+                    PtSlabDto next = monthSlabs.get(i + 1);
+                    if (next.fromAmount().compareTo(current.toAmount()) < 0) {
+                        throw new PtValidationException("Overlapping slabs: slab " + (i + 1) + " ends at "
+                                + current.toAmount() + " but slab " + (i + 2) + " starts at " + next.fromAmount());
+                    }
+                    if (next.fromAmount().compareTo(current.toAmount()) > 0) {
+                        throw new PtValidationException("Gap between slabs: slab " + (i + 1) + " ends at "
+                                + current.toAmount() + " but slab " + (i + 2) + " starts at " + next.fromAmount());
+                    }
                 }
             }
         }

@@ -173,7 +173,7 @@ class PtReferenceSeedIT extends AbstractIntegrationTest {
     void tamilNaduStatutorySlab() {
         Money pt = professionalTaxService.resolve(
                 TENANT_A, "TN", Money.of("9000.0000"), "male", LocalDate.of(2025, 3, 31));
-        assertThat(pt).isEqualTo(Money.of("690.0000"));
+        assertThat(pt).isEqualTo(Money.of("930.0000"));
     }
 
     @Test

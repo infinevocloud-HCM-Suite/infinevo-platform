@@ -36,42 +36,74 @@ class PtSlabMatcherTest {
     @Test
     @DisplayName("Maharashtra check in §8 with female exemption and February balancing")
     void maharashtraWorkedCheck() {
+        // Maharashtra seeded slabs from V064 (Schedule I of Maharashtra Act):
+        // 0 to 7500 -> 0 (all months)
+        // 7500 to 10000 -> 175, female exempt (all months)
+        // 10000 to 25000 -> 200, female exempt (months 1, 3..12)
+        // 10000 to 25000 -> 300, female exempt (month 2)
+        // 25000 to null -> 200, not female exempt (months 1, 3..12)
+        // 25000 to null -> 300, not female exempt (month 2)
         List<PtSlabDto> slabs = List.of(
                 new PtSlabDto(
-                        new BigDecimal("0.0000"), new BigDecimal("15000.0000"), new BigDecimal("0.0000"), false, null),
+                        new BigDecimal("0.0000"), new BigDecimal("7500.0000"), new BigDecimal("0.0000"), false, null),
                 new PtSlabDto(
-                        new BigDecimal("15000.0000"),
-                        new BigDecimal("25000.0000"),
+                        new BigDecimal("7500.0000"),
+                        new BigDecimal("10000.0000"),
                         new BigDecimal("175.0000"),
                         true, // is_female_exempt
                         null),
                 new PtSlabDto(
+                        new BigDecimal("10000.0000"),
+                        new BigDecimal("25000.0000"),
+                        new BigDecimal("200.0000"),
+                        true, // is_female_exempt
+                        List.of(1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)),
+                new PtSlabDto(
+                        new BigDecimal("10000.0000"),
+                        new BigDecimal("25000.0000"),
+                        new BigDecimal("300.0000"),
+                        true, // is_female_exempt
+                        List.of(2)),
+                new PtSlabDto(
                         new BigDecimal("25000.0000"),
                         null,
                         new BigDecimal("200.0000"),
-                        false,
+                        false, // not female exempt above 25k
                         List.of(1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)),
-                new PtSlabDto(new BigDecimal("25000.0000"), null, new BigDecimal("300.0000"), false, List.of(2)));
+                new PtSlabDto(
+                        new BigDecimal("25000.0000"),
+                        null,
+                        new BigDecimal("300.0000"),
+                        false, // not female exempt above 25k
+                        List.of(2)));
 
-        // 24,000 female -> 0 (is_female_exempt)
+        // 24,000 female in March -> 0 (is_female_exempt in 10000-25000 slab)
         Money female24k = PtSlabMatcher.match(Money.of("24000.0000"), "female", LocalDate.of(2025, 3, 31), slabs);
         assertThat(female24k).isEqualTo(Money.ZERO);
 
-        // 24,000 male -> 175
+        // 24,000 male in March -> 200 (in 10000-25000 slab, non-Feb)
         Money male24k = PtSlabMatcher.match(Money.of("24000.0000"), "male", LocalDate.of(2025, 3, 31), slabs);
-        assertThat(male24k).isEqualTo(Money.of("175.0000"));
+        assertThat(male24k).isEqualTo(Money.of("200.0000"));
 
-        // 15,000 male -> 0 (boundary lands in lower slab)
-        Money male15k = PtSlabMatcher.match(Money.of("15000.0000"), "male", LocalDate.of(2025, 3, 31), slabs);
-        assertThat(male15k).isEqualTo(Money.ZERO);
+        // 8,000 male in March -> 175 (in 7500-10000 slab)
+        Money male8k = PtSlabMatcher.match(Money.of("8000.0000"), "male", LocalDate.of(2025, 3, 31), slabs);
+        assertThat(male8k).isEqualTo(Money.of("175.0000"));
 
-        // 30,000 male in February -> 300
+        // 7,500 male -> 0 (boundary lands in lower slab 0-7500)
+        Money male7500 = PtSlabMatcher.match(Money.of("7500.0000"), "male", LocalDate.of(2025, 3, 31), slabs);
+        assertThat(male7500).isEqualTo(Money.ZERO);
+
+        // 30,000 male in February -> 300 (in 25000+ slab, Feb balancing)
         Money male30kFeb = PtSlabMatcher.match(Money.of("30000.0000"), "male", LocalDate.of(2025, 2, 28), slabs);
         assertThat(male30kFeb).isEqualTo(Money.of("300.0000"));
 
-        // 30,000 male in March -> 200
+        // 30,000 male in March -> 200 (in 25000+ slab, non-Feb)
         Money male30kMar = PtSlabMatcher.match(Money.of("30000.0000"), "male", LocalDate.of(2025, 3, 31), slabs);
         assertThat(male30kMar).isEqualTo(Money.of("200.0000"));
+
+        // 30,000 female in March -> 200 (above 25,000 female is not exempt)
+        Money female30kMar = PtSlabMatcher.match(Money.of("30000.0000"), "female", LocalDate.of(2025, 3, 31), slabs);
+        assertThat(female30kMar).isEqualTo(Money.of("200.0000"));
     }
 
     @Test
