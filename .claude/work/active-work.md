@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-29 — `W-31.1` and `W-31.2` merged (`ac94662`)
+
+- EPF and ESI settings (`V062`–`V063`) and professional tax (`V064` reference slabs for 21 states, `V065`–`V067` tenant overrides and history) are on `main`. Tamil Nadu at the 2024 rates; month-split override slabs allowed, as legacy.
+- Gates 5/5 for both, CI green on `ac94662`, one independent read per ticket. Squashed from `W-39-1-attendance-capture` without `W-31.3`; one shared test schema conflicted with `W-32`, both sides kept.
+- **Not merged:** `W-31.3` (`a8632c5`) stays on that branch. A salary save rolls back with a 500 when the employee has no personal row, and no test reaches the date-of-birth lookup. sayeed must **not** reset the branch to `main`; rebase it onto `main` so the merged commits drop out.
+- **Accepted as outstanding:** full list in the merge commit. The one that matters next: `epf()`/`esi()`/`resolve()` take a `tenantId` but RLS follows `TenantContext`, so `W-31.4` must bind the tenant in the worker.
+- **Unblocking:** `W-31.3` waits only on its own fix; `W-31.4` on `W-31.3` and `W-29.3`; `W-47.1b` on `W-45`, `W-28`, `W-18.1`. Nothing newly Ready.
+
 ## 2026-09-29 — `W-32.1`, `W-32.2`, `W-32.3`, `W-32.4` merged (`b704f3c`)
 
 - Tax declaration is on `main`: window per tenant per FY and the employee header with submit, reopen and lock (`V070`–`V072`); house rent, home loan and let-out property (`V073`–`V076`); Section 6A with seed caps, pre-tax deductions, previous employment (`V077`–`V079`); other income and the tax summary, totals computed on read (`V080`–`V081`).
