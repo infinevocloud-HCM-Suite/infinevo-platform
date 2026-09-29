@@ -1,10 +1,12 @@
 package com.infinevo.core.invitation;
 
+import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -35,4 +37,8 @@ public interface EmployeeInvitationRepository extends JpaRepository<EmployeeInvi
 
     @Query(value = "SELECT * FROM core.find_employee_invitation_by_token_hash(:tokenHash)", nativeQuery = true)
     Optional<EmployeeInvitation> findByTokenHashSecurityDefiner(@Param("tokenHash") String tokenHash);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM EmployeeInvitation e WHERE e.id = :id AND e.tenantId = :tenantId")
+    Optional<EmployeeInvitation> findByIdForUpdate(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
 }

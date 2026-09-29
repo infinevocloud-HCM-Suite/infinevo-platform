@@ -58,6 +58,7 @@ class InvitationServiceTest {
     private KeycloakProvisioningService keycloakProvisioningService;
     private JdbcTemplate jdbcTemplate;
     private NotificationService notificationService;
+    private InvitationExpirationService invitationExpirationService;
 
     private InvitationServiceImpl invitationService;
 
@@ -77,6 +78,7 @@ class InvitationServiceTest {
         keycloakProvisioningService = mock(KeycloakProvisioningService.class);
         jdbcTemplate = mock(JdbcTemplate.class);
         notificationService = mock(NotificationService.class);
+        invitationExpirationService = mock(InvitationExpirationService.class);
 
         invitationService = new InvitationServiceImpl(
                 userInvitationRepository,
@@ -88,7 +90,8 @@ class InvitationServiceTest {
                 userAccountRepository,
                 userProfileSyncService,
                 keycloakProvisioningService,
-                jdbcTemplate);
+                jdbcTemplate,
+                invitationExpirationService);
 
         // Inject optional notification service via reflection or setter
         try {
@@ -316,5 +319,80 @@ class InvitationServiceTest {
         assertThat(inv.getStatus()).isEqualTo(InvitationStatus.REVOKED);
         assertThat(inv.getRevokedAt()).isNotNull();
         verify(userInvitationRepository).save(inv);
+    }
+
+    @Test
+    @DisplayName(
+            "acceptInvitation: triggers compensating deletion of Keycloak user if subsequent DB operation fails and user was newly created")
+    void acceptInvitationCompensatesKeycloakUserWhenDbFailsForNewUser() {
+        String token = InvitationTokenUtils.generateToken();
+        String hash = InvitationTokenUtils.hashToken(token);
+
+        UserInvitation inv = new UserInvitation(
+                tenantId, "newuser@example.com", hash, Instant.now().plus(2, ChronoUnit.DAYS), actorUserId, "system");
+        setId(inv, UUID.randomUUID());
+
+        when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
+
+        UUID keycloakUserId = UUID.randomUUID();
+        when(keycloakProvisioningService.getOrCreateKeycloakUserWithStatus(eq("newuser@example.com"), any(), any()))
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
+
+        org.mockito.Mockito.doThrow(new RuntimeException("Simulated DB connection failure"))
+                .when(userProfileSyncService)
+                .sync(any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Simulated DB connection failure");
+
+        verify(keycloakProvisioningService).deleteKeycloakUser(keycloakUserId);
+    }
+
+    @Test
+    @DisplayName(
+            "acceptInvitation: does NOT delete Keycloak user if user was pre-existing when subsequent DB operation fails")
+    void acceptInvitationDoesNotCompensateKeycloakUserWhenExistingUser() {
+        String token = InvitationTokenUtils.generateToken();
+        String hash = InvitationTokenUtils.hashToken(token);
+
+        UserInvitation inv = new UserInvitation(
+                tenantId, "existing@example.com", hash, Instant.now().plus(2, ChronoUnit.DAYS), actorUserId, "system");
+        setId(inv, UUID.randomUUID());
+
+        when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
+
+        UUID keycloakUserId = UUID.randomUUID();
+        when(keycloakProvisioningService.getOrCreateKeycloakUserWithStatus(eq("existing@example.com"), any(), any()))
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, false));
+
+        org.mockito.Mockito.doThrow(new RuntimeException("Simulated DB connection failure"))
+                .when(userProfileSyncService)
+                .sync(any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Simulated DB connection failure");
+
+        verify(keycloakProvisioningService, never()).deleteKeycloakUser(any());
+    }
+
+    @Test
+    @DisplayName("acceptInvitation: calls invitationExpirationService when invitation is expired")
+    void acceptInvitationExpiredCallsExpirationService() {
+        String token = InvitationTokenUtils.generateToken();
+        String hash = InvitationTokenUtils.hashToken(token);
+
+        UserInvitation inv = new UserInvitation(
+                tenantId, "expired@example.com", hash, Instant.now().minus(1, ChronoUnit.DAYS), actorUserId, "system");
+        setId(inv, UUID.randomUUID());
+
+        when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
+
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("expired");
+
+        verify(invitationExpirationService).markUserInvitationExpired(tenantId, inv.getId());
     }
 }

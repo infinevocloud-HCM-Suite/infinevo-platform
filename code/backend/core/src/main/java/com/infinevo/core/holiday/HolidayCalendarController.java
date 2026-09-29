@@ -107,10 +107,13 @@ public class HolidayCalendarController {
                 .body(ApiErrorResponse.of(ApiError.VALIDATION_FAILED, e.getMessage(), traceId()));
     }
 
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ApiErrorResponse> handleIllegalState(IllegalStateException e) {
+    @ExceptionHandler({IllegalStateException.class, org.springframework.dao.DataIntegrityViolationException.class})
+    public ResponseEntity<ApiErrorResponse> handleConflict(Exception e) {
+        String message = e instanceof org.springframework.dao.DataIntegrityViolationException
+                ? "A resource with these details already exists or a concurrent conflict occurred"
+                : e.getMessage();
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, message, traceId()));
     }
 
     private static String traceId() {

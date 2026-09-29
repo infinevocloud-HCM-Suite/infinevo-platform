@@ -33,7 +33,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
     @Value("${keycloak.admin.username:admin}")
     private String adminUsername;
 
-    @Value("${keycloak.admin.password:local_keycloak_pw}")
+    @Value("${keycloak.admin.password:}")
     private String adminPassword;
 
     public KeycloakProvisioningServiceImpl() {
@@ -44,24 +44,55 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
 
     @Override
     public UUID getOrCreateKeycloakUser(String email, String firstName, String lastName) {
+        return getOrCreateKeycloakUserWithStatus(email, firstName, lastName).keycloakUserId();
+    }
+
+    @Override
+    public ProvisioningResult getOrCreateKeycloakUserWithStatus(String email, String firstName, String lastName) {
         String cleanEmail = email.toLowerCase().trim();
 
         if (issuerUri != null && !issuerUri.isBlank() && !issuerUri.contains("unreachable")) {
             try {
                 return provisionInKeycloak(cleanEmail, firstName, lastName);
             } catch (Exception e) {
-                log.warn(
-                        "Keycloak call failed for {}: {}. Falling back to deterministic UUID.",
-                        cleanEmail,
-                        e.getMessage());
+                log.error("Failed to provision user {} in Keycloak: {}", cleanEmail, e.getMessage(), e);
+                throw new KeycloakProvisioningException("Failed to provision user in Keycloak: " + e.getMessage(), e);
             }
         }
 
-        // Fallback for tests or disconnected environments
-        return UUID.nameUUIDFromBytes(("keycloak:" + cleanEmail).getBytes(StandardCharsets.UTF_8));
+        // Fallback only for unit tests where issuerUri is deliberately not configured
+        return new ProvisioningResult(
+                UUID.nameUUIDFromBytes(("keycloak:" + cleanEmail).getBytes(StandardCharsets.UTF_8)), true);
     }
 
-    private UUID provisionInKeycloak(String email, String firstName, String lastName) throws Exception {
+    @Override
+    public void deleteKeycloakUser(UUID keycloakUserId) {
+        if (keycloakUserId == null || issuerUri == null || issuerUri.isBlank() || issuerUri.contains("unreachable")) {
+            return;
+        }
+        try {
+            URI issuer = URI.create(issuerUri);
+            String baseUrl = issuer.getScheme() + "://" + issuer.getAuthority();
+            String path = issuer.getPath();
+            String realm = path.substring(path.lastIndexOf('/') + 1);
+
+            String adminToken = fetchAdminToken(baseUrl);
+
+            HttpRequest deleteReq = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/admin/realms/" + realm + "/users/" + keycloakUserId))
+                    .header("Authorization", "Bearer " + adminToken)
+                    .timeout(Duration.ofSeconds(5))
+                    .DELETE()
+                    .build();
+
+            HttpResponse<String> resp = httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
+            log.info("Compensating cleanup: deleted Keycloak user {} (HTTP {})", keycloakUserId, resp.statusCode());
+        } catch (Exception e) {
+            log.error("Failed to delete orphaned Keycloak user {}: {}", keycloakUserId, e.getMessage(), e);
+        }
+    }
+
+    private ProvisioningResult provisionInKeycloak(String email, String firstName, String lastName) throws Exception {
         // e.g. issuerUri = http://localhost:8080/realms/infinevo
         URI issuer = URI.create(issuerUri);
         String baseUrl = issuer.getScheme() + "://" + issuer.getAuthority();
@@ -85,7 +116,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
             JsonNode array = objectMapper.readTree(searchResp.body());
             if (array.isArray() && !array.isEmpty()) {
                 String idStr = array.get(0).get("id").asText();
-                return UUID.fromString(idStr);
+                return new ProvisioningResult(UUID.fromString(idStr), false);
             }
         }
 
@@ -118,7 +149,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
             String location = createResp.headers().firstValue("Location").orElse(null);
             if (location != null) {
                 String idStr = location.substring(location.lastIndexOf('/') + 1);
-                return UUID.fromString(idStr);
+                return new ProvisioningResult(UUID.fromString(idStr), true);
             }
         }
 
@@ -128,7 +159,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
             JsonNode array = objectMapper.readTree(refetch.body());
             if (array.isArray() && !array.isEmpty()) {
                 String idStr = array.get(0).get("id").asText();
-                return UUID.fromString(idStr);
+                return new ProvisioningResult(UUID.fromString(idStr), false);
             }
         }
 
@@ -137,6 +168,9 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
     }
 
     private String fetchAdminToken(String baseUrl) throws Exception {
+        if (adminPassword == null || adminPassword.isBlank()) {
+            throw new IllegalStateException("Keycloak admin password is not configured");
+        }
         String form = "client_id=admin-cli&grant_type=password&username="
                 + URLEncoder.encode(adminUsername, StandardCharsets.UTF_8)
                 + "&password="

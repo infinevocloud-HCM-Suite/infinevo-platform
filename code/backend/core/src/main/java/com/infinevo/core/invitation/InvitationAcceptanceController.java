@@ -50,14 +50,33 @@ public class InvitationAcceptanceController {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
+        String msg = e.getMessage() != null ? e.getMessage() : "Invalid request";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiErrorResponse.of(ApiError.VALIDATION_FAILED, e.getMessage(), traceId()));
+                .body(ApiErrorResponse.of(ApiError.VALIDATION_FAILED, msg, traceId()));
+    }
+
+    @ExceptionHandler(KeycloakProvisioningException.class)
+    public ResponseEntity<ApiErrorResponse> handleKeycloakProvisioning(KeycloakProvisioningException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiErrorResponse.of(
+                        ApiError.INTERNAL,
+                        "Identity service is currently unavailable. Please try again later.",
+                        traceId()));
     }
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalState(IllegalStateException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+        String msg = e.getMessage();
+        if (msg == null) {
+            msg = "Unable to process invitation.";
+        } else if (msg.contains("tenant")
+                || msg.contains("not found")
+                || msg.contains("user account")
+                || msg.contains("role")) {
+            // Sanitize internal system/database details
+            msg = "Unable to process invitation. Please contact support or request a new invitation.";
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiErrorResponse.of(ApiError.CONFLICT, msg, traceId()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -67,6 +86,13 @@ public class InvitationAcceptanceController {
                         ApiError.VALIDATION_FAILED,
                         "The request body could not be read. Check the JSON is well formed.",
                         traceId()));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleGeneralException(Exception e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiErrorResponse.of(
+                        ApiError.INTERNAL, "An unexpected error occurred while processing the invitation.", traceId()));
     }
 
     private static String traceId() {

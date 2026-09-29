@@ -266,8 +266,9 @@ class WorkingDayBasisCalculatorTest {
     }
 
     @Test
-    @DisplayName("Rounding rules applied: HALF_UP_0 rounds 26.50 to 27")
-    void roundingRules_appliedCorrectly() {
+    @DisplayName(
+            "W-18.1 (Issue #14): Configured days per month preserves 26.50 as divisor and does not round to integer")
+    void configuredDays_preservesFractionalDays() {
         LopPolicy policyHalfUp0 = new LopPolicy(
                 tenantId,
                 WorkingDayBasis.ORG_DAYS,
@@ -279,20 +280,39 @@ class WorkingDayBasisCalculatorTest {
         when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policyHalfUp0));
 
         WorkingDayBasisResponse response0 = calculator.basisFor(tenantId, jul2026, employeeId);
-        assertThat(response0.payableDays()).isEqualByComparingTo(new BigDecimal("27.00"));
+        // The divisor must stay 26.50, never rounded to 27
+        assertThat(response0.payableDays()).isEqualByComparingTo(new BigDecimal("26.50"));
+        assertThat(response0.divisor()).isEqualByComparingTo(new BigDecimal("26.50"));
+    }
 
-        LopPolicy policyHalfUp2 = new LopPolicy(
+    @Test
+    @DisplayName(
+            "W-18.1 (Issue #15): When holidays cannot be looked up, throws NoLopPolicyException instead of assuming zero")
+    void holidayLookupFailure_throwsNoLopPolicyException() {
+        LopPolicy policy = new LopPolicy(
                 tenantId,
-                WorkingDayBasis.ORG_DAYS,
-                new BigDecimal("26.555"),
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
                 true,
-                true,
+                false, // holidays NOT payable
                 LopRounding.HALF_UP_2,
                 LocalDate.of(2026, 1, 1));
-        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policyHalfUp2));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
 
-        WorkingDayBasisResponse response2 = calculator.basisFor(tenantId, jul2026, employeeId);
-        assertThat(response2.payableDays()).isEqualByComparingTo(new BigDecimal("26.56"));
+        // When HolidayQueryService fails
+        when(holidayQueryService.holidaysBetween(any(), any(), any()))
+                .thenThrow(new RuntimeException("Holiday service unavailable"));
+
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("Could not resolve holidays");
+
+        // When HolidayQueryService bean is absent
+        WorkingDayBasisCalculator calcWithoutHoliday =
+                new WorkingDayBasisCalculator(policyService, employeeRepository, null);
+        assertThatThrownBy(() -> calcWithoutHoliday.basisFor(tenantId, jul2026, employeeId))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("HolidayQueryService bean is required");
     }
 
     @Test

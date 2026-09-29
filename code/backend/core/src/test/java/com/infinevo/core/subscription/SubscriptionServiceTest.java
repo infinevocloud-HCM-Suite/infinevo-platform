@@ -68,6 +68,26 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    @DisplayName("updateModules eagerly calls SetupChecklistService.assemble when module changes")
+    void updateModules_whenChanged_eagerlyAssemblesChecklist() {
+        com.infinevo.core.setup.SetupChecklistService checklistService =
+                mock(com.infinevo.core.setup.SetupChecklistService.class);
+        SubscriptionServiceImpl serviceWithChecklist = new SubscriptionServiceImpl(
+                subscriptionRepository, subscriptionModuleRepository, jdbcTemplate, permissionCache, checklistService);
+
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+
+        SubscriptionModule mod = new SubscriptionModule(TENANT_ID, sub, PlatformModule.PAYROLL, LocalDate.now());
+        when(subscriptionModuleRepository.findByTenantIdAndRevokedOnIsNull(TENANT_ID))
+                .thenReturn(List.of(mod));
+
+        serviceWithChecklist.updateModules(TENANT_ID, Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
+
+        verify(checklistService, times(1)).assemble(TENANT_ID);
+    }
+
+    @Test
     @DisplayName("a no-op module change does not bump cache version or execute stored procedure")
     void updateModules_whenSameModules_doesNotBumpCache() {
         Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());

@@ -32,6 +32,9 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
     @Autowired
     private SubscriptionService subscriptionService;
 
+    @Autowired
+    private TenantSetupStepRepository stepRepository;
+
     @BeforeAll
     static void applySchema() throws Exception {
         SetupChecklistTestSchema.apply();
@@ -100,6 +103,10 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
 
             // 2. Upgrade: add PAYROLL module to subscription
             subscriptionService.updateModules(TENANT_A, Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
+
+            // Eager assembly: verify steps exist in DB immediately before getChecklist is called
+            assertThat(stepRepository.findByTenantIdOrderByDisplayOrderAsc(TENANT_A))
+                    .hasSize(9);
 
             // 3. Re-read checklist
             SetupChecklistResponse upgradedChecklist = checklistService.getChecklist(TENANT_A);

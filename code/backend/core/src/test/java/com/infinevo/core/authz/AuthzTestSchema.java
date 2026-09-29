@@ -117,8 +117,8 @@ public final class AuthzTestSchema {
                     // W-17: holiday calendar
                     executeResource(conn, "db/migration/core/V036__holiday_calendar.sql");
                     // W-24.2: user and employee invitations
-                    executeResource(conn, "db/migration/core/V110__user_invitation.sql");
-                    executeResource(conn, "db/migration/core/V111__employee_invitation.sql");
+                    executeResource(conn, "db/migration/core/V117__user_invitation.sql");
+                    executeResource(conn, "db/migration/core/V118__employee_invitation.sql");
                     // W-18.1: loss-of-pay policy
                     executeResource(conn, "db/migration/core/V116__lop_policy.sql");
                 }

@@ -34,18 +34,51 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final SubscriptionModuleRepository subscriptionModuleRepository;
     private final JdbcTemplate jdbcTemplate;
     private final PermissionCache permissionCache;
+    private final com.infinevo.core.setup.SetupChecklistService setupChecklistService;
 
     public SubscriptionServiceImpl(
             SubscriptionRepository subscriptionRepository,
             SubscriptionModuleRepository subscriptionModuleRepository,
             JdbcTemplate jdbcTemplate,
             PermissionCache permissionCache) {
+        this(
+                subscriptionRepository,
+                subscriptionModuleRepository,
+                jdbcTemplate,
+                permissionCache,
+                (com.infinevo.core.setup.SetupChecklistService) null);
+    }
+
+    public SubscriptionServiceImpl(
+            SubscriptionRepository subscriptionRepository,
+            SubscriptionModuleRepository subscriptionModuleRepository,
+            JdbcTemplate jdbcTemplate,
+            PermissionCache permissionCache,
+            org.springframework.beans.factory.ObjectProvider<com.infinevo.core.setup.SetupChecklistService>
+                    setupChecklistServiceProvider) {
         this.subscriptionRepository =
                 Objects.requireNonNull(subscriptionRepository, "subscriptionRepository must not be null");
         this.subscriptionModuleRepository =
                 Objects.requireNonNull(subscriptionModuleRepository, "subscriptionModuleRepository must not be null");
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.permissionCache = Objects.requireNonNull(permissionCache, "permissionCache must not be null");
+        this.setupChecklistService =
+                setupChecklistServiceProvider != null ? setupChecklistServiceProvider.getIfAvailable() : null;
+    }
+
+    public SubscriptionServiceImpl(
+            SubscriptionRepository subscriptionRepository,
+            SubscriptionModuleRepository subscriptionModuleRepository,
+            JdbcTemplate jdbcTemplate,
+            PermissionCache permissionCache,
+            com.infinevo.core.setup.SetupChecklistService setupChecklistService) {
+        this.subscriptionRepository =
+                Objects.requireNonNull(subscriptionRepository, "subscriptionRepository must not be null");
+        this.subscriptionModuleRepository =
+                Objects.requireNonNull(subscriptionModuleRepository, "subscriptionModuleRepository must not be null");
+        this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
+        this.permissionCache = Objects.requireNonNull(permissionCache, "permissionCache must not be null");
+        this.setupChecklistService = setupChecklistService;
     }
 
     @Override
@@ -101,6 +134,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         // 5. Bump cache version to invalidate cached permissions and entitlements
         permissionCache.bumpVersion(tenantId);
+
+        // 6. Eagerly assemble setup checklist for tenant with updated modules
+        if (setupChecklistService != null) {
+            setupChecklistService.assemble(tenantId);
+        }
 
         return toResponse(subscription, targetSet);
     }

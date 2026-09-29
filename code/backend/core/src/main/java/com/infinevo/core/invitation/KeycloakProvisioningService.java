@@ -19,4 +19,15 @@ public interface KeycloakProvisioningService {
      * @return the Keycloak user UUID
      */
     UUID getOrCreateKeycloakUser(String email, String firstName, String lastName);
+
+    record ProvisioningResult(UUID keycloakUserId, boolean newlyCreated) {}
+
+    default ProvisioningResult getOrCreateKeycloakUserWithStatus(String email, String firstName, String lastName) {
+        return new ProvisioningResult(getOrCreateKeycloakUser(email, firstName, lastName), false);
+    }
+
+    /**
+     * Deletes a Keycloak user by their UUID during compensating cleanup if subsequent steps fail.
+     */
+    default void deleteKeycloakUser(UUID keycloakUserId) {}
 }

@@ -43,26 +43,130 @@ public class PayrollSetupStepConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "salaryComponentsSetupStepChecker")
+    public SetupStepChecker salaryComponentsSetupStepChecker(
+            org.springframework.beans.factory.ObjectProvider<com.infinevo.payroll.component.EarningRepository>
+                    earningRepositoryProvider) {
+        return new SetupStepChecker() {
+            @Override
+            public String code() {
+                return "SALARY_COMPONENTS";
+            }
+
+            @Override
+            public PlatformModule module() {
+                return PlatformModule.PAYROLL;
+            }
+
+            @Override
+            public boolean isComplete(UUID tenantId) {
+                if (tenantId == null) {
+                    return false;
+                }
+                var repo = earningRepositoryProvider != null ? earningRepositoryProvider.getIfAvailable() : null;
+                return repo != null && repo.existsByTenantIdAndDeletedFalse(tenantId);
+            }
+        };
+    }
+
     public SetupStepChecker salaryComponentsSetupStepChecker() {
-        return createChecker("SALARY_COMPONENTS");
+        return salaryComponentsSetupStepChecker(null);
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "epfSetupStepChecker")
+    public SetupStepChecker epfSetupStepChecker(
+            org.springframework.beans.factory.ObjectProvider<
+                            com.infinevo.payroll.statutory.settings.EpfSettingRepository>
+                    epfSettingRepositoryProvider) {
+        return new SetupStepChecker() {
+            @Override
+            public String code() {
+                return "EPF";
+            }
+
+            @Override
+            public PlatformModule module() {
+                return PlatformModule.PAYROLL;
+            }
+
+            @Override
+            public boolean isComplete(UUID tenantId) {
+                if (tenantId == null) {
+                    return false;
+                }
+                var repo = epfSettingRepositoryProvider != null ? epfSettingRepositoryProvider.getIfAvailable() : null;
+                return repo != null && repo.findByTenantId(tenantId).isPresent();
+            }
+        };
+    }
+
     public SetupStepChecker epfSetupStepChecker() {
-        return createChecker("EPF");
+        return epfSetupStepChecker(null);
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "esiSetupStepChecker")
+    public SetupStepChecker esiSetupStepChecker(
+            org.springframework.beans.factory.ObjectProvider<
+                            com.infinevo.payroll.statutory.settings.EsiSettingRepository>
+                    esiSettingRepositoryProvider) {
+        return new SetupStepChecker() {
+            @Override
+            public String code() {
+                return "ESI";
+            }
+
+            @Override
+            public PlatformModule module() {
+                return PlatformModule.PAYROLL;
+            }
+
+            @Override
+            public boolean isComplete(UUID tenantId) {
+                if (tenantId == null) {
+                    return false;
+                }
+                var repo = esiSettingRepositoryProvider != null ? esiSettingRepositoryProvider.getIfAvailable() : null;
+                return repo != null && repo.findByTenantId(tenantId).isPresent();
+            }
+        };
+    }
+
     public SetupStepChecker esiSetupStepChecker() {
-        return createChecker("ESI");
+        return esiSetupStepChecker(null);
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "professionalTaxSetupStepChecker")
+    public SetupStepChecker professionalTaxSetupStepChecker(
+            org.springframework.beans.factory.ObjectProvider<com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository>
+                    orgPtOverrideRepositoryProvider) {
+        return new SetupStepChecker() {
+            @Override
+            public String code() {
+                return "PROFESSIONAL_TAX";
+            }
+
+            @Override
+            public PlatformModule module() {
+                return PlatformModule.PAYROLL;
+            }
+
+            @Override
+            public boolean isComplete(UUID tenantId) {
+                if (tenantId == null) {
+                    return false;
+                }
+                var repo = orgPtOverrideRepositoryProvider != null
+                        ? orgPtOverrideRepositoryProvider.getIfAvailable()
+                        : null;
+                return repo != null && repo.existsByTenantId(tenantId);
+            }
+        };
+    }
+
     public SetupStepChecker professionalTaxSetupStepChecker() {
-        return createChecker("PROFESSIONAL_TAX");
+        return professionalTaxSetupStepChecker(null);
     }
 
     private static SetupStepChecker createChecker(String code) {

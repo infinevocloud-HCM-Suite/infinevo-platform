@@ -47,4 +47,55 @@ class PayrollSetupStepConfigurationTest {
             assertThat(checker.isComplete(tenantId)).isFalse();
         }
     }
+
+    @Test
+    @DisplayName("Repository-backed checkers reflect repository data")
+    @SuppressWarnings("unchecked")
+    void repositoryBackedCheckersDetectCompletion() {
+        PayrollSetupStepConfiguration config = new PayrollSetupStepConfiguration();
+        UUID tenantId = UUID.randomUUID();
+
+        // EPF
+        com.infinevo.payroll.statutory.settings.EpfSettingRepository epfRepo =
+                org.mockito.Mockito.mock(com.infinevo.payroll.statutory.settings.EpfSettingRepository.class);
+        org.springframework.beans.factory.ObjectProvider<com.infinevo.payroll.statutory.settings.EpfSettingRepository>
+                epfProvider = org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        org.mockito.Mockito.when(epfProvider.getIfAvailable()).thenReturn(epfRepo);
+        org.mockito.Mockito.when(epfRepo.findByTenantId(tenantId))
+                .thenReturn(java.util.Optional.of(new com.infinevo.payroll.statutory.settings.EpfSetting(tenantId)));
+        SetupStepChecker epfChecker = config.epfSetupStepChecker(epfProvider);
+        assertThat(epfChecker.isComplete(tenantId)).isTrue();
+
+        // ESI
+        com.infinevo.payroll.statutory.settings.EsiSettingRepository esiRepo =
+                org.mockito.Mockito.mock(com.infinevo.payroll.statutory.settings.EsiSettingRepository.class);
+        org.springframework.beans.factory.ObjectProvider<com.infinevo.payroll.statutory.settings.EsiSettingRepository>
+                esiProvider = org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        org.mockito.Mockito.when(esiProvider.getIfAvailable()).thenReturn(esiRepo);
+        org.mockito.Mockito.when(esiRepo.findByTenantId(tenantId))
+                .thenReturn(java.util.Optional.of(new com.infinevo.payroll.statutory.settings.EsiSetting(tenantId)));
+        SetupStepChecker esiChecker = config.esiSetupStepChecker(esiProvider);
+        assertThat(esiChecker.isComplete(tenantId)).isTrue();
+
+        // Salary Components
+        com.infinevo.payroll.component.EarningRepository earningRepo =
+                org.mockito.Mockito.mock(com.infinevo.payroll.component.EarningRepository.class);
+        org.springframework.beans.factory.ObjectProvider<com.infinevo.payroll.component.EarningRepository>
+                earningProvider = org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        org.mockito.Mockito.when(earningProvider.getIfAvailable()).thenReturn(earningRepo);
+        org.mockito.Mockito.when(earningRepo.existsByTenantIdAndDeletedFalse(tenantId))
+                .thenReturn(true);
+        SetupStepChecker scChecker = config.salaryComponentsSetupStepChecker(earningProvider);
+        assertThat(scChecker.isComplete(tenantId)).isTrue();
+
+        // Professional Tax
+        com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository ptRepo =
+                org.mockito.Mockito.mock(com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository.class);
+        org.springframework.beans.factory.ObjectProvider<com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository>
+                ptProvider = org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        org.mockito.Mockito.when(ptProvider.getIfAvailable()).thenReturn(ptRepo);
+        org.mockito.Mockito.when(ptRepo.existsByTenantId(tenantId)).thenReturn(true);
+        SetupStepChecker ptChecker = config.professionalTaxSetupStepChecker(ptProvider);
+        assertThat(ptChecker.isComplete(tenantId)).isTrue();
+    }
 }

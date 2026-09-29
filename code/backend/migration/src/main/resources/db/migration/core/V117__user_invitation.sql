@@ -1,4 +1,4 @@
--- Migration: V110__user_invitation.sql
+-- Migration: V117__user_invitation.sql
 -- Description: W-24.2 core.user_invitation and core.user_invitation_role with row-level security and lookup function (CORE-18)
 
 -- 1. core.user_invitation — company user invitation with 7-day expiry and hashed single-use token

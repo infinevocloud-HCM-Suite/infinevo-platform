@@ -81,7 +81,7 @@ public class WorkingDayBasisCalculator {
 
             return switch (policy.getWorkingDayBasis()) {
                 case FIXED_30 -> {
-                    BigDecimal days = applyRounding(BigDecimal.valueOf(30), policy.getLopRounding());
+                    BigDecimal days = BigDecimal.valueOf(30).setScale(2, RoundingMode.HALF_UP);
                     yield new WorkingDayBasisResponse(days, days, policy.getId());
                 }
                 case ORG_DAYS -> computeOrgDays(tenantId, period, employeeId, policy, from, to);
@@ -99,7 +99,7 @@ public class WorkingDayBasisCalculator {
     private WorkingDayBasisResponse computeActualDays(
             UUID tenantId, YearMonth period, UUID employeeId, LopPolicy policy, LocalDate from, LocalDate to) {
         if (policy.isWeekendsPayable() && policy.isHolidaysPayable()) {
-            BigDecimal days = applyRounding(BigDecimal.valueOf(period.lengthOfMonth()), policy.getLopRounding());
+            BigDecimal days = BigDecimal.valueOf(period.lengthOfMonth()).setScale(2, RoundingMode.HALF_UP);
             return new WorkingDayBasisResponse(days, days, policy.getId());
         }
 
@@ -131,14 +131,14 @@ public class WorkingDayBasisCalculator {
             payableDaysCount++;
         }
 
-        BigDecimal days = applyRounding(BigDecimal.valueOf(payableDaysCount), policy.getLopRounding());
+        BigDecimal days = BigDecimal.valueOf(payableDaysCount).setScale(2, RoundingMode.HALF_UP);
         return new WorkingDayBasisResponse(days, days, policy.getId());
     }
 
     private WorkingDayBasisResponse computeOrgDays(
             UUID tenantId, YearMonth period, UUID employeeId, LopPolicy policy, LocalDate from, LocalDate to) {
         if (policy.getConfiguredDaysPerMonth() != null) {
-            BigDecimal configured = applyRounding(policy.getConfiguredDaysPerMonth(), policy.getLopRounding());
+            BigDecimal configured = policy.getConfiguredDaysPerMonth().setScale(2, RoundingMode.HALF_UP);
             return new WorkingDayBasisResponse(configured, configured, policy.getId());
         }
 
@@ -167,13 +167,14 @@ public class WorkingDayBasisCalculator {
             payableDaysCount++;
         }
 
-        BigDecimal days = applyRounding(BigDecimal.valueOf(payableDaysCount), policy.getLopRounding());
+        BigDecimal days = BigDecimal.valueOf(payableDaysCount).setScale(2, RoundingMode.HALF_UP);
         return new WorkingDayBasisResponse(days, days, policy.getId());
     }
 
     private Set<LocalDate> resolveHolidayDates(UUID tenantId, UUID employeeId, LocalDate from, LocalDate to) {
         if (holidayQueryService == null) {
-            return Set.of();
+            throw new NoLopPolicyException(
+                    "HolidayQueryService bean is required to evaluate loss-of-pay when holidays are not payable");
         }
 
         UUID locationId = null;
@@ -191,6 +192,9 @@ public class WorkingDayBasisCalculator {
                 contextSet = true;
             }
             List<HolidayResponse> holidays = holidayQueryService.holidaysBetween(locationId, from, to);
+            if (holidays == null) {
+                throw new NoLopPolicyException("Holiday lookup returned null for tenant " + tenantId);
+            }
             Set<LocalDate> dates = new HashSet<>();
             for (HolidayResponse h : holidays) {
                 LocalDate start = h.from().isBefore(from) ? from : h.from();
@@ -200,23 +204,16 @@ public class WorkingDayBasisCalculator {
                 }
             }
             return dates;
+        } catch (NoLopPolicyException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new NoLopPolicyException(
+                    "Could not resolve holidays for tenant " + tenantId + ": " + e.getMessage(), e);
         } finally {
             if (contextSet) {
                 TenantContext.clear();
             }
         }
-    }
-
-    private BigDecimal applyRounding(BigDecimal value, LopRounding rounding) {
-        if (value == null) {
-            return null;
-        }
-        LopRounding rule = rounding != null ? rounding : LopRounding.HALF_UP_2;
-        return switch (rule) {
-            case HALF_UP_2 -> value.setScale(2, RoundingMode.HALF_UP);
-            case HALF_UP_0 -> value.setScale(0, RoundingMode.HALF_UP).setScale(2, RoundingMode.UNNECESSARY);
-            case NONE -> value.setScale(2, RoundingMode.HALF_UP);
-        };
     }
 
     public void setWorkingWeekSource(WorkingWeekSource workingWeekSource) {

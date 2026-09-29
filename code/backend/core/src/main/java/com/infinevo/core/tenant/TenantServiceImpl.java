@@ -1,5 +1,6 @@
 package com.infinevo.core.tenant;
 
+import com.infinevo.core.setup.SetupChecklistService;
 import com.infinevo.shared.entitlement.PlatformModule;
 import java.sql.Array;
 import java.sql.Connection;
@@ -32,9 +33,23 @@ public class TenantServiceImpl implements TenantService {
     private static final short DEFAULT_LEAVE_YEAR_START_MONTH = 4;
 
     private final JdbcTemplate jdbcTemplate;
+    private final SetupChecklistService setupChecklistService;
 
     public TenantServiceImpl(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, (SetupChecklistService) null);
+    }
+
+    public TenantServiceImpl(
+            JdbcTemplate jdbcTemplate,
+            org.springframework.beans.factory.ObjectProvider<SetupChecklistService> setupChecklistServiceProvider) {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
+        this.setupChecklistService =
+                setupChecklistServiceProvider != null ? setupChecklistServiceProvider.getIfAvailable() : null;
+    }
+
+    public TenantServiceImpl(JdbcTemplate jdbcTemplate, SetupChecklistService setupChecklistService) {
+        this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
+        this.setupChecklistService = setupChecklistService;
     }
 
     @Override
@@ -108,6 +123,10 @@ public class TenantServiceImpl implements TenantService {
         });
 
         log.info("Provisioned tenant {} ({}) with modules {}", tenantId, name, modules);
+
+        if (setupChecklistService != null) {
+            setupChecklistService.assemble(tenantId);
+        }
 
         return new TenantResponse(tenantId, tenantId, name, finalCountryCode, finalTimezone, finalMonth, modules);
     }
