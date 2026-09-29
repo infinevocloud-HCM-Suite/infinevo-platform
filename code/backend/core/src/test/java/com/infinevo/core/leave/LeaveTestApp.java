@@ -18,7 +18,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = {"com.infinevo.core.leave", "com.infinevo.core.employee", "com.infinevo.core.org"},
+        basePackages = {
+            "com.infinevo.core.leave",
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org",
+            "com.infinevo.core.approval",
+            "com.infinevo.core.authz"
+        },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
@@ -28,6 +34,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.leave",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.approval",
+            "com.infinevo.core.authz",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
@@ -36,6 +44,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.leave",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.approval",
+            "com.infinevo.core.authz",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })

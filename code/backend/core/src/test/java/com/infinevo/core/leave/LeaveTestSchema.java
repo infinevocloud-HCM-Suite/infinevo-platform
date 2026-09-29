@@ -58,17 +58,38 @@ public final class LeaveTestSchema {
             if (!columnExists(conn, "employee", "department_id")) {
                 executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
             }
+            if (!tableExists(conn, "document")) {
+                executeResource(conn, "db/migration/core/V037__document.sql");
+            }
+            if (!tableExists(conn, "approval_definition")) {
+                executeResource(conn, "db/migration/core/V089__approval_definition.sql");
+            }
+            if (!tableExists(conn, "approval_instance")) {
+                executeResource(conn, "db/migration/core/V090__approval_instance.sql");
+            }
+            if (!tableExists(conn, "approval_step")) {
+                executeResource(conn, "db/migration/core/V091__approval_step.sql");
+            }
+            if (!tableExists(conn, "approval_delegation")) {
+                executeResource(conn, "db/migration/core/V092__approval_delegation.sql");
+            }
             if (!tableExists(conn, "leave_type")) {
-                executeResource(conn, "db/migration/core/V093__leave_type.sql");
+                executeResource(conn, "db/migration/core/V110__leave_type.sql");
             }
             if (!tableExists(conn, "leave_policy")) {
-                executeResource(conn, "db/migration/core/V094__leave_policy.sql");
+                executeResource(conn, "db/migration/core/V111__leave_policy.sql");
             }
             if (!tableExists(conn, "leave_policy_eligibility")) {
-                executeResource(conn, "db/migration/core/V095__leave_policy_eligibility.sql");
+                executeResource(conn, "db/migration/core/V112__leave_policy_eligibility.sql");
             }
             if (!tableExists(conn, "leave_allocation")) {
-                executeResource(conn, "db/migration/core/V096__leave_allocation.sql");
+                executeResource(conn, "db/migration/core/V113__leave_allocation.sql");
+            }
+            if (!tableExists(conn, "leave_request")) {
+                executeResource(conn, "db/migration/core/V114__leave_request.sql");
+            }
+            if (!tableExists(conn, "leave_request_document")) {
+                executeResource(conn, "db/migration/core/V115__leave_request_document.sql");
             }
         }
     }
@@ -106,6 +127,24 @@ public final class LeaveTestSchema {
     public static void clearAll() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
+            if (tableExists(conn, "leave_request_document")) {
+                stmt.execute("DELETE FROM core.leave_request_document");
+            }
+            if (tableExists(conn, "leave_request")) {
+                stmt.execute("DELETE FROM core.leave_request");
+            }
+            if (tableExists(conn, "approval_step")) {
+                stmt.execute("DELETE FROM core.approval_step");
+            }
+            if (tableExists(conn, "approval_instance")) {
+                stmt.execute("DELETE FROM core.approval_instance");
+            }
+            if (tableExists(conn, "approval_delegation")) {
+                stmt.execute("DELETE FROM core.approval_delegation");
+            }
+            if (tableExists(conn, "approval_definition")) {
+                stmt.execute("DELETE FROM core.approval_definition");
+            }
             if (tableExists(conn, "leave_allocation")) {
                 stmt.execute("DELETE FROM core.leave_allocation");
             }
@@ -117,6 +156,9 @@ public final class LeaveTestSchema {
             }
             if (tableExists(conn, "leave_type")) {
                 stmt.execute("DELETE FROM core.leave_type");
+            }
+            if (tableExists(conn, "document")) {
+                stmt.execute("DELETE FROM core.document");
             }
             if (tableExists(conn, "employee")) {
                 stmt.execute("DELETE FROM core.employee");
@@ -166,6 +208,38 @@ public final class LeaveTestSchema {
                 bindTenant(conn, tenantId);
                 try (Statement stmt = conn.createStatement();
                         ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_policy")) {
+                    rs.next();
+                    return rs.getInt(1);
+                }
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    public static int visibleLeaveRequestCount(UUID tenantId) throws SQLException {
+        try (Connection conn = appConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                bindTenant(conn, tenantId);
+                try (Statement stmt = conn.createStatement();
+                        ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_request")) {
+                    rs.next();
+                    return rs.getInt(1);
+                }
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    public static int visibleLeaveRequestDocumentCount(UUID tenantId) throws SQLException {
+        try (Connection conn = appConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                bindTenant(conn, tenantId);
+                try (Statement stmt = conn.createStatement();
+                        ResultSet rs = stmt.executeQuery("SELECT count(*) FROM core.leave_request_document")) {
                     rs.next();
                     return rs.getInt(1);
                 }

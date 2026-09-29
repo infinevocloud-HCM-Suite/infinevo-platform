@@ -1,4 +1,4 @@
--- Migration: V093__leave_type.sql
+-- Migration: V110__leave_type.sql
 -- Description: W-16.1 core.leave_type — tenant leave types with RLS isolation
 
 CREATE TABLE core.leave_type (

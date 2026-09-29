@@ -1,4 +1,4 @@
--- Migration: V096__leave_allocation.sql
+-- Migration: V113__leave_allocation.sql
 -- Description: W-16.2 core.leave_allocation — employee leave allocations and balance tracking with RLS isolation
 
 CREATE TABLE core.leave_allocation (

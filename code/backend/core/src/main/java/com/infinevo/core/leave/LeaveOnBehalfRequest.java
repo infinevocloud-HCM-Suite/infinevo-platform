@@ -1,0 +1,20 @@
+package com.infinevo.core.leave;
+
+import com.fasterxml.jackson.annotation.JsonAlias;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Request payload for administrator creating leave on an employee's behalf (W-16.3, spec section 4).
+ * Always created APPROVED without an approval instance (D-35).
+ */
+public record LeaveOnBehalfRequest(
+        @JsonAlias({"employeeId", "employee_id"}) UUID employeeId,
+        @JsonAlias({"typeId", "leave_type_id"}) UUID leaveTypeId,
+        @JsonAlias({"from", "from_date"}) LocalDate fromDate,
+        @JsonAlias({"to", "to_date"}) LocalDate toDate,
+        @JsonAlias({"halfDay", "is_half_day"}) Boolean isHalfDay,
+        @JsonAlias({"halfDayPeriod", "half_day_period"}) HalfDayPeriod halfDayPeriod,
+        String reason,
+        @JsonAlias({"documentIds", "document_ids"}) List<UUID> documentIds) {}

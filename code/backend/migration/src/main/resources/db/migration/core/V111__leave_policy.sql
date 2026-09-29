@@ -1,4 +1,4 @@
--- Migration: V094__leave_policy.sql
+-- Migration: V111__leave_policy.sql
 -- Description: W-16.1 core.leave_policy — leave policy matrix and effective-date versioning with RLS isolation
 
 CREATE TABLE core.leave_policy (
