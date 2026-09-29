@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-47.3` · from ticket #65 · `PAY-09` |
 | **Spec file** | `docs/target-state/features/W-47-3-tax-declaration-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | mohit |
 | **Apps touched** | `code/frontend/src/payroll/tax` only. No backend, no migration |
 | **Related gaps** | DEBT-026 (prevented), BUG-006 (deferred) |
 | **Status** | **Ready** |
