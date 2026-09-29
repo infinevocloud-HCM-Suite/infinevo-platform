@@ -112,6 +112,8 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "attendance")) {
                         executeResource(conn, "db/migration/core/V030__attendance.sql");
                     }
+                    // W-24.1: tenant setup step
+                    executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
                 }
 
             } catch (Exception e) {

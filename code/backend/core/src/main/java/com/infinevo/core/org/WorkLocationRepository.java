@@ -14,4 +14,7 @@ public interface WorkLocationRepository extends OrgMasterRepository<WorkLocation
 
     /** The tenant's filing address, if it has named one. At most one row by construction. */
     Optional<WorkLocation> findByTenantIdAndFilingAddressTrue(UUID tenantId);
+
+    /** True if at least one work location exists for this tenant (W-24.1 setup checker). */
+    boolean existsByTenantId(UUID tenantId);
 }
