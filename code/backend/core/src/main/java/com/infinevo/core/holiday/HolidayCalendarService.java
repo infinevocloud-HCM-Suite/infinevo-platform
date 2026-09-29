@@ -39,13 +39,14 @@ public class HolidayCalendarService {
         validateCalendarRequest(request);
         UUID tenantId = TenantContext.require();
 
-        if (request.isDefault()) {
+        boolean isDefault = Boolean.TRUE.equals(request.isDefault());
+        if (isDefault) {
             calendarRepository.findByTenantIdAndIsDefaultTrue(tenantId).ifPresent(existing -> {
                 throw new IllegalStateException("A default holiday calendar already exists for tenant: " + tenantId);
             });
         }
 
-        HolidayCalendar calendar = new HolidayCalendar(tenantId, request.name().trim(), request.isDefault());
+        HolidayCalendar calendar = new HolidayCalendar(tenantId, request.name().trim(), isDefault);
         calendar = calendarRepository.save(calendar);
 
         assignLocations(tenantId, calendar.getId(), request.workLocationIds());
@@ -94,17 +95,27 @@ public class HolidayCalendarService {
                 .findByTenantIdAndId(tenantId, id)
                 .orElseThrow(() -> new HolidayCalendarNotFoundException(id));
 
-        if (request.isDefault() && !calendar.isDefault()) {
+        if (calendar.isDefault()) {
+            // Calendar is currently the default calendar.
+            // A tenant must never be left without a default calendar.
+            if (Boolean.FALSE.equals(request.isDefault())) {
+                throw new IllegalStateException(
+                        "Cannot remove default status from the default holiday calendar. Designate another calendar as default first.");
+            }
+            // If request.isDefault() is null or true, it retains default status.
+        } else if (Boolean.TRUE.equals(request.isDefault())) {
+            // Promoting a non-default calendar to default: atomically demote the previous default.
             calendarRepository.findByTenantIdAndIsDefaultTrue(tenantId).ifPresent(existing -> {
                 if (!existing.getId().equals(id)) {
-                    throw new IllegalStateException(
-                            "A default holiday calendar already exists for tenant: " + tenantId);
+                    existing.setDefault(false);
+                    calendarRepository.save(existing);
+                    calendarRepository.flush();
                 }
             });
+            calendar.setDefault(true);
         }
 
         calendar.setName(request.name().trim());
-        calendar.setDefault(request.isDefault());
         calendar = calendarRepository.save(calendar);
 
         locationRepository.deleteByTenantIdAndCalendarId(tenantId, id);

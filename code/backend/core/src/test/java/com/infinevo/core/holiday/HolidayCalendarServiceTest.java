@@ -148,6 +148,66 @@ class HolidayCalendarServiceTest {
     }
 
     @Test
+    @DisplayName("updateCalendar on default calendar preserves isDefault when omitted or null")
+    void updateCalendar_defaultCalendar_preservesDefaultWhenNull() {
+        HolidayCalendar defaultCal = new HolidayCalendar(tenantId, "HQ Calendar", true);
+        setId(defaultCal, calendarId);
+        when(calendarRepository.findByTenantIdAndId(tenantId, calendarId)).thenReturn(Optional.of(defaultCal));
+        when(calendarRepository.save(any(HolidayCalendar.class))).thenReturn(defaultCal);
+        when(locationRepository.findByTenantIdAndCalendarId(tenantId, calendarId))
+                .thenReturn(List.of());
+        when(holidayRepository.findByTenantIdAndCalendarIdOrderByFromDateAsc(tenantId, calendarId))
+                .thenReturn(List.of());
+
+        // Request with isDefault = null (simulates rename or location add without isDefault in payload)
+        HolidayCalendarRequest updateReq = new HolidayCalendarRequest("Renamed HQ Calendar", null, Set.of());
+        HolidayCalendarResponse res = service.updateCalendar(calendarId, updateReq);
+
+        assertThat(res.name()).isEqualTo("Renamed HQ Calendar");
+        assertThat(res.isDefault()).isTrue();
+    }
+
+    @Test
+    @DisplayName("updateCalendar on default calendar throws when explicitly attempting to demote isDefault to false")
+    void updateCalendar_defaultCalendar_throwsWhenDemotedToFalse() {
+        HolidayCalendar defaultCal = new HolidayCalendar(tenantId, "HQ Calendar", true);
+        setId(defaultCal, calendarId);
+        when(calendarRepository.findByTenantIdAndId(tenantId, calendarId)).thenReturn(Optional.of(defaultCal));
+
+        HolidayCalendarRequest updateReq = new HolidayCalendarRequest("Renamed HQ Calendar", false, Set.of());
+
+        assertThatThrownBy(() -> service.updateCalendar(calendarId, updateReq))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot remove default status from the default holiday calendar");
+    }
+
+    @Test
+    @DisplayName("updateCalendar with isDefault true promotes calendar and demotes previous default")
+    void updateCalendar_promoteToDefault_demotesPreviousDefault() {
+        HolidayCalendar previousDefault = new HolidayCalendar(tenantId, "Old Default", true);
+        UUID oldId = UUID.randomUUID();
+        setId(previousDefault, oldId);
+
+        HolidayCalendar targetCal = new HolidayCalendar(tenantId, "New Default", false);
+        setId(targetCal, calendarId);
+
+        when(calendarRepository.findByTenantIdAndId(tenantId, calendarId)).thenReturn(Optional.of(targetCal));
+        when(calendarRepository.findByTenantIdAndIsDefaultTrue(tenantId)).thenReturn(Optional.of(previousDefault));
+        when(calendarRepository.save(any(HolidayCalendar.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(locationRepository.findByTenantIdAndCalendarId(tenantId, calendarId))
+                .thenReturn(List.of());
+        when(holidayRepository.findByTenantIdAndCalendarIdOrderByFromDateAsc(tenantId, calendarId))
+                .thenReturn(List.of());
+
+        HolidayCalendarRequest updateReq = new HolidayCalendarRequest("New Default", true, Set.of());
+        HolidayCalendarResponse res = service.updateCalendar(calendarId, updateReq);
+
+        assertThat(previousDefault.isDefault()).isFalse();
+        verify(calendarRepository).save(previousDefault);
+        assertThat(res.isDefault()).isTrue();
+    }
+
+    @Test
     @DisplayName("addHoliday validates date range and adds holiday")
     void addHoliday_success() {
         HolidayCalendar cal = new HolidayCalendar(tenantId, "Calendar", false);
