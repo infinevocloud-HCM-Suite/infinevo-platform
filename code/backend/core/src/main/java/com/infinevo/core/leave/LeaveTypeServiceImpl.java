@@ -1,5 +1,6 @@
 package com.infinevo.core.leave;
 
+import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -211,5 +212,43 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
                             eligibilityRepository.findByTenantIdAndPolicyId(tenantId, policy.getId());
                     return LeavePolicyResponse.from(policy, eligibilities);
                 });
+    }
+
+    @Override
+    public LeaveTypeResponse createLeaveType(LeaveTypeRequest request) {
+        return createLeaveType(TenantContext.require(), request);
+    }
+
+    @Override
+    public LeaveTypeResponse updateLeaveType(UUID id, LeaveTypeRequest request) {
+        return updateLeaveType(TenantContext.require(), id, request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LeaveTypeResponse> getLeaveTypes(LocalDate activeOn) {
+        return getLeaveTypes(TenantContext.require(), activeOn);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LeaveTypeResponse> getLeaveType(UUID id, LocalDate asOf) {
+        return getLeaveType(TenantContext.require(), id, asOf);
+    }
+
+    @Override
+    public LeavePolicyResponse configurePolicy(UUID leaveTypeId, LeavePolicyRequest request) {
+        return configurePolicy(TenantContext.require(), leaveTypeId, request);
+    }
+
+    @Override
+    public LeavePolicyResponse setPolicy(UUID leaveTypeId, LeavePolicyRequest request) {
+        return configurePolicy(TenantContext.require(), leaveTypeId, request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LeavePolicyResponse> getEffectivePolicy(UUID leaveTypeId, LocalDate asOf) {
+        return getEffectivePolicy(TenantContext.require(), leaveTypeId, asOf);
     }
 }

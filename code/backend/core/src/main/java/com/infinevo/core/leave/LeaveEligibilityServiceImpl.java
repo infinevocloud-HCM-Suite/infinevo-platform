@@ -2,6 +2,7 @@ package com.infinevo.core.leave;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -173,5 +174,15 @@ public class LeaveEligibilityServiceImpl implements LeaveEligibilityService {
         }
 
         return result;
+    }
+
+    @Override
+    public boolean isEligible(UUID employeeId, UUID leaveTypeId, LocalDate asOf) {
+        return isEligible(TenantContext.require(), employeeId, leaveTypeId, asOf);
+    }
+
+    @Override
+    public List<LeaveTypeResponse> getEligibleLeaveTypes(UUID employeeId, LocalDate asOf) {
+        return getEligibleLeaveTypes(TenantContext.require(), employeeId, asOf);
     }
 }

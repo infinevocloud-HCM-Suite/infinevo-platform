@@ -1,5 +1,6 @@
 package com.infinevo.core.leave;
 
+import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -105,5 +106,15 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                 consumed,
                 remaining,
                 allocation.getCarryForwardExpiresOn());
+    }
+
+    @Override
+    public List<LeaveBalanceResponse> getBalancesForEmployee(UUID employeeId, LocalDate asOf) {
+        return getBalancesForEmployee(TenantContext.require(), employeeId, asOf);
+    }
+
+    @Override
+    public Optional<LeaveBalanceResponse> getBalance(UUID employeeId, UUID leaveTypeId, LocalDate asOf) {
+        return getBalance(TenantContext.require(), employeeId, leaveTypeId, asOf);
     }
 }

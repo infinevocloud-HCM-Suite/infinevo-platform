@@ -2,6 +2,7 @@ package com.infinevo.core.leave;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -151,5 +152,22 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
             allocationRepository.save(allocation);
         }
         return currentAllocations.size();
+    }
+
+    @Override
+    public LeaveAllocationResponse createAllocation(LeaveAllocationRequest request) {
+        return createAllocation(TenantContext.require(), request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OverdrawnEmployee> previewMidYearPolicyImpact(
+            UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf) {
+        return previewMidYearPolicyImpact(TenantContext.require(), leaveTypeId, newAnnualDays, asOf);
+    }
+
+    @Override
+    public int applyMidYearPolicyChange(UUID leaveTypeId, LeavePolicy newPolicy, LocalDate asOf) {
+        return applyMidYearPolicyChange(TenantContext.require(), leaveTypeId, newPolicy, asOf);
     }
 }
