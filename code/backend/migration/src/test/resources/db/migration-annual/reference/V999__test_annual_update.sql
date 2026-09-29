@@ -10,7 +10,7 @@
 -- inventing plausible-looking numbers in a file that sits beside the genuine seed is how
 -- a fixture ends up cited as law. Three round bands, obviously synthetic.
 --
--- V099 sits far above the shipped sequence so that a real migration added later cannot
+-- V999 sits far above the shipped sequence so that a real migration added later cannot
 -- collide with it.
 
 INSERT INTO reference.tax_slab_master

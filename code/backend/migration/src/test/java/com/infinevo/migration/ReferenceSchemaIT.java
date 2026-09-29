@@ -321,7 +321,7 @@ class ReferenceSchemaIT {
     @Test
     void annualUpdateSimulation_oneMigrationAppliesCleanly() throws SQLException {
         // Exactly the runbook in spec §4: one new versioned script in the reference folder,
-        // applied by the same runner. V099 sits far above the shipped sequence so it cannot
+        // applied by the same runner. V999 sits far above the shipped sequence so it cannot
         // collide with a real migration added later.
         MigrationApplication.launch(
                 "--DB_URL=" + jdbcUrl,
