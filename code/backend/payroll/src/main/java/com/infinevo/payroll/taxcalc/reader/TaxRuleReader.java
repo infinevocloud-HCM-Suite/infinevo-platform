@@ -5,19 +5,25 @@ import com.infinevo.payroll.taxcalc.TaxRegime;
 import com.infinevo.payroll.taxcalc.exception.TaxRulesMissingException;
 import com.infinevo.payroll.taxcalc.model.TaxSlabDetail;
 import com.infinevo.payroll.taxcalc.reader.model.CessSurchargeRule;
+import com.infinevo.payroll.taxcalc.reader.model.HomeLoanRule;
+import com.infinevo.payroll.taxcalc.reader.model.HraRule;
+import com.infinevo.payroll.taxcalc.reader.model.LetOutRule;
+import com.infinevo.payroll.taxcalc.reader.model.OtherIncomeRule;
 import com.infinevo.payroll.taxcalc.reader.model.Section87aRebateRule;
 import com.infinevo.payroll.taxcalc.reader.model.StandardDeductionRule;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Read-only statutory tax rule reader over PostgreSQL {@code reference} tables (W-33.1 spec § 4).
+ * Read-only statutory tax rule reader over PostgreSQL {@code reference} tables (W-33.1 spec § 4, W-33.2 spec § 4).
  *
  * <p>Every query is scoped by financial year and regime. Throws {@link TaxRulesMissingException}
  * naming the exact missing table if statutory reference data has not been seeded for the year.
@@ -232,6 +238,221 @@ public class TaxRuleReader {
 
         if (results.isEmpty()) {
             throw new TaxRulesMissingException("reference.cess_surcharge_rule_master", fy.label());
+        }
+
+        return results.get(0);
+    }
+
+    /**
+     * Reads statutory HRA exemption rule from {@code reference.hra_rule_master} for the old regime.
+     */
+    public HraRule hra(FinancialYear fy) {
+        Objects.requireNonNull(fy, "fy must not be null");
+
+        String sql =
+                """
+                SELECT basic_da_percent_threshold, metro_percent, non_metro_percent
+                  FROM reference.hra_rule_master
+                 WHERE financial_year = ? AND tax_regime = 'OLD' AND is_active = true
+                 LIMIT 1
+                """;
+
+        List<HraRule> results = jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> new HraRule(
+                        fy.label(),
+                        rs.getBigDecimal("basic_da_percent_threshold"),
+                        rs.getBigDecimal("metro_percent"),
+                        rs.getBigDecimal("non_metro_percent")),
+                fy.label());
+
+        if (results.isEmpty()) {
+            throw new TaxRulesMissingException("reference.hra_rule_master", fy.label());
+        }
+
+        return results.get(0);
+    }
+
+    /**
+     * Reads a specific statutory home loan rule from {@code reference.home_loan_rule_master}.
+     */
+    public HomeLoanRule homeLoan(FinancialYear fy, String sectionCode, String component, String propertyType) {
+        return findHomeLoan(fy, sectionCode, component, propertyType)
+                .orElseThrow(() -> new TaxRulesMissingException("reference.home_loan_rule_master", fy.label()));
+    }
+
+    /**
+     * Finds an optional statutory home loan rule from {@code reference.home_loan_rule_master}.
+     */
+    public Optional<HomeLoanRule> findHomeLoan(
+            FinancialYear fy, String sectionCode, String component, String propertyType) {
+        Objects.requireNonNull(fy, "fy must not be null");
+        Objects.requireNonNull(sectionCode, "sectionCode must not be null");
+        Objects.requireNonNull(component, "component must not be null");
+        Objects.requireNonNull(propertyType, "propertyType must not be null");
+
+        String sql =
+                """
+                SELECT section_name, max_limit, loan_sanction_from, loan_sanction_to, is_first_time_buyer
+                  FROM reference.home_loan_rule_master
+                 WHERE financial_year = ?
+                   AND section_code = ?
+                   AND component = ?
+                   AND property_type = ?
+                   AND is_active = true
+                 LIMIT 1
+                """;
+
+        List<HomeLoanRule> results = jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> {
+                    String sectionName = rs.getString("section_name");
+                    BigDecimal maxLimitRaw = rs.getBigDecimal("max_limit");
+                    LocalDate sanctionFrom = rs.getObject("loan_sanction_from", LocalDate.class);
+                    LocalDate sanctionTo = rs.getObject("loan_sanction_to", LocalDate.class);
+                    boolean firstTimeBuyer = rs.getBoolean("is_first_time_buyer");
+                    Money maxLimit = maxLimitRaw != null ? Money.of(maxLimitRaw) : null;
+
+                    return new HomeLoanRule(
+                            fy.label(),
+                            sectionCode,
+                            sectionName,
+                            component,
+                            propertyType,
+                            maxLimit,
+                            sanctionFrom,
+                            sanctionTo,
+                            firstTimeBuyer);
+                },
+                fy.label(),
+                sectionCode,
+                component,
+                propertyType);
+
+        return results.isEmpty() ? Optional.empty() : Optional.of(results.get(0));
+    }
+
+    /**
+     * Reads all active statutory home loan rules from {@code reference.home_loan_rule_master} for the year.
+     */
+    public List<HomeLoanRule> homeLoanRules(FinancialYear fy) {
+        Objects.requireNonNull(fy, "fy must not be null");
+
+        String sql =
+                """
+                SELECT section_code, section_name, component, property_type, max_limit,
+                       loan_sanction_from, loan_sanction_to, is_first_time_buyer
+                  FROM reference.home_loan_rule_master
+                 WHERE financial_year = ? AND is_active = true
+                 ORDER BY section_code ASC
+                """;
+
+        return jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> {
+                    String sectionCode = rs.getString("section_code");
+                    String sectionName = rs.getString("section_name");
+                    String component = rs.getString("component");
+                    String propertyType = rs.getString("property_type");
+                    BigDecimal maxLimitRaw = rs.getBigDecimal("max_limit");
+                    LocalDate sanctionFrom = rs.getObject("loan_sanction_from", LocalDate.class);
+                    LocalDate sanctionTo = rs.getObject("loan_sanction_to", LocalDate.class);
+                    boolean firstTimeBuyer = rs.getBoolean("is_first_time_buyer");
+                    Money maxLimit = maxLimitRaw != null ? Money.of(maxLimitRaw) : null;
+
+                    return new HomeLoanRule(
+                            fy.label(),
+                            sectionCode,
+                            sectionName,
+                            component,
+                            propertyType,
+                            maxLimit,
+                            sanctionFrom,
+                            sanctionTo,
+                            firstTimeBuyer);
+                },
+                fy.label());
+    }
+
+    /**
+     * Reads statutory let-out property rules from {@code reference.let_out_property_rule_master}.
+     */
+    public LetOutRule letOut(FinancialYear fy) {
+        Objects.requireNonNull(fy, "fy must not be null");
+
+        String sql =
+                """
+                SELECT standard_deduction_percent, max_loss_setoff_limit,
+                       is_home_loan_interest_allowed, is_loss_carry_forward_allowed
+                  FROM reference.let_out_property_rule_master
+                 WHERE financial_year = ? AND tax_regime = 'OLD' AND is_active = true
+                 LIMIT 1
+                """;
+
+        List<LetOutRule> results = jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> {
+                    BigDecimal stdDed = rs.getBigDecimal("standard_deduction_percent");
+                    BigDecimal lossCapRaw = rs.getBigDecimal("max_loss_setoff_limit");
+                    boolean interestAllowed = rs.getBoolean("is_home_loan_interest_allowed");
+                    boolean lossCarryAllowed = rs.getBoolean("is_loss_carry_forward_allowed");
+
+                    return new LetOutRule(
+                            fy.label(), "OLD", stdDed, Money.of(lossCapRaw), interestAllowed, lossCarryAllowed);
+                },
+                fy.label());
+
+        if (results.isEmpty()) {
+            throw new TaxRulesMissingException("reference.let_out_property_rule_master", fy.label());
+        }
+
+        return results.get(0);
+    }
+
+    /**
+     * Reads statutory other income deduction rule from {@code reference.other_income_rule_master}.
+     */
+    public OtherIncomeRule otherIncomeRule(FinancialYear fy, String sectionCode) {
+        Objects.requireNonNull(fy, "fy must not be null");
+        Objects.requireNonNull(sectionCode, "sectionCode must not be null");
+
+        String sql =
+                """
+                SELECT section_name, rule_type, tax_regime, max_limit, deduction_percent,
+                       is_proof_required, is_conditional
+                  FROM reference.other_income_rule_master
+                 WHERE financial_year = ? AND section_code = ? AND is_active = true
+                 LIMIT 1
+                """;
+
+        List<OtherIncomeRule> results = jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> {
+                    String sectionName = rs.getString("section_name");
+                    String ruleType = rs.getString("rule_type");
+                    String taxRegime = rs.getString("tax_regime");
+                    BigDecimal maxLimitRaw = rs.getBigDecimal("max_limit");
+                    BigDecimal deductionPercent = rs.getBigDecimal("deduction_percent");
+                    boolean isProofRequired = rs.getBoolean("is_proof_required");
+                    boolean isConditional = rs.getBoolean("is_conditional");
+                    Money maxLimit = maxLimitRaw != null ? Money.of(maxLimitRaw) : null;
+
+                    return new OtherIncomeRule(
+                            fy.label(),
+                            sectionCode,
+                            sectionName,
+                            ruleType,
+                            taxRegime,
+                            maxLimit,
+                            deductionPercent,
+                            isProofRequired,
+                            isConditional);
+                },
+                fy.label(),
+                sectionCode);
+
+        if (results.isEmpty()) {
+            throw new TaxRulesMissingException("reference.other_income_rule_master", fy.label());
         }
 
         return results.get(0);

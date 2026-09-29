@@ -143,4 +143,71 @@ class TaxRuleReaderTest {
         CessSurchargeRule rule = reader.cess(FY_2025_2026, TaxRegime.NEW);
         assertThat(rule.rate()).isEqualByComparingTo("4.00");
     }
+
+    @Test
+    @DisplayName("hra maps rule correctly when row exists")
+    void hraMapsCorrectly() {
+        com.infinevo.payroll.taxcalc.reader.model.HraRule expected =
+                new com.infinevo.payroll.taxcalc.reader.model.HraRule(
+                        "2025-2026", BigDecimal.valueOf(10), BigDecimal.valueOf(50), BigDecimal.valueOf(40));
+        given(jdbcTemplate.query(anyString(), any(RowMapper.class), eq("2025-2026")))
+                .willReturn(List.of(expected));
+
+        com.infinevo.payroll.taxcalc.reader.model.HraRule rule = reader.hra(FY_2025_2026);
+        assertThat(rule.basicDaPercentThreshold()).isEqualByComparingTo("10");
+        assertThat(rule.metroPercent()).isEqualByComparingTo("50");
+        assertThat(rule.nonMetroPercent()).isEqualByComparingTo("40");
+    }
+
+    @Test
+    @DisplayName("homeLoan throws when row missing")
+    void homeLoanThrowsWhenMissing() {
+        given(jdbcTemplate.query(
+                        anyString(),
+                        any(RowMapper.class),
+                        eq("2025-2026"),
+                        eq("24B"),
+                        eq("INTEREST"),
+                        eq("SELF_OCCUPIED")))
+                .willReturn(List.of());
+
+        assertThatThrownBy(() -> reader.homeLoan(FY_2025_2026, "24B", "INTEREST", "SELF_OCCUPIED"))
+                .isInstanceOf(TaxRulesMissingException.class)
+                .hasMessageContaining("reference.home_loan_rule_master");
+    }
+
+    @Test
+    @DisplayName("letOut maps rule correctly")
+    void letOutMapsCorrectly() {
+        com.infinevo.payroll.taxcalc.reader.model.LetOutRule expected =
+                new com.infinevo.payroll.taxcalc.reader.model.LetOutRule(
+                        "2025-2026", "OLD", BigDecimal.valueOf(30), Money.of("200000"), true, true);
+        given(jdbcTemplate.query(anyString(), any(RowMapper.class), eq("2025-2026")))
+                .willReturn(List.of(expected));
+
+        com.infinevo.payroll.taxcalc.reader.model.LetOutRule rule = reader.letOut(FY_2025_2026);
+        assertThat(rule.standardDeductionPercent()).isEqualByComparingTo("30");
+        assertThat(rule.maxLossSetoffLimit()).isEqualTo(Money.of("200000"));
+    }
+
+    @Test
+    @DisplayName("otherIncomeRule maps rule correctly")
+    void otherIncomeRuleMapsCorrectly() {
+        com.infinevo.payroll.taxcalc.reader.model.OtherIncomeRule expected =
+                new com.infinevo.payroll.taxcalc.reader.model.OtherIncomeRule(
+                        "2025-2026",
+                        "80TTA",
+                        "Interest on savings",
+                        "DEDUCTION",
+                        "OLD",
+                        Money.of("10000"),
+                        BigDecimal.valueOf(100),
+                        false,
+                        false);
+        given(jdbcTemplate.query(anyString(), any(RowMapper.class), eq("2025-2026"), eq("80TTA")))
+                .willReturn(List.of(expected));
+
+        com.infinevo.payroll.taxcalc.reader.model.OtherIncomeRule rule = reader.otherIncomeRule(FY_2025_2026, "80TTA");
+        assertThat(rule.maxLimit()).isEqualTo(Money.of("10000"));
+    }
 }

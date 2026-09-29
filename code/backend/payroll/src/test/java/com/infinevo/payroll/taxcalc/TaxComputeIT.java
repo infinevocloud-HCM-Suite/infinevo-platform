@@ -12,7 +12,6 @@ import com.infinevo.payroll.component.EarningRepository;
 import com.infinevo.payroll.salary.EmployeeSalaryService;
 import com.infinevo.payroll.salary.SalaryComponentItemRequest;
 import com.infinevo.payroll.salary.SalaryVersionRequest;
-import com.infinevo.payroll.taxcalc.exception.RegimeNotAvailableException;
 import com.infinevo.payroll.taxcalc.exception.TaxRulesMissingException;
 import com.infinevo.payroll.taxcalc.model.TaxComputation;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
@@ -159,12 +158,12 @@ class TaxComputeIT extends AbstractIntegrationTest {
         TaxSummaryResponse summaryBefore = taxSummaryService.summaryOwn(currentFy);
         assertThat(summaryBefore.computed()).isNull();
 
-        // 2. POST .../tax/compute -> NEW filled, OLD null, and GET .../summary shows tax_to_be_paid 109,200 with
+        // 2. POST .../tax/compute -> both NEW and OLD computed, and GET .../summary shows tax_to_be_paid with
         // computed_at
         Map<TaxRegime, TaxComputation> computeResults = taxCalculationService.computeAndRecord(employeeId, fy2025_2026);
         assertThat(computeResults).containsKey(TaxRegime.NEW);
         assertThat(computeResults.get(TaxRegime.NEW).annualTax().raw()).isEqualByComparingTo(new BigDecimal("109200"));
-        assertThat(computeResults).doesNotContainKey(TaxRegime.OLD);
+        assertThat(computeResults).containsKey(TaxRegime.OLD);
 
         TaxSummaryResponse summaryAfter = taxSummaryService.summaryOwn(currentFy);
         assertThat(summaryAfter.computed()).isNotNull();
@@ -178,14 +177,16 @@ class TaxComputeIT extends AbstractIntegrationTest {
                 taxCalculationService.computeAndRecord(employeeId, fy2025_2026);
         assertThat(overwriteResults.get(TaxRegime.NEW).annualTax().raw())
                 .isEqualByComparingTo(new BigDecimal("109200"));
+        assertThat(overwriteResults.get(TaxRegime.OLD)).isNotNull();
 
         TaxSummaryResponse summaryOverwritten = taxSummaryService.summaryOwn(currentFy);
         assertThat(summaryOverwritten.computed()).isNotNull();
         assertThat(summaryOverwritten.computed().taxToBePaid()).isEqualByComparingTo(new BigDecimal("109200"));
 
-        // 4. GET .../tax?regime=OLD -> 409 REGIME_NOT_AVAILABLE
-        assertThatThrownBy(() -> taxCalculationService.compute(employeeId, fy2025_2026, TaxRegime.OLD))
-                .isInstanceOf(RegimeNotAvailableException.class);
+        // 4. GET .../tax?regime=OLD -> successfully computes under OLD regime
+        TaxComputation oldPreview = taxCalculationService.compute(employeeId, fy2025_2026, TaxRegime.OLD);
+        assertThat(oldPreview.regime()).isEqualTo(TaxRegime.OLD);
+        assertThat(oldPreview.annualTax()).isNotNull();
 
         // 5. A year with no rules in reference schema -> 422 TAX_RULES_MISSING
         FinancialYear futureFy = FinancialYear.of(2029, 2030);

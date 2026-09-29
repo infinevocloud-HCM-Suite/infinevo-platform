@@ -52,6 +52,11 @@ public class TaxSummaryFiguresMapper {
 
         int remainingMonths = calculateRemainingMonths(fy);
 
+        Money exemptionUnderSection6a = computation
+                .chapterViaDeductions()
+                .add(computation.interestDeduction())
+                .add(computation.additionalHomeLoanInterest());
+
         return new TaxSummaryFigures(
                 computation.grossTotalIncome().raw(),
                 computation.taxableIncome().raw(),
@@ -61,9 +66,9 @@ public class TaxSummaryFiguresMapper {
                 BigDecimal.ZERO.setScale(4),
                 computation.prevEmploymentTds().raw(),
                 BigDecimal.ZERO.setScale(4),
-                BigDecimal.ZERO.setScale(4),
-                BigDecimal.ZERO.setScale(4),
-                BigDecimal.ZERO.setScale(4),
+                computation.otherIncome().raw(),
+                computation.hraExemption().raw(),
+                exemptionUnderSection6a.raw(),
                 remainingMonths);
     }
 
