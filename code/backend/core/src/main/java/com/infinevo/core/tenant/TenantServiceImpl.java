@@ -2,6 +2,7 @@ package com.infinevo.core.tenant;
 
 import com.infinevo.core.setup.SetupChecklistService;
 import com.infinevo.shared.entitlement.PlatformModule;
+import com.infinevo.shared.tenant.TenantContext;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -14,6 +15,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -130,9 +132,32 @@ public class TenantServiceImpl implements TenantService {
         log.info("Provisioned tenant {} ({}) with modules {}", tenantId, name, modules);
 
         if (setupChecklistService != null) {
-            setupChecklistService.assemble(tenantId);
+            assembleChecklistAs(tenantId);
         }
 
         return new TenantResponse(tenantId, tenantId, name, finalCountryCode, finalTimezone, finalMonth, modules);
+    }
+
+    // The checklist rows belong to the new tenant, but the open transaction's connection is
+    // bound to the provisioner's tenant by the first statement above, and row-level security
+    // on core.tenant_setup_step refuses a row for any other tenant. Rebind the thread and the
+    // transaction to the new tenant; the binding lasts until this transaction ends, and
+    // nothing else runs in it after the checklist.
+    private void assembleChecklistAs(UUID tenantId) {
+        UUID previousTenant = TenantContext.current().orElse(null);
+        try {
+            TenantContext.set(tenantId);
+            jdbcTemplate.execute((ConnectionCallback<Void>) conn -> {
+                TenantContext.setForConnection(conn);
+                return null;
+            });
+            setupChecklistService.assemble(tenantId);
+        } finally {
+            if (previousTenant != null) {
+                TenantContext.set(previousTenant);
+            } else {
+                TenantContext.clear();
+            }
+        }
     }
 }

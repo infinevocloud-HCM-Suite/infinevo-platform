@@ -1,6 +1,7 @@
 package com.infinevo.core.setup;
 
 import com.infinevo.shared.entitlement.PlatformModule;
+import com.infinevo.shared.identity.UserProfileSyncService;
 import java.util.UUID;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -9,6 +10,7 @@ import org.springframework.boot.context.TypeExcludeFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
@@ -46,6 +48,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.employee",
             "com.infinevo.shared.identity"
         })
+// UserProfileSyncService: EmployeeServiceImpl constructor dependency since W-13.4.
+@Import(UserProfileSyncService.class)
 public class SetupChecklistTestApp {
 
     @Bean

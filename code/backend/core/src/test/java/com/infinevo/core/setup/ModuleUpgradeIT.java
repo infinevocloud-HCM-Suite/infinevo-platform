@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * W-24.1 — adding Payroll to an HRMS-only tenant adds the payroll steps and leaves completed ones alone.
@@ -34,6 +37,15 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
 
     @Autowired
     private TenantSetupStepRepository stepRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    // Derived and @Query repository reads run outside any transaction when called directly, and
+    // the tenant-binding datasource refuses an auto-commit connection. Reads go through here.
+    private <T> T inTransaction(Supplier<T> read) {
+        return new TransactionTemplate(transactionManager).execute(status -> read.get());
+    }
 
     @BeforeAll
     static void applySchema() throws Exception {
@@ -105,7 +117,7 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
             subscriptionService.updateModules(TENANT_A, Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
 
             // Eager assembly: verify steps exist in DB immediately before getChecklist is called
-            assertThat(stepRepository.findByTenantIdOrderByDisplayOrderAsc(TENANT_A))
+            assertThat(inTransaction(() -> stepRepository.findByTenantIdOrderByDisplayOrderAsc(TENANT_A)))
                     .hasSize(9);
 
             // 3. Re-read checklist

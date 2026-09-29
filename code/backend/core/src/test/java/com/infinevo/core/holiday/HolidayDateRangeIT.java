@@ -8,6 +8,7 @@ import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * W-17 (Issue #18) — Integration test verifying real PostgreSQL date-range overlap queries
@@ -32,6 +35,15 @@ class HolidayDateRangeIT extends AbstractIntegrationTest {
 
     @Autowired
     private HolidayQueryService queryService;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    // Derived and @Query repository reads run outside any transaction when called directly, and
+    // the tenant-binding datasource refuses an auto-commit connection. Reads go through here.
+    private <T> T inTransaction(Supplier<T> read) {
+        return new TransactionTemplate(transactionManager).execute(status -> read.get());
+    }
 
     private HolidayCalendar calendar;
 
@@ -122,26 +134,32 @@ class HolidayDateRangeIT extends AbstractIntegrationTest {
         LocalDate queryFrom = LocalDate.of(2026, 3, 1);
         LocalDate queryTo = LocalDate.of(2026, 3, 31);
 
-        List<Holiday> results = holidayRepository.findHolidaysBetween(TENANT_A, calendar.getId(), queryFrom, queryTo);
+        List<Holiday> results = inTransaction(
+                () -> holidayRepository.findHolidaysBetween(TENANT_A, calendar.getId(), queryFrom, queryTo));
 
         // H2, H3, H4 must be matched; H1 and H5 must NOT be matched
         assertThat(results).extracting(Holiday::getId).containsExactly(h2.getId(), h3.getId(), h4.getId());
 
         // For calendar2: H6 encloses range completely, must match
-        List<Holiday> enclosingResults =
-                holidayRepository.findHolidaysBetween(TENANT_A, calendar2.getId(), queryFrom, queryTo);
+        List<Holiday> enclosingResults = inTransaction(
+                () -> holidayRepository.findHolidaysBetween(TENANT_A, calendar2.getId(), queryFrom, queryTo));
         assertThat(enclosingResults).extracting(Holiday::getId).containsExactly(h6.getId());
 
         // Test isHoliday method
-        assertThat(holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 2, 26)))
+        assertThat(inTransaction(
+                        () -> holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 2, 26))))
                 .isFalse();
-        assertThat(holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 2, 27)))
+        assertThat(inTransaction(
+                        () -> holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 2, 27))))
                 .isTrue();
-        assertThat(holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 3, 1)))
+        assertThat(inTransaction(
+                        () -> holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 3, 1))))
                 .isTrue();
-        assertThat(holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 3, 2)))
+        assertThat(inTransaction(
+                        () -> holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 3, 2))))
                 .isTrue();
-        assertThat(holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 3, 3)))
+        assertThat(inTransaction(
+                        () -> holidayRepository.isHoliday(TENANT_A, calendar.getId(), LocalDate.of(2026, 3, 3))))
                 .isFalse();
     }
 

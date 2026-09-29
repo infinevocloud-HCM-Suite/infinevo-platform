@@ -1,11 +1,13 @@
 package com.infinevo.core.holiday;
 
+import com.infinevo.shared.identity.UserProfileSyncService;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.TypeExcludeFilter;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
@@ -39,4 +41,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.employee",
             "com.infinevo.shared.identity"
         })
+// UserProfileSyncService: EmployeeServiceImpl constructor dependency since W-13.4.
+@Import(UserProfileSyncService.class)
 public class HolidayTestApp {}
