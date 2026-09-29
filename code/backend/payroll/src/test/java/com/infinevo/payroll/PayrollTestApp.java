@@ -3,6 +3,10 @@ package com.infinevo.payroll;
 import com.infinevo.core.employee.EmployeeRequest;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.employee.detail.EmployeeDetailService;
+import com.infinevo.core.employee.detail.EmployeePersonalRequest;
+import com.infinevo.core.employee.detail.EmployeePersonalResponse;
+import com.infinevo.core.employee.detail.EmployeePersonalService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -115,6 +119,60 @@ public class PayrollTestApp {
             @Override
             public void delete(UUID id) {
                 TEST_DOCUMENTS.remove(id);
+            }
+        };
+    }
+
+    @Bean
+    public EmployeePersonalService employeePersonalService(DataSource dataSource) {
+        return new EmployeePersonalService() {
+            @Override
+            public EmployeePersonalResponse get(UUID employeeId) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    conn.setAutoCommit(false);
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, eligible_for_full_tax_exemption, created_at, updated_at "
+                                    + "FROM core.employee_personal WHERE employee_id = ? AND tenant_id = ?")) {
+                        ps.setObject(1, employeeId);
+                        ps.setObject(2, tenantId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) {
+                                throw new EmployeeDetailService.NotFoundException("employee_personal", employeeId);
+                            }
+                            java.sql.Date dobSql = rs.getDate("date_of_birth");
+                            LocalDate dob = dobSql != null ? dobSql.toLocalDate() : null;
+                            EmployeePersonalResponse response = new EmployeePersonalResponse(
+                                    (UUID) rs.getObject("id"),
+                                    tenantId,
+                                    employeeId,
+                                    dob,
+                                    rs.getString("marital_status"),
+                                    rs.getString("nationality"),
+                                    rs.getString("ethnicity"),
+                                    rs.getString("father_name"),
+                                    rs.getString("differently_abled_type"),
+                                    rs.getBoolean("eligible_for_full_tax_exemption"),
+                                    rs.getTimestamp("created_at").toInstant(),
+                                    rs.getTimestamp("updated_at").toInstant());
+                            conn.commit();
+                            return response;
+                        }
+                    } catch (SQLException | RuntimeException e) {
+                        try {
+                            conn.rollback();
+                        } catch (SQLException ignored) {
+                        }
+                        throw e;
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public EmployeePersonalResponse put(UUID employeeId, EmployeePersonalRequest request) {
+                throw new UnsupportedOperationException();
             }
         };
     }
