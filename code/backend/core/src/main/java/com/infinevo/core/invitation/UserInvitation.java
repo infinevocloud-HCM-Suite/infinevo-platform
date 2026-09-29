@@ -74,7 +74,6 @@ public class UserInvitation {
 
     public UserInvitation(
             UUID tenantId, String email, String tokenHash, Instant expiresAt, UUID invitedByUserId, String creator) {
-        this.id = UUID.randomUUID();
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId");
         this.email = Objects.requireNonNull(email, "email").toLowerCase().trim();
         this.tokenHash = Objects.requireNonNull(tokenHash, "tokenHash");

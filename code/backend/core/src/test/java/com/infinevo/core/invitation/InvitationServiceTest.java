@@ -21,6 +21,7 @@ import com.infinevo.shared.identity.UserAccount;
 import com.infinevo.shared.identity.UserAccountRepository;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import com.infinevo.shared.tenant.TenantContext;
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -98,7 +99,33 @@ class InvitationServiceTest {
             throw new RuntimeException(e);
         }
 
+        when(userInvitationRepository.save(any(UserInvitation.class))).thenAnswer(invocation -> {
+            UserInvitation inv = invocation.getArgument(0);
+            if (inv.getId() == null) {
+                setId(inv, UUID.randomUUID());
+            }
+            return inv;
+        });
+
+        when(employeeInvitationRepository.save(any(EmployeeInvitation.class))).thenAnswer(invocation -> {
+            EmployeeInvitation inv = invocation.getArgument(0);
+            if (inv.getId() == null) {
+                setId(inv, UUID.randomUUID());
+            }
+            return inv;
+        });
+
         TenantContext.set(tenantId);
+    }
+
+    private static void setId(Object entity, UUID id) {
+        try {
+            Field field = entity.getClass().getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(entity, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @AfterEach
@@ -118,6 +145,9 @@ class InvitationServiceTest {
 
         when(userInvitationRepository.save(any(UserInvitation.class))).thenAnswer(invocation -> {
             UserInvitation inv = invocation.getArgument(0);
+            if (inv.getId() == null) {
+                setId(inv, UUID.randomUUID());
+            }
             return inv;
         });
 
@@ -173,11 +203,18 @@ class InvitationServiceTest {
                 Instant.now().plus(5, ChronoUnit.DAYS),
                 actorUserId,
                 "system");
+        setId(oldInv, oldId);
 
         when(userInvitationRepository.findByIdAndTenantId(oldId, tenantId)).thenReturn(Optional.of(oldInv));
         when(userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantId, oldInv.getId()))
                 .thenReturn(List.of());
-        when(userInvitationRepository.save(any(UserInvitation.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userInvitationRepository.save(any(UserInvitation.class))).thenAnswer(inv -> {
+            UserInvitation u = inv.getArgument(0);
+            if (u.getId() == null) {
+                setId(u, UUID.randomUUID());
+            }
+            return u;
+        });
 
         UserInvitationResponse response = invitationService.resendUserInvitation(oldId, actorUserId);
 
@@ -196,6 +233,7 @@ class InvitationServiceTest {
 
         UserInvitation inv = new UserInvitation(
                 tenantId, "user@example.com", hash, Instant.now().plus(2, ChronoUnit.DAYS), actorUserId, "system");
+        setId(inv, UUID.randomUUID());
 
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
@@ -270,6 +308,7 @@ class InvitationServiceTest {
                 Instant.now().plus(2, ChronoUnit.DAYS),
                 actorUserId,
                 "system");
+        setId(inv, id);
         when(userInvitationRepository.findByIdAndTenantId(id, tenantId)).thenReturn(Optional.of(inv));
 
         invitationService.revokeUserInvitation(id, actorUserId);

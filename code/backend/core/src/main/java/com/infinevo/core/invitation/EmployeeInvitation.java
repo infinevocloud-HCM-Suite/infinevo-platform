@@ -83,7 +83,6 @@ public class EmployeeInvitation {
             Instant expiresAt,
             UUID invitedByUserId,
             String creator) {
-        this.id = UUID.randomUUID();
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId");
         this.employeeId = Objects.requireNonNull(employeeId, "employeeId");
         this.email = Objects.requireNonNull(email, "email").toLowerCase().trim();
