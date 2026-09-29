@@ -114,6 +114,8 @@ public final class AuthzTestSchema {
                     }
                     // W-24.1: tenant setup step
                     executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
+                    // W-17: holiday calendar
+                    executeResource(conn, "db/migration/core/V036__holiday_calendar.sql");
                 }
 
             } catch (Exception e) {
