@@ -25,8 +25,34 @@ public class PayrollSetupStepConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "payScheduleSetupStepChecker")
+    public SetupStepChecker payScheduleSetupStepChecker(
+            org.springframework.beans.factory.ObjectProvider<com.infinevo.payroll.schedule.PayScheduleRepository>
+                    payScheduleRepositoryProvider) {
+        return new SetupStepChecker() {
+            @Override
+            public String code() {
+                return "PAY_SCHEDULE";
+            }
+
+            @Override
+            public PlatformModule module() {
+                return PlatformModule.PAYROLL;
+            }
+
+            @Override
+            public boolean isComplete(UUID tenantId) {
+                if (tenantId == null) {
+                    return false;
+                }
+                var repo =
+                        payScheduleRepositoryProvider != null ? payScheduleRepositoryProvider.getIfAvailable() : null;
+                return repo != null && repo.findByTenantId(tenantId).isPresent();
+            }
+        };
+    }
+
     public SetupStepChecker payScheduleSetupStepChecker() {
-        return createChecker("PAY_SCHEDULE");
+        return payScheduleSetupStepChecker(null);
     }
 
     @Bean

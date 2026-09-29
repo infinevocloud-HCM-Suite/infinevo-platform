@@ -97,5 +97,17 @@ class PayrollSetupStepConfigurationTest {
         org.mockito.Mockito.when(ptRepo.existsByTenantId(tenantId)).thenReturn(true);
         SetupStepChecker ptChecker = config.professionalTaxSetupStepChecker(ptProvider);
         assertThat(ptChecker.isComplete(tenantId)).isTrue();
+
+        // Pay Schedule (W-28)
+        com.infinevo.payroll.schedule.PayScheduleRepository payScheduleRepo =
+                org.mockito.Mockito.mock(com.infinevo.payroll.schedule.PayScheduleRepository.class);
+        org.springframework.beans.factory.ObjectProvider<com.infinevo.payroll.schedule.PayScheduleRepository>
+                payScheduleProvider = org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        org.mockito.Mockito.when(payScheduleProvider.getIfAvailable()).thenReturn(payScheduleRepo);
+        org.mockito.Mockito.when(payScheduleRepo.findByTenantId(tenantId))
+                .thenReturn(java.util.Optional.of(
+                        org.mockito.Mockito.mock(com.infinevo.payroll.schedule.PaySchedule.class)));
+        SetupStepChecker psChecker = config.payScheduleSetupStepChecker(payScheduleProvider);
+        assertThat(psChecker.isComplete(tenantId)).isTrue();
     }
 }
