@@ -67,6 +67,13 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "core", "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
             }
+            if (!tableExists(conn, "core", "employee_personal")) {
+                executeResource(conn, "db/migration/core/V015__employee_personal.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE core.employee_personal NO FORCE ROW LEVEL SECURITY");
+                }
+            }
             if (!tableExists(conn, "payroll", "earning")) {
                 executeResource(conn, "db/migration/payroll/V042__earning.sql");
             }
@@ -187,6 +194,20 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "employee_reimbursement_request")) {
                 executeResource(conn, "db/migration/payroll/V098__employee_reimbursement_request.sql");
             }
+            if (!tableExists(conn, "payroll", "ctc_epf_component")) {
+                executeResource(conn, "db/migration/payroll/V068__ctc_epf_component.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.ctc_epf_component NO FORCE ROW LEVEL SECURITY");
+                }
+            }
+            if (!tableExists(conn, "payroll", "ctc_esi_component")) {
+                executeResource(conn, "db/migration/payroll/V069__ctc_esi_component.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.ctc_esi_component NO FORCE ROW LEVEL SECURITY");
+                }
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -245,6 +266,12 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "income_tax_declaration")) {
                 st.execute("TRUNCATE TABLE payroll.income_tax_declaration CASCADE");
             }
+            if (tableExists(conn, "payroll", "ctc_epf_component")) {
+                st.execute("DELETE FROM payroll.ctc_epf_component");
+            }
+            if (tableExists(conn, "payroll", "ctc_esi_component")) {
+                st.execute("DELETE FROM payroll.ctc_esi_component");
+            }
             if (tableExists(conn, "payroll", "epf_setting")) {
                 st.execute("DELETE FROM payroll.epf_setting");
             }
@@ -265,6 +292,9 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "core", "work_location")) {
                 st.execute("DELETE FROM core.work_location");
+            }
+            if (tableExists(conn, "core", "employee_personal")) {
+                st.execute("DELETE FROM core.employee_personal");
             }
             st.execute("DELETE FROM core.employee");
         }
