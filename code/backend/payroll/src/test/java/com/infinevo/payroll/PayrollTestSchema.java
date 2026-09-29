@@ -76,9 +76,54 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "employee_fbp_component")) {
                 executeResource(conn, "db/migration/payroll/V053__employee_fbp_component.sql");
             }
+            if (!tableExists(conn, "payroll", "epf_setting")) {
+                executeResource(conn, "db/migration/payroll/V062__epf_setting.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.epf_setting NO FORCE ROW LEVEL SECURITY");
+                }
+            }
+            if (!tableExists(conn, "payroll", "esi_setting")) {
+                executeResource(conn, "db/migration/payroll/V063__esi_setting.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.esi_setting NO FORCE ROW LEVEL SECURITY");
+                }
+            }
+            if (!tableExists(conn, "reference", "state")) {
+                executeResource(conn, "db/migration/reference/V003__reference_lookups.sql");
+            }
+            if (!tableExists(conn, "core", "work_location")) {
+                executeResource(conn, "db/migration/core/V013__work_location.sql");
+            }
+            if (!tableExists(conn, "reference", "pt_state")) {
+                executeResource(conn, "db/migration/reference/V064__pt_state_and_slab.sql");
+            }
+            if (!tableExists(conn, "payroll", "org_pt_override")) {
+                executeResource(conn, "db/migration/payroll/V065__org_pt_override.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.org_pt_override NO FORCE ROW LEVEL SECURITY");
+                }
+            }
+            if (!tableExists(conn, "payroll", "org_pt_override_slab")) {
+                executeResource(conn, "db/migration/payroll/V066__org_pt_override_slab.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.org_pt_override_slab NO FORCE ROW LEVEL SECURITY");
+                }
+            }
+            if (!tableExists(conn, "payroll", "pt_history")) {
+                executeResource(conn, "db/migration/payroll/V067__pt_history.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.pt_history NO FORCE ROW LEVEL SECURITY");
+                }
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
+                st.execute("GRANT SELECT ON ALL TABLES IN SCHEMA reference TO app_user");
             }
         }
     }
@@ -108,8 +153,26 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "income_tax_declaration")) {
                 st.execute("TRUNCATE TABLE payroll.income_tax_declaration CASCADE");
             }
+            if (tableExists(conn, "payroll", "epf_setting")) {
+                st.execute("DELETE FROM payroll.epf_setting");
+            }
+            if (tableExists(conn, "payroll", "esi_setting")) {
+                st.execute("DELETE FROM payroll.esi_setting");
+            }
+            if (tableExists(conn, "payroll", "org_pt_override_slab")) {
+                st.execute("DELETE FROM payroll.org_pt_override_slab");
+            }
+            if (tableExists(conn, "payroll", "org_pt_override")) {
+                st.execute("DELETE FROM payroll.org_pt_override");
+            }
+            if (tableExists(conn, "payroll", "pt_history")) {
+                st.execute("DELETE FROM payroll.pt_history");
+            }
             if (tableExists(conn, "core", "attendance")) {
                 st.execute("DELETE FROM core.attendance");
+            }
+            if (tableExists(conn, "core", "work_location")) {
+                st.execute("DELETE FROM core.work_location");
             }
             st.execute("DELETE FROM core.employee");
         }

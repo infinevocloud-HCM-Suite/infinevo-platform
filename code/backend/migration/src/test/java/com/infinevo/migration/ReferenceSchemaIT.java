@@ -54,7 +54,10 @@ class ReferenceSchemaIT {
             "section87a_rebate_rule_master",
             "cess_surcharge_rule_master",
             // W-11.1 — the action catalogue (V020__action.sql)
-            "action");
+            "action",
+            // W-31.2 — professional tax state and slabs (V064__pt_state_and_slab.sql)
+            "pt_state",
+            "pt_slab");
 
     private static String jdbcUrl;
 
