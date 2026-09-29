@@ -96,4 +96,81 @@ class LopPolicyVersionTest {
                 .isInstanceOf(NoLopPolicyException.class)
                 .hasMessageContaining("No loss-of-pay policy in force");
     }
+
+    @Test
+    @DisplayName("Changing policy in April creates a new version; March policy remains intact")
+    void savePolicy_createsNewVersion_andDoesNotOverwriteMarchPolicy() {
+        LocalDate marchDate = LocalDate.of(2026, 3, 1);
+        LocalDate aprilDate = LocalDate.of(2026, 4, 1);
+
+        LopPolicy marchPolicy =
+                new LopPolicy(tenantId, WorkingDayBasis.FIXED_30, null, true, true, LopRounding.HALF_UP_2, marchDate);
+
+        // April has no version yet
+        when(repository.findByTenantIdAndEffectiveFrom(eq(tenantId), eq(aprilDate)))
+                .thenReturn(Optional.empty());
+        when(repository.save(any(LopPolicy.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LopPolicyRequest aprilRequest =
+                new LopPolicyRequest(WorkingDayBasis.ACTUAL_DAYS, null, true, true, LopRounding.HALF_UP_2, aprilDate);
+
+        LopPolicyResponse aprilResponse = service.savePolicy(aprilRequest);
+
+        // April response reflects the new policy version
+        assertThat(aprilResponse.workingDayBasis()).isEqualTo(WorkingDayBasis.ACTUAL_DAYS);
+        assertThat(aprilResponse.effectiveFrom()).isEqualTo(aprilDate);
+
+        // March policy entity was never overwritten or modified
+        assertThat(marchPolicy.getWorkingDayBasis()).isEqualTo(WorkingDayBasis.FIXED_30);
+        assertThat(marchPolicy.getEffectiveFrom()).isEqualTo(marchDate);
+    }
+
+    @Test
+    @DisplayName("Attempting to overwrite an existing policy version in place throws IllegalStateException")
+    void savePolicy_sameDateDifferentSettings_throwsIllegalStateException() {
+        LocalDate date = LocalDate.of(2026, 3, 1);
+        LopPolicy existingMarch =
+                new LopPolicy(tenantId, WorkingDayBasis.FIXED_30, null, true, true, LopRounding.HALF_UP_2, date);
+
+        when(repository.findByTenantIdAndEffectiveFrom(eq(tenantId), eq(date))).thenReturn(Optional.of(existingMarch));
+
+        LopPolicyRequest overwriteAttempt =
+                new LopPolicyRequest(WorkingDayBasis.ACTUAL_DAYS, null, true, true, LopRounding.HALF_UP_2, date);
+
+        assertThatThrownBy(() -> service.savePolicy(overwriteAttempt))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot edit loss-of-pay policy in place")
+                .hasMessageContaining("Policy versions are immutable");
+    }
+
+    @Test
+    @DisplayName("Saving identical settings for an existing effective date is idempotent")
+    void savePolicy_sameDateSameSettings_isIdempotent() {
+        LocalDate date = LocalDate.of(2026, 3, 1);
+        LopPolicy existingMarch =
+                new LopPolicy(tenantId, WorkingDayBasis.FIXED_30, null, true, true, LopRounding.HALF_UP_2, date);
+
+        when(repository.findByTenantIdAndEffectiveFrom(eq(tenantId), eq(date))).thenReturn(Optional.of(existingMarch));
+
+        LopPolicyRequest sameRequest =
+                new LopPolicyRequest(WorkingDayBasis.FIXED_30, null, true, true, LopRounding.HALF_UP_2, date);
+
+        LopPolicyResponse response = service.savePolicy(sameRequest);
+        assertThat(response.workingDayBasis()).isEqualTo(WorkingDayBasis.FIXED_30);
+        assertThat(response.effectiveFrom()).isEqualTo(date);
+    }
+
+    @Test
+    @DisplayName("When effectiveFrom is null, it defaults to today's date")
+    void savePolicy_nullEffectiveFrom_defaultsToToday() {
+        LocalDate today = LocalDate.now();
+        when(repository.findByTenantIdAndEffectiveFrom(eq(tenantId), eq(today))).thenReturn(Optional.empty());
+        when(repository.save(any(LopPolicy.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LopPolicyRequest request =
+                new LopPolicyRequest(WorkingDayBasis.FIXED_30, null, true, true, LopRounding.HALF_UP_2, null);
+
+        LopPolicyResponse response = service.savePolicy(request);
+        assertThat(response.effectiveFrom()).isEqualTo(today);
+    }
 }

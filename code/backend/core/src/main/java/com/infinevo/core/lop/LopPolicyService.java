@@ -59,38 +59,74 @@ public class LopPolicyService {
         validateRequest(request);
 
         UUID tenantId = TenantContext.require();
+        LocalDate effectiveFrom = request.effectiveFrom() != null ? request.effectiveFrom() : LocalDate.now();
         boolean weekendsPayable = request.weekendsPayable() == null || request.weekendsPayable();
         boolean holidaysPayable = request.holidaysPayable() == null || request.holidaysPayable();
         LopRounding rounding = request.lopRounding() != null ? request.lopRounding() : LopRounding.HALF_UP_2;
 
-        LopPolicy policy = policyRepository
-                .findByTenantIdAndEffectiveFrom(tenantId, request.effectiveFrom())
-                .orElseGet(() -> new LopPolicy(
-                        tenantId,
-                        request.workingDayBasis(),
-                        request.configuredDaysPerMonth(),
-                        weekendsPayable,
-                        holidaysPayable,
-                        rounding,
-                        request.effectiveFrom()));
+        Optional<LopPolicy> existingPolicyOpt =
+                policyRepository.findByTenantIdAndEffectiveFrom(tenantId, effectiveFrom);
+        if (existingPolicyOpt.isPresent()) {
+            LopPolicy existing = existingPolicyOpt.get();
+            if (isSamePolicy(
+                    existing,
+                    request.workingDayBasis(),
+                    request.configuredDaysPerMonth(),
+                    weekendsPayable,
+                    holidaysPayable,
+                    rounding)) {
+                return toResponse(existing);
+            }
+            throw new IllegalStateException(
+                    "Cannot edit loss-of-pay policy in place for effective date "
+                            + effectiveFrom
+                            + ". Policy versions are immutable to ensure past payslips remain explainable. Provide a new effectiveFrom date to create a new version.");
+        }
 
-        policy.setWorkingDayBasis(request.workingDayBasis());
-        policy.setConfiguredDaysPerMonth(request.configuredDaysPerMonth());
-        policy.setWeekendsPayable(weekendsPayable);
-        policy.setHolidaysPayable(holidaysPayable);
-        policy.setLopRounding(rounding);
-        policy.setEffectiveFrom(request.effectiveFrom());
+        LopPolicy newPolicy = new LopPolicy(
+                tenantId,
+                request.workingDayBasis(),
+                request.configuredDaysPerMonth(),
+                weekendsPayable,
+                holidaysPayable,
+                rounding,
+                effectiveFrom);
 
-        LopPolicy saved = policyRepository.save(policy);
+        LopPolicy saved = policyRepository.save(newPolicy);
         return toResponse(saved);
+    }
+
+    private boolean isSamePolicy(
+            LopPolicy policy,
+            WorkingDayBasis basis,
+            BigDecimal configuredDays,
+            boolean weekendsPayable,
+            boolean holidaysPayable,
+            LopRounding rounding) {
+        if (policy.getWorkingDayBasis() != basis) {
+            return false;
+        }
+        if (policy.isWeekendsPayable() != weekendsPayable) {
+            return false;
+        }
+        if (policy.isHolidaysPayable() != holidaysPayable) {
+            return false;
+        }
+        if (policy.getLopRounding() != rounding) {
+            return false;
+        }
+        if (policy.getConfiguredDaysPerMonth() == null && configuredDays == null) {
+            return true;
+        }
+        if (policy.getConfiguredDaysPerMonth() != null && configuredDays != null) {
+            return policy.getConfiguredDaysPerMonth().compareTo(configuredDays) == 0;
+        }
+        return false;
     }
 
     private void validateRequest(LopPolicyRequest req) {
         if (req.workingDayBasis() == null) {
             throw new IllegalArgumentException("workingDayBasis is required and must not be null");
-        }
-        if (req.effectiveFrom() == null) {
-            throw new IllegalArgumentException("effectiveFrom is required and must not be null");
         }
         if (req.workingDayBasis() != WorkingDayBasis.ORG_DAYS && req.configuredDaysPerMonth() != null) {
             throw new IllegalArgumentException(
