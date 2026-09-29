@@ -21,12 +21,103 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 /**
  * Spring Boot test application for the payroll integration tests (W-26.1, W-26.2).
  */
-@SpringBootApplication(scanBasePackages = {"com.infinevo.payroll"})
-@EntityScan(basePackages = {"com.infinevo.payroll"})
-@EnableJpaRepositories(basePackages = {"com.infinevo.payroll"})
+@SpringBootApplication(
+        scanBasePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
+@EntityScan(basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
+@EnableJpaRepositories(
+        basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
 public class PayrollTestApp {
 
     public static final ThreadLocal<EmployeeResponse> CURRENT_EMPLOYEE = new ThreadLocal<>();
+    public static final ThreadLocal<UUID> APPROVER_ID = new ThreadLocal<>();
+    public static final java.util.Map<UUID, com.infinevo.core.document.DocumentResponse> TEST_DOCUMENTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    @Bean
+    public com.infinevo.core.approval.CoreApproverResolver coreApproverResolver() {
+        com.infinevo.core.approval.CoreApproverResolver resolver =
+                org.mockito.Mockito.mock(com.infinevo.core.approval.CoreApproverResolver.class);
+        org.mockito.Mockito.when(resolver.resolve(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> Optional.ofNullable(APPROVER_ID.get()));
+        return resolver;
+    }
+
+    @Bean
+    public com.infinevo.shared.authz.PermissionService permissionService() {
+        com.infinevo.shared.authz.PermissionService service =
+                org.mockito.Mockito.mock(com.infinevo.shared.authz.PermissionService.class);
+        org.mockito.Mockito.when(service.holds(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(true);
+        return service;
+    }
+
+    @Bean
+    public com.infinevo.core.employee.EmployeeRepository employeeRepository() {
+        return org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeRepository.class);
+    }
+
+    @Bean
+    public com.infinevo.core.org.ReportingLineService reportingLineService() {
+        return org.mockito.Mockito.mock(com.infinevo.core.org.ReportingLineService.class);
+    }
+
+    @Bean
+    public com.infinevo.core.document.DocumentService documentService() {
+        return new com.infinevo.core.document.DocumentService() {
+            @Override
+            public UUID store(
+                    com.infinevo.core.document.DocumentKind kind,
+                    UUID employeeId,
+                    String fileName,
+                    java.io.InputStream content) {
+                UUID id = UUID.randomUUID();
+                com.infinevo.core.document.DocumentResponse doc = new com.infinevo.core.document.DocumentResponse(
+                        id,
+                        employeeId,
+                        kind,
+                        fileName,
+                        "application/pdf",
+                        1024L,
+                        "test_checksum",
+                        Instant.now(),
+                        "system");
+                TEST_DOCUMENTS.put(id, doc);
+                return id;
+            }
+
+            @Override
+            public UUID storeFile(
+                    com.infinevo.core.document.DocumentKind kind,
+                    UUID employeeId,
+                    String fileName,
+                    java.nio.file.Path file) {
+                return store(kind, employeeId, fileName, null);
+            }
+
+            @Override
+            public com.infinevo.core.document.DocumentResponse get(UUID id) {
+                com.infinevo.core.document.DocumentResponse doc = TEST_DOCUMENTS.get(id);
+                if (doc == null) {
+                    throw new com.infinevo.core.document.DocumentService.NotFoundException(id);
+                }
+                return doc;
+            }
+
+            @Override
+            public DocumentContent open(UUID id) {
+                return new DocumentContent(get(id), new java.io.ByteArrayInputStream(new byte[0]));
+            }
+
+            @Override
+            public void delete(UUID id) {
+                TEST_DOCUMENTS.remove(id);
+            }
+        };
+    }
 
     @Bean
     public EmployeeService employeeService(DataSource dataSource) {
