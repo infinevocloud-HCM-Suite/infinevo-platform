@@ -7,9 +7,9 @@ import { store } from '@shell/store';
 import { theme } from '@shared/theme';
 import { apiClient } from '@shared/api/client';
 
-import { DeclarationPage } from '@payroll/tax/DeclarationPage';
-import { TaxWindowScreen } from '@payroll/tax/TaxWindowScreen';
-import { OfficerDeclarationView } from '@payroll/tax/OfficerDeclarationView';
+import { DeclarationPage } from './payroll/tax/DeclarationPage';
+import { TaxWindowScreen } from './payroll/tax/TaxWindowScreen';
+import { OfficerDeclarationView } from './payroll/tax/OfficerDeclarationView';
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
