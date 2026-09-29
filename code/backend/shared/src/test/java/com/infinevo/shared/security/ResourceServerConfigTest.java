@@ -91,9 +91,13 @@ class ResourceServerConfigTest {
     }
 
     @Test
-    @DisplayName("The D-22 exception list is exactly the document download, and grows only on purpose")
+    @DisplayName("The D-22 exception list contains reviewed endpoints, and grows only on purpose")
     void publicApplicationEndpointsAreTheReviewedList() {
-        assertThat(PublicEndpoints.PATHS).containsExactly("/api/v1/documents/download");
+        assertThat(PublicEndpoints.PATHS)
+                .containsExactly(
+                        PublicEndpoints.DOCUMENT_DOWNLOAD,
+                        PublicEndpoints.INVITATION_ACCEPT,
+                        PublicEndpoints.INVITATION_DECLINE);
     }
 
     @Test
