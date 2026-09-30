@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-36.3` · from ticket #48 (`W-36`) · `PAY-10` table `income_tax_detail` |
 | **Promoted to** | `docs/target-state/features/W-36-3-tax-deductor.md` — **`W-36-3` with hyphens**, never `W-36.3`; `guard-edit` blocks the dotted form |
-| **Owner** | mohit |
+| **Owner** | sayeed |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for this table), DEBT-007, DEBT-008, DEBT-018 (honoured), DEBT-022 (fixed) |
 | **Status** | **Ready** |
