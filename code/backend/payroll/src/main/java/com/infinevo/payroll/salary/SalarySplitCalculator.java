@@ -45,7 +45,36 @@ public final class SalarySplitCalculator {
             BigDecimal annualAmount,
             boolean includedInCtc,
             String earningFrequency,
-            String carryForwardOption) {}
+            String carryForwardOption,
+            String earningType) {
+
+        public CalculatedResult(
+                UUID componentId,
+                String code,
+                String name,
+                CalculationType calculationType,
+                BigDecimal value,
+                PercentageOf percentageOf,
+                BigDecimal monthlyAmount,
+                BigDecimal annualAmount,
+                boolean includedInCtc,
+                String earningFrequency,
+                String carryForwardOption) {
+            this(
+                    componentId,
+                    code,
+                    name,
+                    calculationType,
+                    value,
+                    percentageOf,
+                    monthlyAmount,
+                    annualAmount,
+                    includedInCtc,
+                    earningFrequency,
+                    carryForwardOption,
+                    null);
+        }
+    }
 
     public record SplitOutput(
             BigDecimal annualCtc,
@@ -55,9 +84,9 @@ public final class SalarySplitCalculator {
             List<CalculatedResult> reimbursements) {}
 
     /**
-     * Resolves all earnings, benefits, and reimbursements against the provided annual CTC.
+     * Resolves all earnings, benefits, and reimbursements against the provided annual CTC without CTC balance validation.
      */
-    public static SplitOutput calculate(
+    public static SplitOutput resolve(
             BigDecimal annualCtc,
             List<ComponentInput> earnings,
             List<ComponentInput> benefits,
@@ -103,19 +132,34 @@ public final class SalarySplitCalculator {
         List<CalculatedResult> resolvedReimbursements =
                 resolveNonEarnings(annualCtc, basicEarning, grossAnnual, grossMonthly, reimbursements);
 
-        // 5. Check sum of is_included_in_ctc equals annual_ctc at scale 2
-        BigDecimal sumIncludedAnnual = BigDecimal.ZERO.setScale(4, ROUNDING);
-        for (CalculatedResult e : resolvedEarnings) {
+        return new SplitOutput(
+                annualCtc.setScale(4, ROUNDING),
+                monthlyCtc,
+                resolvedEarnings,
+                resolvedBenefits,
+                resolvedReimbursements);
+    }
+
+    /**
+     * Validates that the sum of components included in CTC (plus any additional statutory amounts included in CTC)
+     * matches the annual CTC at scale 2.
+     */
+    public static void validateCtcBalance(
+            BigDecimal annualCtc, SplitOutput split, BigDecimal additionalIncludedAnnual) {
+
+        BigDecimal sumIncludedAnnual =
+                (additionalIncludedAnnual != null ? additionalIncludedAnnual : BigDecimal.ZERO).setScale(4, ROUNDING);
+        for (CalculatedResult e : split.earnings()) {
             if (e.includedInCtc()) {
                 sumIncludedAnnual = sumIncludedAnnual.add(e.annualAmount());
             }
         }
-        for (CalculatedResult b : resolvedBenefits) {
+        for (CalculatedResult b : split.benefits()) {
             if (b.includedInCtc()) {
                 sumIncludedAnnual = sumIncludedAnnual.add(b.annualAmount());
             }
         }
-        for (CalculatedResult r : resolvedReimbursements) {
+        for (CalculatedResult r : split.reimbursements()) {
             if (r.includedInCtc()) {
                 sumIncludedAnnual = sumIncludedAnnual.add(r.annualAmount());
             }
@@ -132,13 +176,19 @@ public final class SalarySplitCalculator {
                             + ") does not equal annual CTC (" + ctcScale2
                             + "). Difference: " + diff.abs());
         }
+    }
 
-        return new SplitOutput(
-                annualCtc.setScale(4, ROUNDING),
-                monthlyCtc,
-                resolvedEarnings,
-                resolvedBenefits,
-                resolvedReimbursements);
+    /**
+     * Resolves all earnings, benefits, and reimbursements against the provided annual CTC and validates CTC balance.
+     */
+    public static SplitOutput calculate(
+            BigDecimal annualCtc,
+            List<ComponentInput> earnings,
+            List<ComponentInput> benefits,
+            List<ComponentInput> reimbursements) {
+        SplitOutput split = resolve(annualCtc, earnings, benefits, reimbursements);
+        validateCtcBalance(annualCtc, split, BigDecimal.ZERO);
+        return split;
     }
 
     private static void validateInputs(String category, List<ComponentInput> list, Map<String, String> errors) {
@@ -297,9 +347,9 @@ public final class SalarySplitCalculator {
         return null;
     }
 
-    private static CalculatedResult findBasicEarning(List<CalculatedResult> earnings) {
+    public static CalculatedResult findBasicEarning(List<CalculatedResult> earnings) {
         for (CalculatedResult e : earnings) {
-            if ("BASIC".equalsIgnoreCase(e.code())) {
+            if ("BASIC".equalsIgnoreCase(e.code()) || "BASIC".equalsIgnoreCase(e.earningType())) {
                 return e;
             }
         }
@@ -322,6 +372,7 @@ public final class SalarySplitCalculator {
                 annual,
                 input.includedInCtc(),
                 input.earningFrequency(),
-                input.carryForwardOption());
+                input.carryForwardOption(),
+                input.earningType());
     }
 }

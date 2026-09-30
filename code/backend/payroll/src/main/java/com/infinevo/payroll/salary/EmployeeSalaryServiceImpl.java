@@ -1,6 +1,8 @@
 package com.infinevo.payroll.salary;
 
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.employee.detail.EmployeePersonalResponse;
+import com.infinevo.core.employee.detail.EmployeePersonalService;
 import com.infinevo.payroll.component.Benefit;
 import com.infinevo.payroll.component.BenefitRepository;
 import com.infinevo.payroll.component.Earning;
@@ -11,6 +13,19 @@ import com.infinevo.payroll.fbp.EmployeeFbpComponent;
 import com.infinevo.payroll.fbp.EmployeeFbpComponentRepository;
 import com.infinevo.payroll.fbp.FbpDeclarationService;
 import com.infinevo.payroll.fbp.FbpSummaryResponse;
+import com.infinevo.payroll.statutory.lines.CtcEpfComponent;
+import com.infinevo.payroll.statutory.lines.CtcEpfComponentRepository;
+import com.infinevo.payroll.statutory.lines.CtcEsiComponent;
+import com.infinevo.payroll.statutory.lines.CtcEsiComponentRepository;
+import com.infinevo.payroll.statutory.lines.DerivedStatutoryLine;
+import com.infinevo.payroll.statutory.lines.SalaryStatutoryItemResponse;
+import com.infinevo.payroll.statutory.lines.StatutoryComponentCode;
+import com.infinevo.payroll.statutory.lines.StatutoryLineDeriver;
+import com.infinevo.payroll.statutory.settings.EpfSetting;
+import com.infinevo.payroll.statutory.settings.EpfSettingRepository;
+import com.infinevo.payroll.statutory.settings.EsiSetting;
+import com.infinevo.payroll.statutory.settings.EsiSettingRepository;
+import com.infinevo.shared.money.Money;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -18,6 +33,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +47,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Implementation of {@link EmployeeSalaryService} (W-26.2).
+ * Implementation of {@link EmployeeSalaryService} (W-26.2, W-31.3).
  */
 @Service
 @Transactional
@@ -49,6 +65,12 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final EmployeeService employeeService;
     private final EmployeeFbpComponentRepository employeeFbpComponentRepository;
     private final FbpDeclarationService fbpDeclarationService;
+    private final EpfSettingRepository epfSettingRepository;
+    private final EsiSettingRepository esiSettingRepository;
+    private final EmployeeStatutoryProfileRepository employeeStatutoryProfileRepository;
+    private final EmployeePersonalService employeePersonalService;
+    private final CtcEpfComponentRepository ctcEpfComponentRepository;
+    private final CtcEsiComponentRepository ctcEsiComponentRepository;
 
     public EmployeeSalaryServiceImpl(
             CtcStructureRepository ctcStructureRepository,
@@ -69,6 +91,42 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 reimbursementRepository,
                 employeeService,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    public EmployeeSalaryServiceImpl(
+            CtcStructureRepository ctcStructureRepository,
+            EmployeeEarningRepository employeeEarningRepository,
+            EmployeeBenefitRepository employeeBenefitRepository,
+            EmployeeReimbursementRepository employeeReimbursementRepository,
+            EarningRepository earningRepository,
+            BenefitRepository benefitRepository,
+            ReimbursementRepository reimbursementRepository,
+            EmployeeService employeeService,
+            EmployeeFbpComponentRepository employeeFbpComponentRepository,
+            FbpDeclarationService fbpDeclarationService) {
+        this(
+                ctcStructureRepository,
+                employeeEarningRepository,
+                employeeBenefitRepository,
+                employeeReimbursementRepository,
+                earningRepository,
+                benefitRepository,
+                reimbursementRepository,
+                employeeService,
+                employeeFbpComponentRepository,
+                fbpDeclarationService,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
     }
 
@@ -83,7 +141,13 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             ReimbursementRepository reimbursementRepository,
             EmployeeService employeeService,
             @Autowired(required = false) EmployeeFbpComponentRepository employeeFbpComponentRepository,
-            @Autowired(required = false) FbpDeclarationService fbpDeclarationService) {
+            @Autowired(required = false) FbpDeclarationService fbpDeclarationService,
+            @Autowired(required = false) EpfSettingRepository epfSettingRepository,
+            @Autowired(required = false) EsiSettingRepository esiSettingRepository,
+            @Autowired(required = false) EmployeeStatutoryProfileRepository employeeStatutoryProfileRepository,
+            @Autowired(required = false) EmployeePersonalService employeePersonalService,
+            @Autowired(required = false) CtcEpfComponentRepository ctcEpfComponentRepository,
+            @Autowired(required = false) CtcEsiComponentRepository ctcEsiComponentRepository) {
         this.ctcStructureRepository =
                 Objects.requireNonNull(ctcStructureRepository, "ctcStructureRepository must not be null");
         this.employeeEarningRepository =
@@ -99,6 +163,12 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.employeeFbpComponentRepository = employeeFbpComponentRepository;
         this.fbpDeclarationService = fbpDeclarationService;
+        this.epfSettingRepository = epfSettingRepository;
+        this.esiSettingRepository = esiSettingRepository;
+        this.employeeStatutoryProfileRepository = employeeStatutoryProfileRepository;
+        this.employeePersonalService = employeePersonalService;
+        this.ctcEpfComponentRepository = ctcEpfComponentRepository;
+        this.ctcEsiComponentRepository = ctcEsiComponentRepository;
     }
 
     @Override
@@ -265,7 +335,52 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 resolveReimbursementInputs(tenantId, request.reimbursements());
 
         SalarySplitCalculator.SplitOutput split =
-                SalarySplitCalculator.calculate(request.annualCtc(), earningInputs, benefitInputs, reimbursementInputs);
+                SalarySplitCalculator.resolve(request.annualCtc(), earningInputs, benefitInputs, reimbursementInputs);
+
+        // Derive statutory lines from version wages, profile, and tenant settings (W-31.3)
+        SalarySplitCalculator.CalculatedResult basicResult = SalarySplitCalculator.findBasicEarning(split.earnings());
+        Money basicMonthly = basicResult != null ? Money.of(basicResult.monthlyAmount()) : Money.ZERO;
+        BigDecimal grossMonthlySum = split.earnings().stream()
+                .map(SalarySplitCalculator.CalculatedResult::monthlyAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Money grossMonthly = Money.of(grossMonthlySum);
+
+        EmployeeStatutoryProfile profile = employeeStatutoryProfileRepository != null
+                ? employeeStatutoryProfileRepository
+                        .findByTenantIdAndEmployeeId(tenantId, employeeId)
+                        .orElse(null)
+                : null;
+        EpfSetting epf = epfSettingRepository != null
+                ? epfSettingRepository.findByTenantId(tenantId).orElse(null)
+                : null;
+        EsiSetting esi = esiSettingRepository != null
+                ? esiSettingRepository.findByTenantId(tenantId).orElse(null)
+                : null;
+
+        LocalDate dob = null;
+        if (employeePersonalService != null) {
+            try {
+                dob = employeePersonalService
+                        .find(employeeId)
+                        .map(EmployeePersonalResponse::dateOfBirth)
+                        .orElse(null);
+            } catch (Exception e) {
+                dob = null;
+            }
+        }
+
+        List<DerivedStatutoryLine> statutoryLines = StatutoryLineDeriver.derive(
+                basicMonthly, grossMonthly, profile, epf, esi, dob, request.effectiveFrom());
+
+        BigDecimal statutoryIncludedAnnual = BigDecimal.ZERO;
+        for (DerivedStatutoryLine line : statutoryLines) {
+            if (line.includedInCtc()) {
+                statutoryIncludedAnnual =
+                        statutoryIncludedAnnual.add(line.annualAmount().raw());
+            }
+        }
+
+        SalarySplitCalculator.validateCtcBalance(request.annualCtc(), split, statutoryIncludedAnnual);
 
         CtcStructure ctcStructure =
                 isUpdate ? existingVersion : new CtcStructure(tenantId, employeeId, request.effectiveFrom(), actor);
@@ -279,6 +394,12 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             employeeEarningRepository.deleteAllByTenantIdAndCtcStructureId(tenantId, ctcStructure.getId());
             employeeBenefitRepository.deleteAllByTenantIdAndCtcStructureId(tenantId, ctcStructure.getId());
             employeeReimbursementRepository.deleteAllByTenantIdAndCtcStructureId(tenantId, ctcStructure.getId());
+            if (ctcEpfComponentRepository != null) {
+                ctcEpfComponentRepository.deleteByTenantIdAndCtcStructureId(tenantId, ctcStructure.getId());
+            }
+            if (ctcEsiComponentRepository != null) {
+                ctcEsiComponentRepository.deleteByTenantIdAndCtcStructureId(tenantId, ctcStructure.getId());
+            }
             ctcStructure.getEarnings().clear();
             ctcStructure.getBenefits().clear();
             ctcStructure.getReimbursements().clear();
@@ -322,6 +443,41 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             er.setCarryForwardOption(res.carryForwardOption());
             er.setEnabled(true);
             savedReimbursements.add(employeeReimbursementRepository.save(er));
+        }
+
+        for (DerivedStatutoryLine line : statutoryLines) {
+            if (line.code() == StatutoryComponentCode.ESI_EMPLOYEE
+                    || line.code() == StatutoryComponentCode.ESI_EMPLOYER) {
+                if (ctcEsiComponentRepository != null) {
+                    CtcEsiComponent comp = new CtcEsiComponent(
+                            tenantId,
+                            saved.getId(),
+                            line.code(),
+                            line.share(),
+                            line.wageBase().raw(),
+                            line.rate(),
+                            line.monthlyAmount().raw(),
+                            line.annualAmount().raw(),
+                            line.includedInCtc(),
+                            actor);
+                    ctcEsiComponentRepository.save(comp);
+                }
+            } else {
+                if (ctcEpfComponentRepository != null) {
+                    CtcEpfComponent comp = new CtcEpfComponent(
+                            tenantId,
+                            saved.getId(),
+                            line.code(),
+                            line.share(),
+                            line.wageBase().raw(),
+                            line.rate(),
+                            line.monthlyAmount().raw(),
+                            line.annualAmount().raw(),
+                            line.includedInCtc(),
+                            actor);
+                    ctcEpfComponentRepository.save(comp);
+                }
+            }
         }
 
         saved.getEarnings().clear();
@@ -573,6 +729,29 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 })
                 .toList();
 
+        List<SalaryStatutoryItemResponse> statutoryResponses = new ArrayList<>();
+        if (ctcEpfComponentRepository != null) {
+            List<CtcEpfComponent> epfLines =
+                    ctcEpfComponentRepository.findByTenantIdAndCtcStructureId(tenantId, version.getId());
+            for (CtcEpfComponent epf : epfLines) {
+                statutoryResponses.add(SalaryStatutoryItemResponse.from(epf));
+            }
+        }
+        if (ctcEsiComponentRepository != null) {
+            List<CtcEsiComponent> esiLines =
+                    ctcEsiComponentRepository.findByTenantIdAndCtcStructureId(tenantId, version.getId());
+            for (CtcEsiComponent esi : esiLines) {
+                statutoryResponses.add(SalaryStatutoryItemResponse.from(esi));
+            }
+        }
+        statutoryResponses.sort(Comparator.comparing(item -> {
+            try {
+                return StatutoryComponentCode.valueOf(item.componentCode()).ordinal();
+            } catch (Exception ex) {
+                return 999;
+            }
+        }));
+
         FbpSummaryResponse fbpSummary =
                 fbpDeclarationService != null ? fbpDeclarationService.summary(version.getId(), tenantId) : null;
 
@@ -589,6 +768,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 earningResponses,
                 benefitResponses,
                 reimbursementResponses,
+                statutoryResponses,
                 fbpSummary);
     }
 

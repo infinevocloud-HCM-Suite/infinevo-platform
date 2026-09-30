@@ -19,6 +19,30 @@ public final class PayrollTestSchema {
     public static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
     public static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
+    public static com.infinevo.core.employee.EmployeeResponse createTestEmployee(
+            UUID id, UUID tenantId, String code, String first, String last, String email) {
+        return new com.infinevo.core.employee.EmployeeResponse(
+                id,
+                tenantId,
+                code,
+                first,
+                null,
+                last,
+                "MALE",
+                java.time.LocalDate.now(),
+                null,
+                null,
+                email,
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                java.time.Instant.now(),
+                java.time.Instant.now());
+    }
+
     private PayrollTestSchema() {}
 
     public static Connection migrationConnection() throws SQLException {
@@ -42,6 +66,13 @@ public final class PayrollTestSchema {
             }
             if (!tableExists(conn, "core", "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
+            }
+            if (!tableExists(conn, "core", "employee_personal")) {
+                executeResource(conn, "db/migration/core/V015__employee_personal.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE core.employee_personal NO FORCE ROW LEVEL SECURITY");
+                }
             }
             if (!tableExists(conn, "payroll", "earning")) {
                 executeResource(conn, "db/migration/payroll/V042__earning.sql");
@@ -120,6 +151,63 @@ public final class PayrollTestSchema {
                     st.execute("ALTER TABLE payroll.pt_history NO FORCE ROW LEVEL SECURITY");
                 }
             }
+            if (!tableExists(conn, "reference", "action")) {
+                executeResource(conn, "db/migration/reference/V020__action.sql");
+            }
+            if (!tableExists(conn, "core", "role")) {
+                executeResource(conn, "db/migration/core/V021__role.sql");
+            }
+            if (!tableExists(conn, "core", "role_action")) {
+                executeResource(conn, "db/migration/core/V022__role_action.sql");
+            }
+            if (!actionExists(conn, "core.document.read_own")) {
+                executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
+            }
+            if (!actionExists(conn, "payroll.fbp.read")) {
+                executeResource(conn, "db/migration/reference/V052__fbp_actions.sql");
+            }
+            executeResource(conn, "db/migration/reference/V097__reimbursement_claim_actions.sql");
+            if (!tableExists(conn, "core", "pay_input")) {
+                executeResource(conn, "db/migration/core/V031__pay_input.sql");
+            }
+            if (!tableExists(conn, "core", "pay_input_period_lock")) {
+                executeResource(conn, "db/migration/core/V032__pay_input_period_lock.sql");
+            }
+            if (!columnExists(conn, "core", "pay_input_period_lock", "run_ref")) {
+                executeResource(conn, "db/migration/core/V060__pay_input_run_ref.sql");
+            }
+            if (!tableExists(conn, "core", "document")) {
+                executeResource(conn, "db/migration/core/V037__document.sql");
+            }
+            if (!tableExists(conn, "core", "approval_definition")) {
+                executeResource(conn, "db/migration/core/V089__approval_definition.sql");
+            }
+            if (!tableExists(conn, "core", "approval_instance")) {
+                executeResource(conn, "db/migration/core/V090__approval_instance.sql");
+            }
+            if (!tableExists(conn, "core", "approval_step")) {
+                executeResource(conn, "db/migration/core/V091__approval_step.sql");
+            }
+            if (!tableExists(conn, "core", "approval_delegation")) {
+                executeResource(conn, "db/migration/core/V092__approval_delegation.sql");
+            }
+            if (!tableExists(conn, "payroll", "employee_reimbursement_request")) {
+                executeResource(conn, "db/migration/payroll/V098__employee_reimbursement_request.sql");
+            }
+            if (!tableExists(conn, "payroll", "ctc_epf_component")) {
+                executeResource(conn, "db/migration/payroll/V068__ctc_epf_component.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.ctc_epf_component NO FORCE ROW LEVEL SECURITY");
+                }
+            }
+            if (!tableExists(conn, "payroll", "ctc_esi_component")) {
+                executeResource(conn, "db/migration/payroll/V069__ctc_esi_component.sql");
+            } else {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("ALTER TABLE payroll.ctc_esi_component NO FORCE ROW LEVEL SECURITY");
+                }
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -139,6 +227,13 @@ public final class PayrollTestSchema {
             ps.setString(2, "Globex Corporation");
             ps.executeUpdate();
         }
+        try (Connection conn = migrationConnection();
+                Statement st = conn.createStatement()) {
+            if (tableExists(conn, "core", "approval_definition")) {
+                st.execute("SELECT core.seed_approval_definitions('" + TENANT_A + "'::uuid)");
+                st.execute("SELECT core.seed_approval_definitions('" + TENANT_B + "'::uuid)");
+            }
+        }
     }
 
     public static void cleanTables() throws SQLException {
@@ -150,8 +245,32 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "employee_investment_declaration")) {
                 st.execute("TRUNCATE TABLE payroll.employee_investment_declaration CASCADE");
             }
+            if (tableExists(conn, "payroll", "employee_reimbursement_request")) {
+                st.execute("DELETE FROM payroll.employee_reimbursement_request");
+            }
+            if (tableExists(conn, "core", "approval_step")) {
+                st.execute("DELETE FROM core.approval_step");
+            }
+            if (tableExists(conn, "core", "approval_instance")) {
+                st.execute("DELETE FROM core.approval_instance");
+            }
+            if (tableExists(conn, "core", "pay_input_period_lock")) {
+                st.execute("DELETE FROM core.pay_input_period_lock");
+            }
+            if (tableExists(conn, "core", "pay_input")) {
+                st.execute("DELETE FROM core.pay_input");
+            }
+            if (tableExists(conn, "core", "document")) {
+                st.execute("DELETE FROM core.document");
+            }
             if (tableExists(conn, "payroll", "income_tax_declaration")) {
                 st.execute("TRUNCATE TABLE payroll.income_tax_declaration CASCADE");
+            }
+            if (tableExists(conn, "payroll", "ctc_epf_component")) {
+                st.execute("DELETE FROM payroll.ctc_epf_component");
+            }
+            if (tableExists(conn, "payroll", "ctc_esi_component")) {
+                st.execute("DELETE FROM payroll.ctc_esi_component");
             }
             if (tableExists(conn, "payroll", "epf_setting")) {
                 st.execute("DELETE FROM payroll.epf_setting");
@@ -174,6 +293,9 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "core", "work_location")) {
                 st.execute("DELETE FROM core.work_location");
             }
+            if (tableExists(conn, "core", "employee_personal")) {
+                st.execute("DELETE FROM core.employee_personal");
+            }
             st.execute("DELETE FROM core.employee");
         }
     }
@@ -188,6 +310,28 @@ public final class PayrollTestSchema {
     public static void clearTenant(Connection conn) throws SQLException {
         try (PreparedStatement clear = conn.prepareStatement("SELECT set_config('app.current_tenant_id', '', false)")) {
             clear.execute();
+        }
+    }
+
+    public static boolean actionExists(Connection conn, String code) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM reference.action WHERE code = ?")) {
+            ps.setString(1, code);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    public static boolean columnExists(Connection conn, String schema, String table, String column)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
+            ps.setString(3, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 

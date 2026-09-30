@@ -2,6 +2,7 @@ package com.infinevo.core.employee.detail;
 
 import java.io.Serial;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -26,6 +27,15 @@ import java.util.UUID;
  * @param <R> the response type for this section
  */
 public interface EmployeeDetailService<Q, R> {
+
+    /**
+     * Looks up this section for this employee, or {@link Optional#empty()} if the employee
+     * does not exist or has never had this section written.
+     *
+     * <p>Unlike {@link #get(UUID)}, this never throws {@link NotFoundException} and does not
+     * mark an enclosing transaction as rollback-only.
+     */
+    Optional<R> find(UUID employeeId);
 
     /**
      * This section for this employee, in the bound tenant.
