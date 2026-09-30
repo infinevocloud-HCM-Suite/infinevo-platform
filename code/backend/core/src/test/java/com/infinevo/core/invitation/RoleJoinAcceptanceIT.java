@@ -106,7 +106,7 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
                         org.mockito.ArgumentMatchers.anyString(),
                         org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any()))
-                .thenReturn(keycloakUserId);
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         String testToken = InvitationTokenUtils.generateToken();
         String testTokenHash = InvitationTokenUtils.hashToken(testToken);
@@ -133,5 +133,40 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
                 status -> userRoleRepository.findByTenantIdAndUserAccountId(tenant, account.getId()));
         assertThat(assignedRoles.stream().map(com.infinevo.core.authz.UserRole::getRoleId))
                 .containsExactlyInAnyOrder(hrRole, employeeRole);
+    }
+
+    @Test
+    @DisplayName("an account that already holds a role keeps it when it accepts an invitation carrying another")
+    void acceptanceAddsToExistingRoles() throws SQLException {
+        UUID heldRole = AuthzTestSchema.roleId(tenant, "hr");
+        UUID invitedRole = AuthzTestSchema.roleId(tenant, "manager");
+        UUID keycloakUserId = UUID.randomUUID();
+        UUID accountId = AuthzTestSchema.insertMember(tenant, keycloakUserId, "already-member@example.com");
+        AuthzTestSchema.grant(tenant, accountId, heldRole);
+
+        org.mockito.Mockito.when(keycloakProvisioningService.getOrCreateKeycloakUser(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, false));
+
+        String token = InvitationTokenUtils.generateToken();
+        UserInvitation saved = userInvitationRepository.save(new UserInvitation(
+                tenant,
+                "already-member@example.com",
+                InvitationTokenUtils.hashToken(token),
+                java.time.Instant.now().plus(7, java.time.temporal.ChronoUnit.DAYS),
+                adminUserId,
+                "admin"));
+        userInvitationRoleRepository.save(new UserInvitationRole(tenant, saved.getId(), invitedRole, "admin"));
+
+        TenantContext.clear();
+        invitationService.acceptInvitation(token);
+
+        TenantContext.set(tenant);
+        java.util.List<com.infinevo.core.authz.UserRole> roles = transactionTemplate.execute(
+                status -> userRoleRepository.findByTenantIdAndUserAccountId(tenant, accountId));
+        assertThat(roles.stream().map(com.infinevo.core.authz.UserRole::getRoleId))
+                .containsExactlyInAnyOrder(heldRole, invitedRole);
     }
 }

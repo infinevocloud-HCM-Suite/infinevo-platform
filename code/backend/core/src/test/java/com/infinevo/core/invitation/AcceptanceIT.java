@@ -67,7 +67,7 @@ class AcceptanceIT extends AbstractIntegrationTest {
         transactionTemplate = new TransactionTemplate(transactionManager);
 
         when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
-                .thenReturn(mockKeycloakUserId);
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(mockKeycloakUserId, true));
 
         TenantContext.set(tenant);
     }

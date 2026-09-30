@@ -109,4 +109,57 @@ class EmployeeInvitationLifecycleIT extends AbstractIntegrationTest {
                 invitationService.listEmployeeInvitations(InvitationStatus.REVOKED, employeeId);
         assertThat(finalList).hasSize(2);
     }
+
+    @Autowired
+    private EmployeeInvitationRepository employeeInvitationRepository;
+
+    @org.springframework.boot.test.mock.mockito.MockBean
+    private KeycloakProvisioningService keycloakProvisioningService;
+
+    @Test
+    @DisplayName("after resend, and after revoke, the old token is refused and nothing is provisioned")
+    void oldTokenRefusedAfterResendAndRevoke() {
+        // Resend: the superseded token no longer works
+        String resentToken = InvitationTokenUtils.generateToken();
+        EmployeeInvitation original = employeeInvitationRepository.save(new EmployeeInvitation(
+                tenant,
+                employeeId,
+                "resend-" + UUID.randomUUID() + "@example.com",
+                InvitationTokenUtils.hashToken(resentToken),
+                java.time.Instant.now().plus(7, java.time.temporal.ChronoUnit.DAYS),
+                adminUserId,
+                "admin"));
+        EmployeeInvitationResponse replacement =
+                invitationService.resendEmployeeInvitation(original.getId(), adminUserId);
+
+        TenantContext.clear();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> invitationService.acceptInvitation(resentToken))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("revoked");
+
+        // Revoke: the revoked token no longer works
+        TenantContext.set(tenant);
+        invitationService.revokeEmployeeInvitation(replacement.id(), adminUserId);
+        String revokedToken = InvitationTokenUtils.generateToken();
+        EmployeeInvitation another = employeeInvitationRepository.save(new EmployeeInvitation(
+                tenant,
+                employeeId,
+                "revoke-" + UUID.randomUUID() + "@example.com",
+                InvitationTokenUtils.hashToken(revokedToken),
+                java.time.Instant.now().plus(7, java.time.temporal.ChronoUnit.DAYS),
+                adminUserId,
+                "admin"));
+        invitationService.revokeEmployeeInvitation(another.getId(), adminUserId);
+
+        TenantContext.clear();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> invitationService.acceptInvitation(revokedToken))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("revoked");
+
+        org.mockito.Mockito.verify(keycloakProvisioningService, org.mockito.Mockito.never())
+                .getOrCreateKeycloakUser(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any());
+    }
 }

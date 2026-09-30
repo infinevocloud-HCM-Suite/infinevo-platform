@@ -13,6 +13,9 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.authz.Role;
 import com.infinevo.core.authz.RoleRepository;
 import com.infinevo.core.authz.RoleService;
+import com.infinevo.core.authz.UserRole;
+import com.infinevo.core.authz.UserRoleRepository;
+import com.infinevo.core.authz.UserRolesRequest;
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
 import com.infinevo.core.notification.NotificationEvent;
@@ -25,6 +28,7 @@ import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -32,6 +36,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -40,25 +45,29 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>Covers:
  * <ul>
  *   <li>Single-use token enforcement</li>
- *   <li>Refusal of expired and revoked tokens</li>
+ *   <li>Refusal of expired and revoked tokens, with EXPIRED persisted in the same transaction</li>
  *   <li>Resend invalidation and superseding of previous invitations</li>
- *   <li>Creation validation and duplicate active invitation rejection</li>
+ *   <li>Creation validation, duplicate active invitation rejection, and no invented inviter</li>
+ *   <li>Acceptance adds roles rather than replacing them, and links the employee</li>
+ *   <li>The emailed link is the configured frontend page</li>
  * </ul>
  */
 class InvitationServiceTest {
+
+    static final String LINK_BASE = "https://app.test/invitations/accept";
 
     private UserInvitationRepository userInvitationRepository;
     private UserInvitationRoleRepository userInvitationRoleRepository;
     private EmployeeInvitationRepository employeeInvitationRepository;
     private RoleRepository roleRepository;
     private RoleService roleService;
+    private UserRoleRepository userRoleRepository;
     private EmployeeRepository employeeRepository;
     private UserAccountRepository userAccountRepository;
     private UserProfileSyncService userProfileSyncService;
     private KeycloakProvisioningService keycloakProvisioningService;
     private JdbcTemplate jdbcTemplate;
     private NotificationService notificationService;
-    private InvitationExpirationService invitationExpirationService;
 
     private InvitationServiceImpl invitationService;
 
@@ -72,13 +81,13 @@ class InvitationServiceTest {
         employeeInvitationRepository = mock(EmployeeInvitationRepository.class);
         roleRepository = mock(RoleRepository.class);
         roleService = mock(RoleService.class);
+        userRoleRepository = mock(UserRoleRepository.class);
         employeeRepository = mock(EmployeeRepository.class);
         userAccountRepository = mock(UserAccountRepository.class);
         userProfileSyncService = mock(UserProfileSyncService.class);
         keycloakProvisioningService = mock(KeycloakProvisioningService.class);
         jdbcTemplate = mock(JdbcTemplate.class);
         notificationService = mock(NotificationService.class);
-        invitationExpirationService = mock(InvitationExpirationService.class);
 
         invitationService = new InvitationServiceImpl(
                 userInvitationRepository,
@@ -86,14 +95,15 @@ class InvitationServiceTest {
                 employeeInvitationRepository,
                 roleRepository,
                 roleService,
+                userRoleRepository,
                 employeeRepository,
                 userAccountRepository,
                 userProfileSyncService,
                 keycloakProvisioningService,
                 jdbcTemplate,
-                invitationExpirationService);
+                LINK_BASE);
 
-        // Inject optional notification service via reflection or setter
+        // The optional notification service is field-injected
         try {
             var field = InvitationServiceImpl.class.getDeclaredField("notificationService");
             field.setAccessible(true);
@@ -121,12 +131,21 @@ class InvitationServiceTest {
         TenantContext.set(tenantId);
     }
 
-    private static void setId(Object entity, UUID id) {
+    static void setId(Object entity, UUID id) {
         try {
-            Field field = entity.getClass().getDeclaredField("id");
-            field.setAccessible(true);
-            field.set(entity, id);
-        } catch (Exception e) {
+            Class<?> type = entity.getClass();
+            while (type != null) {
+                try {
+                    Field field = type.getDeclaredField("id");
+                    field.setAccessible(true);
+                    field.set(entity, id);
+                    return;
+                } catch (NoSuchFieldException e) {
+                    type = type.getSuperclass();
+                }
+            }
+            throw new IllegalStateException("no id field on " + entity.getClass());
+        } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
@@ -146,14 +165,6 @@ class InvitationServiceTest {
                         eq(tenantId), eq("user@example.com"), any(Instant.class)))
                 .thenReturn(Optional.empty());
 
-        when(userInvitationRepository.save(any(UserInvitation.class))).thenAnswer(invocation -> {
-            UserInvitation inv = invocation.getArgument(0);
-            if (inv.getId() == null) {
-                setId(inv, UUID.randomUUID());
-            }
-            return inv;
-        });
-
         UserInvitationRequest request = new UserInvitationRequest("User@Example.com", Set.of(roleId));
         UserInvitationResponse response = invitationService.createUserInvitation(request, actorUserId);
 
@@ -168,6 +179,28 @@ class InvitationServiceTest {
     }
 
     @Test
+    @DisplayName("createUserInvitation: the email links to the configured frontend page, never the POST API path")
+    @SuppressWarnings("unchecked")
+    void emailLinkIsTheFrontendAcceptPage() {
+        when(userInvitationRepository.findActivePendingByEmail(any(), any(), any()))
+                .thenReturn(Optional.empty());
+
+        invitationService.createUserInvitation(new UserInvitationRequest("user@example.com", Set.of()), actorUserId);
+
+        ArgumentCaptor<Map<String, Object>> data = ArgumentCaptor.forClass(Map.class);
+        verify(notificationService).compose(eq(NotificationEvent.USER_INVITATION), any(), data.capture());
+        String link = (String) data.getValue().get("link");
+        assertThat(link).startsWith(LINK_BASE + "?token=").doesNotContain("/api/v1/");
+        String token = link.substring((LINK_BASE + "?token=").length());
+        assertThat(token).matches("[0-9a-f]{64}");
+
+        // The stored hash is the hash of the emailed token, and the token itself is stored nowhere
+        ArgumentCaptor<UserInvitation> saved = ArgumentCaptor.forClass(UserInvitation.class);
+        verify(userInvitationRepository).save(saved.capture());
+        assertThat(saved.getValue().getTokenHash()).isEqualTo(InvitationTokenUtils.hashToken(token));
+    }
+
+    @Test
     @DisplayName("createUserInvitation: duplicate active pending invitation for email is refused")
     void createUserInvitationDuplicateRefused() {
         when(userInvitationRepository.findActivePendingByEmail(
@@ -178,6 +211,28 @@ class InvitationServiceTest {
         assertThatThrownBy(() -> invitationService.createUserInvitation(request, actorUserId))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already exists");
+    }
+
+    @Test
+    @DisplayName("no resolvable actor: create and resend are refused, never stamped with an invented inviter")
+    void missingActorIsRefusedNotInvented() {
+        assertThatThrownBy(() -> invitationService.createUserInvitation(
+                        new UserInvitationRequest("user@example.com", Set.of()), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("inviter");
+        assertThatThrownBy(() -> invitationService.resendUserInvitation(UUID.randomUUID(), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("inviter");
+        assertThatThrownBy(() -> invitationService.createEmployeeInvitation(
+                        new EmployeeInvitationRequest(UUID.randomUUID()), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("inviter");
+        assertThatThrownBy(() -> invitationService.resendEmployeeInvitation(UUID.randomUUID(), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("inviter");
+
+        verify(userInvitationRepository, never()).save(any(UserInvitation.class));
+        verify(employeeInvitationRepository, never()).save(any(EmployeeInvitation.class));
     }
 
     @Test
@@ -211,13 +266,6 @@ class InvitationServiceTest {
         when(userInvitationRepository.findByIdAndTenantId(oldId, tenantId)).thenReturn(Optional.of(oldInv));
         when(userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantId, oldInv.getId()))
                 .thenReturn(List.of());
-        when(userInvitationRepository.save(any(UserInvitation.class))).thenAnswer(inv -> {
-            UserInvitation u = inv.getArgument(0);
-            if (u.getId() == null) {
-                setId(u, UUID.randomUUID());
-            }
-            return u;
-        });
 
         UserInvitationResponse response = invitationService.resendUserInvitation(oldId, actorUserId);
 
@@ -242,7 +290,7 @@ class InvitationServiceTest {
 
         UUID keycloakUserId = UUID.randomUUID();
         when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
-                .thenReturn(keycloakUserId);
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         UserAccount userAccount = mock(UserAccount.class);
         when(userAccount.getId()).thenReturn(UUID.randomUUID());
@@ -263,21 +311,100 @@ class InvitationServiceTest {
     }
 
     @Test
-    @DisplayName("acceptInvitation: expired token is refused and marked EXPIRED")
+    @DisplayName("acceptInvitation: adds the invitation's roles to those the account already holds")
+    void acceptInvitationAddsRolesRatherThanReplacing() {
+        String token = InvitationTokenUtils.generateToken();
+        String hash = InvitationTokenUtils.hashToken(token);
+        UserInvitation inv = new UserInvitation(
+                tenantId, "user@example.com", hash, Instant.now().plus(2, ChronoUnit.DAYS), actorUserId, "system");
+        setId(inv, UUID.randomUUID());
+        when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
+
+        UUID keycloakUserId = UUID.randomUUID();
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, false));
+        UUID accountId = UUID.randomUUID();
+        UserAccount account = mock(UserAccount.class);
+        when(account.getId()).thenReturn(accountId);
+        when(userAccountRepository.findByTenantIdAndKeycloakUserId(tenantId, keycloakUserId))
+                .thenReturn(Optional.of(account));
+
+        UUID heldRole = UUID.randomUUID();
+        UUID invitedRole = UUID.randomUUID();
+        UserRole held = mock(UserRole.class);
+        when(held.getRoleId()).thenReturn(heldRole);
+        when(userRoleRepository.findByTenantIdAndUserAccountId(tenantId, accountId))
+                .thenReturn(List.of(held));
+        UserInvitationRole invited = new UserInvitationRole(tenantId, inv.getId(), invitedRole, "admin");
+        when(userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantId, inv.getId()))
+                .thenReturn(List.of(invited));
+
+        invitationService.acceptInvitation(token);
+
+        ArgumentCaptor<UserRolesRequest> request = ArgumentCaptor.forClass(UserRolesRequest.class);
+        verify(roleService).replaceUserRoles(eq(accountId), request.capture());
+        assertThat(request.getValue().roleIds()).containsExactlyInAnyOrder(heldRole, invitedRole);
+    }
+
+    @Test
+    @DisplayName("acceptInvitation (employee): links the employee to the account through its setter")
+    void acceptEmployeeInvitationLinksEmployee() {
+        String token = InvitationTokenUtils.generateToken();
+        String hash = InvitationTokenUtils.hashToken(token);
+        UUID employeeId = UUID.randomUUID();
+        EmployeeInvitation inv = new EmployeeInvitation(
+                tenantId,
+                employeeId,
+                "emp@example.com",
+                hash,
+                Instant.now().plus(2, ChronoUnit.DAYS),
+                actorUserId,
+                "system");
+        setId(inv, UUID.randomUUID());
+        when(employeeInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
+
+        Employee employee = new Employee(tenantId, "test");
+        setId(employee, employeeId);
+        when(employeeRepository.findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId))
+                .thenReturn(Optional.of(employee));
+
+        UUID keycloakUserId = UUID.randomUUID();
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
+        UUID accountId = UUID.randomUUID();
+        UserAccount account = mock(UserAccount.class);
+        when(account.getId()).thenReturn(accountId);
+        when(userAccountRepository.findByTenantIdAndKeycloakUserId(tenantId, keycloakUserId))
+                .thenReturn(Optional.of(account));
+        Role employeeRole = mock(Role.class);
+        when(employeeRole.getId()).thenReturn(UUID.randomUUID());
+        when(roleRepository.findByTenantIdAndCode(tenantId, "employee")).thenReturn(Optional.of(employeeRole));
+
+        invitationService.acceptInvitation(token);
+
+        assertThat(employee.getUserAccountId()).isEqualTo(accountId);
+        verify(employeeRepository).save(employee);
+        assertThat(inv.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
+    }
+
+    @Test
+    @DisplayName("acceptInvitation: expired token is refused, marked EXPIRED and flushed in the same transaction")
     void acceptInvitationExpiredRefused() {
         String token = InvitationTokenUtils.generateToken();
         String hash = InvitationTokenUtils.hashToken(token);
 
         UserInvitation inv = new UserInvitation(
                 tenantId, "user@example.com", hash, Instant.now().minus(1, ChronoUnit.DAYS), actorUserId, "system");
+        setId(inv, UUID.randomUUID());
 
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
         assertThatThrownBy(() -> invitationService.acceptInvitation(token))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(InvitationExpiredException.class)
                 .hasMessageContaining("expired");
 
         assertThat(inv.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
+        verify(userInvitationRepository).saveAndFlush(inv);
         verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any());
     }
 
@@ -335,7 +462,7 @@ class InvitationServiceTest {
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUserWithStatus(eq("newuser@example.com"), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(eq("newuser@example.com"), any(), any()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         org.mockito.Mockito.doThrow(new RuntimeException("Simulated DB connection failure"))
@@ -363,7 +490,7 @@ class InvitationServiceTest {
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUserWithStatus(eq("existing@example.com"), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(eq("existing@example.com"), any(), any()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, false));
 
         org.mockito.Mockito.doThrow(new RuntimeException("Simulated DB connection failure"))
@@ -375,24 +502,5 @@ class InvitationServiceTest {
                 .hasMessageContaining("Simulated DB connection failure");
 
         verify(keycloakProvisioningService, never()).deleteKeycloakUser(any());
-    }
-
-    @Test
-    @DisplayName("acceptInvitation: calls invitationExpirationService when invitation is expired")
-    void acceptInvitationExpiredCallsExpirationService() {
-        String token = InvitationTokenUtils.generateToken();
-        String hash = InvitationTokenUtils.hashToken(token);
-
-        UserInvitation inv = new UserInvitation(
-                tenantId, "expired@example.com", hash, Instant.now().minus(1, ChronoUnit.DAYS), actorUserId, "system");
-        setId(inv, UUID.randomUUID());
-
-        when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
-
-        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("expired");
-
-        verify(invitationExpirationService).markUserInvitationExpired(tenantId, inv.getId());
     }
 }

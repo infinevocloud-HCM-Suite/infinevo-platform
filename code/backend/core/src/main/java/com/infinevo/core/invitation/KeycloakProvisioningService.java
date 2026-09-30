@@ -10,24 +10,23 @@ import java.util.UUID;
  */
 public interface KeycloakProvisioningService {
 
+    /** The Keycloak user, and whether this call created it — only a created user is compensated. */
+    record ProvisioningResult(UUID keycloakUserId, boolean newlyCreated) {}
+
     /**
-     * Finds an existing Keycloak user ID by email, or creates a new Keycloak user with that email.
+     * Finds an existing Keycloak user by email, or creates one that must set a password on first login
+     * and is sent Keycloak's set-password email.
      *
      * @param email the user's email address
      * @param firstName optional first name
      * @param lastName optional last name
-     * @return the Keycloak user UUID
+     * @return the Keycloak user and whether it was created by this call
+     * @throws KeycloakProvisioningException if Keycloak is not configured or refuses
      */
-    UUID getOrCreateKeycloakUser(String email, String firstName, String lastName);
-
-    record ProvisioningResult(UUID keycloakUserId, boolean newlyCreated) {}
-
-    default ProvisioningResult getOrCreateKeycloakUserWithStatus(String email, String firstName, String lastName) {
-        return new ProvisioningResult(getOrCreateKeycloakUser(email, firstName, lastName), false);
-    }
+    ProvisioningResult getOrCreateKeycloakUser(String email, String firstName, String lastName);
 
     /**
      * Deletes a Keycloak user by their UUID during compensating cleanup if subsequent steps fail.
      */
-    default void deleteKeycloakUser(UUID keycloakUserId) {}
+    void deleteKeycloakUser(UUID keycloakUserId);
 }
