@@ -6,9 +6,11 @@ import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.taxcalc.model.TaxSlabDetail;
 import com.infinevo.payroll.taxcalc.reader.TaxRuleReader;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
+import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
 import com.infinevo.shared.money.Money;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.util.List;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,11 @@ import org.springframework.boot.test.context.SpringBootTest;
  */
 @SpringBootTest(classes = PayrollTestApp.class)
 class AgeSlabIT extends AbstractIntegrationTest {
+
+    @BeforeAll
+    static void applySchema() throws Exception {
+        TaxDeclarationTestSchema.apply();
+    }
 
     @Autowired
     private TaxRuleReader taxRuleReader;

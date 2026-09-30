@@ -110,7 +110,7 @@ class TaxComputeIT extends AbstractIntegrationTest {
         windowService.upsert(currentFy, winReq);
 
         // Header for NEW regime
-        taxDeclarationService.saveOwn(currentFy, new TaxDeclarationRequest("NEW", false, false, false));
+        taxDeclarationService.save(employeeId, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
 
         // Create taxable earning component BASIC
         Earning basic = new Earning(TaxDeclarationTestSchema.TENANT_A, "system");
@@ -193,7 +193,7 @@ class TaxComputeIT extends AbstractIntegrationTest {
         TaxDeclarationWindowRequest futureWinReq = new TaxDeclarationWindowRequest(
                 futureFy.start(), futureFy.end(), false, "NEW", true, true, false, false);
         windowService.upsert(futureFy.label(), futureWinReq);
-        taxDeclarationService.saveOwn(futureFy.label(), new TaxDeclarationRequest("NEW", false, false, false));
+        taxDeclarationService.save(employeeId, futureFy.label(), new TaxDeclarationRequest("NEW", false, false, false));
 
         assertThatThrownBy(() -> taxCalculationService.compute(employeeId, futureFy, TaxRegime.NEW))
                 .isInstanceOf(TaxRulesMissingException.class);

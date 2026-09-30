@@ -32,6 +32,9 @@ import com.infinevo.payroll.taxdeclaration.summary.dto.TaxSummaryResponse;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
@@ -127,7 +130,7 @@ class OldRegimeComputeIT extends AbstractIntegrationTest {
         windowService.upsert(currentFy, winReq);
 
         // Header for OLD regime with rented house
-        taxDeclarationService.saveOwn(currentFy, new TaxDeclarationRequest("OLD", true, false, false));
+        taxDeclarationService.save(employeeId, currentFy, new TaxDeclarationRequest("OLD", true, false, false));
 
         // Create earning components: BASIC, HRA, SPECIAL
         Earning basic = new Earning(TaxDeclarationTestSchema.TENANT_A, "system");
@@ -183,30 +186,35 @@ class OldRegimeComputeIT extends AbstractIntegrationTest {
                 "ABCDE1234F",
                 true,
                 new BigDecimal("20000.00"));
-        housingDeclarationService.replaceHouseRentOwn(currentFy, List.of(rentReq));
+        housingDeclarationService.replaceHouseRent(employeeId, currentFy, List.of(rentReq));
 
         // Find 80C and 80D items from reference catalogue
-        var activeItems = section6AItemReader.activeItems("OLD");
-        UUID item80cId = activeItems.stream()
-                .filter(i -> "80C".equals(i.sectionCode()))
-                .findFirst()
-                .orElseThrow()
-                .id();
-        UUID item80dId = activeItems.stream()
-                .filter(i -> "80D".equals(i.sectionCode()))
-                .findFirst()
-                .orElseThrow()
-                .id();
+        UUID item80cId;
+        UUID item80dId;
+        try (Connection conn = TaxDeclarationTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id FROM reference.section6a_item_master WHERE section_code = ? AND is_active = true LIMIT 1")) {
+            ps.setString(1, "80C");
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                item80cId = rs.getObject("id", UUID.class);
+            }
+            ps.setString(1, "80D");
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                item80dId = rs.getObject("id", UUID.class);
+            }
+        }
 
         Section6ALineRequest sec80cReq =
                 new Section6ALineRequest(item80cId, "PPF Investment", new BigDecimal("150000.00"));
         Section6ALineRequest sec80dReq = new Section6ALineRequest(item80dId, "Mediclaim", new BigDecimal("25000.00"));
-        deductionDeclarationService.replaceSection6AOwn(currentFy, List.of(sec80cReq, sec80dReq));
+        deductionDeclarationService.replaceSection6A(employeeId, currentFy, List.of(sec80cReq, sec80dReq));
 
         // Pre-tax deduction: PT 2,400
         PreTaxDeductionRequest ptReq =
                 new PreTaxDeductionRequest(PreTaxDeductionKind.PROFESSIONAL_TAX, new BigDecimal("2400.00"));
-        deductionDeclarationService.replacePreTaxDeductionsOwn(currentFy, List.of(ptReq));
+        deductionDeclarationService.replacePreTaxDeductions(employeeId, currentFy, List.of(ptReq));
     }
 
     @AfterEach

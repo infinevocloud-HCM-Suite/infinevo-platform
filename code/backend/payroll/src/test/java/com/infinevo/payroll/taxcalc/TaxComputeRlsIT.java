@@ -102,7 +102,7 @@ class TaxComputeRlsIT extends AbstractIntegrationTest {
         TaxDeclarationWindowRequest winReqA =
                 new TaxDeclarationWindowRequest(fy.start(), fy.end(), false, "NEW", true, true, false, false);
         windowService.upsert(currentFy, winReqA);
-        taxDeclarationService.saveOwn(currentFy, new TaxDeclarationRequest("NEW", false, false, false));
+        taxDeclarationService.save(employeeA, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
 
         Earning basicA = new Earning(TaxDeclarationTestSchema.TENANT_A, "system");
         basicA.setCode("BASIC_A");
@@ -134,7 +134,7 @@ class TaxComputeRlsIT extends AbstractIntegrationTest {
         TaxDeclarationWindowRequest winReqB =
                 new TaxDeclarationWindowRequest(fy.start(), fy.end(), false, "NEW", true, true, false, false);
         windowService.upsert(currentFy, winReqB);
-        taxDeclarationService.saveOwn(currentFy, new TaxDeclarationRequest("NEW", false, false, false));
+        taxDeclarationService.save(employeeB, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
 
         Earning basicB = new Earning(TaxDeclarationTestSchema.TENANT_B, "system");
         basicB.setCode("BASIC_B");
