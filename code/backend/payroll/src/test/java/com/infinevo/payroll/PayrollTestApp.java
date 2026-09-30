@@ -208,6 +208,120 @@ public class PayrollTestApp {
             public EmployeeResponse linkLogin(UUID id, UUID userAccountId) {
                 throw new UnsupportedOperationException();
             }
+
+            // The same predicate as EmployeeRepository.findEmployedBetween (W-29.1 §3), which
+            // EmployeeListEmployedBetweenIT covers against the real JPQL in core.
+            @Override
+            public java.util.List<EmployeeResponse> listEmployedBetween(LocalDate start, LocalDate end) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT id, employee_number, first_name, last_name, work_email, date_of_joining, "
+                                        + "termination_date, status FROM core.employee "
+                                        + "WHERE tenant_id = ? AND is_deleted = false AND date_of_joining <= ? "
+                                        + "AND (status = 'ACTIVE' OR (status = 'TERMINATED' AND termination_date >= ?)) "
+                                        + "ORDER BY employee_number")) {
+                            ps.setObject(1, tenantId);
+                            ps.setObject(2, end);
+                            ps.setObject(3, start);
+                            java.util.List<EmployeeResponse> list = new java.util.ArrayList<>();
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) {
+                                    list.add(new EmployeeResponse(
+                                            (UUID) rs.getObject("id"),
+                                            tenantId,
+                                            rs.getString("employee_number"),
+                                            rs.getString("first_name"),
+                                            null,
+                                            rs.getString("last_name"),
+                                            "MALE",
+                                            rs.getObject("date_of_joining", LocalDate.class),
+                                            rs.getObject("termination_date", LocalDate.class),
+                                            com.infinevo.core.employee.EmploymentStatus.valueOf(rs.getString("status")),
+                                            rs.getString("work_email"),
+                                            null,
+                                            false,
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            Instant.now(),
+                                            Instant.now()));
+                                }
+                            }
+                            conn.commit();
+                            return list;
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
+
+    @Bean
+    public com.infinevo.core.employee.detail.EmployeeBankService employeeBankService(DataSource dataSource) {
+        return new com.infinevo.core.employee.detail.EmployeeBankService() {
+            @Override
+            public Optional<com.infinevo.core.employee.detail.EmployeeBankResponse> find(UUID employeeId) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT id, payment_mode FROM core.employee_bank WHERE employee_id = ? AND tenant_id = ?")) {
+                            ps.setObject(1, employeeId);
+                            ps.setObject(2, tenantId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                Optional<com.infinevo.core.employee.detail.EmployeeBankResponse> result =
+                                        Optional.empty();
+                                if (rs.next()) {
+                                    result = Optional.of(new com.infinevo.core.employee.detail.EmployeeBankResponse(
+                                            (UUID) rs.getObject("id"),
+                                            tenantId,
+                                            employeeId,
+                                            com.infinevo.core.employee.detail.PaymentMode.valueOf(
+                                                    rs.getString("payment_mode")),
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            null,
+                                            Instant.now(),
+                                            Instant.now()));
+                                }
+                                conn.commit();
+                                return result;
+                            }
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public com.infinevo.core.employee.detail.EmployeeBankResponse get(UUID employeeId) {
+                return find(employeeId)
+                        .orElseThrow(
+                                () -> new com.infinevo.core.employee.detail.EmployeeDetailService.NotFoundException(
+                                        "bank", employeeId));
+            }
+
+            @Override
+            public com.infinevo.core.employee.detail.EmployeeBankResponse put(
+                    UUID employeeId, com.infinevo.core.employee.detail.EmployeeBankRequest request) {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
