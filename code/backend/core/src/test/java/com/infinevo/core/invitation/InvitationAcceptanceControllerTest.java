@@ -3,9 +3,13 @@ package com.infinevo.core.invitation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.infinevo.core.authz.RoleService;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,11 +31,10 @@ class InvitationAcceptanceControllerTest {
     @DisplayName("accept delegates to invitationService")
     void acceptDelegatesToService() {
         AcceptInvitationRequest request = new AcceptInvitationRequest("valid-token");
-        ResponseEntity<InvitationMessageResponse> response = controller.accept(request);
+        ResponseEntity<?> response = controller.accept(request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().message()).contains("accepted successfully");
+        assertThat(((InvitationMessageResponse) response.getBody()).message()).contains("accepted successfully");
         verify(invitationService).acceptInvitation("valid-token");
     }
 
@@ -39,12 +42,41 @@ class InvitationAcceptanceControllerTest {
     @DisplayName("decline delegates to invitationService")
     void declineDelegatesToService() {
         DeclineInvitationRequest request = new DeclineInvitationRequest("valid-token", "Not interested");
-        ResponseEntity<InvitationMessageResponse> response = controller.decline(request);
+        ResponseEntity<?> response = controller.decline(request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().message()).contains("declined successfully");
+        assertThat(((InvitationMessageResponse) response.getBody()).message()).contains("declined successfully");
         verify(invitationService).declineInvitation("valid-token", "Not interested");
+    }
+
+    @Test
+    @DisplayName("a blank token or reason is a 400 and never reaches the service")
+    void blankInputIsBadRequest() {
+        assertThat(controller.accept(new AcceptInvitationRequest(" ")).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(controller.decline(new DeclineInvitationRequest("t", " ")).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        verifyNoInteractions(invitationService);
+    }
+
+    @Test
+    @DisplayName("invalid, accepted, revoked, declined, expired and not-found all get one identical answer")
+    void everyUnusableTokenGetsTheSameAnswer() {
+        List<RuntimeException> failures = List.of(
+                new IllegalArgumentException("Invalid invitation token"),
+                new IllegalStateException("Invitation has already been accepted"),
+                new IllegalStateException("Invitation has been revoked"),
+                new IllegalStateException("Invitation has been declined"),
+                new InvitationExpiredException(),
+                new IllegalStateException("Seeded 'employee' role not found in tenant 123e4567"),
+                new RoleService.NotFoundException("No role 42 in this tenant"),
+                new EmployeeService.NotFoundException(java.util.UUID.randomUUID()));
+        for (RuntimeException failure : failures) {
+            ResponseEntity<ApiErrorResponse> response = controller.handleUnusableInvitation(failure);
+            assertThat(response.getStatusCode()).as(failure.toString()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat(response.getBody().code()).isEqualTo(ApiError.CONFLICT.name());
+            assertThat(response.getBody().message()).isEqualTo(InvitationAcceptanceController.GENERIC_FAILURE);
+        }
     }
 
     @Test
@@ -58,31 +90,6 @@ class InvitationAcceptanceControllerTest {
         assertThat(response.getBody().code()).isEqualTo(ApiError.INTERNAL.name());
         assertThat(response.getBody().message()).doesNotContain("Connection refused");
         assertThat(response.getBody().message()).contains("Identity service");
-    }
-
-    @Test
-    @DisplayName("handleIllegalState: preserves client-facing messages")
-    void handleIllegalStatePreservesClientFacingMessages() {
-        IllegalStateException ex = new IllegalStateException("Invitation has already been accepted");
-        ResponseEntity<ApiErrorResponse> response = controller.handleIllegalState(ex);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().message()).isEqualTo("Invitation has already been accepted");
-    }
-
-    @Test
-    @DisplayName("handleIllegalState: sanitizes internal details containing tenant or system IDs")
-    void handleIllegalStateSanitizesInternalDetails() {
-        IllegalStateException ex = new IllegalStateException(
-                "Seeded 'employee' role not found in tenant 123e4567-e89b-12d3-a456-426614174000");
-        ResponseEntity<ApiErrorResponse> response = controller.handleIllegalState(ex);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().message()).doesNotContain("123e4567-e89b-12d3-a456-426614174000");
-        assertThat(response.getBody().message()).doesNotContain("tenant");
-        assertThat(response.getBody().message()).contains("Unable to process invitation");
     }
 
     @Test

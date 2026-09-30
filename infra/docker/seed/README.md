@@ -12,6 +12,7 @@ looks identical to one that always matches.
 | Two tenants | **Seeded.** `core.tenant` exists (`W-07`), so `01-tenants.sql` inserts |
 | Dev users' roles | **Seeded.** `03-user-roles.sql`: both admins hold `tenant-admin`, `employee.globex` holds `employee`. Without it every local login gets `403` since `W-11.2` |
 | Different module sets | Pending `W-12` — `core.subscription` does not exist yet |
+| Setup checklist rows | **Seeded.** `05-tenant-setup-steps.sql` mirrors `SetupStepCatalogue` per tenant's modules (`W-24.1` §8); `SeedSetupStepsMatchCatalogueTest` fails the build if they drift |
 
 The module asymmetry is the half still missing. Until `W-12` creates the subscription
 table, both tenants are indistinguishable in what they have bought, so an entitlement

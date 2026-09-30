@@ -3,7 +3,6 @@ package com.infinevo.payroll.schedule;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -115,13 +114,5 @@ public class PayScheduleServiceImpl implements PayScheduleService {
 
         // W-29 adds the check that firstPeriodStart may not move earlier than an existing pay run.
         // Until then, any valid first-of-month date is accepted.
-    }
-
-    /**
-     * Returns a deduplicated ISO day-of-week list in ascending order.
-     */
-    @SuppressWarnings("unused")
-    private static List<Integer> deduplicate(List<Integer> days) {
-        return days.stream().filter(Objects::nonNull).distinct().sorted().toList();
     }
 }

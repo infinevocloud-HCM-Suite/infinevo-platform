@@ -1,24 +1,24 @@
 package com.infinevo.payroll.schedule;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Response payload describing a tenant's pay schedule (W-28 §4).
+ * Response payload describing a tenant's pay schedule (W-28 §4). Keys match the request's
+ * snake_case names, so what a client PUTs is what it GETs back.
  */
 public record PayScheduleResponse(
-        UUID id,
-        UUID tenantId,
-        String frequency,
-        @JsonProperty("workingDays") @JsonAlias("working_days") List<Integer> workingDays,
-        @JsonProperty("payDayRule") @JsonAlias("pay_day_rule") PayDayRule payDayRule,
-        @JsonProperty("payDayOfMonth") @JsonAlias("pay_day_of_month") Integer payDayOfMonth,
-        @JsonProperty("inputCutoffDay") @JsonAlias("input_cutoff_day") int inputCutoffDay,
-        @JsonProperty("firstPeriodStart") @JsonAlias("first_period_start") LocalDate firstPeriodStart,
-        boolean exists) {
+        @JsonProperty("id") UUID id,
+        @JsonProperty("tenant_id") UUID tenantId,
+        @JsonProperty("frequency") String frequency,
+        @JsonProperty("working_days") List<Integer> workingDays,
+        @JsonProperty("pay_day_rule") PayDayRule payDayRule,
+        @JsonProperty("pay_day_of_month") Integer payDayOfMonth,
+        @JsonProperty("input_cutoff_day") int inputCutoffDay,
+        @JsonProperty("first_period_start") LocalDate firstPeriodStart,
+        @JsonProperty("exists") boolean exists) {
 
     public static PayScheduleResponse from(PaySchedule schedule, boolean exists) {
         return new PayScheduleResponse(

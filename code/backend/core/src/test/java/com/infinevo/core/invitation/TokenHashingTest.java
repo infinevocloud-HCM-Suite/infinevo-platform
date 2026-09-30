@@ -112,4 +112,77 @@ class TokenHashingTest {
                     .isNotEqualTo("tokenHash");
         }
     }
+
+    @Test
+    @DisplayName("creating an invitation logs nothing that carries the token, even when composing the email fails")
+    @SuppressWarnings("unchecked")
+    void tokenNeverLogged() throws Exception {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(InvitationServiceImpl.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs =
+                new ch.qos.logback.core.read.ListAppender<>();
+        logs.start();
+        logger.addAppender(logs);
+        ch.qos.logback.classic.Level previous = logger.getLevel();
+        logger.setLevel(ch.qos.logback.classic.Level.DEBUG);
+
+        UserInvitationRepository invitations = org.mockito.Mockito.mock(UserInvitationRepository.class);
+        org.mockito.Mockito.when(invitations.save(org.mockito.ArgumentMatchers.any(UserInvitation.class)))
+                .thenAnswer(call -> {
+                    UserInvitation inv = call.getArgument(0);
+                    InvitationServiceTest.setId(inv, UUID.randomUUID());
+                    return inv;
+                });
+        com.infinevo.core.notification.NotificationService notifications =
+                org.mockito.Mockito.mock(com.infinevo.core.notification.NotificationService.class);
+        // A composer failure whose message quotes the data it was given - the link, and so the token
+        org.mockito.Mockito.when(notifications.compose(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(call -> {
+                    throw new IllegalStateException("could not render " + call.getArgument(2));
+                });
+
+        InvitationServiceImpl service = new InvitationServiceImpl(
+                invitations,
+                org.mockito.Mockito.mock(UserInvitationRoleRepository.class),
+                org.mockito.Mockito.mock(EmployeeInvitationRepository.class),
+                org.mockito.Mockito.mock(com.infinevo.core.authz.RoleRepository.class),
+                org.mockito.Mockito.mock(com.infinevo.core.authz.RoleService.class),
+                org.mockito.Mockito.mock(com.infinevo.core.authz.UserRoleRepository.class),
+                org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeRepository.class),
+                org.mockito.Mockito.mock(com.infinevo.shared.identity.UserAccountRepository.class),
+                org.mockito.Mockito.mock(com.infinevo.shared.identity.UserProfileSyncService.class),
+                org.mockito.Mockito.mock(KeycloakProvisioningService.class),
+                org.mockito.Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class),
+                InvitationServiceTest.LINK_BASE);
+        Field field = InvitationServiceImpl.class.getDeclaredField("notificationService");
+        field.setAccessible(true);
+        field.set(service, notifications);
+
+        com.infinevo.shared.tenant.TenantContext.set(UUID.randomUUID());
+        try {
+            service.createUserInvitation(
+                    new UserInvitationRequest("log@example.com", java.util.Set.of()), UUID.randomUUID());
+
+            org.mockito.ArgumentCaptor<java.util.Map<String, Object>> data =
+                    org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+            org.mockito.Mockito.verify(notifications)
+                    .compose(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), data.capture());
+            String link = (String) data.getValue().get("link");
+            String token = link.substring(link.indexOf("token=") + "token=".length());
+            assertThat(token).hasSize(64);
+
+            assertThat(logs.list).isNotEmpty();
+            assertThat(logs.list).noneSatisfy(event -> assertThat(event.getFormattedMessage())
+                    .contains(token));
+            assertThat(logs.list).noneSatisfy(event -> assertThat(String.valueOf(event.getThrowableProxy()))
+                    .contains(token));
+        } finally {
+            com.infinevo.shared.tenant.TenantContext.clear();
+            logger.detachAppender(logs);
+            logger.setLevel(previous);
+        }
+    }
 }

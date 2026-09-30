@@ -116,25 +116,51 @@ class InvitationGuardIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("holding core.user.manage does not grant core.employee.create and vice versa")
     void holdingOneDoesNotGrantTheOther() throws Exception {
-        // HR has core.employee.create, but not core.user.manage -> refused on user-invitations
-        UserInvitationRequest userReq = new UserInvitationRequest("test@example.com", Set.of());
-        mvc.perform(as(employeeCreatorSub, post("/api/v1/user-invitations")).content(body(userReq)))
+        UUID userOnlyRole =
+                AuthzTestSchema.insertRole(tenant, "invite-users-only", "Invite users only", "core.user.manage");
+        UUID employeeOnlyRole = AuthzTestSchema.insertRole(
+                tenant, "invite-employees-only", "Invite employees only", "core.employee.create");
+        UUID userOnlySub = UUID.randomUUID();
+        AuthzTestSchema.grant(tenant, AuthzTestSchema.insertMember(tenant, userOnlySub, "u@guard.test"), userOnlyRole);
+        UUID employeeOnlySub = UUID.randomUUID();
+        AuthzTestSchema.grant(
+                tenant, AuthzTestSchema.insertMember(tenant, employeeOnlySub, "e@guard.test"), employeeOnlyRole);
+
+        // core.user.manage alone: user invitations yes, employee invitations no
+        mvc.perform(as(userOnlySub, get("/api/v1/user-invitations"))).andExpect(status().isOk());
+        mvc.perform(as(userOnlySub, get("/api/v1/employee-invitations")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(containsString("core.employee.create")));
+        mvc.perform(as(userOnlySub, post("/api/v1/employee-invitations"))
+                        .content(body(new EmployeeInvitationRequest(UUID.randomUUID()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(containsString("core.employee.create")));
+
+        // core.employee.create alone: employee invitations yes, user invitations no
+        mvc.perform(as(employeeOnlySub, get("/api/v1/employee-invitations"))).andExpect(status().isOk());
+        mvc.perform(as(employeeOnlySub, get("/api/v1/user-invitations")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(containsString("core.user.manage")));
+        mvc.perform(as(employeeOnlySub, post("/api/v1/user-invitations"))
+                        .content(body(new UserInvitationRequest("test@example.com", Set.of()))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value(containsString("core.user.manage")));
     }
 
     @Test
-    @DisplayName("acceptance and decline endpoints are public and require no auth")
+    @DisplayName("acceptance and decline are public: an unknown token gets the generic 409, never 401, 403 or 500")
     void publicEndpointsRequireNoAuth() throws Exception {
-        // Calling accept with blank token returns 400 (from controller validation), not 401 or 403
+        String unknown = InvitationTokenUtils.generateToken();
         mvc.perform(post("/api/v1/invitations/accept")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(new AcceptInvitationRequest("test-token"))))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // 400 or 500 or 200, but NEVER 401 or 403
-                    org.assertj.core.api.Assertions.assertThat(status).isNotIn(401, 403);
-                });
+                        .content(body(new AcceptInvitationRequest(unknown))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(InvitationAcceptanceController.GENERIC_FAILURE));
+        mvc.perform(post("/api/v1/invitations/decline")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(new DeclineInvitationRequest(unknown, "Not for me"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(InvitationAcceptanceController.GENERIC_FAILURE));
     }
 
     private MockHttpServletRequestBuilder as(UUID sub, MockHttpServletRequestBuilder request) {

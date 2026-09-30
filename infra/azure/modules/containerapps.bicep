@@ -249,6 +249,14 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/document-link-secret'
           identity: identities.app.id
         }
+        // W-24.2: invitation acceptance creates the invitee's Keycloak user through the
+        // admin API, so the app needs the same admin password the keycloak container
+        // below is started with. One Key Vault secret, read by both.
+        {
+          name: 'keycloak-admin-pw'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/keycloak-admin-pw'
+          identity: identities.app.id
+        }
       ]
       registries: [
         {
@@ -299,6 +307,16 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'DOCUMENT_LINK_SECRET'
               secretRef: 'document-link-secret'
+            }
+            // W-24.2: KEYCLOAK_ADMIN_URL and INVITATION_LINK_BASE_URL are Front Door
+            // addresses, so deploy.yml sets them next to KEYCLOAK_ISSUER_URI.
+            {
+              name: 'KEYCLOAK_ADMIN_USERNAME'
+              value: 'admin'
+            }
+            {
+              name: 'KEYCLOAK_ADMIN_PASSWORD'
+              secretRef: 'keycloak-admin-pw'
             }
             // W-21 D5: the document store reaches Blob with this app's user-assigned identity,
             // which already holds Storage Blob Data Contributor (rbac.bicep, W-51 3f row 2).

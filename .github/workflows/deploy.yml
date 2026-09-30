@@ -665,6 +665,8 @@ jobs:
               "INFINEVO_ROLE=app" \
               "KEYCLOAK_ISSUER_URI=https://${FD_HOST}/auth/realms/infinevo" \
               "KEYCLOAK_JWK_SET_URI=https://${FD_HOST}/auth/realms/infinevo/protocol/openid-connect/certs" \
+              "KEYCLOAK_ADMIN_URL=https://${FD_HOST}/auth" \
+              "INVITATION_LINK_BASE_URL=https://${FD_HOST}/invitations/accept" \
               "MANAGEMENT_HEALTH_REDIS_ENABLED=false" \
             --revision-suffix "$SUFFIX" --output none
           echo "app      -> ${backend}"

@@ -119,3 +119,22 @@ security:
 
 brevo:
   api-key: ${BREVO_API_KEY}
+
+# W-24.2: the Keycloak Admin REST API, called when an invitation is accepted.
+keycloak:
+  admin:
+    # Where admin calls go. Blank means the issuer's scheme and host - which is the name stamped into
+    # tokens and may not resolve from inside the container, so deployments set it explicitly.
+    url: ${KEYCLOAK_ADMIN_URL:}
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    # No default, deliberately: an admin credential with a committed default is a known password on
+    # every realm that forgot to change it. Unset, the app does not start. In Azure it comes from Key
+    # Vault (W-56).
+    password: ${KEYCLOAK_ADMIN_PASSWORD}
+
+# W-24.2: the frontend page an invitation email links to; the token is appended as ?token=.
+# Absolute, because it is opened from a mail client. No default: a wrong host here mails every
+# invitee a dead link.
+invitation:
+  link:
+    base-url: ${INVITATION_LINK_BASE_URL}

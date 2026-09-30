@@ -141,9 +141,10 @@ class HolidayCalendarLocationIT extends AbstractIntegrationTest {
                 new HolidayCalendarRequest("Calendar One", false, Set.of(locationTenantA)));
         assertThat(cal1.workLocationIds()).contains(locationTenantA);
 
-        // Updating the calendar while retaining locationTenantA must succeed
+        // Updating the calendar while retaining locationTenantA must succeed. The tenant's first
+        // calendar is its default (F-2), so isDefault is left unsent rather than demoted.
         HolidayCalendarResponse updated = calendarService.updateCalendar(
-                cal1.id(), new HolidayCalendarRequest("Calendar One Renamed", false, Set.of(locationTenantA)));
+                cal1.id(), new HolidayCalendarRequest("Calendar One Renamed", (Boolean) null, Set.of(locationTenantA)));
         assertThat(updated.name()).isEqualTo("Calendar One Renamed");
         assertThat(updated.workLocationIds()).contains(locationTenantA);
     }

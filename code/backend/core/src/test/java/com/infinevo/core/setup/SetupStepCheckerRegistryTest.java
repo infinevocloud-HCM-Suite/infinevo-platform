@@ -75,34 +75,87 @@ class SetupStepCheckerRegistryTest {
         when(coreChecker2.module()).thenReturn(null);
         when(coreChecker2.isComplete(hrmsTenant)).thenReturn(false);
 
-        SetupStepChecker payrollChecker = mock(SetupStepChecker.class);
-        when(payrollChecker.code()).thenReturn("PAY_SCHEDULE");
-        when(payrollChecker.module()).thenReturn(PlatformModule.PAYROLL);
+        List<SetupStepChecker> payrollCheckers = payrollMocks();
+        List<SetupStepChecker> all = new ArrayList<>(List.of(coreChecker1, coreChecker2));
+        all.addAll(payrollCheckers);
 
-        SetupChecklistService service = new SetupChecklistService(
-                repository, entitlementSource, List.of(coreChecker1, coreChecker2, payrollChecker));
+        SetupChecklistService service = new SetupChecklistService(repository, entitlementSource, all);
 
         SetupChecklistResponse response = service.getChecklist(hrmsTenant);
 
         assertThat(response.steps()).hasSize(2);
-        verify(payrollChecker, never()).isComplete(any());
+        for (SetupStepChecker payrollChecker : payrollCheckers) {
+            verify(payrollChecker, never()).isComplete(any());
+        }
+    }
+
+    private static List<SetupStepChecker> payrollMocks() {
+        List<SetupStepChecker> checkers = new ArrayList<>();
+        for (SetupStepCatalogue.StepDefinition def : SetupStepCatalogue.DEFAULT_STEPS) {
+            if (def.module() == PlatformModule.PAYROLL) {
+                checkers.add(checker(def.code(), PlatformModule.PAYROLL));
+            }
+        }
+        return checkers;
+    }
+
+    private static SetupStepChecker checker(String code, PlatformModule module) {
+        SetupStepChecker checker = mock(SetupStepChecker.class);
+        when(checker.code()).thenReturn(code);
+        when(checker.module()).thenReturn(module);
+        return checker;
     }
 
     @Test
-    @DisplayName("a catalogue step applicable to tenant with no registered checker fails fast")
+    @DisplayName("a core catalogue step with no registered checker fails at construction, before any read")
     void missingCheckerFailsFast() {
-        UUID hrmsTenant = UUID.randomUUID();
-        when(entitlementSource.modulesOf(hrmsTenant)).thenReturn(Set.of(PlatformModule.HRMS));
-
         // Only provide WORK_LOCATION checker, omitting EMPLOYEE
-        SetupStepChecker coreChecker1 = mock(SetupStepChecker.class);
-        when(coreChecker1.code()).thenReturn("WORK_LOCATION");
-        when(coreChecker1.module()).thenReturn(null);
+        List<SetupStepChecker> registry = List.of(checker("WORK_LOCATION", null));
 
-        SetupChecklistService service = new SetupChecklistService(repository, entitlementSource, List.of(coreChecker1));
-
-        assertThatThrownBy(() -> service.getChecklist(hrmsTenant))
+        assertThatThrownBy(() -> new SetupChecklistService(repository, entitlementSource, registry))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No SetupStepChecker registered for step: EMPLOYEE");
+        verify(repository, never()).findByTenantIdOrderByDisplayOrderAsc(any());
+    }
+
+    @Test
+    @DisplayName("a module that registers some checkers but not all of its steps fails at construction")
+    void partialModuleRegistryFailsFast() {
+        List<SetupStepChecker> registry =
+                new ArrayList<>(List.of(checker("WORK_LOCATION", null), checker("EMPLOYEE", null)));
+        registry.addAll(payrollMocks());
+        registry.removeIf(c -> c.code().equals("EPF"));
+
+        assertThatThrownBy(() -> new SetupChecklistService(repository, entitlementSource, registry))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("No SetupStepChecker registered for step: EPF");
+    }
+
+    @Test
+    @DisplayName(
+            "a context that deploys no payroll checker at all starts; the full registry is required in strict mode")
+    void undeployedModuleIsAllowedOnlyOutsideStrictMode() {
+        List<SetupStepChecker> coreOnly = List.of(checker("WORK_LOCATION", null), checker("EMPLOYEE", null));
+
+        assertThat(SetupStepCatalogue.registryProblems(SetupStepCatalogue.DEFAULT_STEPS, coreOnly, false))
+                .isEmpty();
+        assertThat(SetupStepCatalogue.registryProblems(SetupStepCatalogue.DEFAULT_STEPS, coreOnly, true))
+                .contains("No SetupStepChecker registered for step: PAY_SCHEDULE");
+    }
+
+    @Test
+    @DisplayName("two checkers for one step, or a checker in the wrong module, fail at construction")
+    void duplicateOrMismatchedCheckerFailsFast() {
+        List<SetupStepChecker> duplicate =
+                List.of(checker("WORK_LOCATION", null), checker("EMPLOYEE", null), checker("employee", null));
+        assertThatThrownBy(() -> new SetupChecklistService(repository, entitlementSource, duplicate))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("More than one SetupStepChecker registered for step: EMPLOYEE");
+
+        List<SetupStepChecker> mismatched =
+                List.of(checker("WORK_LOCATION", PlatformModule.HRMS), checker("EMPLOYEE", null));
+        assertThatThrownBy(() -> new SetupChecklistService(repository, entitlementSource, mismatched))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("WORK_LOCATION declares module HRMS");
     }
 }
