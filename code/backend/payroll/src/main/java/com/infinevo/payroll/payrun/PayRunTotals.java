@@ -14,6 +14,8 @@ import java.util.Objects;
  * </pre>
  *
  * <p>{@code total_benefits} is the employer's side of the structure: reported, never in net (BUG-013).
+ * A {@code BENEFIT} line with source {@code LOP} is the share of it forgone for unpaid days, and is
+ * subtracted. {@code net_pay} may be negative; it is stored so, never floored (W-29.3 §13 decision 4).
  */
 public record PayRunTotals(
         Money grossEarnings, Money totalReimbursements, Money totalBenefits, Money totalDeductions, BigDecimal netPay) {
@@ -36,7 +38,11 @@ public record PayRunTotals(
             switch (line.kind()) {
                 case EARNING -> gross = gross.add(line.amount());
                 case REIMBURSEMENT -> reimbursements = reimbursements.add(line.amount());
-                case BENEFIT -> benefits = benefits.add(line.amount());
+                // A LOP-sourced benefit line is the employer-cost share forgone (W-29.3 §3).
+                case BENEFIT ->
+                    benefits = line.source() == LineSource.LOP
+                            ? benefits.subtract(line.amount())
+                            : benefits.add(line.amount());
                 case DEDUCTION -> deductions = deductions.add(line.amount());
             }
         }

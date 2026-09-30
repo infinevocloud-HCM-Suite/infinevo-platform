@@ -6,7 +6,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * One employee row of a run (W-29.1 §4), with its five totals once computed (W-29.2 §4).
+ * One employee row of a run (W-29.1 §4), with its five totals once computed (W-29.2 §4) and the
+ * day figures behind loss of pay (W-29.3 §4); {@code net_pay} may be negative.
  * {@code employee_number} is read from {@code core.employee} through {@code EmployeeService}, not
  * stored on the row (W-29.1 §13 decision 7); it is null only when the employee has since been
  * soft-deleted.
@@ -23,6 +24,10 @@ public record EmployeePayRunResponse(
         @JsonProperty("total_benefits") BigDecimal totalBenefits,
         @JsonProperty("total_deductions") BigDecimal totalDeductions,
         @JsonProperty("net_pay") BigDecimal netPay,
+        @JsonProperty("lop_days") BigDecimal lopDays,
+        @JsonProperty("unpaid_days") BigDecimal unpaidDays,
+        @JsonProperty("paid_days") BigDecimal paidDays,
+        @JsonProperty("unpriced_input_count") int unpricedInputCount,
         @JsonProperty("computed_at") Instant computedAt,
         @JsonProperty("computation_error") String computationError) {
 
@@ -39,6 +44,10 @@ public record EmployeePayRunResponse(
                 row.getTotalBenefits(),
                 row.getTotalDeductions(),
                 row.getNetPay(),
+                row.getLopDays(),
+                row.getUnpaidDays(),
+                row.getPaidDays(),
+                row.getUnpricedInputCount(),
                 row.getComputedAt(),
                 row.getComputationError());
     }

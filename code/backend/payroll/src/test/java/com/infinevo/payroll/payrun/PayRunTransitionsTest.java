@@ -107,6 +107,7 @@ class PayRunTransitionsTest {
                 BigDecimal.TEN,
                 BigDecimal.ONE,
                 BigDecimal.TEN,
+                0,
                 "officer",
                 Instant.now());
         assertThat(run.getStatus()).isEqualTo(PayRunStatus.FAILED);
@@ -115,7 +116,8 @@ class PayRunTransitionsTest {
         run.startComputing("officer");
         assertThat(run.getFailureReason()).isNull();
         run.completeComputation(
-                new BigDecimal("45000.0000"), BigDecimal.ZERO, new BigDecimal("47000.00"), "officer", Instant.now());
+                new BigDecimal("45000.0000"), BigDecimal.ZERO, new BigDecimal("47000.00"), 1, "officer", Instant.now());
+        assertThat(run.getNegativeNetCount()).isEqualTo(1);
         assertThat(run.getStatus()).isEqualTo(PayRunStatus.COMPUTED);
         assertThat(run.getTotalNetPay()).isEqualByComparingTo("47000.00");
         assertThat(run.getComputedAt()).isNotNull();

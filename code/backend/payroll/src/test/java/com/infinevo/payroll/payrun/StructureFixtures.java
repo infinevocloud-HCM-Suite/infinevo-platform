@@ -5,6 +5,8 @@ import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.core.lop.LopRounding;
+import com.infinevo.core.lop.WorkingDayBasisResponse;
 import com.infinevo.payroll.component.CalculationType;
 import com.infinevo.payroll.component.Earning;
 import com.infinevo.payroll.salary.SalaryComponentItemResponse;
@@ -14,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -126,7 +129,23 @@ final class StructureFixtures {
                 period.atDay(1),
                 period.atEndOfMonth(),
                 employee,
-                version);
+                version,
+                new WorkingDayBasisResponse(
+                        BigDecimal.valueOf(period.lengthOfMonth()).setScale(2),
+                        BigDecimal.valueOf(period.lengthOfMonth()).setScale(2),
+                        UUID.randomUUID(),
+                        LopRounding.HALF_UP_2),
+                LopRounding.HALF_UP_2,
+                List.of(),
+                PayRunDays.of(
+                        BigDecimal.valueOf(period.lengthOfMonth()),
+                        BigDecimal.ZERO,
+                        period.atDay(1),
+                        period.atEndOfMonth(),
+                        joined,
+                        null),
+                Set.of(),
+                List.of());
     }
 
     /** The §8 worked example: its version and the earning catalogue it reads. */

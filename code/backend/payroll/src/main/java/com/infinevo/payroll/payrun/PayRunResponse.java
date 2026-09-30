@@ -8,7 +8,8 @@ import java.util.UUID;
 
 /**
  * One pay run as the API returns it (W-29.1 §4), with the counts of included and skipped employees
- * and, once computed, the three run totals (W-29.2 §4).
+ * and, once computed, the three run totals (W-29.2 §4) and how many rows came out with a negative
+ * net (W-29.3 §4).
  */
 public record PayRunResponse(
         @JsonProperty("id") UUID id,
@@ -24,6 +25,7 @@ public record PayRunResponse(
         @JsonProperty("total_gross") BigDecimal totalGross,
         @JsonProperty("total_deductions") BigDecimal totalDeductions,
         @JsonProperty("total_net_pay") BigDecimal totalNetPay,
+        @JsonProperty("negative_net_count") int negativeNetCount,
         @JsonProperty("computed_at") Instant computedAt,
         @JsonProperty("failure_reason") String failureReason,
         @JsonProperty("locked_at") Instant lockedAt,
@@ -48,6 +50,7 @@ public record PayRunResponse(
                 run.getTotalGross(),
                 run.getTotalDeductions(),
                 run.getTotalNetPay(),
+                run.getNegativeNetCount(),
                 run.getComputedAt(),
                 run.getFailureReason(),
                 run.getLockedAt(),

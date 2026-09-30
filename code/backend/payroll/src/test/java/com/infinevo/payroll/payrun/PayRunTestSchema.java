@@ -25,6 +25,17 @@ final class PayRunTestSchema {
     static void apply() throws Exception {
         PayrollTestSchema.apply();
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
+            // W-18.1's loss-of-pay policy (W-29.3): V116 needs the tenant locale columns and the
+            // subscription table its provision_tenant function writes.
+            if (!PayrollTestSchema.columnExists(conn, "core", "tenant", "country_code")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
+            }
+            if (!PayrollTestSchema.tableExists(conn, "core", "subscription")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/core/V034__subscription.sql");
+            }
+            if (!PayrollTestSchema.tableExists(conn, "core", "lop_policy")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/core/V116__lop_policy.sql");
+            }
             if (!PayrollTestSchema.tableExists(conn, "core", "employee_bank")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/core/V019__employee_bank.sql");
             }
@@ -40,6 +51,9 @@ final class PayRunTestSchema {
             if (!PayrollTestSchema.tableExists(conn, "payroll", "employee_payrun_line")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V057__employee_payrun_line.sql");
             }
+            if (!PayrollTestSchema.columnExists(conn, "payroll", "employee_payrun", "lop_days")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V058__employee_payrun_days.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -48,9 +62,15 @@ final class PayRunTestSchema {
         PayrollTestSchema.seedTenants();
     }
 
-    /** Pay runs, their rows, pay inputs, salaries, bank sections, employees and schedules of both tenants. */
+    /**
+     * Pay runs, their rows, pay inputs, salaries, bank sections, employees and schedules of both
+     * tenants; then both tenants back on the default policy — ACTUAL_DAYS, weekends and holidays
+     * payable — so payable days equal calendar days and a full month has no loss of pay.
+     */
     static void clean() throws SQLException {
         PayrollTestSchema.cleanTables();
+        setPolicy(TENANT_A, "ACTUAL_DAYS", true, true, "HALF_UP_2");
+        setPolicy(TENANT_B, "ACTUAL_DAYS", true, true, "HALF_UP_2");
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps =
                         conn.prepareStatement("DELETE FROM payroll.pay_schedule WHERE tenant_id IN (?, ?)")) {
@@ -58,6 +78,29 @@ final class PayRunTestSchema {
             ps.setObject(2, TENANT_B);
             ps.executeUpdate();
         }
+    }
+
+    /** Replaces the tenant's loss-of-pay policy with one version in force since 1900 (W-18.1). */
+    static void setPolicy(
+            UUID tenantId, String basis, boolean weekendsPayable, boolean holidaysPayable, String rounding)
+            throws SQLException {
+        deletePolicy(tenantId);
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO core.lop_policy (tenant_id, working_day_basis, configured_days_per_month, "
+                                + "weekends_payable, holidays_payable, lop_rounding, effective_from) "
+                                + "VALUES (?, ?, NULL, ?, ?, ?, DATE '1900-01-01')")) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, basis);
+            ps.setBoolean(3, weekendsPayable);
+            ps.setBoolean(4, holidaysPayable);
+            ps.setString(5, rounding);
+            ps.executeUpdate();
+        }
+    }
+
+    static void deletePolicy(UUID tenantId) throws SQLException {
+        execute("DELETE FROM core.lop_policy WHERE tenant_id = ?", tenantId);
     }
 
     static UUID insertEmployee(UUID tenantId, String number, LocalDate joined, String status, LocalDate terminated)
@@ -227,6 +270,14 @@ final class PayRunTestSchema {
         insertStructureLine("employee_benefit", tenantId, ctc, c.employerPf(), "1800.0000", null);
         insertStructureLine("employee_reimbursement", tenantId, ctc, c.fuel(), "2000.0000", null);
         return employee;
+    }
+
+    /** W-29.3 §8: Basic, HRA, Special allowance and the employer PF benefit are pro-rata; the meal card is not. */
+    static void markWorkedExampleProRata(UUID tenantId) throws SQLException {
+        execute(
+                "UPDATE payroll.earning SET is_pro_rata = true WHERE tenant_id = ? AND code IN ('BASIC', 'HRA', 'SPECIAL')",
+                tenantId);
+        execute("UPDATE payroll.benefit SET is_pro_rata = true WHERE tenant_id = ? AND code = 'EMPLOYER_PF'", tenantId);
     }
 
     static long countLines(UUID tenantId, UUID payrunId) throws SQLException {
