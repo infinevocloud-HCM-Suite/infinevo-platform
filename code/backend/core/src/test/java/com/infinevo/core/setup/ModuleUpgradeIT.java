@@ -1,6 +1,7 @@
 package com.infinevo.core.setup;
 
 import static com.infinevo.core.setup.SetupChecklistTestSchema.TENANT_A;
+import static com.infinevo.core.setup.SetupChecklistTestSchema.TENANT_B;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.subscription.SubscriptionService;
@@ -10,6 +11,7 @@ import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -121,13 +123,13 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
 
             // Eager assembly: verify steps exist in DB immediately before getChecklist is called
             assertThat(inTransaction(() -> stepRepository.findByTenantIdOrderByDisplayOrderAsc(TENANT_A)))
-                    .hasSize(9);
+                    .hasSize(SetupStepCatalogue.DEFAULT_STEPS.size());
 
             // 3. Re-read checklist
             SetupChecklistResponse upgradedChecklist = checklistService.getChecklist(TENANT_A);
 
-            // Now holds all 9 steps
-            assertThat(upgradedChecklist.steps()).hasSize(9);
+            // Now holds every catalogue step
+            assertThat(upgradedChecklist.steps()).hasSize(SetupStepCatalogue.DEFAULT_STEPS.size());
             assertThat(upgradedChecklist.steps())
                     .extracting(SetupStepResponse::code)
                     .contains("WORK_LOCATION", "EMPLOYEE", "PAY_SCHEDULE", "EPF");
@@ -146,6 +148,67 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
                     .findFirst()
                     .orElseThrow();
             assertThat(paySchedule.completed()).isFalse();
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "a platform admin bound to another tenant upgrades the target: its payroll steps are added, completed ones kept")
+    void crossTenantModuleUpgradeAddsTargetStepsAndPreservesCompleted() throws SQLException {
+        // 1. The target tenant's own checklist, with WORK_LOCATION completed.
+        try (Connection conn = SetupChecklistTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO core.work_location (id, tenant_id, code, name, country_code, is_filing_address, is_active) "
+                                + "VALUES (?, ?, 'HQ', 'Headquarters', 'IN', true, true)")) {
+            ps.setObject(1, UUID.randomUUID());
+            ps.setObject(2, TENANT_A);
+            ps.executeUpdate();
+        }
+        TenantContext.set(TENANT_A);
+        try {
+            SetupChecklistResponse before = checklistService.getChecklist(TENANT_A);
+            assertThat(before.steps()).extracting(SetupStepResponse::code).containsExactly("WORK_LOCATION", "EMPLOYEE");
+            assertThat(before.steps())
+                    .filteredOn(s -> s.code().equals("WORK_LOCATION"))
+                    .allMatch(SetupStepResponse::completed);
+        } finally {
+            TenantContext.clear();
+        }
+
+        // 2. The upgrade runs with the thread bound to a different tenant, as a platform admin's
+        //    request is (TenantServiceImpl provisions the same way, rebinding to the target).
+        TenantContext.set(TENANT_B);
+        try {
+            subscriptionService.updateModules(TENANT_A, Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
+            assertThat(TenantContext.require())
+                    .as("the caller's binding is restored after the upgrade")
+                    .isEqualTo(TENANT_B);
+            assertThat(inTransaction(() -> stepRepository.findByTenantIdOrderByDisplayOrderAsc(TENANT_B)))
+                    .as("nothing is written under the admin's own tenant")
+                    .isEmpty();
+        } finally {
+            TenantContext.clear();
+        }
+
+        // 3. Read back as the target: every catalogue step, WORK_LOCATION still completed.
+        TenantContext.set(TENANT_A);
+        try {
+            List<TenantSetupStep> rows =
+                    inTransaction(() -> stepRepository.findByTenantIdOrderByDisplayOrderAsc(TENANT_A));
+            assertThat(rows)
+                    .extracting(TenantSetupStep::getStepCode)
+                    .containsExactlyElementsOf(SetupStepCatalogue.DEFAULT_STEPS.stream()
+                            .map(SetupStepCatalogue.StepDefinition::code)
+                            .toList());
+            assertThat(rows)
+                    .filteredOn(r -> r.getStepCode().equals("WORK_LOCATION"))
+                    .allMatch(r -> r.getCompletedAt() != null);
+            assertThat(rows)
+                    .filteredOn(r -> r.getModule() == PlatformModule.PAYROLL)
+                    .hasSize(5)
+                    .allMatch(r -> r.getCompletedAt() == null);
         } finally {
             TenantContext.clear();
         }

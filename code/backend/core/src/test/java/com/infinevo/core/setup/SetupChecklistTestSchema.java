@@ -56,6 +56,11 @@ public final class SetupChecklistTestSchema {
             if (!tableExists(conn, "work_location")) {
                 executeResource(conn, "db/migration/core/V013__work_location.sql");
             }
+            // EmployeeSetupStepChecker queries core.employee on every read; without this the
+            // suite passed only when another suite had created the table first.
+            if (!tableExists(conn, "employee")) {
+                executeResource(conn, "db/migration/core/V010__employee.sql");
+            }
         }
     }
 
