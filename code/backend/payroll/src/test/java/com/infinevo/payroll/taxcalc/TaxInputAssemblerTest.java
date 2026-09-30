@@ -34,6 +34,7 @@ import com.infinevo.payroll.taxdeclaration.housing.EmployeeInvLetOutPropertyRepo
 import com.infinevo.payroll.taxdeclaration.summary.EmployeeInvOtherIncomeRepository;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -406,7 +407,7 @@ class TaxInputAssemblerTest {
         decl.setTenantId(TENANT_ID);
         decl.setEmployeeId(EMPLOYEE_ID);
         decl.setFinancialYear(FY.label());
-        given(declarationService.require(EMPLOYEE_ID, FY.label())).willReturn(decl);
+        given(declarationService.find(EMPLOYEE_ID, FY.label())).willReturn(java.util.Optional.of(decl));
 
         given(employeeService.get(EMPLOYEE_ID))
                 .willReturn(new com.infinevo.core.employee.EmployeeResponse(
@@ -561,5 +562,46 @@ class TaxInputAssemblerTest {
                 true,
                 "MONTHLY",
                 null);
+    }
+
+    @Test
+    @DisplayName("assemble() succeeds with null declarationId when declaration is absent")
+    void assembleWithoutDeclarationSucceeds() {
+        given(declarationService.find(EMPLOYEE_ID, FY.label())).willReturn(java.util.Optional.empty());
+        given(employeeService.get(EMPLOYEE_ID))
+                .willReturn(new com.infinevo.core.employee.EmployeeResponse(
+                        EMPLOYEE_ID,
+                        TENANT_ID,
+                        "EMP001",
+                        "Test",
+                        null,
+                        "Employee",
+                        null,
+                        LocalDate.of(2025, 4, 1),
+                        null,
+                        com.infinevo.core.employee.EmploymentStatus.ACTIVE,
+                        "emp@test.com",
+                        null,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
+                        Instant.now(),
+                        Instant.now()));
+
+        TaxInput input = assembler.assemble(TENANT_ID, EMPLOYEE_ID, FY);
+
+        assertThat(input).isNotNull();
+        assertThat(input.declarationId()).isNull();
+        assertThat(input.section6A()).isEmpty();
+        assertThat(input.houseRent()).isEmpty();
+        assertThat(input.homeLoans()).isEmpty();
+        assertThat(input.letOutProperties()).isEmpty();
+        assertThat(input.preTaxDeductions()).isEmpty();
+        assertThat(input.otherIncome()).isEmpty();
+        assertThat(input.isStayingInRentedHouse()).isFalse();
+        assertThat(input.isRepayingSelfOccupiedLoan()).isFalse();
+        assertThat(input.hasLetOutProperty()).isFalse();
     }
 }

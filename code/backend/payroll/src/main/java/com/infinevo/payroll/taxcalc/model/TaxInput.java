@@ -58,7 +58,6 @@ public record TaxInput(
 
     public TaxInput {
         Objects.requireNonNull(employeeId, "employeeId must not be null");
-        Objects.requireNonNull(declarationId, "declarationId must not be null");
         Objects.requireNonNull(salary, "salary must not be null");
         prevEmployment = prevEmployment == null ? Map.of() : Map.copyOf(prevEmployment);
         ageCategory = ageCategory == null ? AgeCategory.GENERAL : ageCategory;

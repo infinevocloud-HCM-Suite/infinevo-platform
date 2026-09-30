@@ -78,6 +78,12 @@ public class PayrollTestApp {
     public static final java.util.Map<UUID, byte[]> TEST_DOCUMENT_CONTENTS =
             new java.util.concurrent.ConcurrentHashMap<>();
 
+    @Bean("taxRecalc")
+    @org.springframework.context.annotation.Primary
+    public java.util.concurrent.Executor taxRecalcExecutor() {
+        return new org.springframework.core.task.SyncTaskExecutor();
+    }
+
     @Bean
     public com.infinevo.core.approval.CoreApproverResolver coreApproverResolver() {
         com.infinevo.core.approval.CoreApproverResolver resolver =

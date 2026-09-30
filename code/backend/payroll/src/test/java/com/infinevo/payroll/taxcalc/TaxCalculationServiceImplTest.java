@@ -106,7 +106,7 @@ class TaxCalculationServiceImplTest {
         TaxInput input = sampleInput();
         TaxComputation expected = sampleComputation();
 
-        given(taxDeclarationService.require(employeeId, fy.label())).willReturn(decl);
+        given(taxDeclarationService.find(employeeId, fy.label())).willReturn(java.util.Optional.of(decl));
         given(taxInputAssembler.assemble(tenantId, employeeId, fy)).willReturn(input);
         given(newRegimeCalculator.compute(input, fy)).willReturn(expected);
 
@@ -122,7 +122,7 @@ class TaxCalculationServiceImplTest {
         TaxInput input = sampleInput();
         TaxComputation expected = sampleComputation();
 
-        given(taxDeclarationService.require(employeeId, fy.label())).willReturn(decl);
+        given(taxDeclarationService.find(employeeId, fy.label())).willReturn(java.util.Optional.of(decl));
         given(taxInputAssembler.assemble(tenantId, employeeId, fy)).willReturn(input);
         given(newRegimeCalculator.compute(input, fy)).willReturn(expected);
 
@@ -132,10 +132,30 @@ class TaxCalculationServiceImplTest {
     }
 
     @Test
+    @DisplayName("compute() defaults to NEW regime when declaration is absent")
+    void computeWithoutDeclarationDefaultsToNewRegime() {
+        com.infinevo.shared.tenant.TenantContext.set(tenantId);
+        try {
+            TaxInput input = sampleInput();
+            TaxComputation expected = sampleComputation();
+
+            given(taxDeclarationService.find(employeeId, fy.label())).willReturn(java.util.Optional.empty());
+            given(taxInputAssembler.assemble(tenantId, employeeId, fy)).willReturn(input);
+            given(newRegimeCalculator.compute(input, fy)).willReturn(expected);
+
+            TaxComputation actual = service.compute(employeeId, fy, null);
+
+            assertThat(actual).isSameAs(expected);
+        } finally {
+            com.infinevo.shared.tenant.TenantContext.clear();
+        }
+    }
+
+    @Test
     @DisplayName("compute() throws RegimeNotAvailableException when requested regime is not registered")
     void computeThrowsWhenRegimeNotAvailable() {
         EmployeeInvestmentDeclaration decl = sampleDeclaration("OLD");
-        given(taxDeclarationService.require(employeeId, fy.label())).willReturn(decl);
+        given(taxDeclarationService.find(employeeId, fy.label())).willReturn(java.util.Optional.of(decl));
 
         assertThatThrownBy(() -> service.compute(employeeId, fy, TaxRegime.OLD))
                 .isInstanceOf(RegimeNotAvailableException.class);

@@ -11,6 +11,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,9 +48,20 @@ public class TaxCalculationServiceImpl implements TaxCalculationService {
 
     @Override
     public TaxComputation compute(UUID employeeId, FinancialYear fy, TaxRegime regime) {
-        EmployeeInvestmentDeclaration decl = taxDeclarationService.require(employeeId, fy.label());
-        TaxRegime targetRegime = regime != null ? regime : TaxRegime.from(decl.getTaxRegime());
-        TaxInput input = taxInputAssembler.assemble(decl.getTenantId(), employeeId, fy);
+        Optional<EmployeeInvestmentDeclaration> declOpt = taxDeclarationService.find(employeeId, fy.label());
+        UUID tenantId = declOpt.map(EmployeeInvestmentDeclaration::getTenantId)
+                .orElseGet(com.infinevo.shared.tenant.TenantContext::require);
+        TaxRegime targetRegime;
+        if (regime != null) {
+            targetRegime = regime;
+        } else if (declOpt.isPresent()
+                && declOpt.get().getTaxRegime() != null
+                && !declOpt.get().getTaxRegime().isBlank()) {
+            targetRegime = TaxRegime.from(declOpt.get().getTaxRegime());
+        } else {
+            targetRegime = TaxRegime.NEW;
+        }
+        TaxInput input = taxInputAssembler.assemble(tenantId, employeeId, fy);
         RegimeCalculator calculator = regimeCalculators.forRegime(targetRegime);
         return calculator.compute(input, fy);
     }
