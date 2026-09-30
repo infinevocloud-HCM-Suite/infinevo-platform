@@ -1,6 +1,12 @@
 package com.infinevo.worker.listener;
 
 import com.infinevo.core.job.service.JobService;
+import com.infinevo.payroll.payrun.PayRunComputationService;
+import com.infinevo.payroll.payrun.PayRunJobPayload;
+import com.infinevo.payroll.payrun.PayRunNotFoundException;
+import com.infinevo.payroll.payrun.PayRunResponse;
+import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.payrun.SupersededPayRunJobException;
 import com.infinevo.shared.queue.QueueConsumer;
 import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.tenant.TenantContext;
@@ -10,8 +16,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Queue listener consuming background pay run processing jobs from 'payrun' queue.
+ * Queue listener consuming pay run computations from the 'payrun' queue (W-29.4 §3).
  * Enforces idempotency against core.job_status: duplicate deliveries are safely dropped (D-50).
+ *
+ * <p>The body is one call to {@link PayRunComputationService}: the computation lives in {@code payroll},
+ * never here. The outcome decides the job: a {@code COMPUTED} run completes it; a {@code FAILED} run
+ * (some employees could not be computed) fails it with the reason, without retry — the rows already
+ * say what failed and the officer computes again; a message the run no longer expects, or naming a run
+ * the tenant does not hold, fails it without retry. Anything else is released for another delivery.
  */
 @Component
 public class PayrunQueueListener implements QueueConsumer<String> {
@@ -20,9 +32,11 @@ public class PayrunQueueListener implements QueueConsumer<String> {
     public static final String QUEUE_NAME = "payrun";
 
     private final JobService jobService;
+    private final PayRunComputationService computationService;
 
-    public PayrunQueueListener(JobService jobService) {
+    public PayrunQueueListener(JobService jobService, PayRunComputationService computationService) {
         this.jobService = Objects.requireNonNull(jobService, "jobService must not be null");
+        this.computationService = Objects.requireNonNull(computationService, "computationService must not be null");
     }
 
     @Override
@@ -52,14 +66,21 @@ public class PayrunQueueListener implements QueueConsumer<String> {
                         jobId);
                 return;
             }
-            jobService.updateProgress(jobId, 25);
 
-            // Execute payload processing
-            processPayrunPayload(message.getPayload());
+            PayRunResponse run = processPayrunPayload(jobId, message.getPayload());
 
-            jobService.updateProgress(jobId, 75);
-            jobService.markCompleted(jobId, "Pay run completed successfully");
-            log.info("Payrun job {} completed successfully", jobId);
+            if (run.status() == PayRunStatus.COMPUTED) {
+                jobService.markCompleted(
+                        jobId, "Pay run " + run.id() + " computed: " + run.progressTotal() + " employees");
+                log.info("Payrun job {} completed successfully", jobId);
+            } else {
+                jobService.markFailed(jobId, "Pay run " + run.id() + " " + run.status() + ": " + run.failureReason());
+                log.warn("Payrun job {} ended with the run {}: {}", jobId, run.status(), run.failureReason());
+            }
+        } catch (SupersededPayRunJobException | PayRunNotFoundException | IllegalArgumentException e) {
+            // Another delivery would meet the same answer: fail the job now instead of retrying.
+            log.warn("Payrun job {} dropped without retry: {}", jobId, e.getMessage());
+            jobService.markFailed(jobId, e.getMessage());
         } catch (Exception e) {
             // Retry-then-fail (12-core-contracts §5): hand the job back to QUEUED and rethrow so
             // the loop leaves the message for redelivery. The loop marks it FAILED on the
@@ -81,8 +102,24 @@ public class PayrunQueueListener implements QueueConsumer<String> {
         }
     }
 
-    protected void processPayrunPayload(String payload) {
-        // Business execution hook for pay run calculation
-        log.debug("Processed payrun payload (length: {} chars)", payload != null ? payload.length() : 0);
+    /**
+     * Computes the attempt the payload names, reporting progress onto the job. A report that moves the
+     * percentage touches the job's {@code updated_at}; every report touches the run's — together they
+     * keep a healthy run out of the 15-minute stale window.
+     */
+    protected PayRunResponse processPayrunPayload(String jobId, String payload) {
+        PayRunJobPayload job = PayRunJobPayload.fromJson(payload);
+        return computationService.compute(
+                job.payrunId(),
+                job.attempt(),
+                job.requestedBy(),
+                (done, total) -> jobService.updateProgress(jobId, percentage(done, total)));
+    }
+
+    static int percentage(int done, int total) {
+        if (total <= 0) {
+            return 100;
+        }
+        return Math.min(100, Math.max(0, done * 100 / total));
     }
 }

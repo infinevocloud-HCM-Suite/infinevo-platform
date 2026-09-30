@@ -14,6 +14,9 @@ public interface BenefitRepository extends JpaRepository<Benefit, UUID> {
 
     List<Benefit> findAllByTenantIdAndDeletedFalse(UUID tenantId);
 
+    /** The benefits flagged {@code is_pro_rata}: one query per pay run for loss of pay (W-29.3 §4). */
+    List<Benefit> findAllByTenantIdAndProRataTrueAndDeletedFalse(UUID tenantId);
+
     List<Benefit> findAllByTenantIdAndActiveAndDeletedFalse(UUID tenantId, boolean active);
 
     Optional<Benefit> findByTenantIdAndCodeAndDeletedFalse(UUID tenantId, String code);
