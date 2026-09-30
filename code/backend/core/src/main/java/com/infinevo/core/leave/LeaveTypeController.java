@@ -41,7 +41,9 @@ public class LeaveTypeController {
     }
 
     @GetMapping("/api/v1/leave-types")
-    @RequiresAction("core.leave_type.read")
+    @RequiresAction(
+            value = "core.leave.read",
+            anyOf = {"core.leave_type.manage", "core.leave.apply"})
     public List<LeaveTypeResponse> getLeaveTypes(
             @RequestParam(name = "activeOn", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate activeOn) {
@@ -64,7 +66,9 @@ public class LeaveTypeController {
     }
 
     @GetMapping("/api/v1/leave-types/eligible")
-    @RequiresAction("core.leave_type.read")
+    @RequiresAction(
+            value = "core.leave.apply",
+            anyOf = {"core.leave.read", "core.leave_type.manage"})
     public List<LeaveTypeResponse> getEligibleLeaveTypes(
             @RequestParam("employeeId") UUID employeeId,
             @RequestParam(name = "asOf", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)

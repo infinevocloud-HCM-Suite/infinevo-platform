@@ -33,15 +33,5 @@ CREATE POLICY tenant_isolation ON core.leave_type
       END
     );
 
--- W-16.1 Seed core.leave_type.read into reference.action
-INSERT INTO reference.action (code, name, module, description)
-VALUES ('core.leave_type.read', 'View leave types', 'core', 'Read configured leave types and eligible leave types')
-ON CONFLICT (code) DO NOTHING;
-
--- Grant core.leave_type.read to existing tenants' system roles
-INSERT INTO core.role_action (tenant_id, role_id, action_code)
-SELECT r.tenant_id, r.id, 'core.leave_type.read'
-FROM core.role r
-WHERE r.is_system AND r.code IN ('platform-admin', 'tenant-admin', 'hr', 'manager', 'employee')
-ON CONFLICT (tenant_id, role_id, action_code) DO NOTHING;
+GRANT SELECT, INSERT, UPDATE, DELETE ON core.leave_type TO app_user;
 
