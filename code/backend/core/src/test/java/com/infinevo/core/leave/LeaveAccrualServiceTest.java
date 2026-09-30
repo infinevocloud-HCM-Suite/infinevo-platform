@@ -7,6 +7,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.infinevo.core.employee.Employee;
+import com.infinevo.core.employee.EmployeeRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -32,13 +34,15 @@ class LeaveAccrualServiceTest {
 
     private LeaveAllocationRepository allocationRepository;
     private LeavePolicyRepository policyRepository;
+    private EmployeeRepository employeeRepository;
     private LeaveAccrualService accrualService;
 
     @BeforeEach
     void setUp() {
         allocationRepository = mock(LeaveAllocationRepository.class);
         policyRepository = mock(LeavePolicyRepository.class);
-        accrualService = new LeaveAccrualServiceImpl(allocationRepository, policyRepository);
+        employeeRepository = mock(EmployeeRepository.class);
+        accrualService = new LeaveAccrualServiceImpl(allocationRepository, policyRepository, employeeRepository);
     }
 
     @Test
@@ -153,5 +157,97 @@ class LeaveAccrualServiceTest {
         assertThat(accrued).isFalse();
         assertThat(allocation.getAccruedDays()).isEqualByComparingTo(BigDecimal.ZERO);
         verify(allocationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Monthly accrual respects joining date and pro-rates partial joining month (F-6)")
+    void monthlyAccrualRespectsJoiningDateAndProRates() {
+        LeaveAllocation allocation = new LeaveAllocation(
+                TENANT_ID,
+                EMPLOYEE_ID,
+                LEAVE_TYPE_ID,
+                "2026",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ONE,
+                POLICY_ID);
+
+        LeavePolicy policy = new LeavePolicy();
+        policy.setId(POLICY_ID);
+        policy.setAccrualEnabled(true);
+        policy.setAccrualFrequency(AccrualFrequency.MONTHLY);
+        policy.setAccrualUnits(BigDecimal.valueOf(2.00));
+        policy.setProRateEnabled(true);
+
+        when(policyRepository.findById(POLICY_ID)).thenReturn(Optional.of(policy));
+
+        Employee emp = mock(Employee.class);
+        // Employee joins April 16, 2026 (April has 30 days -> active days: 30 - 16 + 1 = 15; factor = 0.5000)
+        when(emp.getDateOfJoining()).thenReturn(LocalDate.of(2026, 4, 16));
+        when(employeeRepository.findByIdAndTenantIdAndDeletedFalse(EMPLOYEE_ID, TENANT_ID))
+                .thenReturn(Optional.of(emp));
+
+        // Accrual in March 2026 should do nothing (employee not joined yet)
+        boolean marchAccrual = accrualService.accrueAllocation(TENANT_ID, allocation, LocalDate.of(2026, 3, 31));
+        assertThat(marchAccrual).isFalse();
+        assertThat(allocation.getAccruedDays()).isEqualByComparingTo(BigDecimal.ZERO);
+
+        // Accrual in April 2026 should pro-rate (2.00 * 0.5000 = 1.00)
+        boolean aprilAccrual = accrualService.accrueAllocation(TENANT_ID, allocation, LocalDate.of(2026, 4, 30));
+        assertThat(aprilAccrual).isTrue();
+        assertThat(allocation.getAccruedDays()).isEqualByComparingTo(BigDecimal.valueOf(1.00));
+
+        // Accrual in May 2026 should add full units (2.00 -> total 3.00)
+        boolean mayAccrual = accrualService.accrueAllocation(TENANT_ID, allocation, LocalDate.of(2026, 5, 31));
+        assertThat(mayAccrual).isTrue();
+        assertThat(allocation.getAccruedDays()).isEqualByComparingTo(BigDecimal.valueOf(3.00));
+    }
+
+    @Test
+    @DisplayName("Monthly accrual respects termination date and skips subsequent months (F-6)")
+    void monthlyAccrualRespectsTerminationDate() {
+        LeaveAllocation allocation = new LeaveAllocation(
+                TENANT_ID,
+                EMPLOYEE_ID,
+                LEAVE_TYPE_ID,
+                "2026",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ONE,
+                POLICY_ID);
+
+        LeavePolicy policy = new LeavePolicy();
+        policy.setId(POLICY_ID);
+        policy.setAccrualEnabled(true);
+        policy.setAccrualFrequency(AccrualFrequency.MONTHLY);
+        policy.setAccrualUnits(BigDecimal.valueOf(2.00));
+        policy.setProRateEnabled(false);
+
+        when(policyRepository.findById(POLICY_ID)).thenReturn(Optional.of(policy));
+
+        Employee emp = mock(Employee.class);
+        when(emp.getDateOfJoining()).thenReturn(LocalDate.of(2026, 1, 1));
+        // Employee terminated on February 15, 2026
+        when(emp.getTerminationDate()).thenReturn(LocalDate.of(2026, 2, 15));
+        when(employeeRepository.findByIdAndTenantIdAndDeletedFalse(EMPLOYEE_ID, TENANT_ID))
+                .thenReturn(Optional.of(emp));
+
+        // Accrual in February (covers Jan and Feb = 2 * 2.00 = 4.00)
+        boolean febAccrual = accrualService.accrueAllocation(TENANT_ID, allocation, LocalDate.of(2026, 2, 28));
+        assertThat(febAccrual).isTrue();
+        assertThat(allocation.getAccruedDays()).isEqualByComparingTo(BigDecimal.valueOf(4.00));
+
+        // Accrual in March should return false because targetMonth is capped at termination month (Feb)
+        boolean marchAccrual = accrualService.accrueAllocation(TENANT_ID, allocation, LocalDate.of(2026, 3, 31));
+        assertThat(marchAccrual).isFalse();
+        assertThat(allocation.getAccruedDays()).isEqualByComparingTo(BigDecimal.valueOf(4.00));
     }
 }

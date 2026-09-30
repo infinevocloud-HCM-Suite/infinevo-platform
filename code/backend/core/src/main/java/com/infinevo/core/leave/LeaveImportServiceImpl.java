@@ -49,16 +49,50 @@ public class LeaveImportServiceImpl implements LeaveImportService {
         this.allocationHelper = Objects.requireNonNull(allocationHelper, "allocationHelper must not be null");
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    public void setJdbcTemplate(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    private int getTenantLeaveYearStartMonth(UUID tenantId) {
+        if (jdbcTemplate != null) {
+            try {
+                Short m = jdbcTemplate.queryForObject(
+                        "SELECT leave_year_start_month FROM core.tenant WHERE tenant_id = ?", Short.class, tenantId);
+                if (m != null && m >= 1 && m <= 12) {
+                    return m;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return 4;
+    }
+
     @Override
     public LeaveImportResultResponse importLeaves(UUID tenantId, UUID documentId, String leaveYear, boolean dryRun) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(documentId, "documentId must not be null");
         Objects.requireNonNull(leaveYear, "leaveYear must not be null");
 
-        // 1. Open document stream via DocumentService
-        DocumentService.DocumentContent docContent = documentService.open(documentId);
+        // 1. Create initial import log record in PENDING state
+        LeaveImportLog importLog = new LeaveImportLog(tenantId, documentId, leaveYear, dryRun, 0);
+        importLog = allocationHelper.saveLog(importLog);
 
-        // 2. Parse CSV
+        // 2. Open document stream via DocumentService
+        DocumentService.DocumentContent docContent;
+        try {
+            docContent = documentService.open(documentId);
+        } catch (Exception e) {
+            log.error("Failed to open document {}", documentId, e);
+            importLog.setStatus(ImportStatus.FAILED);
+            importLog.setFinishedAt(Instant.now());
+            allocationHelper.saveLog(importLog);
+            throw new IllegalStateException("Failed to open import document: " + e.getMessage(), e);
+        }
+
+        // 3. Parse CSV
         List<LeaveImportRow> parsedRows = new ArrayList<>();
         List<LeaveImportError> parseErrors = new ArrayList<>();
 
@@ -101,13 +135,14 @@ public class LeaveImportServiceImpl implements LeaveImportService {
             }
         } catch (Exception e) {
             log.error("Failed to read CSV stream for document {}", documentId, e);
+            importLog.setStatus(ImportStatus.FAILED);
+            importLog.setFinishedAt(Instant.now());
+            allocationHelper.saveLog(importLog);
             throw new IllegalStateException("Failed to parse import document CSV: " + e.getMessage(), e);
         }
 
         int totalRows = parsedRows.size() + parseErrors.size();
-
-        // 3. Create initial import log record
-        LeaveImportLog importLog = new LeaveImportLog(tenantId, documentId, leaveYear, dryRun, totalRows);
+        importLog.setRowsTotal(totalRows);
         importLog = allocationHelper.saveLog(importLog);
 
         // 4. Validate rows
@@ -119,7 +154,7 @@ public class LeaveImportServiceImpl implements LeaveImportService {
 
         // 5. Create allocations if not dry run
         if (!dryRun) {
-            LocalDate[] dates = resolveYearDates(leaveYear);
+            LocalDate[] dates = resolveYearDates(tenantId, leaveYear);
             for (LeaveImportRowValidator.ValidatedRow validRow : validation.validRows()) {
                 try {
                     LeaveAllocationRequest allocRequest = new LeaveAllocationRequest(
@@ -136,12 +171,21 @@ public class LeaveImportServiceImpl implements LeaveImportService {
                             "Allocation creation failed for line {}: {}",
                             validRow.row().lineNumber(),
                             e.getMessage());
+                    String reason = "WRITE_FAILED";
+                    Throwable root = e;
+                    while (root.getCause() != null && root.getCause() != root) {
+                        root = root.getCause();
+                    }
+                    String msg = root.getMessage() != null ? root.getMessage().toLowerCase() : "";
+                    if (msg.contains("duplicate") || msg.contains("uk_leave_allocation") || msg.contains("unique")) {
+                        reason = "DUPLICATE_ALLOCATION";
+                    }
                     allErrors.add(new LeaveImportError(
                             validRow.row().lineNumber(),
                             validRow.row().employeeNumber(),
                             validRow.row().leaveTypeCode(),
                             validRow.row().days(),
-                            "DUPLICATE_ALLOCATION"));
+                            reason));
                 }
             }
         }
@@ -242,22 +286,19 @@ public class LeaveImportServiceImpl implements LeaveImportService {
         return val;
     }
 
-    private LocalDate[] resolveYearDates(String leaveYear) {
+    private LocalDate[] resolveYearDates(UUID tenantId, String leaveYear) {
         Objects.requireNonNull(leaveYear, "leaveYear must not be null");
+        int startMonth = getTenantLeaveYearStartMonth(tenantId);
         String trimmed = leaveYear.trim();
+        int startYear;
         if (trimmed.contains("-")) {
             String[] parts = trimmed.split("-");
-            int startYear = Integer.parseInt(parts[0].trim());
-            int endYear;
-            if (parts[1].trim().length() == 2) {
-                endYear = (startYear / 100) * 100 + Integer.parseInt(parts[1].trim());
-            } else {
-                endYear = Integer.parseInt(parts[1].trim());
-            }
-            return new LocalDate[] {LocalDate.of(startYear, 4, 1), LocalDate.of(endYear, 3, 31)};
+            startYear = Integer.parseInt(parts[0].trim());
         } else {
-            int year = Integer.parseInt(trimmed);
-            return new LocalDate[] {LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31)};
+            startYear = Integer.parseInt(trimmed);
         }
+        LocalDate start = LocalDate.of(startYear, startMonth, 1);
+        LocalDate end = LocalDate.of(startYear + 1, startMonth, 1).minusDays(1);
+        return new LocalDate[] {start, end};
     }
 }

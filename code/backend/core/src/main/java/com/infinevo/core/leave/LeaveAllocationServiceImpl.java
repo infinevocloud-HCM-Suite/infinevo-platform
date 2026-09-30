@@ -130,7 +130,12 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
 
         List<OverdrawnEmployee> overdrawn = new ArrayList<>();
         for (LeaveAllocation allocation : currentAllocations) {
-            BigDecimal newEntitlement = LeaveProRate.calculateEntitlement(newAnnualDays, allocation.getProRateFactor());
+            LeavePolicy currentPolicy =
+                    policyRepository.findById(allocation.getPolicyId()).orElse(null);
+            boolean isAccrual = currentPolicy != null && Boolean.TRUE.equals(currentPolicy.getAccrualEnabled());
+            BigDecimal newEntitlement = isAccrual
+                    ? (allocation.getEntitlementDays() != null ? allocation.getEntitlementDays() : BigDecimal.ZERO)
+                    : LeaveProRate.calculateEntitlement(newAnnualDays, allocation.getProRateFactor());
             BigDecimal accrued = allocation.getAccruedDays() != null ? allocation.getAccruedDays() : BigDecimal.ZERO;
             BigDecimal carried =
                     allocation.getCarriedForwardDays() != null ? allocation.getCarriedForwardDays() : BigDecimal.ZERO;
@@ -169,10 +174,15 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
                                 tenantId, leaveTypeId, evalDate, evalDate);
 
         for (LeaveAllocation allocation : currentAllocations) {
-            BigDecimal newEntitlement =
-                    LeaveProRate.calculateEntitlement(newPolicy.getAnnualDays(), allocation.getProRateFactor());
-            allocation.setEntitlementDays(newEntitlement);
             allocation.setPolicyId(newPolicy.getId());
+            // Accrual allocations accumulate days progressively in accrued_days.
+            // Overwriting entitlement_days corrupts accrual balances (counting days twice)
+            // and destroys imported opening balances.
+            if (!Boolean.TRUE.equals(newPolicy.getAccrualEnabled())) {
+                BigDecimal newEntitlement =
+                        LeaveProRate.calculateEntitlement(newPolicy.getAnnualDays(), allocation.getProRateFactor());
+                allocation.setEntitlementDays(newEntitlement);
+            }
             allocationRepository.save(allocation);
         }
         return currentAllocations.size();

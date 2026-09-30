@@ -185,4 +185,94 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
             }
         }
     }
+
+    @Test
+    @DisplayName("Preview endpoint returns impact without modifying policy or allocations (F-7)")
+    void previewPolicyChangeDoesNotMutatePolicyOrAllocations() {
+        TenantContext.set(TENANT_A);
+        LocalDate midYearDate = LocalDate.of(2026, 7, 1);
+
+        List<OverdrawnEmployee> preview =
+                leaveTypeService.previewPolicyChange(leaveTypeId, BigDecimal.valueOf(5), midYearDate);
+        assertThat(preview).isNotNull();
+
+        // Verify allocation in DB is STILL untouched (entitlement = 20, policyId = initialPolicyId)
+        LeaveAllocation allocation = allocationRepository.findById(allocationId).orElseThrow();
+        assertThat(allocation.getEntitlementDays()).isEqualByComparingTo(BigDecimal.valueOf(20));
+        assertThat(allocation.getPolicyId()).isEqualTo(initialPolicyId);
+    }
+
+    @Test
+    @DisplayName("Mid-year policy change on accrual-based leave type does not overwrite entitlement days (F-2)")
+    void accrualPolicyMidYearChangePreservesAccruedEntitlement() {
+        TenantContext.set(TENANT_A);
+
+        LeaveTypeResponse type = leaveTypeService.createLeaveType(new LeaveTypeRequest(
+                "Earned Leave", "EL", true, LeaveUnit.DAYS, false, LocalDate.of(2026, 1, 1), null));
+        UUID elTypeId = type.id();
+
+        LeavePolicyResponse policy = leaveTypeService.setPolicy(
+                elTypeId,
+                new LeavePolicyRequest(
+                        BigDecimal.valueOf(24),
+                        true,
+                        AccrualFrequency.MONTHLY,
+                        BigDecimal.valueOf(2),
+                        false,
+                        null,
+                        false,
+                        null,
+                        null,
+                        false,
+                        null,
+                        null,
+                        false,
+                        false,
+                        ExceedBalanceMode.NO_LIMIT,
+                        null,
+                        false,
+                        null,
+                        null,
+                        LocalDate.of(2026, 1, 1),
+                        List.of()));
+
+        // Create allocation with 6 days accrued so far
+        LeaveAllocationResponse alloc = allocationService.createAllocation(new LeaveAllocationRequest(
+                employeeId,
+                elTypeId,
+                "2026",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                BigDecimal.valueOf(6)));
+
+        // Mid-year update reducing annual days to 12
+        leaveTypeService.setPolicy(
+                elTypeId,
+                new LeavePolicyRequest(
+                        BigDecimal.valueOf(12),
+                        true,
+                        AccrualFrequency.MONTHLY,
+                        BigDecimal.valueOf(1),
+                        false,
+                        null,
+                        false,
+                        null,
+                        null,
+                        false,
+                        null,
+                        null,
+                        false,
+                        false,
+                        ExceedBalanceMode.NO_LIMIT,
+                        null,
+                        false,
+                        null,
+                        null,
+                        LocalDate.of(2026, 7, 1),
+                        List.of()));
+
+        // Entitlement days must NOT be overwritten with 12
+        LeaveAllocation updated = allocationRepository.findById(alloc.id()).orElseThrow();
+        assertThat(updated.getEntitlementDays()).isEqualByComparingTo(BigDecimal.valueOf(6));
+    }
 }

@@ -1,6 +1,7 @@
 package com.infinevo.core.leave;
 
 import com.infinevo.shared.tenant.TenantContext;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -71,5 +72,15 @@ public interface LeaveTypeService {
 
     default Optional<LeavePolicyResponse> getEffectivePolicy(UUID leaveTypeId, LocalDate asOf) {
         return getEffectivePolicy(TenantContext.require(), leaveTypeId, asOf);
+    }
+
+    /**
+     * Previews the impact of a proposed mid-year policy change, returning employees who would become overdrawn.
+     */
+    List<OverdrawnEmployee> previewPolicyChange(
+            UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf);
+
+    default List<OverdrawnEmployee> previewPolicyChange(UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf) {
+        return previewPolicyChange(TenantContext.require(), leaveTypeId, newAnnualDays, asOf);
     }
 }

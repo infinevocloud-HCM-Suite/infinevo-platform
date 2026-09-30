@@ -55,6 +55,8 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
     private DocumentService documentService;
 
     private UUID typeSlId;
+    private UUID policyId;
+    private UUID emp3Id;
 
     @BeforeAll
     static void applySchema() throws Exception {
@@ -74,10 +76,10 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
 
         TenantContext.set(TENANT_A);
 
-        // Seed 5 valid employees
+        // Seed valid employees
         LeaveTestSchema.insertEmployee(TENANT_A, "EMP-1", "Alice", "alice@acme.com");
         LeaveTestSchema.insertEmployee(TENANT_A, "EMP-2", "Bob", "bob@acme.com");
-        LeaveTestSchema.insertEmployee(TENANT_A, "EMP-3", "Charlie", "charlie@acme.com");
+        emp3Id = LeaveTestSchema.insertEmployee(TENANT_A, "EMP-3", "Charlie", "charlie@acme.com");
         LeaveTestSchema.insertEmployee(TENANT_A, "EMP-4", "Diana", "diana@acme.com");
         LeaveTestSchema.insertEmployee(TENANT_A, "EMP-5", "Edward", "edward@acme.com");
         LeaveTestSchema.insertEmployee(TENANT_A, "EMP-6", "Fiona", "fiona@acme.com");
@@ -87,7 +89,7 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
                 new LeaveTypeRequest("Sick Leave", "SL", true, LeaveUnit.DAYS, false, LocalDate.of(2026, 1, 1), null));
         typeSlId = slResp.id();
 
-        leaveTypeService.setPolicy(
+        LeavePolicyResponse polResp = leaveTypeService.setPolicy(
                 typeSlId,
                 new LeavePolicyRequest(
                         java.math.BigDecimal.valueOf(20),
@@ -111,6 +113,7 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
                         null,
                         LocalDate.of(2026, 1, 1),
                         List.of()));
+        policyId = polResp.id();
     }
 
     @AfterEach
@@ -127,7 +130,39 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
         UUID docId = UUID.randomUUID();
         UUID errDocId = UUID.randomUUID();
 
-        // CSV containing 5 good rows and 2 bad rows
+        // Pre-create allocation for EMP-3 to trigger a DB-level write failure (UNIQUE constraint violation)
+        // during the write loop, proving partial success semantics when writes fail mid-loop.
+        try (Connection conn = LeaveTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.leave_allocation
+                        (id, tenant_id, employee_id, leave_type_id, leave_year, year_start_date, year_end_date,
+                         entitlement_days, accrued_days, carried_forward_days, pro_rate_factor, policy_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """)) {
+            ps.setObject(1, UUID.randomUUID());
+            ps.setObject(2, TENANT_A);
+            ps.setObject(3, emp3Id);
+            ps.setObject(4, typeSlId);
+            ps.setString(5, "2026");
+            ps.setDate(6, java.sql.Date.valueOf("2026-01-01"));
+            ps.setDate(7, java.sql.Date.valueOf("2026-12-31"));
+            ps.setBigDecimal(8, java.math.BigDecimal.valueOf(15));
+            ps.setBigDecimal(9, java.math.BigDecimal.ZERO);
+            ps.setBigDecimal(10, java.math.BigDecimal.ZERO);
+            ps.setBigDecimal(11, java.math.BigDecimal.ONE);
+            ps.setObject(12, policyId);
+            ps.executeUpdate();
+        }
+
+        // CSV containing:
+        // EMP-1: valid (writes successfully)
+        // EMP-2: valid (writes successfully)
+        // EMP-BAD1: invalid employee (rejected during validation)
+        // EMP-3: passes validation, but FAILS during DB write loop (DUPLICATE_ALLOCATION)
+        // EMP-6: invalid days (rejected during validation)
+        // EMP-4: valid (writes successfully, proving EMP-3 write failure did not stop the loop)
+        // EMP-5: valid (writes successfully)
         String csv =
                 """
                 employee_number,leave_type_code,days
@@ -168,11 +203,12 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
         // Verify response DTO
         assertThat(response.status()).isEqualTo(ImportStatus.COMPLETED_WITH_ERRORS);
         assertThat(response.rowsTotal()).isEqualTo(7);
-        assertThat(response.rowsImported()).isEqualTo(5);
-        assertThat(response.rowsFailed()).isEqualTo(2);
+        assertThat(response.rowsImported()).isEqualTo(4);
+        assertThat(response.rowsFailed()).isEqualTo(3);
         assertThat(response.errorDocumentId()).isEqualTo(errDocId);
 
         // Direct DB verification: assert exactly 5 allocation records exist in core.leave_allocation
+        // (1 pre-existing EMP-3 allocation + 4 newly imported allocations for EMP-1, EMP-2, EMP-4, EMP-5)
         try (Connection conn = LeaveTestSchema.migrationConnection();
                 PreparedStatement ps =
                         conn.prepareStatement("SELECT count(*) FROM core.leave_allocation WHERE tenant_id = ?")) {
@@ -180,7 +216,7 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
             try (ResultSet rs = ps.executeQuery()) {
                 assertThat(rs.next()).isTrue();
                 assertThat(rs.getInt(1))
-                        .as("Exactly 5 valid allocation rows must be committed")
+                        .as("Exactly 5 allocation rows (1 pre-existing + 4 newly imported) must exist in DB")
                         .isEqualTo(5);
             }
         }
@@ -195,8 +231,8 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
                 assertThat(rs.next()).isTrue();
                 assertThat(rs.getString("status")).isEqualTo("COMPLETED_WITH_ERRORS");
                 assertThat(rs.getInt("rows_total")).isEqualTo(7);
-                assertThat(rs.getInt("rows_imported")).isEqualTo(5);
-                assertThat(rs.getInt("rows_failed")).isEqualTo(2);
+                assertThat(rs.getInt("rows_imported")).isEqualTo(4);
+                assertThat(rs.getInt("rows_failed")).isEqualTo(3);
                 assertThat((UUID) rs.getObject("error_document_id")).isEqualTo(errDocId);
             }
         }
@@ -215,6 +251,7 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
         String errorReport = new String(capturedErrorBytes, StandardCharsets.UTF_8);
         assertThat(errorReport).contains("line_number,employee_number,leave_type_code,days,error_reason");
         assertThat(errorReport).contains("4,EMP-BAD1,SL,10.00,EMPLOYEE_NOT_FOUND");
+        assertThat(errorReport).contains("5,EMP-3,SL,10.00,DUPLICATE_ALLOCATION");
         assertThat(errorReport).contains("6,EMP-6,SL,not-a-number,INVALID_DAYS");
     }
 }

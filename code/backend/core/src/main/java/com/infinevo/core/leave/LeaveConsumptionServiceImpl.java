@@ -58,6 +58,48 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
         this.payInputService = Objects.requireNonNull(payInputService, "payInputService must not be null");
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    public void setJdbcTemplate(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    private int getTenantLeaveYearStartMonth(UUID tenantId) {
+        if (jdbcTemplate != null) {
+            try {
+                Short m = jdbcTemplate.queryForObject(
+                        "SELECT leave_year_start_month FROM core.tenant WHERE tenant_id = ?", Short.class, tenantId);
+                if (m != null && m >= 1 && m <= 12) {
+                    return m;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return 4;
+    }
+
+    private LeaveYearRange calculateLeaveYearRange(UUID tenantId, LocalDate date) {
+        int startMonth = getTenantLeaveYearStartMonth(tenantId);
+        int year = date.getYear();
+        LocalDate start;
+        LocalDate end;
+        String leaveYear;
+        if (startMonth == 1) {
+            start = LocalDate.of(year, 1, 1);
+            end = LocalDate.of(year, 12, 31);
+            leaveYear = String.valueOf(year);
+        } else {
+            int startYear = date.getMonthValue() >= startMonth ? year : year - 1;
+            start = LocalDate.of(startYear, startMonth, 1);
+            end = LocalDate.of(startYear + 1, startMonth, 1).minusDays(1);
+            leaveYear = startYear + "-" + (startYear + 1);
+        }
+        return new LeaveYearRange(leaveYear, start, end);
+    }
+
+    private record LeaveYearRange(String leaveYear, LocalDate start, LocalDate end) {}
+
     @Override
     @Transactional
     public void consume(LeaveRequest request) {
@@ -75,31 +117,33 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
 
         // 2. Fetch or resolve allocation (auto-create if missing under MARK_AS_LOP or unallocated type)
         LocalDate fromDate = request.getFromDate();
+        LeaveYearRange yearRange = calculateLeaveYearRange(tenantId, fromDate);
+
         LeaveAllocation allocation = leaveAllocationRepository
                 .findFirstByTenantIdAndEmployeeIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
                         tenantId, request.getEmployeeId(), request.getLeaveTypeId(), fromDate, fromDate)
                 .or(() -> leaveAllocationRepository.findByTenantIdAndEmployeeIdAndLeaveTypeIdAndLeaveYear(
-                        tenantId,
-                        request.getEmployeeId(),
-                        request.getLeaveTypeId(),
-                        String.valueOf(fromDate.getYear())))
+                        tenantId, request.getEmployeeId(), request.getLeaveTypeId(), yearRange.leaveYear()))
                 .orElseGet(() -> {
-                    String year = String.valueOf(fromDate.getYear());
-                    LocalDate start = LocalDate.of(fromDate.getYear(), 1, 1);
-                    LocalDate end = LocalDate.of(fromDate.getYear(), 12, 31);
+                    LeavePolicy policy = leavePolicyRepository
+                            .findFirstByTenantIdAndLeaveTypeIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescCreatedAtDesc(
+                                    tenantId, request.getLeaveTypeId(), fromDate)
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "No effective policy found for leave type " + request.getLeaveTypeId()));
+
                     LeaveAllocation defAlloc = new LeaveAllocation(
                             tenantId,
                             request.getEmployeeId(),
                             request.getLeaveTypeId(),
-                            year,
-                            start,
-                            end,
+                            yearRange.leaveYear(),
+                            yearRange.start(),
+                            yearRange.end(),
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             null,
                             BigDecimal.ONE,
-                            null);
+                            policy.getId());
                     return leaveAllocationRepository.save(defAlloc);
                 });
 

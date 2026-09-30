@@ -185,23 +185,47 @@ public class LeaveResetServiceImpl implements LeaveResetService {
             unused = BigDecimal.ZERO;
         }
 
+        BigDecimal toCarry = BigDecimal.ZERO;
         if (Boolean.TRUE.equals(policy.getCarryForwardEnabled())) {
             BigDecimal cap = policy.getCarryForwardCap();
-            BigDecimal toCarry = cap != null ? unused.min(cap) : unused;
-            allocation.setCarriedForwardDays(toCarry);
-
+            toCarry = cap != null ? unused.min(cap) : unused;
             if (policy.getCarryForwardExpiresAfterMonths() != null && policy.getCarryForwardExpiresAfterMonths() > 0) {
                 allocation.setCarryForwardExpiresOn(asOf.plusMonths(policy.getCarryForwardExpiresAfterMonths()));
             } else {
                 allocation.setCarryForwardExpiresOn(null);
             }
         } else {
-            // Unused balance drops at boundary
-            allocation.setCarriedForwardDays(BigDecimal.ZERO);
             allocation.setCarryForwardExpiresOn(null);
         }
 
-        allocation.setAccruedDays(BigDecimal.ZERO);
+        if (freq == ResetFrequency.YEARLY) {
+            allocation.setCarriedForwardDays(toCarry);
+            allocation.setAccruedDays(BigDecimal.ZERO);
+        } else {
+            // For mid-year resets (monthly, quarterly, half-yearly) within the same allocation:
+            // Deduct the dropped (lapsed) unused balance from the allocation so that consumed
+            // is not subtracted twice by LeaveBalanceService.
+            BigDecimal dropped = unused.subtract(toCarry);
+            if (dropped.compareTo(BigDecimal.ZERO) > 0) {
+                if (accrued.compareTo(dropped) >= 0) {
+                    accrued = accrued.subtract(dropped);
+                } else {
+                    dropped = dropped.subtract(accrued);
+                    accrued = BigDecimal.ZERO;
+                    if (entitlement.compareTo(dropped) >= 0) {
+                        entitlement = entitlement.subtract(dropped);
+                    } else {
+                        dropped = dropped.subtract(entitlement);
+                        entitlement = BigDecimal.ZERO;
+                        carried = carried.subtract(dropped).max(BigDecimal.ZERO);
+                    }
+                }
+            }
+            allocation.setEntitlementDays(entitlement);
+            allocation.setAccruedDays(accrued);
+            allocation.setCarriedForwardDays(carried);
+        }
+
         allocation.setLastResetOn(asOf);
         leaveAllocationRepository.save(allocation);
         return true;

@@ -1,5 +1,7 @@
 package com.infinevo.core.leave;
 
+import com.infinevo.core.employee.Employee;
+import com.infinevo.core.employee.EmployeeRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -20,13 +22,23 @@ public class LeaveAccrualServiceImpl implements LeaveAccrualService {
 
     private final LeaveAllocationRepository leaveAllocationRepository;
     private final LeavePolicyRepository leavePolicyRepository;
+    private final EmployeeRepository employeeRepository;
 
     public LeaveAccrualServiceImpl(
-            LeaveAllocationRepository leaveAllocationRepository, LeavePolicyRepository leavePolicyRepository) {
+            LeaveAllocationRepository leaveAllocationRepository,
+            LeavePolicyRepository leavePolicyRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+                    EmployeeRepository employeeRepository) {
         this.leaveAllocationRepository =
                 Objects.requireNonNull(leaveAllocationRepository, "leaveAllocationRepository must not be null");
         this.leavePolicyRepository =
                 Objects.requireNonNull(leavePolicyRepository, "leavePolicyRepository must not be null");
+        this.employeeRepository = employeeRepository;
+    }
+
+    public LeaveAccrualServiceImpl(
+            LeaveAllocationRepository leaveAllocationRepository, LeavePolicyRepository leavePolicyRepository) {
+        this(leaveAllocationRepository, leavePolicyRepository, null);
     }
 
     @Override
@@ -72,26 +84,61 @@ public class LeaveAccrualServiceImpl implements LeaveAccrualService {
         LocalDate lastAccrued = allocation.getLastAccruedOn();
 
         if (freq == AccrualFrequency.MONTHLY) {
+            LocalDate joinDate = null;
+            LocalDate terminationDate = null;
+            if (employeeRepository != null && allocation.getEmployeeId() != null) {
+                Employee emp = employeeRepository
+                        .findByIdAndTenantIdAndDeletedFalse(allocation.getEmployeeId(), tenantId)
+                        .orElse(null);
+                if (emp != null) {
+                    joinDate = emp.getDateOfJoining();
+                    terminationDate = emp.getTerminationDate();
+                }
+            }
+
             YearMonth targetMonth = YearMonth.from(asOf);
+            if (terminationDate != null && YearMonth.from(terminationDate).isBefore(targetMonth)) {
+                targetMonth = YearMonth.from(terminationDate);
+            }
+
             YearMonth startMonth;
             if (lastAccrued == null) {
                 startMonth = YearMonth.from(allocation.getYearStartDate());
+                if (joinDate != null && YearMonth.from(joinDate).isAfter(startMonth)) {
+                    startMonth = YearMonth.from(joinDate);
+                }
             } else {
                 startMonth = YearMonth.from(lastAccrued).plusMonths(1);
             }
 
             if (startMonth.isAfter(targetMonth)) {
-                return false; // Already accrued up to current month
+                return false; // Already accrued up to current month or not yet eligible
             }
 
-            long monthsToAccrue = java.time.temporal.ChronoUnit.MONTHS.between(startMonth, targetMonth) + 1;
             BigDecimal units = policy.getAccrualUnits();
-            if (units == null || units.compareTo(BigDecimal.ZERO) <= 0 || monthsToAccrue <= 0) {
+            if (units == null || units.compareTo(BigDecimal.ZERO) <= 0) {
                 return false;
             }
 
-            BigDecimal totalAccrual =
-                    units.multiply(BigDecimal.valueOf(monthsToAccrue)).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal totalAccrual = BigDecimal.ZERO;
+            YearMonth cur = startMonth;
+            while (!cur.isAfter(targetMonth)) {
+                BigDecimal monthUnits = units;
+                if (Boolean.TRUE.equals(policy.getProRateEnabled())
+                        && joinDate != null
+                        && cur.equals(YearMonth.from(joinDate))) {
+                    int totalDays = joinDate.lengthOfMonth();
+                    int activeDays = totalDays - joinDate.getDayOfMonth() + 1;
+                    if (activeDays < totalDays) {
+                        BigDecimal factor = BigDecimal.valueOf(activeDays)
+                                .divide(BigDecimal.valueOf(totalDays), 4, RoundingMode.HALF_UP);
+                        monthUnits = units.multiply(factor).setScale(2, RoundingMode.HALF_UP);
+                    }
+                }
+                totalAccrual = totalAccrual.add(monthUnits);
+                cur = cur.plusMonths(1);
+            }
+
             BigDecimal current = allocation.getAccruedDays() != null ? allocation.getAccruedDays() : BigDecimal.ZERO;
             allocation.setAccruedDays(current.add(totalAccrual));
             allocation.setLastAccruedOn(asOf);

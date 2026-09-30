@@ -215,4 +215,121 @@ class LeaveImportServiceTest {
         verify(allocationHelper, never()).createOneAllocation(any(), any());
         verify(documentService, times(1)).store(eq(DocumentKind.EXPORT), any(), any(), any());
     }
+
+    @Test
+    @DisplayName("document open failure records FAILED status with finishedAt in import log and rethrows (F-11)")
+    void openDocumentFailureMarksLogAsFailedAndRethrows() {
+        List<ImportStatus> savedStatuses = new ArrayList<>();
+        when(allocationHelper.saveLog(any(LeaveImportLog.class))).thenAnswer(inv -> {
+            LeaveImportLog l = inv.getArgument(0);
+            savedStatuses.add(l.getStatus());
+            if (l.getId() == null) {
+                l.setId(UUID.randomUUID());
+            }
+            return l;
+        });
+
+        when(documentService.open(documentId)).thenThrow(new RuntimeException("Storage unavailable"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.importLeaves(tenantId, documentId, "2026", false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Failed to open import document");
+
+        verify(allocationHelper, times(2)).saveLog(any(LeaveImportLog.class));
+        assertThat(savedStatuses).containsExactly(ImportStatus.PENDING, ImportStatus.FAILED);
+    }
+
+    @Test
+    @DisplayName("write failure classifies duplicate key as DUPLICATE_ALLOCATION and other error as WRITE_FAILED (F-9)")
+    void writeFailureClassifiedAsDuplicateVsWriteFailed() throws Exception {
+        String csv =
+                """
+                employee_number,leave_type_code,days
+                EMP-1,SL,10.00
+                EMP-2,SL,10.00
+                """;
+
+        when(documentService.open(documentId)).thenReturn(mockCsvContent(csv));
+
+        Employee emp1 = mock(Employee.class);
+        when(emp1.getId()).thenReturn(UUID.randomUUID());
+        Employee emp2 = mock(Employee.class);
+        when(emp2.getId()).thenReturn(UUID.randomUUID());
+        LeaveType lt = mock(LeaveType.class);
+        when(lt.getId()).thenReturn(UUID.randomUUID());
+
+        LeaveImportRow row1 = new LeaveImportRow(2, "EMP-1", "SL", "10.00");
+        LeaveImportRow row2 = new LeaveImportRow(3, "EMP-2", "SL", "10.00");
+
+        var valids = List.of(
+                new LeaveImportRowValidator.ValidatedRow(row1, emp1, lt, new BigDecimal("10.00")),
+                new LeaveImportRowValidator.ValidatedRow(row2, emp2, lt, new BigDecimal("10.00")));
+
+        when(rowValidator.validate(eq(tenantId), any()))
+                .thenReturn(new LeaveImportRowValidator.ValidationResult(valids, List.of()));
+
+        // Row 1 throws duplicate key
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException(
+                        "duplicate key value violates unique constraint uk_leave_allocation"))
+                .when(allocationHelper)
+                .createOneAllocation(eq(tenantId), org.mockito.ArgumentMatchers.argThat(r -> r.employeeId()
+                        .equals(emp1.getId())));
+
+        // Row 2 throws general error
+        org.mockito.Mockito.doThrow(new RuntimeException("DB connection dropped"))
+                .when(allocationHelper)
+                .createOneAllocation(eq(tenantId), org.mockito.ArgumentMatchers.argThat(r -> r.employeeId()
+                        .equals(emp2.getId())));
+
+        LeaveImportResultResponse resp = service.importLeaves(tenantId, documentId, "2026", false);
+
+        assertThat(resp.status()).isEqualTo(ImportStatus.COMPLETED_WITH_ERRORS);
+        assertThat(resp.rowsImported()).isEqualTo(0);
+        assertThat(resp.rowsFailed()).isEqualTo(2);
+
+        org.mockito.ArgumentCaptor<InputStream> streamCaptor = org.mockito.ArgumentCaptor.forClass(InputStream.class);
+        verify(documentService, times(1)).store(eq(DocumentKind.EXPORT), any(), any(), streamCaptor.capture());
+
+        String errorCsv = new String(streamCaptor.getValue().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(errorCsv).contains("2,EMP-1,SL,10.00,DUPLICATE_ALLOCATION");
+        assertThat(errorCsv).contains("3,EMP-2,SL,10.00,WRITE_FAILED");
+    }
+
+    @Test
+    @DisplayName("year dates use tenant's leave_year_start_month when configured (F-10)")
+    void datesResolvedWithCustomTenantStartMonth() {
+        org.springframework.jdbc.core.JdbcTemplate mockJdbc = mock(org.springframework.jdbc.core.JdbcTemplate.class);
+        // Tenant uses start month 1 (Calendar year)
+        when(mockJdbc.queryForObject(any(String.class), eq(Short.class), eq(tenantId)))
+                .thenReturn((short) 1);
+        service.setJdbcTemplate(mockJdbc);
+
+        String csv =
+                """
+                employee_number,leave_type_code,days
+                EMP-1,SL,10.00
+                """;
+
+        when(documentService.open(documentId)).thenReturn(mockCsvContent(csv));
+
+        Employee emp1 = mock(Employee.class);
+        when(emp1.getId()).thenReturn(UUID.randomUUID());
+        LeaveType lt = mock(LeaveType.class);
+        when(lt.getId()).thenReturn(UUID.randomUUID());
+        LeaveImportRow row1 = new LeaveImportRow(2, "EMP-1", "SL", "10.00");
+        var valids = List.of(new LeaveImportRowValidator.ValidatedRow(row1, emp1, lt, new BigDecimal("10.00")));
+        when(rowValidator.validate(eq(tenantId), any()))
+                .thenReturn(new LeaveImportRowValidator.ValidationResult(valids, List.of()));
+
+        service.importLeaves(tenantId, documentId, "2026", false);
+
+        org.mockito.ArgumentCaptor<LeaveAllocationRequest> reqCaptor =
+                org.mockito.ArgumentCaptor.forClass(LeaveAllocationRequest.class);
+        verify(allocationHelper, times(1)).createOneAllocation(eq(tenantId), reqCaptor.capture());
+        LeaveAllocationRequest captured = reqCaptor.getValue();
+        // Start date should be 2026-01-01 and end date 2026-12-31 (start month 1)
+        assertThat(captured.yearStartDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 1));
+        assertThat(captured.yearEndDate()).isEqualTo(java.time.LocalDate.of(2026, 12, 31));
+    }
 }

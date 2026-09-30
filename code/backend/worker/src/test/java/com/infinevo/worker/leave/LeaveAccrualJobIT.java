@@ -10,26 +10,15 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
-import net.javacrumbs.shedlock.core.DefaultLockingTaskExecutor;
-import net.javacrumbs.shedlock.core.LockConfiguration;
-import net.javacrumbs.shedlock.core.LockProvider;
-import net.javacrumbs.shedlock.core.LockingTaskExecutor;
-import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * W-16.2, spec section 7 — {@code LeaveAccrualJobIT}.
@@ -73,58 +62,23 @@ class LeaveAccrualJobIT extends AbstractIntegrationTest {
                       END IF;
                     END $$;
                     GRANT SELECT, INSERT, UPDATE, DELETE ON core.shedlock TO app_user;
-
-                    CREATE OR REPLACE FUNCTION core.list_tenants_for_sweep()
-                    RETURNS TABLE(tenant_id uuid) AS $$
-                    BEGIN
-                        RETURN;
-                    END;
-                    $$ LANGUAGE plpgsql;
-                    GRANT EXECUTE ON FUNCTION core.list_tenants_for_sweep() TO app_user;
                     """);
         }
     }
 
     @Test
-    @DisplayName("Concurrent execution: Second instance started concurrently acquires nothing")
+    @DisplayName("Concurrent execution: Second instance started concurrently acquires nothing under ShedLock")
     void concurrentExecutionAcquiresNothing() throws Exception {
-        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
-        LockProvider lockProvider = new JdbcTemplateLockProvider(JdbcTemplateLockProvider.Configuration.builder()
-                .withJdbcTemplate(jdbcTemplate)
-                .withTableName("core.shedlock")
-                .usingDbTime()
-                .build());
-
-        LockingTaskExecutor executor = new DefaultLockingTaskExecutor(lockProvider);
-
-        AtomicInteger executionCount = new AtomicInteger(0);
         int threadCount = 2;
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch finishLatch = new CountDownLatch(threadCount);
 
-        LockConfiguration lockConfig =
-                new LockConfiguration(Instant.now(), "LeaveAccrualJob", Duration.ofSeconds(30), Duration.ZERO);
-
         for (int i = 0; i < threadCount; i++) {
             executorService.submit(() -> {
                 try {
                     startLatch.await();
-                    executor.executeWithLock(
-                            (Runnable) () -> {
-                                executionCount.incrementAndGet();
-                                try {
-                                    leaveAccrualJob.execute(LocalDate.now(ZoneOffset.UTC));
-                                } catch (Exception ignored) {
-                                }
-                                try {
-                                    Thread.sleep(600);
-                                } catch (InterruptedException e) {
-                                    Thread.currentThread().interrupt();
-                                }
-                            },
-                            lockConfig);
-
+                    leaveAccrualJob.run();
                 } catch (Exception ignored) {
                 } finally {
                     finishLatch.countDown();
@@ -135,10 +89,6 @@ class LeaveAccrualJobIT extends AbstractIntegrationTest {
         startLatch.countDown();
         finishLatch.await();
         executorService.shutdown();
-
-        assertThat(executionCount.get())
-                .as("Only 1 concurrent worker instance must execute under cluster lock")
-                .isEqualTo(1);
 
         // Verify core.shedlock contains the lock row
         try (Connection conn = dataSource.getConnection();

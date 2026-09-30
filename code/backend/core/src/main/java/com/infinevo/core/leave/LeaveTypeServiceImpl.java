@@ -1,6 +1,7 @@
 package com.infinevo.core.leave;
 
 import com.infinevo.shared.tenant.TenantContext;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -235,6 +236,26 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
                             eligibilityRepository.findByTenantIdAndPolicyId(tenantId, policy.getId());
                     return LeavePolicyResponse.from(policy, eligibilities);
                 });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OverdrawnEmployee> previewPolicyChange(
+            UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(leaveTypeId, "leaveTypeId must not be null");
+        Objects.requireNonNull(newAnnualDays, "newAnnualDays must not be null");
+
+        leaveTypeRepository
+                .findByTenantIdAndId(tenantId, leaveTypeId)
+                .orElseThrow(() -> new IllegalArgumentException("Leave type not found with ID: " + leaveTypeId));
+
+        LocalDate evaluationDate = asOf != null ? asOf : LocalDate.now(ZoneOffset.UTC);
+        if (leaveAllocationService != null) {
+            return leaveAllocationService.previewMidYearPolicyImpact(
+                    tenantId, leaveTypeId, newAnnualDays, evaluationDate);
+        }
+        return List.of();
     }
 
     @Override

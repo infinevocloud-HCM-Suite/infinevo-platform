@@ -322,4 +322,76 @@ class LeaveConsumptionServiceTest {
         // Verify pay input reversal
         verify(payInputService, times(1)).reverse(eq(payInputId), eq("Changed travel plans"));
     }
+
+    @Test
+    @DisplayName(
+            "when no allocation exists, consume() creates an allocation with effective policy_id and tenant leave year")
+    void noAllocationCreatesAllocationWithPolicyId() {
+        UUID reqId = UUID.randomUUID();
+        LocalDate from = LocalDate.of(2026, 6, 1);
+        LocalDate to = LocalDate.of(2026, 6, 2);
+        LeaveRequest req = createRequest(reqId, from, to, new BigDecimal("2.00"));
+        req.setId(reqId);
+
+        when(leaveConsumptionRepository.existsByTenantIdAndLeaveRequestIdAndReversesIdIsNull(tenantId, reqId))
+                .thenReturn(false);
+
+        when(leaveAllocationRepository
+                        .findFirstByTenantIdAndEmployeeIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
+                                eq(tenantId), eq(employeeId), eq(leaveTypeId), eq(from), eq(from)))
+                .thenReturn(Optional.empty());
+        when(leaveAllocationRepository.findByTenantIdAndEmployeeIdAndLeaveTypeIdAndLeaveYear(
+                        eq(tenantId), eq(employeeId), eq(leaveTypeId), any()))
+                .thenReturn(Optional.empty());
+
+        UUID effectivePolicyId = UUID.randomUUID();
+        LeavePolicy policy = new LeavePolicy();
+        policy.setId(effectivePolicyId);
+        policy.setExceedBalanceMode(ExceedBalanceMode.NO_LIMIT);
+        when(leavePolicyRepository
+                        .findFirstByTenantIdAndLeaveTypeIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescCreatedAtDesc(
+                                tenantId, leaveTypeId, from))
+                .thenReturn(Optional.of(policy));
+
+        UUID newAllocId = UUID.randomUUID();
+        when(leaveAllocationRepository.save(any(LeaveAllocation.class))).thenAnswer(inv -> {
+            LeaveAllocation a = inv.getArgument(0);
+            a.setId(newAllocId);
+            return a;
+        });
+
+        LeaveBalanceResponse bal = new LeaveBalanceResponse(
+                employeeId,
+                leaveTypeId,
+                "AL",
+                "Annual Leave",
+                "2026-2027",
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null);
+        when(leaveBalanceService.getBalance(tenantId, employeeId, leaveTypeId, from))
+                .thenReturn(Optional.of(bal));
+
+        service.consume(req);
+
+        ArgumentCaptor<LeaveAllocation> allocCaptor = ArgumentCaptor.forClass(LeaveAllocation.class);
+        verify(leaveAllocationRepository, times(1)).save(allocCaptor.capture());
+        LeaveAllocation createdAlloc = allocCaptor.getValue();
+        assertThat(createdAlloc.getTenantId()).isEqualTo(tenantId);
+        assertThat(createdAlloc.getEmployeeId()).isEqualTo(employeeId);
+        assertThat(createdAlloc.getLeaveTypeId()).isEqualTo(leaveTypeId);
+        assertThat(createdAlloc.getPolicyId()).isEqualTo(effectivePolicyId);
+        assertThat(createdAlloc.getLeaveYear()).isNotEmpty();
+        assertThat(createdAlloc.getYearStartDate()).isNotNull();
+        assertThat(createdAlloc.getYearEndDate()).isNotNull();
+
+        ArgumentCaptor<LeaveConsumption> consCaptor = ArgumentCaptor.forClass(LeaveConsumption.class);
+        verify(leaveConsumptionRepository, times(1)).save(consCaptor.capture());
+        LeaveConsumption saved = consCaptor.getValue();
+        assertThat(saved.getAllocationId()).isEqualTo(newAllocId);
+        assertThat(saved.getConsumedDays()).isEqualByComparingTo("2.00");
+    }
 }

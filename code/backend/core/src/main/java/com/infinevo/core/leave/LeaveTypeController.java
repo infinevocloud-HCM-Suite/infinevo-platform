@@ -65,6 +65,17 @@ public class LeaveTypeController {
         return leaveTypeService.configurePolicy(tenantId, id, request);
     }
 
+    @GetMapping("/api/v1/leave-types/{id}/policy/preview")
+    @RequiresAction("core.leave_type.manage")
+    public List<OverdrawnEmployee> previewPolicyChange(
+            @PathVariable("id") UUID id,
+            @RequestParam("annualDays") java.math.BigDecimal annualDays,
+            @RequestParam(name = "asOf", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate asOf) {
+        UUID tenantId = TenantContext.require();
+        return leaveTypeService.previewPolicyChange(tenantId, id, annualDays, asOf);
+    }
+
     @GetMapping("/api/v1/leave-types/eligible")
     @RequiresAction(
             value = "core.leave.apply",

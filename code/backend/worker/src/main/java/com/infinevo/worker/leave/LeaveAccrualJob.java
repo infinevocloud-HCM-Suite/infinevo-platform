@@ -51,8 +51,8 @@ public class LeaveAccrualJob {
         for (UUID tenantId : tenantIds) {
             try {
                 TenantContext.set(tenantId);
-                accrualService.accrueAll(tenantId, asOf);
                 resetService.resetAll(tenantId, asOf);
+                accrualService.accrueAll(tenantId, asOf);
             } catch (Exception e) {
                 log.error("Error running leave accrual/reset for tenant {}", tenantId, e);
             } finally {

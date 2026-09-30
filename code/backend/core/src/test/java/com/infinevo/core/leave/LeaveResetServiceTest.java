@@ -231,4 +231,39 @@ class LeaveResetServiceTest {
         boolean h2Reset = resetService.resetAllocation(TENANT_ID, allocation, dec31, BigDecimal.ZERO);
         assertThat(h2Reset).isTrue();
     }
+
+    @Test
+    @DisplayName(
+            "Monthly reset with non-zero consumption drops only unused balance, preventing double subtraction (F-3)")
+    void monthlyResetWithConsumptionPreventsDoubleSubtraction() {
+        LeaveAllocation allocation = new LeaveAllocation(
+                TENANT_ID,
+                EMPLOYEE_ID,
+                LEAVE_TYPE_ID,
+                "2026",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(2),
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ONE,
+                POLICY_ID);
+
+        LeavePolicy policy = new LeavePolicy();
+        policy.setId(POLICY_ID);
+        policy.setResetEnabled(true);
+        policy.setResetFrequency(ResetFrequency.MONTHLY);
+        policy.setCarryForwardEnabled(false);
+
+        when(policyRepository.findById(POLICY_ID)).thenReturn(Optional.of(policy));
+
+        LocalDate jan31 = LocalDate.of(2026, 1, 31);
+        // 2 accrued - 1 consumed = 1 unused. Since carryForward is false, 1 day drops.
+        // Accrued should become 2 - 1 = 1 (not 0), so consumed (1) is not double-subtracted.
+        boolean reset = resetService.resetAllocation(TENANT_ID, allocation, jan31, BigDecimal.ONE);
+        assertThat(reset).isTrue();
+        assertThat(allocation.getAccruedDays()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(allocation.getLastResetOn()).isEqualTo(jan31);
+    }
 }
