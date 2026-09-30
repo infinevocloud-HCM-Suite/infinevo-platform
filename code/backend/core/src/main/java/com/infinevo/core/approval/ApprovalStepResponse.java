@@ -22,9 +22,24 @@ public record ApprovalStepResponse(
         String comment,
         BigDecimal approvedAmount,
         Instant decidedAt,
-        Instant createdAt) {
+        Instant createdAt,
+        ApprovalFlowType flowType,
+        UUID subjectEmployeeId,
+        UUID itemId,
+        String summary) {
 
     public static ApprovalStepResponse from(ApprovalStep step) {
+        return from(step, null);
+    }
+
+    public static ApprovalStepResponse from(ApprovalStep step, ApprovalInstance instance) {
+        ApprovalFlowType flowType = instance != null ? instance.getFlowType() : null;
+        UUID subjectEmployeeId = instance != null ? instance.getSubjectEmployeeId() : null;
+        UUID itemId = instance != null ? instance.getSubjectId() : null;
+        String summary = (step.getItemRef() != null && !step.getItemRef().isBlank())
+                ? step.getItemRef()
+                : (instance != null ? (instance.getFlowType() + " Request") : null);
+
         return new ApprovalStepResponse(
                 step.getId(),
                 step.getInstanceId(),
@@ -40,6 +55,10 @@ public record ApprovalStepResponse(
                 step.getComment(),
                 step.getApprovedAmount(),
                 step.getDecidedAt(),
-                step.getCreatedAt());
+                step.getCreatedAt(),
+                flowType,
+                subjectEmployeeId,
+                itemId,
+                summary);
     }
 }

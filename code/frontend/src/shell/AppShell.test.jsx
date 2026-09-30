@@ -16,6 +16,7 @@ const __dirname = dirname(__filename);
 describe('AppShell component', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(clientModule.apiClient, 'get').mockResolvedValue({ data: { content: [], totalElements: 0 } });
   });
 
   it('renders NoModules screen when navigation feed is empty and loading is complete', () => {

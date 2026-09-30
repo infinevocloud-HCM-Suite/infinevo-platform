@@ -163,7 +163,12 @@ class NavigationServiceTest {
     @DisplayName("the default constructor serves the shipped catalogue")
     void defaultConstructorServesTheShippedCatalogue() {
         when(permissionService.currentActions())
-                .thenReturn(Set.of("core.employee.read", "core.org.read", "core.role.read", "core.audit.read"));
+                .thenReturn(Set.of(
+                        "core.employee.read",
+                        "core.org.read",
+                        "core.role.read",
+                        "core.audit.read",
+                        "core.approval.decide"));
         NavigationService shipped = new NavigationService(entitlementService, permissionService);
 
         List<String> keys = keysOf(shipped.navigation());

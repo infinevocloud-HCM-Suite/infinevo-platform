@@ -238,7 +238,19 @@ class ApprovalAssigneeIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
                                 "$.content[?(@.id == '" + step.getId() + "')]")
-                        .exists());
+                        .exists())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[?(@.id == '" + step.getId() + "')].flowType[0]")
+                        .value("LEAVE"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[?(@.id == '" + step.getId() + "')].subjectEmployeeId[0]")
+                        .value(empEmployeeId.toString()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[?(@.id == '" + step.getId() + "')].itemId[0]")
+                        .value(subject.id().toString()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[?(@.id == '" + step.getId() + "')].summary[0]")
+                        .isNotEmpty());
 
         // Admin decides the unassigned step directly
         ApprovalDecideRequest body =

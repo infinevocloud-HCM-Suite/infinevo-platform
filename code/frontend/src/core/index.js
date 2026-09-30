@@ -1,15 +1,44 @@
-import React from 'react';
-import { EmployeeList } from './employee/EmployeeList.jsx';
-import { EmployeeCreate } from './employee/EmployeeCreate.jsx';
-import { EmployeePage } from './employee/EmployeePage.jsx';
+import React, { lazy } from 'react';
 import employeeReducer from './employee/employeeSlice.js';
+import approvalReducer from './approvals/approvalSlice.js';
 
-import { Departments } from './org/Departments.jsx';
-import { Designations } from './org/Designations.jsx';
-import { WorkLocations } from './org/WorkLocations.jsx';
-import { WorkLocationForm } from './org/WorkLocationForm.jsx';
+const EmployeeList = lazy(() =>
+  import('./employee/EmployeeList.jsx').then((m) => ({ default: m.EmployeeList }))
+);
+const EmployeeCreate = lazy(() =>
+  import('./employee/EmployeeCreate.jsx').then((m) => ({ default: m.EmployeeCreate }))
+);
+const EmployeePage = lazy(() =>
+  import('./employee/EmployeePage.jsx').then((m) => ({ default: m.EmployeePage }))
+);
 
-// Employee, leave, holidays, organisation setup. Available to every tenant.
+const Departments = lazy(() =>
+  import('./org/Departments.jsx').then((m) => ({ default: m.Departments }))
+);
+const Designations = lazy(() =>
+  import('./org/Designations.jsx').then((m) => ({ default: m.Designations }))
+);
+const WorkLocations = lazy(() =>
+  import('./org/WorkLocations.jsx').then((m) => ({ default: m.WorkLocations }))
+);
+const WorkLocationForm = lazy(() =>
+  import('./org/WorkLocationForm.jsx').then((m) => ({ default: m.WorkLocationForm }))
+);
+
+const Inbox = lazy(() =>
+  import('./approvals/Inbox.jsx').then((m) => ({ default: m.Inbox }))
+);
+const InstanceDetail = lazy(() =>
+  import('./approvals/InstanceDetail.jsx').then((m) => ({ default: m.InstanceDetail }))
+);
+const Delegations = lazy(() =>
+  import('./approvals/Delegations.jsx').then((m) => ({ default: m.Delegations }))
+);
+const Definitions = lazy(() =>
+  import('./approvals/Definitions.jsx').then((m) => ({ default: m.Definitions }))
+);
+
+// Employee, leave, holidays, organisation setup, approvals. Available to every tenant.
 // Screens and slices land here as their work items are built.
 export const routes = [
   { path: '/employees', element: React.createElement(EmployeeList) },
@@ -20,8 +49,13 @@ export const routes = [
   { path: '/org/work-locations', element: React.createElement(WorkLocations) },
   { path: '/org/work-locations/new', element: React.createElement(WorkLocationForm) },
   { path: '/org/work-locations/:id/edit', element: React.createElement(WorkLocationForm) },
+  { path: '/approvals', element: React.createElement(Inbox) },
+  { path: '/approvals/:instanceId', element: React.createElement(InstanceDetail) },
+  { path: '/approvals/delegations', element: React.createElement(Delegations) },
+  { path: '/approvals/definitions', element: React.createElement(Definitions) },
 ];
 
 export const reducers = {
   employee: employeeReducer,
+  approvals: approvalReducer,
 };
