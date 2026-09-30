@@ -3,6 +3,7 @@ package com.infinevo.payroll.payrun;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -11,14 +12,25 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** W-29.1 §7 — the three allowed transitions; every other pair refuses; cancel twice refuses. */
+/**
+ * W-29.1 §7 and W-29.2 §3 — the eight allowed transitions; every other pair refuses; cancel twice
+ * refuses; the computation methods move a run through COMPUTING.
+ */
 class PayRunTransitionsTest {
 
-    private static final Set<String> ALLOWED = Set.of("DRAFT->LOCKED", "DRAFT->CANCELLED", "LOCKED->CANCELLED");
+    private static final Set<String> ALLOWED = Set.of(
+            "DRAFT->LOCKED",
+            "DRAFT->CANCELLED",
+            "LOCKED->CANCELLED",
+            "LOCKED->COMPUTING",
+            "COMPUTED->COMPUTING",
+            "FAILED->COMPUTING",
+            "COMPUTING->COMPUTED",
+            "COMPUTING->FAILED");
 
     @Test
-    @DisplayName("Exactly DRAFT→LOCKED, DRAFT→CANCELLED and LOCKED→CANCELLED are allowed; all 61 other pairs throw")
-    void onlyTheThreeTransitionsAreAllowed() {
+    @DisplayName("Exactly the eight W-29.1 and W-29.2 transitions are allowed; all 56 other pairs throw")
+    void onlyTheImplementedTransitionsAreAllowed() {
         int refused = 0;
         for (PayRunStatus from : PayRunStatus.values()) {
             for (PayRunStatus to : PayRunStatus.values()) {
@@ -35,7 +47,7 @@ class PayRunTransitionsTest {
                 }
             }
         }
-        assertThat(refused).isEqualTo(64 - 3);
+        assertThat(refused).isEqualTo(64 - ALLOWED.size());
     }
 
     @Test
@@ -76,6 +88,39 @@ class PayRunTransitionsTest {
         run.lock("officer", Instant.now());
         run.cancel("officer", Instant.now());
         assertThat(run.getStatus()).isEqualTo(PayRunStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("Compute: LOCKED → COMPUTING → COMPUTED with totals; FAILED keeps the reason; DRAFT cannot compute")
+    void computationTransitions() {
+        PayRun draft = newRun();
+        assertThatThrownBy(() -> draft.startComputing("officer")).isInstanceOf(IllegalPayRunTransitionException.class);
+
+        PayRun run = newRun();
+        run.lock("officer", Instant.now());
+        run.startComputing("officer");
+        assertThat(run.getStatus()).isEqualTo(PayRunStatus.COMPUTING);
+        assertThatThrownBy(() -> run.startComputing("officer")).isInstanceOf(IllegalPayRunTransitionException.class);
+
+        run.failComputation(
+                "1 of 3 employees could not be computed",
+                BigDecimal.TEN,
+                BigDecimal.ONE,
+                BigDecimal.TEN,
+                "officer",
+                Instant.now());
+        assertThat(run.getStatus()).isEqualTo(PayRunStatus.FAILED);
+        assertThat(run.getFailureReason()).contains("1 of 3");
+
+        run.startComputing("officer");
+        assertThat(run.getFailureReason()).isNull();
+        run.completeComputation(
+                new BigDecimal("45000.0000"), BigDecimal.ZERO, new BigDecimal("47000.00"), "officer", Instant.now());
+        assertThat(run.getStatus()).isEqualTo(PayRunStatus.COMPUTED);
+        assertThat(run.getTotalNetPay()).isEqualByComparingTo("47000.00");
+        assertThat(run.getComputedAt()).isNotNull();
+        assertThatThrownBy(() -> run.cancel("officer", Instant.now()))
+                .isInstanceOf(IllegalPayRunTransitionException.class);
     }
 
     private static PayRun newRun() {

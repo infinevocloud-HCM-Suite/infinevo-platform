@@ -1,6 +1,7 @@
 package com.infinevo.payroll.payrun;
 
 import com.infinevo.payroll.PayrollTestSchema;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,7 +12,7 @@ import java.util.UUID;
 
 /**
  * Schema and fixtures for the W-29.1 integration tests: {@link PayrollTestSchema}'s tables plus the
- * bank section (W-13.2), the pay schedule (W-28) and the two pay run tables. Rows are written as
+ * bank section (W-13.2), the pay schedule (W-28), the two pay run tables and the lines (W-29.2). Rows are written as
  * {@code migration_user}; the tests read through the services, or as {@code app_user} for RLS.
  */
 final class PayRunTestSchema {
@@ -35,6 +36,9 @@ final class PayRunTestSchema {
             }
             if (!PayrollTestSchema.tableExists(conn, "payroll", "employee_payrun")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V056__employee_payrun.sql");
+            }
+            if (!PayrollTestSchema.tableExists(conn, "payroll", "employee_payrun_line")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V057__employee_payrun_line.sql");
             }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
@@ -115,6 +119,150 @@ final class PayRunTestSchema {
         insertSalary(tenantId, id, LocalDate.of(2025, 1, 1));
         insertBank(tenantId, id);
         return id;
+    }
+
+    /** A catalogue earning; returns its id. */
+    static UUID insertEarningComponent(
+            UUID tenantId, String code, String name, boolean variable, boolean taxable, boolean fbp)
+            throws SQLException {
+        return insertReturningId(
+                "INSERT INTO payroll.earning (tenant_id, code, name, earning_type, is_variable, is_taxable, "
+                        + "is_fbp_component, is_included_in_ctc) VALUES (?, ?, ?, 'FIXED', ?, ?, ?, true) RETURNING id",
+                tenantId,
+                code,
+                name,
+                variable,
+                taxable,
+                fbp);
+    }
+
+    static UUID insertBenefitComponent(UUID tenantId, String code, String name) throws SQLException {
+        return insertReturningId(
+                "INSERT INTO payroll.benefit (tenant_id, code, name, is_included_in_ctc) VALUES (?, ?, ?, true) RETURNING id",
+                tenantId,
+                code,
+                name);
+    }
+
+    static UUID insertReimbursementComponent(UUID tenantId, String code, String name) throws SQLException {
+        return insertReturningId(
+                "INSERT INTO payroll.reimbursement (tenant_id, code, name, reimbursement_type, is_included_in_ctc) "
+                        + "VALUES (?, ?, ?, 'ALLOWANCE', true) RETURNING id",
+                tenantId,
+                code,
+                name);
+    }
+
+    /** One structure line on a salary version: {@code table} is employee_earning, _benefit or _reimbursement. */
+    static void insertStructureLine(
+            String table, UUID tenantId, UUID ctcId, UUID componentId, String monthly, String frequency)
+            throws SQLException {
+        boolean earning = "employee_earning".equals(table);
+        String sql = "INSERT INTO payroll." + table
+                + " (tenant_id, ctc_structure_id, component_id, value, monthly_amount, annual_amount"
+                + (earning ? ", earning_frequency" : "")
+                + ") VALUES (?, ?, ?, ?, ?, ?" + (earning ? ", ?" : "") + ")";
+        BigDecimal m = new BigDecimal(monthly);
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, ctcId);
+            ps.setObject(3, componentId);
+            ps.setBigDecimal(4, m);
+            ps.setBigDecimal(5, m);
+            ps.setBigDecimal(6, m.multiply(BigDecimal.valueOf(12)));
+            if (earning) {
+                ps.setString(7, frequency);
+            }
+            ps.executeUpdate();
+        }
+    }
+
+    static void insertFbpDeclaration(UUID tenantId, UUID ctcId, UUID employeeId, UUID earningId, String monthly)
+            throws SQLException {
+        BigDecimal m = new BigDecimal(monthly);
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO payroll.employee_fbp_component (tenant_id, ctc_structure_id, employee_id, "
+                                + "earning_id, annual_amount, monthly_amount, declared_at, declared_by) "
+                                + "VALUES (?, ?, ?, ?, ?, ?, now(), 'EMPLOYEE')")) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, ctcId);
+            ps.setObject(3, employeeId);
+            ps.setObject(4, earningId);
+            ps.setBigDecimal(5, m.multiply(BigDecimal.valueOf(12)));
+            ps.setBigDecimal(6, m);
+            ps.executeUpdate();
+        }
+    }
+
+    /** The W-29.2 §8 catalogue for one tenant. */
+    record Catalogue(UUID basic, UUID hra, UUID special, UUID meal, UUID bonus, UUID employerPf, UUID fuel) {}
+
+    static Catalogue insertWorkedExampleCatalogue(UUID tenantId) throws SQLException {
+        return new Catalogue(
+                insertEarningComponent(tenantId, "BASIC", "Basic", false, true, false),
+                insertEarningComponent(tenantId, "HRA", "House rent allowance", false, true, false),
+                insertEarningComponent(tenantId, "SPECIAL", "Special allowance", false, true, false),
+                insertEarningComponent(tenantId, "MEAL", "Meal card", false, true, true),
+                insertEarningComponent(tenantId, "BONUS", "Annual bonus", true, true, false),
+                insertBenefitComponent(tenantId, "EMPLOYER_PF", "Employer PF"),
+                insertReimbursementComponent(tenantId, "FUEL", "Fuel reimbursement"));
+    }
+
+    /**
+     * An employee paid the §8 worked example: active since 2023-04, a bank section, and a salary
+     * version from 2025-01 whose July lines net 47,000.00. Returns the employee id.
+     */
+    static UUID insertWorkedExampleEmployee(UUID tenantId, String number, Catalogue c) throws SQLException {
+        UUID employee = insertEmployee(tenantId, number, LocalDate.of(2023, 4, 1), "ACTIVE", null);
+        insertBank(tenantId, employee);
+        UUID ctc = insertSalary(tenantId, employee, LocalDate.of(2025, 1, 1));
+        insertStructureLine("employee_earning", tenantId, ctc, c.basic(), "25000.0000", null);
+        insertStructureLine("employee_earning", tenantId, ctc, c.hra(), "10000.0000", null);
+        insertStructureLine("employee_earning", tenantId, ctc, c.special(), "7500.0000", null);
+        insertStructureLine("employee_earning", tenantId, ctc, c.meal(), "2500.0000", null);
+        insertFbpDeclaration(tenantId, ctc, employee, c.meal(), "1500.0000");
+        insertStructureLine("employee_earning", tenantId, ctc, c.bonus(), "5000.0000", "YEARLY");
+        insertStructureLine("employee_benefit", tenantId, ctc, c.employerPf(), "1800.0000", null);
+        insertStructureLine("employee_reimbursement", tenantId, ctc, c.fuel(), "2000.0000", null);
+        return employee;
+    }
+
+    static long countLines(UUID tenantId, UUID payrunId) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "SELECT count(*) FROM payroll.employee_payrun_line WHERE tenant_id = ? AND payrun_id = ?")) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, payrunId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
+        }
+    }
+
+    static void execute(String sql, Object... params) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
+            ps.executeUpdate();
+        }
+    }
+
+    private static UUID insertReturningId(String sql, Object... params) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getObject(1, UUID.class);
+            }
+        }
     }
 
     static int countRuns(UUID tenantId, String period, boolean excludeCancelled) throws SQLException {

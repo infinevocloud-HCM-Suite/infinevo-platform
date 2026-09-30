@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * W-29.1 §4. Create, read, list, lock, cancel. Not ported: the legacy free {@code PUT} that copied
+ * W-29.1 §4 and W-29.2 §4. Create, read, list, lock, cancel, compute, and one employee's lines. Not ported: the legacy free {@code PUT} that copied
  * {@code status} from the body, {@code DELETE} (cancel instead — the row stays) and
  * {@code GET /completed} (a {@code status} filter).
  */
@@ -96,6 +96,24 @@ public class PayRunController {
     @RequiresAction("payroll.run.execute")
     public ResponseEntity<PayRunApiResponse<PayRunResponse>> cancel(@PathVariable("id") UUID id) {
         return ResponseEntity.ok(PayRunApiResponse.ok("Pay run cancelled successfully", payRunService.cancel(id)));
+    }
+
+    @PostMapping("/{id}/compute")
+    @RequiresAction("payroll.run.execute")
+    public ResponseEntity<PayRunApiResponse<PayRunResponse>> compute(@PathVariable("id") UUID id) {
+        PayRunResponse run = payRunService.compute(id);
+        String message = run.status() == PayRunStatus.COMPUTED
+                ? "Pay run computed successfully"
+                : "Pay run computed with failures: " + run.failureReason();
+        return ResponseEntity.ok(PayRunApiResponse.ok(message, run));
+    }
+
+    @GetMapping("/{id}/employees/{employeeId}/lines")
+    @RequiresAction("payroll.run.read")
+    public ResponseEntity<PayRunApiResponse<EmployeePayRunLinesResponse>> lines(
+            @PathVariable("id") UUID id, @PathVariable("employeeId") UUID employeeId) {
+        return ResponseEntity.ok(
+                PayRunApiResponse.ok("Pay run lines retrieved successfully", payRunService.lines(id, employeeId)));
     }
 
     @ExceptionHandler(PayRunNotFoundException.class)

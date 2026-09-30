@@ -11,19 +11,24 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
 /**
- * One employee a run considered, {@code INCLUDED} or {@code SKIPPED} with the reason (W-29.1 §6).
- * No name or number snapshot (§13 decision 7) and no money column — W-29.2 adds those.
+ * One employee a run considered, {@code INCLUDED} or {@code SKIPPED} with the reason (W-29.1 §6),
+ * and the five totals of its lines once computed (W-29.2 §6). No name or number snapshot (W-29.1 §13
+ * decision 7): the lines carry the component snapshots.
  */
 @Entity
 @Table(name = "employee_payrun", schema = "payroll")
 @Audited
 public class EmployeePayRun {
+
+    /** Zero at the stored scale, so a new or reset row reads back exactly as it was written. */
+    private static final BigDecimal ZERO_AMOUNT = BigDecimal.ZERO.setScale(4);
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -50,6 +55,27 @@ public class EmployeePayRun {
     @Column(name = "skip_reason", length = 32, updatable = false)
     private SkipReason skipReason;
 
+    @Column(name = "gross_earnings", nullable = false, precision = 19, scale = 4)
+    private BigDecimal grossEarnings = ZERO_AMOUNT;
+
+    @Column(name = "total_reimbursements", nullable = false, precision = 19, scale = 4)
+    private BigDecimal totalReimbursements = ZERO_AMOUNT;
+
+    @Column(name = "total_benefits", nullable = false, precision = 19, scale = 4)
+    private BigDecimal totalBenefits = ZERO_AMOUNT;
+
+    @Column(name = "total_deductions", nullable = false, precision = 19, scale = 4)
+    private BigDecimal totalDeductions = ZERO_AMOUNT;
+
+    @Column(name = "net_pay", nullable = false, precision = 19, scale = 4)
+    private BigDecimal netPay = ZERO_AMOUNT;
+
+    @Column(name = "computed_at")
+    private Instant computedAt;
+
+    @Column(name = "computation_error", length = 500)
+    private String computationError;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -74,6 +100,33 @@ public class EmployeePayRun {
         this.skipReason = decision.skipReason();
         this.createdBy = Objects.requireNonNull(actor, "actor must not be null");
         this.updatedBy = actor;
+    }
+
+    /** The row's totals after a successful computation; clears any earlier error. */
+    public void recordComputation(PayRunTotals totals, String actor, Instant at) {
+        Objects.requireNonNull(totals, "totals must not be null");
+        this.grossEarnings = totals.grossEarnings().raw();
+        this.totalReimbursements = totals.totalReimbursements().raw();
+        this.totalBenefits = totals.totalBenefits().raw();
+        this.totalDeductions = totals.totalDeductions().raw();
+        // Rounded to 2 by PayRunTotals, held at the column scale so it reads back unchanged.
+        this.netPay = totals.netPay().setScale(4);
+        this.computedAt = Objects.requireNonNull(at, "at must not be null");
+        this.computationError = null;
+        this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    /** The employee could not be computed: totals back to zero, the reason kept on the row. */
+    public void recordError(String error, String actor, Instant at) {
+        Objects.requireNonNull(error, "error must not be null");
+        this.grossEarnings = ZERO_AMOUNT;
+        this.totalReimbursements = ZERO_AMOUNT;
+        this.totalBenefits = ZERO_AMOUNT;
+        this.totalDeductions = ZERO_AMOUNT;
+        this.netPay = ZERO_AMOUNT;
+        this.computedAt = Objects.requireNonNull(at, "at must not be null");
+        this.computationError = error.length() > 500 ? error.substring(0, 500) : error;
+        this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
     }
 
     @PrePersist
@@ -114,5 +167,33 @@ public class EmployeePayRun {
 
     public SkipReason getSkipReason() {
         return skipReason;
+    }
+
+    public BigDecimal getGrossEarnings() {
+        return grossEarnings;
+    }
+
+    public BigDecimal getTotalReimbursements() {
+        return totalReimbursements;
+    }
+
+    public BigDecimal getTotalBenefits() {
+        return totalBenefits;
+    }
+
+    public BigDecimal getTotalDeductions() {
+        return totalDeductions;
+    }
+
+    public BigDecimal getNetPay() {
+        return netPay;
+    }
+
+    public Instant getComputedAt() {
+        return computedAt;
+    }
+
+    public String getComputationError() {
+        return computationError;
     }
 }

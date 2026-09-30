@@ -19,9 +19,11 @@ import com.infinevo.shared.authz.AuthzExceptionHandler;
 import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresActionAspect;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -157,6 +159,32 @@ class PayRunGuardIT {
         mvc.perform(post("/api/v1/payroll/payruns/{id}/cancel", missing)).andExpect(status().isNotFound());
     }
 
+    @Test
+    @DisplayName("W-29.2: compute needs payroll.run.execute; the lines need payroll.run.read")
+    void computeAndLinesGuards() throws Exception {
+        UUID id = UUID.randomUUID();
+        UUID employee = UUID.randomUUID();
+        given(permissionService.holds(READ)).willReturn(true);
+        given(permissionService.holds(EXECUTE)).willReturn(false);
+        given(payRunService.lines(id, employee)).willReturn(new EmployeePayRunLinesResponse(employee, null, List.of()));
+
+        mvc.perform(post("/api/v1/payroll/payruns/{id}/compute", id)).andExpect(status().isForbidden());
+        verify(payRunService, never()).compute(any());
+        mvc.perform(get("/api/v1/payroll/payruns/{id}/employees/{employeeId}/lines", id, employee))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.employee_id").value(employee.toString()));
+
+        given(permissionService.holds(EXECUTE)).willReturn(true);
+        given(payRunService.compute(id)).willReturn(sample(id));
+        mvc.perform(post("/api/v1/payroll/payruns/{id}/compute", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total_net_pay").value(0));
+        UUID draft = UUID.randomUUID();
+        given(payRunService.compute(draft))
+                .willThrow(new IllegalPayRunTransitionException(PayRunStatus.DRAFT, PayRunStatus.COMPUTING));
+        mvc.perform(post("/api/v1/payroll/payruns/{id}/compute", draft)).andExpect(status().isConflict());
+    }
+
     private static PayRunResponse sample(UUID id) {
         return new PayRunResponse(
                 id,
@@ -169,6 +197,11 @@ class PayRunGuardIT {
                 PayRunStatus.DRAFT,
                 3,
                 1,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                null,
                 null,
                 null,
                 null,

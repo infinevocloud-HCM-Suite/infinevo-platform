@@ -1,11 +1,15 @@
 package com.infinevo.payroll.payrun;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-/** One pay run as the API returns it (W-29.1 §4), with the counts of included and skipped employees. */
+/**
+ * One pay run as the API returns it (W-29.1 §4), with the counts of included and skipped employees
+ * and, once computed, the three run totals (W-29.2 §4).
+ */
 public record PayRunResponse(
         @JsonProperty("id") UUID id,
         @JsonProperty("period") String period,
@@ -17,6 +21,11 @@ public record PayRunResponse(
         @JsonProperty("status") PayRunStatus status,
         @JsonProperty("included_count") int includedCount,
         @JsonProperty("skipped_count") int skippedCount,
+        @JsonProperty("total_gross") BigDecimal totalGross,
+        @JsonProperty("total_deductions") BigDecimal totalDeductions,
+        @JsonProperty("total_net_pay") BigDecimal totalNetPay,
+        @JsonProperty("computed_at") Instant computedAt,
+        @JsonProperty("failure_reason") String failureReason,
         @JsonProperty("locked_at") Instant lockedAt,
         @JsonProperty("locked_by") String lockedBy,
         @JsonProperty("cancelled_at") Instant cancelledAt,
@@ -36,6 +45,11 @@ public record PayRunResponse(
                 run.getStatus(),
                 run.getIncludedCount(),
                 run.getSkippedCount(),
+                run.getTotalGross(),
+                run.getTotalDeductions(),
+                run.getTotalNetPay(),
+                run.getComputedAt(),
+                run.getFailureReason(),
                 run.getLockedAt(),
                 run.getLockedBy(),
                 run.getCancelledAt(),
