@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-34.2` · from ticket #46 (`W-34`) · `PAY-11` part 2 of 3 |
 | **Promoted to** | `docs/target-state/features/W-34-2-proof-verification.md` on the developer's `dev-<name>` branch — **`W-34-2` with hyphens**, never `W-34.2`; `guard-edit` blocks the dotted form |
-| **Owner** | mohit |
+| **Owner** | devashis |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for this table), DEBT-018 (honoured), DEBT-022 (fixed), DEBT-025 (not ported) |
 | **Status** | **Ready** |

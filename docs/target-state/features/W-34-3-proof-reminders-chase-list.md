@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-34.3` · from ticket #46 (`W-34`) · `PAY-11` part 3 of 3 |
 | **Promoted to** | `docs/target-state/features/W-34-3-proof-reminders-chase-list.md` on the developer's `dev-<name>` branch — **`W-34-3` with hyphens**, never `W-34.3`; `guard-edit` blocks the dotted form |
-| **Owner** | mohit |
+| **Owner** | devashis |
 | **Apps touched** | `code/backend/payroll` |
 | **Related gaps** | DEBT-018 (honoured), DEBT-021 (fixed — no own scheduler), DEBT-022 (fixed) |
 | **Status** | **Ready** |
