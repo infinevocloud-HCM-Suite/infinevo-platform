@@ -84,4 +84,19 @@ describe('SummarySection', () => {
       expect(declarationService.summary).toHaveBeenCalledTimes(2);
     });
   });
+
+  it('displays placeholder text when computed is null (B-7 fix)', async () => {
+    declarationService.summary.mockResolvedValueOnce({
+      ...sampleSummary,
+      computed: null,
+    });
+
+    render(<SummarySection fy="2026-27" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('computed after the tax calculator runs')).toBeTruthy();
+    });
+    expect(screen.queryByText('Remaining Tax to be Deducted:')).toBeNull();
+    expect(screen.queryByText('Live Computed')).toBeNull();
+  });
 });

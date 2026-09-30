@@ -1,6 +1,12 @@
 /**
  * Financial Year utility mirroring backend FinancialYear (April 1 to March 31 rule).
- * Produces labels formatted as 'YYYY-YY' (e.g. '2026-27').
+ *
+ * Display labels use the short form 'YYYY-YY' (e.g. '2026-27') shown in the UI.
+ * API payloads and URL path segments must use the long form 'YYYY-YYYY' (e.g. '2026-2027')
+ * because the backend FinancialYear.parse() only accepts ^(\d{4})-(\d{4})$ (B-3 fix).
+ *
+ * Use currentFy() / formatFy() / fyOptions() for display.
+ * Use fyForApi()  when passing the FY to any backend API call.
  */
 
 /**
@@ -26,6 +32,27 @@ export function currentFy(today = new Date()) {
   const startYear = month >= 3 ? year : year - 1;
   const endYear = startYear + 1;
   return `${startYear}-${String(endYear % 100).padStart(2, '0')}`;
+}
+
+/**
+ * Converts a display-format FY string (e.g. '2026-27') to the full API format
+ * (e.g. '2026-2027') that the backend FinancialYear.parse() accepts.
+ *
+ * B-3 fix: the backend regex is ^(\d{4})-(\d{4})$; sending '2026-27' causes 400.
+ *
+ * @param {string} fy - display format e.g. '2026-27'
+ * @returns {string} api format e.g. '2026-2027'
+ */
+export function fyForApi(fy) {
+  if (!fy) return fy;
+  const match = String(fy).match(/^(\d{4})-(\d{2})$/);
+  if (match) {
+    const startYear = parseInt(match[1], 10);
+    const endYear = startYear + 1;
+    return `${startYear}-${endYear}`;
+  }
+  // Already in full format (YYYY-YYYY) or unrecognised - return as-is
+  return fy;
 }
 
 /**

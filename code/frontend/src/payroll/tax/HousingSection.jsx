@@ -30,6 +30,21 @@ import { setSectionData } from './taxSlice';
 
 const { Text } = Typography;
 
+export function mapLetOutFromResponse(properties = []) {
+  return properties.map((prop) => {
+    const lines = prop.lines || [];
+    const rentLine = lines.find((l) => l.line_type === 'ANNUAL_RENT');
+    const taxLine = lines.find((l) => l.line_type === 'MUNICIPAL_TAX');
+    const interestLine = lines.find((l) => l.line_type === 'LOAN_INTEREST');
+    return {
+      ...prop,
+      gross_rent: rentLine != null ? Number(rentLine.amount) : 0,
+      municipal_tax: taxLine != null ? Number(taxLine.amount) : 0,
+      interest: interestLine != null ? Number(interestLine.amount) : 0,
+    };
+  });
+}
+
 export function HousingSection({ fy, header, editable, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [savingRent, setSavingRent] = useState(false);
@@ -54,7 +69,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
       const data = await declarationService.housing(financialYear);
       setRentRows(data?.house_rent || []);
       setHomeLoans(data?.home_loans || []);
-      setLetOutProperties(data?.let_out_properties || []);
+      setLetOutProperties(mapLetOutFromResponse(data?.let_out_properties || []));
       store.dispatch(setSectionData({ section: 'housing', data: data || null }));
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load housing declarations');
@@ -224,14 +239,14 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
     try {
       const payload = letOutProperties.map((prop) => {
         const lines = [];
-        if (prop.gross_rent) {
-          lines.push({ line_type: 'GROSS_RENT_RECEIVED', amount: Number(prop.gross_rent) });
+        if (prop.gross_rent != null && Number(prop.gross_rent) > 0) {
+          lines.push({ line_type: 'ANNUAL_RENT', amount: Number(prop.gross_rent) });
         }
-        if (prop.municipal_tax) {
+        if (prop.municipal_tax != null && Number(prop.municipal_tax) > 0) {
           lines.push({ line_type: 'MUNICIPAL_TAX', amount: Number(prop.municipal_tax) });
         }
-        if (prop.interest) {
-          lines.push({ line_type: 'HOME_LOAN_INTEREST', amount: Number(prop.interest) });
+        if (prop.interest != null && Number(prop.interest) > 0) {
+          lines.push({ line_type: 'LOAN_INTEREST', amount: Number(prop.interest) });
         }
         return {
           property_name: prop.property_name || 'Let Out Property',
@@ -239,7 +254,10 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
           lines,
         };
       });
-      await declarationService.saveLetOut(fy, payload);
+      const data = await declarationService.saveLetOut(fy, payload);
+      if (data?.let_out_properties) {
+        setLetOutProperties(mapLetOutFromResponse(data.let_out_properties));
+      }
       message.success('Let-out property declarations saved successfully');
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -558,7 +576,16 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
               key={idx}
               size="small"
               type="inner"
-              title={prop.property_name}
+              title={
+                <Space>
+                  <span>{prop.property_name}</span>
+                  {prop.net_income_loss != null && (
+                    <Tag color={Number(prop.net_income_loss) < 0 ? 'orange' : 'blue'}>
+                      Net: ₹ {Number(prop.net_income_loss).toLocaleString('en-IN')}
+                    </Tag>
+                  )}
+                </Space>
+              }
               extra={
                 editable && (
                   <Button

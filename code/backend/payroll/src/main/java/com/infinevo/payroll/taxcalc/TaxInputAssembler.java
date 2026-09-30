@@ -10,6 +10,7 @@ import com.infinevo.core.org.WorkLocationService;
 import com.infinevo.payroll.component.Earning;
 import com.infinevo.payroll.component.EarningRepository;
 import com.infinevo.payroll.salary.EmployeeSalaryService;
+import com.infinevo.payroll.salary.SalaryNotFoundException;
 import com.infinevo.payroll.salary.SalaryVersionResponse;
 import com.infinevo.payroll.statutory.lines.CtcEpfComponent;
 import com.infinevo.payroll.statutory.lines.CtcEpfComponentRepository;
@@ -234,14 +235,25 @@ public class TaxInputAssembler {
             }
         }
 
-        // Cache salary versions resolved per month-start date so versionInForce is not called twice per month
+        // Cache salary versions resolved per month-start date so versionInForce is not called twice per month.
+        // B-1 fix: SalaryNotFoundException (no version on the 1st of a month — e.g. mid-month joiner whose
+        // effectiveFrom is after the 1st) is caught here and mapped to null. SalaryProjection.annual() already
+        // handles null/cancelled versions as zero-salary months, producing a 200 instead of a 500.
         Map<LocalDate, SalaryVersionResponse> versionCache = new HashMap<>();
 
         SalaryProjectionResult salaryResult = SalaryProjection.annual(
                 fy,
                 dateOfJoining,
-                date -> versionCache.computeIfAbsent(
-                        date, d -> employeeSalaryService.versionInForce(tenantId, employeeId, d)),
+                date -> versionCache.computeIfAbsent(date, d -> {
+                    try {
+                        return employeeSalaryService.versionInForce(tenantId, employeeId, d);
+                    } catch (SalaryNotFoundException e) {
+                        // No salary structure effective on the 1st of this month (e.g. employee joined
+                        // mid-month). Returning null causes SalaryProjection to count the month as zero
+                        // taxable salary, matching the spec requirement: 200 with that month as nothing.
+                        return null;
+                    }
+                }),
                 componentId -> resolveEarning(tenantId, componentId, earningsById)
                         .map(Earning::isTaxable)
                         .orElse(false));
@@ -308,12 +320,17 @@ public class TaxInputAssembler {
                 if (version.earnings() != null) {
                     for (var item : version.earnings()) {
                         if (item.enabled()) {
+                            // B-2 fix: resolve the Earning to check isTaxable before accumulating Basic or HRA.
+                            // SalaryProjection.annual() only sums taxable earnings into the salary projection;
+                            // the HRA exemption must be computed on the same taxable Basic/HRA slice, otherwise
+                            // a non-taxable HRA is deducted from a salary figure that never included it.
+                            Optional<Earning> earning = resolveEarning(tenantId, item.componentId(), earningsById);
+                            boolean taxable = earning.map(Earning::isTaxable).orElse(false);
                             String code = item.componentCode();
-                            String earningType = resolveEarning(tenantId, item.componentId(), earningsById)
-                                    .map(Earning::getEarningType)
-                                    .orElse("");
+                            String earningType =
+                                    earning.map(Earning::getEarningType).orElse("");
                             BigDecimal amt = item.monthlyAmount();
-                            if (amt != null) {
+                            if (amt != null && taxable) {
                                 if ("BASIC".equalsIgnoreCase(code) || "BASIC".equalsIgnoreCase(earningType)) {
                                     basic = basic.add(Money.of(amt));
                                 }

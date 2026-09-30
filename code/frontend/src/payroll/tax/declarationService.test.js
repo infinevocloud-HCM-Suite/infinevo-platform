@@ -23,7 +23,7 @@ describe('declarationService', () => {
       apiClient.get.mockResolvedValueOnce({ data: { data: mockData } });
 
       const res = await declarationService.header(fy);
-      expect(apiClient.get).toHaveBeenCalledWith('/api/v1/me/tax-declaration/2026-27');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/me/tax-declaration/2026-2027');
       expect(res).toEqual(mockData);
     });
 
@@ -32,7 +32,7 @@ describe('declarationService', () => {
       apiClient.put.mockResolvedValueOnce({ data: { data: { success: true } } });
 
       const res = await declarationService.saveHeader(fy, body);
-      expect(apiClient.put).toHaveBeenCalledWith('/api/v1/me/tax-declaration/2026-27', body);
+      expect(apiClient.put).toHaveBeenCalledWith('/v1/me/tax-declaration/2026-2027', body);
       expect(res).toEqual({ success: true });
     });
 
@@ -40,7 +40,7 @@ describe('declarationService', () => {
       apiClient.post.mockResolvedValueOnce({ data: { data: { status: 'SUBMITTED' } } });
 
       const res = await declarationService.submit(fy);
-      expect(apiClient.post).toHaveBeenCalledWith('/api/v1/me/tax-declaration/2026-27/submit');
+      expect(apiClient.post).toHaveBeenCalledWith('/v1/me/tax-declaration/2026-2027/submit');
       expect(res).toEqual({ status: 'SUBMITTED' });
     });
 
@@ -48,7 +48,7 @@ describe('declarationService', () => {
       apiClient.post.mockResolvedValueOnce({ data: { data: { status: 'DRAFT' } } });
 
       const res = await declarationService.reopen(fy);
-      expect(apiClient.post).toHaveBeenCalledWith('/api/v1/me/tax-declaration/2026-27/reopen');
+      expect(apiClient.post).toHaveBeenCalledWith('/v1/me/tax-declaration/2026-2027/reopen');
       expect(res).toEqual({ status: 'DRAFT' });
     });
 
@@ -58,7 +58,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.headerOf('emp-123', fy);
       expect(apiClient.get).toHaveBeenCalledWith(
-        '/api/v1/payroll/employees/emp-123/tax-declaration/2026-27',
+        '/v1/payroll/employees/emp-123/tax-declaration/2026-2027',
       );
       expect(res).toEqual(mockData);
     });
@@ -70,7 +70,7 @@ describe('declarationService', () => {
       apiClient.get.mockResolvedValueOnce({ data: { data: mockData } });
 
       const res = await declarationService.housing(fy);
-      expect(apiClient.get).toHaveBeenCalledWith('/api/v1/me/tax-declaration/2026-27/housing');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/me/tax-declaration/2026-2027/housing');
       expect(res).toEqual(mockData);
     });
 
@@ -80,7 +80,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.saveHouseRent(fy, body);
       expect(apiClient.put).toHaveBeenCalledWith(
-        '/api/v1/me/tax-declaration/2026-27/house-rent',
+        '/v1/me/tax-declaration/2026-2027/house-rent',
         body,
       );
       expect(res).toEqual({ ok: true });
@@ -92,7 +92,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.saveHomeLoan(fy, body);
       expect(apiClient.put).toHaveBeenCalledWith(
-        '/api/v1/me/tax-declaration/2026-27/home-loan',
+        '/v1/me/tax-declaration/2026-2027/home-loan',
         body,
       );
       expect(res).toEqual({ ok: true });
@@ -104,7 +104,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.saveLetOut(fy, body);
       expect(apiClient.put).toHaveBeenCalledWith(
-        '/api/v1/me/tax-declaration/2026-27/let-out-property',
+        '/v1/me/tax-declaration/2026-2027/let-out-property',
         body,
       );
       expect(res).toEqual({ ok: true });
@@ -118,7 +118,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.items(fy);
       expect(apiClient.get).toHaveBeenCalledWith(
-        '/api/v1/me/tax-declaration/2026-27/section6a-items',
+        '/v1/me/tax-declaration/2026-2027/section6a-items',
       );
       expect(res).toEqual(mockItems);
     });
@@ -128,7 +128,7 @@ describe('declarationService', () => {
       apiClient.get.mockResolvedValueOnce({ data: { data: mockData } });
 
       const res = await declarationService.deductions(fy);
-      expect(apiClient.get).toHaveBeenCalledWith('/api/v1/me/tax-declaration/2026-27/deductions');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/me/tax-declaration/2026-2027/deductions');
       expect(res).toEqual(mockData);
     });
 
@@ -138,7 +138,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.save6a(fy, body);
       expect(apiClient.put).toHaveBeenCalledWith(
-        '/api/v1/me/tax-declaration/2026-27/section6a',
+        '/v1/me/tax-declaration/2026-2027/section6a',
         body,
       );
       expect(res).toEqual({ ok: true });
@@ -150,7 +150,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.savePreTax(fy, body);
       expect(apiClient.put).toHaveBeenCalledWith(
-        '/api/v1/me/tax-declaration/2026-27/pre-tax-deductions',
+        '/v1/me/tax-declaration/2026-2027/pre-tax-deductions',
         body,
       );
       expect(res).toEqual({ ok: true });
@@ -162,7 +162,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.savePrevEmployment(fy, body);
       expect(apiClient.put).toHaveBeenCalledWith(
-        '/api/v1/me/tax-declaration/2026-27/previous-employment',
+        '/v1/me/tax-declaration/2026-2027/previous-employment',
         body,
       );
       expect(res).toEqual({ ok: true });
@@ -175,7 +175,7 @@ describe('declarationService', () => {
       apiClient.get.mockResolvedValueOnce({ data: { data: mockData } });
 
       const res = await declarationService.otherIncome(fy);
-      expect(apiClient.get).toHaveBeenCalledWith('/api/v1/me/tax-declaration/2026-27/other-income');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/me/tax-declaration/2026-2027/other-income');
       expect(res).toEqual(mockData);
     });
 
@@ -185,7 +185,7 @@ describe('declarationService', () => {
 
       const res = await declarationService.saveOtherIncome(fy, body);
       expect(apiClient.put).toHaveBeenCalledWith(
-        '/api/v1/me/tax-declaration/2026-27/other-income',
+        '/v1/me/tax-declaration/2026-2027/other-income',
         body,
       );
       expect(res).toEqual({ ok: true });
@@ -198,7 +198,7 @@ describe('declarationService', () => {
       apiClient.get.mockResolvedValueOnce({ data: { data: mockData } });
 
       const res = await declarationService.summary(fy);
-      expect(apiClient.get).toHaveBeenCalledWith('/api/v1/me/tax-declaration/2026-27/summary');
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/me/tax-declaration/2026-2027/summary');
       expect(res).toEqual(mockData);
     });
   });

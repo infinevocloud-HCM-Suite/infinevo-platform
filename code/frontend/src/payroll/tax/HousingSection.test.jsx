@@ -143,4 +143,90 @@ describe('HousingSection', () => {
       expect(declarationService.saveHomeLoan).toHaveBeenCalledWith('2026-27', expect.any(Array));
     });
   });
+
+  it('loads let-out properties with backend line types and displays amounts without resetting to 0 (B-6 fix)', async () => {
+    declarationService.housing.mockResolvedValueOnce({
+      house_rent: [],
+      home_loans: [],
+      let_out_properties: [
+        {
+          id: 'prop-1',
+          property_name: 'Property #1',
+          address: '221B Baker St',
+          net_income_loss: 140000,
+          lines: [
+            { line_type: 'ANNUAL_RENT', amount: 300000 },
+            { line_type: 'MUNICIPAL_TAX', amount: 20000 },
+            { line_type: 'LOAN_INTEREST', amount: 50000 },
+          ],
+        },
+      ],
+    });
+
+    render(<HousingSection fy="2026-27" editable={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('300000')).toBeTruthy();
+      expect(screen.getByDisplayValue('20000')).toBeTruthy();
+      expect(screen.getByDisplayValue('50000')).toBeTruthy();
+    });
+  });
+
+  it('saves let-out properties using backend enums ANNUAL_RENT, MUNICIPAL_TAX, LOAN_INTEREST (B-5 fix)', async () => {
+    declarationService.housing.mockResolvedValueOnce({
+      house_rent: [],
+      home_loans: [],
+      let_out_properties: [
+        {
+          id: 'prop-1',
+          property_name: 'Property #1',
+          address: '221B Baker St',
+          net_income_loss: 140000,
+          lines: [
+            { line_type: 'ANNUAL_RENT', amount: 300000 },
+            { line_type: 'MUNICIPAL_TAX', amount: 20000 },
+            { line_type: 'LOAN_INTEREST', amount: 50000 },
+          ],
+        },
+      ],
+    });
+    declarationService.saveLetOut.mockResolvedValueOnce({
+      let_out_properties: [
+        {
+          id: 'prop-1',
+          property_name: 'Property #1',
+          address: '221B Baker St',
+          net_income_loss: 140000,
+          lines: [
+            { line_type: 'ANNUAL_RENT', amount: 300000 },
+            { line_type: 'MUNICIPAL_TAX', amount: 20000 },
+            { line_type: 'LOAN_INTEREST', amount: 50000 },
+          ],
+        },
+      ],
+    });
+
+    render(<HousingSection fy="2026-27" editable={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('300000')).toBeTruthy();
+    });
+
+    const saveLetOutBtn = screen.getByTestId('save-letout-btn');
+    fireEvent.click(saveLetOutBtn);
+
+    await waitFor(() => {
+      expect(declarationService.saveLetOut).toHaveBeenCalledWith('2026-27', [
+        {
+          property_name: 'Property #1',
+          address: '221B Baker St',
+          lines: [
+            { line_type: 'ANNUAL_RENT', amount: 300000 },
+            { line_type: 'MUNICIPAL_TAX', amount: 20000 },
+            { line_type: 'LOAN_INTEREST', amount: 50000 },
+          ],
+        },
+      ]);
+    });
+  });
 });

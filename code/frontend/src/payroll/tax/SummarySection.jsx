@@ -51,7 +51,7 @@ export function SummarySection({ fy }) {
   }, [fy, loadSummary]);
 
   const declared = summaryData?.declared || {};
-  const computed = summaryData?.computed || {};
+  const computed = summaryData?.computed;
 
   const section6aGroups = Object.entries(declared.section6a_by_group || {}).map(
     ([group, amt]) => ({
@@ -195,68 +195,76 @@ export function SummarySection({ fy }) {
             <Title level={5}>
               <Space>
                 <span>Tax Computation Forecast</span>
-                <Tag color={computed.taxable_income ? 'green' : 'default'}>
-                  {computed.taxable_income ? 'Live Computed' : 'Draft Estimate'}
-                </Tag>
+                {computed && (
+                  <Tag color={computed.taxable_income ? 'green' : 'default'}>
+                    {computed.taxable_income ? 'Live Computed' : 'Draft Estimate'}
+                  </Tag>
+                )}
               </Space>
             </Title>
 
-            <Card size="small" type="inner" style={{ background: '#fafafa' }}>
-              <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Text type="secondary">Gross Taxable Income:</Text>
-                <Text strong>₹ {Number(computed.taxable_income || 0).toLocaleString('en-IN')}</Text>
-              </Row>
-              <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Text type="secondary">Section 10 Exemption (HRA):</Text>
-                <Text>₹ {Number(computed.exemption_under_section10 || 0).toLocaleString('en-IN')}</Text>
-              </Row>
-              <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Text type="secondary">Chapter VI-A Allowed Deduction:</Text>
-                <Text>₹ {Number(computed.exemption_under_section6a || 0).toLocaleString('en-IN')}</Text>
-              </Row>
-              <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Text strong>Net Taxable Income:</Text>
-                <Text strong style={{ color: '#1677ff' }}>
-                  ₹ {Number(computed.net_taxable_income || 0).toLocaleString('en-IN')}
-                </Text>
-              </Row>
-              <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Text type="secondary">Computed Income Tax:</Text>
-                <Text strong>₹ {Number(computed.tax_on_taxable_income || 0).toLocaleString('en-IN')}</Text>
-              </Row>
-              <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Text type="secondary">Tax Paid YTD (Payroll TDS):</Text>
-                <Text>₹ {Number(computed.tds_through_payroll || computed.tax_ytd_amount || 0).toLocaleString('en-IN')}</Text>
-              </Row>
-              <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <Text type="secondary">Previous Employer TDS Credit:</Text>
-                <Text>₹ {Number(computed.tds_previous_employer || 0).toLocaleString('en-IN')}</Text>
-              </Row>
-              <Row justify="space-between" style={{ padding: '10px 0' }}>
-                <Text strong style={{ fontSize: 15 }}>Remaining Tax to be Deducted:</Text>
-                <Text strong style={{ fontSize: 16, color: '#cf1322' }}>
-                  ₹ {Number(computed.tax_to_be_paid || 0).toLocaleString('en-IN')}
-                </Text>
-              </Row>
-
-              {computed.remaining_months ? (
-                <Alert
-                  type="info"
-                  showIcon
-                  icon={<InfoCircleOutlined />}
-                  message={`Remaining Months for TDS Recovery: ${computed.remaining_months} month(s).`}
-                  style={{ marginTop: 12 }}
-                />
-              ) : null}
-
-              {computed.computed_at && (
-                <div style={{ marginTop: 12, textAlign: 'right' }}>
-                  <Text type="secondary" style={{ fontSize: 11 }}>
-                    Calculated on {dayjs(computed.computed_at).format('YYYY-MM-DD HH:mm')}
+            {!computed ? (
+              <Card size="small" type="inner" style={{ background: '#fafafa' }}>
+                <Text type="secondary">computed after the tax calculator runs</Text>
+              </Card>
+            ) : (
+              <Card size="small" type="inner" style={{ background: '#fafafa' }}>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Text type="secondary">Gross Taxable Income:</Text>
+                  <Text strong>₹ {Number(computed.taxable_income || 0).toLocaleString('en-IN')}</Text>
+                </Row>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Text type="secondary">Section 10 Exemption (HRA):</Text>
+                  <Text>₹ {Number(computed.exemption_under_section10 || 0).toLocaleString('en-IN')}</Text>
+                </Row>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Text type="secondary">Chapter VI-A Allowed Deduction:</Text>
+                  <Text>₹ {Number(computed.exemption_under_section6a || 0).toLocaleString('en-IN')}</Text>
+                </Row>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Text strong>Net Taxable Income:</Text>
+                  <Text strong style={{ color: '#1677ff' }}>
+                    ₹ {Number(computed.net_taxable_income || 0).toLocaleString('en-IN')}
                   </Text>
-                </div>
-              )}
-            </Card>
+                </Row>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Text type="secondary">Computed Income Tax:</Text>
+                  <Text strong>₹ {Number(computed.tax_on_taxable_income || 0).toLocaleString('en-IN')}</Text>
+                </Row>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Text type="secondary">Tax Paid YTD (Payroll TDS):</Text>
+                  <Text>₹ {Number(computed.tds_through_payroll || computed.tax_ytd_amount || 0).toLocaleString('en-IN')}</Text>
+                </Row>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <Text type="secondary">Previous Employer TDS Credit:</Text>
+                  <Text>₹ {Number(computed.tds_previous_employer || 0).toLocaleString('en-IN')}</Text>
+                </Row>
+                <Row justify="space-between" style={{ padding: '10px 0' }}>
+                  <Text strong style={{ fontSize: 15 }}>Remaining Tax to be Deducted:</Text>
+                  <Text strong style={{ fontSize: 16, color: '#cf1322' }}>
+                    ₹ {Number(computed.tax_to_be_paid || 0).toLocaleString('en-IN')}
+                  </Text>
+                </Row>
+
+                {computed.remaining_months ? (
+                  <Alert
+                    type="info"
+                    showIcon
+                    icon={<InfoCircleOutlined />}
+                    message={`Remaining Months for TDS Recovery: ${computed.remaining_months} month(s).`}
+                    style={{ marginTop: 12 }}
+                  />
+                ) : null}
+
+                {computed.computed_at && (
+                  <div style={{ marginTop: 12, textAlign: 'right' }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      Calculated on {dayjs(computed.computed_at).format('YYYY-MM-DD HH:mm')}
+                    </Text>
+                  </div>
+                )}
+              </Card>
+            )}
           </Col>
         </Row>
       </Card>
