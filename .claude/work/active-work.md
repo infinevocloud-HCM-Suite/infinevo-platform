@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-30 — `W-29.1`, `W-29.2`, `W-29.3`, `W-29.4` merged (`7dfd74e`)
+
+- The pay run is on `main` in one squash of `krushna-w29-fixes` at `342b649`: creation, inclusion and locking (`V055`–`V056`), computation with the `STRUCTURE` contributor (`V057`), loss of pay and pay inputs (`V058`), async compute on the worker with resume (`V059`). All with `tenant_id` and RLS.
+- Gates 5/5 for all four, CI green on `342b649`, one independent read per ticket and one of the first fix commit. Fixed before merge: a loss-of-pay reversal posted to a later period was lost; the payroll officer could not read the job status; an overtaken worker could keep writing and undo a resume. The second fix commit was tested, not re-read. Local: 8 modules, 1716 tests green.
+- **Added at merge, not in the spec yet:** a late loss-of-pay reversal is paid back as `LOP_REVERSAL`, at the current period's salary and divisor. Founder to confirm the rate rule and amend `W-29.3` § 3.
+- **`V059` grants `core.job.read` to `payroll-officer`** by a function and trigger of its own, the `V037` pattern. It does not rewrite `core.seed_system_roles`.
+- **Outstanding, the one that matters next:** joiners and leavers are underpaid when the policy counts working days only (`W-29.3` § 13 decision 2 divides calendar days by a working-day divisor). Exact under the default policy. Goes with `W-18.2`. Full list in the merge commit.
+- **For `W-31.4`:** the run context carries no earned wage per component; derive it from the day figures and the basis, and leave out `LOP`-source and `_REVERSAL` lines.
+- **Not merged:** `W-18.2` (`d8c4b60` on `krushna-w29`). Two blockers from its read: its own § 8 divisor check fails, and the `ORG_DAYS` no-location test was replaced. krushna rebases it onto `main`.
+- **Newly Ready:** `W-31.4`, `W-36.1` (sayeed), `W-36.2` (devashis), `W-30.2` (unassigned), `W-18.2` (krushna). `W-37` now waits on `W-36.2` only; `W-47.2` on `W-45` and `W-30.2`.
+- **krushna's branches:** `krushna-w29-fixes` has nothing left to merge. `krushna-w29` holds only `W-18.2` beyond `main`.
+
 ## 2026-09-30 — `W-24.1`, `W-17`, `W-18.1`, `W-24.2`, `W-28` merged (`288f9fa`)
 
 - Five krushna tickets are on `main` in one squash of `krushna-tickets-fixes` at `346e1de`: setup checklist (`V035`), holiday calendar (`V036`), loss-of-pay policy (`V116`, `V119`), invitations (`V117`–`V118`), pay schedule (`V054`). All with `tenant_id` and RLS.
