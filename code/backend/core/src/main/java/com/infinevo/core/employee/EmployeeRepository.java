@@ -1,5 +1,7 @@
 package com.infinevo.core.employee;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -108,6 +110,27 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
             @Param("status") EmploymentStatus status,
             @Param("includeDeleted") boolean includeDeleted,
             Pageable pageable);
+
+    /**
+     * The employees a pay run considers for {@code [start, end]} (W-29.1 §3), in one statement. The
+     * status literals are parameters so the query stays a plain JPQL string.
+     */
+    @Query(
+            """
+            SELECT e FROM Employee e
+            WHERE e.tenantId = :tenantId
+              AND e.deleted = false
+              AND e.dateOfJoining <= :end
+              AND (e.status = :active
+                OR (e.status = :terminated AND e.terminationDate >= :start))
+            ORDER BY e.employeeNumber
+            """)
+    List<Employee> findEmployedBetween(
+            @Param("tenantId") UUID tenantId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end,
+            @Param("active") EmploymentStatus active,
+            @Param("terminated") EmploymentStatus terminated);
 
     /** True if at least one active (non-deleted) employee exists in this tenant (W-24.1 setup checker). */
     boolean existsByTenantIdAndDeletedFalse(UUID tenantId);
