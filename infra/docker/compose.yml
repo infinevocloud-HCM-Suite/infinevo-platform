@@ -188,6 +188,14 @@ services:
       KEYCLOAK_ISSUER_URI: http://localhost:8081/realms/infinevo
       # Where the keys are actually fetched from, over the docker network.
       KEYCLOAK_JWK_SET_URI: http://keycloak:8081/realms/infinevo/protocol/openid-connect/certs
+      # W-24.2: invitation acceptance creates the invitee's Keycloak user through the admin
+      # API. Same docker-network address as the JWK fetch, and the same dev admin password
+      # the keycloak service above is started with - local only, never a real value.
+      KEYCLOAK_ADMIN_URL: http://keycloak:8081
+      KEYCLOAK_ADMIN_USERNAME: admin
+      KEYCLOAK_ADMIN_PASSWORD: local_keycloak_pw
+      # W-24.2: the page the invitation email links to - the frontend, not the API.
+      INVITATION_LINK_BASE_URL: http://localhost:5173/invitations/accept
     ports: ["${APP_PORT:-8080}:8080"]
     depends_on:
       postgres: { condition: service_healthy }
