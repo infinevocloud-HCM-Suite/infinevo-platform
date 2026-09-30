@@ -17,6 +17,12 @@ vi.mock('./workLocationService.js', () => ({
   },
 }));
 
+// The real helper opens SweetAlert2, whose timers outlive the test and throw once jsdom is gone.
+vi.mock('@shared/ui/msgHelper.js', () => ({
+  successMsg: vi.fn(),
+  errorMsg: vi.fn(),
+}));
+
 describe('WorkLocationForm component', () => {
   let store;
 

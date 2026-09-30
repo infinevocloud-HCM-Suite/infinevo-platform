@@ -6,6 +6,12 @@ import { MasterTable } from './MasterTable.jsx';
 import employeeReducer, { setMasters } from '../employee/employeeSlice.js';
 import * as useCanModule from '@shell/screens';
 
+// The real helper opens SweetAlert2, whose timers outlive the test and throw once jsdom is gone.
+vi.mock('@shared/ui/msgHelper.js', () => ({
+  successMsg: vi.fn(),
+  errorMsg: vi.fn(),
+}));
+
 describe('MasterTable component', () => {
   let mockService;
   let store;
