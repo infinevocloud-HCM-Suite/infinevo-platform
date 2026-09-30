@@ -6,6 +6,7 @@ import com.infinevo.payroll.taxcalc.recalc.event.SalaryVersionChangedEvent;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.Objects;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -15,6 +16,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Asynchronous after-commit listener triggering tax recalculations on declaration and salary events (W-33.3).
+ *
+ * <p>Each handler saves and restores the previous {@link TenantContext} so the listener is safe
+ * to run on either a dedicated async thread (production) or the caller's thread
+ * ({@code SyncTaskExecutor} in integration tests).
  */
 @Component
 public class TaxRecalculationListener {
@@ -33,6 +38,7 @@ public class TaxRecalculationListener {
         if (event == null) {
             return;
         }
+        UUID previous = TenantContext.current().orElse(null);
         TenantContext.set(event.tenantId());
         try {
             service.recalculate(event.employeeId(), event.financialYear(), TaxTrigger.DECLARATION_SUBMITTED);
@@ -45,7 +51,7 @@ public class TaxRecalculationListener {
                     e.getMessage(),
                     e);
         } finally {
-            TenantContext.clear();
+            restoreTenant(previous);
         }
     }
 
@@ -55,6 +61,7 @@ public class TaxRecalculationListener {
         if (event == null) {
             return;
         }
+        UUID previous = TenantContext.current().orElse(null);
         for (String fy : FinancialYear.allFrom(event.effectiveFrom())) {
             TenantContext.set(event.tenantId());
             try {
@@ -67,10 +74,9 @@ public class TaxRecalculationListener {
                         fy,
                         e.getMessage(),
                         e);
-            } finally {
-                TenantContext.clear();
             }
         }
+        restoreTenant(previous);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -79,6 +85,7 @@ public class TaxRecalculationListener {
         if (event == null) {
             return;
         }
+        UUID previous = TenantContext.current().orElse(null);
         TenantContext.set(event.tenantId());
         try {
             service.recalculate(event.employeeId(), event.financialYear(), TaxTrigger.PROOF_VERIFIED);
@@ -91,6 +98,14 @@ public class TaxRecalculationListener {
                     e.getMessage(),
                     e);
         } finally {
+            restoreTenant(previous);
+        }
+    }
+
+    private static void restoreTenant(UUID previous) {
+        if (previous != null) {
+            TenantContext.set(previous);
+        } else {
             TenantContext.clear();
         }
     }
