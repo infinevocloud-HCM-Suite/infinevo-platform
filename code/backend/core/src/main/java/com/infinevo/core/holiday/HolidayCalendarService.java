@@ -39,12 +39,14 @@ public class HolidayCalendarService {
         validateCalendarRequest(request);
         UUID tenantId = TenantContext.require();
 
-        boolean isDefault = Boolean.TRUE.equals(request.isDefault());
-        if (isDefault) {
-            calendarRepository.findByTenantIdAndIsDefaultTrue(tenantId).ifPresent(existing -> {
-                throw new IllegalStateException("A default holiday calendar already exists for tenant: " + tenantId);
-            });
+        boolean defaultExists =
+                calendarRepository.findByTenantIdAndIsDefaultTrue(tenantId).isPresent();
+        if (Boolean.TRUE.equals(request.isDefault()) && defaultExists) {
+            throw new IllegalStateException("A default holiday calendar already exists for tenant: " + tenantId);
         }
+        // A tenant must never be without a default calendar (W-17 §9): the first calendar a
+        // tenant creates becomes its default, whatever the request says.
+        boolean isDefault = !defaultExists;
 
         HolidayCalendar calendar = new HolidayCalendar(tenantId, request.name().trim(), isDefault);
         calendar = calendarRepository.save(calendar);
@@ -118,9 +120,13 @@ public class HolidayCalendarService {
         calendar.setName(request.name().trim());
         calendar = calendarRepository.save(calendar);
 
-        locationRepository.deleteByTenantIdAndCalendarId(tenantId, id);
-        locationRepository.flush();
-        assignLocations(tenantId, calendar.getId(), request.workLocationIds());
+        // workLocationIds null means "not sent": leave the links as they are. An empty set is an
+        // explicit request to unlink every location.
+        if (request.workLocationIds() != null) {
+            locationRepository.deleteByTenantIdAndCalendarId(tenantId, id);
+            locationRepository.flush();
+            assignLocations(tenantId, calendar.getId(), request.workLocationIds());
+        }
 
         return toCalendarResponse(calendar);
     }
@@ -194,6 +200,8 @@ public class HolidayCalendarService {
 
     private void assignLocations(UUID tenantId, UUID calendarId, Set<UUID> workLocationIds) {
         if (workLocationIds == null || workLocationIds.isEmpty()) {
+            // Nothing to link. On update, the caller has already cleared the existing links
+            // when the set is empty, and left them untouched when it is null.
             return;
         }
 

@@ -1,6 +1,7 @@
 package com.infinevo.payroll.schedule;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.sql.Connection;
@@ -26,6 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * <ul>
  *   <li>Tenant A cannot select or count Tenant B's schedule row.</li>
  *   <li>Tenant A cannot update Tenant B's schedule row.</li>
+ *   <li>Tenant A cannot insert a row carrying Tenant B's tenant_id.</li>
  *   <li>weekdaysFor(B) throws NoPayScheduleException when evaluated under Tenant A's DB binding.</li>
  * </ul>
  */
@@ -34,6 +36,9 @@ class PayScheduleRlsIT extends AbstractIntegrationTest {
 
     @Autowired
     private PayScheduleService scheduleService;
+
+    @Autowired
+    private PayScheduleWorkingWeekSource workingWeekSource;
 
     private static final UUID TENANT_A = PayScheduleTestSchema.TENANT_A;
     private static final UUID TENANT_B = PayScheduleTestSchema.TENANT_B;
@@ -110,18 +115,36 @@ class PayScheduleRlsIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("RLS: weekdaysFor(B) under Tenant A's connection cannot see Tenant B's row")
-    void weekdaysForTenantBUnderTenantABindingThrows() throws SQLException {
+    @DisplayName("RLS: weekdaysFor(B) under Tenant A's binding throws NoPayScheduleException")
+    void weekdaysForTenantBUnderTenantABindingThrows() {
+        // Control: under B's own binding the row is there
+        com.infinevo.shared.tenant.TenantContext.set(TENANT_B);
+        assertThat(workingWeekSource.weekdaysFor(TENANT_B, null)).hasSize(6);
+        com.infinevo.shared.tenant.TenantContext.clear();
+
+        // Under A's binding, B's row exists but RLS hides it: the port refuses rather than guessing
+        com.infinevo.shared.tenant.TenantContext.set(TENANT_A);
+        assertThatThrownBy(() -> workingWeekSource.weekdaysFor(TENANT_B, null))
+                .isInstanceOf(NoPayScheduleException.class)
+                .hasMessageContaining(TENANT_B.toString());
+    }
+
+    @Test
+    @DisplayName("RLS: as app_user bound to Tenant A, an INSERT carrying Tenant B's tenant_id is refused")
+    void tenantACannotInsertTenantBRowUnderRls() throws SQLException {
         try (Connection conn = PayScheduleTestSchema.appConnection()) {
             bindTenant(conn, TENANT_A);
-            // Verify DB level: Tenant B schedule is invisible to A
-            try (PreparedStatement ps =
-                    conn.prepareStatement("SELECT count(*) FROM payroll.pay_schedule WHERE tenant_id = ?")) {
-                ps.setObject(1, TENANT_B);
-                try (ResultSet rs = ps.executeQuery()) {
-                    rs.next();
-                    assertThat(rs.getLong(1)).isEqualTo(0L);
-                }
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO payroll.pay_schedule (id, tenant_id, working_days, pay_day_rule, first_period_start)"
+                            + " VALUES (?, ?, '{1,2,3,4,5}', 'LAST_DAY_OF_PERIOD', '2026-01-01')")) {
+                ps.setObject(1, UUID.randomUUID());
+                ps.setObject(2, TENANT_B);
+
+                assertThatThrownBy(ps::executeUpdate)
+                        .isInstanceOf(SQLException.class)
+                        .hasMessageContaining("row-level security");
+            } finally {
+                conn.rollback();
             }
         }
     }

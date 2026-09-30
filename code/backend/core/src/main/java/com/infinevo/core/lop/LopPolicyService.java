@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -92,8 +93,19 @@ public class LopPolicyService {
                 rounding,
                 effectiveFrom);
 
-        LopPolicy saved = policyRepository.save(newPolicy);
-        return toResponse(saved);
+        // saveAndFlush so the unique key uk_lop_policy_tenant_effective_from (V119) is checked here,
+        // where it can be answered as a conflict, not at commit. It catches the race the
+        // existence check above cannot: two saves for the same date at once.
+        try {
+            LopPolicy saved = policyRepository.saveAndFlush(newPolicy);
+            return toResponse(saved);
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalStateException(
+                    "A loss-of-pay policy version already exists for effective date "
+                            + effectiveFrom
+                            + ". Policy versions are immutable; provide a new effectiveFrom date.",
+                    e);
+        }
     }
 
     private boolean isSamePolicy(

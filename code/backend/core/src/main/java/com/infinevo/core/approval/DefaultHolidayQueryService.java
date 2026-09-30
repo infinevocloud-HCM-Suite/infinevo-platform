@@ -4,12 +4,15 @@ import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.stereotype.Component;
 
 /**
- * Default fallback implementation of {@link HolidayQueryService} returning no holidays until W-17 ships.
+ * Fallback {@link HolidayQueryService} returning no holidays.
+ *
+ * <p>Deliberately <strong>not</strong> a Spring bean: the real implementation is
+ * {@code com.infinevo.core.holiday.ApprovalHolidayQueryAdapter} (W-17), the only bean of this type
+ * in the application. {@link EscalationServiceImpl} constructs this fallback itself only when no
+ * bean is present — a test context that does not scan {@code core.holiday}.
  */
-@Component
 public class DefaultHolidayQueryService implements HolidayQueryService {
 
     @Override

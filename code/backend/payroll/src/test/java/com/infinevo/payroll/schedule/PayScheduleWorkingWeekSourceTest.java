@@ -63,6 +63,8 @@ class PayScheduleWorkingWeekSourceTest {
         when(repository.findByTenantId(tenantId)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> source.weekdaysFor(tenantId, employeeId))
                 .isInstanceOf(NoPayScheduleException.class)
+                // core's calculator and /basis map NoLopPolicyException to 409 (W-28 F-1)
+                .isInstanceOf(com.infinevo.core.lop.NoLopPolicyException.class)
                 .hasMessageContaining(tenantId.toString());
     }
 

@@ -80,6 +80,26 @@ public final class LopTestSchema {
             if (!tableExists(conn, "lop_policy")) {
                 executeResource(conn, "db/migration/core/V116__lop_policy.sql");
             }
+            if (!constraintExists(conn, "uk_lop_policy_tenant_effective_from")) {
+                executeResource(conn, "db/migration/core/V119__lop_policy_unique_effective_from.sql");
+            }
+        }
+    }
+
+    /**
+     * Runs V116's own seed statement — section 2 of the script, cut out of the real resource — so a
+     * test proves what the migration does, not what a copy of it does. Deleting or emptying that
+     * block in V116 makes this fail or seed nothing.
+     */
+    public static void runV116SeedBlock(Connection conn) throws Exception {
+        String sql = readResource("db/migration/core/V116__lop_policy.sql");
+        int start = sql.indexOf("-- 2. Seed");
+        int end = sql.indexOf("-- 3.", start + 1);
+        if (start < 0 || end < 0) {
+            throw new IllegalStateException("V116__lop_policy.sql no longer has its section 2 seed block");
+        }
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(sql.substring(start, end));
         }
     }
 
@@ -94,16 +114,12 @@ public final class LopTestSchema {
             ps.setString(2, "Tenant Beta");
             ps.executeUpdate();
         }
-        try (Connection conn = migrationConnection();
-                Statement stmt = conn.createStatement()) {
-            stmt.execute(
-                    """
-                    INSERT INTO core.lop_policy (id, tenant_id, working_day_basis, weekends_payable,
-                        holidays_payable, lop_rounding, effective_from)
-                    SELECT gen_random_uuid(), t.tenant_id, 'ACTUAL_DAYS', true, true, 'HALF_UP_2', '1900-01-01'
-                    FROM core.tenant t
-                    WHERE NOT EXISTS (SELECT 1 FROM core.lop_policy p WHERE p.tenant_id = t.tenant_id)
-                    """);
+        try (Connection conn = migrationConnection()) {
+            runV116SeedBlock(conn);
+        } catch (SQLException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SQLException("Could not run the V116 seed block", e);
         }
     }
 
@@ -124,16 +140,10 @@ public final class LopTestSchema {
             if (tableExists(conn, "holiday_calendar")) {
                 stmt.execute("DELETE FROM core.holiday_calendar" + TENANT_SCOPE);
             }
-            // employee_invitation (V118) references employee without ON DELETE CASCADE — must go first
-            if (tableExists(conn, "employee_invitation")) {
-                stmt.execute("DELETE FROM core.employee_invitation" + TENANT_SCOPE);
-            }
-            if (tableExists(conn, "employee")) {
-                stmt.execute("DELETE FROM core.employee" + TENANT_SCOPE);
-            }
-            if (tableExists(conn, "work_location")) {
-                stmt.execute("DELETE FROM core.work_location" + TENANT_SCOPE);
-            }
+            // No lop IT writes core.employee or core.work_location, so they are not cleared here.
+            // Other ITs share these tenant ids (ApprovalTestSchema leaves reporting_line and
+            // approval rows pointing at its employees); deleting those employees from here failed
+            // on their foreign keys.
         }
     }
 
@@ -153,16 +163,29 @@ public final class LopTestSchema {
         }
     }
 
-    private static void executeResource(Connection conn, String path) throws Exception {
+    private static boolean constraintExists(Connection conn, String name) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM pg_constraint WHERE conname = ?")) {
+            ps.setString(1, name);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static String readResource(String path) throws Exception {
         ClassLoader cl = LopTestSchema.class.getClassLoader();
         try (InputStream in = cl.getResourceAsStream(path)) {
             if (in == null) {
                 throw new IllegalStateException("Resource not found: " + path);
             }
-            String sql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute(sql);
-            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static void executeResource(Connection conn, String path) throws Exception {
+        String sql = readResource(path);
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
         }
     }
 }
