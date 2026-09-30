@@ -115,6 +115,18 @@ final class OrgTestSchema {
     static void clearAll() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
+            if (tableExists(conn, "approval_delegation")) {
+                stmt.execute("DELETE FROM core.approval_delegation");
+            }
+            if (tableExists(conn, "approval_step")) {
+                stmt.execute("DELETE FROM core.approval_step");
+            }
+            if (tableExists(conn, "approval_instance")) {
+                stmt.execute("DELETE FROM core.approval_instance");
+            }
+            if (tableExists(conn, "approval_definition")) {
+                stmt.execute("DELETE FROM core.approval_definition");
+            }
             if (tableExists(conn, "attendance")) {
                 stmt.execute("DELETE FROM core.attendance");
             }

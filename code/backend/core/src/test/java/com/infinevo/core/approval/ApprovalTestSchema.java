@@ -1,5 +1,6 @@
 package com.infinevo.core.approval;
 
+import com.infinevo.core.employee.EmployeeTestSchema;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -38,16 +39,8 @@ public final class ApprovalTestSchema {
     }
 
     public static void apply() throws Exception {
+        EmployeeTestSchema.apply();
         try (Connection conn = migrationConnection()) {
-            if (!tableExists(conn, "tenant")) {
-                executeResource(conn, "db/migration/core/V001__tenant.sql");
-            }
-            if (!tableExists(conn, "employee")) {
-                executeResource(conn, "db/migration/core/V010__employee.sql");
-            }
-            if (!tableExists(conn, "reporting_line")) {
-                executeResource(conn, "db/migration/core/V028__reporting_line.sql");
-            }
             if (!tableExists(conn, "approval_definition")) {
                 executeResource(conn, "db/migration/core/V089__approval_definition.sql");
             }
