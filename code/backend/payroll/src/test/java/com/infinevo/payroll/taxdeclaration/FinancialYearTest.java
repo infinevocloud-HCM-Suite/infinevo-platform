@@ -77,4 +77,34 @@ class FinancialYearTest {
         assertThat(fy1).isNotEqualTo(fy3);
         assertThat(fy1.toString()).isEqualTo("2025-2026");
     }
+
+    @Test
+    @DisplayName("allFrom resolves sequence of FY labels from past date to current date")
+    void allFromMultiYearSequence() {
+        LocalDate effectiveFrom = LocalDate.of(2023, 6, 1);
+        LocalDate today = LocalDate.of(2025, 10, 15);
+
+        java.util.List<String> fys = FinancialYear.allFrom(effectiveFrom, today);
+        assertThat(fys).containsExactly("2023-2024", "2024-2025", "2025-2026");
+    }
+
+    @Test
+    @DisplayName("allFrom resolves single FY when date is within current FY")
+    void allFromSameYear() {
+        LocalDate effectiveFrom = LocalDate.of(2025, 5, 1);
+        LocalDate today = LocalDate.of(2025, 11, 1);
+
+        java.util.List<String> fys = FinancialYear.allFrom(effectiveFrom, today);
+        assertThat(fys).containsExactly("2025-2026");
+    }
+
+    @Test
+    @DisplayName("allFrom resolves future FY if effectiveFrom is in future")
+    void allFromFutureDate() {
+        LocalDate effectiveFrom = LocalDate.of(2027, 4, 1);
+        LocalDate today = LocalDate.of(2025, 11, 1);
+
+        java.util.List<String> fys = FinancialYear.allFrom(effectiveFrom, today);
+        assertThat(fys).containsExactly("2027-2028");
+    }
 }

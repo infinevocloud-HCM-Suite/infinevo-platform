@@ -33,6 +33,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
     private final HraRuleReader hraRuleReader;
     private final Clock clock;
     private final ProofInProgressCheck proofInProgressCheck;
+    private final org.springframework.context.ApplicationEventPublisher publisher;
 
     public TaxDeclarationServiceImpl(
             EmployeeInvestmentDeclarationRepository declarationRepository,
@@ -48,7 +49,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
             EmployeeService employeeService,
             HraRuleReader hraRuleReader,
             Clock clock) {
-        this(declarationRepository, windowService, employeeService, hraRuleReader, clock, ProofInProgressCheck.NONE);
+        this(declarationRepository, windowService, employeeService, hraRuleReader, clock, ProofInProgressCheck.NONE, null);
     }
 
     /** The constructor Spring uses: the proof check is a required part of the reopen rule (W-34.1). */
@@ -58,14 +59,16 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
             TaxDeclarationWindowService windowService,
             EmployeeService employeeService,
             HraRuleReader hraRuleReader,
-            ProofInProgressCheck proofInProgressCheck) {
+            ProofInProgressCheck proofInProgressCheck,
+            org.springframework.context.ApplicationEventPublisher publisher) {
         this(
                 declarationRepository,
                 windowService,
                 employeeService,
                 hraRuleReader,
                 TaxDeclarationRules.defaultClock(),
-                proofInProgressCheck);
+                proofInProgressCheck,
+                publisher);
     }
 
     TaxDeclarationServiceImpl(
@@ -74,7 +77,8 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
             EmployeeService employeeService,
             HraRuleReader hraRuleReader,
             Clock clock,
-            ProofInProgressCheck proofInProgressCheck) {
+            ProofInProgressCheck proofInProgressCheck,
+            org.springframework.context.ApplicationEventPublisher publisher) {
         this.proofInProgressCheck =
                 Objects.requireNonNull(proofInProgressCheck, "proofInProgressCheck must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
@@ -83,6 +87,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
         this.windowService = Objects.requireNonNull(windowService, "windowService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.hraRuleReader = Objects.requireNonNull(hraRuleReader, "hraRuleReader must not be null");
+        this.publisher = publisher;
     }
 
     @Override
@@ -299,6 +304,12 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
         decl.setStatus(DeclarationStatus.SUBMITTED);
         decl.setSubmittedAt(Instant.now());
         decl = declarationRepository.save(decl);
+
+        if (publisher != null) {
+            publisher.publishEvent(new com.infinevo.payroll.taxcalc.recalc.event.DeclarationSubmittedEvent(
+                    tenantId, employeeId, decl.getId(), fy.label()));
+        }
+
         return toResponse(decl, window, today);
     }
 
