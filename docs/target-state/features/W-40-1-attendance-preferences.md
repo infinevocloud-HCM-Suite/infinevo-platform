@@ -132,7 +132,7 @@ None. The navigation item lands with the screen ticket (`NavigationCatalogue.jav
 
 | Migration | Tables | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `hrms/V116__attendance_preference.sql` — reserved for `W-40.1`, 2026-09-30, above `V115` | `hrms.attendance_preference` | yes | forward-only; a new table, nothing destroyed |
+| `hrms/V121__attendance_preference.sql` — reserved for `W-40.1`, 2026-09-30, above `V120` | `hrms.attendance_preference` | yes | forward-only; a new table, nothing destroyed |
 
 ```sql
 CREATE TABLE hrms.attendance_preference (
@@ -226,7 +226,7 @@ Revert the application commit. The table stays and is unused; Flyway is forward-
 
 | # | Area | Task |
 |---|---|---|
-| 1 | `code/backend/migration` | `hrms/V116__attendance_preference.sql` |
+| 1 | `code/backend/migration` | `hrms/V121__attendance_preference.sql` |
 | 2 | `code/backend/hrms` | entity, repository, service, controller, DTOs, tests, test application if absent |
 
 ## 13. Decisions — settled 2026-09-30

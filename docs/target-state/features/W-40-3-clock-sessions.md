@@ -143,7 +143,7 @@ None.
 
 | Migration | Tables | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `hrms/V118__clock_session.sql` — reserved for `W-40.3`, 2026-09-30 | `hrms.clock_session` | yes | forward-only; a new table |
+| `hrms/V123__clock_session.sql` — reserved for `W-40.3`, 2026-09-30 | `hrms.clock_session` | yes | forward-only; a new table |
 
 ```sql
 CREATE TABLE hrms.clock_session (
@@ -239,7 +239,7 @@ written with `source = CLOCK` stay; an administrator can overwrite or delete the
 
 | # | Area | Task |
 |---|---|---|
-| 1 | `code/backend/migration` | `hrms/V118__clock_session.sql` |
+| 1 | `code/backend/migration` | `hrms/V123__clock_session.sql` |
 | 2 | `code/backend/hrms` | entity, repository, two services, controller, DTOs, tests |
 
 ## 13. Decisions — settled 2026-09-30

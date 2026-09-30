@@ -129,7 +129,7 @@ None.
 
 ## 6. Database changes
 
-None. The permission code is seeded by `W-40.2` (`reference/V117__hrms_request_actions.sql`);
+None. The permission code is seeded by `W-40.2` (`reference/V122__hrms_request_actions.sql`);
 the states by `W-40.5` (`core/V120__overtime_request_states.sql`).
 
 | Standing rule | This ticket |

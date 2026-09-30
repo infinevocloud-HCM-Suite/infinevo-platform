@@ -108,7 +108,7 @@ None.
 
 | Migration | Tables | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `reference/V117__hrms_request_actions.sql` — reserved for `W-40.2`, 2026-09-30 | none. Inserts one `reference.action`, replaces `core.seed_system_roles`, backfills `core.role_action` | n/a | additive |
+| `reference/V122__hrms_request_actions.sql` — reserved for `W-40.2`, 2026-09-30 | none. Inserts one `reference.action`, replaces `core.seed_system_roles`, backfills `core.role_action` | n/a | additive |
 
 | Code | Status | Granted to |
 |---|---|---|
@@ -181,7 +181,7 @@ No legacy code is ported. BUG-002 and DEBT-018 were settled for `core.attendance
 
 | # | Area | Task |
 |---|---|---|
-| 1 | `code/backend/migration` | `reference/V117__hrms_request_actions.sql` |
+| 1 | `code/backend/migration` | `reference/V122__hrms_request_actions.sql` |
 | 2 | `code/backend/core` | `recordFromClock`, `ClockDayResult`, `TenantClock`, tests |
 
 ## 13. Decisions — settled 2026-09-30

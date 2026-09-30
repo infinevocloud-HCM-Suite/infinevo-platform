@@ -145,7 +145,7 @@ None.
 
 | Migration | Tables | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `hrms/V119__attendance_regularization.sql` — reserved for `W-40.4`, 2026-09-30 | creates `hrms.attendance_regularization`; adds `hrms.clock_session.regularization_id` | yes | forward-only; a new table and a nullable column |
+| `hrms/V124__attendance_regularization.sql` — reserved for `W-40.4`, 2026-09-30 | creates `hrms.attendance_regularization`; adds `hrms.clock_session.regularization_id` | yes | forward-only; a new table and a nullable column |
 
 ```sql
 CREATE TABLE hrms.attendance_regularization (
@@ -251,7 +251,7 @@ changes nothing, which is today's behaviour. The table and column stay.
 
 | # | Area | Task |
 |---|---|---|
-| 1 | `code/backend/migration` | `hrms/V119__attendance_regularization.sql` |
+| 1 | `code/backend/migration` | `hrms/V124__attendance_regularization.sql` |
 | 2 | `code/backend/hrms` | entity, repository, service, handler, controller, DTOs, the `ClockSession` change, tests |
 
 ## 13. Decisions — settled 2026-09-30

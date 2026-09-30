@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-30 — `W-24.1`, `W-17`, `W-18.1`, `W-24.2`, `W-28` merged (`288f9fa`)
+
+- Five krushna tickets are on `main` in one squash of `krushna-tickets-fixes` at `346e1de`: setup checklist (`V035`), holiday calendar (`V036`), loss-of-pay policy (`V116`, `V119`), invitations (`V117`–`V118`), pay schedule (`V054`). All with `tenant_id` and RLS.
+- Gates 5/5 for all five, CI green on `346e1de`, one independent read per ticket on `e60bb97`. Seven blockers fixed before merge: an expired invitation hung the accept call; acceptance replaced the user's roles; the raw token was kept in `core.notification`; Keycloak admin access was wired nowhere; new users could not set a password; approval escalation ignored holidays; a missing pay schedule was a 500. The fix commits were tested, not re-read. Local: 8 modules, 1587 tests green.
+- **New required app settings:** `KEYCLOAK_ADMIN_PASSWORD` and `INVITATION_LINK_BASE_URL`. The app does not start without them. Compose, Bicep and `deploy.yml` carry them; run the Bicep before the next automatic deploy so the app container gets `keycloak-admin-pw`.
+- **Build:** `brace-expansion` bumped to 1.1.21 in the frontend lock file for two alerts published 2026-09-30 that turned the dependency scan red on every branch. Every other branch needs `main` merged in, or the same bump.
+- **Accepted by the founder:** the invitation token stays in the queued notification row until the mail is sent; prior payroll and organisation tax are out of the setup catalogue until `W-38` and `W-36.3`; `W-17` has one script, not three; `W-28` returns bare DTOs. Full list in the merge commit.
+- **Migration numbers:** krushna's lane used `V116`–`V119`. `W-40.1`–`.4` moved to `V121`–`V124` in their specs; `W-40.5` keeps `V120`.
+- **New tickets, specs written:** `W-46.6` setup checklist screen and `W-46.7` invitation screens with the public accept page (biren, after `W-45`); `W-10.1` production Keycloak realm and mail (karma). Until `W-10.1`, invited users in Azure get no set-password mail.
+- **Newly Ready:** `W-29.1` (krushna). `W-46.3b`, `W-46.6`, `W-46.7` now wait on `W-45` only; `W-47.1b` on `W-45`; `W-18.2` on `W-29`.
+- **krushna's branches:** `W-29.1` and `W-29.2` sit on `krushna-tickets`, built before the review fixes. He rebases them onto `main`; each takes its own `/merge`. `krushna-tickts` and `dev-krushna` are stale.
+
 ## 2026-09-29 — `W-31.3` merged (`ed180b1`)
 
 - Employee EPF and ESI lines are on `main`: `payroll.ctc_epf_component` (`V068`) and `ctc_esi_component` (`V069`) with RLS, derived server-side on every salary version at scale 4. EPS stops at 58; no personal row or no date of birth means EPS applies.
