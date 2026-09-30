@@ -94,4 +94,15 @@ class WorkingWeekBasisIT extends AbstractIntegrationTest {
                 .as("Tenant B (Mon-Sat) July 2026 payable days")
                 .isEqualByComparingTo(new BigDecimal("27"));
     }
+
+    @Test
+    @DisplayName("W-28 F-1: an ORG_DAYS tenant with no pay schedule gets NoLopPolicyException through the real bean")
+    void noSchedule_surfacesAsNoLopPolicyException() throws SQLException {
+        PayScheduleTestSchema.clearSchedules();
+        TenantContext.set(TENANT_A);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> basisCalculator.basisFor(YearMonth.of(2026, 7), null))
+                .isInstanceOf(com.infinevo.core.lop.NoLopPolicyException.class)
+                .isInstanceOf(NoPayScheduleException.class);
+    }
 }

@@ -148,6 +148,35 @@ class HolidayGuardIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("POST /api/v1/holiday-calendars/{id}/holidays without core.holiday.manage is 403")
+    void addHoliday_withoutManage_forbidden() throws Exception {
+        String body = "{\"name\":\"Diwali\",\"from\":\"2026-11-08\",\"to\":\"2026-11-08\",\"isRestricted\":false}";
+        mvc.perform(as(readerSub, post("/api/v1/holiday-calendars/" + UUID.randomUUID() + "/holidays"))
+                        .content(body))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/holiday-calendars/{id}/holidays with core.holiday.manage is 201 and echoes isRestricted")
+    void addHoliday_withManage_created() throws Exception {
+        String created = mvc.perform(as(managerSub, post("/api/v1/holiday-calendars"))
+                        .content(json.writeValueAsString(new HolidayCalendarRequest("Cal", false, Set.of()))))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String calendarId = json.readTree(created).get("id").asText();
+
+        String body = "{\"name\":\"Diwali\",\"from\":\"2026-11-08\",\"to\":\"2026-11-08\",\"isRestricted\":true}";
+        mvc.perform(as(managerSub, post("/api/v1/holiday-calendars/" + calendarId + "/holidays"))
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isRestricted").value(true))
+                .andExpect(jsonPath("$.restricted").doesNotExist());
+    }
+
+    @Test
     @DisplayName("DELETE /api/v1/holiday-calendars/{id}/holidays/{holidayId} without core.holiday.manage is 403")
     void deleteHoliday_withoutManage_forbidden() throws Exception {
         mvc.perform(as(

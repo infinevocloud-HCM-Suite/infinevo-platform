@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -205,6 +206,69 @@ class HolidayCalendarServiceTest {
         assertThat(previousDefault.isDefault()).isFalse();
         verify(calendarRepository).save(previousDefault);
         assertThat(res.isDefault()).isTrue();
+    }
+
+    @Test
+    @DisplayName("F-2: the first calendar a tenant creates becomes its default even when not asked")
+    void createCalendar_firstCalendar_becomesDefault() {
+        when(calendarRepository.findByTenantIdAndIsDefaultTrue(tenantId)).thenReturn(Optional.empty());
+        when(calendarRepository.save(any(HolidayCalendar.class))).thenAnswer(invocation -> {
+            HolidayCalendar cal = invocation.getArgument(0);
+            setId(cal, calendarId);
+            return cal;
+        });
+
+        HolidayCalendarResponse res = service.createCalendar(new HolidayCalendarRequest("First", false, Set.of()));
+
+        assertThat(res.isDefault()).isTrue();
+    }
+
+    @Test
+    @DisplayName("F-2: a later calendar is not the default when the tenant already has one")
+    void createCalendar_defaultExists_newCalendarIsNotDefault() {
+        when(calendarRepository.findByTenantIdAndIsDefaultTrue(tenantId))
+                .thenReturn(Optional.of(new HolidayCalendar(tenantId, "Existing Default", true)));
+        when(calendarRepository.save(any(HolidayCalendar.class))).thenAnswer(invocation -> {
+            HolidayCalendar cal = invocation.getArgument(0);
+            setId(cal, calendarId);
+            return cal;
+        });
+
+        HolidayCalendarResponse res = service.createCalendar(new HolidayCalendarRequest("Second", false, Set.of()));
+
+        assertThat(res.isDefault()).isFalse();
+    }
+
+    @Test
+    @DisplayName("F-4: updateCalendar with workLocationIds null leaves the location links unchanged")
+    void updateCalendar_nullLocations_leavesLinksUnchanged() {
+        HolidayCalendar existing = new HolidayCalendar(tenantId, "Old Name", false);
+        setId(existing, calendarId);
+        when(calendarRepository.findByTenantIdAndId(tenantId, calendarId)).thenReturn(Optional.of(existing));
+        when(calendarRepository.save(any(HolidayCalendar.class))).thenReturn(existing);
+        when(locationRepository.findByTenantIdAndCalendarId(tenantId, calendarId))
+                .thenReturn(List.of(new HolidayCalendarLocation(tenantId, calendarId, locationId)));
+
+        HolidayCalendarResponse res =
+                service.updateCalendar(calendarId, new HolidayCalendarRequest("New Name", (Boolean) null, null));
+
+        verify(locationRepository, never()).deleteByTenantIdAndCalendarId(any(), any());
+        verify(locationRepository, never()).save(any());
+        assertThat(res.workLocationIds()).containsExactly(locationId);
+    }
+
+    @Test
+    @DisplayName("F-4: updateCalendar with an empty workLocationIds set clears every link")
+    void updateCalendar_emptyLocations_clearsLinks() {
+        HolidayCalendar existing = new HolidayCalendar(tenantId, "Old Name", false);
+        setId(existing, calendarId);
+        when(calendarRepository.findByTenantIdAndId(tenantId, calendarId)).thenReturn(Optional.of(existing));
+        when(calendarRepository.save(any(HolidayCalendar.class))).thenReturn(existing);
+
+        service.updateCalendar(calendarId, new HolidayCalendarRequest("New Name", (Boolean) null, Set.of()));
+
+        verify(locationRepository).deleteByTenantIdAndCalendarId(tenantId, calendarId);
+        verify(locationRepository, never()).save(any());
     }
 
     @Test

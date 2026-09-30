@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -323,6 +324,177 @@ class WorkingDayBasisCalculatorTest {
         assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
                 .isInstanceOf(NoLopPolicyException.class)
                 .hasMessageContaining("No loss-of-pay policy in force");
+    }
+
+    @Test
+    @DisplayName("F-4: a WorkingWeekSource that throws surfaces as NoLopPolicyException, for ORG_DAYS and ACTUAL_DAYS")
+    void workingWeekSourceFailure_throwsNoLopPolicyException() {
+        calculator.setWorkingWeekSource((t, e) -> {
+            throw new IllegalStateException("schedule store unavailable");
+        });
+
+        LopPolicy orgDays = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, true, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(orgDays));
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("Could not resolve the working week")
+                .hasCauseInstanceOf(IllegalStateException.class);
+
+        LopPolicy actualDays = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
+                false,
+                true,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(actualDays));
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("Could not resolve the working week");
+    }
+
+    @Test
+    @DisplayName("F-4: a NoLopPolicyException subtype from the source (e.g. no pay schedule) passes through as is")
+    void workingWeekSourceNoLopPolicySubtype_passesThrough() {
+        NoLopPolicyException fromSource = new NoLopPolicyException("No pay schedule configured") {};
+        calculator.setWorkingWeekSource((t, e) -> {
+            throw fromSource;
+        });
+        LopPolicy orgDays = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, true, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(orgDays));
+
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
+                .isSameAs(fromSource);
+    }
+
+    @Test
+    @DisplayName("F-5: the response carries the policy's lopRounding")
+    void response_carriesPolicyRounding() {
+        LopPolicy policy = new LopPolicy(
+                tenantId, WorkingDayBasis.FIXED_30, null, true, true, LopRounding.HALF_UP_0, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        assertThat(calculator.basisFor(tenantId, jul2026, employeeId).lopRounding())
+                .isEqualTo(LopRounding.HALF_UP_0);
+    }
+
+    @Test
+    @DisplayName("F-5: HALF_UP_2 when the policy says nothing")
+    void rounding_defaultsToHalfUp2_whenPolicySaysNothing() {
+        LopPolicy policy =
+                new LopPolicy(tenantId, WorkingDayBasis.ACTUAL_DAYS, null, true, true, null, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+
+        assertThat(calculator.basisFor(tenantId, jul2026, employeeId).lopRounding())
+                .isEqualTo(LopRounding.HALF_UP_2);
+    }
+
+    @Test
+    @DisplayName("F-6: an unknown, deleted or other-tenant employee is refused, never given the default calendar")
+    void unknownEmployee_isRefused() {
+        LopPolicy policy = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
+                true,
+                false,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+        UUID unknown = UUID.randomUUID();
+        when(employeeRepository.findByIdAndTenantIdAndDeletedFalse(unknown, tenantId))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, unknown))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("not found in tenant");
+    }
+
+    @Test
+    @DisplayName("F-6: with no employee the tenant's default calendar is used (location null)")
+    void noEmployee_usesDefaultCalendar() {
+        LopPolicy policy = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
+                true,
+                false,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+        when(holidayQueryService.holidaysBetween(isNull(), any(), any()))
+                .thenReturn(List.of(holiday(LocalDate.of(2026, 7, 15), false)));
+
+        assertThat(calculator.basisFor(tenantId, jul2026, null).divisor())
+                .isEqualByComparingTo(new BigDecimal("30.00"));
+    }
+
+    @Test
+    @DisplayName("F-7: a restricted holiday does not change payable days or the divisor")
+    void restrictedHoliday_doesNotChangeDivisor() {
+        LopPolicy policy = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, false, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+        calculator.setWorkingWeekSource((t, e) ->
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY));
+        // July 15 2026 is a Wednesday; July 16 a Thursday
+        when(holidayQueryService.holidaysBetween(eq(locationId), any(), any()))
+                .thenReturn(
+                        List.of(holiday(LocalDate.of(2026, 7, 15), true), holiday(LocalDate.of(2026, 7, 16), false)));
+
+        WorkingDayBasisResponse response = calculator.basisFor(tenantId, jul2026, employeeId);
+
+        // 23 weekdays - 1 non-restricted holiday = 22; the restricted one is not subtracted
+        assertThat(response.payableDays()).isEqualByComparingTo(new BigDecimal("22.00"));
+        assertThat(response.divisor()).isEqualByComparingTo(new BigDecimal("22.00"));
+    }
+
+    @Test
+    @DisplayName("F-8: a period with no payable days is refused rather than returning divisor 0")
+    void zeroPayableDays_isRefused() {
+        LopPolicy policy = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, true, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+        calculator.setWorkingWeekSource((t, e) -> Set.of());
+
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("No payable days in period");
+    }
+
+    @Test
+    @DisplayName("F-8: ACTUAL_DAYS where every working day is a holiday is refused too")
+    void zeroPayableDays_actualDays_isRefused() {
+        LopPolicy policy = new LopPolicy(
+                tenantId,
+                WorkingDayBasis.ACTUAL_DAYS,
+                null,
+                false,
+                false,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+        calculator.setWorkingWeekSource((t, e) -> Set.of(DayOfWeek.MONDAY));
+        when(holidayQueryService.holidaysBetween(eq(locationId), any(), any()))
+                .thenReturn(List.of(new HolidayResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "Shutdown",
+                        LocalDate.of(2026, 7, 1),
+                        LocalDate.of(2026, 7, 31),
+                        false,
+                        null)));
+
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, employeeId))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("No payable days in period");
+    }
+
+    private static HolidayResponse holiday(LocalDate date, boolean restricted) {
+        return new HolidayResponse(UUID.randomUUID(), UUID.randomUUID(), "Holiday", date, date, restricted, null);
     }
 
     @Test

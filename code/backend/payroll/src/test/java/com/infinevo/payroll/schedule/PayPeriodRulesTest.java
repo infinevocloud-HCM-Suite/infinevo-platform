@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,9 +56,9 @@ class PayPeriodRulesTest {
     // ── LAST_WORKING_DAY ──────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("LAST_WORKING_DAY Mon–Fri: July 2026, last day is Thursday Jul 31 → July 31")
-    void lastWorkingDay_July_endIsThursday() {
-        // July 31 2026 = Thursday (workday) → pay date = Jul 31
+    @DisplayName("LAST_WORKING_DAY Mon–Fri: July 2026, last day is Friday Jul 31 → July 31")
+    void lastWorkingDay_July_endIsFriday() {
+        // July 31 2026 = Friday (workday) → pay date = Jul 31
         givenScheduleWithDays(
                 PayDayRule.LAST_WORKING_DAY, null, (short) 25, LocalDate.of(2026, 1, 1), new Short[] {1, 2, 3, 4, 5});
         PayPeriodResponse r = service.periodFor(tenantId, YearMonth.of(2026, 7));
@@ -101,6 +102,90 @@ class PayPeriodRulesTest {
         givenSchedule(PayDayRule.SPECIFIC_DAY, (short) 28, (short) 25, LocalDate.of(2026, 1, 1));
         PayPeriodResponse r = service.periodFor(tenantId, YearMonth.of(2026, 1));
         assertThat(r.payDate()).isEqualTo(LocalDate.of(2026, 2, 28));
+    }
+
+    // ── February, non-leap (2027) and leap (2028) ────────────────────────────
+
+    @Test
+    @DisplayName("LAST_WORKING_DAY Mon–Fri: February 2027 ends on Sunday the 28th → Friday Feb 26")
+    void lastWorkingDay_February2027_nonLeap() {
+        // Feb 28 2027 = Sunday, Feb 27 = Saturday, Feb 26 = Friday
+        givenScheduleWithDays(
+                PayDayRule.LAST_WORKING_DAY, null, (short) 25, LocalDate.of(2027, 1, 1), new Short[] {1, 2, 3, 4, 5});
+        PayPeriodResponse r = service.periodFor(tenantId, YearMonth.of(2027, 2));
+        assertThat(r.end()).isEqualTo(LocalDate.of(2027, 2, 28));
+        assertThat(r.payDate()).isEqualTo(LocalDate.of(2027, 2, 26));
+    }
+
+    @Test
+    @DisplayName("LAST_WORKING_DAY Mon–Fri: February 2028 (leap) ends on Tuesday the 29th → Feb 29")
+    void lastWorkingDay_February2028_leap() {
+        // Feb 29 2028 = Tuesday
+        givenScheduleWithDays(
+                PayDayRule.LAST_WORKING_DAY, null, (short) 25, LocalDate.of(2028, 1, 1), new Short[] {1, 2, 3, 4, 5});
+        PayPeriodResponse r = service.periodFor(tenantId, YearMonth.of(2028, 2));
+        assertThat(r.end()).isEqualTo(LocalDate.of(2028, 2, 29));
+        assertThat(r.payDate()).isEqualTo(LocalDate.of(2028, 2, 29));
+    }
+
+    @Test
+    @DisplayName("SPECIFIC_DAY 28: January 2027 pays Feb 28 2027; the February 2027 period pays March 28")
+    void specificDay_February2027_nonLeap() {
+        givenSchedule(PayDayRule.SPECIFIC_DAY, (short) 28, (short) 25, LocalDate.of(2027, 1, 1));
+        assertThat(service.periodFor(tenantId, YearMonth.of(2027, 1)).payDate()).isEqualTo(LocalDate.of(2027, 2, 28));
+        PayPeriodResponse feb = service.periodFor(tenantId, YearMonth.of(2027, 2));
+        assertThat(feb.payDate()).isEqualTo(LocalDate.of(2027, 3, 28));
+        assertThat(feb.cutoffDate()).isEqualTo(LocalDate.of(2027, 2, 25));
+    }
+
+    @Test
+    @DisplayName("SPECIFIC_DAY 28: January 2028 pays Feb 28 2028, not the leap day; February 2028 pays March 28")
+    void specificDay_February2028_leap() {
+        givenSchedule(PayDayRule.SPECIFIC_DAY, (short) 28, (short) 28, LocalDate.of(2028, 1, 1));
+        assertThat(service.periodFor(tenantId, YearMonth.of(2028, 1)).payDate()).isEqualTo(LocalDate.of(2028, 2, 28));
+        PayPeriodResponse feb = service.periodFor(tenantId, YearMonth.of(2028, 2));
+        assertThat(feb.end()).isEqualTo(LocalDate.of(2028, 2, 29));
+        assertThat(feb.payDate()).isEqualTo(LocalDate.of(2028, 3, 28));
+        assertThat(feb.cutoffDate()).isEqualTo(LocalDate.of(2028, 2, 28));
+    }
+
+    // ── validation refusals (400 at the controller, PayScheduleControllerTest) ─
+
+    @Test
+    @DisplayName("Validation: each invalid schedule is refused with IllegalArgumentException (400)")
+    void validationRefusals() {
+        PayScheduleServiceImpl scheduleService = new PayScheduleServiceImpl(repository);
+        com.infinevo.shared.tenant.TenantContext.set(tenantId);
+        try {
+            LocalDate first = LocalDate.of(2026, 1, 1);
+            assertRefused(
+                    scheduleService, new PayScheduleRequest(List.of(), PayDayRule.LAST_WORKING_DAY, null, 25, first));
+            assertRefused(
+                    scheduleService,
+                    new PayScheduleRequest(List.of(1, 2, 2), PayDayRule.LAST_WORKING_DAY, null, 25, first));
+            assertRefused(
+                    scheduleService,
+                    new PayScheduleRequest(List.of(1, 2, 3, 4, 5), PayDayRule.SPECIFIC_DAY, null, 25, first));
+            assertRefused(
+                    scheduleService,
+                    new PayScheduleRequest(List.of(1, 2, 3, 4, 5), PayDayRule.LAST_DAY_OF_PERIOD, 5, 25, first));
+            assertRefused(
+                    scheduleService,
+                    new PayScheduleRequest(List.of(1, 2, 3, 4, 5), PayDayRule.LAST_WORKING_DAY, null, 0, first));
+            assertRefused(
+                    scheduleService,
+                    new PayScheduleRequest(List.of(1, 2, 3, 4, 5), PayDayRule.LAST_WORKING_DAY, null, 29, first));
+            assertRefused(
+                    scheduleService,
+                    new PayScheduleRequest(
+                            List.of(1, 2, 3, 4, 5), PayDayRule.LAST_WORKING_DAY, null, 25, LocalDate.of(2026, 1, 15)));
+        } finally {
+            com.infinevo.shared.tenant.TenantContext.clear();
+        }
+    }
+
+    private static void assertRefused(PayScheduleServiceImpl scheduleService, PayScheduleRequest request) {
+        assertThatThrownBy(() -> scheduleService.upsert(request)).isInstanceOf(IllegalArgumentException.class);
     }
 
     // ── period-before-first-period guard ─────────────────────────────────────

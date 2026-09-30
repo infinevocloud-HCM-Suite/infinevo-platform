@@ -67,6 +67,9 @@ final class PayScheduleTestSchema {
             if (!tableExists(conn, "core", "lop_policy")) {
                 executeResource(conn, "db/migration/core/V116__lop_policy.sql");
             }
+            if (!constraintExists(conn, "uk_lop_policy_tenant_effective_from")) {
+                executeResource(conn, "db/migration/core/V119__lop_policy_unique_effective_from.sql");
+            }
             if (!tableExists(conn, "payroll", "pay_schedule")) {
                 executeResource(conn, "db/migration/payroll/V054__pay_schedule.sql");
             }
@@ -117,6 +120,15 @@ final class PayScheduleTestSchema {
                 "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?")) {
             ps.setString(1, schema);
             ps.setString(2, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean constraintExists(Connection conn, String name) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM pg_constraint WHERE conname = ?")) {
+            ps.setString(1, name);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
