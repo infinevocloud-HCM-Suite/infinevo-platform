@@ -25,7 +25,11 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Produces payable days, the divisor for that day, the policy id stamped onto pay figures (W-18.2),
  * and the policy's rounding rule.
  * Refuses to guess: throws {@link NoLopPolicyException} when no policy is in force, required configuration
- * is absent, the employee cannot be found, or the period has no payable day.
+ * is absent, the employee cannot be found or has no work location to pick a holiday calendar by, or the
+ * period has no payable day.
+ *
+ * <p>{@link #daysOutsideEmployment} answers the same question for a joiner's or leaver's days outside the
+ * employment window (W-18.2): in the policy's own days, so they are divided by a divisor of the same kind.
  */
 @Service
 public class WorkingDayBasisCalculator {
@@ -95,6 +99,112 @@ public class WorkingDayBasisCalculator {
                 TenantContext.clear();
             }
         }
+    }
+
+    /**
+     * The days of {@code period} before {@code dateOfJoining} or after {@code terminationDate}, counted the
+     * way the policy in force counts the divisor (W-18.2), so that {@code divisor − outside} is what the
+     * employee was employed for:
+     *
+     * <ul>
+     *   <li>a counted basis — {@code ACTUAL_DAYS} with weekends or holidays unpaid, {@code ORG_DAYS} without
+     *       configured days — counts the payable days in the gap by the same working week and holidays;
+     *   <li>a fixed basis — {@code FIXED_30}, {@code ORG_DAYS} with configured days — takes the gap's share
+     *       of the month: calendar days outside × divisor ÷ days in the month;
+     *   <li>{@code ACTUAL_DAYS} with everything payable counts calendar days, as before.
+     * </ul>
+     *
+     * <p>A July 2026 joiner on the 16th under Mon–Fri {@code ORG_DAYS} (divisor 23) is outside for the 11
+     * working days of 1–15 July and is paid 12 of 23, not 8 of 23 as calendar days would give.
+     *
+     * @return the days outside, at scale 2, never more than the divisor; zero when employed all period
+     * @throws NoLopPolicyException as {@link #basisFor}
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal daysOutsideEmployment(
+            UUID tenantId, YearMonth period, UUID employeeId, LocalDate dateOfJoining, LocalDate terminationDate) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(period, "period must not be null");
+        LocalDate from = period.atDay(1);
+        LocalDate to = period.atEndOfMonth();
+        LocalDate employedFrom = dateOfJoining != null && dateOfJoining.isAfter(from) ? dateOfJoining : from;
+        LocalDate employedTo = terminationDate != null && terminationDate.isBefore(to) ? terminationDate : to;
+        if (employedFrom.equals(from) && employedTo.equals(to)) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        UUID previousTenant = TenantContext.current().orElse(null);
+        try {
+            TenantContext.set(tenantId);
+            LopPolicy policy = policyService
+                    .findPolicyInForceEntity(tenantId, to)
+                    .orElseThrow(() -> new NoLopPolicyException(
+                            "No loss-of-pay policy in force for tenant " + tenantId + " in period " + period));
+
+            BigDecimal fixedDivisor = fixedDivisor(policy, period);
+            if (fixedDivisor != null) {
+                long outside = 0;
+                for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+                    if (d.isBefore(employedFrom) || d.isAfter(employedTo)) {
+                        outside++;
+                    }
+                }
+                BigDecimal share = BigDecimal.valueOf(outside)
+                        .multiply(fixedDivisor)
+                        .divide(BigDecimal.valueOf(period.lengthOfMonth()), 2, RoundingMode.HALF_UP);
+                return share.min(fixedDivisor).setScale(2, RoundingMode.HALF_UP);
+            }
+
+            boolean weekendsCount =
+                    policy.getWorkingDayBasis() == WorkingDayBasis.ACTUAL_DAYS && policy.isWeekendsPayable();
+            Set<DayOfWeek> workingDays = weekendsCount
+                    ? null
+                    : resolveWorkingDays(
+                            tenantId,
+                            employeeId,
+                            "WorkingWeekSource bean is required to count a joiner's or leaver's days");
+            Set<LocalDate> holidayDates =
+                    policy.isHolidaysPayable() ? Set.of() : resolveHolidayDates(tenantId, employeeId, from, to);
+            int outside = 0;
+            for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+                if (!d.isBefore(employedFrom) && !d.isAfter(employedTo)) {
+                    continue;
+                }
+                if (workingDays != null && !workingDays.contains(d.getDayOfWeek())) {
+                    continue;
+                }
+                if (holidayDates.contains(d)) {
+                    continue;
+                }
+                outside++;
+            }
+            return BigDecimal.valueOf(outside).setScale(2, RoundingMode.HALF_UP);
+        } finally {
+            if (previousTenant != null) {
+                TenantContext.set(previousTenant);
+            } else {
+                TenantContext.clear();
+            }
+        }
+    }
+
+    /**
+     * The divisor of a basis that does not count days — {@code FIXED_30}, {@code ORG_DAYS} with configured
+     * days, {@code ACTUAL_DAYS} with everything payable (the month's calendar days) — or {@code null} for a
+     * counted one.
+     */
+    private static BigDecimal fixedDivisor(LopPolicy policy, YearMonth period) {
+        return switch (policy.getWorkingDayBasis()) {
+            case FIXED_30 -> BigDecimal.valueOf(30).setScale(2, RoundingMode.HALF_UP);
+            case ORG_DAYS ->
+                policy.getConfiguredDaysPerMonth() == null
+                        ? null
+                        : policy.getConfiguredDaysPerMonth().setScale(2, RoundingMode.HALF_UP);
+            case ACTUAL_DAYS ->
+                policy.isWeekendsPayable() && policy.isHolidaysPayable()
+                        ? BigDecimal.valueOf(period.lengthOfMonth()).setScale(2, RoundingMode.HALF_UP)
+                        : null;
+        };
     }
 
     private WorkingDayBasisResponse computeActualDays(
@@ -248,8 +358,9 @@ public class WorkingDayBasisCalculator {
 
     /**
      * The employee's work location, which picks the holiday calendar. No employee means the tenant's
-     * default calendar. An employee that is unknown, deleted or in another tenant is refused: giving
-     * it the default calendar would be a guess.
+     * default calendar. An employee that is unknown, deleted or in another tenant is refused, and so is
+     * one with no work location (W-18.2 §7): giving either the default calendar would be a guess, and
+     * the pay run fails that employee alone rather than pay them by the wrong holidays.
      */
     private UUID resolveLocationId(UUID tenantId, UUID employeeId) {
         if (employeeId == null) {
@@ -263,7 +374,11 @@ public class WorkingDayBasisCalculator {
                 .findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId)
                 .orElseThrow(() -> new NoLopPolicyException("Employee " + employeeId + " not found in tenant "
                         + tenantId + "; cannot resolve its holiday calendar"));
-        return employee.getWorkLocation() != null ? employee.getWorkLocation().getId() : null;
+        if (employee.getWorkLocation() == null) {
+            throw new NoLopPolicyException("Employee " + employeeId + " has no work location; its holiday calendar"
+                    + " cannot be chosen, so its loss of pay cannot be priced");
+        }
+        return employee.getWorkLocation().getId();
     }
 
     public void setWorkingWeekSource(WorkingWeekSource workingWeekSource) {

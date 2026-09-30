@@ -10,7 +10,9 @@ import java.sql.Statement;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -65,6 +67,10 @@ final class PayRunTestSchema {
             if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "compute_attempt")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V059__payrun_job_progress.sql");
             }
+            // W-18.2: the policy stamp on every computed row.
+            if (!PayrollTestSchema.columnExists(conn, "payroll", "employee_payrun", "lop_policy_id")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V125__employee_payrun_policy_stamp.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -101,19 +107,95 @@ final class PayRunTestSchema {
     static void setPolicy(
             UUID tenantId, String basis, boolean weekendsPayable, boolean holidaysPayable, String rounding)
             throws SQLException {
+        setPolicy(tenantId, basis, null, weekendsPayable, holidaysPayable, rounding);
+    }
+
+    /** As above with {@code configured_days_per_month} — ORG_DAYS with a fixed count (W-18.2). */
+    static void setPolicy(
+            UUID tenantId,
+            String basis,
+            BigDecimal configuredDaysPerMonth,
+            boolean weekendsPayable,
+            boolean holidaysPayable,
+            String rounding)
+            throws SQLException {
         deletePolicy(tenantId);
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO core.lop_policy (tenant_id, working_day_basis, configured_days_per_month, "
                                 + "weekends_payable, holidays_payable, lop_rounding, effective_from) "
-                                + "VALUES (?, ?, NULL, ?, ?, ?, DATE '1900-01-01')")) {
+                                + "VALUES (?, ?, ?, ?, ?, ?, DATE '1900-01-01')")) {
             ps.setObject(1, tenantId);
             ps.setString(2, basis);
-            ps.setBoolean(3, weekendsPayable);
-            ps.setBoolean(4, holidaysPayable);
-            ps.setString(5, rounding);
+            ps.setBigDecimal(3, configuredDaysPerMonth);
+            ps.setBoolean(4, weekendsPayable);
+            ps.setBoolean(5, holidaysPayable);
+            ps.setString(6, rounding);
             ps.executeUpdate();
         }
+    }
+
+    /** The tenant's policy version in force for July 2026 — what a July row's stamp must name. */
+    static UUID policyId(UUID tenantId) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement("SELECT id FROM core.lop_policy WHERE tenant_id = ?"
+                        + " AND effective_from <= DATE '2026-07-31' ORDER BY effective_from DESC LIMIT 1")) {
+            ps.setObject(1, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? (UUID) rs.getObject(1) : null;
+            }
+        }
+    }
+
+    /** One included row's figure state and its five stamp columns, as the database holds them (W-18.2). */
+    record StampRow(
+            UUID employeeId,
+            String computationError,
+            UUID lopPolicyId,
+            String workingDayBasis,
+            BigDecimal payDivisor,
+            BigDecimal payableDays,
+            String lopRounding) {
+
+        boolean fullyStamped() {
+            return lopPolicyId != null
+                    && workingDayBasis != null
+                    && payDivisor != null
+                    && payableDays != null
+                    && lopRounding != null;
+        }
+
+        boolean unstamped() {
+            return lopPolicyId == null
+                    && workingDayBasis == null
+                    && payDivisor == null
+                    && payableDays == null
+                    && lopRounding == null;
+        }
+    }
+
+    static List<StampRow> stamps(UUID tenantId, UUID payrunId) throws SQLException {
+        List<StampRow> result = new ArrayList<>();
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement("SELECT employee_id, computation_error, lop_policy_id,"
+                        + " working_day_basis, pay_divisor, payable_days, lop_rounding FROM payroll.employee_payrun"
+                        + " WHERE tenant_id = ? AND payrun_id = ? AND inclusion_status = 'INCLUDED'")) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, payrunId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new StampRow(
+                            (UUID) rs.getObject(1),
+                            rs.getString(2),
+                            (UUID) rs.getObject(3),
+                            rs.getString(4),
+                            rs.getBigDecimal(5),
+                            rs.getBigDecimal(6),
+                            rs.getString(7)));
+                }
+            }
+        }
+        return result;
     }
 
     static void deletePolicy(UUID tenantId) throws SQLException {

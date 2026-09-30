@@ -2,8 +2,6 @@ package com.infinevo.payroll.payrun;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
 /**
@@ -12,14 +10,16 @@ import java.util.Objects;
  * <pre>
  * lop_days    = Σ LOP_DAYS inputs, capped at payable days, never below zero
  * credit_days = the days by which that sum is below zero; not capped, two months can come back at once
- * outside     = calendar days of the period before date_of_joining or after termination_date
+ * outside     = the period's days before date_of_joining or after termination_date, in the policy's days
  * unpaid_days = lop_days + outside
  * paid_days   = payable days − unpaid_days, floor 0
  * </pre>
  *
- * <p>Days outside the employment window are calendar days, converted by the policy divisor in
- * {@link LopLineContributor} — the legacy rule for joiners, now applied to leavers too (W-29.3 §13
- * decision 2).
+ * <p>Days outside the employment window come from W-18.1's calculator
+ * ({@code WorkingDayBasisCalculator.daysOutsideEmployment}), counted the way the policy counts its
+ * divisor — working days under a working-day basis, the gap's share of the month under a fixed one —
+ * so {@link LopLineContributor} divides like by like (W-18.2). Calendar days divided by a working-day
+ * divisor underpaid every joiner and leaver under such a policy. Nothing here counts calendar days.
  *
  * <p>The sum goes below zero when a {@code LOP_DAYS} reversal lands in a later period than the row it
  * reverses — W-19 moves a reversal of a locked period to the next open one. Those days were deducted
@@ -39,31 +39,18 @@ public record PayRunDays(
         Objects.requireNonNull(creditDays, "creditDays must not be null");
     }
 
-    public static PayRunDays of(
-            BigDecimal payableDays,
-            BigDecimal requestedLopDays,
-            LocalDate periodStart,
-            LocalDate periodEnd,
-            LocalDate dateOfJoining,
-            LocalDate terminationDate) {
+    /**
+     * @param outsideDays the period's days outside the employment window, in the policy's days — zero for
+     *     someone employed all period
+     */
+    public static PayRunDays of(BigDecimal payableDays, BigDecimal requestedLopDays, BigDecimal outsideDays) {
         Objects.requireNonNull(payableDays, "payableDays must not be null");
-        Objects.requireNonNull(periodStart, "periodStart must not be null");
-        Objects.requireNonNull(periodEnd, "periodEnd must not be null");
+        Objects.requireNonNull(outsideDays, "outsideDays must not be null");
 
         BigDecimal requested = requestedLopDays == null ? BigDecimal.ZERO : requestedLopDays;
         BigDecimal lop = requested.max(BigDecimal.ZERO).min(payableDays);
         BigDecimal credit = requested.negate().max(BigDecimal.ZERO);
-
-        long calendarDays = ChronoUnit.DAYS.between(periodStart, periodEnd) + 1;
-        long before = 0;
-        if (dateOfJoining != null && dateOfJoining.isAfter(periodStart)) {
-            before = Math.min(ChronoUnit.DAYS.between(periodStart, dateOfJoining), calendarDays);
-        }
-        long after = 0;
-        if (terminationDate != null && terminationDate.isBefore(periodEnd)) {
-            after = Math.min(ChronoUnit.DAYS.between(terminationDate, periodEnd), calendarDays);
-        }
-        BigDecimal outside = BigDecimal.valueOf(Math.min(before + after, calendarDays));
+        BigDecimal outside = outsideDays.max(BigDecimal.ZERO).min(payableDays);
 
         BigDecimal unpaid = lop.add(outside);
         BigDecimal paid = payableDays.subtract(unpaid).max(BigDecimal.ZERO);
