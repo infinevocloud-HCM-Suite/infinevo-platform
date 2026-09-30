@@ -57,6 +57,20 @@ security:
 brevo:
   api-key: ${BREVO_API_KEY:local_brevo_key}
 
+keycloak:
+  admin:
+    # The Keycloak container's port on the developer machine.
+    url: ${KEYCLOAK_ADMIN_URL:http://localhost:8081}
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    # The dev compose stack's Keycloak admin password (infra/docker/compose.yml). Local only - the
+    # base profile has no default, so no deployment can fall back to it.
+    password: ${KEYCLOAK_ADMIN_PASSWORD:local_keycloak_pw}
+
+invitation:
+  link:
+    # The Vite dev server's accept page.
+    base-url: ${INVITATION_LINK_BASE_URL:http://localhost:5173/invitations/accept}
+
 document:
   link:
     # A local default, like every other secret in this file. It signs links that only ever

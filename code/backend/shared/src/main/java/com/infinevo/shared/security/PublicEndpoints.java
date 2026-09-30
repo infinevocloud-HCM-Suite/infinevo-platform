@@ -32,10 +32,13 @@ public final class PublicEndpoints {
      */
     public static final String DOCUMENT_DOWNLOAD = "/api/v1/documents/download";
 
-    /** {@code GET/POST} — public acceptance of tenant or employee invitation (W-24.2). */
+    /**
+     * {@code POST} only — public acceptance of a user or employee invitation (W-24.2). The single-use token in
+     * the body is the credential; the emailed link opens the frontend page, which makes this call.
+     */
     public static final String INVITATION_ACCEPT = "/api/v1/invitations/accept";
 
-    /** {@code GET/POST} — public decline of tenant or employee invitation (W-24.2). */
+    /** {@code POST} only — public decline of a user or employee invitation (W-24.2), token in the body. */
     public static final String INVITATION_DECLINE = "/api/v1/invitations/decline";
 
     /** Every exact path a request may reach with no bearer token. Grows only on purpose. */
