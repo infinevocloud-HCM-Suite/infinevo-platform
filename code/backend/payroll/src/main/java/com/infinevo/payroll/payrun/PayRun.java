@@ -90,6 +90,9 @@ public class PayRun {
     @Column(name = "total_net_pay", nullable = false, precision = 19, scale = 4)
     private BigDecimal totalNetPay = ZERO_AMOUNT;
 
+    @Column(name = "negative_net_count", nullable = false)
+    private int negativeNetCount;
+
     @Column(name = "computed_at")
     private Instant computedAt;
 
@@ -160,10 +163,15 @@ public class PayRun {
 
     /** {@code COMPUTING → COMPUTED}, with the run totals summed over its rows. */
     public void completeComputation(
-            BigDecimal totalGross, BigDecimal totalDeductions, BigDecimal totalNetPay, String actor, Instant at) {
+            BigDecimal totalGross,
+            BigDecimal totalDeductions,
+            BigDecimal totalNetPay,
+            int negativeNetCount,
+            String actor,
+            Instant at) {
         status.requireTransitionTo(PayRunStatus.COMPUTED);
         this.status = PayRunStatus.COMPUTED;
-        applyTotals(totalGross, totalDeductions, totalNetPay, actor, at);
+        applyTotals(totalGross, totalDeductions, totalNetPay, negativeNetCount, actor, at);
     }
 
     /**
@@ -175,16 +183,23 @@ public class PayRun {
             BigDecimal totalGross,
             BigDecimal totalDeductions,
             BigDecimal totalNetPay,
+            int negativeNetCount,
             String actor,
             Instant at) {
         status.requireTransitionTo(PayRunStatus.FAILED);
         this.status = PayRunStatus.FAILED;
         this.failureReason = truncate(Objects.requireNonNull(reason, "reason must not be null"));
-        applyTotals(totalGross, totalDeductions, totalNetPay, actor, at);
+        applyTotals(totalGross, totalDeductions, totalNetPay, negativeNetCount, actor, at);
     }
 
     private void applyTotals(
-            BigDecimal totalGross, BigDecimal totalDeductions, BigDecimal totalNetPay, String actor, Instant at) {
+            BigDecimal totalGross,
+            BigDecimal totalDeductions,
+            BigDecimal totalNetPay,
+            int negativeNetCount,
+            String actor,
+            Instant at) {
+        this.negativeNetCount = negativeNetCount;
         this.totalGross = Objects.requireNonNull(totalGross, "totalGross must not be null");
         this.totalDeductions = Objects.requireNonNull(totalDeductions, "totalDeductions must not be null");
         this.totalNetPay = Objects.requireNonNull(totalNetPay, "totalNetPay must not be null");
@@ -278,6 +293,11 @@ public class PayRun {
 
     public BigDecimal getTotalNetPay() {
         return totalNetPay;
+    }
+
+    /** Rows whose net pay came out negative in the last computation (W-29.3 §13 decision 4). */
+    public int getNegativeNetCount() {
+        return negativeNetCount;
     }
 
     public Instant getComputedAt() {

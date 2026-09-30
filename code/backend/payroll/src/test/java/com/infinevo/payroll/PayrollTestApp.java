@@ -37,9 +37,22 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
         })
-@EntityScan(basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
+// core.lop entities and repositories only: W-29.3's loss of pay reads LopPolicy through the two
+// beans below. The package is not component-scanned, so its controller and other beans stay out.
+@EntityScan(
+        basePackages = {
+            "com.infinevo.payroll",
+            "com.infinevo.core.approval",
+            "com.infinevo.core.payinput",
+            "com.infinevo.core.lop"
+        })
 @EnableJpaRepositories(
-        basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
+        basePackages = {
+            "com.infinevo.payroll",
+            "com.infinevo.core.approval",
+            "com.infinevo.core.payinput",
+            "com.infinevo.core.lop"
+        })
 public class PayrollTestApp {
 
     public static final ThreadLocal<EmployeeResponse> CURRENT_EMPLOYEE = new ThreadLocal<>();
@@ -58,6 +71,23 @@ public class PayrollTestApp {
                         org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(invocation -> Optional.ofNullable(APPROVER_ID.get()));
         return resolver;
+    }
+
+    @Bean
+    public com.infinevo.core.lop.LopPolicyService lopPolicyService(
+            com.infinevo.core.lop.LopPolicyRepository lopPolicyRepository) {
+        return new com.infinevo.core.lop.LopPolicyService(lopPolicyRepository);
+    }
+
+    /**
+     * W-18.1's calculator for W-29.3. Holidays and the employee record are left out: the pay run
+     * tests seed an ACTUAL_DAYS policy with weekends and holidays payable, which needs neither; the
+     * working week comes from W-28's PayScheduleWorkingWeekSource, which this context scans.
+     */
+    @Bean
+    public com.infinevo.core.lop.WorkingDayBasisCalculator workingDayBasisCalculator(
+            com.infinevo.core.lop.LopPolicyService lopPolicyService) {
+        return new com.infinevo.core.lop.WorkingDayBasisCalculator(lopPolicyService, null, null);
     }
 
     @Bean

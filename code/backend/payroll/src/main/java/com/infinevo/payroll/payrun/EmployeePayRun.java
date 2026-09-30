@@ -30,6 +30,9 @@ public class EmployeePayRun {
     /** Zero at the stored scale, so a new or reset row reads back exactly as it was written. */
     private static final BigDecimal ZERO_AMOUNT = BigDecimal.ZERO.setScale(4);
 
+    /** Zero at the day-count scale (W-29.3 §6). */
+    private static final BigDecimal ZERO_DAYS = BigDecimal.ZERO.setScale(2);
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
@@ -70,6 +73,18 @@ public class EmployeePayRun {
     @Column(name = "net_pay", nullable = false, precision = 19, scale = 4)
     private BigDecimal netPay = ZERO_AMOUNT;
 
+    @Column(name = "lop_days", nullable = false, precision = 10, scale = 2)
+    private BigDecimal lopDays = ZERO_DAYS;
+
+    @Column(name = "unpaid_days", nullable = false, precision = 10, scale = 2)
+    private BigDecimal unpaidDays = ZERO_DAYS;
+
+    @Column(name = "paid_days", nullable = false, precision = 10, scale = 2)
+    private BigDecimal paidDays = ZERO_DAYS;
+
+    @Column(name = "unpriced_input_count", nullable = false)
+    private int unpricedInputCount;
+
     @Column(name = "computed_at")
     private Instant computedAt;
 
@@ -102,9 +117,18 @@ public class EmployeePayRun {
         this.updatedBy = actor;
     }
 
-    /** The row's totals after a successful computation; clears any earlier error. */
-    public void recordComputation(PayRunTotals totals, String actor, Instant at) {
+    /**
+     * The row's totals and day figures after a successful computation; clears any earlier error.
+     * {@code unpricedInputCount} is the number of overtime rows with hours and no amount (W-29.3 §3).
+     */
+    public void recordComputation(
+            PayRunTotals totals, PayRunDays days, int unpricedInputCount, String actor, Instant at) {
         Objects.requireNonNull(totals, "totals must not be null");
+        Objects.requireNonNull(days, "days must not be null");
+        this.lopDays = days.lopDays();
+        this.unpaidDays = days.unpaidDays();
+        this.paidDays = days.paidDays();
+        this.unpricedInputCount = unpricedInputCount;
         this.grossEarnings = totals.grossEarnings().raw();
         this.totalReimbursements = totals.totalReimbursements().raw();
         this.totalBenefits = totals.totalBenefits().raw();
@@ -124,6 +148,10 @@ public class EmployeePayRun {
         this.totalBenefits = ZERO_AMOUNT;
         this.totalDeductions = ZERO_AMOUNT;
         this.netPay = ZERO_AMOUNT;
+        this.lopDays = ZERO_DAYS;
+        this.unpaidDays = ZERO_DAYS;
+        this.paidDays = ZERO_DAYS;
+        this.unpricedInputCount = 0;
         this.computedAt = Objects.requireNonNull(at, "at must not be null");
         this.computationError = error.length() > 500 ? error.substring(0, 500) : error;
         this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
@@ -187,6 +215,22 @@ public class EmployeePayRun {
 
     public BigDecimal getNetPay() {
         return netPay;
+    }
+
+    public BigDecimal getLopDays() {
+        return lopDays;
+    }
+
+    public BigDecimal getUnpaidDays() {
+        return unpaidDays;
+    }
+
+    public BigDecimal getPaidDays() {
+        return paidDays;
+    }
+
+    public int getUnpricedInputCount() {
+        return unpricedInputCount;
     }
 
     public Instant getComputedAt() {

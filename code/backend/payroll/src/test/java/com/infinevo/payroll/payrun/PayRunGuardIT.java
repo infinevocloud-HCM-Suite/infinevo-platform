@@ -200,6 +200,7 @@ class PayRunGuardIT {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
+                0,
                 null,
                 null,
                 null,
