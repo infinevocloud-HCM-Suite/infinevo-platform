@@ -145,4 +145,17 @@ public class WorkLocationServiceImpl
         }
         return e;
     }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public void delete(UUID id) {
+        UUID tenantId = com.infinevo.shared.tenant.TenantContext.require();
+        WorkLocation entity = workLocationRepository
+                .findByIdAndTenantId(id, tenantId)
+                .orElseThrow(() -> new NotFoundException(kind(), id));
+        if (entity.isFilingAddress()) {
+            throw new FilingAddressCannotBeDeletedException(entity.getCode());
+        }
+        super.delete(id);
+    }
 }

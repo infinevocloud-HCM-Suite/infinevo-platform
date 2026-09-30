@@ -1,3 +1,4 @@
-// Pay runs, tax, claims, investment proofs. Must not import from hrms.
-// Screens and slices land here as their work items are built.
-export default {};
+// Payroll module entry point (W-45 §5).
+// Screens and slices land here as Payroll features are built.
+export const routes = [];
+export const reducers = {};

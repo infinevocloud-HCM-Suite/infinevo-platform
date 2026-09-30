@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { config } from '../config.js';
 
 /**
  * The one HTTP client. Every call goes through this.
@@ -17,37 +18,47 @@ import axios from 'axios';
  * authenticated principal (W-08). A tenant the client can set is a tenant the client can
  * change.
  */
-/**
- * Supplies a currently-valid bearer token, or null when there is none.
- *
- * The shell registers the Keycloak adapter here at startup (main.jsx). It is registered
- * rather than imported so that `shared` keeps depending on nothing - the shell composes
- * shared, not the other way round - and so a test can hand in its own provider.
- */
+
 let tokenProvider = null;
+let unauthorizedHandler = null;
+let tenantSuspendedHandler = null;
 
 export function setTokenProvider(provider) {
   tokenProvider = provider;
 }
 
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
+}
+
+export function setTenantSuspendedHandler(handler) {
+  tenantSuspendedHandler = handler;
+}
+
+// Aliases matching spec conventions
+export function onUnauthorized(handler) {
+  setUnauthorizedHandler(handler);
+}
+
+export function onTenantSuspended(handler) {
+  setTenantSuspendedHandler(handler);
+}
+
 export const apiClient = axios.create({
-  baseURL:
-    (typeof window !== 'undefined' && window.__ENV?.API_BASE_URL) ||
-    import.meta.env.VITE_API_BASE_URL ||
-    '/api',
+  baseURL: config.apiBaseUrl,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
-apiClient.interceptors.request.use(async (config) => {
+apiClient.interceptors.request.use(async (reqConfig) => {
   // Asking the provider each time - not caching a token read at startup - is what keeps
   // a 15-minute access token from being sent expired; the adapter refreshes it first.
   const token = tokenProvider ? await tokenProvider() : null;
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    reqConfig.headers.Authorization = `Bearer ${token}`;
   }
   // Nothing tenant-shaped is added here, on purpose. See the note above.
-  return config;
+  return reqConfig;
 });
 
 apiClient.interceptors.response.use(
@@ -55,32 +66,37 @@ apiClient.interceptors.response.use(
   (error) => {
     const body = error.response?.data;
     const code = body?.code ?? 'INTERNAL';
-    // The backend's ApiErrorResponse envelope - see shared/error/ApiErrorResponse.java.
-    //
-    // W-12.3: MODULE_NOT_ENTITLED (403) is intentionally different from FORBIDDEN (403).
-    //   - MODULE_NOT_ENTITLED: the tenant has not purchased the module — the shell should
-    //     offer an upgrade path or an "ask your admin" message, not a "permission denied".
-    //   - FORBIDDEN: the user does not hold the action — the shell should hide/disable the
-    //     button or show an access-denied message.
-    //   - TENANT_SUSPENDED: the whole subscription is frozen — the shell should show a
-    //     suspension notice.
-    //
-    // Callers can discriminate on `err.code`:
-    //   'MODULE_NOT_ENTITLED'  → module upgrade prompt
-    //   'TENANT_SUSPENDED'     → suspension screen
-    //   'FORBIDDEN'            → action denied
-    //   'UNAUTHORIZED'         → re-login
+    const isUnauthorized =
+      code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED' || error.response?.status === 401;
+    const isTenantSuspended = code === 'TENANT_SUSPENDED';
+
+    if (isUnauthorized && typeof unauthorizedHandler === 'function') {
+      try {
+        unauthorizedHandler();
+      } catch (err) {
+        console.error('unauthorizedHandler threw error', err);
+      }
+    }
+
+    if (isTenantSuspended && typeof tenantSuspendedHandler === 'function') {
+      try {
+        tenantSuspendedHandler();
+      } catch (err) {
+        console.error('tenantSuspendedHandler threw error', err);
+      }
+    }
+
+    // Callers can discriminate on `err.code` or helper booleans
     return Promise.reject({
       code,
       message: body?.message ?? 'Something went wrong',
       fieldErrors: body?.fieldErrors ?? {},
       traceId: body?.traceId,
       status: error.response?.status,
-      // Convenience booleans for common branch points
       isModuleNotEntitled: code === 'MODULE_NOT_ENTITLED',
-      isTenantSuspended: code === 'TENANT_SUSPENDED',
+      isTenantSuspended,
       isForbidden: code === 'FORBIDDEN',
-      isUnauthorized: code === 'UNAUTHORIZED' || error.response?.status === 401,
+      isUnauthorized,
     });
   },
 );

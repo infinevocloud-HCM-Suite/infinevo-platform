@@ -1,3 +1,4 @@
-// Attendance experience, overtime requests, projects, timesheets. Must not import from payroll.
-// Screens and slices land here as their work items are built.
-export default {};
+// HRMS module entry point (W-45 §5).
+// Screens and slices land here as HRMS features are built.
+export const routes = [];
+export const reducers = {};

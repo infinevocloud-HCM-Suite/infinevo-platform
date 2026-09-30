@@ -48,7 +48,9 @@ public class DelegationController {
     public DelegationResponse createDelegation(@RequestBody DelegationCreateRequest request) {
         UUID tenantId = TenantContext.require();
         EmployeeResponse current = currentCallerEmployee();
-        return delegationService.createDelegation(tenantId, current.id(), request);
+        return delegationService
+                .createDelegation(tenantId, current.id(), request)
+                .seenBy(current.id());
     }
 
     @GetMapping("/api/v1/approval-delegations")
@@ -57,7 +59,12 @@ public class DelegationController {
             @RequestParam(name = "employeeId", required = false) UUID employeeId,
             @RequestParam(name = "activeOn", required = false) LocalDate activeOn) {
         UUID tenantId = TenantContext.require();
-        return delegationService.getDelegations(tenantId, employeeId, activeOn);
+        UUID callerEmployeeId =
+                employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
+        UUID effectiveEmployeeId = employeeId != null ? employeeId : callerEmployeeId;
+        return delegationService.getDelegations(tenantId, effectiveEmployeeId, activeOn).stream()
+                .map(delegation -> delegation.seenBy(callerEmployeeId))
+                .toList();
     }
 
     @DeleteMapping("/api/v1/approval-delegations/{id}")

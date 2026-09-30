@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { createContext, useContext, useState, useEffect, createElement } from 'react';
-import { apiClient } from '../../shared/api/client.js';
+import { fetchNavigation } from './navigationService.js';
 import { onTenantChange } from '../auth/keycloak.js';
 
 /**
@@ -17,10 +17,11 @@ import { onTenantChange } from '../auth/keycloak.js';
 
 export const NavigationContext = createContext(null);
 
-const EMPTY = Object.freeze({ items: [], actions: [], loading: false, loaded: false, error: null });
+const EMPTY = Object.freeze({ items: [], actions: [], modules: [], loading: false, loaded: false, error: null });
 
 let state = EMPTY;
 const subscribers = new Set();
+const feedFetchSubscribers = new Set();
 
 function publish(next) {
   state = next;
@@ -32,23 +33,36 @@ export function resetNavigationFeed() {
   publish(EMPTY);
 }
 
+/** Subscribe to navigation feed fetch attempts (e.g. to clear suspended boundary). */
+export function onFeedFetch(listener) {
+  feedFetchSubscribers.add(listener);
+  return () => feedFetchSubscribers.delete(listener);
+}
+
 /** Fetches the feed and publishes it to every mounted hook. Rejects with the API error. */
 export async function fetchNavigationFeed() {
   publish({ ...state, loading: true, error: null });
+  feedFetchSubscribers.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      // ignore listener error
+    }
+  });
   try {
-    const endpoint = apiClient.defaults?.baseURL?.endsWith('/api') ? '/v1/navigation' : '/api/v1/navigation';
-    const response = await apiClient.get(endpoint);
+    const response = await fetchNavigation();
     const data = response?.data || {};
     publish({
       items: Array.isArray(data.items) ? data.items : [],
       actions: Array.isArray(data.actions) ? data.actions : [],
+      modules: Array.isArray(data.modules) ? data.modules : [],
       loading: false,
       loaded: true,
       error: null,
     });
     return state;
   } catch (err) {
-    publish({ items: [], actions: [], loading: false, loaded: true, error: err });
+    publish({ items: [], actions: [], modules: [], loading: false, loaded: true, error: err });
     throw err;
   }
 }
@@ -66,13 +80,17 @@ NavigationProvider.propTypes = {
   value: PropTypes.shape({
     items: PropTypes.array,
     actions: PropTypes.oneOfType([PropTypes.array, PropTypes.instanceOf(Set)]),
+    modules: PropTypes.array,
     loading: PropTypes.bool,
     error: PropTypes.object,
   }).isRequired,
 };
 
 /**
- * The feed as the shell sees it: `items`, `actions`, `loading`, `error`, and `refetch`.
+ * The feed as the shell sees it: `items`, `actions`, `modules`, `loading`, `error`, and `refetch`.
+ *
+ * `loading` is true from the first render until the first fetch settles - not only while a
+ * request is in flight - so the shell never reads "not asked yet" as "the feed is empty".
  *
  * The first mounted hook triggers the one fetch after login; every hook refetches when the
  * tenant changes. Inside a NavigationProvider the provided value is returned unchanged.
@@ -103,7 +121,8 @@ export function useNavigation() {
   return {
     items: active.items || [],
     actions: active.actions || [],
-    loading: !!active.loading,
+    modules: active.modules || [],
+    loading: !!active.loading || (!provided && !active.loaded),
     error: active.error || null,
     refetch: fetchNavigationFeed,
   };

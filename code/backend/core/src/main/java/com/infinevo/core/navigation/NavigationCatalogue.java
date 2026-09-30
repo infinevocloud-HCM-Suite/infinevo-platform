@@ -81,7 +81,36 @@ public final class NavigationCatalogue {
                                     null,
                                     "core.org.read"))),
             new ItemDefinition("core.roles", "nav.roles", "/roles", "/api/v1/roles", null, "core.role.read"),
-            new ItemDefinition("core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"));
+            new ItemDefinition("core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"),
+            new ItemDefinition(
+                    "core.approvals",
+                    "nav.approvals",
+                    "/approvals",
+                    "/api/v1/approvals/pending",
+                    null,
+                    "core.approval.decide",
+                    List.of(
+                            new ItemDefinition(
+                                    "core.approvals.inbox",
+                                    "nav.approvals.inbox",
+                                    "/approvals",
+                                    "/api/v1/approvals/pending",
+                                    null,
+                                    "core.approval.decide"),
+                            new ItemDefinition(
+                                    "core.approvals.delegations",
+                                    "nav.approvals.delegations",
+                                    "/approvals/delegations",
+                                    "/api/v1/approval-delegations",
+                                    null,
+                                    "core.approval.delegate"),
+                            new ItemDefinition(
+                                    "core.approvals.definitions",
+                                    "nav.approvals.definitions",
+                                    "/approvals/definitions",
+                                    "/api/v1/approval-definitions",
+                                    null,
+                                    "core.approval_definition.manage"))));
 
     private NavigationCatalogue() {}
 }

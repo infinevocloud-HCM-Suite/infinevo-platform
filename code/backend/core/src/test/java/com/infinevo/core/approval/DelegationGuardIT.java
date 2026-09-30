@@ -127,6 +127,7 @@ class DelegationGuardIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.delegatorEmployeeId").value(delegatorEmpId.toString()))
                 .andExpect(jsonPath("$.delegateEmployeeId").value(delegateEmpId.toString()))
                 .andExpect(jsonPath("$.flowTypes").value("LEAVE"))
+                .andExpect(jsonPath("$.revocable").value(true))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -138,7 +139,8 @@ class DelegationGuardIT extends AbstractIntegrationTest {
         mvc.perform(get("/api/v1/approval-delegations").with(jwt().jwt(b -> b.subject(delegatorSub.toString())
                         .claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(delegationId.toString()));
+                .andExpect(jsonPath("$[0].id").value(delegationId.toString()))
+                .andExpect(jsonPath("$[0].revocable").value(true));
 
         // Delete -> 204 No Content
         mvc.perform(delete("/api/v1/approval-delegations/" + delegationId)
@@ -152,6 +154,68 @@ class DelegationGuardIT extends AbstractIntegrationTest {
                                 b.subject(delegatorSub.toString()).claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    @DisplayName("With no employeeId the list is the caller's own, and only the delegator's rows are revocable")
+    void listDefaultsToTheCallersOwnAndMarksWhoMayRevoke() throws Exception {
+        // A second admin, who is the delegate of the first one's delegation and makes one of their own.
+        UUID delegateSub = UUID.randomUUID();
+        UUID delegateAccountId = AuthzTestSchema.insertMember(tenantId, delegateSub, "delegate@delegation.test");
+        AuthzTestSchema.grant(tenantId, delegateAccountId, AuthzTestSchema.roleId(tenantId, "tenant-admin"));
+        employeeService.linkLogin(delegateEmpId, delegateAccountId);
+
+        // A third admin whose delegation involves neither of them.
+        UUID strangerSub = UUID.randomUUID();
+        UUID strangerAccountId = AuthzTestSchema.insertMember(tenantId, strangerSub, "stranger@delegation.test");
+        AuthzTestSchema.grant(tenantId, strangerAccountId, AuthzTestSchema.roleId(tenantId, "tenant-admin"));
+        UUID strangerEmpId = AuthzTestSchema.insertEmployee(tenantId, "EMP-404", "Stranger");
+        employeeService.linkLogin(strangerEmpId, strangerAccountId);
+        UUID bystanderEmpId = AuthzTestSchema.insertEmployee(tenantId, "EMP-405", "Bystander");
+
+        String mine = createDelegationAs(delegatorSub, delegateEmpId);
+        String strangers = createDelegationAs(strangerSub, bystanderEmpId);
+
+        // The delegator sees their own row, revocable, and not the stranger's.
+        mvc.perform(get("/api/v1/approval-delegations").with(jwt().jwt(b -> b.subject(delegatorSub.toString())
+                        .claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(mine))
+                .andExpect(jsonPath("$[0].revocable").value(true));
+
+        // The delegate sees the same row, because it was made to them - but may not revoke it.
+        mvc.perform(get("/api/v1/approval-delegations").with(jwt().jwt(b -> b.subject(delegateSub.toString())
+                        .claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(mine))
+                .andExpect(jsonPath("$[0].revocable").value(false));
+
+        // ... and the endpoint agrees with the flag.
+        mvc.perform(delete("/api/v1/approval-delegations/" + mine).with(jwt().jwt(b -> b.subject(delegateSub.toString())
+                        .claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(get("/api/v1/approval-delegations").with(jwt().jwt(b -> b.subject(strangerSub.toString())
+                        .claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(strangers));
+    }
+
+    private String createDelegationAs(UUID sub, UUID delegateId) throws Exception {
+        DelegationCreateRequest request = new DelegationCreateRequest(
+                delegateId, LocalDate.now(), LocalDate.now().plusDays(5), "LEAVE");
+        String body = mvc.perform(post("/api/v1/approval-delegations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(jwt().jwt(b -> b.subject(sub.toString()).claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readValue(body, DelegationResponse.class).id().toString();
     }
 
     // Instances reference employees. Left behind, they block every later suite that wipes

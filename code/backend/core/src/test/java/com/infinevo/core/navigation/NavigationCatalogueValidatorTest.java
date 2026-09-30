@@ -94,7 +94,10 @@ class NavigationCatalogueValidatorTest {
                 "/api/v1/designations",
                 "/api/v1/work-locations",
                 "/api/v1/roles",
-                "/api/v1/audit");
+                "/api/v1/audit",
+                "/api/v1/approvals/pending",
+                "/api/v1/approval-delegations",
+                "/api/v1/approval-definitions");
 
         assertThat(NavigationCatalogueValidator.missingEndpoints(
                         NavigationCatalogue.DEFAULT_ITEMS, shippedGetEndpoints))
