@@ -30,6 +30,12 @@ import org.springframework.stereotype.Component;
  *
  * <p>Neither line exceeds its base, so a basis whose divisor is shorter than the calendar month
  * cannot deduct more than the month was worth.
+ *
+ * <p>{@code credit_days} — a {@code LOP_DAYS} reversal that landed in this period for a month already
+ * paid — are refunded by the same formula, at this period's salary and divisor: an {@code EARNING}
+ * line, code {@code LOP_REVERSAL}, and a {@code BENEFIT} line, code {@code LOP_BENEFIT_REVERSAL},
+ * which {@link PayRunTotals} adds back. The pay-input kinds do the same under {@code <KIND>_REVERSAL}
+ * ({@link PayInputLineContributor}).
  */
 @Component
 @Order(200)
@@ -39,12 +45,17 @@ public class LopLineContributor implements PayLineContributor {
     static final String LOP_NAME = "Loss of pay";
     static final String LOP_BENEFIT_CODE = "LOP_BENEFIT";
     static final String LOP_BENEFIT_NAME = "Loss of pay - employer benefits";
+    static final String LOP_REVERSAL_CODE = "LOP_REVERSAL";
+    static final String LOP_REVERSAL_NAME = "Loss of pay reversal";
+    static final String LOP_BENEFIT_REVERSAL_CODE = "LOP_BENEFIT_REVERSAL";
+    static final String LOP_BENEFIT_REVERSAL_NAME = "Loss of pay reversal - employer benefits";
 
     @Override
     public List<PayLine> contribute(PayRunEmployeeContext ctx) {
         Objects.requireNonNull(ctx, "ctx must not be null");
         BigDecimal unpaid = ctx.days().unpaidDays();
-        if (unpaid.signum() <= 0) {
+        BigDecimal credit = ctx.days().creditDays();
+        if (unpaid.signum() <= 0 && credit.signum() <= 0) {
             return List.of();
         }
         BigDecimal divisor = ctx.basis().divisor();
@@ -69,7 +80,7 @@ public class LopLineContributor implements PayLineContributor {
             }
         }
 
-        List<PayLine> lines = new ArrayList<>(2);
+        List<PayLine> lines = new ArrayList<>(4);
         Money lop = scaled(earningBase, unpaid, divisor, ctx.lopRounding());
         if (lop.isPositive()) {
             lines.add(new PayLine(LineKind.DEDUCTION, LineSource.LOP, null, LOP_CODE, LOP_NAME, lop, false));
@@ -79,15 +90,32 @@ public class LopLineContributor implements PayLineContributor {
             lines.add(new PayLine(
                     LineKind.BENEFIT, LineSource.LOP, null, LOP_BENEFIT_CODE, LOP_BENEFIT_NAME, benefitLop, false));
         }
+        // Wages given back, so taxable as the earnings they were deducted from.
+        Money refund = scaled(earningBase, credit, divisor, ctx.lopRounding());
+        if (refund.isPositive()) {
+            lines.add(new PayLine(
+                    LineKind.EARNING, LineSource.LOP, null, LOP_REVERSAL_CODE, LOP_REVERSAL_NAME, refund, true));
+        }
+        Money benefitRefund = scaled(benefitBase, credit, divisor, ctx.lopRounding());
+        if (benefitRefund.isPositive()) {
+            lines.add(new PayLine(
+                    LineKind.BENEFIT,
+                    LineSource.LOP,
+                    null,
+                    LOP_BENEFIT_REVERSAL_CODE,
+                    LOP_BENEFIT_REVERSAL_NAME,
+                    benefitRefund,
+                    false));
+        }
         return lines;
     }
 
-    /** base × unpaid ÷ divisor — multiplied first so the one rounding carries the least error. */
-    static Money scaled(Money base, BigDecimal unpaid, BigDecimal divisor, LopRounding rounding) {
-        if (!base.isPositive()) {
+    /** base × days ÷ divisor — multiplied first so the one rounding carries the least error. */
+    static Money scaled(Money base, BigDecimal days, BigDecimal divisor, LopRounding rounding) {
+        if (!base.isPositive() || days.signum() <= 0) {
             return Money.ZERO;
         }
-        Money amount = round(base.multiply(unpaid).divide(divisor), rounding);
+        Money amount = round(base.multiply(days).divide(divisor), rounding);
         return amount.compareTo(base) > 0 ? base : amount;
     }
 

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -180,7 +181,7 @@ class PayRunResumeTest {
     }
 
     @Test
-    @DisplayName("A slow worker overtaken by a newer attempt stops at its next report and never writes its progress")
+    @DisplayName("A slow worker overtaken by a newer attempt stops at its next employee and never writes its progress")
     void anOvertakenWorkerStopsAtItsNextReport() {
         when(salaryService.versionInForce(eq(TENANT), any(), eq(JULY.atEndOfMonth())))
                 .thenAnswer(invocation -> {
@@ -197,6 +198,12 @@ class PayRunResumeTest {
                 .isInstanceOf(SupersededPayRunJobException.class);
 
         assertThat(reports).isEmpty();
+        // Overtaken while on its first employee: the next is never touched, and no row is marked failed.
+        verify(lines, times(1)).deleteByTenantIdAndEmployeePayrunId(eq(TENANT), any());
+        assertThat(rows.subList(3, 5)).allSatisfy(row -> {
+            assertThat(row.getComputedAttempt()).isZero();
+            assertThat(row.getComputationError()).isNull();
+        });
         assertThat(run.getComputeAttempt()).isEqualTo(3);
         assertThat(run.getProgressDone()).isZero();
         assertThat(run.getStatus()).isEqualTo(PayRunStatus.COMPUTING);

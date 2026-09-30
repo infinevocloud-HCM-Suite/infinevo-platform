@@ -46,8 +46,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       the policy's {@code lop_rounding}, and the ids of the pro-rata earning and benefit components
  *       (one query per catalogue). Nothing on this list is read per employee.
  *   <li><b>Each included employee not yet at this attempt</b>, in a transaction of its own
- *       ({@code REQUIRES_NEW}): delete the employee's lines, read the salary version in force at the
- *       period's end and the working-day basis (W-18.1), work out the day figures, run every
+ *       ({@code REQUIRES_NEW}): lock the run's row and check the attempt again, so a worker a newer
+ *       attempt has overtaken writes nothing more; delete the employee's lines, read the salary
+ *       version in force at the period's end and the working-day basis (W-18.1), work out the day figures, run every
  *       contributor in {@code @Order} — each seeing the lines before it — write the lines in one batch,
  *       sum them onto the row and stamp it with the attempt. An employee that throws (no salary, no
  *       loss-of-pay policy, a lost catalogue component) rolls back alone; its lines are cleared and the
@@ -184,10 +185,14 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
             try {
                 employeeTransaction.executeWithoutResult(
                         status -> computeOne(run, row, employees.get(row.getEmployeeId()), inputs, attempt, actor));
+            } catch (SupersededPayRunJobException e) {
+                // Overtaken, not failed: the row belongs to the newer attempt now.
+                throw e;
             } catch (RuntimeException e) {
                 String error = describe(e);
                 log.warn("Pay run {}: employee {} could not be computed: {}", run.getId(), row.getEmployeeId(), error);
                 employeeTransaction.executeWithoutResult(status -> {
+                    requireCurrentAttempt(run.getId(), tenantId, attempt);
                     lines.deleteByTenantIdAndEmployeePayrunId(tenantId, row.getId());
                     EmployeePayRun fresh = employeePayRuns.findById(row.getId()).orElseThrow();
                     fresh.recordError(error, attempt, actor, now());
@@ -204,18 +209,28 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
 
     /**
      * The run's own counter first, then the caller's reporter — the job's percentage on the worker. A
-     * worker that was only slow, not dead, and has been overtaken by a newer attempt stops here, at its
-     * next report, instead of writing over the newer attempt's progress.
+     * worker that was only slow, not dead, and has been overtaken by a newer attempt stops here instead
+     * of writing over the newer attempt's progress: the row is locked, so a resume cannot slip in
+     * between the check and the write.
      */
     private void report(UUID payrunId, UUID tenantId, int attempt, int done, int total, ProgressReporter reporter) {
         runTransaction.executeWithoutResult(status -> {
-            PayRun run = payRuns.findByIdAndTenantId(payrunId, tenantId)
-                    .orElseThrow(() -> new PayRunNotFoundException(payrunId));
-            requireAttempt(run, attempt);
+            PayRun run = requireCurrentAttempt(payrunId, tenantId, attempt);
             run.reportProgress(done);
             payRuns.save(run);
         });
         reporter.report(done, total);
+    }
+
+    /**
+     * The run, locked for the rest of the caller's transaction and still {@code COMPUTING} at this
+     * attempt. A resume takes the same lock before it moves the attempt on, so whatever the caller
+     * writes next is written before the newer attempt starts, or not at all.
+     */
+    private PayRun requireCurrentAttempt(UUID payrunId, UUID tenantId, int attempt) {
+        PayRun run = payRuns.findForUpdate(payrunId, tenantId).orElseThrow(() -> new PayRunNotFoundException(payrunId));
+        requireAttempt(run, attempt);
+        return run;
     }
 
     private static void requireAttempt(PayRun run, int attempt) {
@@ -241,7 +256,9 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 .orElse(LopRounding.HALF_UP_2);
         Set<UUID> proRata = new HashSet<>();
         runTransaction.executeWithoutResult(status -> {
+            // A variable earning is never scaled, whatever its flag says (W-29.3 §3).
             earningRepository.findAllByTenantIdAndProRataTrueAndDeletedFalse(tenantId).stream()
+                    .filter(earning -> !earning.isVariable())
                     .map(SalaryComponent::getId)
                     .forEach(proRata::add);
             benefitRepository.findAllByTenantIdAndProRataTrueAndDeletedFalse(tenantId).stream()
@@ -253,6 +270,7 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
 
     private void computeOne(
             PayRun run, EmployeePayRun row, EmployeeResponse employee, RunInputs inputs, int attempt, String actor) {
+        requireCurrentAttempt(run.getId(), run.getTenantId(), attempt);
         // A row an earlier attempt computed, or failed on, starts clean.
         lines.deleteByTenantIdAndEmployeePayrunId(run.getTenantId(), row.getId());
         if (employee == null) {

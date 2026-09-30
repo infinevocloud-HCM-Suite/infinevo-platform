@@ -103,8 +103,9 @@ public class PayrunQueueListener implements QueueConsumer<String> {
     }
 
     /**
-     * Computes the attempt the payload names, reporting progress onto the job. Every report touches the
-     * job's {@code updated_at}, which is what keeps the run out of the 15-minute stale window.
+     * Computes the attempt the payload names, reporting progress onto the job. A report that moves the
+     * percentage touches the job's {@code updated_at}; every report touches the run's — together they
+     * keep a healthy run out of the 15-minute stale window.
      */
     protected PayRunResponse processPayrunPayload(String jobId, String payload) {
         PayRunJobPayload job = PayRunJobPayload.fromJson(payload);

@@ -117,7 +117,14 @@ class PayRunResumeIT extends AbstractIntegrationTest {
                 .as("within the stale window")
                 .isInstanceOf(PayRunComputeInProgressException.class);
 
+        // The job's percentage only moves when it changes; the run's counter moves on every report.
+        // A job 16 minutes quiet with a run still reporting is a healthy worker, not a dead one.
         PayRunTestSchema.backdateJob(first.jobId(), 16);
+        assertThatThrownBy(() -> payRunService.compute(runId))
+                .as("the job is quiet but the run reported a moment ago")
+                .isInstanceOf(PayRunComputeInProgressException.class);
+
+        PayRunTestSchema.backdateRun(runId, 16);
         ComputeAcceptedResponse second = payRunService.compute(runId);
         assertThat(second.computeAttempt()).isEqualTo(2);
         assertThat(payRunService.get(runId).progressDone())

@@ -190,7 +190,7 @@ public class PayRunServiceImpl implements PayRunService {
     @Override
     @Transactional
     public PayRunResponse lock(UUID id) {
-        PayRun run = require(id);
+        PayRun run = requireForUpdate(id);
         // Refuse before touching the period lock, so a 409 leaves nothing behind.
         run.getStatus().requireTransitionTo(PayRunStatus.LOCKED);
         payInputService.lock(run.getPeriod());
@@ -203,7 +203,7 @@ public class PayRunServiceImpl implements PayRunService {
     @Override
     @Transactional
     public PayRunResponse cancel(UUID id) {
-        PayRun run = require(id);
+        PayRun run = requireForUpdate(id);
         run.cancel(currentActor(), Instant.now().truncatedTo(ChronoUnit.MICROS));
         PayRun saved = payRuns.saveAndFlush(run);
         log.info("Cancelled pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
@@ -284,8 +284,9 @@ public class PayRunServiceImpl implements PayRunService {
 
     /**
      * The stale rule (W-29.4 §3): the run's job is gone; or finished — {@code FAILED} after its last
-     * delivery, so no worker will ever finish the run; or has not been touched — every progress report
-     * touches it — for {@link #STALE_AFTER}.
+     * delivery, so no worker will ever finish the run; or neither the job nor the run has been touched
+     * for {@link #STALE_AFTER}. Every progress report writes the run's counter; the job's percentage
+     * only moves when it changes, which on a large run is not every report.
      */
     private boolean isAbandoned(PayRun run, UUID tenantId) {
         if (run.getJobId() == null) {
@@ -298,7 +299,11 @@ public class PayRunServiceImpl implements PayRunService {
         if (job.get().status() == JobState.COMPLETED || job.get().status() == JobState.FAILED) {
             return true;
         }
-        return job.get().updatedAt().isBefore(Instant.now().minus(STALE_AFTER));
+        Instant lastTouched = job.get().updatedAt();
+        if (run.getUpdatedAt() != null && run.getUpdatedAt().isAfter(lastTouched)) {
+            lastTouched = run.getUpdatedAt();
+        }
+        return lastTouched.isBefore(Instant.now().minus(STALE_AFTER));
     }
 
     /**
@@ -346,6 +351,13 @@ public class PayRunServiceImpl implements PayRunService {
         Objects.requireNonNull(id, "id must not be null");
         UUID tenantId = TenantContext.require();
         return payRuns.findByIdAndTenantId(id, tenantId).orElseThrow(() -> new PayRunNotFoundException(id));
+    }
+
+    /** For a status change: the row is locked, so a compute, a lock and a cancel take turns. */
+    private PayRun requireForUpdate(UUID id) {
+        Objects.requireNonNull(id, "id must not be null");
+        UUID tenantId = TenantContext.require();
+        return payRuns.findForUpdate(id, tenantId).orElseThrow(() -> new PayRunNotFoundException(id));
     }
 
     private static boolean violates(Throwable e, String constraint) {

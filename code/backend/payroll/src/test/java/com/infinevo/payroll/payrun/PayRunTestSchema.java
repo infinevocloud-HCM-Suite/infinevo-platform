@@ -338,6 +338,14 @@ final class PayRunTestSchema {
                 jobId);
     }
 
+    /** The run's own counter last moved {@code minutes} ago — the other half of the stale rule. */
+    static void backdateRun(UUID payrunId, int minutes) throws SQLException {
+        execute(
+                "UPDATE payroll.payrun SET updated_at = now() - make_interval(mins => ?) WHERE id = ?",
+                minutes,
+                payrunId);
+    }
+
     /** Included rows of the run stamped with {@code attempt}. */
     static int rowsAtAttempt(UUID tenantId, UUID payrunId, int attempt) throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
