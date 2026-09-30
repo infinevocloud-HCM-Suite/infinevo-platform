@@ -49,7 +49,7 @@ final class LopFixtures {
                 period.atEndOfMonth(),
                 employee(joined, terminated),
                 version(),
-                new WorkingDayBasisResponse(payableDays, divisor, UUID.randomUUID()),
+                new WorkingDayBasisResponse(payableDays, divisor, UUID.randomUUID(), rounding),
                 rounding,
                 inputs,
                 days,

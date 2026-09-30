@@ -68,7 +68,7 @@ class PayRunHandCalculationTest {
                 JULY.atEndOfMonth(),
                 LopFixtures.employee(joined, null),
                 version,
-                new WorkingDayBasisResponse(thirtyOne, thirtyOne, UUID.randomUUID()),
+                new WorkingDayBasisResponse(thirtyOne, thirtyOne, UUID.randomUUID(), LopRounding.HALF_UP_2),
                 LopRounding.HALF_UP_2,
                 inputs,
                 days,

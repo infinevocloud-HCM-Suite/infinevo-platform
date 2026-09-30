@@ -133,7 +133,8 @@ final class StructureFixtures {
                 new WorkingDayBasisResponse(
                         BigDecimal.valueOf(period.lengthOfMonth()).setScale(2),
                         BigDecimal.valueOf(period.lengthOfMonth()).setScale(2),
-                        UUID.randomUUID()),
+                        UUID.randomUUID(),
+                        LopRounding.HALF_UP_2),
                 LopRounding.HALF_UP_2,
                 List.of(),
                 PayRunDays.of(

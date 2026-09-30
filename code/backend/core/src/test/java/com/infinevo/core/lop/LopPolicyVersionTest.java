@@ -109,7 +109,7 @@ class LopPolicyVersionTest {
         // April has no version yet
         when(repository.findByTenantIdAndEffectiveFrom(eq(tenantId), eq(aprilDate)))
                 .thenReturn(Optional.empty());
-        when(repository.save(any(LopPolicy.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.saveAndFlush(any(LopPolicy.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LopPolicyRequest aprilRequest =
                 new LopPolicyRequest(WorkingDayBasis.ACTUAL_DAYS, null, true, true, LopRounding.HALF_UP_2, aprilDate);
@@ -165,7 +165,7 @@ class LopPolicyVersionTest {
     void savePolicy_nullEffectiveFrom_defaultsToToday() {
         LocalDate today = LocalDate.now();
         when(repository.findByTenantIdAndEffectiveFrom(eq(tenantId), eq(today))).thenReturn(Optional.empty());
-        when(repository.save(any(LopPolicy.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.saveAndFlush(any(LopPolicy.class))).thenAnswer(inv -> inv.getArgument(0));
 
         LopPolicyRequest request =
                 new LopPolicyRequest(WorkingDayBasis.FIXED_30, null, true, true, LopRounding.HALF_UP_2, null);
