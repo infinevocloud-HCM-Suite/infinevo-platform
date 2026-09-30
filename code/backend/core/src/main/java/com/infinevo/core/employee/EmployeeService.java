@@ -53,6 +53,14 @@ public interface EmployeeService {
     /** Sets or clears the user account link for an employee in the bound tenant (W-13.4). */
     EmployeeResponse linkLogin(UUID id, UUID userAccountId);
 
+    /**
+     * Everyone employed on any day of {@code [start, end]} in the bound tenant — the batch a pay run
+     * considers (W-29.1 §3): not soft-deleted, joined on or before {@code end}, and either
+     * {@code ACTIVE} or {@code TERMINATED} on or after {@code start}. A {@code SUSPENDED} employee is
+     * not returned. Ordered by employee number, complete, never paged: one statement.
+     */
+    java.util.List<EmployeeResponse> listEmployedBetween(java.time.LocalDate start, java.time.LocalDate end);
+
     /** No such employee in the bound tenant, or it has been soft-deleted. Maps to {@code 404}. */
     class NotFoundException extends RuntimeException {
         @Serial

@@ -15,6 +15,7 @@ import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -151,6 +152,22 @@ public class EmployeeServiceImpl implements EmployeeService {
             names.put(employee.getId(), name.isBlank() ? employee.getEmployeeNumber() : name);
         }
         return names;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EmployeeResponse> listEmployedBetween(LocalDate start, LocalDate end) {
+        Objects.requireNonNull(start, "start must not be null");
+        Objects.requireNonNull(end, "end must not be null");
+        if (start.isAfter(end)) {
+            throw new IllegalArgumentException("start " + start + " is after end " + end);
+        }
+        UUID tenantId = TenantContext.require();
+        return employeeRepository
+                .findEmployedBetween(tenantId, start, end, EmploymentStatus.ACTIVE, EmploymentStatus.TERMINATED)
+                .stream()
+                .map(EmployeeResponse::from)
+                .toList();
     }
 
     @Override
