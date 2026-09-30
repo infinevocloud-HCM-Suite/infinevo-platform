@@ -36,7 +36,8 @@ class LeaveResetServiceTest {
     void setUp() {
         allocationRepository = mock(LeaveAllocationRepository.class);
         policyRepository = mock(LeavePolicyRepository.class);
-        resetService = new LeaveResetServiceImpl(allocationRepository, policyRepository);
+        resetService = new LeaveResetServiceImpl(
+                allocationRepository, policyRepository, mock(LeaveConsumptionRepository.class));
     }
 
     @Test

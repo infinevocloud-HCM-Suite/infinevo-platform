@@ -21,22 +21,15 @@ public class LeaveResetServiceImpl implements LeaveResetService {
     private final LeavePolicyRepository leavePolicyRepository;
     private final LeaveConsumptionRepository leaveConsumptionRepository;
 
-    @org.springframework.beans.factory.annotation.Autowired
     public LeaveResetServiceImpl(
             LeaveAllocationRepository leaveAllocationRepository,
             LeavePolicyRepository leavePolicyRepository,
-            @org.springframework.beans.factory.annotation.Autowired(required = false)
-                    LeaveConsumptionRepository leaveConsumptionRepository) {
+            LeaveConsumptionRepository leaveConsumptionRepository) {
         this.leaveAllocationRepository =
                 Objects.requireNonNull(leaveAllocationRepository, "leaveAllocationRepository must not be null");
         this.leavePolicyRepository =
                 Objects.requireNonNull(leavePolicyRepository, "leavePolicyRepository must not be null");
         this.leaveConsumptionRepository = leaveConsumptionRepository;
-    }
-
-    public LeaveResetServiceImpl(
-            LeaveAllocationRepository leaveAllocationRepository, LeavePolicyRepository leavePolicyRepository) {
-        this(leaveAllocationRepository, leavePolicyRepository, null);
     }
 
     @Override

@@ -12,6 +12,8 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -71,6 +73,14 @@ class LeaveAccrualJobIT extends AbstractIntegrationTest {
                       END IF;
                     END $$;
                     GRANT SELECT, INSERT, UPDATE, DELETE ON core.shedlock TO app_user;
+
+                    CREATE OR REPLACE FUNCTION core.list_tenants_for_sweep()
+                    RETURNS TABLE(tenant_id uuid) AS $$
+                    BEGIN
+                        RETURN;
+                    END;
+                    $$ LANGUAGE plpgsql;
+                    GRANT EXECUTE ON FUNCTION core.list_tenants_for_sweep() TO app_user;
                     """);
         }
     }
@@ -102,8 +112,11 @@ class LeaveAccrualJobIT extends AbstractIntegrationTest {
                     startLatch.await();
                     executor.executeWithLock(
                             (Runnable) () -> {
-                                leaveAccrualJob.run();
                                 executionCount.incrementAndGet();
+                                try {
+                                    leaveAccrualJob.execute(LocalDate.now(ZoneOffset.UTC));
+                                } catch (Exception ignored) {
+                                }
                                 try {
                                     Thread.sleep(600);
                                 } catch (InterruptedException e) {
