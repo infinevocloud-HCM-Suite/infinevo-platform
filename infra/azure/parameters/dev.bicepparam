@@ -28,3 +28,4 @@ param peSubnetPrefix = '10.10.3.0/24'
 
 param enablePurgeProtection = false
 param alertEmail = 'kmohapatra@infinevocloud.com'
+param brevoSmtpLogin = 'apikey'

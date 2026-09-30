@@ -27,3 +27,4 @@ param caeSubnetPrefix = '10.30.0.0/23'
 param peSubnetPrefix = '10.30.3.0/24'
 
 param enablePurgeProtection = true
+param brevoSmtpLogin = 'apikey'

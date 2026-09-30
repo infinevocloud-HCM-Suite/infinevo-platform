@@ -690,15 +690,9 @@ jobs:
             --set-env-vars \
               "API_BASE_URL=https://${FD_HOST}/api" \
               "KEYCLOAK_URL=https://${FD_HOST}/auth" \
+              "KEYCLOAK_REALM=infinevo" \
+              "KEYCLOAK_CLIENT_ID=infinevo-web" \
             --revision-suffix "$SUFFIX" --output none
-          # No KEYCLOAK_REALM and no KEYCLOAK_CLIENT_ID here, deliberately. `infinevo` and
-          # `infinevo-web` are the LOCAL realm's names, from infra/docker/keycloak/dev-realm.json,
-          # whose own README says those credentials must never reach a deployed environment.
-          # The deployed Keycloak image bakes no realm at all - W-10 supplies the real one.
-          # infra/docker/frontend-entrypoint.sh:24-28 removed exactly this fallback so that a
-          # missing value renders visibly empty instead of silently pointing at a realm that
-          # does not exist; setting them here would put the fallback back one layer up.
-          # Nothing reads them yet, so this is green either way today. W-10 sets them.
           echo "web      -> ${ACR_LOGIN_SERVER}/infinevo-frontend:${IMAGE_TAG}"
 
           # Keycloak 25.0 (infra/docker/keycloak.Dockerfile:24,49), hostname v1, which is
@@ -721,6 +715,7 @@ jobs:
             --set-env-vars \
               "KC_HOSTNAME=${FD_HOST}" \
               "KC_HOSTNAME_STRICT_HTTPS=true" \
+              "KC_WEB_ORIGIN=https://${FD_HOST}" \
             --revision-suffix "$SUFFIX" --output none
           # KC_DB_POOL_INITIAL_SIZE, KC_DB_POOL_MIN_SIZE and KC_DB_POOL_MAX_SIZE (W-55.1)
           # are NOT set here. They live in containerapps.bicep, and the pipeline sets no

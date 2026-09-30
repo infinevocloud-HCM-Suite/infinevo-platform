@@ -52,19 +52,14 @@ ENV KC_HTTP_RELATIVE_PATH=/auth
 # to / so probes stay at a fixed path whatever the public routing does.
 ENV KC_HTTP_MANAGEMENT_RELATIVE_PATH=/
 
-# No realm is baked into this image, deliberately.
+# The production realm is baked into this image (W-10.1).
 #
-# infra/docker/keycloak/dev-realm.json is a LOCAL development realm whose own README
-# says every credential in it "must never appear in a deployed environment". It carries
-# three accounts with the literal password local_dev_pw and localhost:5173 redirect URIs.
-# Copying it here put it in the one image this repository deploys, and `--import-realm`
-# created those accounts on first boot against a real database (review F-1).
+# infra/keycloak/infinevo-realm.json holds the canonical production realm:
+# zero users, no secrets, external SSL, and environment variable placeholders for
+# Brevo SMTP and web origins.
 #
-# The local stack does not need it here: compose.yml:111 mounts the same file read-only
-# into the stock Keycloak image, which is where a development realm belongs.
-#
-# W-10 supplies the production realm. Until then this image starts with no realm but
-# the built-in `master`, configured entirely from environment variables.
+# The local development realm (infra/docker/keycloak/dev-realm.json) is still NOT
+# baked here: compose.yml:111 mounts it into the stock image for local stack development.
 
 RUN /opt/keycloak/bin/kc.sh build
 
@@ -72,6 +67,7 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:25.0 AS runtime
 
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
+COPY infra/keycloak/infinevo-realm.json /opt/keycloak/data/import/
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -94,4 +90,4 @@ USER 1000
 EXPOSE 8080 9000
 
 ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
-CMD ["start", "--optimized"]
+CMD ["start", "--optimized", "--import-realm"]

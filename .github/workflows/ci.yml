@@ -450,6 +450,10 @@ jobs:
           fi
           echo "OK - no floating-point money field outside legacy/"
 
+      - name: production Keycloak realm is clean and valid
+        if: ${{ !cancelled() }}
+        run: node infra/keycloak/check-realm.mjs
+
   # ── dependency vulnerability scanning ───────────────────────────────────────
   # Trivy scans code/ for fixable HIGH and CRITICAL vulnerabilities in backend
   # (pom.xml) and frontend (package-lock.json devDependencies included).
