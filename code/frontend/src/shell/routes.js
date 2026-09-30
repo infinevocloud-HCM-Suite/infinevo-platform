@@ -1,5 +1,9 @@
+import { routes as coreRoutes } from '../core/index.js';
+import { routes as hrmsRoutes } from '../hrms/index.js';
+import { routes as payrollRoutes } from '../payroll/index.js';
+
 /**
- * Route groups, one per module, and the one way routes reach the router (W-12.3 §5).
+ * Route groups, one per module, and the one way routes reach the router (W-12.3 §5, W-45 §5).
  *
  * A module registers its RouteObjects ({ path, element }) in its group as it is built. None of
  * them is mounted by being here: AppShell mounts exactly the routes whose path appears in the
@@ -8,9 +12,9 @@
  * empty route tree - there is no static list of routes per module and no default.
  */
 export const routeGroups = {
-  core: [],
-  hrms: [],
-  payroll: [],
+  core: coreRoutes || [],
+  hrms: hrmsRoutes || [],
+  payroll: payrollRoutes || [],
 };
 
 /**
@@ -25,7 +29,15 @@ export function routesFromFeed(feedItems = [], groups = routeGroups) {
   const feedPaths = collectPaths(feedItems);
   return Object.values(groups)
     .flat()
-    .filter((route) => feedPaths.has(route.path));
+    .filter((route) => {
+      if (feedPaths.has(route.path)) return true;
+      for (const prefix of feedPaths) {
+        if (prefix && prefix !== '/' && route.path.startsWith(`${prefix}/`)) {
+          return true;
+        }
+      }
+      return false;
+    });
 }
 
 function collectPaths(items, into = new Set()) {

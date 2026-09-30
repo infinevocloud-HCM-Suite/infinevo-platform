@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { createContext, useContext, useState, useEffect, createElement } from 'react';
-import { apiClient } from '../../shared/api/client.js';
+import { fetchNavigation } from './navigationService.js';
 import { onTenantChange } from '../auth/keycloak.js';
 
 /**
@@ -21,6 +21,7 @@ const EMPTY = Object.freeze({ items: [], actions: [], loading: false, loaded: fa
 
 let state = EMPTY;
 const subscribers = new Set();
+const feedFetchSubscribers = new Set();
 
 function publish(next) {
   state = next;
@@ -32,12 +33,24 @@ export function resetNavigationFeed() {
   publish(EMPTY);
 }
 
+/** Subscribe to navigation feed fetch attempts (e.g. to clear suspended boundary). */
+export function onFeedFetch(listener) {
+  feedFetchSubscribers.add(listener);
+  return () => feedFetchSubscribers.delete(listener);
+}
+
 /** Fetches the feed and publishes it to every mounted hook. Rejects with the API error. */
 export async function fetchNavigationFeed() {
   publish({ ...state, loading: true, error: null });
+  feedFetchSubscribers.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      // ignore listener error
+    }
+  });
   try {
-    const endpoint = apiClient.defaults?.baseURL?.endsWith('/api') ? '/v1/navigation' : '/api/v1/navigation';
-    const response = await apiClient.get(endpoint);
+    const response = await fetchNavigation();
     const data = response?.data || {};
     publish({
       items: Array.isArray(data.items) ? data.items : [],

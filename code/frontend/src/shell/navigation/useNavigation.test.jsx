@@ -11,6 +11,8 @@ import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../shared/api/client.js', () => ({
   apiClient: { get: vi.fn(), defaults: { baseURL: '/api' } },
+  setUnauthorizedHandler: vi.fn(),
+  setTenantSuspendedHandler: vi.fn(),
 }));
 
 vi.mock('../auth/keycloak.js', () => {
