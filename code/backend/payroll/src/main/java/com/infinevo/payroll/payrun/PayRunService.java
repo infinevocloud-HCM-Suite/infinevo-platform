@@ -33,4 +33,15 @@ public interface PayRunService {
 
     /** {@code DRAFT} or {@code LOCKED} {@code → CANCELLED}. The period lock stays. */
     PayRunResponse cancel(UUID id);
+
+    /**
+     * {@code LOCKED | COMPUTED | FAILED → COMPUTING → COMPUTED | FAILED} (W-29.2 §3), synchronously.
+     *
+     * @throws IllegalPayRunTransitionException from {@code DRAFT}, {@code COMPUTING}, {@code APPROVED},
+     *     {@code PAID} or {@code CANCELLED}
+     */
+    PayRunResponse compute(UUID id);
+
+    /** One employee's lines in {@code sort_order}, with the row's computation error if any. */
+    EmployeePayRunLinesResponse lines(UUID id, UUID employeeId);
 }

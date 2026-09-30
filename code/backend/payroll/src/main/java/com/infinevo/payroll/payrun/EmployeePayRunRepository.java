@@ -1,5 +1,7 @@
 package com.infinevo.payroll.payrun;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -12,4 +14,9 @@ public interface EmployeePayRunRepository extends JpaRepository<EmployeePayRun, 
 
     Page<EmployeePayRun> findByTenantIdAndPayrunIdAndInclusionStatus(
             UUID tenantId, UUID payrunId, InclusionStatus inclusionStatus, Pageable pageable);
+
+    List<EmployeePayRun> findAllByTenantIdAndPayrunIdAndInclusionStatus(
+            UUID tenantId, UUID payrunId, InclusionStatus inclusionStatus);
+
+    Optional<EmployeePayRun> findByTenantIdAndPayrunIdAndEmployeeId(UUID tenantId, UUID payrunId, UUID employeeId);
 }

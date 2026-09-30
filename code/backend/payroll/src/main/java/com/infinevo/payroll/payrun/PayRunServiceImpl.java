@@ -49,6 +49,8 @@ public class PayRunServiceImpl implements PayRunService {
     private final EmployeeService employeeService;
     private final PayRunInclusionService inclusionService;
     private final PayInputService payInputService;
+    private final PayRunComputationService computationService;
+    private final EmployeePayRunLineRepository lines;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
 
@@ -59,6 +61,8 @@ public class PayRunServiceImpl implements PayRunService {
             EmployeeService employeeService,
             PayRunInclusionService inclusionService,
             PayInputService payInputService,
+            PayRunComputationService computationService,
+            EmployeePayRunLineRepository lines,
             PlatformTransactionManager transactionManager) {
         this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
         this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
@@ -66,6 +70,8 @@ public class PayRunServiceImpl implements PayRunService {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.inclusionService = Objects.requireNonNull(inclusionService, "inclusionService must not be null");
         this.payInputService = Objects.requireNonNull(payInputService, "payInputService must not be null");
+        this.computationService = Objects.requireNonNull(computationService, "computationService must not be null");
+        this.lines = Objects.requireNonNull(lines, "lines must not be null");
         Objects.requireNonNull(transactionManager, "transactionManager must not be null");
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
@@ -179,6 +185,27 @@ public class PayRunServiceImpl implements PayRunService {
         PayRun saved = payRuns.saveAndFlush(run);
         log.info("Cancelled pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
         return PayRunResponse.from(saved);
+    }
+
+    /** Not {@code @Transactional}: the computation manages a transaction per phase and per employee. */
+    @Override
+    public PayRunResponse compute(UUID id) {
+        return computationService.compute(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EmployeePayRunLinesResponse lines(UUID id, UUID employeeId) {
+        Objects.requireNonNull(employeeId, "employeeId must not be null");
+        PayRun run = require(id);
+        EmployeePayRun row = employeePayRuns
+                .findByTenantIdAndPayrunIdAndEmployeeId(run.getTenantId(), run.getId(), employeeId)
+                .orElseThrow(() -> new PayRunNotFoundException(id));
+        List<EmployeePayRunLineResponse> rowLines =
+                lines.findByTenantIdAndEmployeePayrunIdOrderBySortOrderAsc(run.getTenantId(), row.getId()).stream()
+                        .map(EmployeePayRunLineResponse::from)
+                        .toList();
+        return new EmployeePayRunLinesResponse(employeeId, row.getComputationError(), rowLines);
     }
 
     private PayRun require(UUID id) {

@@ -22,9 +22,18 @@ public enum PayRunStatus {
     PAID,
     CANCELLED;
 
-    /** The transitions W-29.1 implements. Every other pair is refused until its ticket lands. */
-    private static final Map<PayRunStatus, Set<PayRunStatus>> ALLOWED =
-            Map.of(DRAFT, Set.of(LOCKED, CANCELLED), LOCKED, Set.of(CANCELLED));
+    /**
+     * The transitions implemented so far — W-29.1: {@code DRAFT → LOCKED}, {@code DRAFT → CANCELLED},
+     * {@code LOCKED → CANCELLED}; W-29.2: into {@code COMPUTING} from {@code LOCKED}, {@code COMPUTED}
+     * and {@code FAILED}, and out of it to {@code COMPUTED} or {@code FAILED}. Every other pair is
+     * refused until its ticket lands.
+     */
+    private static final Map<PayRunStatus, Set<PayRunStatus>> ALLOWED = Map.of(
+            DRAFT, Set.of(LOCKED, CANCELLED),
+            LOCKED, Set.of(CANCELLED, COMPUTING),
+            COMPUTED, Set.of(COMPUTING),
+            FAILED, Set.of(COMPUTING),
+            COMPUTING, Set.of(COMPUTED, FAILED));
 
     public boolean canTransitionTo(PayRunStatus target) {
         return ALLOWED.getOrDefault(this, Set.of()).contains(target);

@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -19,14 +20,17 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * One pay run for one tenant and period (W-29.1 §6). No money column lives here — W-29.2 adds
- * them. The status only moves through {@link #lock} and {@link #cancel}; there is no setter, so no
- * request body can set it (the legacy {@code PayRunServiceImpl.java:639-640} defect).
+ * One pay run for one tenant and period (W-29.1 §6), with the run totals W-29.2 adds. The status
+ * only moves through {@link #lock}, {@link #cancel} and the three computation methods; there is no
+ * setter, so no request body can set it (the legacy {@code PayRunServiceImpl.java:639-640} defect).
  */
 @Entity
 @Table(name = "payrun", schema = "payroll")
 @Audited
 public class PayRun {
+
+    /** Zero at the stored scale, so a new or reset row reads back exactly as it was written. */
+    private static final BigDecimal ZERO_AMOUNT = BigDecimal.ZERO.setScale(4);
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -76,6 +80,21 @@ public class PayRun {
 
     @Column(name = "cancelled_by", length = 100)
     private String cancelledBy;
+
+    @Column(name = "total_gross", nullable = false, precision = 19, scale = 4)
+    private BigDecimal totalGross = ZERO_AMOUNT;
+
+    @Column(name = "total_deductions", nullable = false, precision = 19, scale = 4)
+    private BigDecimal totalDeductions = ZERO_AMOUNT;
+
+    @Column(name = "total_net_pay", nullable = false, precision = 19, scale = 4)
+    private BigDecimal totalNetPay = ZERO_AMOUNT;
+
+    @Column(name = "computed_at")
+    private Instant computedAt;
+
+    @Column(name = "failure_reason", length = 500)
+    private String failureReason;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -129,6 +148,52 @@ public class PayRun {
         this.cancelledAt = Objects.requireNonNull(at, "at must not be null");
         this.cancelledBy = Objects.requireNonNull(actor, "actor must not be null");
         this.updatedBy = actor;
+    }
+
+    /** {@code LOCKED | COMPUTED | FAILED → COMPUTING} (W-29.2 §3). Clears the last failure reason. */
+    public void startComputing(String actor) {
+        status.requireTransitionTo(PayRunStatus.COMPUTING);
+        this.status = PayRunStatus.COMPUTING;
+        this.failureReason = null;
+        this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    /** {@code COMPUTING → COMPUTED}, with the run totals summed over its rows. */
+    public void completeComputation(
+            BigDecimal totalGross, BigDecimal totalDeductions, BigDecimal totalNetPay, String actor, Instant at) {
+        status.requireTransitionTo(PayRunStatus.COMPUTED);
+        this.status = PayRunStatus.COMPUTED;
+        applyTotals(totalGross, totalDeductions, totalNetPay, actor, at);
+    }
+
+    /**
+     * {@code COMPUTING → FAILED}: at least one employee could not be computed. The totals are those of
+     * the rows that did compute; {@code reason} says how many did not.
+     */
+    public void failComputation(
+            String reason,
+            BigDecimal totalGross,
+            BigDecimal totalDeductions,
+            BigDecimal totalNetPay,
+            String actor,
+            Instant at) {
+        status.requireTransitionTo(PayRunStatus.FAILED);
+        this.status = PayRunStatus.FAILED;
+        this.failureReason = truncate(Objects.requireNonNull(reason, "reason must not be null"));
+        applyTotals(totalGross, totalDeductions, totalNetPay, actor, at);
+    }
+
+    private void applyTotals(
+            BigDecimal totalGross, BigDecimal totalDeductions, BigDecimal totalNetPay, String actor, Instant at) {
+        this.totalGross = Objects.requireNonNull(totalGross, "totalGross must not be null");
+        this.totalDeductions = Objects.requireNonNull(totalDeductions, "totalDeductions must not be null");
+        this.totalNetPay = Objects.requireNonNull(totalNetPay, "totalNetPay must not be null");
+        this.computedAt = Objects.requireNonNull(at, "at must not be null");
+        this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    private static String truncate(String text) {
+        return text.length() > 500 ? text.substring(0, 500) : text;
     }
 
     @PrePersist
@@ -201,6 +266,26 @@ public class PayRun {
 
     public String getCancelledBy() {
         return cancelledBy;
+    }
+
+    public BigDecimal getTotalGross() {
+        return totalGross;
+    }
+
+    public BigDecimal getTotalDeductions() {
+        return totalDeductions;
+    }
+
+    public BigDecimal getTotalNetPay() {
+        return totalNetPay;
+    }
+
+    public Instant getComputedAt() {
+        return computedAt;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
     }
 
     public Instant getCreatedAt() {
