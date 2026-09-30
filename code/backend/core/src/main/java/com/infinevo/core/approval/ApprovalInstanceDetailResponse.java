@@ -22,8 +22,9 @@ public record ApprovalInstanceDetailResponse(
         List<ApprovalStepResponse> steps) {
 
     public static ApprovalInstanceDetailResponse from(ApprovalInstance instance, List<ApprovalStep> steps) {
-        List<ApprovalStepResponse> stepResponses =
-                steps.stream().map(ApprovalStepResponse::from).toList();
+        List<ApprovalStepResponse> stepResponses = steps.stream()
+                .map(step -> ApprovalStepResponse.from(step, instance))
+                .toList();
         return new ApprovalInstanceDetailResponse(
                 instance.getId(),
                 instance.getTenantId(),

@@ -7,6 +7,11 @@ import com.azure.storage.queue.QueueServiceClient;
 import com.infinevo.core.job.JobState;
 import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.service.JobService;
+import com.infinevo.payroll.payrun.PayRunComputationService;
+import com.infinevo.payroll.payrun.PayRunJobPayload;
+import com.infinevo.payroll.payrun.PayRunResponse;
+import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.shared.queue.QueueConsumer;
 import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.queue.QueueProducer;
@@ -15,6 +20,7 @@ import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.worker.listener.PayrunQueueListener;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -23,6 +29,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -76,17 +84,30 @@ class QueueRoundTripIT extends AbstractIntegrationTest {
     @EntityScan(basePackages = "com.infinevo.core.job")
     static class TestApp {
 
+        /**
+         * The pay run computation stands in for payroll, which this context does not load: it
+         * reports one step and answers COMPUTED. The loop and the listener around it are real.
+         */
+        @Bean
+        PayRunComputationService payRunComputationService() {
+            return (payrunId, attempt, actor, reporter) -> {
+                reporter.report(1, 1);
+                return computedRun(payrunId);
+            };
+        }
+
         /** A second listener, on its own queue, whose payload step always throws. */
         @Bean
-        QueueConsumer<String> alwaysFailingListener(JobService jobService, AtomicInteger attempts) {
-            return new PayrunQueueListener(jobService) {
+        QueueConsumer<String> alwaysFailingListener(
+                JobService jobService, PayRunComputationService computationService, AtomicInteger attempts) {
+            return new PayrunQueueListener(jobService, computationService) {
                 @Override
                 public String getQueueName() {
                     return FAILING_QUEUE;
                 }
 
                 @Override
-                protected void processPayrunPayload(String payload) {
+                protected PayRunResponse processPayrunPayload(String jobId, String payload) {
                     attempts.incrementAndGet();
                     throw new IllegalStateException("boom " + attempts.get());
                 }
@@ -238,8 +259,11 @@ class QueueRoundTripIT extends AbstractIntegrationTest {
     void roundTripCompletesOnceAndDropsTheDuplicate() {
         String jobId = "rt-" + UUID.randomUUID();
         createQueuedJob(jobId, PayrunQueueListener.QUEUE_NAME);
-        QueueMessage<String> message =
-                QueueMessage.of(jobId, TENANT_A, PayrunQueueListener.QUEUE_NAME, "{\"run\":\"monthly\"}");
+        QueueMessage<String> message = QueueMessage.of(
+                jobId,
+                TENANT_A,
+                PayrunQueueListener.QUEUE_NAME,
+                new PayRunJobPayload(UUID.randomUUID(), 1, "system").toJson());
 
         producer.send(PayrunQueueListener.QUEUE_NAME, message);
 
@@ -283,5 +307,38 @@ class QueueRoundTripIT extends AbstractIntegrationTest {
         assertThat(attempts.get())
                 .as("two attempts ran; the third delivery is poison")
                 .isEqualTo(2);
+    }
+
+    private static PayRunResponse computedRun(UUID payrunId) {
+        Instant now = Instant.now();
+        BigDecimal zero = BigDecimal.ZERO.setScale(4);
+        return new PayRunResponse(
+                payrunId,
+                "2026-07",
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 31),
+                LocalDate.of(2026, 7, 25),
+                LocalDate.of(2026, 7, 31),
+                PayRunType.REGULAR,
+                PayRunStatus.COMPUTED,
+                1,
+                0,
+                zero,
+                zero,
+                zero,
+                0,
+                now,
+                null,
+                now,
+                "system",
+                null,
+                null,
+                "rt",
+                1,
+                now,
+                1,
+                1,
+                now,
+                now);
     }
 }

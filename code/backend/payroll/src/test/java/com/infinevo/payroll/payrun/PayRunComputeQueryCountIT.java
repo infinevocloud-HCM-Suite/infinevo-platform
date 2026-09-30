@@ -74,6 +74,9 @@ class PayRunComputeQueryCountIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     @BeforeAll
@@ -111,7 +114,7 @@ class PayRunComputeQueryCountIT extends AbstractIntegrationTest {
         payRunService.lock(run.id());
 
         StatementCounter.reset();
-        PayRunResponse computed = payRunService.compute(run.id());
+        PayRunResponse computed = worker.computeNow(run.id());
         int selects = StatementCounter.SELECTS.get();
         int lineInserts = StatementCounter.LINE_INSERTS.get();
 

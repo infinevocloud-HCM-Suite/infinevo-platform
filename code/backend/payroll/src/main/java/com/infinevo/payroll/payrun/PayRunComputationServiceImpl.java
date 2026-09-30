@@ -31,34 +31,38 @@ import java.util.UUID;
 import org.hibernate.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * W-29.2 §3 and W-29.3 §3. Three phases, none of them one long transaction:
+ * W-29.2 §3, W-29.3 §3 and W-29.4 §3. One attempt of a run {@code PayRunService.compute} already
+ * moved to {@code COMPUTING}, in phases, none of them one long transaction:
  *
  * <ol>
- *   <li><b>Start</b> — lock the run row, move it to {@code COMPUTING}, delete its lines. A recompute
- *       starts clean, so yesterday's lines never sit beside today's.
+ *   <li><b>Check</b> — the run is {@code COMPUTING} at this attempt, or the message is superseded.
  *   <li><b>Once per run</b> — the period's pay inputs ({@code PayInputService.forPeriod}, one call),
  *       the policy's {@code lop_rounding}, and the ids of the pro-rata earning and benefit components
  *       (one query per catalogue). Nothing on this list is read per employee.
- *   <li><b>Each included employee</b>, in a transaction of its own ({@code REQUIRES_NEW}): read the
- *       salary version in force at the period's end and the working-day basis (W-18.1), work out the
- *       day figures, run every contributor in {@code @Order} — each seeing the lines before it — write
- *       the lines in one batch, sum them onto the row. An employee that throws (no salary, no loss-of-pay
- *       policy, a lost catalogue component) rolls back alone; the message is then written onto the row
- *       in another short transaction, and the loop carries on.
- *   <li><b>Finish</b> — run totals over the rows and the count of negative nets; {@code COMPUTED}, or
- *       {@code FAILED} with how many employees could not be computed.
+ *   <li><b>Each included employee not yet at this attempt</b>, in a transaction of its own
+ *       ({@code REQUIRES_NEW}): lock the run's row and check the attempt again, so a worker a newer
+ *       attempt has overtaken writes nothing more; delete the employee's lines, read the salary
+ *       version in force at the period's end and the working-day basis (W-18.1), work out the day figures, run every
+ *       contributor in {@code @Order} — each seeing the lines before it — write the lines in one batch,
+ *       sum them onto the row and stamp it with the attempt. An employee that throws (no salary, no
+ *       loss-of-pay policy, a lost catalogue component) rolls back alone; its lines are cleared and the
+ *       message written onto the row in another short transaction, and the loop carries on. A row
+ *       already at this attempt — computed before a worker died, or carried forward by a resumed
+ *       attempt — is skipped, never recomputed. Progress is reported every ten employees and on the last.
+ *   <li><b>Finish</b> — run totals over the rows at this attempt and the count of negative nets;
+ *       {@code COMPUTED}, or {@code FAILED} with how many employees could not be computed.
  * </ol>
  *
- * <p>An unexpected error outside the per-employee loop still ends the run {@code FAILED}, so a run is
- * never left in {@code COMPUTING} by this synchronous path.
+ * <p>An unexpected error outside the per-employee loop — the database gone, the worker stopped —
+ * leaves the run {@code COMPUTING} at this attempt with every finished row kept: the worker releases
+ * the job for another delivery, which resumes; if every delivery fails, the officer computes the run
+ * again once it is stale.
  */
 @Service
 public class PayRunComputationServiceImpl implements PayRunComputationService {
@@ -66,7 +70,9 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
     private static final Logger log = LoggerFactory.getLogger(PayRunComputationServiceImpl.class);
 
     private static final int LINE_BATCH_SIZE = 50;
-    private static final int ACTOR_MAX_LENGTH = 100;
+
+    /** Progress is reported every this many employees, and on the last (W-29.4 §9). */
+    static final int PROGRESS_STEP = 10;
 
     private final PayRunRepository payRuns;
     private final EmployeePayRunRepository employeePayRuns;
@@ -117,36 +123,57 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
     }
 
     @Override
-    public PayRunResponse compute(UUID payrunId) {
+    public PayRunResponse compute(UUID payrunId, int attempt, String actor, ProgressReporter reporter) {
         Objects.requireNonNull(payrunId, "payrunId must not be null");
+        Objects.requireNonNull(actor, "actor must not be null");
+        Objects.requireNonNull(reporter, "reporter must not be null");
         UUID tenantId = TenantContext.require();
-        String actor = currentActor();
 
         PayRun run = Objects.requireNonNull(runTransaction.execute(status -> {
-            PayRun locked =
-                    payRuns.findForUpdate(payrunId, tenantId).orElseThrow(() -> new PayRunNotFoundException(payrunId));
-            locked.startComputing(actor);
-            lines.deleteByTenantIdAndPayrunId(tenantId, payrunId);
-            return payRuns.saveAndFlush(locked);
+            PayRun current = payRuns.findByIdAndTenantId(payrunId, tenantId)
+                    .orElseThrow(() -> new PayRunNotFoundException(payrunId));
+            requireAttempt(current, attempt);
+            return current;
         }));
 
         try {
-            return computeEmployees(run, tenantId, actor);
+            return computeEmployees(run, attempt, tenantId, actor, reporter);
+        } catch (SupersededPayRunJobException e) {
+            throw e;
         } catch (RuntimeException e) {
-            log.error("Pay run {} in tenant {} failed outside the per-employee loop", payrunId, tenantId, e);
-            try {
-                finish(payrunId, tenantId, actor, List.of(), "Computation stopped: " + describe(e));
-            } catch (RuntimeException secondary) {
-                e.addSuppressed(secondary);
-            }
+            log.error(
+                    "Pay run {} in tenant {} stopped outside the per-employee loop; attempt {} stays COMPUTING",
+                    payrunId,
+                    tenantId,
+                    attempt,
+                    e);
             throw e;
         }
     }
 
-    private PayRunResponse computeEmployees(PayRun run, UUID tenantId, String actor) {
+    private PayRunResponse computeEmployees(
+            PayRun run, int attempt, UUID tenantId, String actor, ProgressReporter reporter) {
         List<EmployeePayRun> rows = Objects.requireNonNull(
                 runTransaction.execute(status -> employeePayRuns.findAllByTenantIdAndPayrunIdAndInclusionStatus(
                         tenantId, run.getId(), InclusionStatus.INCLUDED)));
+        int total = rows.size();
+        List<EmployeePayRun> pending =
+                rows.stream().filter(row -> row.getComputedAttempt() != attempt).toList();
+        int done = total - pending.size();
+        if (done > 0) {
+            log.info(
+                    "Pay run {} attempt {}: resuming, {} of {} employees already computed",
+                    run.getId(),
+                    attempt,
+                    done,
+                    total);
+        }
+
+        if (pending.isEmpty()) {
+            report(run.getId(), tenantId, attempt, done, total, reporter);
+            return finish(run.getId(), tenantId, actor, attempt);
+        }
+
         Map<UUID, EmployeeResponse> employees = new HashMap<>();
         for (EmployeeResponse employee :
                 employeeService.listEmployedBetween(run.getPeriodStart(), run.getPeriodEnd())) {
@@ -154,25 +181,62 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
         }
         RunInputs inputs = readRunInputs(run, tenantId);
 
-        List<EmployeePayRun> computed = new ArrayList<>(rows.size());
-        int failed = 0;
-        for (EmployeePayRun row : rows) {
+        for (EmployeePayRun row : pending) {
             try {
-                computed.add(employeeTransaction.execute(
-                        status -> computeOne(run, row, employees.get(row.getEmployeeId()), inputs, actor)));
+                employeeTransaction.executeWithoutResult(
+                        status -> computeOne(run, row, employees.get(row.getEmployeeId()), inputs, attempt, actor));
+            } catch (SupersededPayRunJobException e) {
+                // Overtaken, not failed: the row belongs to the newer attempt now.
+                throw e;
             } catch (RuntimeException e) {
-                failed++;
                 String error = describe(e);
                 log.warn("Pay run {}: employee {} could not be computed: {}", run.getId(), row.getEmployeeId(), error);
                 employeeTransaction.executeWithoutResult(status -> {
+                    requireCurrentAttempt(run.getId(), tenantId, attempt);
+                    lines.deleteByTenantIdAndEmployeePayrunId(tenantId, row.getId());
                     EmployeePayRun fresh = employeePayRuns.findById(row.getId()).orElseThrow();
-                    fresh.recordError(error, actor, now());
+                    fresh.recordError(error, attempt, actor, now());
                     employeePayRuns.save(fresh);
                 });
             }
+            done++;
+            if (done % PROGRESS_STEP == 0 || done == total) {
+                report(run.getId(), tenantId, attempt, done, total, reporter);
+            }
         }
-        String reason = failed == 0 ? null : failed + " of " + rows.size() + " employees could not be computed";
-        return finish(run.getId(), tenantId, actor, computed, reason);
+        return finish(run.getId(), tenantId, actor, attempt);
+    }
+
+    /**
+     * The run's own counter first, then the caller's reporter — the job's percentage on the worker. A
+     * worker that was only slow, not dead, and has been overtaken by a newer attempt stops here instead
+     * of writing over the newer attempt's progress: the row is locked, so a resume cannot slip in
+     * between the check and the write.
+     */
+    private void report(UUID payrunId, UUID tenantId, int attempt, int done, int total, ProgressReporter reporter) {
+        runTransaction.executeWithoutResult(status -> {
+            PayRun run = requireCurrentAttempt(payrunId, tenantId, attempt);
+            run.reportProgress(done);
+            payRuns.save(run);
+        });
+        reporter.report(done, total);
+    }
+
+    /**
+     * The run, locked for the rest of the caller's transaction and still {@code COMPUTING} at this
+     * attempt. A resume takes the same lock before it moves the attempt on, so whatever the caller
+     * writes next is written before the newer attempt starts, or not at all.
+     */
+    private PayRun requireCurrentAttempt(UUID payrunId, UUID tenantId, int attempt) {
+        PayRun run = payRuns.findForUpdate(payrunId, tenantId).orElseThrow(() -> new PayRunNotFoundException(payrunId));
+        requireAttempt(run, attempt);
+        return run;
+    }
+
+    private static void requireAttempt(PayRun run, int attempt) {
+        if (run.getStatus() != PayRunStatus.COMPUTING || run.getComputeAttempt() != attempt) {
+            throw new SupersededPayRunJobException(run.getId(), attempt, run.getStatus(), run.getComputeAttempt());
+        }
     }
 
     /** What every employee of the run shares, read once before the loop (W-29.3 §4, W-55). */
@@ -192,7 +256,9 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 .orElse(LopRounding.HALF_UP_2);
         Set<UUID> proRata = new HashSet<>();
         runTransaction.executeWithoutResult(status -> {
+            // A variable earning is never scaled, whatever its flag says (W-29.3 §3).
             earningRepository.findAllByTenantIdAndProRataTrueAndDeletedFalse(tenantId).stream()
+                    .filter(earning -> !earning.isVariable())
                     .map(SalaryComponent::getId)
                     .forEach(proRata::add);
             benefitRepository.findAllByTenantIdAndProRataTrueAndDeletedFalse(tenantId).stream()
@@ -202,8 +268,11 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
         return new RunInputs(byEmployee, rounding, proRata);
     }
 
-    private EmployeePayRun computeOne(
-            PayRun run, EmployeePayRun row, EmployeeResponse employee, RunInputs inputs, String actor) {
+    private void computeOne(
+            PayRun run, EmployeePayRun row, EmployeeResponse employee, RunInputs inputs, int attempt, String actor) {
+        requireCurrentAttempt(run.getId(), run.getTenantId(), attempt);
+        // A row an earlier attempt computed, or failed on, starts clean.
+        lines.deleteByTenantIdAndEmployeePayrunId(run.getTenantId(), row.getId());
         if (employee == null) {
             throw new IllegalStateException("Employee " + row.getEmployeeId() + " is no longer employed in "
                     + run.getPeriod() + " or has been deleted");
@@ -253,43 +322,59 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
 
         EmployeePayRun fresh = employeePayRuns.findById(row.getId()).orElseThrow();
         fresh.recordComputation(
-                PayRunTotals.of(produced), days, PayInputLineContributor.unpricedCount(payInputs), actor, now());
-        return employeePayRuns.saveAndFlush(fresh);
+                PayRunTotals.of(produced),
+                days,
+                PayInputLineContributor.unpricedCount(payInputs),
+                attempt,
+                actor,
+                now());
+        employeePayRuns.saveAndFlush(fresh);
     }
 
-    private PayRunResponse finish(
-            UUID payrunId, UUID tenantId, String actor, List<EmployeePayRun> computed, String failureReason) {
-        BigDecimal gross = BigDecimal.ZERO.setScale(4);
-        BigDecimal deductions = BigDecimal.ZERO.setScale(4);
-        BigDecimal net = BigDecimal.ZERO.setScale(4);
-        int negative = 0;
-        for (EmployeePayRun row : computed) {
-            gross = gross.add(row.getGrossEarnings());
-            deductions = deductions.add(row.getTotalDeductions());
-            net = net.add(row.getNetPay());
-            if (row.getNetPay().signum() < 0) {
-                negative++;
-            }
-        }
-        int negativeNetCount = negative;
-        BigDecimal totalGross = gross;
-        BigDecimal totalDeductions = deductions;
-        BigDecimal totalNet = net;
+    /** Totals over the rows this attempt computed; {@code COMPUTED}, or {@code FAILED} when a row failed. */
+    private PayRunResponse finish(UUID payrunId, UUID tenantId, String actor, int attempt) {
         return runTransaction.execute(status -> {
             PayRun run =
                     payRuns.findForUpdate(payrunId, tenantId).orElseThrow(() -> new PayRunNotFoundException(payrunId));
-            if (failureReason == null) {
-                run.completeComputation(totalGross, totalDeductions, totalNet, negativeNetCount, actor, now());
+            requireAttempt(run, attempt);
+            List<EmployeePayRun> rows = employeePayRuns.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                    tenantId, payrunId, InclusionStatus.INCLUDED);
+            BigDecimal gross = BigDecimal.ZERO.setScale(4);
+            BigDecimal deductions = BigDecimal.ZERO.setScale(4);
+            BigDecimal net = BigDecimal.ZERO.setScale(4);
+            int negative = 0;
+            int failed = 0;
+            for (EmployeePayRun row : rows) {
+                if (row.getComputedAttempt() != attempt || row.getComputationError() != null) {
+                    failed++;
+                    continue;
+                }
+                gross = gross.add(row.getGrossEarnings());
+                deductions = deductions.add(row.getTotalDeductions());
+                net = net.add(row.getNetPay());
+                if (row.getNetPay().signum() < 0) {
+                    negative++;
+                }
+            }
+            if (failed == 0) {
+                run.completeComputation(gross, deductions, net, negative, actor, now());
             } else {
                 run.failComputation(
-                        failureReason, totalGross, totalDeductions, totalNet, negativeNetCount, actor, now());
+                        failed + " of " + rows.size() + " employees could not be computed",
+                        gross,
+                        deductions,
+                        net,
+                        negative,
+                        actor,
+                        now());
             }
             PayRun saved = payRuns.saveAndFlush(run);
             log.info(
-                    "Computed pay run {} for {} in tenant {}: status {}, net {}",
+                    "Computed pay run {} for {} in tenant {}, attempt {}: status {}, net {}",
                     saved.getId(),
                     saved.getPeriod(),
                     tenantId,
+                    attempt,
                     saved.getStatus(),
                     saved.getTotalNetPay());
             return PayRunResponse.from(saved);
@@ -305,17 +390,5 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
 
     private static Instant now() {
         return Instant.now().truncatedTo(ChronoUnit.MICROS);
-    }
-
-    private static String currentActor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null
-                || !auth.isAuthenticated()
-                || auth.getName() == null
-                || auth.getName().isBlank()) {
-            return PayRunServiceImpl.ACTOR_SYSTEM;
-        }
-        String name = auth.getName();
-        return name.length() > ACTOR_MAX_LENGTH ? name.substring(0, ACTOR_MAX_LENGTH) : name;
     }
 }

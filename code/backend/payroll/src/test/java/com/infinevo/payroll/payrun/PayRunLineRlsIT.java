@@ -40,6 +40,9 @@ class PayRunLineRlsIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     private UUID runOfB;
@@ -66,7 +69,7 @@ class PayRunLineRlsIT extends AbstractIntegrationTest {
                 TENANT_B, "B-01", PayRunTestSchema.insertWorkedExampleCatalogue(TENANT_B));
         runOfB = payRunService.create(YearMonth.of(2026, 7)).id();
         payRunService.lock(runOfB);
-        payRunService.compute(runOfB);
+        worker.computeNow(runOfB);
         TenantContext.clear();
     }
 

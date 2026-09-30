@@ -41,6 +41,9 @@ class PayRunNegativeNetIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     @Autowired
@@ -88,7 +91,7 @@ class PayRunNegativeNetIT extends AbstractIntegrationTest {
         PayRunResponse run = payRunService.create(july);
         payRunService.lock(run.id());
 
-        PayRunResponse computed = payRunService.compute(run.id());
+        PayRunResponse computed = worker.computeNow(run.id());
 
         assertThat(computed.status()).isEqualTo(PayRunStatus.COMPUTED);
         assertThat(computed.negativeNetCount()).isEqualTo(1);

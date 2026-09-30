@@ -11,6 +11,7 @@ import java.util.Objects;
  *
  * <pre>
  * lop_days    = Σ LOP_DAYS inputs, capped at payable days, never below zero
+ * credit_days = the days by which that sum is below zero; not capped, two months can come back at once
  * outside     = calendar days of the period before date_of_joining or after termination_date
  * unpaid_days = lop_days + outside
  * paid_days   = payable days − unpaid_days, floor 0
@@ -19,8 +20,14 @@ import java.util.Objects;
  * <p>Days outside the employment window are calendar days, converted by the policy divisor in
  * {@link LopLineContributor} — the legacy rule for joiners, now applied to leavers too (W-29.3 §13
  * decision 2).
+ *
+ * <p>The sum goes below zero when a {@code LOP_DAYS} reversal lands in a later period than the row it
+ * reverses — W-19 moves a reversal of a locked period to the next open one. Those days were deducted
+ * in a month already paid, so they are owed back: {@code credit_days} carries them to
+ * {@link LopLineContributor}, which writes the refund. They are not {@code paid_days} of this period.
  */
-public record PayRunDays(BigDecimal lopDays, BigDecimal outsideDays, BigDecimal unpaidDays, BigDecimal paidDays) {
+public record PayRunDays(
+        BigDecimal lopDays, BigDecimal outsideDays, BigDecimal unpaidDays, BigDecimal paidDays, BigDecimal creditDays) {
 
     private static final int SCALE = 2;
 
@@ -29,6 +36,7 @@ public record PayRunDays(BigDecimal lopDays, BigDecimal outsideDays, BigDecimal 
         Objects.requireNonNull(outsideDays, "outsideDays must not be null");
         Objects.requireNonNull(unpaidDays, "unpaidDays must not be null");
         Objects.requireNonNull(paidDays, "paidDays must not be null");
+        Objects.requireNonNull(creditDays, "creditDays must not be null");
     }
 
     public static PayRunDays of(
@@ -44,6 +52,7 @@ public record PayRunDays(BigDecimal lopDays, BigDecimal outsideDays, BigDecimal 
 
         BigDecimal requested = requestedLopDays == null ? BigDecimal.ZERO : requestedLopDays;
         BigDecimal lop = requested.max(BigDecimal.ZERO).min(payableDays);
+        BigDecimal credit = requested.negate().max(BigDecimal.ZERO);
 
         long calendarDays = ChronoUnit.DAYS.between(periodStart, periodEnd) + 1;
         long before = 0;
@@ -58,7 +67,7 @@ public record PayRunDays(BigDecimal lopDays, BigDecimal outsideDays, BigDecimal 
 
         BigDecimal unpaid = lop.add(outside);
         BigDecimal paid = payableDays.subtract(unpaid).max(BigDecimal.ZERO);
-        return new PayRunDays(scaled(lop), scaled(outside), scaled(unpaid), scaled(paid));
+        return new PayRunDays(scaled(lop), scaled(outside), scaled(unpaid), scaled(paid), scaled(credit));
     }
 
     private static BigDecimal scaled(BigDecimal value) {

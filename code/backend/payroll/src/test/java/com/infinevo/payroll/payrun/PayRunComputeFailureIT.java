@@ -38,6 +38,9 @@ class PayRunComputeFailureIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     @BeforeAll
@@ -82,7 +85,7 @@ class PayRunComputeFailureIT extends AbstractIntegrationTest {
         // Deleted after inclusion: the version still names it, the catalogue no longer holds it.
         PayRunTestSchema.execute("UPDATE payroll.earning SET is_deleted = true WHERE id = ?", retired);
 
-        PayRunResponse failed = payRunService.compute(run.id());
+        PayRunResponse failed = worker.computeNow(run.id());
 
         assertThat(failed.status()).isEqualTo(PayRunStatus.FAILED);
         assertThat(failed.failureReason()).isEqualTo("1 of 3 employees could not be computed");
@@ -102,7 +105,7 @@ class PayRunComputeFailureIT extends AbstractIntegrationTest {
                 });
 
         PayRunTestSchema.execute("UPDATE payroll.earning SET is_deleted = false WHERE id = ?", retired);
-        PayRunResponse fixed = payRunService.compute(run.id());
+        PayRunResponse fixed = worker.computeNow(run.id());
 
         assertThat(fixed.status()).isEqualTo(PayRunStatus.COMPUTED);
         assertThat(fixed.failureReason()).isNull();

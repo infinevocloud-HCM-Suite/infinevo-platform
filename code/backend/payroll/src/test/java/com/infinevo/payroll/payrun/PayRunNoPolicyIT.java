@@ -36,6 +36,9 @@ class PayRunNoPolicyIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     @BeforeAll
@@ -72,7 +75,7 @@ class PayRunNoPolicyIT extends AbstractIntegrationTest {
         payRunService.lock(run.id());
         PayRunTestSchema.deletePolicy(TENANT_A);
 
-        PayRunResponse computed = payRunService.compute(run.id());
+        PayRunResponse computed = worker.computeNow(run.id());
 
         assertThat(computed.status()).isEqualTo(PayRunStatus.FAILED);
         assertThat(computed.failureReason()).isEqualTo("2 of 2 employees could not be computed");

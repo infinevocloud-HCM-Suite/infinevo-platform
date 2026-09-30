@@ -13,6 +13,7 @@ import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -189,6 +190,122 @@ class LopLineContributorTest {
         assertThat(amount(context(
                         JULY, days("31"), days("31"), LopRounding.NONE, LONG_AGO, null, lop, Set.of(BASIC), prior)))
                 .isEqualByComparingTo("322.5806");
+    }
+
+    @Test
+    @DisplayName("A LOP reversal landing in a later period is paid back: 31,000 × 2 ÷ 31 = 2,000.00, and the benefit")
+    void reversalFromAPaidMonthIsRefunded() {
+        List<PayLine> prior = List.of(
+                structure(LineKind.EARNING, BASIC, "BASIC", "31000"),
+                structure(LineKind.BENEFIT, GRATUITY, "GRATUITY", "1550"));
+        PayRunEmployeeContext ctx = context(
+                JULY,
+                days("31"),
+                days("31"),
+                LopRounding.HALF_UP_2,
+                LONG_AGO,
+                null,
+                // The row it reverses was deducted in June, which is locked; W-19 posted this one to July.
+                List.of(input(PayInputKind.LOP_DAYS, "2", null, UUID.randomUUID())),
+                Set.of(BASIC, GRATUITY),
+                prior);
+
+        assertThat(ctx.days().lopDays()).isEqualByComparingTo("0");
+        assertThat(ctx.days().creditDays()).isEqualByComparingTo("2");
+        assertThat(ctx.days().unpaidDays()).isEqualByComparingTo("0");
+        assertThat(ctx.days().paidDays()).isEqualByComparingTo("31");
+        List<PayLine> lines = contributor.contribute(ctx);
+        assertThat(lines)
+                .extracting(PayLine::kind, PayLine::source, PayLine::componentCode, PayLine::taxable, l -> l.amount()
+                        .raw())
+                .containsExactly(
+                        tuple(LineKind.EARNING, LineSource.LOP, "LOP_REVERSAL", true, new BigDecimal("2000.0000")),
+                        tuple(
+                                LineKind.BENEFIT,
+                                LineSource.LOP,
+                                "LOP_BENEFIT_REVERSAL",
+                                false,
+                                new BigDecimal("100.0000")));
+
+        List<PayLine> all = new ArrayList<>(prior);
+        all.addAll(lines);
+        PayRunTotals totals = PayRunTotals.of(all);
+        assertThat(totals.grossEarnings().raw()).isEqualByComparingTo("33000");
+        assertThat(totals.totalBenefits().raw()).isEqualByComparingTo("1650");
+        assertThat(totals.netPay()).isEqualTo(new BigDecimal("33000.00"));
+    }
+
+    @Test
+    @DisplayName("Reversals of two locked months landing together are all paid back: 31,000 × 40 ÷ 31 = 40,000.00")
+    void refundIsNotCappedAtOneMonth() {
+        PayRunEmployeeContext ctx = context(
+                JULY,
+                days("31"),
+                days("31"),
+                LopRounding.HALF_UP_2,
+                LONG_AGO,
+                null,
+                List.of(
+                        input(PayInputKind.LOP_DAYS, "20", null, UUID.randomUUID()),
+                        input(PayInputKind.LOP_DAYS, "20", null, UUID.randomUUID())),
+                Set.of(BASIC),
+                List.of(structure(LineKind.EARNING, BASIC, "BASIC", "31000")));
+
+        assertThat(ctx.days().creditDays()).isEqualByComparingTo("40");
+        assertThat(ctx.days().paidDays()).isEqualByComparingTo("31");
+        assertThat(contributor.contribute(ctx))
+                .extracting(
+                        PayLine::kind, PayLine::componentCode, l -> l.amount().raw())
+                .containsExactly(tuple(LineKind.EARNING, "LOP_REVERSAL", new BigDecimal("40000.0000")));
+    }
+
+    @Test
+    @DisplayName("New LOP days and an older reversal in one period net first: 3 − 2 = 1 day deducted, nothing refunded")
+    void reversalNetsAgainstNewLopDays() {
+        PayRunEmployeeContext ctx = context(
+                JULY,
+                days("31"),
+                days("31"),
+                LopRounding.HALF_UP_2,
+                LONG_AGO,
+                null,
+                List.of(
+                        input(PayInputKind.LOP_DAYS, "3", null),
+                        input(PayInputKind.LOP_DAYS, "2", null, UUID.randomUUID())),
+                Set.of(BASIC),
+                List.of(structure(LineKind.EARNING, BASIC, "BASIC", "31000")));
+
+        assertThat(ctx.days().lopDays()).isEqualByComparingTo("1");
+        assertThat(ctx.days().creditDays()).isEqualByComparingTo("0");
+        assertThat(contributor.contribute(ctx))
+                .extracting(
+                        PayLine::kind, PayLine::componentCode, l -> l.amount().raw())
+                .containsExactly(tuple(LineKind.DEDUCTION, "LOP", new BigDecimal("1000.0000")));
+    }
+
+    @Test
+    @DisplayName(
+            "A leaver owed a refund gets both lines: days after the last day deducted, the reversed days paid back")
+    void leaverWithARefund() {
+        PayRunEmployeeContext ctx = context(
+                JULY,
+                days("31"),
+                days("31"),
+                LopRounding.HALF_UP_2,
+                LONG_AGO,
+                LocalDate.of(2026, 7, 10),
+                List.of(input(PayInputKind.LOP_DAYS, "2", null, UUID.randomUUID())),
+                Set.of(BASIC),
+                List.of(structure(LineKind.EARNING, BASIC, "BASIC", "31000")));
+
+        assertThat(ctx.days().unpaidDays()).isEqualByComparingTo("21");
+        assertThat(ctx.days().paidDays()).isEqualByComparingTo("10");
+        assertThat(contributor.contribute(ctx))
+                .extracting(
+                        PayLine::kind, PayLine::componentCode, l -> l.amount().raw())
+                .containsExactly(
+                        tuple(LineKind.DEDUCTION, "LOP", new BigDecimal("21000.0000")),
+                        tuple(LineKind.EARNING, "LOP_REVERSAL", new BigDecimal("2000.0000")));
     }
 
     private BigDecimal amount(PayRunEmployeeContext ctx) {

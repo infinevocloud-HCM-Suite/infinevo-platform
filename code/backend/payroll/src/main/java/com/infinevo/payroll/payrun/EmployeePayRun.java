@@ -91,6 +91,9 @@ public class EmployeePayRun {
     @Column(name = "computation_error", length = 500)
     private String computationError;
 
+    @Column(name = "computed_attempt", nullable = false)
+    private int computedAttempt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -122,7 +125,7 @@ public class EmployeePayRun {
      * {@code unpricedInputCount} is the number of overtime rows with hours and no amount (W-29.3 §3).
      */
     public void recordComputation(
-            PayRunTotals totals, PayRunDays days, int unpricedInputCount, String actor, Instant at) {
+            PayRunTotals totals, PayRunDays days, int unpricedInputCount, int attempt, String actor, Instant at) {
         Objects.requireNonNull(totals, "totals must not be null");
         Objects.requireNonNull(days, "days must not be null");
         this.lopDays = days.lopDays();
@@ -137,11 +140,12 @@ public class EmployeePayRun {
         this.netPay = totals.netPay().setScale(4);
         this.computedAt = Objects.requireNonNull(at, "at must not be null");
         this.computationError = null;
+        this.computedAttempt = attempt;
         this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
     }
 
     /** The employee could not be computed: totals back to zero, the reason kept on the row. */
-    public void recordError(String error, String actor, Instant at) {
+    public void recordError(String error, int attempt, String actor, Instant at) {
         Objects.requireNonNull(error, "error must not be null");
         this.grossEarnings = ZERO_AMOUNT;
         this.totalReimbursements = ZERO_AMOUNT;
@@ -154,6 +158,7 @@ public class EmployeePayRun {
         this.unpricedInputCount = 0;
         this.computedAt = Objects.requireNonNull(at, "at must not be null");
         this.computationError = error.length() > 500 ? error.substring(0, 500) : error;
+        this.computedAttempt = attempt;
         this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
     }
 
@@ -239,5 +244,10 @@ public class EmployeePayRun {
 
     public String getComputationError() {
         return computationError;
+    }
+
+    /** The attempt that last computed this row (W-29.4); zero before the first. */
+    public int getComputedAttempt() {
+        return computedAttempt;
     }
 }

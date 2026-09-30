@@ -10,10 +10,14 @@ import org.springframework.data.repository.query.Param;
 /** Every finder takes {@code tenantId} (DEBT-022). */
 public interface EmployeePayRunLineRepository extends JpaRepository<EmployeePayRunLine, UUID> {
 
-    /** One statement, not a load-then-delete per row: a recompute starts clean (W-29.2 §3). */
+    /**
+     * One employee's lines, in one statement, inside that employee's transaction (W-29.4 §4): a
+     * recomputed row starts clean, and a row a resumed attempt skips keeps its lines.
+     */
     @Modifying
-    @Query("DELETE FROM EmployeePayRunLine l WHERE l.tenantId = :tenantId AND l.payrunId = :payrunId")
-    int deleteByTenantIdAndPayrunId(@Param("tenantId") UUID tenantId, @Param("payrunId") UUID payrunId);
+    @Query("DELETE FROM EmployeePayRunLine l WHERE l.tenantId = :tenantId AND l.employeePayrunId = :employeePayrunId")
+    int deleteByTenantIdAndEmployeePayrunId(
+            @Param("tenantId") UUID tenantId, @Param("employeePayrunId") UUID employeePayrunId);
 
     List<EmployeePayRunLine> findByTenantIdAndEmployeePayrunIdOrderBySortOrderAsc(UUID tenantId, UUID employeePayrunId);
 
