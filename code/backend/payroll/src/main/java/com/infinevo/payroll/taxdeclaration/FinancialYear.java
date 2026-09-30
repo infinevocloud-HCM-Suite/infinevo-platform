@@ -96,6 +96,29 @@ public record FinancialYear(int startYear, int endYear) implements Comparable<Fi
         return label();
     }
 
+    /**
+     * Resolves all financial years from the year containing effectiveFrom up to the current financial year.
+     * Required for salary version events spanning past financial years (W-33.3 § 13 decision 5).
+     */
+    public static java.util.List<String> allFrom(LocalDate effectiveFrom) {
+        return allFrom(effectiveFrom, LocalDate.now());
+    }
+
+    public static java.util.List<String> allFrom(LocalDate effectiveFrom, LocalDate today) {
+        Objects.requireNonNull(effectiveFrom, "effectiveFrom must not be null");
+        Objects.requireNonNull(today, "today must not be null");
+        FinancialYear startFy = FinancialYear.of(effectiveFrom);
+        FinancialYear currentFy = FinancialYear.of(today);
+        if (startFy.compareTo(currentFy) > 0) {
+            return java.util.List.of(startFy.label());
+        }
+        java.util.List<String> list = new java.util.ArrayList<>();
+        for (int y = startFy.startYear(); y <= currentFy.startYear(); y++) {
+            list.add(new FinancialYear(y, y + 1).label());
+        }
+        return java.util.Collections.unmodifiableList(list);
+    }
+
     @Override
     public int compareTo(FinancialYear o) {
         return Integer.compare(this.startYear, o.startYear);

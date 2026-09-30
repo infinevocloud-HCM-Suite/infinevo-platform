@@ -25,6 +25,7 @@ import com.infinevo.payroll.statutory.settings.EpfSetting;
 import com.infinevo.payroll.statutory.settings.EpfSettingRepository;
 import com.infinevo.payroll.statutory.settings.EsiSetting;
 import com.infinevo.payroll.statutory.settings.EsiSettingRepository;
+import com.infinevo.payroll.taxcalc.recalc.event.SalaryVersionChangedEvent;
 import com.infinevo.shared.money.Money;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
@@ -41,6 +42,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -71,6 +73,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final EmployeePersonalService employeePersonalService;
     private final CtcEpfComponentRepository ctcEpfComponentRepository;
     private final CtcEsiComponentRepository ctcEsiComponentRepository;
+    private final ApplicationEventPublisher publisher;
 
     public EmployeeSalaryServiceImpl(
             CtcStructureRepository ctcStructureRepository,
@@ -90,6 +93,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 benefitRepository,
                 reimbursementRepository,
                 employeeService,
+                null,
                 null,
                 null,
                 null,
@@ -127,6 +131,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -147,7 +152,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             @Autowired(required = false) EmployeeStatutoryProfileRepository employeeStatutoryProfileRepository,
             @Autowired(required = false) EmployeePersonalService employeePersonalService,
             @Autowired(required = false) CtcEpfComponentRepository ctcEpfComponentRepository,
-            @Autowired(required = false) CtcEsiComponentRepository ctcEsiComponentRepository) {
+            @Autowired(required = false) CtcEsiComponentRepository ctcEsiComponentRepository,
+            @Autowired(required = false) ApplicationEventPublisher publisher) {
         this.ctcStructureRepository =
                 Objects.requireNonNull(ctcStructureRepository, "ctcStructureRepository must not be null");
         this.employeeEarningRepository =
@@ -169,6 +175,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         this.employeePersonalService = employeePersonalService;
         this.ctcEpfComponentRepository = ctcEpfComponentRepository;
         this.ctcEsiComponentRepository = ctcEsiComponentRepository;
+        this.publisher = publisher;
     }
 
     @Override
@@ -182,7 +189,11 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                     + ". Use revisions endpoint to add a new version.");
         }
 
-        return buildAndSaveVersion(tenantId, employeeId, request, null, false);
+        SalaryVersionResponse response = buildAndSaveVersion(tenantId, employeeId, request, null, false);
+        if (publisher != null) {
+            publisher.publishEvent(new SalaryVersionChangedEvent(tenantId, employeeId, request.effectiveFrom()));
+        }
+        return response;
     }
 
     @Override
@@ -211,6 +222,9 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         CtcStructure saved = ctcStructureRepository
                 .findByIdAndTenantId(created.id(), tenantId)
                 .orElseThrow(() -> new SalaryNotFoundException("Salary version not found: " + created.id()));
+        if (publisher != null) {
+            publisher.publishEvent(new SalaryVersionChangedEvent(tenantId, employeeId, request.effectiveFrom()));
+        }
         return toResponse(saved, tenantId, created.changeInPercent());
     }
 
@@ -277,7 +291,11 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                     + request.effectiveFrom() + " already exists");
         }
 
-        return buildAndSaveVersion(tenantId, employeeId, request, existing, true);
+        SalaryVersionResponse response = buildAndSaveVersion(tenantId, employeeId, request, existing, true);
+        if (publisher != null) {
+            publisher.publishEvent(new SalaryVersionChangedEvent(tenantId, employeeId, request.effectiveFrom()));
+        }
+        return response;
     }
 
     @Override
@@ -299,10 +317,14 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                     + existing.getEffectiveFrom() + " because it is already in force or past.");
         }
 
+        LocalDate effectiveFrom = existing.getEffectiveFrom();
         existing.setCancelled(true);
         existing.setCancelledAt(Instant.now());
         existing.setUpdatedBy(currentActor());
         ctcStructureRepository.save(existing);
+        if (publisher != null) {
+            publisher.publishEvent(new SalaryVersionChangedEvent(tenantId, employeeId, effectiveFrom));
+        }
     }
 
     @Override

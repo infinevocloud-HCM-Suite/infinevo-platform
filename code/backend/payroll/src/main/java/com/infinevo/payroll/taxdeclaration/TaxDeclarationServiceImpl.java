@@ -29,13 +29,22 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
     private final TaxDeclarationWindowService windowService;
     private final EmployeeService employeeService;
     private final Clock clock;
+    private final org.springframework.context.ApplicationEventPublisher publisher;
 
     @Autowired
     public TaxDeclarationServiceImpl(
             EmployeeInvestmentDeclarationRepository declarationRepository,
             TaxDeclarationWindowService windowService,
+            EmployeeService employeeService,
+            org.springframework.context.ApplicationEventPublisher publisher) {
+        this(declarationRepository, windowService, employeeService, TaxDeclarationRules.defaultClock(), publisher);
+    }
+
+    public TaxDeclarationServiceImpl(
+            EmployeeInvestmentDeclarationRepository declarationRepository,
+            TaxDeclarationWindowService windowService,
             EmployeeService employeeService) {
-        this(declarationRepository, windowService, employeeService, TaxDeclarationRules.defaultClock());
+        this(declarationRepository, windowService, employeeService, TaxDeclarationRules.defaultClock(), null);
     }
 
     TaxDeclarationServiceImpl(
@@ -43,11 +52,21 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
             TaxDeclarationWindowService windowService,
             EmployeeService employeeService,
             Clock clock) {
+        this(declarationRepository, windowService, employeeService, clock, null);
+    }
+
+    TaxDeclarationServiceImpl(
+            EmployeeInvestmentDeclarationRepository declarationRepository,
+            TaxDeclarationWindowService windowService,
+            EmployeeService employeeService,
+            Clock clock,
+            org.springframework.context.ApplicationEventPublisher publisher) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.declarationRepository =
                 Objects.requireNonNull(declarationRepository, "declarationRepository must not be null");
         this.windowService = Objects.requireNonNull(windowService, "windowService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.publisher = publisher;
     }
 
     @Override
@@ -264,6 +283,12 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
         decl.setStatus(DeclarationStatus.SUBMITTED);
         decl.setSubmittedAt(Instant.now());
         decl = declarationRepository.save(decl);
+
+        if (publisher != null) {
+            publisher.publishEvent(new com.infinevo.payroll.taxcalc.recalc.event.DeclarationSubmittedEvent(
+                    tenantId, employeeId, decl.getId(), fy.label()));
+        }
+
         return toResponse(decl, window, today);
     }
 
