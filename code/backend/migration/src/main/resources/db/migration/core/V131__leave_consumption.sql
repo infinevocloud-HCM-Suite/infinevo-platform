@@ -1,4 +1,4 @@
--- Migration: V116__leave_consumption.sql
+-- Migration: V131__leave_consumption.sql
 -- Description: W-16.4a core.leave_consumption — append-only leave consumption ledger with RLS isolation
 
 CREATE TABLE core.leave_consumption (

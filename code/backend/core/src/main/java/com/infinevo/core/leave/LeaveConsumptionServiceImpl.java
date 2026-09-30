@@ -159,7 +159,7 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
                     // Build the entity first — the constructor generates its UUID.
                     // We use that UUID as sourceRef in pay_input, then set payInputId
                     // on the entity before the single INSERT. This avoids a prohibited
-                    // UPDATE on the append-only table (V117 revokes UPDATE from app_user).
+                    // UPDATE on the append-only table (V132 revokes UPDATE from app_user).
                     LeaveMonthlyLop monthlyLop = new LeaveMonthlyLop(
                             tenantId,
                             request.getEmployeeId(),

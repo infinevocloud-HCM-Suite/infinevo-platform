@@ -92,22 +92,22 @@ public final class LeaveTestSchema {
                 executeResource(conn, "db/migration/core/V092__approval_delegation.sql");
             }
             if (!tableExists(conn, "leave_type")) {
-                executeResource(conn, "db/migration/core/V110__leave_type.sql");
+                executeResource(conn, "db/migration/core/V125__leave_type.sql");
             }
             if (!tableExists(conn, "leave_policy")) {
-                executeResource(conn, "db/migration/core/V111__leave_policy.sql");
+                executeResource(conn, "db/migration/core/V126__leave_policy.sql");
             }
             if (!tableExists(conn, "leave_policy_eligibility")) {
-                executeResource(conn, "db/migration/core/V112__leave_policy_eligibility.sql");
+                executeResource(conn, "db/migration/core/V127__leave_policy_eligibility.sql");
             }
             if (!tableExists(conn, "leave_allocation")) {
-                executeResource(conn, "db/migration/core/V113__leave_allocation.sql");
+                executeResource(conn, "db/migration/core/V128__leave_allocation.sql");
             }
             if (!tableExists(conn, "leave_request")) {
-                executeResource(conn, "db/migration/core/V114__leave_request.sql");
+                executeResource(conn, "db/migration/core/V129__leave_request.sql");
             }
             if (!tableExists(conn, "leave_request_document")) {
-                executeResource(conn, "db/migration/core/V115__leave_request_document.sql");
+                executeResource(conn, "db/migration/core/V130__leave_request_document.sql");
             }
             if (!tableExists(conn, "pay_input")) {
                 executeResource(conn, "db/migration/core/V031__pay_input.sql");
@@ -119,13 +119,13 @@ public final class LeaveTestSchema {
                 executeResource(conn, "db/migration/core/V060__pay_input_run_ref.sql");
             }
             if (!tableExists(conn, "leave_consumption")) {
-                executeResource(conn, "db/migration/core/V116__leave_consumption.sql");
+                executeResource(conn, "db/migration/core/V131__leave_consumption.sql");
             }
             if (!tableExists(conn, "leave_monthly_lop")) {
-                executeResource(conn, "db/migration/core/V117__leave_monthly_lop.sql");
+                executeResource(conn, "db/migration/core/V132__leave_monthly_lop.sql");
             }
             if (!tableExists(conn, "leave_import_log")) {
-                executeResource(conn, "db/migration/core/V118__leave_import_log.sql");
+                executeResource(conn, "db/migration/core/V133__leave_import_log.sql");
             }
         }
     }

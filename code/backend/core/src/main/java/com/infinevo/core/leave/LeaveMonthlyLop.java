@@ -64,7 +64,7 @@ public class LeaveMonthlyLop implements Persistable<UUID> {
 
     /**
      * Transient flag for {@link Persistable}: tells Spring Data to use {@code persist()} (INSERT)
-     * instead of {@code merge()} even when the ID is pre-set. Required because V117 revokes UPDATE
+     * instead of {@code merge()} even when the ID is pre-set. Required because V132 revokes UPDATE
      * from app_user — this table is append-only.
      */
     @Transient

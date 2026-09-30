@@ -1,4 +1,4 @@
--- Migration: V112__leave_policy_eligibility.sql
+-- Migration: V127__leave_policy_eligibility.sql
 -- Description: W-16.1 core.leave_policy_eligibility — eligibility matrix per policy with RLS isolation
 
 CREATE TABLE core.leave_policy_eligibility (
