@@ -28,7 +28,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * W-29.1 §4 and W-29.2 §4. Create, read, list, lock, cancel, compute, and one employee's lines. Not ported: the legacy free {@code PUT} that copied
+ * W-29.1 §4, W-29.2 §4 and W-29.4 §4. Create, read, list, lock, cancel, compute — queued, answered
+ * with {@code 202} — and one employee's lines. Not ported: the legacy free {@code PUT} that copied
  * {@code status} from the body, {@code DELETE} (cancel instead — the row stays) and
  * {@code GET /completed} (a {@code status} filter).
  */
@@ -100,12 +101,10 @@ public class PayRunController {
 
     @PostMapping("/{id}/compute")
     @RequiresAction("payroll.run.execute")
-    public ResponseEntity<PayRunApiResponse<PayRunResponse>> compute(@PathVariable("id") UUID id) {
-        PayRunResponse run = payRunService.compute(id);
-        String message = run.status() == PayRunStatus.COMPUTED
-                ? "Pay run computed successfully"
-                : "Pay run computed with failures: " + run.failureReason();
-        return ResponseEntity.ok(PayRunApiResponse.ok(message, run));
+    public ResponseEntity<PayRunApiResponse<ComputeAcceptedResponse>> compute(@PathVariable("id") UUID id) {
+        ComputeAcceptedResponse accepted = payRunService.compute(id);
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(PayRunApiResponse.accepted("Pay run computation queued", accepted));
     }
 
     @GetMapping("/{id}/employees/{employeeId}/lines")
@@ -121,9 +120,18 @@ public class PayRunController {
         return error(HttpStatus.NOT_FOUND, ApiError.NOT_FOUND, ex.getMessage());
     }
 
-    @ExceptionHandler({DuplicatePayRunException.class, IllegalPayRunTransitionException.class})
+    @ExceptionHandler({
+        DuplicatePayRunException.class,
+        IllegalPayRunTransitionException.class,
+        PayRunComputeInProgressException.class
+    })
     public ResponseEntity<ApiErrorResponse> handleConflict(RuntimeException ex) {
         return error(HttpStatus.CONFLICT, ApiError.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(PayRunEnqueueException.class)
+    public ResponseEntity<ApiErrorResponse> handleEnqueue(PayRunEnqueueException ex) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, ApiError.INTERNAL, ex.getMessage());
     }
 
     @ExceptionHandler(NoPayScheduleException.class)

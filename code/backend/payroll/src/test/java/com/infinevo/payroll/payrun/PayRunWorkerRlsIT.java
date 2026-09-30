@@ -5,16 +5,14 @@ import static com.infinevo.payroll.payrun.PayRunTestSchema.TENANT_B;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.infinevo.core.job.service.JobService;
 import com.infinevo.payroll.PayrollTestApp;
-import com.infinevo.payroll.PayrollTestSchema;
 import com.infinevo.payroll.schedule.PayDayRule;
 import com.infinevo.payroll.schedule.PayScheduleRequest;
 import com.infinevo.payroll.schedule.PayScheduleService;
+import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -30,23 +28,31 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
- * W-29.2 §7 — as {@code app_user} bound to tenant A, none of tenant B's lines are visible, and the
- * service refuses B's lines to A; bound to B, the same read sees them.
+ * W-29.4 §7 — the worker binds the tenant the message names. A message bound to tenant A whose payload
+ * names tenant B's run finds no run: the job is {@code FAILED}, no line is written, B's run is untouched.
  */
 @SpringBootTest(classes = PayrollTestApp.class)
-class PayRunLineRlsIT extends AbstractIntegrationTest {
+class PayRunWorkerRlsIT extends AbstractIntegrationTest {
+
+    private static final YearMonth JULY = YearMonth.of(2026, 7);
 
     @Autowired
     private PayRunService payRunService;
 
     @Autowired
+    private PayScheduleService scheduleService;
+
+    @Autowired
     private InProcessPayRunWorker worker;
 
     @Autowired
-    private PayScheduleService scheduleService;
+    private RecordingQueueProducer producer;
+
+    @Autowired
+    private JobService jobService;
 
     private UUID runOfB;
-    private UUID employeeOfB;
+    private ComputeAcceptedResponse acceptedForB;
 
     @BeforeAll
     static void applySchema() throws Exception {
@@ -62,14 +68,15 @@ class PayRunLineRlsIT extends AbstractIntegrationTest {
     void setUp() throws SQLException {
         TenantContext.clear();
         PayRunTestSchema.clean();
+        producer.clear();
         TenantContext.set(TENANT_B);
         scheduleService.upsert(new PayScheduleRequest(
                 List.of(1, 2, 3, 4, 5), PayDayRule.LAST_DAY_OF_PERIOD, null, 25, LocalDate.of(2026, 1, 1)));
-        employeeOfB = PayRunTestSchema.insertWorkedExampleEmployee(
+        PayRunTestSchema.insertWorkedExampleEmployee(
                 TENANT_B, "B-01", PayRunTestSchema.insertWorkedExampleCatalogue(TENANT_B));
-        runOfB = payRunService.create(YearMonth.of(2026, 7)).id();
+        runOfB = payRunService.create(JULY).id();
         payRunService.lock(runOfB);
-        worker.computeNow(runOfB);
+        acceptedForB = payRunService.compute(runOfB);
         TenantContext.clear();
     }
 
@@ -79,35 +86,24 @@ class PayRunLineRlsIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("As app_user bound to A, B's lines are invisible; bound to B they are there")
-    void policyHidesTenantBLines() throws SQLException {
-        try (Connection conn = PayrollTestSchema.appConnection()) {
-            conn.setAutoCommit(false);
-            PayrollTestSchema.bindTenant(conn, TENANT_A);
-            assertThat(countLines(conn)).isZero();
-            conn.rollback();
-
-            PayrollTestSchema.bindTenant(conn, TENANT_B);
-            assertThat(countLines(conn)).isEqualTo(7);
-            conn.rollback();
-        }
-    }
-
-    @Test
-    @DisplayName("Through the service, tenant A cannot read tenant B's lines")
-    void serviceRefusesCrossTenantLines() {
+    @DisplayName("Bound to A, a payload naming B's run: not found, job FAILED, no line, B's run untouched")
+    void workerCannotReachAnotherTenantsRun() throws SQLException {
+        String jobId = "rls-" + UUID.randomUUID();
+        String payload = new PayRunJobPayload(runOfB, 1, "intruder").toJson();
         TenantContext.set(TENANT_A);
-        assertThatThrownBy(() -> payRunService.lines(runOfB, employeeOfB)).isInstanceOf(PayRunNotFoundException.class);
-    }
+        jobService.createJob(jobId, TENANT_A, PayRunServiceImpl.QUEUE_NAME, payload);
+        TenantContext.clear();
 
-    private long countLines(Connection conn) throws SQLException {
-        try (PreparedStatement ps =
-                conn.prepareStatement("SELECT count(*) FROM payroll.employee_payrun_line WHERE payrun_id = ?")) {
-            ps.setObject(1, runOfB);
-            try (ResultSet rs = ps.executeQuery()) {
-                rs.next();
-                return rs.getLong(1);
-            }
-        }
+        assertThatThrownBy(
+                        () -> worker.deliver(QueueMessage.of(jobId, TENANT_A, PayRunServiceImpl.QUEUE_NAME, payload)))
+                .isInstanceOf(PayRunNotFoundException.class);
+
+        assertThat(PayRunTestSchema.job(jobId).status()).isEqualTo("FAILED");
+        assertThat(PayRunTestSchema.countLines(TENANT_B, runOfB)).isZero();
+        TenantContext.set(TENANT_B);
+        PayRunResponse untouched = payRunService.get(runOfB);
+        assertThat(untouched.status()).isEqualTo(PayRunStatus.COMPUTING);
+        assertThat(untouched.progressDone()).isZero();
+        assertThat(PayRunTestSchema.job(acceptedForB.jobId()).status()).isEqualTo("QUEUED");
     }
 }

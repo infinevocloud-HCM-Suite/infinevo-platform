@@ -43,6 +43,9 @@ class PayRunLopIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     @Autowired
@@ -130,7 +133,7 @@ class PayRunLopIT extends AbstractIntegrationTest {
     private PayRunResponse computeJuly() {
         PayRunResponse run = payRunService.create(JULY);
         payRunService.lock(run.id());
-        PayRunResponse computed = payRunService.compute(run.id());
+        PayRunResponse computed = worker.computeNow(run.id());
         assertThat(computed.status()).isEqualTo(PayRunStatus.COMPUTED);
         return computed;
     }

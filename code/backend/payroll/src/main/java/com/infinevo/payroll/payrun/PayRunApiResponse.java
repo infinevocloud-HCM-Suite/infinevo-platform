@@ -13,4 +13,8 @@ public record PayRunApiResponse<T>(
     public static <T> PayRunApiResponse<T> created(String message, T data) {
         return new PayRunApiResponse<>(201, message, data);
     }
+
+    public static <T> PayRunApiResponse<T> accepted(String message, T data) {
+        return new PayRunApiResponse<>(202, message, data);
+    }
 }

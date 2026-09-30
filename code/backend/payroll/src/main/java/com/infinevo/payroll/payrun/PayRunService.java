@@ -35,12 +35,16 @@ public interface PayRunService {
     PayRunResponse cancel(UUID id);
 
     /**
-     * {@code LOCKED | COMPUTED | FAILED → COMPUTING → COMPUTED | FAILED} (W-29.2 §3), synchronously.
+     * {@code LOCKED | COMPUTED | FAILED → COMPUTING}, and the computation queued for the worker
+     * (W-29.4 §3); returns at once. A {@code COMPUTING} run whose job has not moved for 15 minutes
+     * starts a new attempt that keeps the rows the abandoned one finished.
      *
-     * @throws IllegalPayRunTransitionException from {@code DRAFT}, {@code COMPUTING}, {@code APPROVED},
-     *     {@code PAID} or {@code CANCELLED}
+     * @throws IllegalPayRunTransitionException from {@code DRAFT}, {@code APPROVED}, {@code PAID} or
+     *     {@code CANCELLED}
+     * @throws PayRunComputeInProgressException from {@code COMPUTING} within the stale window
+     * @throws PayRunEnqueueException if no queue is configured or the message could not be sent
      */
-    PayRunResponse compute(UUID id);
+    ComputeAcceptedResponse compute(UUID id);
 
     /** One employee's lines in {@code sort_order}, with the row's computation error if any. */
     EmployeePayRunLinesResponse lines(UUID id, UUID employeeId);

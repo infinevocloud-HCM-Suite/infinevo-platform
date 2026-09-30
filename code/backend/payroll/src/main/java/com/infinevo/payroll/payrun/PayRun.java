@@ -99,6 +99,21 @@ public class PayRun {
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
 
+    @Column(name = "job_id", length = 64)
+    private String jobId;
+
+    @Column(name = "compute_attempt", nullable = false)
+    private int computeAttempt;
+
+    @Column(name = "compute_started_at")
+    private Instant computeStartedAt;
+
+    @Column(name = "progress_done", nullable = false)
+    private int progressDone;
+
+    @Column(name = "progress_total", nullable = false)
+    private int progressTotal;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -159,6 +174,41 @@ public class PayRun {
         this.status = PayRunStatus.COMPUTING;
         this.failureReason = null;
         this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    /**
+     * Starts the next computation attempt on a run already {@code COMPUTING} (W-29.4 §3): the caller
+     * has judged the previous attempt abandoned. No transition — the run stays {@code COMPUTING}.
+     *
+     * @throws IllegalPayRunTransitionException unless the run is {@code COMPUTING}
+     */
+    public void resumeComputing(String actor) {
+        if (status != PayRunStatus.COMPUTING) {
+            throw new IllegalPayRunTransitionException(status, PayRunStatus.COMPUTING);
+        }
+        this.failureReason = null;
+        this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    /**
+     * Numbers a new attempt and names the job that runs it (W-29.4 §3). {@code alreadyDone} is the
+     * count of rows a resumed attempt keeps; zero for a fresh one.
+     *
+     * @return the new attempt number
+     */
+    public int beginAttempt(String jobIdPrefix, int alreadyDone, Instant at) {
+        Objects.requireNonNull(jobIdPrefix, "jobIdPrefix must not be null");
+        this.computeAttempt++;
+        this.jobId = jobIdPrefix + computeAttempt;
+        this.computeStartedAt = Objects.requireNonNull(at, "at must not be null");
+        this.progressDone = alreadyDone;
+        this.progressTotal = includedCount;
+        return computeAttempt;
+    }
+
+    /** Employees computed so far in the current attempt. */
+    public void reportProgress(int done) {
+        this.progressDone = done;
     }
 
     /** {@code COMPUTING → COMPUTED}, with the run totals summed over its rows. */
@@ -306,6 +356,26 @@ public class PayRun {
 
     public String getFailureReason() {
         return failureReason;
+    }
+
+    public String getJobId() {
+        return jobId;
+    }
+
+    public int getComputeAttempt() {
+        return computeAttempt;
+    }
+
+    public Instant getComputeStartedAt() {
+        return computeStartedAt;
+    }
+
+    public int getProgressDone() {
+        return progressDone;
+    }
+
+    public int getProgressTotal() {
+        return progressTotal;
     }
 
     public Instant getCreatedAt() {

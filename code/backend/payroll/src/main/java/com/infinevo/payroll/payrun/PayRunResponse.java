@@ -9,7 +9,7 @@ import java.util.UUID;
 /**
  * One pay run as the API returns it (W-29.1 §4), with the counts of included and skipped employees
  * and, once computed, the three run totals (W-29.2 §4) and how many rows came out with a negative
- * net (W-29.3 §4).
+ * net (W-29.3 §4). W-29.4 adds the job computing it and the progress the screen polls.
  */
 public record PayRunResponse(
         @JsonProperty("id") UUID id,
@@ -32,6 +32,11 @@ public record PayRunResponse(
         @JsonProperty("locked_by") String lockedBy,
         @JsonProperty("cancelled_at") Instant cancelledAt,
         @JsonProperty("cancelled_by") String cancelledBy,
+        @JsonProperty("job_id") String jobId,
+        @JsonProperty("compute_attempt") int computeAttempt,
+        @JsonProperty("compute_started_at") Instant computeStartedAt,
+        @JsonProperty("progress_done") int progressDone,
+        @JsonProperty("progress_total") int progressTotal,
         @JsonProperty("created_at") Instant createdAt,
         @JsonProperty("updated_at") Instant updatedAt) {
 
@@ -57,6 +62,11 @@ public record PayRunResponse(
                 run.getLockedBy(),
                 run.getCancelledAt(),
                 run.getCancelledBy(),
+                run.getJobId(),
+                run.getComputeAttempt(),
+                run.getComputeStartedAt(),
+                run.getProgressDone(),
+                run.getProgressTotal(),
                 run.getCreatedAt(),
                 run.getUpdatedAt());
     }

@@ -34,6 +34,9 @@ class PayRunLineSnapshotIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     @BeforeAll
@@ -67,7 +70,7 @@ class PayRunLineSnapshotIT extends AbstractIntegrationTest {
         UUID employee = PayRunTestSchema.insertWorkedExampleEmployee(TENANT_A, "S-01", catalogue);
         PayRunResponse run = payRunService.create(YearMonth.of(2026, 7));
         payRunService.lock(run.id());
-        payRunService.compute(run.id());
+        worker.computeNow(run.id());
 
         PayRunTestSchema.execute(
                 "UPDATE payroll.earning SET name = 'Base pay', code = 'BASE' WHERE id = ?", catalogue.basic());

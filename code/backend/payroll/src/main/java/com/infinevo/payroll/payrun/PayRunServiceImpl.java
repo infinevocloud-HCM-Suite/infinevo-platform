@@ -2,10 +2,16 @@ package com.infinevo.payroll.payrun;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.job.JobState;
+import com.infinevo.core.job.dto.JobStatusResponseDTO;
+import com.infinevo.core.job.service.JobService;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.payroll.schedule.PayPeriodResponse;
 import com.infinevo.payroll.schedule.PayPeriodService;
+import com.infinevo.shared.queue.QueueMessage;
+import com.infinevo.shared.queue.QueueProducer;
 import com.infinevo.shared.tenant.TenantContext;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
@@ -13,10 +19,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -33,6 +41,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * throw from {@code versionInForce} cannot mark this one rollback-only — and then writes the run and
  * its rows in one transaction of its own. The unique index {@code uk_payrun_tenant_period} decides a
  * race between two creates; the {@code exists} read before it only saves the work of a certain loser.
+ *
+ * <p>{@link #compute} does not compute (W-29.4 §3): it starts an attempt under the run's row lock — the
+ * guard against two officers pressing compute at once — creates the job, and sends the message to the
+ * {@code payrun} queue after the transaction commits, so the worker never reads a run still
+ * {@code LOCKED}. The worker's {@code PayrunQueueListener} runs {@link PayRunComputationService}.
  */
 @Service
 public class PayRunServiceImpl implements PayRunService {
@@ -40,6 +53,13 @@ public class PayRunServiceImpl implements PayRunService {
     private static final Logger log = LoggerFactory.getLogger(PayRunServiceImpl.class);
 
     static final String ACTOR_SYSTEM = "system";
+
+    /** The queue W-52 created for pay runs; the worker's {@code PayrunQueueListener} reads it. */
+    public static final String QUEUE_NAME = "payrun";
+
+    /** A {@code COMPUTING} run whose job has not moved for this long may be computed again (§3). */
+    static final Duration STALE_AFTER = Duration.ofMinutes(15);
+
     private static final int ACTOR_MAX_LENGTH = 100;
     private static final String UNIQUE_PERIOD_INDEX = "uk_payrun_tenant_period";
 
@@ -49,8 +69,9 @@ public class PayRunServiceImpl implements PayRunService {
     private final EmployeeService employeeService;
     private final PayRunInclusionService inclusionService;
     private final PayInputService payInputService;
-    private final PayRunComputationService computationService;
     private final EmployeePayRunLineRepository lines;
+    private final JobService jobService;
+    private final ObjectProvider<QueueProducer> queueProducers;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
 
@@ -61,8 +82,9 @@ public class PayRunServiceImpl implements PayRunService {
             EmployeeService employeeService,
             PayRunInclusionService inclusionService,
             PayInputService payInputService,
-            PayRunComputationService computationService,
             EmployeePayRunLineRepository lines,
+            JobService jobService,
+            ObjectProvider<QueueProducer> queueProducers,
             PlatformTransactionManager transactionManager) {
         this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
         this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
@@ -70,8 +92,9 @@ public class PayRunServiceImpl implements PayRunService {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.inclusionService = Objects.requireNonNull(inclusionService, "inclusionService must not be null");
         this.payInputService = Objects.requireNonNull(payInputService, "payInputService must not be null");
-        this.computationService = Objects.requireNonNull(computationService, "computationService must not be null");
         this.lines = Objects.requireNonNull(lines, "lines must not be null");
+        this.jobService = Objects.requireNonNull(jobService, "jobService must not be null");
+        this.queueProducers = Objects.requireNonNull(queueProducers, "queueProducers must not be null");
         Objects.requireNonNull(transactionManager, "transactionManager must not be null");
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
@@ -187,10 +210,121 @@ public class PayRunServiceImpl implements PayRunService {
         return PayRunResponse.from(saved);
     }
 
-    /** Not {@code @Transactional}: the computation manages a transaction per phase and per employee. */
+    /**
+     * Not {@code @Transactional}: the attempt is started and committed in one transaction, and the
+     * message sent only after it — a message the worker cannot act on yet is a retry we do not need
+     * (W-29.4 §13 decision 5).
+     */
     @Override
-    public PayRunResponse compute(UUID id) {
-        return computationService.compute(id);
+    public ComputeAcceptedResponse compute(UUID id) {
+        Objects.requireNonNull(id, "id must not be null");
+        UUID tenantId = TenantContext.require();
+        String actor = currentActor();
+        QueueProducer producer = queueProducers.getIfAvailable();
+
+        PayRun started = Objects.requireNonNull(writeTransaction.execute(status -> {
+            PayRun run = payRuns.findForUpdate(id, tenantId).orElseThrow(() -> new PayRunNotFoundException(id));
+            boolean resuming = run.getStatus() == PayRunStatus.COMPUTING;
+            if (resuming) {
+                if (!isAbandoned(run, tenantId)) {
+                    throw new PayRunComputeInProgressException(id, STALE_AFTER.toMinutes());
+                }
+                run.resumeComputing(actor);
+            } else {
+                run.startComputing(actor);
+            }
+            // Checked after the status, so a 404 or a 409 still says what is wrong with the run.
+            if (producer == null) {
+                throw new PayRunEnqueueException(id, "no queue is configured", null);
+            }
+            // Only a resumed attempt keeps rows; one from LOCKED, COMPUTED or FAILED recomputes
+            // everyone. The carry clears the persistence context, so the run is read again after it.
+            int carried = 0;
+            if (resuming && run.getComputeAttempt() > 0) {
+                int previous = run.getComputeAttempt();
+                payRuns.saveAndFlush(run);
+                carried = employeePayRuns.carryForward(tenantId, id, previous, previous + 1);
+                run = payRuns.findByIdAndTenantId(id, tenantId).orElseThrow(() -> new PayRunNotFoundException(id));
+            }
+            int attempt = run.beginAttempt(QUEUE_NAME + "-" + id + "-", carried, now());
+            PayRun saved = payRuns.saveAndFlush(run);
+            jobService.createJob(
+                    saved.getJobId(), tenantId, QUEUE_NAME, new PayRunJobPayload(id, attempt, actor).toJson());
+            return saved;
+        }));
+
+        int attempt = started.getComputeAttempt();
+        String jobId = started.getJobId();
+        try {
+            producer.send(
+                    QUEUE_NAME,
+                    QueueMessage.of(jobId, tenantId, QUEUE_NAME, new PayRunJobPayload(id, attempt, actor).toJson()));
+        } catch (RuntimeException e) {
+            log.error("Pay run {} attempt {} could not be queued as job {}", id, attempt, jobId, e);
+            String reason = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            PayRunEnqueueException failure = new PayRunEnqueueException(id, reason, e);
+            try {
+                abandonAttempt(id, tenantId, attempt, jobId, actor, failure.getMessage());
+            } catch (RuntimeException secondary) {
+                failure.addSuppressed(secondary);
+            }
+            throw failure;
+        }
+        log.info(
+                "Queued pay run {} for {} in tenant {}: attempt {}, job {}, {} of {} employees carried forward",
+                id,
+                started.getPeriod(),
+                tenantId,
+                attempt,
+                jobId,
+                started.getProgressDone(),
+                started.getProgressTotal());
+        return new ComputeAcceptedResponse(jobId, PayRunStatus.COMPUTING, attempt);
+    }
+
+    /**
+     * The stale rule (W-29.4 §3): the run's job is gone; or finished — {@code FAILED} after its last
+     * delivery, so no worker will ever finish the run; or has not been touched — every progress report
+     * touches it — for {@link #STALE_AFTER}.
+     */
+    private boolean isAbandoned(PayRun run, UUID tenantId) {
+        if (run.getJobId() == null) {
+            return true;
+        }
+        Optional<JobStatusResponseDTO> job = jobService.getJobStatus(run.getJobId(), tenantId);
+        if (job.isEmpty() || job.get().updatedAt() == null) {
+            return true;
+        }
+        if (job.get().status() == JobState.COMPLETED || job.get().status() == JobState.FAILED) {
+            return true;
+        }
+        return job.get().updatedAt().isBefore(Instant.now().minus(STALE_AFTER));
+    }
+
+    /**
+     * The message never left: the run ends {@code FAILED} with the reason and the job {@code FAILED},
+     * so the officer can compute again at once instead of waiting out the stale window.
+     */
+    private void abandonAttempt(UUID id, UUID tenantId, int attempt, String jobId, String actor, String reason) {
+        writeTransaction.executeWithoutResult(status -> {
+            PayRun run = payRuns.findForUpdate(id, tenantId).orElseThrow(() -> new PayRunNotFoundException(id));
+            if (run.getStatus() == PayRunStatus.COMPUTING && run.getComputeAttempt() == attempt) {
+                run.failComputation(
+                        reason,
+                        run.getTotalGross(),
+                        run.getTotalDeductions(),
+                        run.getTotalNetPay(),
+                        run.getNegativeNetCount(),
+                        actor,
+                        now());
+                payRuns.saveAndFlush(run);
+            }
+            jobService.markFailed(jobId, reason);
+        });
+    }
+
+    private static Instant now() {
+        return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 
     @Override

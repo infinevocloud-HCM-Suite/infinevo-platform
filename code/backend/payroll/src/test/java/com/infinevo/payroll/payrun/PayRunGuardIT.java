@@ -160,7 +160,7 @@ class PayRunGuardIT {
     }
 
     @Test
-    @DisplayName("W-29.2: compute needs payroll.run.execute; the lines need payroll.run.read")
+    @DisplayName("W-29.2, W-29.4: compute needs payroll.run.execute and answers 202; the lines need payroll.run.read")
     void computeAndLinesGuards() throws Exception {
         UUID id = UUID.randomUUID();
         UUID employee = UUID.randomUUID();
@@ -175,14 +175,25 @@ class PayRunGuardIT {
                 .andExpect(jsonPath("$.data.employee_id").value(employee.toString()));
 
         given(permissionService.holds(EXECUTE)).willReturn(true);
-        given(payRunService.compute(id)).willReturn(sample(id));
+        given(payRunService.compute(id))
+                .willReturn(new ComputeAcceptedResponse("payrun-" + id + "-1", PayRunStatus.COMPUTING, 1));
         mvc.perform(post("/api/v1/payroll/payruns/{id}/compute", id))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total_net_pay").value(0));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value(202))
+                .andExpect(jsonPath("$.data.job_id").value("payrun-" + id + "-1"))
+                .andExpect(jsonPath("$.data.status").value("COMPUTING"))
+                .andExpect(jsonPath("$.data.compute_attempt").value(1));
         UUID draft = UUID.randomUUID();
         given(payRunService.compute(draft))
                 .willThrow(new IllegalPayRunTransitionException(PayRunStatus.DRAFT, PayRunStatus.COMPUTING));
         mvc.perform(post("/api/v1/payroll/payruns/{id}/compute", draft)).andExpect(status().isConflict());
+        UUID computing = UUID.randomUUID();
+        given(payRunService.compute(computing)).willThrow(new PayRunComputeInProgressException(computing, 15));
+        mvc.perform(post("/api/v1/payroll/payruns/{id}/compute", computing)).andExpect(status().isConflict());
+        UUID noQueue = UUID.randomUUID();
+        given(payRunService.compute(noQueue))
+                .willThrow(new PayRunEnqueueException(noQueue, "no queue is configured", null));
+        mvc.perform(post("/api/v1/payroll/payruns/{id}/compute", noQueue)).andExpect(status().isServiceUnavailable());
     }
 
     private static PayRunResponse sample(UUID id) {
@@ -207,6 +218,11 @@ class PayRunGuardIT {
                 null,
                 null,
                 null,
+                null,
+                0,
+                null,
+                0,
+                0,
                 Instant.now(),
                 Instant.now());
     }

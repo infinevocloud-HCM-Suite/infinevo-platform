@@ -39,19 +39,22 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         })
 // core.lop entities and repositories only: W-29.3's loss of pay reads LopPolicy through the two
 // beans below. The package is not component-scanned, so its controller and other beans stay out.
+// core.job the same way: W-29.4's compute creates a job through the JobServiceImpl bean below.
 @EntityScan(
         basePackages = {
             "com.infinevo.payroll",
             "com.infinevo.core.approval",
             "com.infinevo.core.payinput",
-            "com.infinevo.core.lop"
+            "com.infinevo.core.lop",
+            "com.infinevo.core.job"
         })
 @EnableJpaRepositories(
         basePackages = {
             "com.infinevo.payroll",
             "com.infinevo.core.approval",
             "com.infinevo.core.payinput",
-            "com.infinevo.core.lop"
+            "com.infinevo.core.lop",
+            "com.infinevo.core.job"
         })
 public class PayrollTestApp {
 
@@ -88,6 +91,29 @@ public class PayrollTestApp {
     public com.infinevo.core.lop.WorkingDayBasisCalculator workingDayBasisCalculator(
             com.infinevo.core.lop.LopPolicyService lopPolicyService) {
         return new com.infinevo.core.lop.WorkingDayBasisCalculator(lopPolicyService, null, null);
+    }
+
+    @Bean
+    public com.infinevo.core.job.service.JobService jobService(
+            com.infinevo.core.job.repository.JobStatusRepository jobStatusRepository) {
+        return new com.infinevo.core.job.serviceimpl.JobServiceImpl(jobStatusRepository);
+    }
+
+    /** W-29.4's queue: keeps what compute sends, for the tests to deliver. */
+    @Bean
+    public com.infinevo.payroll.payrun.RecordingQueueProducer recordingQueueProducer() {
+        return new com.infinevo.payroll.payrun.RecordingQueueProducer();
+    }
+
+    /** W-29.4's worker, in the test's thread. */
+    @Bean
+    public com.infinevo.payroll.payrun.InProcessPayRunWorker inProcessPayRunWorker(
+            com.infinevo.payroll.payrun.PayRunService payRunService,
+            com.infinevo.payroll.payrun.PayRunComputationService computationService,
+            com.infinevo.core.job.service.JobService jobService,
+            com.infinevo.payroll.payrun.RecordingQueueProducer producer) {
+        return new com.infinevo.payroll.payrun.InProcessPayRunWorker(
+                payRunService, computationService, jobService, producer);
     }
 
     @Bean

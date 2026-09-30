@@ -83,6 +83,9 @@ class PayRunInputsQueryCountIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     @Autowired
@@ -130,7 +133,7 @@ class PayRunInputsQueryCountIT extends AbstractIntegrationTest {
         payRunService.lock(run.id());
 
         StatementCounter.reset();
-        PayRunResponse computed = payRunService.compute(run.id());
+        PayRunResponse computed = worker.computeNow(run.id());
 
         assertThat(computed.status()).isEqualTo(PayRunStatus.COMPUTED);
         assertThat(StatementCounter.LEDGER_READS.get())

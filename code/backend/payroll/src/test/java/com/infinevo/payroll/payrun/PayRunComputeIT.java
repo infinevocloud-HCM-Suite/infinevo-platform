@@ -41,6 +41,9 @@ class PayRunComputeIT extends AbstractIntegrationTest {
     private PayRunService payRunService;
 
     @Autowired
+    private InProcessPayRunWorker worker;
+
+    @Autowired
     private PayScheduleService scheduleService;
 
     private UUID first;
@@ -79,7 +82,7 @@ class PayRunComputeIT extends AbstractIntegrationTest {
         PayRunResponse run = payRunService.create(JULY);
         payRunService.lock(run.id());
 
-        PayRunResponse computed = payRunService.compute(run.id());
+        PayRunResponse computed = worker.computeNow(run.id());
 
         assertThat(computed.status()).isEqualTo(PayRunStatus.COMPUTED);
         assertThat(computed.computedAt()).isNotNull();
@@ -126,10 +129,10 @@ class PayRunComputeIT extends AbstractIntegrationTest {
     void recomputeReplacesLines() throws SQLException {
         PayRunResponse run = payRunService.create(JULY);
         payRunService.lock(run.id());
-        payRunService.compute(run.id());
+        worker.computeNow(run.id());
         long firstCount = PayRunTestSchema.countLines(TENANT_A, run.id());
 
-        PayRunResponse again = payRunService.compute(run.id());
+        PayRunResponse again = worker.computeNow(run.id());
 
         assertThat(again.status()).isEqualTo(PayRunStatus.COMPUTED);
         assertThat(PayRunTestSchema.countLines(TENANT_A, run.id()))

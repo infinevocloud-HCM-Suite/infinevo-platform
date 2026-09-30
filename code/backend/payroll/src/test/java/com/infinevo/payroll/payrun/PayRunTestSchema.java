@@ -7,7 +7,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -54,6 +58,13 @@ final class PayRunTestSchema {
             if (!PayrollTestSchema.columnExists(conn, "payroll", "employee_payrun", "lop_days")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V058__employee_payrun_days.sql");
             }
+            // W-29.4: the job a compute creates, and the attempt and progress columns.
+            if (!PayrollTestSchema.tableExists(conn, "core", "job_status")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/core/V006__job_status_and_shedlock.sql");
+            }
+            if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "compute_attempt")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V059__payrun_job_progress.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -69,6 +80,12 @@ final class PayRunTestSchema {
      */
     static void clean() throws SQLException {
         PayrollTestSchema.cleanTables();
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement("DELETE FROM core.job_status WHERE tenant_id IN (?, ?)")) {
+            ps.setObject(1, TENANT_A);
+            ps.setObject(2, TENANT_B);
+            ps.executeUpdate();
+        }
         setPolicy(TENANT_A, "ACTUAL_DAYS", true, true, "HALF_UP_2");
         setPolicy(TENANT_B, "ACTUAL_DAYS", true, true, "HALF_UP_2");
         try (Connection conn = PayrollTestSchema.migrationConnection();
@@ -291,6 +308,68 @@ final class PayRunTestSchema {
                 return rs.getLong(1);
             }
         }
+    }
+
+    /** A job row as the database holds it (W-29.4). */
+    record JobRow(String status, int progress, Instant updatedAt) {}
+
+    static JobRow job(String jobId) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "SELECT status, progress_percentage, updated_at FROM core.job_status WHERE job_id = ?")) {
+            ps.setString(1, jobId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                return new JobRow(
+                        rs.getString(1),
+                        rs.getInt(2),
+                        rs.getObject(3, OffsetDateTime.class).toInstant());
+            }
+        }
+    }
+
+    /** The job last moved {@code minutes} ago: what a dead worker leaves behind (W-29.4 §3 stale rule). */
+    static void backdateJob(String jobId, int minutes) throws SQLException {
+        execute(
+                "UPDATE core.job_status SET updated_at = now() - make_interval(mins => ?) WHERE job_id = ?",
+                minutes,
+                jobId);
+    }
+
+    /** Included rows of the run stamped with {@code attempt}. */
+    static int rowsAtAttempt(UUID tenantId, UUID payrunId, int attempt) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement("SELECT count(*) FROM payroll.employee_payrun"
+                        + " WHERE tenant_id = ? AND payrun_id = ? AND inclusion_status = 'INCLUDED'"
+                        + " AND computed_attempt = ?")) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, payrunId);
+            ps.setInt(3, attempt);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    /** Each included row's {@code computed_at}, by row id — to prove a row was not written again. */
+    static Map<UUID, Instant> computedAtByRow(UUID tenantId, UUID payrunId) throws SQLException {
+        Map<UUID, Instant> result = new HashMap<>();
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement("SELECT id, computed_at FROM payroll.employee_payrun"
+                        + " WHERE tenant_id = ? AND payrun_id = ? AND inclusion_status = 'INCLUDED'")) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, payrunId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    OffsetDateTime at = rs.getObject(2, OffsetDateTime.class);
+                    result.put((UUID) rs.getObject(1), at == null ? null : at.toInstant());
+                }
+            }
+        }
+        return result;
     }
 
     static void execute(String sql, Object... params) throws SQLException {
