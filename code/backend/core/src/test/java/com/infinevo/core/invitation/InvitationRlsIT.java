@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Asserts multi-tenant row-level security isolation on invitation tables (W-24.2, spec §7):
@@ -40,6 +42,9 @@ class InvitationRlsIT extends AbstractIntegrationTest {
 
     @Autowired
     private UserInvitationRoleRepository userInvitationRoleRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private UUID tenantA;
     private UUID tenantB;
@@ -108,5 +113,28 @@ class InvitationRlsIT extends AbstractIntegrationTest {
         String wrongHash = InvitationTokenUtils.hashToken("wrong-token");
         Optional<UserInvitation> notFound = userInvitationRepository.findByTokenHashSecurityDefiner(wrongHash);
         assertThat(notFound).isEmpty();
+    }
+
+    @Test
+    @DisplayName("tenant A cannot read tenant B's user_invitation_role rows")
+    void tenantACannotReadTenantBRoleRows() throws SQLException {
+        UUID roleOfB = AuthzTestSchema.roleId(tenantB, "hr");
+        TenantContext.set(tenantB);
+        UserInvitationResponse invB = invitationService.createUserInvitation(
+                new UserInvitationRequest("roles-b@example.com", Set.of(roleOfB)), userOfB);
+
+        // Positive control: tenant B sees its own row
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        List<UserInvitationRole> seenByB =
+                tx.execute(status -> userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantB, invB.id()));
+        assertThat(seenByB).extracting(UserInvitationRole::getRoleId).containsExactly(roleOfB);
+
+        // Tenant A, even naming B's tenant and invitation explicitly, sees nothing
+        TenantContext.set(tenantA);
+        List<UserInvitationRole> seenByA =
+                tx.execute(status -> userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantB, invB.id()));
+        assertThat(seenByA).isEmpty();
+        List<UserInvitationRole> allSeenByA = tx.execute(status -> userInvitationRoleRepository.findAll());
+        assertThat(allSeenByA).noneMatch(row -> tenantB.equals(row.getTenantId()));
     }
 }

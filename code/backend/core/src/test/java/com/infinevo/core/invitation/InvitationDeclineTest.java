@@ -2,11 +2,15 @@ package com.infinevo.core.invitation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.authz.RoleRepository;
 import com.infinevo.core.authz.RoleService;
+import com.infinevo.core.authz.UserRoleRepository;
 import com.infinevo.core.employee.EmployeeRepository;
 import com.infinevo.shared.identity.UserAccountRepository;
 import com.infinevo.shared.identity.UserProfileSyncService;
@@ -59,11 +63,13 @@ class InvitationDeclineTest {
                 employeeInvitationRepository,
                 roleRepository,
                 roleService,
+                mock(UserRoleRepository.class),
                 employeeRepository,
                 userAccountRepository,
                 userProfileSyncService,
                 keycloakProvisioningService,
-                jdbcTemplate);
+                jdbcTemplate,
+                InvitationServiceTest.LINK_BASE);
 
         TenantContext.set(tenantId);
     }
@@ -90,8 +96,14 @@ class InvitationDeclineTest {
         assertThat(inv.getDeclinedAt()).isNotNull();
         assertThat(inv.getDeclineReason()).isEqualTo("No longer interested in this position");
 
-        // Attempting to accept a declined token is refused
+        // Attempting to accept a declined token is refused, and nothing is provisioned
         assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("declined");
+        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(any(), any(), any());
+
+        // Nor can it be declined a second time
+        assertThatThrownBy(() -> invitationService.declineInvitation(token, "Changed my mind"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("declined");
     }
@@ -138,8 +150,10 @@ class InvitationDeclineTest {
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
         assertThatThrownBy(() -> invitationService.declineInvitation(token, "Valid reason"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(InvitationExpiredException.class)
                 .hasMessageContaining("expired");
+        assertThat(inv.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
+        verify(userInvitationRepository).saveAndFlush(inv);
     }
 
     @Test
@@ -156,6 +170,6 @@ class InvitationDeclineTest {
 
         assertThatThrownBy(() -> invitationService.declineInvitation(token, "Valid reason"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("not in pending status");
+                .hasMessageContaining("revoked");
     }
 }

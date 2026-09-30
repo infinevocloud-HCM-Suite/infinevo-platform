@@ -1,5 +1,7 @@
 package com.infinevo.core.invitation;
 
+import com.infinevo.core.authz.RoleService;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
@@ -30,29 +32,35 @@ public class InvitationAcceptanceController {
         this.invitationService = Objects.requireNonNull(invitationService, "invitationService must not be null");
     }
 
+    /**
+     * The one answer for every token that cannot be used — unknown, accepted, declined, revoked or expired.
+     * A distinct message per state would let a caller probe which tokens exist (spec §9).
+     */
+    static final String GENERIC_FAILURE =
+            "This invitation cannot be used. It may have expired, been used or been withdrawn. Ask for a new invitation.";
+
     @PostMapping("/accept")
-    public ResponseEntity<InvitationMessageResponse> accept(@RequestBody AcceptInvitationRequest request) {
+    public ResponseEntity<?> accept(@RequestBody AcceptInvitationRequest request) {
         if (request == null || request.token() == null || request.token().isBlank()) {
-            throw new IllegalArgumentException("token must not be blank");
+            return badRequest("token must not be blank");
         }
         invitationService.acceptInvitation(request.token());
         return ResponseEntity.ok(new InvitationMessageResponse("Invitation accepted successfully"));
     }
 
     @PostMapping("/decline")
-    public ResponseEntity<InvitationMessageResponse> decline(@RequestBody DeclineInvitationRequest request) {
+    public ResponseEntity<?> decline(@RequestBody DeclineInvitationRequest request) {
         if (request == null || request.token() == null || request.token().isBlank()) {
-            throw new IllegalArgumentException("token must not be blank");
+            return badRequest("token must not be blank");
+        }
+        if (request.reason() == null || request.reason().isBlank()) {
+            return badRequest("reason must not be blank");
+        }
+        if (request.reason().length() > 500) {
+            return badRequest("reason cannot exceed 500 characters");
         }
         invitationService.declineInvitation(request.token(), request.reason());
         return ResponseEntity.ok(new InvitationMessageResponse("Invitation declined successfully"));
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
-        String msg = e.getMessage() != null ? e.getMessage() : "Invalid request";
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiErrorResponse.of(ApiError.VALIDATION_FAILED, msg, traceId()));
     }
 
     @ExceptionHandler(KeycloakProvisioningException.class)
@@ -64,19 +72,26 @@ public class InvitationAcceptanceController {
                         traceId()));
     }
 
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ApiErrorResponse> handleIllegalState(IllegalStateException e) {
-        String msg = e.getMessage();
-        if (msg == null) {
-            msg = "Unable to process invitation.";
-        } else if (msg.contains("tenant")
-                || msg.contains("not found")
-                || msg.contains("user account")
-                || msg.contains("role")) {
-            // Sanitize internal system/database details
-            msg = "Unable to process invitation. Please contact support or request a new invitation.";
-        }
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiErrorResponse.of(ApiError.CONFLICT, msg, traceId()));
+    /**
+     * Every refusal the service raises for the token itself, and the lookups acceptance performs, get the
+     * same generic answer — never the service's message, never a 500.
+     */
+    @ExceptionHandler({
+        IllegalArgumentException.class,
+        IllegalStateException.class,
+        RoleService.NotFoundException.class,
+        RoleService.ValidationException.class,
+        RoleService.SystemRoleException.class,
+        EmployeeService.NotFoundException.class
+    })
+    public ResponseEntity<ApiErrorResponse> handleUnusableInvitation(RuntimeException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, GENERIC_FAILURE, traceId()));
+    }
+
+    private static ResponseEntity<ApiErrorResponse> badRequest(String message) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiErrorResponse.of(ApiError.VALIDATION_FAILED, message, traceId()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

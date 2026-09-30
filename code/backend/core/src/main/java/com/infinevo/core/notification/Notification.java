@@ -13,6 +13,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * One notification to one recipient on one channel (W-20.1) — {@code core.notification},
@@ -40,6 +41,14 @@ public class Notification {
 
     public static final String ACTOR_SYSTEM = "system";
 
+    /**
+     * An invitation email's single-use token (W-24.2): 64 lowercase hex characters after {@code token=}. It
+     * is a bearer credential, so the stored copy keeps it only while the email is waiting to be sent.
+     */
+    private static final Pattern INVITATION_TOKEN = Pattern.compile("token=[0-9a-f]{64}");
+
+    public static final String REDACTED_TOKEN = "token=[redacted]";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
@@ -65,7 +74,11 @@ public class Notification {
     @Column(name = "subject", length = 255, updatable = false)
     private String subject;
 
-    @Column(name = "body", nullable = false, columnDefinition = "text", updatable = false)
+    /**
+     * Written once at compose time. The one later change is {@link #redactSecrets()}, which removes a
+     * credential from an invitation email once it has been delivered or given up on.
+     */
+    @Column(name = "body", nullable = false, columnDefinition = "text")
     private String body;
 
     @Enumerated(EnumType.STRING)
@@ -167,6 +180,7 @@ public class Notification {
 
     /** The provider accepted it. */
     public void markSent(Instant when, String actor) {
+        redactSecrets();
         this.status = NotificationStatus.SENT;
         this.sentAt = when;
         this.nextAttemptAt = null;
@@ -177,6 +191,7 @@ public class Notification {
 
     /** Given up on — the dead letter a human can see, with the reason. */
     public void markFailed(Instant when, String reason, String actor) {
+        redactSecrets();
         this.status = NotificationStatus.FAILED;
         this.nextAttemptAt = null;
         this.lastError = truncate(reason);
@@ -191,6 +206,18 @@ public class Notification {
         this.lastError = truncate(reason);
         this.updatedAt = when;
         this.updatedBy = actor;
+    }
+
+    /**
+     * Removes an invitation token from the stored body. The outbox row is the only way the text reaches
+     * the delivery worker, so it holds the token until then; once the email is sent or has failed for
+     * good nothing needs it, and the row keeps the link without the credential.
+     */
+    void redactSecrets() {
+        if (body != null
+                && (event == NotificationEvent.USER_INVITATION || event == NotificationEvent.EMPLOYEE_INVITATION)) {
+            body = INVITATION_TOKEN.matcher(body).replaceAll(REDACTED_TOKEN);
+        }
     }
 
     private static String truncate(String reason) {
