@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, theme } from 'antd';
+import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, theme } from 'antd';
 import { PlusOutlined, UserOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { employeeService } from './employeeService.js';
@@ -35,6 +35,7 @@ export function EmployeeList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState(undefined);
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   // Load masters once per session
   useEffect(() => {
@@ -47,6 +48,7 @@ export function EmployeeList() {
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await employeeService.list({
         q: searchQuery || undefined,
@@ -58,9 +60,11 @@ export function EmployeeList() {
       });
       setData(res.content || []);
       setTotal(res.totalElements || 0);
-    } catch {
+    } catch (err) {
+      // A failed load must not look like "no employees": say so, and offer a retry.
       setData([]);
       setTotal(0);
+      setLoadError(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -192,6 +196,22 @@ export function EmployeeList() {
           </Space>
         )}
       </div>
+
+      {loadError && (
+        <Alert
+          type="error"
+          showIcon
+          message="Employees could not be loaded"
+          description={loadError}
+          action={
+            <Button size="small" onClick={fetchEmployees} id="btn-retry-employees">
+              Retry
+            </Button>
+          }
+          style={{ marginBottom: token.marginLG }}
+          id="alert-employees-load-error"
+        />
+      )}
 
       <Table
         rowKey="id"

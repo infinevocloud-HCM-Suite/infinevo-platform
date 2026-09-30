@@ -54,7 +54,7 @@ describe('DecideModal component', () => {
     );
 
     const amountInput = document.getElementById('input-approved-amount');
-    expect(amountInput).toBeDefined();
+    expect(amountInput).toBeTruthy();
 
     fireEvent.change(amountInput, { target: { value: '2500' } });
     const okBtn = document.getElementById('btn-confirm-decide');

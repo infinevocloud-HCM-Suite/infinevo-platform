@@ -262,9 +262,9 @@ export function WorkLocations() {
       >
         <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
           <Text type="danger">{conflictModal.message}</Text>
-          <Text>
-            This location is assigned to active employees. You can deactivate it instead.
-          </Text>
+          {/* The reason is the server's sentence above - in use, or the filing address - so
+              this line only offers the way out and does not guess at the reason. */}
+          <Text>You can deactivate this location instead of deleting it.</Text>
         </Space>
       </Modal>
     </Card>

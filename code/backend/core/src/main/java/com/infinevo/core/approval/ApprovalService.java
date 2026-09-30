@@ -370,11 +370,22 @@ public class ApprovalService {
                                 ApprovalDefinition::getId,
                                 def -> def.getSteps() != null ? def.getSteps().size() : 1));
 
+        // One lookup for the page, not one per row: the inbox names the subject of each request.
+        List<UUID> subjectIds = instanceMap.values().stream()
+                .map(ApprovalInstance::getSubjectEmployeeId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, String> subjectNames =
+                subjectIds.isEmpty() ? Collections.emptyMap() : employeeService.displayNames(subjectIds);
+
         return stepPage.map(step -> {
             ApprovalInstance inst = instanceMap.get(step.getInstanceId());
             Integer totalSteps =
                     (inst != null && inst.getDefinitionId() != null) ? totalStepsMap.get(inst.getDefinitionId()) : null;
-            return ApprovalStepResponse.from(step, inst, totalSteps);
+            String subjectName =
+                    (inst != null && subjectNames != null) ? subjectNames.get(inst.getSubjectEmployeeId()) : null;
+            return ApprovalStepResponse.from(step, inst, totalSteps, subjectName);
         });
     }
 

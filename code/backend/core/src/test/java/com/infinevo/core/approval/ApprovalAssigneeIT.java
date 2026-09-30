@@ -245,6 +245,12 @@ class ApprovalAssigneeIT extends AbstractIntegrationTest {
                                 "$.content[0].subjectEmployeeId")
                         .value(empEmployeeId.toString()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[0].subjectEmployeeName")
+                        .value("Regular"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[0].totalSteps")
+                        .isNumber())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
                                 "$.content[0].itemId")
                         .value(subject.id().toString()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(

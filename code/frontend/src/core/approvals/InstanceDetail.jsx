@@ -20,7 +20,7 @@ import { ArrowLeftOutlined, SwapOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { approvalService } from './approvalService.js';
-import { employeeService } from '../employee/employeeService.js';
+import { useEmployeeSearch } from './useEmployeeSearch.js';
 import { getItemRoute } from './itemRoutes.js';
 
 const { Title } = Typography;
@@ -49,24 +49,12 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
   const [reassigning, setReassigning] = useState(false);
 
   // Employee picker for reassign
-  const [employeeOptions, setEmployeeOptions] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
-  const searchEmployees = async (query = '') => {
-    setSearchLoading(true);
-    try {
-      const res = await employeeService.list({ q: query, size: 10 });
-      const options = (res?.content || []).map((e) => ({
-        value: e.id,
-        label: `${e.employeeNumber} - ${[e.firstName, e.lastName].filter(Boolean).join(' ')}`,
-      }));
-      setEmployeeOptions(options);
-    } catch {
-      setEmployeeOptions([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+  const {
+    options: employeeOptions,
+    loading: searchLoading,
+    error: searchError,
+    search: searchEmployees,
+  } = useEmployeeSearch();
 
   const loadData = useCallback(async () => {
     if (!instanceId) return;
@@ -334,6 +322,7 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
                 if (employeeOptions.length === 0) searchEmployees('');
               }}
               options={employeeOptions}
+              notFoundContent={searchError || undefined}
             />
           </Form.Item>
           <Form.Item

@@ -53,10 +53,5 @@ public interface WorkLocationService extends OrgMasterService<WorkLocationReques
                     "Cannot delete work location " + existingCode
                             + " because it is designated as the tenant's filing address. Statutory registrations are tied to it. Assign a different filing address or clear the flag first.");
         }
-
-        public FilingAddressCannotBeDeletedException() {
-            super(
-                    "Cannot delete work location because it is designated as the tenant's filing address. Statutory registrations are tied to it. Assign a different filing address or clear the flag first.");
-        }
     }
 }

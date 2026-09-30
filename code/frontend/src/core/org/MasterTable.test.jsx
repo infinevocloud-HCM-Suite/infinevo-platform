@@ -102,7 +102,7 @@ describe('MasterTable component', () => {
     await waitFor(() => {
       expect(screen.getByText('Department in use by employees.')).toBeDefined();
       const deactivateBtn = document.getElementById('btn-deactivate-instead');
-      expect(deactivateBtn).toBeDefined();
+      expect(deactivateBtn).toBeTruthy();
       fireEvent.click(deactivateBtn);
     });
 

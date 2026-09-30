@@ -27,11 +27,8 @@ describe('Definitions component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
-    vi.spyOn(useCanModule, 'useNavigation').mockReturnValue({
-      items: [{ key: 'hrms.leave', path: '/leave' }],
-      actions: ['core.approval_definition.manage'],
-      loading: false,
-    });
+    // A tenant holding HRMS only, which is what the feed's `modules` would say.
+    vi.spyOn(useCanModule, 'useHasModule').mockImplementation((module) => module === 'HRMS');
 
     roleService.list.mockResolvedValue([
       { id: 'r1', code: 'HR_ADMIN', name: 'HR Administrator' },
@@ -67,17 +64,15 @@ describe('Definitions component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Approval Definitions')).toBeDefined();
-      const roleSelect = document.getElementById('select-role-1');
-      expect(roleSelect).toBeDefined();
+      // Step 1 is a ROLE step: it gets the role select. Step 0 is not: it gets neither picker.
+      expect(document.getElementById('select-role-1')).toBeTruthy();
     });
+    expect(document.getElementById('select-role-0')).toBeNull();
+    expect(document.getElementById('input-employee-0')).toBeNull();
   });
 
   it('shows only REIMBURSEMENT and PROOF_OF_INVESTMENT flow tabs for a Payroll-only tenant (D-36, D-37)', async () => {
-    vi.spyOn(useCanModule, 'useNavigation').mockReturnValue({
-      items: [{ key: 'payroll.dashboard', path: '/payroll' }],
-      actions: ['core.approval_definition.manage'],
-      loading: false,
-    });
+    vi.spyOn(useCanModule, 'useHasModule').mockImplementation((module) => module === 'PAYROLL');
 
     render(<Definitions />);
 
@@ -97,7 +92,7 @@ describe('Definitions component', () => {
     render(<Definitions />);
 
     await waitFor(() => {
-      expect(document.getElementById('select-role-1')).toBeDefined();
+      expect(document.getElementById('select-role-1')).toBeTruthy();
     });
 
     // Move step 1 up to step 0
@@ -139,6 +134,32 @@ describe('Definitions component', () => {
     });
   });
 
+  it('saves the loaded step ordering and comment scope back unchanged', async () => {
+    definitionService.list.mockResolvedValue({
+      flowType: 'LEAVE',
+      stepOrdering: 'ANY_ORDER',
+      commentScope: 'SHARED',
+      isActive: true,
+      steps: [{ kind: 'REPORTING_MANAGER', assignee: null, escalate_after_days: 3, per_item: false }],
+    });
+    definitionService.save.mockResolvedValueOnce({});
+
+    render(<Definitions />);
+
+    await waitFor(() => {
+      expect(document.getElementById('select-kind-0')).toBeTruthy();
+    });
+
+    fireEvent.click(document.getElementById('btn-save-definition'));
+
+    await waitFor(() => {
+      expect(definitionService.save).toHaveBeenCalledWith(
+        'LEAVE',
+        expect.objectContaining({ stepOrdering: 'ANY_ORDER', commentScope: 'SHARED' })
+      );
+    });
+  });
+
   it('correctly loads and normalizes backend snake_case DTO definition', async () => {
     definitionService.list.mockResolvedValueOnce({
       flowType: 'OVERTIME',
@@ -159,7 +180,7 @@ describe('Definitions component', () => {
 
     await waitFor(() => {
       const roleSelect = document.getElementById('select-role-0');
-      expect(roleSelect).toBeDefined();
+      expect(roleSelect).toBeTruthy();
     });
   });
 });

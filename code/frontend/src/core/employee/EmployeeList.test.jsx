@@ -130,7 +130,7 @@ describe('EmployeeList component', () => {
 
     await waitFor(() => {
       const suspendedOption = document.querySelector('.ant-select-item-option[title="Suspended"]') || screen.getByText('Suspended');
-      expect(suspendedOption).toBeDefined();
+      expect(suspendedOption).toBeTruthy();
       fireEvent.click(suspendedOption);
     });
 
@@ -138,6 +138,24 @@ describe('EmployeeList component', () => {
       expect(employeeService.list).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'SUSPENDED' })
       );
+    });
+  });
+
+  it('shows the error and a retry instead of an empty table when the load fails', async () => {
+    employeeService.list.mockReset();
+    employeeService.list.mockRejectedValueOnce({ code: 'FORBIDDEN', message: 'You do not have access', status: 403 });
+    employeeService.list.mockResolvedValueOnce({ content: [], totalElements: 0 });
+
+    renderWithStore(<EmployeeList />);
+
+    expect(await screen.findByText('Employees could not be loaded')).toBeDefined();
+    expect(screen.getByText('You do not have access')).toBeDefined();
+
+    fireEvent.click(document.getElementById('btn-retry-employees'));
+
+    await waitFor(() => {
+      expect(employeeService.list).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText('Employees could not be loaded')).toBeNull();
     });
   });
 });

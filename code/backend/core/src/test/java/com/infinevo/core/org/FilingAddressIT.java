@@ -145,6 +145,51 @@ class FilingAddressIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("The filing address cannot be deleted, and the row is still there afterwards")
+    void theFilingAddressCannotBeDeleted() throws SQLException {
+        TenantContext.set(TENANT_A);
+        UUID filingId =
+                workLocationService.create(filing("HQ", "Head office", true)).id();
+
+        assertThatThrownBy(() -> workLocationService.delete(filingId))
+                .isInstanceOf(WorkLocationService.FilingAddressCannotBeDeletedException.class)
+                .hasMessageContaining("HQ")
+                .hasMessageContaining("filing address");
+
+        assertThat(OrgTestSchema.countFor("work_location", TENANT_A)).isEqualTo(1);
+        assertThat(filingAddressCount(TENANT_A)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Clear the flag and the same location deletes; a plain location always did")
+    void aLocationThatIsNotTheFilingAddressDeletes() throws SQLException {
+        TenantContext.set(TENANT_A);
+        UUID filingId =
+                workLocationService.create(filing("HQ", "Head office", true)).id();
+        UUID branchId =
+                workLocationService.create(filing("BR1", "Branch one", false)).id();
+
+        workLocationService.delete(branchId);
+        workLocationService.update(filingId, filing("HQ", "Head office", false));
+        workLocationService.delete(filingId);
+
+        assertThat(OrgTestSchema.countFor("work_location", TENANT_A)).isZero();
+    }
+
+    @Test
+    @DisplayName("Another tenant's filing address is not found, not refused - the rule leaks nothing")
+    void anotherTenantsFilingAddressIsNotFound() {
+        TenantContext.set(TENANT_A);
+        UUID filingId =
+                workLocationService.create(filing("HQ", "Head office", true)).id();
+
+        TenantContext.set(TENANT_B);
+
+        assertThatThrownBy(() -> workLocationService.delete(filingId))
+                .isInstanceOf(OrgMasterService.NotFoundException.class);
+    }
+
+    @Test
     @DisplayName("Each tenant gets its own filing address — the cap is per tenant, not global")
     void eachTenantMayHaveOne() throws SQLException {
         TenantContext.set(TENANT_A);

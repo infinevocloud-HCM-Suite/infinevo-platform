@@ -122,7 +122,10 @@ export function EmployeePage() {
   }
 
   const fullName = [employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ');
-  const isTerminated = employee.status === 'TERMINATED' || employee.status === 'SUSPENDED';
+  // TERMINATED is terminal on the server (EmploymentStatus.allowedNext): only a suspended
+  // employee can be reactivated, and an active or suspended one can be terminated.
+  const canReactivate = employee.status === 'SUSPENDED';
+  const canTerminate = employee.status === 'ACTIVE' || employee.status === 'SUSPENDED';
 
   const visibleTabs = employeeTabs.filter((tab) => {
     if (tab.key === 'identification' && !canReadIdentification) return false;
@@ -161,7 +164,7 @@ export function EmployeePage() {
 
           {/* Action buttons */}
           <Space size="small">
-            {canUpdate && isTerminated && (
+            {canUpdate && canReactivate && (
               <Button
                 type="primary"
                 icon={<CheckCircleOutlined />}
@@ -172,7 +175,7 @@ export function EmployeePage() {
               </Button>
             )}
 
-            {canUpdate && !isTerminated && (
+            {canUpdate && canTerminate && (
               <Button
                 danger
                 icon={<StopOutlined />}

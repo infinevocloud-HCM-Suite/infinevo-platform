@@ -17,7 +17,7 @@ import { onTenantChange } from '../auth/keycloak.js';
 
 export const NavigationContext = createContext(null);
 
-const EMPTY = Object.freeze({ items: [], actions: [], loading: false, loaded: false, error: null });
+const EMPTY = Object.freeze({ items: [], actions: [], modules: [], loading: false, loaded: false, error: null });
 
 let state = EMPTY;
 const subscribers = new Set();
@@ -55,13 +55,14 @@ export async function fetchNavigationFeed() {
     publish({
       items: Array.isArray(data.items) ? data.items : [],
       actions: Array.isArray(data.actions) ? data.actions : [],
+      modules: Array.isArray(data.modules) ? data.modules : [],
       loading: false,
       loaded: true,
       error: null,
     });
     return state;
   } catch (err) {
-    publish({ items: [], actions: [], loading: false, loaded: true, error: err });
+    publish({ items: [], actions: [], modules: [], loading: false, loaded: true, error: err });
     throw err;
   }
 }
@@ -79,13 +80,17 @@ NavigationProvider.propTypes = {
   value: PropTypes.shape({
     items: PropTypes.array,
     actions: PropTypes.oneOfType([PropTypes.array, PropTypes.instanceOf(Set)]),
+    modules: PropTypes.array,
     loading: PropTypes.bool,
     error: PropTypes.object,
   }).isRequired,
 };
 
 /**
- * The feed as the shell sees it: `items`, `actions`, `loading`, `error`, and `refetch`.
+ * The feed as the shell sees it: `items`, `actions`, `modules`, `loading`, `error`, and `refetch`.
+ *
+ * `loading` is true from the first render until the first fetch settles - not only while a
+ * request is in flight - so the shell never reads "not asked yet" as "the feed is empty".
  *
  * The first mounted hook triggers the one fetch after login; every hook refetches when the
  * tenant changes. Inside a NavigationProvider the provided value is returned unchanged.
@@ -116,7 +121,8 @@ export function useNavigation() {
   return {
     items: active.items || [],
     actions: active.actions || [],
-    loading: !!active.loading,
+    modules: active.modules || [],
+    loading: !!active.loading || (!provided && !active.loaded),
     error: active.error || null,
     refetch: fetchNavigationFeed,
   };

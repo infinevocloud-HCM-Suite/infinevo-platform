@@ -24,7 +24,8 @@ export function successMsg(title, text) {
 /**
  * Displays an error alert dialog.
  * Accepts either (title, text) or a rejected client error object.
- * When given an error object, formats err.message and appends traceId if present.
+ * When given an error object, formats err.message, names each field in err.fieldErrors so a
+ * rejected save says which field failed, and appends traceId if present.
  *
  * @param {string|Object} titleOrErr Title string or client error object { message, traceId, code }
  * @param {string} [text] Detailed error text if title is a string
@@ -58,6 +59,10 @@ export function errorMsg(titleOrErr, text) {
   if (titleOrErr && typeof titleOrErr === 'object') {
     title = formatCodeTitle(titleOrErr.code);
     message = titleOrErr.message || 'Something went wrong';
+    const fieldErrors = Object.entries(titleOrErr.fieldErrors || {});
+    if (fieldErrors.length > 0) {
+      message = `${message} - ${fieldErrors.map(([field, reason]) => `${field}: ${reason}`).join('; ')}`;
+    }
     if (titleOrErr.traceId) {
       message = `${message} (Trace ID: ${titleOrErr.traceId})`;
     }

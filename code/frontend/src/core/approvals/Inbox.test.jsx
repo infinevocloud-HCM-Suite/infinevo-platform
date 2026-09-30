@@ -5,7 +5,6 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { Inbox } from './Inbox.jsx';
 import { approvalService } from './approvalService.js';
-import { employeeService } from '../employee/employeeService.js';
 import approvalReducer from './approvalSlice.js';
 import * as useCanModule from '@shell/screens';
 
@@ -13,12 +12,6 @@ vi.mock('./approvalService.js', () => ({
   approvalService: {
     pending: vi.fn(),
     decide: vi.fn(),
-  },
-}));
-
-vi.mock('../employee/employeeService.js', () => ({
-  employeeService: {
-    get: vi.fn(),
   },
 }));
 
@@ -36,12 +29,6 @@ describe('Inbox component', () => {
       reducer: {
         approvals: approvalReducer,
       },
-    });
-
-    employeeService.get.mockImplementation(async (id) => {
-      if (id === 'emp-1') return { id: 'emp-1', firstName: 'Alice', lastName: 'Smith' };
-      if (id === 'emp-2') return { id: 'emp-2', firstName: 'Bob', lastName: 'Jones' };
-      return { id, firstName: 'User', lastName: id };
     });
 
     approvalService.pending.mockResolvedValue({
@@ -65,6 +52,7 @@ describe('Inbox component', () => {
           createdAt: '2026-09-29T10:00:00Z',
           flowType: 'LEAVE',
           subjectEmployeeId: 'emp-1',
+          subjectEmployeeName: 'Alice Smith',
           itemId: 'item-leave-1',
           summary: 'Annual Leave (3 days)',
         },
@@ -87,6 +75,7 @@ describe('Inbox component', () => {
           createdAt: '2026-09-29T11:00:00Z',
           flowType: 'REIMBURSEMENT',
           subjectEmployeeId: 'emp-2',
+          subjectEmployeeName: null,
           itemId: 'item-reimb-2',
           summary: 'Travel Expense',
         },
@@ -95,14 +84,10 @@ describe('Inbox component', () => {
     });
 
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
-    vi.spyOn(useCanModule, 'useNavigation').mockReturnValue({
-      items: [{ key: 'hrms.leave' }, { key: 'payroll.dashboard' }],
-      actions: ['core.approval.decide'],
-      loading: false,
-    });
+    vi.spyOn(useCanModule, 'useHasModule').mockReturnValue(true);
   });
 
-  it('renders rows across two flow types, resolves employee names, displays steps and sets pendingCount', async () => {
+  it('renders rows across two flow types, names the subject from the response, displays steps and sets pendingCount', async () => {
     render(
       <Provider store={store}>
         <MemoryRouter>
@@ -116,13 +101,32 @@ describe('Inbox component', () => {
         expect(screen.getByText('Annual Leave (3 days)')).toBeDefined();
         expect(screen.getByText('Travel Expense')).toBeDefined();
         expect(screen.getByText('Employee: Alice Smith')).toBeDefined();
-        expect(screen.getByText('Employee: Bob Jones')).toBeDefined();
+        // No name in the response: the id is shown, and no employee endpoint is called for it.
+        expect(screen.getByText('Employee ID: emp-2')).toBeDefined();
         expect(screen.getByText('Step 1 of 2')).toBeDefined();
         expect(screen.getByText('Step 2 of 3')).toBeDefined();
       },
       { timeout: 5000 }
     );
 
+    expect(store.getState().approvals.pendingCount).toBe(2);
+  });
+
+  it('shows every assigned row to a Payroll-only tenant - the modules narrow the filter, never the rows', async () => {
+    vi.spyOn(useCanModule, 'useHasModule').mockImplementation((module) => module === 'PAYROLL');
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <Inbox />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Annual Leave (3 days)')).toBeDefined();
+      expect(screen.getByText('Travel Expense')).toBeDefined();
+    });
     expect(store.getState().approvals.pendingCount).toBe(2);
   });
 
@@ -178,7 +182,7 @@ describe('Inbox component', () => {
 
     await waitFor(() => {
       const confirmBtn = document.getElementById('btn-confirm-decide');
-      expect(confirmBtn).toBeDefined();
+      expect(confirmBtn).toBeTruthy();
       fireEvent.click(confirmBtn);
     });
 

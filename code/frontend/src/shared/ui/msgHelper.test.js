@@ -39,6 +39,21 @@ describe('msgHelper', () => {
     expect(calledArgs.text).toContain('trace-98765');
   });
 
+  it('errorMsg(err) names each failed field from err.fieldErrors', () => {
+    const spy = vi.spyOn(Swal, 'fire').mockResolvedValueOnce({ isConfirmed: true });
+
+    errorMsg({
+      code: 'VALIDATION_FAILED',
+      message: 'The request was not valid',
+      fieldErrors: { pan: 'must be 10 characters', terminationDate: 'must not be before joining' },
+    });
+
+    const calledArgs = spy.mock.calls.at(-1)[0];
+    expect(calledArgs.text).toContain('The request was not valid');
+    expect(calledArgs.text).toContain('pan: must be 10 characters');
+    expect(calledArgs.text).toContain('terminationDate: must not be before joining');
+  });
+
   it('errorMsg(title, text) triggers Swal.fire with error icon', () => {
     const spy = vi.spyOn(Swal, 'fire').mockResolvedValueOnce({ isConfirmed: true });
     errorMsg('Custom Error', 'Manual error message');

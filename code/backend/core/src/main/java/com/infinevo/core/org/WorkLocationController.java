@@ -60,7 +60,10 @@ public class WorkLocationController extends OrgMasterController {
         return workLocationService.update(id, request);
     }
 
-    /** {@code 204}, and refused with {@code 409} while an employee is assigned — spec section 4. */
+    /**
+     * {@code 204}, and refused with {@code 409} while an employee is assigned (spec section 4) or
+     * while the location is the tenant's filing address (W-46.3a section 2).
+     */
     @DeleteMapping("/{id}")
     @RequiresAction("core.org.manage")
     public ResponseEntity<Void> delete(@PathVariable("id") UUID id) {

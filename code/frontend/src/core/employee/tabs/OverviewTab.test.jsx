@@ -102,7 +102,7 @@ describe('OverviewTab component', () => {
 
     // Find and verify edit-status select
     const statusSelect = document.getElementById('edit-status');
-    expect(statusSelect).toBeDefined();
+    expect(statusSelect).toBeTruthy();
 
     const saveBtn = screen.getByRole('button', { name: /save changes/i });
     fireEvent.click(saveBtn);

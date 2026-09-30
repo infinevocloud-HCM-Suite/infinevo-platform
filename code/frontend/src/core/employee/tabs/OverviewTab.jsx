@@ -100,11 +100,8 @@ export function OverviewTab({ employee, onUpdate }) {
     } catch (err) {
       if (err?.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
         setFormErrors(err.fieldErrors);
-        const details = Object.entries(err.fieldErrors).map(([f, m]) => `${f}: ${m}`).join('; ');
-        await errorMsg(err, `${err.message || 'Validation error'}: ${details}`);
-      } else {
-        await errorMsg(err);
       }
+      await errorMsg(err);
     } finally {
       setLoading(false);
     }

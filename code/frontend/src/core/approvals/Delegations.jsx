@@ -18,7 +18,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { delegationService } from './delegationService.js';
-import { employeeService } from '../employee/employeeService.js';
+import { useEmployeeSearch } from './useEmployeeSearch.js';
 
 const { Title, Text } = Typography;
 
@@ -31,6 +31,20 @@ const FLOW_TYPE_OPTIONS = [
   { label: 'Pay Run', value: 'PAY_RUN' },
   { label: 'Timesheet', value: 'TIMESHEET' },
 ];
+
+/**
+ * Where a delegation stands today. `isActive` is false only once it has been revoked; whether it
+ * is in force is a matter of its dates.
+ */
+export function delegationStatus(record, today = new Date().toISOString().split('T')[0]) {
+  const active = record.isActive !== undefined ? record.isActive : record.active;
+  if (active === false) return { label: 'REVOKED', color: 'default' };
+  const from = record.from || record.startsOn;
+  const to = record.to || record.endsOn;
+  if (to && to < today) return { label: 'EXPIRED', color: 'default' };
+  if (from && from > today) return { label: 'SCHEDULED', color: 'blue' };
+  return { label: 'ACTIVE', color: 'green' };
+}
 
 export function Delegations({ me: propMe, form: externalForm }) {
   const { token } = theme.useToken();
@@ -46,24 +60,12 @@ export function Delegations({ me: propMe, form: externalForm }) {
   const [creating, setCreating] = useState(false);
 
   // Employee options for delegate selection
-  const [employeeOptions, setEmployeeOptions] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
-  const searchEmployees = async (query = '') => {
-    setSearchLoading(true);
-    try {
-      const res = await employeeService.list({ q: query, size: 10 });
-      const options = (res?.content || []).map((e) => ({
-        value: e.id,
-        label: `${e.employeeNumber} - ${[e.firstName, e.lastName].filter(Boolean).join(' ')}`,
-      }));
-      setEmployeeOptions(options);
-    } catch {
-      setEmployeeOptions([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+  const {
+    options: employeeOptions,
+    loading: searchLoading,
+    error: searchError,
+    search: searchEmployees,
+  } = useEmployeeSearch();
 
   const loadData = useCallback(async () => {
     if (!canDelegate) return;
@@ -169,12 +171,12 @@ export function Delegations({ me: propMe, form: externalForm }) {
       },
     },
     {
-      title: 'Active',
+      title: 'Status',
       key: 'active',
-      width: 100,
+      width: 110,
       render: (_, record) => {
-        const active = record.isActive !== undefined ? record.isActive : record.active;
-        return active ? <Tag color="green">ACTIVE</Tag> : <Tag color="default">EXPIRED</Tag>;
+        const status = delegationStatus(record);
+        return <Tag color={status.color}>{status.label}</Tag>;
       },
     },
   ];
@@ -184,7 +186,9 @@ export function Delegations({ me: propMe, form: externalForm }) {
       title: 'Actions',
       key: 'actions',
       width: 100,
-      render: (_, record) => (
+      // The list also holds delegations made to me. Only the delegator of an active one may
+      // revoke it (`revocable`, set by the server), so only those rows get the button.
+      render: (_, record) => record.revocable && (
         <Popconfirm
           title="Revoke Delegation"
           description="Are you sure you want to revoke this delegation?"
@@ -272,6 +276,7 @@ export function Delegations({ me: propMe, form: externalForm }) {
               onSearch={searchEmployees}
               onFocus={() => { if (employeeOptions.length === 0) searchEmployees(''); }}
               options={employeeOptions}
+              notFoundContent={searchError || undefined}
             />
           </Form.Item>
 

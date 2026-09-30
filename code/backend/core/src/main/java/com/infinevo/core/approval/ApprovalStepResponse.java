@@ -27,7 +27,8 @@ public record ApprovalStepResponse(
         UUID subjectEmployeeId,
         UUID itemId,
         String summary,
-        Integer totalSteps) {
+        Integer totalSteps,
+        String subjectEmployeeName) {
 
     public static ApprovalStepResponse from(ApprovalStep step) {
         return from(step, null, null);
@@ -38,6 +39,15 @@ public record ApprovalStepResponse(
     }
 
     public static ApprovalStepResponse from(ApprovalStep step, ApprovalInstance instance, Integer totalSteps) {
+        return from(step, instance, totalSteps, null);
+    }
+
+    /**
+     * @param subjectEmployeeName who the request is about, so the inbox does not need
+     *     {@code core.employee.read} to say so (W-46.4 section 4); null when not looked up
+     */
+    public static ApprovalStepResponse from(
+            ApprovalStep step, ApprovalInstance instance, Integer totalSteps, String subjectEmployeeName) {
         ApprovalFlowType flowType = instance != null ? instance.getFlowType() : null;
         UUID subjectEmployeeId = instance != null ? instance.getSubjectEmployeeId() : null;
         UUID itemId = instance != null ? instance.getSubjectId() : null;
@@ -65,6 +75,7 @@ public record ApprovalStepResponse(
                 subjectEmployeeId,
                 itemId,
                 summary,
-                totalSteps);
+                totalSteps,
+                subjectEmployeeName);
     }
 }

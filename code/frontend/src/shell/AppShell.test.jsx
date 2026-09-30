@@ -63,7 +63,8 @@ describe('AppShell component', () => {
       </Provider>,
     );
 
-    expect(await screen.findByRole('heading', { name: /Employees/i })).toBeDefined();
+    // The route is lazy-loaded: allow the import more than findBy's default second.
+    expect(await screen.findByRole('heading', { name: /Employees/i }, { timeout: 5000 })).toBeDefined();
   });
 
   it('renders Suspended screen full-page without sidebar or clickable menu when suspended', () => {
@@ -94,7 +95,15 @@ describe('AppShell component', () => {
   });
 
   it('contains no hex color literals in shell JSX source files (W-45 §8)', () => {
-    const shellFiles = ['AppShell.jsx', 'Header.jsx', 'ShellBoundary.jsx'];
+    const shellFiles = [
+      'AppShell.jsx',
+      'Header.jsx',
+      'ShellBoundary.jsx',
+      'screens/Suspended.jsx',
+      'screens/NotEntitled.jsx',
+      'screens/NotFound.jsx',
+      'screens/NoModules.jsx',
+    ];
     const hexRegex = /#[0-9a-fA-F]{3,6}\b/;
 
     shellFiles.forEach((filename) => {

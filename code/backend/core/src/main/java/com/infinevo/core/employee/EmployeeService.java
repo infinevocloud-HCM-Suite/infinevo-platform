@@ -38,6 +38,18 @@ public interface EmployeeService {
     /** The caller's own employee row in the bound tenant, if linked and live (W-13.4). */
     java.util.Optional<EmployeeResponse> currentEmployee();
 
+    /**
+     * Display names for these employees in the bound tenant, keyed by id: first and last name, or
+     * the employee number when there is no name. An id outside the tenant is simply absent.
+     *
+     * <p>Not guarded by {@code core.employee.read}, deliberately: it exists so a record that already
+     * points at an employee - an approval step assigned to the caller - can say who that is. It
+     * returns a name and nothing else, and only for the ids the caller's own record carries.
+     */
+    default java.util.Map<UUID, String> displayNames(java.util.Collection<UUID> ids) {
+        return java.util.Map.of();
+    }
+
     /** Sets or clears the user account link for an employee in the bound tenant (W-13.4). */
     EmployeeResponse linkLogin(UUID id, UUID userAccountId);
 

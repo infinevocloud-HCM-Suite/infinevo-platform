@@ -18,23 +18,17 @@ import {
   ArrowDownOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
-import { useCan, useNavigation, NotEntitled } from '@shell/screens';
+import { useCan, useHasModule, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { definitionService } from './definitionService.js';
 import { roleService } from './roleService.js';
-import { employeeService } from '../employee/employeeService.js';
+import { useEmployeeSearch } from './useEmployeeSearch.js';
+import { flowTypesFor } from './flowTypes.js';
 
 const { Title, Text } = Typography;
 
-const ALL_FLOW_TYPES = [
-  { key: 'LEAVE', label: 'Leave', module: 'hrms' },
-  { key: 'REGULARIZATION', label: 'Regularization', module: 'hrms' },
-  { key: 'OVERTIME', label: 'Overtime', module: 'hrms' },
-  { key: 'TIMESHEET', label: 'Timesheet', module: 'hrms' },
-  { key: 'REIMBURSEMENT', label: 'Reimbursement', module: 'payroll' },
-  { key: 'PROOF_OF_INVESTMENT', label: 'Proof of Investment', module: 'payroll' },
-  { key: 'PAY_RUN', label: 'Pay Run', module: 'payroll' },
-];
+// What a definition is saved with when the tenant has none yet (W-15.1 §4 defaults).
+const DEFAULT_ROUTING = { stepOrdering: 'SEQUENTIAL', commentScope: 'PER_STEP' };
 
 const APPROVER_KINDS = [
   { label: 'Reporting Manager', value: 'REPORTING_MANAGER' },
@@ -50,29 +44,19 @@ const APPROVER_KINDS = [
 export function Definitions() {
   const { token } = theme.useToken();
   const canManage = useCan('core.approval_definition.manage');
-  const { items } = useNavigation();
+  const hasHrms = useHasModule('HRMS');
+  const hasPayroll = useHasModule('PAYROLL');
 
-  const hasHrms = items?.some((it) => it.key?.startsWith('hrms') || it.module === 'hrms');
-  const hasPayroll = items?.some((it) => it.key?.startsWith('payroll') || it.module === 'payroll');
-
-  const flowTypes = useMemo(() => {
-    // If tenant holds Payroll only, show only REIMBURSEMENT and PROOF_OF_INVESTMENT (D-36, D-37, W-46.4 §8)
-    if (hasPayroll && !hasHrms) {
-      return ALL_FLOW_TYPES.filter(
-        (f) => f.key === 'REIMBURSEMENT' || f.key === 'PROOF_OF_INVESTMENT'
-      );
-    }
-    // If tenant holds HRMS only, show only HRMS workflows
-    if (hasHrms && !hasPayroll) {
-      return ALL_FLOW_TYPES.filter((f) => f.module === 'hrms');
-    }
-    return ALL_FLOW_TYPES;
-  }, [hasHrms, hasPayroll]);
+  // A Payroll-only tenant sees only its two flows (D-36, D-37, W-46.4 §8)
+  const flowTypes = useMemo(() => flowTypesFor({ hasHrms, hasPayroll }), [hasHrms, hasPayroll]);
 
   const [activeFlow, setActiveFlow] = useState(flowTypes[0]?.key || 'LEAVE');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [steps, setSteps] = useState([]);
+  // The loaded definition's routing, sent back unchanged: this screen edits the steps only, and
+  // must not turn an any-order or shared-comment flow into the defaults by saving it.
+  const [routing, setRouting] = useState(DEFAULT_ROUTING);
   const [roles, setRoles] = useState([]);
 
   useEffect(() => {
@@ -91,24 +75,12 @@ export function Definitions() {
   }, []);
 
   // Employee options for NAMED_EMPLOYEE
-  const [employeeOptions, setEmployeeOptions] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
-  const searchEmployees = async (query = '') => {
-    setSearchLoading(true);
-    try {
-      const res = await employeeService.list({ q: query, size: 10 });
-      const options = (res?.content || []).map((e) => ({
-        value: e.id,
-        label: `${e.employeeNumber} - ${[e.firstName, e.lastName].filter(Boolean).join(' ')}`,
-      }));
-      setEmployeeOptions(options);
-    } catch {
-      setEmployeeOptions([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+  const {
+    options: employeeOptions,
+    loading: searchLoading,
+    error: searchError,
+    search: searchEmployees,
+  } = useEmployeeSearch();
 
   const loadDefinition = useCallback(
     async (flowType) => {
@@ -120,6 +92,10 @@ export function Definitions() {
         const def = Array.isArray(res)
           ? res.find((d) => d.isActive !== false) || res[0]
           : res;
+        setRouting({
+          stepOrdering: def?.stepOrdering || DEFAULT_ROUTING.stepOrdering,
+          commentScope: def?.commentScope || DEFAULT_ROUTING.commentScope,
+        });
         const rawSteps = def?.steps || [];
         const normalizedSteps = rawSteps.map((s, i) => {
           const kind = s.kind || s.approverKind || 'REPORTING_MANAGER';
@@ -141,6 +117,7 @@ export function Definitions() {
       } catch (err) {
         await errorMsg(err);
         setSteps([]);
+        setRouting(DEFAULT_ROUTING);
       } finally {
         setLoading(false);
       }
@@ -200,8 +177,8 @@ export function Definitions() {
     setSaving(true);
     try {
       const payload = {
-        stepOrdering: 'SEQUENTIAL',
-        commentScope: 'PER_STEP',
+        stepOrdering: routing.stepOrdering,
+        commentScope: routing.commentScope,
         effectiveFrom: new Date().toISOString().split('T')[0],
         isActive: true,
         steps: steps.map((s) => ({
@@ -285,6 +262,7 @@ export function Definitions() {
               onFocus={() => { if (employeeOptions.length === 0) searchEmployees(''); }}
               onChange={(val) => handleUpdateStep(index, 'assigneeEmployeeId', val)}
               options={employeeOptions}
+              notFoundContent={searchError || undefined}
             />
           );
         }

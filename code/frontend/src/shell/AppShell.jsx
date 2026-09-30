@@ -64,7 +64,7 @@ export function AppShell() {
                   active
                   title={{ width: '80%' }}
                   paragraph={false}
-                  style={{ marginBottom: token.margin - 4 }}
+                  style={{ marginBottom: token.marginSM }}
                 />
               ))}
             </div>
@@ -97,7 +97,11 @@ export function AppShell() {
                   </Button>
                 }
               />
-            ) : !loading && (!items || items.length === 0) ? (
+            ) : loading && (!items || items.length === 0) ? (
+              // Nothing to route yet. Rendering the routes here would show NotFound for a
+              // path the feed is about to name.
+              <Skeleton active />
+            ) : !items || items.length === 0 ? (
               <NoModules />
             ) : (
               <React.Suspense fallback={<Skeleton active />}>

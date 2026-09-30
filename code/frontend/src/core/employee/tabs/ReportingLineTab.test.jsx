@@ -56,11 +56,11 @@ describe('ReportingLineTab component', () => {
     });
   });
 
-  it('shows error envelope when set primary manager returns 409 cycle conflict', async () => {
+  it('shows error envelope when set primary manager is refused as a cycle (400, as the backend returns)', async () => {
     const cycleError = {
-      code: 'CONFLICT',
+      code: 'VALIDATION_FAILED',
       message: 'Cycle detected: an employee cannot report to themselves or their reports',
-      status: 409,
+      status: 400,
     };
     reportingLineService.set.mockRejectedValueOnce(cycleError);
 
@@ -80,7 +80,7 @@ describe('ReportingLineTab component', () => {
 
     await waitFor(() => {
       const option = screen.getByText('E-002 - Priya Nair');
-      expect(option).toBeDefined();
+      expect(option).toBeTruthy();
       fireEvent.click(option);
     });
 

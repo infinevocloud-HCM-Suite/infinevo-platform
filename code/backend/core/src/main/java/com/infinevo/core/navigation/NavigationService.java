@@ -2,7 +2,9 @@ package com.infinevo.core.navigation;
 
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
+import com.infinevo.shared.entitlement.PlatformModule;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -48,7 +50,14 @@ public class NavigationService {
             filterItem(itemDef, actions).ifPresent(visibleItems::add);
         }
 
-        return new NavigationResponse(List.copyOf(visibleItems), actions);
+        Set<PlatformModule> modules = EnumSet.noneOf(PlatformModule.class);
+        for (PlatformModule module : PlatformModule.values()) {
+            if (entitlementService.holds(module)) {
+                modules.add(module);
+            }
+        }
+
+        return new NavigationResponse(List.copyOf(visibleItems), actions, modules);
     }
 
     private Optional<NavigationItemResponse> filterItem(

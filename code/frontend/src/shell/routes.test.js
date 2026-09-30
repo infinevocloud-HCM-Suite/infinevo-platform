@@ -1,6 +1,6 @@
 /**
- * routesFromFeed (W-12.3 §5): only a route whose path the feed names is mounted, at any depth,
- * and an empty feed mounts nothing.
+ * routesFromFeed (W-12.3 §5, W-46.1 §5): a route is mounted when the feed names its path, at
+ * any depth, or names a path above it; an empty feed mounts nothing.
  */
 import { describe, it, expect } from 'vitest';
 import { routesFromFeed, routeGroups } from './routes.js';
@@ -23,6 +23,34 @@ describe('routesFromFeed', () => {
     ];
 
     expect(routesFromFeed(feed, groups).map((r) => r.path)).toEqual(['/org/departments', '/roles']);
+  });
+
+  it('mounts the routes beneath a feed path, and nothing that merely shares its prefix', () => {
+    const withChildren = {
+      core: [
+        { path: '/employees', element: 'List' },
+        { path: '/employees/new', element: 'Create' },
+        { path: '/employees/:id', element: 'Page' },
+        { path: '/employees-archive', element: 'Archive' },
+        { path: '/roles', element: 'Roles' },
+      ],
+    };
+
+    const mounted = routesFromFeed([{ key: 'core.employee', path: '/employees' }], withChildren);
+
+    expect(mounted.map((r) => r.path)).toEqual(['/employees', '/employees/new', '/employees/:id']);
+  });
+
+  it('does not mount a parent because the feed names its child', () => {
+    const feed = [{ key: 'core.employee.new', path: '/employees/new' }];
+    const registered = {
+      core: [
+        { path: '/employees', element: 'List' },
+        { path: '/employees/new', element: 'Create' },
+      ],
+    };
+
+    expect(routesFromFeed(feed, registered).map((r) => r.path)).toEqual(['/employees/new']);
   });
 
   it('mounts nothing for an empty feed', () => {

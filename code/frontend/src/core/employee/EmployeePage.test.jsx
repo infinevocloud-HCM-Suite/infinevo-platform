@@ -42,51 +42,87 @@ describe('EmployeePage component', () => {
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
   });
 
-  it('renders Reactivate button when employee is TERMINATED and calls update', async () => {
-    employeeService.get.mockResolvedValueOnce({
-      id: 'emp-term-1',
-      employeeNumber: 'EMP-999',
-      firstName: 'Bob',
-      lastName: 'Marley',
-      status: 'TERMINATED',
-    });
-    employeeService.update.mockResolvedValueOnce({
-      id: 'emp-term-1',
-      employeeNumber: 'EMP-999',
-      firstName: 'Bob',
-      lastName: 'Marley',
-      status: 'ACTIVE',
-    });
-
-    render(
+  function renderPage(employeeId) {
+    return render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={['/employees/emp-term-1']}>
+        <MemoryRouter initialEntries={[`/employees/${employeeId}`]}>
           <Routes>
             <Route path="/employees/:id" element={<EmployeePage />} />
           </Routes>
         </MemoryRouter>
       </Provider>
     );
+  }
 
-    await waitFor(() => {
-      expect(screen.getByText('EMP-999')).toBeDefined();
-      expect(document.getElementById('btn-reactivate-employee')).toBeDefined();
+  it('offers Reactivate and Terminate on a SUSPENDED employee, and Reactivate sends ACTIVE', async () => {
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-susp-1',
+      employeeNumber: 'EMP-999',
+      firstName: 'Bob',
+      lastName: 'Marley',
+      status: 'SUSPENDED',
     });
+    employeeService.update.mockResolvedValueOnce({
+      id: 'emp-susp-1',
+      employeeNumber: 'EMP-999',
+      firstName: 'Bob',
+      lastName: 'Marley',
+      status: 'ACTIVE',
+    });
+
+    renderPage('emp-susp-1');
+
+    await waitFor(() => expect(document.getElementById('btn-delete-employee')).not.toBeNull());
+    expect(document.getElementById('btn-reactivate-employee')).not.toBeNull();
+    expect(document.getElementById('btn-terminate-employee')).not.toBeNull();
 
     fireEvent.click(document.getElementById('btn-reactivate-employee'));
 
     await waitFor(() => {
       const confirmBtn = document.querySelector('.ant-modal-confirm-btns .ant-btn-primary');
-      expect(confirmBtn).toBeDefined();
+      expect(confirmBtn).not.toBeNull();
       fireEvent.click(confirmBtn);
     });
 
     await waitFor(() => {
       expect(employeeService.update).toHaveBeenCalledWith(
-        'emp-term-1',
+        'emp-susp-1',
         expect.objectContaining({ status: 'ACTIVE', terminationDate: null })
       );
     });
+  });
+
+  it('offers neither Reactivate nor Terminate on a TERMINATED employee - the status is terminal', async () => {
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-term-1',
+      employeeNumber: 'EMP-998',
+      firstName: 'Peter',
+      lastName: 'Tosh',
+      status: 'TERMINATED',
+    });
+
+    renderPage('emp-term-1');
+
+    await waitFor(() => expect(document.getElementById('btn-delete-employee')).not.toBeNull());
+    expect(document.getElementById('btn-reactivate-employee')).toBeNull();
+    expect(document.getElementById('btn-terminate-employee')).toBeNull();
+    expect(document.getElementById('btn-delete-employee')).not.toBeNull();
+  });
+
+  it('offers Terminate but not Reactivate on an ACTIVE employee', async () => {
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-act-1',
+      employeeNumber: 'EMP-997',
+      firstName: 'Rita',
+      lastName: 'Marley',
+      status: 'ACTIVE',
+    });
+
+    renderPage('emp-act-1');
+
+    await waitFor(() => expect(document.getElementById('btn-delete-employee')).not.toBeNull());
+    expect(document.getElementById('btn-terminate-employee')).not.toBeNull();
+    expect(document.getElementById('btn-reactivate-employee')).toBeNull();
   });
 
   it('hides Identification, Bank and Reporting Line tabs when read permissions are missing', async () => {
