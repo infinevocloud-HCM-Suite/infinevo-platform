@@ -208,6 +208,9 @@ public final class PayrollTestSchema {
                     st.execute("ALTER TABLE payroll.ctc_esi_component NO FORCE ROW LEVEL SECURITY");
                 }
             }
+            if (!tableExists(conn, "payroll", "tax_deductor")) {
+                executeResource(conn, "db/migration/payroll/V107__tax_deductor.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -244,6 +247,9 @@ public final class PayrollTestSchema {
                             + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
             if (tableExists(conn, "payroll", "employee_investment_declaration")) {
                 st.execute("TRUNCATE TABLE payroll.employee_investment_declaration CASCADE");
+            }
+            if (tableExists(conn, "payroll", "tax_deductor")) {
+                st.execute("DELETE FROM payroll.tax_deductor");
             }
             if (tableExists(conn, "payroll", "employee_reimbursement_request")) {
                 st.execute("DELETE FROM payroll.employee_reimbursement_request");
