@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -188,5 +189,12 @@ class RejectionEndsInstanceIT extends AbstractIntegrationTest {
                 status -> stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(TENANT_A, instanceId));
         assertThat(finalSteps).hasSize(1);
         assertThat(finalSteps.get(0).getDecision()).isEqualTo(ApprovalDecision.REJECTED);
+    }
+
+    // Instances reference employees. Left behind, they block every later suite that wipes
+    // core.employee (attendance, employee, org, job, lop) with a foreign-key error.
+    @AfterAll
+    static void clearApprovalRows() throws Exception {
+        ApprovalTestSchema.clearAll();
     }
 }

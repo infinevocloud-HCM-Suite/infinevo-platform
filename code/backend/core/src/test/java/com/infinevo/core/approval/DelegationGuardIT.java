@@ -17,6 +17,7 @@ import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.shared.test.RedisTestContainerInitializer;
 import java.time.LocalDate;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -151,5 +152,12 @@ class DelegationGuardIT extends AbstractIntegrationTest {
                                 b.subject(delegatorSub.toString()).claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
+    }
+
+    // Instances reference employees. Left behind, they block every later suite that wipes
+    // core.employee (attendance, employee, org, job, lop) with a foreign-key error.
+    @AfterAll
+    static void clearApprovalRows() throws Exception {
+        ApprovalTestSchema.clearAll();
     }
 }

@@ -7,6 +7,7 @@ import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,5 +102,12 @@ class ApprovalDefinitionRlsIT extends AbstractIntegrationTest {
     void rawAppUserConnectionIsolatesRows() throws Exception {
         assertThat(ApprovalTestSchema.visibleRowCount(TENANT_A)).isEqualTo(1);
         assertThat(ApprovalTestSchema.visibleRowCount(TENANT_B)).isEqualTo(2);
+    }
+
+    // Instances reference employees. Left behind, they block every later suite that wipes
+    // core.employee (attendance, employee, org, job, lop) with a foreign-key error.
+    @AfterAll
+    static void clearApprovalRows() throws Exception {
+        ApprovalTestSchema.clearAll();
     }
 }

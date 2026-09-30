@@ -1,6 +1,7 @@
 package com.infinevo.core.lop;
 
 import static com.infinevo.core.lop.LopTestSchema.TENANT_A;
+import static com.infinevo.core.lop.LopTestSchema.TENANT_B;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.tenant.TenantRequest;
@@ -77,52 +78,41 @@ class LopPolicySeedIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("V116's seed block gives a tenant that existed before the migration one ACTUAL_DAYS policy")
     void v116SeedBlock_seedsExistingTenant() throws Exception {
-        UUID existingTenant = UUID.randomUUID();
+        // Tenant B already exists (seedTenants). Take its policy away so it looks like a tenant
+        // that was provisioned before V116, then run the seed block cut from the script itself.
+        // A brand-new tenant would do too, but inserting one fires six seeding triggers whose
+        // rows cannot be removed cleanly afterwards.
         try (Connection conn = LopTestSchema.migrationConnection()) {
-            try (PreparedStatement ps =
-                    conn.prepareStatement("INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?)")) {
-                ps.setObject(1, existingTenant);
-                ps.setString(2, "Pre-V116 Tenant " + existingTenant);
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM core.lop_policy WHERE tenant_id = ?")) {
+                ps.setObject(1, TENANT_B);
                 ps.executeUpdate();
             }
-            assertThat(countPolicies(conn, existingTenant))
+            assertThat(countPolicies(conn, TENANT_B))
                     .as("no policy before the seed")
                     .isZero();
 
-            try {
-                // The statement cut from V116 itself, not a copy: deleting it from the script fails here.
-                LopTestSchema.runV116SeedBlock(conn);
+            // The statement cut from V116 itself, not a copy: deleting it from the script fails here.
+            LopTestSchema.runV116SeedBlock(conn);
 
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "SELECT working_day_basis, configured_days_per_month, weekends_payable, holidays_payable,"
-                                + " lop_rounding, effective_from FROM core.lop_policy WHERE tenant_id = ?")) {
-                    ps.setObject(1, existingTenant);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        assertThat(rs.next()).isTrue();
-                        assertThat(rs.getString("working_day_basis")).isEqualTo("ACTUAL_DAYS");
-                        assertThat(rs.getBigDecimal("configured_days_per_month"))
-                                .isNull();
-                        assertThat(rs.getBoolean("weekends_payable")).isTrue();
-                        assertThat(rs.getBoolean("holidays_payable")).isTrue();
-                        assertThat(rs.getString("lop_rounding")).isEqualTo("HALF_UP_2");
-                        assertThat(rs.getString("effective_from")).isEqualTo("1900-01-01");
-                        assertThat(rs.next()).isFalse();
-                    }
-                }
-
-                // Idempotent: a second run adds nothing for a tenant that already has a policy.
-                LopTestSchema.runV116SeedBlock(conn);
-                assertThat(countPolicies(conn, existingTenant)).isEqualTo(1);
-            } finally {
-                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM core.lop_policy WHERE tenant_id = ?")) {
-                    ps.setObject(1, existingTenant);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM core.tenant WHERE tenant_id = ?")) {
-                    ps.setObject(1, existingTenant);
-                    ps.executeUpdate();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT working_day_basis, configured_days_per_month, weekends_payable, holidays_payable,"
+                            + " lop_rounding, effective_from FROM core.lop_policy WHERE tenant_id = ?")) {
+                ps.setObject(1, TENANT_B);
+                try (ResultSet rs = ps.executeQuery()) {
+                    assertThat(rs.next()).isTrue();
+                    assertThat(rs.getString("working_day_basis")).isEqualTo("ACTUAL_DAYS");
+                    assertThat(rs.getBigDecimal("configured_days_per_month")).isNull();
+                    assertThat(rs.getBoolean("weekends_payable")).isTrue();
+                    assertThat(rs.getBoolean("holidays_payable")).isTrue();
+                    assertThat(rs.getString("lop_rounding")).isEqualTo("HALF_UP_2");
+                    assertThat(rs.getString("effective_from")).isEqualTo("1900-01-01");
+                    assertThat(rs.next()).isFalse();
                 }
             }
+
+            // Idempotent: a second run adds nothing for a tenant that already has a policy.
+            LopTestSchema.runV116SeedBlock(conn);
+            assertThat(countPolicies(conn, TENANT_B)).isEqualTo(1);
         }
     }
 
