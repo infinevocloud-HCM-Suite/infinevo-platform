@@ -17,133 +17,100 @@ import org.junit.jupiter.api.Test;
 
 /**
  * W-29.4 §4 — the payroll officer follows a pay run's job on {@code GET /api/v1/jobs/{jobId}}, which
- * needs {@code core.job.read}. V126 grants it to the officers of tenants that already exist and to
- * those provisioned afterwards, and takes nothing away from the grants V097 left.
+ * needs {@code core.job.read}. V059 grants it through a trigger of its own for a tenant provisioned
+ * afterwards and through {@code core.grant_payrun_job_actions} for the tenants that already exist;
+ * {@code core.seed_system_roles} is left as it was.
  */
 @EnabledIfDockerAvailable
 class PayRunJobReadSeedIT extends AbstractIntegrationTest {
 
     private static final String JOB_READ = "core.job.read";
-    private static final UUID PRE_EXISTING_TENANT = UUID.randomUUID();
     private static final UUID NEW_TENANT = UUID.randomUUID();
 
-    private static boolean officerHeldItBefore;
-
     @BeforeAll
-    static void setUpSchemaAndSeed() throws Exception {
+    static void applySchemaAndProvision() throws Exception {
+        PayRunTestSchema.apply();
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
-            if (!PayrollTestSchema.tableExists(conn, "core", "tenant")) {
-                PayrollTestSchema.executeResource(conn, "db/migration/core/V001__tenant.sql");
-            }
-            if (!PayrollTestSchema.tableExists(conn, "reference", "action")) {
-                PayrollTestSchema.executeResource(conn, "db/migration/reference/V020__action.sql");
-            }
-            if (!PayrollTestSchema.tableExists(conn, "core", "role")) {
-                PayrollTestSchema.executeResource(conn, "db/migration/core/V021__role.sql");
-            }
-            if (!PayrollTestSchema.tableExists(conn, "core", "role_action")) {
-                PayrollTestSchema.executeResource(conn, "db/migration/core/V022__role_action.sql");
-            }
-            if (!PayrollTestSchema.actionExists(conn, JOB_READ)) {
-                PayrollTestSchema.executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
-            }
-            if (!PayrollTestSchema.actionExists(conn, "payroll.fbp.read")) {
-                PayrollTestSchema.executeResource(conn, "db/migration/reference/V052__fbp_actions.sql");
-            }
-            // V097 is the seed function V126 builds on; applying it again is harmless, and it puts
-            // the function back to what a tenant provisioned before V126 was seeded with.
-            PayrollTestSchema.executeResource(conn, "db/migration/reference/V097__reimbursement_claim_actions.sql");
-
-            provision(conn, PRE_EXISTING_TENANT, "Job Read Pre-Existing Tenant");
-            officerHeldItBefore = holds(conn, PRE_EXISTING_TENANT, "payroll-officer", JOB_READ);
-
-            PayrollTestSchema.executeResource(conn, "db/migration/reference/V126__payroll_officer_job_read.sql");
-
-            provision(conn, NEW_TENANT, "Job Read New Tenant");
+            insertTenant(conn, NEW_TENANT, "Job Read New Tenant");
         }
     }
 
     @Test
-    @DisplayName("Before V126 the payroll officer did not hold core.job.read")
-    void officerLackedItBefore() {
-        assertThat(officerHeldItBefore).isFalse();
-    }
-
-    @Test
-    @DisplayName("V126 grants core.job.read to the payroll officer of a tenant that already existed")
-    void preExistingOfficerHoldsIt() throws SQLException {
-        try (Connection conn = PayrollTestSchema.migrationConnection()) {
-            assertThat(holds(conn, PRE_EXISTING_TENANT, "payroll-officer", JOB_READ))
-                    .isTrue();
-        }
-    }
-
-    @Test
-    @DisplayName("A tenant provisioned after V126 gets the grant from the seed function")
+    @DisplayName("A tenant provisioned after V059 gets core.job.read on its payroll officer, from the trigger alone")
     void newOfficerHoldsIt() throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
-            assertThat(holds(conn, NEW_TENANT, "payroll-officer", JOB_READ)).isTrue();
+            assertThat(grants(conn, NEW_TENANT, "payroll-officer", JOB_READ)).isEqualTo(1);
         }
     }
 
     @Test
-    @DisplayName("Only the officer gains it: finance and employee still cannot read jobs")
+    @DisplayName("Only the officer gains it: finance, hr, manager and employee still cannot read jobs")
     void nobodyElseGainsIt() throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
-            for (UUID tenant : new UUID[] {PRE_EXISTING_TENANT, NEW_TENANT}) {
-                assertThat(holds(conn, tenant, "finance", JOB_READ)).isFalse();
-                assertThat(holds(conn, tenant, "employee", JOB_READ)).isFalse();
+            for (String role : new String[] {"finance", "hr", "manager", "employee"}) {
+                assertThat(grants(conn, NEW_TENANT, role, JOB_READ)).as(role).isZero();
             }
         }
     }
 
     @Test
-    @DisplayName("The redefined seed function keeps V097's grants: a new officer still reads runs and claims")
-    void earlierGrantsSurvive() throws SQLException {
+    @DisplayName("The officer keeps the grants core.seed_system_roles gives: the function was not replaced")
+    void seedFunctionGrantsSurvive() throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
-            assertThat(holds(conn, NEW_TENANT, "payroll-officer", "payroll.run.execute"))
-                    .isTrue();
-            assertThat(holds(conn, NEW_TENANT, "payroll-officer", "payroll.reimbursement_claim.read"))
-                    .isTrue();
-            assertThat(holds(conn, NEW_TENANT, "employee", "payroll.reimbursement_claim.submit_own"))
-                    .isTrue();
-            assertThat(count(conn, NEW_TENANT))
-                    .as("one grant more than a tenant seeded by V097's function, then backfilled")
-                    .isEqualTo(count(conn, PRE_EXISTING_TENANT));
+            assertThat(grants(conn, NEW_TENANT, "payroll-officer", "payroll.run.execute"))
+                    .isEqualTo(1);
+            assertThat(grants(conn, NEW_TENANT, "payroll-officer", "payroll.reimbursement_claim.read"))
+                    .isEqualTo(1);
         }
     }
 
-    private static void provision(Connection conn, UUID tenantId, String name) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
+    @Test
+    @DisplayName("The backfill function grants a tenant that lacks it, and running it twice changes nothing")
+    void backfillGrantsAnExistingTenantOnce() throws SQLException {
+        UUID existing = UUID.randomUUID();
+        try (Connection conn = PayrollTestSchema.migrationConnection()) {
+            insertTenant(conn, existing, "Job Read Existing Tenant");
+            // What a tenant provisioned before V059 looks like: system roles, no job grant.
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "DELETE FROM core.role_action WHERE tenant_id = ? AND action_code = ? AND role_id IN "
+                            + "(SELECT id FROM core.role WHERE tenant_id = ? AND code = 'payroll-officer')")) {
+                ps.setObject(1, existing);
+                ps.setString(2, JOB_READ);
+                ps.setObject(3, existing);
+                assertThat(ps.executeUpdate()).isEqualTo(1);
+            }
+            assertThat(grants(conn, existing, "payroll-officer", JOB_READ)).isZero();
+
+            backfill(conn, existing);
+            backfill(conn, existing);
+
+            assertThat(grants(conn, existing, "payroll-officer", JOB_READ)).isEqualTo(1);
+            assertThat(grants(conn, existing, "finance", JOB_READ)).isZero();
+        }
+    }
+
+    private static void insertTenant(Connection conn, UUID tenantId, String name) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?)")) {
             ps.setObject(1, tenantId);
             ps.setString(2, name);
             ps.executeUpdate();
         }
-        try (CallableStatement cs = conn.prepareCall("SELECT core.seed_system_roles(?)")) {
+    }
+
+    private static void backfill(Connection conn, UUID tenantId) throws SQLException {
+        try (CallableStatement cs = conn.prepareCall("SELECT core.grant_payrun_job_actions(?)")) {
             cs.setObject(1, tenantId);
             cs.execute();
         }
     }
 
-    private static boolean holds(Connection conn, UUID tenantId, String roleCode, String actionCode)
-            throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM core.role_action ra "
+    private static int grants(Connection conn, UUID tenantId, String roleCode, String actionCode) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT count(*) FROM core.role_action ra "
                 + "JOIN core.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id "
                 + "WHERE ra.tenant_id = ? AND r.code = ? AND ra.action_code = ?")) {
             ps.setObject(1, tenantId);
             ps.setString(2, roleCode);
             ps.setString(3, actionCode);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        }
-    }
-
-    private static int count(Connection conn, UUID tenantId) throws SQLException {
-        try (PreparedStatement ps =
-                conn.prepareStatement("SELECT count(*) FROM core.role_action WHERE tenant_id = ?")) {
-            ps.setObject(1, tenantId);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);

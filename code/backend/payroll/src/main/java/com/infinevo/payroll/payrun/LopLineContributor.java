@@ -32,7 +32,8 @@ import org.springframework.stereotype.Component;
  * cannot deduct more than the month was worth.
  *
  * <p>{@code credit_days} — a {@code LOP_DAYS} reversal that landed in this period for a month already
- * paid — are refunded by the same formula, at this period's salary and divisor: an {@code EARNING}
+ * paid — are refunded by the same formula, at this period's salary and divisor, and without the cap
+ * (reversals of two locked months can land in one period, and all of them are owed): an {@code EARNING}
  * line, code {@code LOP_REVERSAL}, and a {@code BENEFIT} line, code {@code LOP_BENEFIT_REVERSAL},
  * which {@link PayRunTotals} adds back. The pay-input kinds do the same under {@code <KIND>_REVERSAL}
  * ({@link PayInputLineContributor}).
@@ -91,12 +92,12 @@ public class LopLineContributor implements PayLineContributor {
                     LineKind.BENEFIT, LineSource.LOP, null, LOP_BENEFIT_CODE, LOP_BENEFIT_NAME, benefitLop, false));
         }
         // Wages given back, so taxable as the earnings they were deducted from.
-        Money refund = scaled(earningBase, credit, divisor, ctx.lopRounding());
+        Money refund = prorated(earningBase, credit, divisor, ctx.lopRounding());
         if (refund.isPositive()) {
             lines.add(new PayLine(
                     LineKind.EARNING, LineSource.LOP, null, LOP_REVERSAL_CODE, LOP_REVERSAL_NAME, refund, true));
         }
-        Money benefitRefund = scaled(benefitBase, credit, divisor, ctx.lopRounding());
+        Money benefitRefund = prorated(benefitBase, credit, divisor, ctx.lopRounding());
         if (benefitRefund.isPositive()) {
             lines.add(new PayLine(
                     LineKind.BENEFIT,
@@ -110,13 +111,18 @@ public class LopLineContributor implements PayLineContributor {
         return lines;
     }
 
-    /** base × days ÷ divisor — multiplied first so the one rounding carries the least error. */
+    /** The deduction: {@link #prorated}, never more than the base it is taken from. */
     static Money scaled(Money base, BigDecimal days, BigDecimal divisor, LopRounding rounding) {
+        Money amount = prorated(base, days, divisor, rounding);
+        return amount.compareTo(base) > 0 ? base : amount;
+    }
+
+    /** base × days ÷ divisor — multiplied first so the one rounding carries the least error. */
+    static Money prorated(Money base, BigDecimal days, BigDecimal divisor, LopRounding rounding) {
         if (!base.isPositive() || days.signum() <= 0) {
             return Money.ZERO;
         }
-        Money amount = round(base.multiply(days).divide(divisor), rounding);
-        return amount.compareTo(base) > 0 ? base : amount;
+        return round(base.multiply(days).divide(divisor), rounding);
     }
 
     /** W-18.1 §6: the LOP amount is rounded once, per the policy; {@code HALF_UP_2} when unset. */

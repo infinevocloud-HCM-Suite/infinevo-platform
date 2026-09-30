@@ -236,6 +236,30 @@ class LopLineContributorTest {
     }
 
     @Test
+    @DisplayName("Reversals of two locked months landing together are all paid back: 31,000 × 40 ÷ 31 = 40,000.00")
+    void refundIsNotCappedAtOneMonth() {
+        PayRunEmployeeContext ctx = context(
+                JULY,
+                days("31"),
+                days("31"),
+                LopRounding.HALF_UP_2,
+                LONG_AGO,
+                null,
+                List.of(
+                        input(PayInputKind.LOP_DAYS, "20", null, UUID.randomUUID()),
+                        input(PayInputKind.LOP_DAYS, "20", null, UUID.randomUUID())),
+                Set.of(BASIC),
+                List.of(structure(LineKind.EARNING, BASIC, "BASIC", "31000")));
+
+        assertThat(ctx.days().creditDays()).isEqualByComparingTo("40");
+        assertThat(ctx.days().paidDays()).isEqualByComparingTo("31");
+        assertThat(contributor.contribute(ctx))
+                .extracting(
+                        PayLine::kind, PayLine::componentCode, l -> l.amount().raw())
+                .containsExactly(tuple(LineKind.EARNING, "LOP_REVERSAL", new BigDecimal("40000.0000")));
+    }
+
+    @Test
     @DisplayName("New LOP days and an older reversal in one period net first: 3 − 2 = 1 day deducted, nothing refunded")
     void reversalNetsAgainstNewLopDays() {
         PayRunEmployeeContext ctx = context(

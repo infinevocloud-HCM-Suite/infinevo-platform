@@ -11,7 +11,7 @@ import java.util.Objects;
  *
  * <pre>
  * lop_days    = Σ LOP_DAYS inputs, capped at payable days, never below zero
- * credit_days = the days by which that sum is below zero, capped at payable days
+ * credit_days = the days by which that sum is below zero; not capped, two months can come back at once
  * outside     = calendar days of the period before date_of_joining or after termination_date
  * unpaid_days = lop_days + outside
  * paid_days   = payable days − unpaid_days, floor 0
@@ -52,7 +52,7 @@ public record PayRunDays(
 
         BigDecimal requested = requestedLopDays == null ? BigDecimal.ZERO : requestedLopDays;
         BigDecimal lop = requested.max(BigDecimal.ZERO).min(payableDays);
-        BigDecimal credit = requested.negate().max(BigDecimal.ZERO).min(payableDays);
+        BigDecimal credit = requested.negate().max(BigDecimal.ZERO);
 
         long calendarDays = ChronoUnit.DAYS.between(periodStart, periodEnd) + 1;
         long before = 0;
