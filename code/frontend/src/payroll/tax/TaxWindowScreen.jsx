@@ -6,7 +6,6 @@ import {
   DatePicker,
   Select,
   Switch,
-  InputNumber,
   Button,
   Typography,
   Alert,
@@ -45,7 +44,9 @@ export function TaxWindowScreen({ initialFy }) {
         is_locked: Boolean(data?.is_locked),
         default_tax_regime: data?.default_tax_regime || 'NEW',
         can_change_tax_regime: data?.can_change_tax_regime !== false,
-        pan_required_for_rent_over_threshold: data?.pan_required_for_rent_over_threshold ?? 100000,
+        pan_required_for_rent_over_threshold: data?.pan_required_for_rent_over_threshold !== false,
+        notify_on_lock: Boolean(data?.notify_on_lock),
+        notify_on_release: Boolean(data?.notify_on_release),
       });
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load declaration settings');
@@ -72,7 +73,9 @@ export function TaxWindowScreen({ initialFy }) {
         is_locked: Boolean(values.is_locked),
         default_tax_regime: values.default_tax_regime,
         can_change_tax_regime: Boolean(values.can_change_tax_regime),
-        pan_required_for_rent_over_threshold: Number(values.pan_required_for_rent_over_threshold),
+        pan_required_for_rent_over_threshold: Boolean(values.pan_required_for_rent_over_threshold),
+        notify_on_lock: Boolean(values.notify_on_lock),
+        notify_on_release: Boolean(values.notify_on_release),
       };
       const updated = await taxSettingsService.save(selectedFy, payload);
       setSettings(updated);
@@ -88,6 +91,7 @@ export function TaxWindowScreen({ initialFy }) {
 
   const isWindowActive = () => {
     if (!settings || settings.is_locked) return false;
+    if (typeof settings.is_open === 'boolean') return settings.is_open;
     const today = dayjs();
     const opens = settings.window_opens_on ? dayjs(settings.window_opens_on) : null;
     const closes = settings.window_closes_on ? dayjs(settings.window_closes_on) : null;
@@ -134,6 +138,17 @@ export function TaxWindowScreen({ initialFy }) {
           )
         }
       >
+        {settings && settings.exists === false && (
+          <Alert
+            message="Showing Default Configuration"
+            description="No window settings have been saved for this financial year yet. Save to persist custom settings."
+            type="info"
+            showIcon
+            style={{ marginBottom: 20 }}
+            data-testid="defaults-banner"
+          />
+        )}
+
         {error && (
           <Alert
             message="Error"
@@ -155,7 +170,9 @@ export function TaxWindowScreen({ initialFy }) {
               is_locked: false,
               default_tax_regime: 'NEW',
               can_change_tax_regime: true,
-              pan_required_for_rent_over_threshold: 100000,
+              pan_required_for_rent_over_threshold: true,
+              notify_on_lock: false,
+              notify_on_release: false,
             }}
           >
             <Row gutter={[24, 0]}>
@@ -208,16 +225,14 @@ export function TaxWindowScreen({ initialFy }) {
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="pan_required_for_rent_over_threshold"
-                  label="Landlord PAN Threshold (₹ / year)"
-                  rules={[{ required: true, message: 'Please enter landlord PAN threshold' }]}
-                  extra="Landlord PAN is mandatory if annual rent exceeds this limit"
+                  label="Require Landlord PAN Over Threshold"
+                  valuePropName="checked"
+                  extra="Landlord PAN is mandatory if annual rent exceeds statutory threshold"
                 >
-                  <InputNumber
-                    min={0}
-                    step={10000}
-                    formatter={(val) => `₹ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={(val) => val.replace(/₹\s?|(,*)/g, '')}
-                    style={{ width: '100%' }}
+                  <Switch
+                    checkedChildren="Yes"
+                    unCheckedChildren="No"
+                    data-testid="switch-pan-required"
                   />
                 </Form.Item>
               </Col>
@@ -242,6 +257,37 @@ export function TaxWindowScreen({ initialFy }) {
                   extra="When locked, no declarations can be edited or submitted regardless of dates"
                 >
                   <Switch checkedChildren="Locked" unCheckedChildren="Unlocked" />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={[24, 16]}>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="notify_on_lock"
+                  label="Notify Employees on Lock"
+                  valuePropName="checked"
+                  extra="Send notification when declaration window is locked"
+                >
+                  <Switch
+                    checkedChildren="Yes"
+                    unCheckedChildren="No"
+                    data-testid="switch-notify-lock"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="notify_on_release"
+                  label="Notify Employees on Release"
+                  valuePropName="checked"
+                  extra="Send notification when declaration window is opened or released"
+                >
+                  <Switch
+                    checkedChildren="Yes"
+                    unCheckedChildren="No"
+                    data-testid="switch-notify-release"
+                  />
                 </Form.Item>
               </Col>
             </Row>

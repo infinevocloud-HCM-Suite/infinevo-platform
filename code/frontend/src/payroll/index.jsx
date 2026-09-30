@@ -1,3 +1,4 @@
+import { routeGroups } from '@shell/routes';
 import { TaxWindowScreen } from './tax/TaxWindowScreen';
 import { OfficerDeclarationView } from './tax/OfficerDeclarationView';
 import { DeclarationPage } from './tax/DeclarationPage';
@@ -19,10 +20,15 @@ import taxReducer, {
 } from './tax/taxSlice';
 
 export const payrollRoutes = [
-  { path: '/me/tax-declaration', element: <DeclarationPage /> },
-  { path: '/payroll/tax-declaration/settings', element: <TaxWindowScreen /> },
-  { path: '/payroll/tax-declaration/officer', element: <OfficerDeclarationView /> },
+  { path: '/payroll/settings/tax-declaration', element: <TaxWindowScreen /> },
+  { path: '/payroll/tax-declarations/:employeeId/:fy', element: <OfficerDeclarationView /> },
 ];
+
+export const portalPanels = [
+  { code: 'taxDeclaration', element: <DeclarationPage /> },
+];
+
+routeGroups.payroll.splice(0, routeGroups.payroll.length, ...payrollRoutes);
 
 export {
   TaxWindowScreen,
@@ -50,5 +56,6 @@ export {
 
 export default {
   routes: payrollRoutes,
+  portalPanels,
   reducer: taxReducer,
 };

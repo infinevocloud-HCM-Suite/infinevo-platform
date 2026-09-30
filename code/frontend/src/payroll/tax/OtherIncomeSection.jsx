@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import {
   Card,
@@ -11,9 +11,6 @@ import {
   Typography,
   Alert,
   Spin,
-  Row,
-  Col,
-  Tag,
   message,
 } from 'antd';
 import {
@@ -23,6 +20,8 @@ import {
   DollarCircleOutlined,
 } from '@ant-design/icons';
 import { declarationService } from './declarationService';
+import { store } from '@shell/store';
+import { setSectionData } from './taxSlice';
 
 const { Text, Paragraph } = Typography;
 
@@ -45,7 +44,9 @@ export function OtherIncomeSection({ fy, editable, onRefresh }) {
     setError(null);
     try {
       const data = await declarationService.otherIncome(financialYear);
-      setRows(data || []);
+      const list = data || [];
+      setRows(list);
+      store.dispatch(setSectionData({ section: 'otherIncome', data: list }));
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load other income declarations');
     } finally {
@@ -56,10 +57,6 @@ export function OtherIncomeSection({ fy, editable, onRefresh }) {
   useEffect(() => {
     loadOtherIncome(fy);
   }, [fy, loadOtherIncome]);
-
-  const totalOtherIncome = useMemo(() => {
-    return rows.reduce((acc, row) => acc + (Number(row.amount) || 0), 0);
-  }, [rows]);
 
   const handleAddRow = () => {
     setRows((prev) => [
@@ -86,6 +83,7 @@ export function OtherIncomeSection({ fy, editable, onRefresh }) {
 
   const handleSave = async () => {
     setSaving(true);
+    setError(null);
     try {
       const payload = rows.map((row) => ({
         kind: row.kind || 'OTHER',
@@ -94,10 +92,13 @@ export function OtherIncomeSection({ fy, editable, onRefresh }) {
       }));
 
       await declarationService.saveOtherIncome(fy, payload);
+      store.dispatch(setSectionData({ section: 'otherIncome', data: payload }));
       message.success('Other income declarations saved successfully');
       if (onRefresh) onRefresh();
     } catch (err) {
-      message.error(err?.response?.data?.message || err?.message || 'Failed to save other income');
+      const msg = err?.response?.data?.message || err?.message || 'Failed to save other income';
+      setError(msg);
+      message.error(msg);
     } finally {
       setSaving(false);
     }
@@ -212,18 +213,6 @@ export function OtherIncomeSection({ fy, editable, onRefresh }) {
           pagination={false}
           locale={{ emptyText: 'No other income sources declared. Click "Add Income Source" to declare.' }}
           size="middle"
-          footer={() => (
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Text strong>Total Other Income Declared:</Text>
-              </Col>
-              <Col>
-                <Tag color={totalOtherIncome > 0 ? 'green' : 'default'} style={{ fontSize: 14, padding: '4px 10px' }}>
-                  ₹ {totalOtherIncome.toLocaleString('en-IN')}
-                </Tag>
-              </Col>
-            </Row>
-          )}
         />
       </Card>
     </Spin>

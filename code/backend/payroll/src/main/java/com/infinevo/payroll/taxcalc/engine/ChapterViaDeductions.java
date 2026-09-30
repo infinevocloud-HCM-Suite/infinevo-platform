@@ -73,7 +73,7 @@ public final class ChapterViaDeductions {
     }
 
     /**
-     * Computes Chapter VI-A deductions.
+     * Computes Chapter VI-A deductions with a single group cap for 80C.
      */
     public static ChapterViaResult calculate(
             List<DeclaredItem> section6aItems,
@@ -87,71 +87,117 @@ public final class ChapterViaDeductions {
             List<HomeLoanRule> additionalLoanRules,
             Money interestDeduction,
             Money grossTotalIncome) {
+        return calculate(
+                section6aItems,
+                employeePf,
+                vpf,
+                employeeNps,
+                nps1bCap,
+                group80cCap != null ? java.util.Map.of("80C_GROUP", group80cCap) : java.util.Map.of(),
+                homeLoans,
+                rule24B,
+                additionalLoanRules,
+                interestDeduction,
+                grossTotalIncome);
+    }
 
-        Objects.requireNonNull(group80cCap, "group80cCap must not be null");
+    /**
+     * Computes Chapter VI-A deductions with dynamic group caps per category_group_code (W-33.2).
+     */
+    public static ChapterViaResult calculate(
+            List<DeclaredItem> section6aItems,
+            Money employeePf,
+            Money vpf,
+            Money employeeNps,
+            Money nps1bCap,
+            java.util.Map<String, Money> groupCaps,
+            List<EmployeeInvHomeLoan> homeLoans,
+            HomeLoanRule rule24B,
+            List<HomeLoanRule> additionalLoanRules,
+            Money interestDeduction,
+            Money grossTotalIncome) {
+
         Objects.requireNonNull(grossTotalIncome, "grossTotalIncome must not be null");
 
         Money pf = employeePf != null ? employeePf : Money.ZERO;
         Money voluntaryPf = vpf != null ? vpf : Money.ZERO;
-        Money nps = employeeNps != null ? employeeNps : Money.ZERO;
+        Money preTaxNps = employeeNps != null ? employeeNps : Money.ZERO;
         Money interestDed = interestDeduction != null ? interestDeduction : Money.ZERO;
 
         List<ChapterViaLine> lines = new ArrayList<>();
 
-        // 1. Employee NPS split (80CCD(1B) first up to cap, remainder into 80C group)
+        // Extract declared 80CCD(1B) items to apply a single combined cap across salary structure NPS and declared NPS
+        Money declaredNps1b = Money.ZERO;
+        List<DeclaredItem> otherSection6aItems = new ArrayList<>();
+        if (section6aItems != null) {
+            for (DeclaredItem item : section6aItems) {
+                if ("80CCD(1B)".equalsIgnoreCase(item.sectionCode())) {
+                    declaredNps1b =
+                            declaredNps1b.add(item.declaredAmount() != null ? item.declaredAmount() : Money.ZERO);
+                } else {
+                    otherSection6aItems.add(item);
+                }
+            }
+        }
+
+        // 1. Employee NPS split (80CCD(1B) first up to cap across pre-tax and declared, remainder into 80C group)
+        Money totalNps = preTaxNps.add(declaredNps1b);
         Money nps1bAllowed = Money.ZERO;
         Money nps80cRemainder = Money.ZERO;
-        if (!nps.isZero()) {
-            if (nps1bCap != null && nps.compareTo(nps1bCap) > 0) {
+        if (!totalNps.isZero()) {
+            if (nps1bCap != null && totalNps.compareTo(nps1bCap) > 0) {
                 nps1bAllowed = nps1bCap;
-                nps80cRemainder = nps.subtract(nps1bCap);
+                nps80cRemainder = totalNps.subtract(nps1bCap);
             } else {
-                nps1bAllowed = nps;
+                nps1bAllowed = totalNps;
                 nps80cRemainder = Money.ZERO;
             }
             lines.add(new ChapterViaLine(
-                    "80CCD(1B)", "NPS employee additional contribution", nps, nps1bAllowed, nps1bCap));
+                    "80CCD(1B)", "NPS employee additional contribution", totalNps, nps1bAllowed, nps1bCap));
             if (!nps80cRemainder.isZero()) {
                 lines.add(new ChapterViaLine(
                         "80CCD(1)", "NPS employee contribution (80C group)", nps80cRemainder, nps80cRemainder, null));
             }
         }
 
-        // 2. Home loan principal into 80C group, and excess interest under 80EE/80EEA
+        // 2. Home loan principal into 80C group, and excess interest under 80EE/80EEA across total aggregate loans
         Money totalHomeLoanPrincipal = Money.ZERO;
-        Money additionalHomeLoanInterest = Money.ZERO;
+        Money totalFirstTimeBuyerInterest = Money.ZERO;
+        LocalDate eligibleSanctionDate = null;
 
         if (homeLoans != null) {
             for (EmployeeInvHomeLoan loan : homeLoans) {
                 if (loan.getPrincipalPaid() != null) {
                     totalHomeLoanPrincipal = totalHomeLoanPrincipal.add(Money.of(loan.getPrincipalPaid()));
                 }
+                if (loan.isFirstTimeBuyer() && loan.getInterestPaid() != null) {
+                    totalFirstTimeBuyerInterest = totalFirstTimeBuyerInterest.add(Money.of(loan.getInterestPaid()));
+                    if (eligibleSanctionDate == null && loan.getLoanSanctionedOn() != null) {
+                        eligibleSanctionDate = loan.getLoanSanctionedOn();
+                    }
+                }
+            }
+        }
 
-                if (loan.isFirstTimeBuyer() && loan.getInterestPaid() != null && rule24B != null) {
-                    Money loanInterest = Money.of(loan.getInterestPaid());
-                    Money cap24b = rule24B.maxLimit();
-                    if (cap24b != null && loanInterest.compareTo(cap24b) > 0) {
-                        Money excessInterest = loanInterest.subtract(cap24b);
-                        LocalDate sanctionDate = loan.getLoanSanctionedOn();
-
-                        if (additionalLoanRules != null && sanctionDate != null) {
-                            for (HomeLoanRule rule : additionalLoanRules) {
-                                if (rule.isSanctionDateEligible(sanctionDate)) {
-                                    Money allowedInterest =
-                                            (rule.maxLimit() != null && excessInterest.compareTo(rule.maxLimit()) > 0)
-                                                    ? rule.maxLimit()
-                                                    : excessInterest;
-                                    additionalHomeLoanInterest = additionalHomeLoanInterest.add(allowedInterest);
-                                    lines.add(new ChapterViaLine(
-                                            rule.sectionCode(),
-                                            rule.sectionName(),
-                                            excessInterest,
-                                            allowedInterest,
-                                            rule.maxLimit()));
-                                    break;
-                                }
-                            }
-                        }
+        Money additionalHomeLoanInterest = Money.ZERO;
+        Money cap24b = rule24B != null ? rule24B.maxLimit() : null;
+        if (cap24b != null && totalFirstTimeBuyerInterest.compareTo(cap24b) > 0) {
+            Money excessInterest = totalFirstTimeBuyerInterest.subtract(cap24b);
+            if (additionalLoanRules != null && eligibleSanctionDate != null) {
+                for (HomeLoanRule rule : additionalLoanRules) {
+                    if (rule.isSanctionDateEligible(eligibleSanctionDate)) {
+                        Money allowedInterest =
+                                (rule.maxLimit() != null && excessInterest.compareTo(rule.maxLimit()) > 0)
+                                        ? rule.maxLimit()
+                                        : excessInterest;
+                        additionalHomeLoanInterest = additionalHomeLoanInterest.add(allowedInterest);
+                        lines.add(new ChapterViaLine(
+                                rule.sectionCode(),
+                                rule.sectionName(),
+                                excessInterest,
+                                allowedInterest,
+                                rule.maxLimit()));
+                        break;
                     }
                 }
             }
@@ -170,55 +216,72 @@ public final class ChapterViaDeductions {
             lines.add(new ChapterViaLine("80C", "Voluntary Provident Fund (VPF)", voluntaryPf, voluntaryPf, null));
         }
 
-        // 4. Declared 6A items (separate group items from non-group items)
-        Money group80cItemsSum = Money.ZERO;
+        // 4. Declared 6A items (group items by category_group_code, separate non-group items)
+        java.util.Map<String, Money> groupSums = new java.util.LinkedHashMap<>();
         Money nonGroupItemsSum = Money.ZERO;
 
-        if (section6aItems != null) {
-            for (DeclaredItem item : section6aItems) {
-                Money declared = item.declaredAmount();
-                Money allowed = (item.maxLimit() != null && declared.compareTo(item.maxLimit()) > 0)
-                        ? item.maxLimit()
-                        : declared;
+        for (DeclaredItem item : otherSection6aItems) {
+            Money declared = item.declaredAmount() != null ? item.declaredAmount() : Money.ZERO;
+            Money allowed =
+                    (item.maxLimit() != null && declared.compareTo(item.maxLimit()) > 0) ? item.maxLimit() : declared;
 
-                if ("80C_GROUP".equals(item.categoryGroupCode())) {
-                    group80cItemsSum = group80cItemsSum.add(allowed);
-                    lines.add(new ChapterViaLine(
-                            item.sectionCode(),
-                            item.description() != null ? item.description() : item.sectionCode(),
-                            declared,
-                            allowed,
-                            item.maxLimit()));
-                } else {
-                    nonGroupItemsSum = nonGroupItemsSum.add(allowed);
-                    lines.add(new ChapterViaLine(
-                            item.sectionCode(),
-                            item.description() != null ? item.description() : item.sectionCode(),
-                            declared,
-                            allowed,
-                            item.maxLimit()));
-                }
+            String group = item.categoryGroupCode();
+            if (group != null && !group.isBlank()) {
+                groupSums.put(group, groupSums.getOrDefault(group, Money.ZERO).add(allowed));
+                lines.add(new ChapterViaLine(
+                        item.sectionCode(),
+                        item.description() != null ? item.description() : item.sectionCode(),
+                        declared,
+                        allowed,
+                        item.maxLimit()));
+            } else {
+                nonGroupItemsSum = nonGroupItemsSum.add(allowed);
+                lines.add(new ChapterViaLine(
+                        item.sectionCode(),
+                        item.description() != null ? item.description() : item.sectionCode(),
+                        declared,
+                        allowed,
+                        item.maxLimit()));
             }
         }
 
-        // 5. Total 80C group capping
-        Money total80cRaw = group80cItemsSum
+        // 5. Total 80C group components
+        Money total80cRaw = groupSums
+                .getOrDefault("80C_GROUP", Money.ZERO)
                 .add(pf)
                 .add(voluntaryPf)
                 .add(totalHomeLoanPrincipal)
                 .add(nps80cRemainder);
+        groupSums.put("80C_GROUP", total80cRaw);
 
-        Money group80cAllowed = total80cRaw.compareTo(group80cCap) > 0 ? group80cCap : total80cRaw;
+        // Apply group caps across all category_group_code groups
+        Money totalGroupsAllowed = Money.ZERO;
+        Money group80cAllowed = Money.ZERO;
 
-        lines.add(new ChapterViaLine(
-                "80C_GROUP",
-                "Section 80CCE group cap (80C, 80CCC, 80CCD(1))",
-                total80cRaw,
-                group80cAllowed,
-                group80cCap));
+        for (java.util.Map.Entry<String, Money> entry : groupSums.entrySet()) {
+            String group = entry.getKey();
+            Money rawSum = entry.getValue();
+            Money cap = groupCaps != null ? groupCaps.get(group) : null;
 
-        // 6. Chapter VI-A investment deductions = 80C group + NPS 1B + non-group items
-        Money chapterViaInvestments = group80cAllowed.add(nps1bAllowed).add(nonGroupItemsSum);
+            Money allowedGroup = (cap != null && rawSum.compareTo(cap) > 0) ? cap : rawSum;
+            totalGroupsAllowed = totalGroupsAllowed.add(allowedGroup);
+
+            if ("80C_GROUP".equals(group)) {
+                group80cAllowed = allowedGroup;
+            }
+
+            lines.add(new ChapterViaLine(
+                    group,
+                    "80C_GROUP".equals(group)
+                            ? "Section 80CCE group cap (80C, 80CCC, 80CCD(1))"
+                            : "Group cap (" + group + ")",
+                    rawSum,
+                    allowedGroup,
+                    cap));
+        }
+
+        // 6. Chapter VI-A investment deductions = all groups allowed + NPS 1B + non-group items
+        Money chapterViaInvestments = totalGroupsAllowed.add(nps1bAllowed).add(nonGroupItemsSum);
 
         // 7. Aggregate limitation under Section 80A(2)
         // Total deductions = chapterViaInvestments + interestDeduction + additionalHomeLoanInterest

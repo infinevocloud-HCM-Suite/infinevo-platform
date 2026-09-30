@@ -1,19 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { NavigationProvider } from '@shell/navigation/useNavigation';
 import { OfficerDeclarationView } from './OfficerDeclarationView';
 import { declarationService } from './declarationService';
 
 vi.mock('./declarationService', () => ({
   declarationService: {
     headerOf: vi.fn(),
+    housing: vi.fn().mockResolvedValue({ house_rent: [], home_loans: [], let_out_properties: [] }),
+    items: vi.fn().mockResolvedValue([]),
+    deductions: vi.fn().mockResolvedValue({ section6a: [], pre_tax_deductions: [], previous_employment: [] }),
+    otherIncome: vi.fn().mockResolvedValue([]),
+    summary: vi.fn().mockResolvedValue({ declared: {}, computed: {} }),
   },
 }));
+
+function renderWithPermissions(ui, { actions = ['payroll.tax_declaration.read'], route = '/' } = {}) {
+  return render(
+    <NavigationProvider value={{ items: [], actions, loading: false, error: null }}>
+      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+    </NavigationProvider>,
+  );
+}
 
 describe('OfficerDeclarationView', () => {
   const sampleHeader = {
     employee_id: 'EMP-1001',
     financial_year: '2026-27',
-    regime: 'NEW',
+    tax_regime: 'NEW',
     status: 'SUBMITTED',
     window_open: true,
     editable: false,
@@ -28,8 +43,15 @@ describe('OfficerDeclarationView', () => {
     vi.clearAllMocks();
   });
 
+  it('denies access when payroll.tax_declaration.read permission is missing', () => {
+    renderWithPermissions(<OfficerDeclarationView />, { actions: [] });
+
+    expect(screen.getByTestId('officer-access-denied')).toBeTruthy();
+    expect(screen.getByText(/payroll\.tax_declaration\.read/i)).toBeTruthy();
+  });
+
   it('renders prompt when no employee ID is provided initially', () => {
-    render(<OfficerDeclarationView />);
+    renderWithPermissions(<OfficerDeclarationView />);
 
     expect(screen.getByText('Officer Declaration Review')).toBeTruthy();
     expect(screen.getByText(/Payroll Officer Review Mode/i)).toBeTruthy();
@@ -37,10 +59,15 @@ describe('OfficerDeclarationView', () => {
     expect(screen.getByText(/Enter an Employee ID above to review/i)).toBeTruthy();
   });
 
-  it('fetches and displays header for provided employee ID prop', async () => {
+  it('reads :employeeId and :fy from route params via useParams', async () => {
     declarationService.headerOf.mockResolvedValueOnce(sampleHeader);
 
-    render(<OfficerDeclarationView employeeId="EMP-1001" fy="2026-27" />);
+    renderWithPermissions(
+      <Routes>
+        <Route path="/payroll/tax-declarations/:employeeId/:fy" element={<OfficerDeclarationView />} />
+      </Routes>,
+      { route: '/payroll/tax-declarations/EMP-1001/2026-27' },
+    );
 
     expect(declarationService.headerOf).toHaveBeenCalledWith('EMP-1001', '2026-27');
 
@@ -56,7 +83,7 @@ describe('OfficerDeclarationView', () => {
   it('handles search input submission to inspect an employee', async () => {
     declarationService.headerOf.mockResolvedValueOnce(sampleHeader);
 
-    render(<OfficerDeclarationView fy="2026-27" />);
+    renderWithPermissions(<OfficerDeclarationView fy="2026-27" />);
 
     const input = screen.getByTestId('officer-employee-input');
     fireEvent.change(input, { target: { value: 'EMP-1001' } });
@@ -70,12 +97,11 @@ describe('OfficerDeclarationView', () => {
     });
   });
 
-  it('shows warning alert when employee declaration is not found (404)', async () => {
-    const error404 = new Error('Not found');
-    error404.response = { status: 404 };
+  it('shows warning alert when employee declaration is not found (err.status === 404)', async () => {
+    const error404 = { status: 404, code: 'NOT_FOUND', message: 'Not found' };
     declarationService.headerOf.mockRejectedValueOnce(error404);
 
-    render(<OfficerDeclarationView employeeId="EMP-UNKNOWN" fy="2026-27" />);
+    renderWithPermissions(<OfficerDeclarationView employeeId="EMP-UNKNOWN" fy="2026-27" />);
 
     await waitFor(() => {
       expect(screen.getByText(/No tax declaration found for employee "EMP-UNKNOWN"/i)).toBeTruthy();

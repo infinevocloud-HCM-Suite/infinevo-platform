@@ -13,7 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * Maps {@link TaxComputation} to {@link TaxSummaryFigures} (W-33.1 spec § 4).
+ * Maps {@link TaxComputation} to {@link TaxSummaryFigures} (W-33.1 spec § 4, W-33.2 spec § 4).
  *
  * <p>Rule mapping:
  * <ul>
@@ -23,8 +23,10 @@ import org.springframework.stereotype.Component;
  *   <li>{@code tds_previous_employer = prevEmploymentTds}</li>
  *   <li>{@code tax_to_be_paid = annualTax}</li>
  *   <li>{@code remaining_months = months from current period to March}</li>
- *   <li>{@code tds_through_payroll = 0, tax_ytd_amount = 0} (until W-36.1)</li>
- *   <li>{@code tds_other_income = 0, other_sources_income = 0, exemptionUnderSection10 = 0, exemptionUnderSection6a = 0}</li>
+ *   <li>{@code tds_through_payroll = 0, tax_ytd_amount = 0, tds_other_income = 0} (until W-36.1)</li>
+ *   <li>{@code other_sources_income = otherIncome}</li>
+ *   <li>{@code exemption_under_section_10 = hraExemption}</li>
+ *   <li>{@code exemption_under_section_6a = chapterViaDeductions + interestDeduction + additionalHomeLoanInterest}</li>
  * </ul>
  */
 @Component

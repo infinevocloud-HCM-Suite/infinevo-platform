@@ -90,12 +90,8 @@ public class NewRegimeCalculator implements RegimeCalculator {
         List<CessSurchargeRule> surchargeBands = ruleReader.surchargeBands(fy, TaxRegime.NEW);
         CessSurchargeRule cessRule = ruleReader.cess(fy, TaxRegime.NEW);
 
-        Function<Money, Money> thresholdTaxCalc = threshold -> {
-            SlabTaxResult thSlab = SlabTax.of(threshold, slabs);
-            Money thRebate = Rebate87A.of(threshold, thSlab.totalTax(), rebateRule);
-            Money thNet = thSlab.totalTax().subtract(thRebate);
-            return thNet.isNegative() ? Money.ZERO : thNet;
-        };
+        Function<Money, Money> thresholdTaxCalc =
+                SurchargeAndCess.createThresholdTaxCalculator(slabs, rebateRule, surchargeBands);
 
         SurchargeAndCessResult scResult =
                 SurchargeAndCess.of(taxableIncome, taxAfterRebate, surchargeBands, cessRule, thresholdTaxCalc);

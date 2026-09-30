@@ -24,6 +24,8 @@ import {
   IdcardOutlined,
 } from '@ant-design/icons';
 import { declarationService } from './declarationService';
+import { store } from '@shell/store';
+import { setItems, setSectionData } from './taxSlice';
 
 const { Text, Paragraph } = Typography;
 
@@ -41,12 +43,22 @@ const PREV_EMP_KINDS = [
   { kind: 'PROFESSIONAL_TAX', label: 'Professional Tax Deducted' },
 ];
 
+function extractFieldErrors(err) {
+  const data = err?.response?.data || err?.data;
+  const map = data?.errors || data?.fieldErrors || data?.field_errors;
+  if (map && typeof map === 'object' && !Array.isArray(map)) {
+    return map;
+  }
+  return {};
+}
+
 export function DeductionsSection({ fy, editable, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [saving6a, setSaving6a] = useState(false);
   const [savingPreTax, setSavingPreTax] = useState(false);
   const [savingPrevEmp, setSavingPrevEmp] = useState(false);
   const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // 6A catalogue items & declarations
   const [catalogueItems, setCatalogueItems] = useState([]);
@@ -60,11 +72,13 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
   const [prevEmployerName, setPrevEmployerName] = useState('');
   const [prevEmployerTan, setPrevEmployerTan] = useState('');
   const [prevEmpAmounts, setPrevEmpAmounts] = useState({});
+  const [prevEmpEnteredBy, setPrevEmpEnteredBy] = useState({});
 
   const loadData = useCallback(async (financialYear) => {
     if (!financialYear) return;
     setLoading(true);
     setError(null);
+    setFieldErrors({});
     try {
       const [itemsRes, deductionsRes] = await Promise.all([
         declarationService.items(financialYear),
@@ -73,7 +87,13 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
 
       const items = itemsRes || [];
       setCatalogueItems(items);
-      const groups = [...new Set(items.map((it) => it.group_code || 'OTHER'))];
+      store.dispatch(setItems(items));
+      store.dispatch(setSectionData({ section: 'deductions', data: deductionsRes || null }));
+      const groups = [
+        ...new Set(
+          items.map((it) => it.category_group_code || it.section_code || 'OTHER'),
+        ),
+      ];
       setActiveCollapseKeys(groups);
 
       // Populate declared 6A
@@ -100,11 +120,15 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
 
       // Populate previous employment
       const mapPrevEmp = {};
+      const mapEnteredBy = {};
       let empName = '';
       let empTan = '';
       (deductionsRes?.previous_employment || []).forEach((pe) => {
         if (pe.kind) {
           mapPrevEmp[pe.kind] = Number(pe.amount) || 0;
+          if (pe.entered_by) {
+            mapEnteredBy[pe.kind] = pe.entered_by;
+          }
         }
         if (pe.employer_name && !empName) empName = pe.employer_name;
         if (pe.employer_tan && !empTan) empTan = pe.employer_tan;
@@ -112,6 +136,7 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
       setPrevEmployerName(empName);
       setPrevEmployerTan(empTan);
       setPrevEmpAmounts(mapPrevEmp);
+      setPrevEmpEnteredBy(mapEnteredBy);
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load deductions');
     } finally {
@@ -123,20 +148,36 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
     loadData(fy);
   }, [fy, loadData]);
 
-  // Group catalogue items by group_code
+  // Group catalogue items by category_group_code (falling back to section_code or OTHER)
   const itemsByGroup = useMemo(() => {
     const groups = {};
     catalogueItems.forEach((item) => {
-      const g = item.group_code || 'OTHER';
+      const g = item.category_group_code || item.section_code || 'OTHER';
       if (!groups[g]) groups[g] = [];
       groups[g].push(item);
     });
     return groups;
   }, [catalogueItems]);
 
+  const handleSaveError = (err, fallbackMsg) => {
+    const code = err?.response?.data?.code || err?.code;
+    const fErrors = extractFieldErrors(err);
+    setFieldErrors(fErrors);
+    let msg = err?.response?.data?.message || err?.message || fallbackMsg;
+    if (code === 'OFFICER_ENTERED') {
+      msg = err?.response?.data?.message || 'Officer-entered previous employment rows cannot be modified by employee.';
+    } else if (code === 'NOT_EDITABLE') {
+      msg = err?.response?.data?.message || 'Declaration is not editable right now.';
+    }
+    setError(msg);
+    message.error(msg);
+  };
+
   // Save 6A
   const handleSave6a = async () => {
     setSaving6a(true);
+    setError(null);
+    setFieldErrors({});
     try {
       const payload = Object.entries(declared6a)
         .filter(([, val]) => val && Number(val.amount) > 0)
@@ -150,7 +191,7 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
       message.success('Section 6A declarations saved successfully');
       if (onRefresh) onRefresh();
     } catch (err) {
-      message.error(err?.response?.data?.message || err?.message || 'Failed to save Section 6A');
+      handleSaveError(err, 'Failed to save Section 6A');
     } finally {
       setSaving6a(false);
     }
@@ -159,6 +200,8 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
   // Save Pre-Tax
   const handleSavePreTax = async () => {
     setSavingPreTax(true);
+    setError(null);
+    setFieldErrors({});
     try {
       const payload = Object.entries(preTaxAmounts)
         .filter(([, amt]) => Number(amt) > 0)
@@ -171,7 +214,7 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
       message.success('Pre-tax deductions saved successfully');
       if (onRefresh) onRefresh();
     } catch (err) {
-      message.error(err?.response?.data?.message || err?.message || 'Failed to save pre-tax deductions');
+      handleSaveError(err, 'Failed to save pre-tax deductions');
     } finally {
       setSavingPreTax(false);
     }
@@ -180,9 +223,11 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
   // Save Previous Employment
   const handleSavePrevEmployment = async () => {
     setSavingPrevEmp(true);
+    setError(null);
+    setFieldErrors({});
     try {
       const payload = Object.entries(prevEmpAmounts)
-        .filter(([, amt]) => Number(amt) > 0)
+        .filter(([kind, amt]) => Number(amt) > 0 && prevEmpEnteredBy[kind] !== 'OFFICER')
         .map(([kind, amt]) => ({
           kind,
           amount: Number(amt) || 0,
@@ -194,7 +239,7 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
       message.success('Previous employment details saved successfully');
       if (onRefresh) onRefresh();
     } catch (err) {
-      message.error(err?.response?.data?.message || err?.message || 'Failed to save previous employment');
+      handleSaveError(err, 'Failed to save previous employment');
     } finally {
       setSavingPrevEmp(false);
     }
@@ -208,9 +253,6 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
   };
 
   const collapseItems = Object.entries(itemsByGroup).map(([group, items]) => {
-    const groupTotal = items.reduce((sum, it) => sum + (Number(declared6a[it.id]?.amount) || 0), 0);
-    const maxLimit = items[0]?.max_limit;
-
     return {
       key: group,
       label: (
@@ -220,17 +262,7 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
               <Text strong style={{ fontSize: 15 }}>
                 Group {group}
               </Text>
-              {maxLimit && (
-                <Tag color="blue">
-                  Cap: ₹ {Number(maxLimit).toLocaleString('en-IN')}
-                </Tag>
-              )}
             </Space>
-          </Col>
-          <Col>
-            <Tag color={groupTotal > 0 ? 'green' : 'default'} style={{ fontSize: 13 }}>
-              Declared: ₹ {groupTotal.toLocaleString('en-IN')}
-            </Tag>
           </Col>
         </Row>
       ),
@@ -245,7 +277,17 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
               key: 'name',
               render: (_, record) => (
                 <div>
-                  <Text strong>{record.name || record.code}</Text>
+                  <Space size="small">
+                    <Text strong>{record.name || record.section_code || record.code}</Text>
+                    {record.section_code && (
+                      <Tag>{record.section_code}</Tag>
+                    )}
+                    {record.max_limit != null && (
+                      <Tag color="blue" data-testid={`item-cap-${record.section_code || record.code || record.id}`}>
+                        Max Limit: ₹ {Number(record.max_limit).toLocaleString('en-IN')}
+                      </Tag>
+                    )}
+                  </Space>
                   {record.description && (
                     <div>
                       <Text type="secondary" style={{ fontSize: 12 }}>
@@ -259,20 +301,34 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
             {
               title: 'Declared Amount (₹)',
               key: 'amount',
-              width: 200,
-              render: (_, record) => (
-                <InputNumber
-                  style={{ width: '100%' }}
-                  min={0}
-                  step={5000}
-                  value={declared6a[record.id]?.amount || 0}
-                  disabled={!editable}
-                  formatter={(val) => `₹ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={(val) => val.replace(/₹\s?|(,*)/g, '')}
-                  onChange={(val) => handleAmountChange6a(record.id, val)}
-                  data-testid={`input-6a-${record.code || record.id}`}
-                />
-              ),
+              width: 220,
+              render: (_, record) => {
+                const rowErr =
+                  fieldErrors[record.id] ||
+                  fieldErrors[record.section_code] ||
+                  fieldErrors[`items.${record.id}`];
+                return (
+                  <div>
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      min={0}
+                      step={5000}
+                      status={rowErr ? 'error' : undefined}
+                      value={declared6a[record.id]?.amount || 0}
+                      disabled={!editable}
+                      formatter={(val) => `₹ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={(val) => val.replace(/₹\s?|(,*)/g, '')}
+                      onChange={(val) => handleAmountChange6a(record.id, val)}
+                      data-testid={`input-6a-${record.section_code || record.code || record.id}`}
+                    />
+                    {rowErr && (
+                      <Text type="danger" style={{ fontSize: 12 }}>
+                        {rowErr}
+                      </Text>
+                    )}
+                  </div>
+                );
+              },
             },
           ]}
         />
@@ -421,26 +477,43 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
           </Row>
 
           <Row gutter={[24, 16]}>
-            {PREV_EMP_KINDS.map((pe) => (
-              <Col xs={24} sm={12} key={pe.kind}>
-                <Card size="small" type="inner">
-                  <Text strong>{pe.label}</Text>
-                  <InputNumber
-                    style={{ width: '100%', marginTop: 8 }}
-                    min={0}
-                    step={5000}
-                    value={prevEmpAmounts[pe.kind] || 0}
-                    disabled={!editable}
-                    formatter={(val) => `₹ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={(val) => val.replace(/₹\s?|(,*)/g, '')}
-                    onChange={(val) =>
-                      setPrevEmpAmounts((prev) => ({ ...prev, [pe.kind]: val }))
-                    }
-                    data-testid={`input-prevemp-${pe.kind}`}
-                  />
-                </Card>
-              </Col>
-            ))}
+            {PREV_EMP_KINDS.map((pe) => {
+              const isOfficerEntered = prevEmpEnteredBy[pe.kind] === 'OFFICER';
+              const rowErr = fieldErrors[pe.kind] || fieldErrors[`previous_employment.${pe.kind}`];
+              return (
+                <Col xs={24} sm={12} key={pe.kind}>
+                  <Card size="small" type="inner">
+                    <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                      <Text strong>{pe.label}</Text>
+                      {isOfficerEntered && (
+                        <Tag color="purple" data-testid={`officer-badge-${pe.kind}`}>
+                          Entered by Officer
+                        </Tag>
+                      )}
+                    </Space>
+                    <InputNumber
+                      style={{ width: '100%', marginTop: 8 }}
+                      min={0}
+                      step={5000}
+                      status={rowErr ? 'error' : undefined}
+                      value={prevEmpAmounts[pe.kind] || 0}
+                      disabled={!editable || isOfficerEntered}
+                      formatter={(val) => `₹ ${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={(val) => val.replace(/₹\s?|(,*)/g, '')}
+                      onChange={(val) =>
+                        setPrevEmpAmounts((prev) => ({ ...prev, [pe.kind]: val }))
+                      }
+                      data-testid={`input-prevemp-${pe.kind}`}
+                    />
+                    {rowErr && (
+                      <Text type="danger" style={{ fontSize: 12 }}>
+                        {rowErr}
+                      </Text>
+                    )}
+                  </Card>
+                </Col>
+              );
+            })}
           </Row>
         </Card>
       ),
@@ -450,7 +523,28 @@ export function DeductionsSection({ fy, editable, onRefresh }) {
   return (
     <Spin spinning={loading}>
       {error && (
-        <Alert message="Error" description={error} type="error" showIcon style={{ marginBottom: 16 }} />
+        <Alert
+          message="Error"
+          description={
+            Object.keys(fieldErrors).length > 0 ? (
+              <div>
+                <div>{error}</div>
+                <ul style={{ margin: '8px 0 0 16px', padding: 0 }}>
+                  {Object.entries(fieldErrors).map(([field, msg]) => (
+                    <li key={field} data-testid={`field-error-${field}`}>
+                      <strong>{field}:</strong> {msg}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              error
+            )
+          }
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
       )}
       <Tabs defaultActiveKey="sec6a" items={subTabs} />
     </Spin>

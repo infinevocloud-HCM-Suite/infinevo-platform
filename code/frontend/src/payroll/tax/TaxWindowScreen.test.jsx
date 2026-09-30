@@ -13,12 +13,16 @@ vi.mock('./taxSettingsService', () => ({
 describe('TaxWindowScreen', () => {
   const sampleSettings = {
     financial_year: '2026-27',
+    exists: true,
+    is_open: true,
     window_opens_on: '2026-04-01',
     window_closes_on: '2026-04-30',
     is_locked: false,
     default_tax_regime: 'NEW',
     can_change_tax_regime: true,
-    pan_required_for_rent_over_threshold: 100000,
+    pan_required_for_rent_over_threshold: true,
+    notify_on_lock: true,
+    notify_on_release: false,
     updated_at: '2026-04-01T10:00:00Z',
     updated_by: 'admin@infinevo.com',
   };
@@ -41,6 +45,20 @@ describe('TaxWindowScreen', () => {
     });
   });
 
+  it('displays defaults banner when settings.exists is false', async () => {
+    taxSettingsService.get.mockResolvedValueOnce({
+      ...sampleSettings,
+      exists: false,
+    });
+
+    render(<TaxWindowScreen initialFy="2026-27" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('defaults-banner')).toBeTruthy();
+      expect(screen.getByText(/Showing Default Configuration/i)).toBeTruthy();
+    });
+  });
+
   it('displays error alert when settings fetch fails', async () => {
     taxSettingsService.get.mockRejectedValueOnce(new Error('Network error loading settings'));
 
@@ -51,11 +69,11 @@ describe('TaxWindowScreen', () => {
     });
   });
 
-  it('submits updated settings successfully', async () => {
+  it('submits updated settings with boolean pan_required_for_rent_over_threshold and notification switches', async () => {
     taxSettingsService.get.mockResolvedValueOnce(sampleSettings);
     taxSettingsService.save.mockResolvedValueOnce({
       ...sampleSettings,
-      pan_required_for_rent_over_threshold: 150000,
+      notify_on_release: true,
     });
 
     render(<TaxWindowScreen initialFy="2026-27" />);
@@ -64,19 +82,24 @@ describe('TaxWindowScreen', () => {
       expect(screen.getByText('admin@infinevo.com', { exact: false })).toBeTruthy();
     });
 
+    fireEvent.click(screen.getByTestId('switch-notify-release'));
+
     const saveBtn = screen.getByRole('button', { name: /save settings/i });
     expect(saveBtn.hasAttribute('disabled')).toBe(false);
 
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
-      expect(taxSettingsService.save).toHaveBeenCalledWith('2026-27', expect.objectContaining({
+      expect(taxSettingsService.save).toHaveBeenCalledWith('2026-27', {
         window_opens_on: '2026-04-01',
         window_closes_on: '2026-04-30',
         default_tax_regime: 'NEW',
         can_change_tax_regime: true,
         is_locked: false,
-      }));
+        pan_required_for_rent_over_threshold: true,
+        notify_on_lock: true,
+        notify_on_release: true,
+      });
     });
   });
 

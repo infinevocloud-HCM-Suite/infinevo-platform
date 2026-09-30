@@ -17,19 +17,27 @@ describe('DeductionsSection', () => {
   const sampleItems = [
     {
       id: 'item-80c-lic',
-      code: '80C_LIC',
+      section_code: '80C_LIC',
       name: 'Life Insurance Premium',
-      group_code: '80C',
+      category_group_code: '80C',
       max_limit: 150000,
       description: 'Life insurance premiums paid for self/family',
     },
     {
       id: 'item-80d-med',
-      code: '80D_MED',
+      section_code: '80D_MED',
       name: 'Medical Insurance',
-      group_code: '80D',
-      max_limit: 50000,
+      category_group_code: '80D',
+      max_limit: 25000,
       description: 'Health insurance policies for self/parents',
+    },
+    {
+      id: 'item-80d-parents',
+      section_code: '80D_PARENTS_SR',
+      name: 'Medical Insurance - Senior Citizen Parents',
+      category_group_code: '80D',
+      max_limit: 50000,
+      description: 'Health insurance for senior citizen parents',
     },
   ];
 
@@ -37,7 +45,7 @@ describe('DeductionsSection', () => {
     section6a: [
       {
         section6a_item_id: 'item-80c-lic',
-        item_code: '80C_LIC',
+        section_code: '80C_LIC',
         amount: 50000,
         description: 'LIC Policy 1',
       },
@@ -54,6 +62,14 @@ describe('DeductionsSection', () => {
         amount: 250000,
         employer_name: 'Previous Tech Corp',
         employer_tan: 'PUNE12345A',
+        entered_by: 'EMPLOYEE',
+      },
+      {
+        kind: 'INCOME_TAX_DEDUCTED',
+        amount: 20000,
+        employer_name: 'Previous Tech Corp',
+        employer_tan: 'PUNE12345A',
+        entered_by: 'OFFICER',
       },
     ],
   };
@@ -62,7 +78,7 @@ describe('DeductionsSection', () => {
     vi.clearAllMocks();
   });
 
-  it('renders catalogue items and existing 6A declarations', async () => {
+  it('groups catalogue items by category_group_code and renders per-item max_limit', async () => {
     declarationService.items.mockResolvedValueOnce(sampleItems);
     declarationService.deductions.mockResolvedValueOnce(sampleDeductions);
 
@@ -75,13 +91,23 @@ describe('DeductionsSection', () => {
       expect(screen.getByText('Group 80C')).toBeTruthy();
       expect(screen.getByText('Group 80D')).toBeTruthy();
       expect(screen.getByText('Life Insurance Premium')).toBeTruthy();
+      expect(screen.getByTestId('item-cap-80D_MED').textContent).toContain('25,000');
+      expect(screen.getByTestId('item-cap-80D_PARENTS_SR').textContent).toContain('50,000');
     });
   });
 
-  it('saves 6A deduction declaration on clicking save', async () => {
+  it('saves 6A deduction declaration and surfaces row-level 400 field errors', async () => {
     declarationService.items.mockResolvedValueOnce(sampleItems);
     declarationService.deductions.mockResolvedValueOnce(sampleDeductions);
-    declarationService.save6a.mockResolvedValueOnce({ success: true });
+    const err400 = new Error('Validation failed');
+    err400.response = {
+      status: 400,
+      data: {
+        message: 'Validation failed',
+        errors: { 'item-80c-lic': 'Amount exceeds item limit' },
+      },
+    };
+    declarationService.save6a.mockRejectedValueOnce(err400);
 
     render(<DeductionsSection fy="2026-27" editable={true} />);
 
@@ -93,6 +119,8 @@ describe('DeductionsSection', () => {
 
     await waitFor(() => {
       expect(declarationService.save6a).toHaveBeenCalledWith('2026-27', expect.any(Array));
+      expect(screen.getByTestId('field-error-item-80c-lic')).toBeTruthy();
+      expect(screen.getAllByText(/Amount exceeds item limit/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -120,7 +148,7 @@ describe('DeductionsSection', () => {
     });
   });
 
-  it('switches to Previous Employment tab and saves details', async () => {
+  it('renders OFFICER entered previous employment rows as read-only and excludes them on save', async () => {
     declarationService.items.mockResolvedValueOnce(sampleItems);
     declarationService.deductions.mockResolvedValueOnce(sampleDeductions);
     declarationService.savePrevEmployment.mockResolvedValueOnce({ success: true });
@@ -135,13 +163,20 @@ describe('DeductionsSection', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('save-prevemp-btn')).toBeTruthy();
-      expect(screen.getByDisplayValue('Previous Tech Corp')).toBeTruthy();
+      expect(screen.getByTestId('officer-badge-INCOME_TAX_DEDUCTED')).toBeTruthy();
+      const officerInput = screen.getByTestId('input-prevemp-INCOME_TAX_DEDUCTED');
+      expect(officerInput.hasAttribute('disabled')).toBe(true);
     });
 
     fireEvent.click(screen.getByTestId('save-prevemp-btn'));
 
     await waitFor(() => {
-      expect(declarationService.savePrevEmployment).toHaveBeenCalledWith('2026-27', expect.any(Array));
+      expect(declarationService.savePrevEmployment).toHaveBeenCalledWith('2026-27', [
+        expect.objectContaining({
+          kind: 'INCOME',
+          amount: 250000,
+        }),
+      ]);
     });
   });
 });

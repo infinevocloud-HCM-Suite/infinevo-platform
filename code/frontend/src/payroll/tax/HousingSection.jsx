@@ -25,6 +25,8 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { declarationService } from './declarationService';
+import { store } from '@shell/store';
+import { setSectionData } from './taxSlice';
 
 const { Text } = Typography;
 
@@ -53,6 +55,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
       setRentRows(data?.house_rent || []);
       setHomeLoans(data?.home_loans || []);
       setLetOutProperties(data?.let_out_properties || []);
+      store.dispatch(setSectionData({ section: 'housing', data: data || null }));
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load housing declarations');
     } finally {
@@ -64,16 +67,32 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
     loadHousing(fy);
   }, [fy, loadHousing]);
 
-  // House Rent calculations
+  // House Rent calculations using actual from_month..to_month inclusive month span
+  const countMonthsInclusive = (fromMonth, toMonth) => {
+    if (!fromMonth || !toMonth) return 0;
+    const [fromY, fromM] = String(fromMonth).split('-').map(Number);
+    const [toY, toM] = String(toMonth).split('-').map(Number);
+    if (!fromY || !fromM || !toY || !toM) return 0;
+    const diff = (toY - fromY) * 12 + (toM - fromM) + 1;
+    return diff > 0 ? diff : 0;
+  };
+
   const totalAnnualRent = useMemo(() => {
     return rentRows.reduce((acc, row) => {
       const monthly = Number(row.amount_per_month) || 0;
-      return acc + monthly * 12; // annualized row estimation or month count
+      const months = countMonthsInclusive(row.from_month, row.to_month);
+      return acc + monthly * months;
     }, 0);
   }, [rentRows]);
 
-  const panThreshold = header?.pan_required_for_rent_over_threshold ?? 100000;
-  const isPanRequired = totalAnnualRent > panThreshold;
+  const panThreshold =
+    typeof header?.rent_pan_threshold === 'number'
+      ? header.rent_pan_threshold
+      : typeof header?.pan_required_for_rent_over_threshold === 'number'
+        ? header.pan_required_for_rent_over_threshold
+        : 100000;
+  const isPanRequired =
+    header?.pan_required_for_rent_over_threshold !== false && totalAnnualRent > panThreshold;
 
   // ── House Rent Handlers ──
   const handleAddRentRow = () => {
@@ -534,75 +553,58 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
         {letOutProperties.length === 0 ? (
           <Text type="secondary">No let-out properties declared.</Text>
         ) : (
-          letOutProperties.map((prop, idx) => {
-            const gross = Number(prop.gross_rent) || 0;
-            const taxes = Number(prop.municipal_tax) || 0;
-            const interest = Number(prop.interest) || 0;
-            const nav = Math.max(0, gross - taxes);
-            const stdDed = nav * 0.3;
-            const netIncomeLoss = nav - stdDed - interest;
-
-            return (
-              <Card
-                key={idx}
-                size="small"
-                type="inner"
-                title={prop.property_name}
-                extra={
-                  editable && (
-                    <Button
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleRemoveLetOut(idx)}
-                    />
-                  )
-                }
-                style={{ marginBottom: 12 }}
-              >
-                <Row gutter={[16, 12]}>
-                  <Col xs={24} sm={12} md={6}>
-                    <Text strong>Gross Rent Received (₹):</Text>
-                    <InputNumber
-                      style={{ width: '100%' }}
-                      min={0}
-                      value={prop.gross_rent}
-                      disabled={!editable}
-                      onChange={(val) => handleUpdateLetOut(idx, 'gross_rent', val)}
-                    />
-                  </Col>
-                  <Col xs={24} sm={12} md={6}>
-                    <Text strong>Municipal Taxes Paid (₹):</Text>
-                    <InputNumber
-                      style={{ width: '100%' }}
-                      min={0}
-                      value={prop.municipal_tax}
-                      disabled={!editable}
-                      onChange={(val) => handleUpdateLetOut(idx, 'municipal_tax', val)}
-                    />
-                  </Col>
-                  <Col xs={24} sm={12} md={6}>
-                    <Text strong>Home Loan Interest (₹):</Text>
-                    <InputNumber
-                      style={{ width: '100%' }}
-                      min={0}
-                      value={prop.interest}
-                      disabled={!editable}
-                      onChange={(val) => handleUpdateLetOut(idx, 'interest', val)}
-                    />
-                  </Col>
-                  <Col xs={24} sm={12} md={6}>
-                    <Text strong>Net Income / (Loss):</Text>
-                    <div style={{ marginTop: 4 }}>
-                      <Tag color={netIncomeLoss >= 0 ? 'green' : 'red'} style={{ fontSize: 13, padding: '2px 8px' }}>
-                        ₹ {netIncomeLoss.toLocaleString('en-IN')}
-                      </Tag>
-                    </div>
-                  </Col>
-                </Row>
-              </Card>
-            );
-          })
+          letOutProperties.map((prop, idx) => (
+            <Card
+              key={idx}
+              size="small"
+              type="inner"
+              title={prop.property_name}
+              extra={
+                editable && (
+                  <Button
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleRemoveLetOut(idx)}
+                  />
+                )
+              }
+              style={{ marginBottom: 12 }}
+            >
+              <Row gutter={[16, 12]}>
+                <Col xs={24} sm={12} md={8}>
+                  <Text strong>Gross Rent Received (₹):</Text>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0}
+                    value={prop.gross_rent}
+                    disabled={!editable}
+                    onChange={(val) => handleUpdateLetOut(idx, 'gross_rent', val)}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8}>
+                  <Text strong>Municipal Taxes Paid (₹):</Text>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0}
+                    value={prop.municipal_tax}
+                    disabled={!editable}
+                    onChange={(val) => handleUpdateLetOut(idx, 'municipal_tax', val)}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8}>
+                  <Text strong>Home Loan Interest (₹):</Text>
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0}
+                    value={prop.interest}
+                    disabled={!editable}
+                    onChange={(val) => handleUpdateLetOut(idx, 'interest', val)}
+                  />
+                </Col>
+              </Row>
+            </Card>
+          ))
         )}
       </Card>
     </Spin>

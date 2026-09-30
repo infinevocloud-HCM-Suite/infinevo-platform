@@ -219,4 +219,93 @@ class ChapterViaDeductionsTest {
 
         assertThat(result.totalAllowed()).isEqualTo(Money.of("120000"));
     }
+
+    @Test
+    @DisplayName("80CCD(1B) unified cap across pre-tax employeeNps and declared 80CCD(1B) row")
+    void unifiedNps1bCapAcrossPreTaxAndDeclaredItem() {
+        DeclaredItem declaredNps1b =
+                new DeclaredItem("80CCD(1B)", "NPS Tier 1 (80CCD(1B))", null, Money.of("40000"), Money.of("50000"));
+
+        ChapterViaResult result = ChapterViaDeductions.calculate(
+                List.of(declaredNps1b),
+                Money.ZERO,
+                Money.ZERO,
+                Money.of("35000"), // Pre-tax NPS 35k + declared 40k = 75k total
+                nps1bCap,
+                group80cCap,
+                List.of(),
+                rule24B,
+                List.of(),
+                Money.ZERO,
+                Money.of("1000000"));
+
+        // Combined 75,000: 50,000 under 80CCD(1B) and 25,000 spilled into 80C group
+        assertThat(result.nps1bAllowed()).isEqualTo(Money.of("50000"));
+        assertThat(result.group80cAllowed()).isEqualTo(Money.of("25000"));
+        assertThat(result.chapterViaDeductions()).isEqualTo(Money.of("75000"));
+    }
+
+    @Test
+    @DisplayName("80EEA two eligible loans aggregate interest exceeding 24(b) is capped once at 1,50,000")
+    void twoLoansAggregate80EEACappedAt150k() {
+        EmployeeInvHomeLoan loan1 = new EmployeeInvHomeLoan(
+                tenantId,
+                declId,
+                "SBI",
+                null,
+                BigDecimal.ZERO,
+                new BigDecimal("280000"),
+                true,
+                LocalDate.of(2020, 6, 1));
+        EmployeeInvHomeLoan loan2 = new EmployeeInvHomeLoan(
+                tenantId,
+                declId,
+                "HDFC",
+                null,
+                BigDecimal.ZERO,
+                new BigDecimal("140000"),
+                true,
+                LocalDate.of(2021, 1, 15));
+
+        ChapterViaResult result = ChapterViaDeductions.calculate(
+                List.of(),
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                nps1bCap,
+                group80cCap,
+                List.of(loan1, loan2),
+                rule24B,
+                List.of(rule80Eea),
+                Money.ZERO,
+                Money.of("1500000"));
+
+        // Total interest = 4,20,000; excess over 2,00,000 24(b) = 2,20,000; capped at 1,50,000
+        assertThat(result.additionalHomeLoanInterest()).isEqualTo(Money.of("150000"));
+    }
+
+    @Test
+    @DisplayName("Dynamic group cap applies to non-80C category group")
+    void dynamicSecondGroupCapEnforced() {
+        DeclaredItem item1 =
+                new DeclaredItem("80D_SELF", "80D Self & Family", "80D_GROUP", Money.of("40000"), Money.of("50000"));
+        DeclaredItem item2 =
+                new DeclaredItem("80D_PARENTS", "80D Parents", "80D_GROUP", Money.of("50000"), Money.of("50000"));
+
+        ChapterViaResult result = ChapterViaDeductions.calculate(
+                List.of(item1, item2),
+                Money.ZERO,
+                Money.ZERO,
+                Money.ZERO,
+                nps1bCap,
+                java.util.Map.of("80C_GROUP", group80cCap, "80D_GROUP", Money.of("75000")),
+                List.of(),
+                rule24B,
+                List.of(),
+                Money.ZERO,
+                Money.of("1000000"));
+
+        // 40,000 + 50,000 = 90,000 capped to 75,000 by 80D_GROUP cap
+        assertThat(result.chapterViaDeductions()).isEqualTo(Money.of("75000"));
+    }
 }

@@ -28,12 +28,15 @@ import com.infinevo.payroll.taxcalc.reader.model.OtherIncomeRule;
 import com.infinevo.payroll.taxcalc.reader.model.Section87aRebateRule;
 import com.infinevo.payroll.taxcalc.reader.model.StandardDeductionRule;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
+import com.infinevo.payroll.taxdeclaration.deductions.PreTaxDeductionKind;
 import com.infinevo.payroll.taxdeclaration.deductions.Section6AItemReader;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import org.springframework.stereotype.Component;
@@ -124,8 +127,26 @@ public class OldRegimeCalculator implements RegimeCalculator {
         Money grossTotalIncome = rawGti.isNegative() ? Money.ZERO : rawGti;
 
         // Step 8: Chapter VI-A deductions
+        Map<String, Money> groupCaps = new HashMap<>();
         BigDecimal raw80cCap = section6AItemReader.groupCap("80C_GROUP");
-        Money group80cCap = Money.of(raw80cCap);
+        if (raw80cCap != null) {
+            groupCaps.put("80C_GROUP", Money.of(raw80cCap));
+        }
+        if (input.section6A() != null) {
+            for (var item : input.section6A()) {
+                String group = item.categoryGroupCode();
+                if (group != null && !group.isBlank() && !groupCaps.containsKey(group)) {
+                    try {
+                        BigDecimal cap = section6AItemReader.groupCap(group);
+                        if (cap != null) {
+                            groupCaps.put(group, Money.of(cap));
+                        }
+                    } catch (Exception ignored) {
+                        // Not all groups have group caps
+                    }
+                }
+            }
+        }
 
         Money nps1bCap = null;
         for (var item : section6AItemReader.activeItems("OLD")) {
@@ -149,7 +170,7 @@ public class OldRegimeCalculator implements RegimeCalculator {
                 input.vpf(),
                 input.employeeNps(),
                 nps1bCap,
-                group80cCap,
+                groupCaps,
                 input.homeLoans(),
                 rule24B,
                 additionalLoanRules,
@@ -182,12 +203,8 @@ public class OldRegimeCalculator implements RegimeCalculator {
         List<CessSurchargeRule> surchargeBands = ruleReader.surchargeBands(fy, TaxRegime.OLD);
         CessSurchargeRule cessRule = ruleReader.cess(fy, TaxRegime.OLD);
 
-        Function<Money, Money> thresholdTaxCalc = threshold -> {
-            SlabTaxResult thSlab = SlabTax.of(threshold, slabs);
-            Money thRebate = Rebate87A.of(threshold, thSlab.totalTax(), rebateRule);
-            Money thNet = thSlab.totalTax().subtract(thRebate);
-            return thNet.isNegative() ? Money.ZERO : thNet;
-        };
+        Function<Money, Money> thresholdTaxCalc =
+                SurchargeAndCess.createThresholdTaxCalculator(slabs, rebateRule, surchargeBands);
 
         SurchargeAndCessResult scResult =
                 SurchargeAndCess.of(taxableIncome, taxAfterRebate, surchargeBands, cessRule, thresholdTaxCalc);
@@ -201,6 +218,13 @@ public class OldRegimeCalculator implements RegimeCalculator {
         Money annualTax = Money.of(annualTaxRaw.raw().setScale(0, RoundingMode.HALF_UP));
 
         List<String> combinedAssumptions = new ArrayList<>(input.salary().assumptions());
+        if (input.epfFromCtc().isEmpty() && !input.preTaxDeductions().containsKey(PreTaxDeductionKind.EMPLOYEE_PF)) {
+            combinedAssumptions.add("No Employee PF found in salary structure or tax declaration; assumed zero");
+        }
+        if (input.professionalTaxFromService().isEmpty()
+                && !input.preTaxDeductions().containsKey(PreTaxDeductionKind.PROFESSIONAL_TAX)) {
+            combinedAssumptions.add("No Professional Tax found in salary structure or tax declaration; assumed zero");
+        }
         if (hpResult.lossCapApplied()) {
             combinedAssumptions.add("House property loss capped to statutory set-off limit under Section 71(3A)");
         }

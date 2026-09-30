@@ -21,6 +21,8 @@ import {
 import dayjs from 'dayjs';
 import { declarationService } from './declarationService';
 import { formatFyDisplay } from './financialYear';
+import { store } from '@shell/store';
+import { setSectionData } from './taxSlice';
 
 const { Title, Text } = Typography;
 
@@ -36,6 +38,7 @@ export function SummarySection({ fy }) {
     try {
       const data = await declarationService.summary(financialYear);
       setSummaryData(data);
+      store.dispatch(setSectionData({ section: 'summary', data: data || null }));
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load tax summary');
     } finally {
@@ -241,9 +244,7 @@ export function SummarySection({ fy }) {
                   type="info"
                   showIcon
                   icon={<InfoCircleOutlined />}
-                  message={`Monthly TDS Projection: ~₹ ${Math.round(
-                    (computed.tax_to_be_paid || 0) / computed.remaining_months,
-                  ).toLocaleString('en-IN')} / month across remaining ${computed.remaining_months} month(s).`}
+                  message={`Remaining Months for TDS Recovery: ${computed.remaining_months} month(s).`}
                   style={{ marginTop: 12 }}
                 />
               ) : null}

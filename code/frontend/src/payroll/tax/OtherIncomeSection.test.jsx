@@ -30,7 +30,7 @@ describe('OtherIncomeSection', () => {
     vi.clearAllMocks();
   });
 
-  it('renders existing other income rows', async () => {
+  it('renders existing other income rows without computing client-side totals', async () => {
     declarationService.otherIncome.mockResolvedValueOnce(sampleOtherIncome);
 
     render(<OtherIncomeSection fy="2026-27" editable={true} />);
@@ -40,8 +40,8 @@ describe('OtherIncomeSection', () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue('HDFC Savings Account')).toBeTruthy();
       expect(screen.getByDisplayValue('SBI 1-year FD')).toBeTruthy();
-      expect(screen.getByText('₹ 20,500')).toBeTruthy(); // total 6500 + 14000
     });
+    expect(screen.queryByText('Total Other Income Declared:')).toBeNull();
   });
 
   it('adds and saves a new other income row', async () => {

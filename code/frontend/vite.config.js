@@ -22,6 +22,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.js'],
     include: ['src/**/*.test.{js,jsx}'],
-    testTimeout: 15000,
+    // Ant Design v5 CSS-in-JS (@ant-design/cssinjs) initial style injection in JSDOM
+    // takes ~4.5-5.5s on the first test of each suite when 15 test suites run in parallel.
+    testTimeout: 10000,
   },
 });

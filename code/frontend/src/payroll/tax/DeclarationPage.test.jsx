@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DeclarationPage } from './DeclarationPage';
 import { declarationService } from './declarationService';
+import { store } from '@shell/store';
+import { resetTaxState } from './taxSlice';
 
 vi.mock('./declarationService', () => ({
   declarationService: {
@@ -9,6 +11,11 @@ vi.mock('./declarationService', () => ({
     saveHeader: vi.fn(),
     submit: vi.fn(),
     reopen: vi.fn(),
+    housing: vi.fn().mockResolvedValue({ house_rent: [], home_loans: [], let_out_properties: [] }),
+    items: vi.fn().mockResolvedValue([]),
+    deductions: vi.fn().mockResolvedValue({ section6a: [], pre_tax_deductions: [], previous_employment: [] }),
+    otherIncome: vi.fn().mockResolvedValue([]),
+    summary: vi.fn().mockResolvedValue({ declared: {}, computed: {} }),
   },
 }));
 
@@ -16,7 +23,7 @@ describe('DeclarationPage', () => {
   const sampleHeader = {
     employee_id: 'EMP-123',
     financial_year: '2026-27',
-    regime: 'NEW',
+    tax_regime: 'NEW',
     status: 'DRAFT',
     window_open: true,
     editable: true,
@@ -29,9 +36,11 @@ describe('DeclarationPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    store.dispatch(resetTaxState());
   });
 
-  it('renders header details and tabs on mount', async () => {
+  it('renders header details and tabs on mount without writing to localStorage', async () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     declarationService.header.mockResolvedValueOnce(sampleHeader);
 
     render(<DeclarationPage initialFy="2026-27" />);
@@ -46,6 +55,10 @@ describe('DeclarationPage', () => {
       expect(screen.getByText('Editable')).toBeTruthy();
       expect(screen.getByTestId('housing-tab-content')).toBeTruthy();
     });
+
+    expect(setItemSpy).not.toHaveBeenCalled();
+    expect(store.getState().tax.header).toEqual(sampleHeader);
+    setItemSpy.mockRestore();
   });
 
   it('displays warning alert when window is closed and disables edits', async () => {
@@ -63,9 +76,12 @@ describe('DeclarationPage', () => {
     });
   });
 
-  it('allows changing tax regime via modal', async () => {
+  it('allows changing tax_regime via modal', async () => {
     declarationService.header.mockResolvedValueOnce(sampleHeader);
-    declarationService.saveHeader.mockResolvedValueOnce({ success: true });
+    declarationService.saveHeader.mockResolvedValueOnce({
+      ...sampleHeader,
+      tax_regime: 'OLD',
+    });
 
     render(<DeclarationPage initialFy="2026-27" />);
 
@@ -75,29 +91,32 @@ describe('DeclarationPage', () => {
 
     fireEvent.click(screen.getByTestId('change-regime-btn'));
 
-    // Modal opens
     await waitFor(() => {
       expect(screen.getByText(/Select the tax regime for Financial Year/i)).toBeTruthy();
     });
 
-    // Select OLD regime radio
     const oldRadio = screen.getByText('Old Tax Regime');
     fireEvent.click(oldRadio);
 
-    // Click confirm button
     const applyBtn = screen.getByRole('button', { name: /apply regime change/i });
     fireEvent.click(applyBtn);
 
     await waitFor(() => {
-      expect(declarationService.saveHeader).toHaveBeenCalledWith('2026-27', expect.objectContaining({
-        regime: 'OLD',
-      }));
+      expect(declarationService.saveHeader).toHaveBeenCalledWith(
+        '2026-27',
+        expect.objectContaining({
+          tax_regime: 'OLD',
+        }),
+      );
     });
   });
 
   it('updates housing flag when switch is toggled', async () => {
     declarationService.header.mockResolvedValueOnce(sampleHeader);
-    declarationService.saveHeader.mockResolvedValueOnce({ success: true });
+    declarationService.saveHeader.mockResolvedValueOnce({
+      ...sampleHeader,
+      is_staying_in_rented_house: true,
+    });
 
     render(<DeclarationPage initialFy="2026-27" />);
 
@@ -108,14 +127,20 @@ describe('DeclarationPage', () => {
     fireEvent.click(screen.getByTestId('switch-rented-house'));
 
     await waitFor(() => {
-      expect(declarationService.saveHeader).toHaveBeenCalledWith('2026-27', expect.objectContaining({
-        is_staying_in_rented_house: true,
-      }));
+      expect(declarationService.saveHeader).toHaveBeenCalledWith(
+        '2026-27',
+        expect.objectContaining({
+          tax_regime: 'NEW',
+          is_staying_in_rented_house: true,
+        }),
+      );
     });
   });
 
-  it('submits tax declaration and updates status to SUBMITTED', async () => {
-    declarationService.header.mockResolvedValueOnce(sampleHeader);
+  it('submits tax declaration and re-fetches header', async () => {
+    declarationService.header
+      .mockResolvedValueOnce(sampleHeader)
+      .mockResolvedValueOnce({ ...sampleHeader, status: 'SUBMITTED', editable: false });
     declarationService.submit.mockResolvedValueOnce({ status: 'SUBMITTED', submitted_at: '2026-04-15T10:00:00Z' });
 
     render(<DeclarationPage initialFy="2026-27" />);
@@ -126,7 +151,6 @@ describe('DeclarationPage', () => {
 
     fireEvent.click(screen.getByTestId('submit-declaration-btn'));
 
-    // Confirmation popconfirm ok button
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /yes, submit/i })).toBeTruthy();
     });
@@ -135,15 +159,47 @@ describe('DeclarationPage', () => {
 
     await waitFor(() => {
       expect(declarationService.submit).toHaveBeenCalledWith('2026-27');
+      expect(declarationService.header).toHaveBeenCalledTimes(2);
     });
   });
 
-  it('reopens tax declaration when submitted', async () => {
-    declarationService.header.mockResolvedValueOnce({
-      ...sampleHeader,
-      status: 'SUBMITTED',
-      editable: false,
+  it('re-fetches header on 409 ALREADY_SUBMITTED error during submit', async () => {
+    declarationService.header
+      .mockResolvedValueOnce(sampleHeader)
+      .mockResolvedValueOnce({ ...sampleHeader, status: 'SUBMITTED', editable: false });
+    const conflictErr = new Error('Already submitted');
+    conflictErr.response = { status: 409, data: { code: 'ALREADY_SUBMITTED', message: 'Declaration already submitted' } };
+    declarationService.submit.mockRejectedValueOnce(conflictErr);
+
+    render(<DeclarationPage initialFy="2026-27" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('submit-declaration-btn')).toBeTruthy();
     });
+
+    fireEvent.click(screen.getByTestId('submit-declaration-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /yes, submit/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /yes, submit/i }));
+
+    await waitFor(() => {
+      expect(declarationService.submit).toHaveBeenCalledWith('2026-27');
+      expect(declarationService.header).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('SUBMITTED')).toBeTruthy();
+    });
+  });
+
+  it('reopens tax declaration when submitted and re-fetches header', async () => {
+    declarationService.header
+      .mockResolvedValueOnce({
+        ...sampleHeader,
+        status: 'SUBMITTED',
+        editable: false,
+      })
+      .mockResolvedValueOnce(sampleHeader);
     declarationService.reopen.mockResolvedValueOnce({ status: 'DRAFT' });
 
     render(<DeclarationPage initialFy="2026-27" />);
@@ -162,6 +218,7 @@ describe('DeclarationPage', () => {
 
     await waitFor(() => {
       expect(declarationService.reopen).toHaveBeenCalledWith('2026-27');
+      expect(declarationService.header).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -174,7 +231,6 @@ describe('DeclarationPage', () => {
       expect(screen.getByTestId('housing-tab-content')).toBeTruthy();
     });
 
-    // Click on Deductions tab
     const deductionsTab = screen.getByText(/Deductions & 80C/i);
     fireEvent.click(deductionsTab);
 

@@ -17,7 +17,7 @@ describe('HousingSection', () => {
     house_rent: [
       {
         from_month: '2026-04',
-        to_month: '2027-03',
+        to_month: '2026-08', // 5 months * 25,000 = 125,000 > 100,000
         address: 'Flat 101, Palm Heights, Mumbai',
         landlord_name: 'Rajesh Sharma',
         landlord_pan: 'ABCDE1234F',
@@ -55,10 +55,47 @@ describe('HousingSection', () => {
     });
   });
 
-  it('displays warning when rent exceeds landlord PAN threshold', async () => {
-    declarationService.housing.mockResolvedValueOnce(sampleHousing); // 25000 * 12 = 300,000 > 100,000
+  it('computes rent threshold warning using actual month span (from_month..to_month)', async () => {
+    // 3 months * 25,000 = 75,000 <= 100,000 -> should NOT warn
+    declarationService.housing.mockResolvedValueOnce({
+      house_rent: [
+        {
+          from_month: '2026-04',
+          to_month: '2026-06',
+          address: 'Mumbai',
+          landlord_name: 'Rajesh Sharma',
+          landlord_pan: '',
+          is_metro: true,
+          amount_per_month: 25000,
+        },
+      ],
+      home_loans: [],
+      let_out_properties: [],
+    });
 
-    render(<HousingSection fy="2026-27" editable={true} header={{ pan_required_for_rent_over_threshold: 100000 }} />);
+    const { unmount } = render(
+      <HousingSection
+        fy="2026-27"
+        editable={true}
+        header={{ pan_required_for_rent_over_threshold: true, rent_pan_threshold: 100000 }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Rajesh Sharma')).toBeTruthy();
+    });
+    expect(screen.queryByText('Landlord PAN Required')).toBeNull();
+    unmount();
+
+    // 5 months * 25,000 = 125,000 > 100,000 -> SHOULD warn
+    declarationService.housing.mockResolvedValueOnce(sampleHousing);
+    render(
+      <HousingSection
+        fy="2026-27"
+        editable={true}
+        header={{ pan_required_for_rent_over_threshold: true, rent_pan_threshold: 100000 }}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Landlord PAN Required')).toBeTruthy();

@@ -12,7 +12,7 @@ export const taxSettingsService = {
    */
   async get(fy) {
     const res = await apiClient.get(`/api/v1/payroll/tax-declaration/settings/${encodeURIComponent(fy)}`);
-    return res.data;
+    return res.data.data;
   },
 
   /**
@@ -24,6 +24,6 @@ export const taxSettingsService = {
    */
   async save(fy, body) {
     const res = await apiClient.put(`/api/v1/payroll/tax-declaration/settings/${encodeURIComponent(fy)}`, body);
-    return res.data;
+    return res.data.data;
   },
 };

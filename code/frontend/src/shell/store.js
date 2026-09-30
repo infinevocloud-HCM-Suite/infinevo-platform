@@ -1,10 +1,10 @@
 import { configureStore } from '@reduxjs/toolkit';
-import taxReducer from '@payroll/tax/taxSlice';
+import payroll from '@payroll';
 
 // Redux Toolkit, carried forward from the Payroll frontend.
-// Module slices register here as they are built.
+// Module slices register here via their module entrypoint as they are built.
 export const store = configureStore({
   reducer: {
-    tax: taxReducer,
+    tax: payroll.reducer,
   },
 });

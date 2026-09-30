@@ -5,12 +5,21 @@ import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.detail.EmployeeDetailService;
 import com.infinevo.core.employee.detail.EmployeePersonalResponse;
 import com.infinevo.core.employee.detail.EmployeePersonalService;
+import com.infinevo.core.org.WorkLocationResponse;
+import com.infinevo.core.org.WorkLocationService;
 import com.infinevo.payroll.component.Earning;
 import com.infinevo.payroll.component.EarningRepository;
 import com.infinevo.payroll.salary.EmployeeSalaryService;
+import com.infinevo.payroll.salary.SalaryVersionResponse;
+import com.infinevo.payroll.statutory.lines.CtcEpfComponent;
+import com.infinevo.payroll.statutory.lines.CtcEpfComponentRepository;
+import com.infinevo.payroll.statutory.lines.SalaryStatutoryItemResponse;
+import com.infinevo.payroll.statutory.lines.StatutoryComponentCode;
+import com.infinevo.payroll.statutory.pt.ProfessionalTaxService;
 import com.infinevo.payroll.taxcalc.engine.ChapterViaDeductions.DeclaredItem;
 import com.infinevo.payroll.taxcalc.engine.HraExemption.HraMonthSalary;
 import com.infinevo.payroll.taxcalc.engine.SalaryProjection;
+import com.infinevo.payroll.taxcalc.model.MonthProjection;
 import com.infinevo.payroll.taxcalc.model.SalaryProjectionResult;
 import com.infinevo.payroll.taxcalc.model.TaxInput;
 import com.infinevo.payroll.taxdeclaration.EmployeeInvestmentDeclaration;
@@ -36,13 +45,17 @@ import com.infinevo.payroll.taxdeclaration.summary.EmployeeInvOtherIncomeReposit
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -65,6 +78,46 @@ public class TaxInputAssembler {
     private final EmployeeInvPreTaxDeductionRepository preTaxDeductionRepository;
     private final EmployeeInvOtherIncomeRepository otherIncomeRepository;
     private final Section6AItemReader section6AItemReader;
+    private final ProfessionalTaxService professionalTaxService;
+    private final WorkLocationService workLocationService;
+    private final CtcEpfComponentRepository ctcEpfComponentRepository;
+
+    @Autowired
+    public TaxInputAssembler(
+            TaxDeclarationService declarationService,
+            EmployeeService employeeService,
+            EmployeePersonalService employeePersonalService,
+            EmployeeSalaryService employeeSalaryService,
+            EarningRepository earningRepository,
+            EmployeeInvPrevEmploymentRepository prevEmploymentRepository,
+            EmployeeInvHouseRentRepository houseRentRepository,
+            EmployeeInvHomeLoanRepository homeLoanRepository,
+            EmployeeInvLetOutPropertyRepository letOutPropertyRepository,
+            EmployeeInvSection6ARepository section6ARepository,
+            EmployeeInvPreTaxDeductionRepository preTaxDeductionRepository,
+            EmployeeInvOtherIncomeRepository otherIncomeRepository,
+            Section6AItemReader section6AItemReader,
+            ObjectProvider<ProfessionalTaxService> professionalTaxServiceProvider,
+            ObjectProvider<WorkLocationService> workLocationServiceProvider,
+            ObjectProvider<CtcEpfComponentRepository> ctcEpfComponentRepositoryProvider) {
+        this(
+                declarationService,
+                employeeService,
+                employeePersonalService,
+                employeeSalaryService,
+                earningRepository,
+                prevEmploymentRepository,
+                houseRentRepository,
+                homeLoanRepository,
+                letOutPropertyRepository,
+                section6ARepository,
+                preTaxDeductionRepository,
+                otherIncomeRepository,
+                section6AItemReader,
+                professionalTaxServiceProvider != null ? professionalTaxServiceProvider.getIfAvailable() : null,
+                workLocationServiceProvider != null ? workLocationServiceProvider.getIfAvailable() : null,
+                ctcEpfComponentRepositoryProvider != null ? ctcEpfComponentRepositoryProvider.getIfAvailable() : null);
+    }
 
     public TaxInputAssembler(
             TaxDeclarationService declarationService,
@@ -79,7 +132,10 @@ public class TaxInputAssembler {
             EmployeeInvSection6ARepository section6ARepository,
             EmployeeInvPreTaxDeductionRepository preTaxDeductionRepository,
             EmployeeInvOtherIncomeRepository otherIncomeRepository,
-            Section6AItemReader section6AItemReader) {
+            Section6AItemReader section6AItemReader,
+            ProfessionalTaxService professionalTaxService,
+            WorkLocationService workLocationService,
+            CtcEpfComponentRepository ctcEpfComponentRepository) {
         this.declarationService = Objects.requireNonNull(declarationService, "declarationService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.employeePersonalService =
@@ -99,6 +155,42 @@ public class TaxInputAssembler {
         this.otherIncomeRepository =
                 Objects.requireNonNull(otherIncomeRepository, "otherIncomeRepository must not be null");
         this.section6AItemReader = Objects.requireNonNull(section6AItemReader, "section6AItemReader must not be null");
+        this.professionalTaxService = professionalTaxService;
+        this.workLocationService = workLocationService;
+        this.ctcEpfComponentRepository = ctcEpfComponentRepository;
+    }
+
+    public TaxInputAssembler(
+            TaxDeclarationService declarationService,
+            EmployeeService employeeService,
+            EmployeePersonalService employeePersonalService,
+            EmployeeSalaryService employeeSalaryService,
+            EarningRepository earningRepository,
+            EmployeeInvPrevEmploymentRepository prevEmploymentRepository,
+            EmployeeInvHouseRentRepository houseRentRepository,
+            EmployeeInvHomeLoanRepository homeLoanRepository,
+            EmployeeInvLetOutPropertyRepository letOutPropertyRepository,
+            EmployeeInvSection6ARepository section6ARepository,
+            EmployeeInvPreTaxDeductionRepository preTaxDeductionRepository,
+            EmployeeInvOtherIncomeRepository otherIncomeRepository,
+            Section6AItemReader section6AItemReader) {
+        this(
+                declarationService,
+                employeeService,
+                employeePersonalService,
+                employeeSalaryService,
+                earningRepository,
+                prevEmploymentRepository,
+                houseRentRepository,
+                homeLoanRepository,
+                letOutPropertyRepository,
+                section6ARepository,
+                preTaxDeductionRepository,
+                otherIncomeRepository,
+                section6AItemReader,
+                (ProfessionalTaxService) null,
+                null,
+                null);
     }
 
     /**
@@ -131,12 +223,26 @@ public class TaxInputAssembler {
 
         AgeCategory ageCategory = AgeCategory.at(dateOfBirth, fy.end());
 
+        // Preload tenant earnings once to avoid N+1 queries across months and components
+        Map<UUID, Earning> earningsById = new HashMap<>();
+        List<Earning> tenantEarnings = earningRepository.findAllByTenantIdAndDeletedFalse(tenantId);
+        if (tenantEarnings != null) {
+            for (Earning earning : tenantEarnings) {
+                if (earning != null && earning.getId() != null) {
+                    earningsById.put(earning.getId(), earning);
+                }
+            }
+        }
+
+        // Cache salary versions resolved per month-start date so versionInForce is not called twice per month
+        Map<LocalDate, SalaryVersionResponse> versionCache = new HashMap<>();
+
         SalaryProjectionResult salaryResult = SalaryProjection.annual(
                 fy,
                 dateOfJoining,
-                date -> employeeSalaryService.versionInForce(tenantId, employeeId, date),
-                componentId -> earningRepository
-                        .findByIdAndTenantIdAndDeletedFalse(componentId, tenantId)
+                date -> versionCache.computeIfAbsent(
+                        date, d -> employeeSalaryService.versionInForce(tenantId, employeeId, d)),
+                componentId -> resolveEarning(tenantId, componentId, earningsById)
                         .map(Earning::isTaxable)
                         .orElse(false));
 
@@ -181,27 +287,31 @@ public class TaxInputAssembler {
         List<EmployeeInvOtherIncome> otherIncomeRows =
                 otherIncomeRepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
 
-        // Project monthly basic and HRA earnings for Section 10(13A)
+        // Resolve employee work location stateCode once for Professional Tax resolution
+        String stateCode = resolveEmployeeStateCode(employee);
+
+        // Reuse projected months to derive HRA monthly Basic/HRA, structure EPF, and structure PT
         List<HraMonthSalary> hraSalaries = new ArrayList<>();
-        LocalDate startDate = fy.start();
-        if (dateOfJoining != null && dateOfJoining.isAfter(fy.start())) {
-            startDate = dateOfJoining;
-        }
-        if (dateOfJoining == null || !dateOfJoining.isAfter(fy.end())) {
-            java.time.YearMonth currentYm = java.time.YearMonth.from(startDate);
-            java.time.YearMonth endYm = java.time.YearMonth.from(fy.end());
-            while (!currentYm.isAfter(endYm)) {
-                var version = employeeSalaryService.versionInForce(tenantId, employeeId, currentYm.atDay(1));
-                Money basic = Money.ZERO;
-                Money hra = Money.ZERO;
-                if (version != null && !version.cancelled() && version.earnings() != null) {
+        boolean hasStructureEpf = false;
+        Money epfTotal = Money.ZERO;
+        boolean hasStructurePt = false;
+        Money ptTotal = Money.ZERO;
+        Map<UUID, Optional<Money>> epfMonthlyByVersionId = new HashMap<>();
+
+        for (MonthProjection mp : salaryResult.months()) {
+            YearMonth currentYm = mp.month();
+            SalaryVersionResponse version = versionCache.get(currentYm.atDay(1));
+            Money basic = Money.ZERO;
+            Money hra = Money.ZERO;
+
+            if (version != null && !version.cancelled()) {
+                if (version.earnings() != null) {
                     for (var item : version.earnings()) {
                         if (item.enabled()) {
                             String code = item.componentCode();
-                            var earningOpt =
-                                    earningRepository.findByIdAndTenantIdAndDeletedFalse(item.componentId(), tenantId);
-                            String earningType =
-                                    earningOpt.map(Earning::getEarningType).orElse("");
+                            String earningType = resolveEarning(tenantId, item.componentId(), earningsById)
+                                    .map(Earning::getEarningType)
+                                    .orElse("");
                             BigDecimal amt = item.monthlyAmount();
                             if (amt != null) {
                                 if ("BASIC".equalsIgnoreCase(code) || "BASIC".equalsIgnoreCase(earningType)) {
@@ -214,10 +324,28 @@ public class TaxInputAssembler {
                         }
                     }
                 }
-                hraSalaries.add(new HraMonthSalary(currentYm, basic, hra));
-                currentYm = currentYm.plusMonths(1);
+
+                Optional<Money> monthlyEpf = resolveMonthlyEpf(tenantId, version, epfMonthlyByVersionId);
+                if (monthlyEpf.isPresent()) {
+                    hasStructureEpf = true;
+                    epfTotal = epfTotal.add(monthlyEpf.get());
+                }
+
+                if (professionalTaxService != null && stateCode != null && !stateCode.isBlank()) {
+                    Money monthlyPt = professionalTaxService.resolve(
+                            tenantId, stateCode, mp.taxableSalary(), employee.gender(), currentYm.atEndOfMonth());
+                    if (monthlyPt != null) {
+                        hasStructurePt = true;
+                        ptTotal = ptTotal.add(monthlyPt);
+                    }
+                }
             }
+
+            hraSalaries.add(new HraMonthSalary(currentYm, basic, hra));
         }
+
+        Optional<Money> structureEpf = hasStructureEpf ? Optional.of(epfTotal) : Optional.empty();
+        Optional<Money> structurePt = hasStructurePt ? Optional.of(ptTotal) : Optional.empty();
 
         return new TaxInput(
                 employeeId,
@@ -234,8 +362,84 @@ public class TaxInputAssembler {
                 declaredItems,
                 preTaxMap,
                 otherIncomeRows,
-                Optional.empty(),
-                Optional.empty(),
+                structureEpf,
+                structurePt,
                 hraSalaries);
+    }
+
+    private Optional<Earning> resolveEarning(UUID tenantId, UUID componentId, Map<UUID, Earning> earningsById) {
+        if (componentId == null) {
+            return Optional.empty();
+        }
+        Earning cached = earningsById.get(componentId);
+        if (cached != null) {
+            return Optional.of(cached);
+        }
+        Optional<Earning> found = earningRepository.findByIdAndTenantIdAndDeletedFalse(componentId, tenantId);
+        found.ifPresent(e -> earningsById.put(componentId, e));
+        return found;
+    }
+
+    private String resolveEmployeeStateCode(EmployeeResponse employee) {
+        if (workLocationService == null || employee == null || employee.workLocationId() == null) {
+            return null;
+        }
+        List<WorkLocationResponse> locations = workLocationService.list(false);
+        if (locations == null) {
+            return null;
+        }
+        for (WorkLocationResponse loc : locations) {
+            if (loc != null && employee.workLocationId().equals(loc.id())) {
+                return loc.stateCode();
+            }
+        }
+        return null;
+    }
+
+    private Optional<Money> resolveMonthlyEpf(
+            UUID tenantId, SalaryVersionResponse version, Map<UUID, Optional<Money>> cache) {
+        if (version.id() != null && cache.containsKey(version.id())) {
+            return cache.get(version.id());
+        }
+
+        Optional<Money> result = Optional.empty();
+        if (version.statutory() != null && !version.statutory().isEmpty()) {
+            Money sum = Money.ZERO;
+            boolean found = false;
+            for (SalaryStatutoryItemResponse item : version.statutory()) {
+                if (item != null
+                        && StatutoryComponentCode.EPF_EMPLOYEE.name().equalsIgnoreCase(item.componentCode())
+                        && item.monthlyAmount() != null) {
+                    sum = sum.add(Money.of(item.monthlyAmount()));
+                    found = true;
+                }
+            }
+            if (found) {
+                result = Optional.of(sum);
+            }
+        } else if (ctcEpfComponentRepository != null && version.id() != null) {
+            List<CtcEpfComponent> epfComponents =
+                    ctcEpfComponentRepository.findByTenantIdAndCtcStructureId(tenantId, version.id());
+            if (epfComponents != null) {
+                Money sum = Money.ZERO;
+                boolean found = false;
+                for (CtcEpfComponent epf : epfComponents) {
+                    if (epf != null
+                            && epf.getComponentCode() == StatutoryComponentCode.EPF_EMPLOYEE
+                            && epf.getMonthlyAmount() != null) {
+                        sum = sum.add(Money.of(epf.getMonthlyAmount()));
+                        found = true;
+                    }
+                }
+                if (found) {
+                    result = Optional.of(sum);
+                }
+            }
+        }
+
+        if (version.id() != null) {
+            cache.put(version.id(), result);
+        }
+        return result;
     }
 }

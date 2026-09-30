@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import { useParams } from 'react-router-dom';
 import {
   Card,
   Descriptions,
@@ -23,20 +24,30 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useCan } from '@shell/navigation/useCan';
 import { declarationService } from './declarationService';
 import { currentFy, fyOptions, formatFyDisplay } from './financialYear';
 
 const { Title, Text } = Typography;
 
 export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy }) {
-  const [empId, setEmpId] = useState(propEmployeeId || '');
-  const [inputEmpId, setInputEmpId] = useState(propEmployeeId || '');
-  const [selectedFy, setSelectedFy] = useState(propFy || currentFy());
+  const params = useParams();
+  const canRead = useCan('payroll.tax_declaration.read');
+
+  const initialEmpId = propEmployeeId || params?.employeeId || '';
+  const initialFy = propFy || params?.fy || currentFy();
+
+  const [empId, setEmpId] = useState(initialEmpId);
+  const [inputEmpId, setInputEmpId] = useState(initialEmpId);
+  const [selectedFy, setSelectedFy] = useState(initialFy);
   const [header, setHeader] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchDeclaration = useCallback(async (id, fy) => {
+    if (!canRead) {
+      return;
+    }
     if (!id || !id.trim()) {
       setHeader(null);
       return;
@@ -47,7 +58,7 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
       const data = await declarationService.headerOf(id.trim(), fy);
       setHeader(data);
     } catch (err) {
-      if (err?.response?.status === 404) {
+      if (err?.status === 404 || err?.response?.status === 404) {
         setHeader(null);
         setError(`No tax declaration found for employee "${id}" in FY ${formatFyDisplay(fy)}.`);
       } else {
@@ -57,30 +68,46 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canRead]);
 
   useEffect(() => {
-    if (propEmployeeId) {
-      setEmpId(propEmployeeId);
-      setInputEmpId(propEmployeeId);
+    const nextEmp = propEmployeeId || params?.employeeId;
+    if (nextEmp) {
+      setEmpId(nextEmp);
+      setInputEmpId(nextEmp);
     }
-  }, [propEmployeeId]);
+  }, [propEmployeeId, params?.employeeId]);
 
   useEffect(() => {
-    if (propFy) {
-      setSelectedFy(propFy);
+    const nextFy = propFy || params?.fy;
+    if (nextFy) {
+      setSelectedFy(nextFy);
     }
-  }, [propFy]);
+  }, [propFy, params?.fy]);
 
   useEffect(() => {
-    if (empId) {
+    if (canRead && empId) {
       fetchDeclaration(empId, selectedFy);
     }
-  }, [empId, selectedFy, fetchDeclaration]);
+  }, [canRead, empId, selectedFy, fetchDeclaration]);
 
   const handleSearch = () => {
     setEmpId(inputEmpId.trim());
   };
+
+  if (!canRead) {
+    return (
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
+        <Alert
+          message="Access Denied"
+          description="You do not have permission (payroll.tax_declaration.read) to view employee tax declarations."
+          type="error"
+          showIcon
+          data-testid="officer-access-denied"
+        />
+      </div>
+    );
+  }
 
   const renderStatusTag = (status) => {
     switch (status?.toUpperCase()) {
@@ -108,6 +135,8 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
       </Tag>
     );
   };
+
+  const regime = header?.tax_regime || 'NEW';
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
@@ -201,8 +230,8 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
                 <Text strong>{header.employee_id || empId}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Tax Regime">
-                <Tag color={header.regime === 'NEW' ? 'cyan' : 'magenta'}>
-                  {header.regime === 'NEW' ? 'New Regime (Sec 115BAC)' : 'Old Regime'}
+                <Tag color={regime === 'NEW' ? 'cyan' : 'magenta'}>
+                  {regime === 'NEW' ? 'New Regime (Sec 115BAC)' : 'Old Regime'}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="Status">

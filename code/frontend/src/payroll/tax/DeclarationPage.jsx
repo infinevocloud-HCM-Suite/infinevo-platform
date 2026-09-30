@@ -30,8 +30,15 @@ import {
   DollarCircleOutlined,
   CalculatorOutlined,
 } from '@ant-design/icons';
+import { store } from '@shell/store';
 import { currentFy, fyOptions, formatFyDisplay } from './financialYear';
 import { declarationService } from './declarationService';
+import {
+  setFy as setSliceFy,
+  setHeader as setSliceHeader,
+  setLoading as setSliceLoading,
+  setError as setSliceError,
+} from './taxSlice';
 import { HousingSection } from './HousingSection';
 import { DeductionsSection } from './DeductionsSection';
 import { OtherIncomeSection } from './OtherIncomeSection';
@@ -56,16 +63,23 @@ export function DeclarationPage({ initialFy, renderSection }) {
   const fetchHeader = useCallback(async (fy) => {
     setLoading(true);
     setError(null);
+    store.dispatch(setSliceFy(fy));
+    store.dispatch(setSliceLoading(true));
+    store.dispatch(setSliceError(null));
     try {
       const data = await declarationService.header(fy);
       setHeader(data);
-      setTargetRegime(data?.regime || 'NEW');
+      store.dispatch(setSliceHeader(data));
+      setTargetRegime(data?.tax_regime || 'NEW');
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || 'Failed to load tax declaration';
       setError(msg);
+      store.dispatch(setSliceError(msg));
       setHeader(null);
+      store.dispatch(setSliceHeader(null));
     } finally {
       setLoading(false);
+      store.dispatch(setSliceLoading(false));
     }
   }, []);
 
@@ -77,49 +91,70 @@ export function DeclarationPage({ initialFy, renderSection }) {
     setSelectedFy(val);
   };
 
+  const handleApiError = useCallback(
+    async (err, fallbackMsg) => {
+      const status = err?.status || err?.response?.status;
+      const code = err?.code || err?.response?.data?.code;
+      const msg = err?.response?.data?.message || err?.message || fallbackMsg;
+
+      if (status === 409 || code === 'ALREADY_SUBMITTED' || code === 'NOT_EDITABLE' || code === 'OFFICER_ENTERED') {
+        await fetchHeader(selectedFy);
+      }
+      setError(msg);
+      store.dispatch(setSliceError(msg));
+      message.error(msg);
+    },
+    [fetchHeader, selectedFy],
+  );
+
   const handleToggleHousingFlag = async (field, value) => {
     if (!header || !header.editable || !header.window_open) return;
     try {
       const updatedBody = {
-        regime: header.regime,
-        is_staying_in_rented_house: field === 'is_staying_in_rented_house' ? value : Boolean(header.is_staying_in_rented_house),
-        is_repaying_self_occupied_loan: field === 'is_repaying_self_occupied_loan' ? value : Boolean(header.is_repaying_self_occupied_loan),
-        has_let_out_property: field === 'has_let_out_property' ? value : Boolean(header.has_let_out_property),
+        tax_regime: header.tax_regime || 'NEW',
+        is_staying_in_rented_house:
+          field === 'is_staying_in_rented_house' ? value : Boolean(header.is_staying_in_rented_house),
+        is_repaying_self_occupied_loan:
+          field === 'is_repaying_self_occupied_loan' ? value : Boolean(header.is_repaying_self_occupied_loan),
+        has_let_out_property:
+          field === 'has_let_out_property' ? value : Boolean(header.has_let_out_property),
       };
       const res = await declarationService.saveHeader(selectedFy, updatedBody);
-      setHeader((prev) => ({ ...prev, ...res, ...updatedBody }));
+      const nextHeader = { ...header, ...res, ...updatedBody };
+      setHeader(nextHeader);
+      store.dispatch(setSliceHeader(nextHeader));
       message.success('Housing preferences updated');
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to update preferences';
-      message.error(msg);
+      await handleApiError(err, 'Failed to update preferences');
     }
   };
 
   const handleOpenRegimeModal = () => {
-    setTargetRegime(header?.regime || 'NEW');
+    setTargetRegime(header?.tax_regime || 'NEW');
     setRegimeModalVisible(true);
   };
 
   const handleConfirmRegimeChange = async () => {
-    if (!header || targetRegime === header.regime) {
+    if (!header || targetRegime === header.tax_regime) {
       setRegimeModalVisible(false);
       return;
     }
     setSavingRegime(true);
     try {
       const updatedBody = {
-        regime: targetRegime,
+        tax_regime: targetRegime,
         is_staying_in_rented_house: Boolean(header.is_staying_in_rented_house),
         is_repaying_self_occupied_loan: Boolean(header.is_repaying_self_occupied_loan),
         has_let_out_property: Boolean(header.has_let_out_property),
       };
       const res = await declarationService.saveHeader(selectedFy, updatedBody);
-      setHeader((prev) => ({ ...prev, ...res, regime: targetRegime }));
+      const nextHeader = { ...header, ...res, tax_regime: targetRegime };
+      setHeader(nextHeader);
+      store.dispatch(setSliceHeader(nextHeader));
       message.success(`Tax regime switched to ${targetRegime === 'NEW' ? 'New Regime (115BAC)' : 'Old Regime'}`);
       setRegimeModalVisible(false);
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to change tax regime';
-      message.error(msg);
+      await handleApiError(err, 'Failed to change tax regime');
     } finally {
       setSavingRegime(false);
     }
@@ -128,17 +163,11 @@ export function DeclarationPage({ initialFy, renderSection }) {
   const handleSubmitDeclaration = async () => {
     setSubmitting(true);
     try {
-      const res = await declarationService.submit(selectedFy);
-      setHeader((prev) => ({
-        ...prev,
-        ...res,
-        status: res?.status || 'SUBMITTED',
-        editable: false,
-      }));
+      await declarationService.submit(selectedFy);
+      await fetchHeader(selectedFy);
       message.success('Tax declaration submitted successfully');
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to submit tax declaration';
-      message.error(msg);
+      await handleApiError(err, 'Failed to submit tax declaration');
     } finally {
       setSubmitting(false);
     }
@@ -147,17 +176,11 @@ export function DeclarationPage({ initialFy, renderSection }) {
   const handleReopenDeclaration = async () => {
     setReopening(true);
     try {
-      const res = await declarationService.reopen(selectedFy);
-      setHeader((prev) => ({
-        ...prev,
-        ...res,
-        status: res?.status || 'DRAFT',
-        editable: true,
-      }));
+      await declarationService.reopen(selectedFy);
+      await fetchHeader(selectedFy);
       message.success('Tax declaration reopened for editing');
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to reopen tax declaration';
-      message.error(msg);
+      await handleApiError(err, 'Failed to reopen tax declaration');
     } finally {
       setReopening(false);
     }
@@ -269,8 +292,8 @@ export function DeclarationPage({ initialFy, renderSection }) {
         extra={
           header && (
             <Space align="center" wrap>
-              <Tag color={header.regime === 'NEW' ? 'cyan' : 'magenta'}>
-                {header.regime === 'NEW' ? 'New Regime (115BAC)' : 'Old Regime'}
+              <Tag color={header.tax_regime === 'NEW' ? 'cyan' : 'magenta'}>
+                {header.tax_regime === 'NEW' ? 'New Regime (115BAC)' : 'Old Regime'}
               </Tag>
               <Tag color={header.status === 'SUBMITTED' ? 'blue' : 'orange'}>
                 {header.status || 'DRAFT'}
@@ -333,8 +356,8 @@ export function DeclarationPage({ initialFy, renderSection }) {
                     <Space direction="vertical" size={4}>
                       <Space align="center" wrap>
                         <Text strong>Selected Regime:</Text>
-                        <Tag color={header.regime === 'NEW' ? 'cyan' : 'magenta'}>
-                          {header.regime === 'NEW' ? 'New Tax Regime' : 'Old Tax Regime'}
+                        <Tag color={header.tax_regime === 'NEW' ? 'cyan' : 'magenta'}>
+                          {header.tax_regime === 'NEW' ? 'New Tax Regime' : 'Old Tax Regime'}
                         </Tag>
                         {canChangeRegime && (
                           <Button
@@ -348,7 +371,7 @@ export function DeclarationPage({ initialFy, renderSection }) {
                         )}
                       </Space>
                       <Text type="secondary" style={{ fontSize: 12 }}>
-                        {header.regime === 'NEW'
+                        {header.tax_regime === 'NEW'
                           ? 'New Tax Regime offers concessional slab rates with limited deductions under Section 115BAC.'
                           : 'Old Tax Regime allows claiming exemptions (HRA, 80C, 80D, home loan interest, etc.).'}
                       </Text>
