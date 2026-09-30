@@ -6,6 +6,17 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-09-30 — `W-45`, `W-46.1`, `W-46.3a`, `W-46.4` merged (`11ec157`)
+
+- The frontend has started. One squash of `dev-biren4s-fixes` at `cb75bbe` puts the shell on `main` (API client, `createService`, runtime config, tokens, error screens, module-boundary lint rules) with the employee screens, the organisation setup screens and the approval screens.
+- Gates 5/5 for all four, CI green on `cb75bbe`, one independent read per ticket on biren's `29d916f`. Fixed before merge: Reactivate was offered on a terminated employee, which the server never allows; saving an approval definition reset its step ordering and comment scope; the Payroll-only rule read menu keys the feed never returns; a cold load flashed "no modules" then "not found". The fix commit was tested, not re-read.
+- **Backend added at merge, not in the specs yet:** the navigation feed returns the tenant's `modules`; the pending-approvals list names the subject employee (`EmployeeService.displayNames`, no `core.employee.read` needed); a delegation carries `revocable`; deleting the filing-address work location is a `409`. Founder to confirm and amend `W-46.4` § 4 and `W-46.3a` § 2.
+- **For every screen ticket after this:** a module imports from the shell only through `@shell/screens`, which exports the error screens, `useCan` and `useHasModule` and nothing else. A route beneath a menu path (`/employees/new` under `/employees`) mounts on the parent's permission, so a child screen that needs another action checks it with `useCan`.
+- **Outstanding, the ones that matter next:** nobody has run these screens in a browser, so § 8 is unproven for all four. A manager without `core.employee.read` cannot search employees to pick a delegate. No seed grants `core.approval.*` to manager, hr or employee. Full list in the merge commit.
+- **Newly Ready:** `W-46.3b`, `W-46.6`, `W-46.7` (biren), `W-47.1b` (sayeed), `W-47.1a` (unassigned). `W-47.2` now waits on `W-30.2` only; `W-47.3` on `W-25`; `W-65.3` on `W-65.1` and `W-65.2`; `W-46.2` on `W-16`; `W-46.5` on `W-25` and `W-16.3`.
+- **Branches:** biren resets `dev-biren` (or `dev-biren4s`) to `main` before `W-46.3b`. `dev-biren4s-fixes` can be deleted.
+- **Harness:** `check-done.mjs` now accepts a lettered ticket (`W-46.3a`, `W-47.1b`); it refused them before.
+
 ## 2026-09-30 — `W-29.1`, `W-29.2`, `W-29.3`, `W-29.4` merged (`7dfd74e`)
 
 - The pay run is on `main` in one squash of `krushna-w29-fixes` at `342b649`: creation, inclusion and locking (`V055`–`V056`), computation with the `STRUCTURE` contributor (`V057`), loss of pay and pay inputs (`V058`), async compute on the worker with resume (`V059`). All with `tenant_id` and RLS.

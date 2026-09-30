@@ -49,12 +49,14 @@ function lastLine(out) {
 }
 
 const arg = (process.argv[2] ?? "").trim();
-const m = /^w-?(\d{1,4}(?:\.\d{1,2})?)$/i.exec(arg);
+// A split ticket carries a letter after the part number (W-46.3a, W-47.1b); its spec file is
+// W-46-3a-<slug>.md, which the "Spec exists" gate finds once the letter is lower-cased.
+const m = /^w-?(\d{1,4}(?:\.\d{1,2}[a-z]?)?)$/i.exec(arg);
 if (arg && !m) {
-  console.error(`check-done: "${arg}" is not a ticket - pass W-nn (e.g. W-12 or W-12.1), or nothing for harness work`);
+  console.error(`check-done: "${arg}" is not a ticket - pass W-nn (e.g. W-12, W-12.1 or W-46.3a), or nothing for harness work`);
   process.exit(1);
 }
-const item = m ? `W-${m[1]}` : null;
+const item = m ? `W-${m[1].toLowerCase()}` : null;
 
 const branch = sh("git", ["rev-parse", "--abbrev-ref", "HEAD"]).out.trim();
 const head = sh("git", ["rev-parse", "HEAD"]).out.trim();
