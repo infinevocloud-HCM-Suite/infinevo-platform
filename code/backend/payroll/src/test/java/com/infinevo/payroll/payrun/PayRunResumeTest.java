@@ -12,8 +12,10 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.core.lop.LopPolicy;
 import com.infinevo.core.lop.LopPolicyService;
 import com.infinevo.core.lop.LopRounding;
+import com.infinevo.core.lop.WorkingDayBasis;
 import com.infinevo.core.lop.WorkingDayBasisCalculator;
 import com.infinevo.core.lop.WorkingDayBasisResponse;
 import com.infinevo.core.payinput.PayInputListResponse;
@@ -51,6 +53,7 @@ class PayRunResumeTest {
 
     private static final UUID TENANT = StructureFixtures.TENANT;
     private static final UUID RUN = UUID.randomUUID();
+    private static final UUID POLICY = UUID.randomUUID();
     private static final YearMonth JULY = StructureFixtures.JULY;
 
     private PayRunRepository payRuns;
@@ -115,7 +118,7 @@ class PayRunResumeTest {
             ReflectionTestUtils.setField(row, "id", UUID.randomUUID());
             if (i < 2) {
                 // Finished by attempt 1 and carried forward to attempt 2 when the officer resumed.
-                row.recordComputation(PayRunTotals.of(List.of()), days(), 0, 2, "officer", Instant.now());
+                row.recordComputation(PayRunTotals.of(List.of()), days(), 0, stamp(), 2, "officer", Instant.now());
             }
             rows.add(row);
             rowsById.put(row.getId(), row);
@@ -133,10 +136,9 @@ class PayRunResumeTest {
                 .thenReturn(StructureFixtures.version(List.of(), List.of(), List.of()));
         BigDecimal thirtyOne = new BigDecimal("31.00");
         when(basisCalculator.basisFor(eq(TENANT), eq(JULY), any()))
-                .thenReturn(
-                        new WorkingDayBasisResponse(thirtyOne, thirtyOne, UUID.randomUUID(), LopRounding.HALF_UP_2));
+                .thenReturn(new WorkingDayBasisResponse(thirtyOne, thirtyOne, POLICY, LopRounding.HALF_UP_2));
         when(lopPolicyService.findPolicyInForceEntity(TENANT, JULY.atEndOfMonth()))
-                .thenReturn(Optional.empty());
+                .thenReturn(Optional.of(policy()));
         when(payInputService.forPeriod(JULY)).thenReturn(new PayInputListResponse(List.of(), Map.of(), Map.of()));
         TenantContext.set(TENANT);
     }
@@ -200,6 +202,22 @@ class PayRunResumeTest {
         assertThat(run.getComputeAttempt()).isEqualTo(3);
         assertThat(run.getProgressDone()).isZero();
         assertThat(run.getStatus()).isEqualTo(PayRunStatus.COMPUTING);
+    }
+
+    private static LopPolicy policy() {
+        LopPolicy policy = new LopPolicy(
+                TENANT, WorkingDayBasis.ACTUAL_DAYS, null, true, true, LopRounding.HALF_UP_2, JULY.atDay(1));
+        ReflectionTestUtils.setField(policy, "id", POLICY);
+        return policy;
+    }
+
+    private static PolicyStamp stamp() {
+        return new PolicyStamp(
+                POLICY,
+                WorkingDayBasis.ACTUAL_DAYS,
+                new BigDecimal("31.00"),
+                new BigDecimal("31.00"),
+                LopRounding.HALF_UP_2);
     }
 
     private static PayRunDays days() {

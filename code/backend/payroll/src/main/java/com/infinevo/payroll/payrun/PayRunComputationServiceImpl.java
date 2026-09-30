@@ -4,7 +4,7 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.lop.LopPolicy;
 import com.infinevo.core.lop.LopPolicyService;
-import com.infinevo.core.lop.LopRounding;
+import com.infinevo.core.lop.NoLopPolicyException;
 import com.infinevo.core.lop.WorkingDayBasisCalculator;
 import com.infinevo.core.lop.WorkingDayBasisResponse;
 import com.infinevo.core.payinput.PayInputResponse;
@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.hibernate.Session;
@@ -224,9 +225,15 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
         }
     }
 
-    /** What every employee of the run shares, read once before the loop (W-29.3 §4, W-55). */
+    /**
+     * What every employee of the run shares, read once before the loop (W-29.3 §4, W-55). The policy in
+     * force at the period's end names the working-day basis each row's stamp records (W-18.2); it is
+     * empty when the tenant has none, and then every employee fails on the calculator, not on a default.
+     */
     private record RunInputs(
-            Map<UUID, List<PayInputResponse>> payInputsByEmployee, LopRounding lopRounding, Set<UUID> proRataIds) {}
+            Map<UUID, List<PayInputResponse>> payInputsByEmployee,
+            Optional<LopPolicy> policyInForce,
+            Set<UUID> proRataIds) {}
 
     private RunInputs readRunInputs(PayRun run, UUID tenantId) {
         Map<UUID, List<PayInputResponse>> byEmployee = new HashMap<>();
@@ -235,10 +242,7 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                     .computeIfAbsent(row.employeeId(), id -> new ArrayList<>())
                     .add(row);
         }
-        LopRounding rounding = lopPolicyService
-                .findPolicyInForceEntity(tenantId, run.getPeriodEnd())
-                .map(LopPolicy::getLopRounding)
-                .orElse(LopRounding.HALF_UP_2);
+        Optional<LopPolicy> policy = lopPolicyService.findPolicyInForceEntity(tenantId, run.getPeriodEnd());
         Set<UUID> proRata = new HashSet<>();
         runTransaction.executeWithoutResult(status -> {
             earningRepository.findAllByTenantIdAndProRataTrueAndDeletedFalse(tenantId).stream()
@@ -248,7 +252,7 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                     .map(SalaryComponent::getId)
                     .forEach(proRata::add);
         });
-        return new RunInputs(byEmployee, rounding, proRata);
+        return new RunInputs(byEmployee, policy, proRata);
     }
 
     private void computeOne(
@@ -264,6 +268,12 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
         // No policy in force throws NoLopPolicyException: this employee fails, the loop carries on.
         WorkingDayBasisResponse basis =
                 basisCalculator.basisFor(run.getTenantId(), run.getPeriod(), row.getEmployeeId());
+        // W-18.2: the figure is stamped with the policy version that produced it, or not written at all.
+        PolicyStamp stamp = PolicyStamp.of(
+                basis,
+                inputs.policyInForce()
+                        .orElseThrow(() -> new NoLopPolicyException("No loss-of-pay policy in force for "
+                                + run.getPeriod() + "; the figure cannot be stamped")));
         List<PayInputResponse> payInputs = inputs.payInputsByEmployee().getOrDefault(row.getEmployeeId(), List.of());
         PayRunDays days = PayRunDays.of(
                 basis.payableDays(),
@@ -282,7 +292,7 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 employee,
                 version,
                 basis,
-                inputs.lopRounding(),
+                stamp.lopRounding(),
                 payInputs,
                 days,
                 inputs.proRataIds(),
@@ -307,6 +317,7 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 PayRunTotals.of(produced),
                 days,
                 PayInputLineContributor.unpricedCount(payInputs),
+                stamp,
                 attempt,
                 actor,
                 now());
