@@ -4,5 +4,4 @@ export { NotFound } from './NotFound.jsx';
 export { NoModules } from './NoModules.jsx';
 export { useCan } from '../navigation/useCan.js';
 export { useNavigation } from '../navigation/useNavigation.js';
-export { keycloak } from '../auth/keycloak.js';
 

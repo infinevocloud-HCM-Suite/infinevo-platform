@@ -61,6 +61,28 @@ describe('apiClient response interceptor', () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  it('calls onUnauthorized handler on UNAUTHENTICATED code even without 401 status', async () => {
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+
+    const errorResponse = {
+      response: {
+        status: 400,
+        data: {
+          code: 'UNAUTHENTICATED',
+          message: 'Invalid credentials or session',
+        },
+      },
+    };
+
+    await expect(responseInterceptor.rejected(errorResponse)).rejects.toMatchObject({
+      isUnauthorized: true,
+      code: 'UNAUTHENTICATED',
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
   it('calls onTenantSuspended handler exactly once on TENANT_SUSPENDED code', async () => {
     const handler = vi.fn();
     setTenantSuspendedHandler(handler);

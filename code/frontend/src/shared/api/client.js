@@ -66,7 +66,8 @@ apiClient.interceptors.response.use(
   (error) => {
     const body = error.response?.data;
     const code = body?.code ?? 'INTERNAL';
-    const isUnauthorized = code === 'UNAUTHORIZED' || error.response?.status === 401;
+    const isUnauthorized =
+      code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED' || error.response?.status === 401;
     const isTenantSuspended = code === 'TENANT_SUSPENDED';
 
     if (isUnauthorized && typeof unauthorizedHandler === 'function') {

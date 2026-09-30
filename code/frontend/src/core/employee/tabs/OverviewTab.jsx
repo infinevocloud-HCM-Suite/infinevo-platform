@@ -17,6 +17,7 @@ export function OverviewTab({ employee, onUpdate }) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
   const [formData, setFormData] = useState({
     employeeNumber: employee.employeeNumber || '',
     firstName: employee.firstName || '',
@@ -49,9 +50,31 @@ export function OverviewTab({ employee, onUpdate }) {
       workLocationId: employee.workLocationId || null,
       portalEnabled: employee.portalEnabled ?? true,
     });
+    setFormErrors({});
   }, [employee]);
 
+  const validate = () => {
+    const errs = {};
+    if (!formData.employeeNumber || !formData.employeeNumber.trim()) {
+      errs.employeeNumber = 'Employee Number is required';
+    }
+    if (!formData.firstName || !formData.firstName.trim()) {
+      errs.firstName = 'First Name is required';
+    }
+    if (!formData.dateOfJoining) {
+      errs.dateOfJoining = 'Date of Joining is required';
+    }
+    if (formData.workEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.workEmail.trim())) {
+      errs.workEmail = 'Invalid email address';
+    }
+    setFormErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const handleSave = async () => {
+    if (!validate()) {
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
@@ -72,9 +95,16 @@ export function OverviewTab({ employee, onUpdate }) {
       const updated = await employeeService.update(employee.id, payload);
       await successMsg('Employee Updated', 'Employee details saved successfully.');
       setIsEditing(false);
+      setFormErrors({});
       onUpdate(updated);
     } catch (err) {
-      await errorMsg(err);
+      if (err?.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
+        setFormErrors(err.fieldErrors);
+        const details = Object.entries(err.fieldErrors).map(([f, m]) => `${f}: ${m}`).join('; ');
+        await errorMsg(err, `${err.message || 'Validation error'}: ${details}`);
+      } else {
+        await errorMsg(err);
+      }
     } finally {
       setLoading(false);
     }
@@ -96,17 +126,31 @@ export function OverviewTab({ employee, onUpdate }) {
             <label htmlFor="edit-empNum"><Text strong>Employee Number *</Text></label>
             <Input
               id="edit-empNum"
+              status={formErrors.employeeNumber ? 'error' : ''}
               value={formData.employeeNumber}
-              onChange={(e) => setFormData({ ...formData, employeeNumber: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, employeeNumber: e.target.value });
+                if (formErrors.employeeNumber) setFormErrors({ ...formErrors, employeeNumber: null });
+              }}
             />
+            {formErrors.employeeNumber && (
+              <Text type="danger" style={{ fontSize: 12, display: 'block' }}>{formErrors.employeeNumber}</Text>
+            )}
           </Col>
           <Col xs={24} sm={12} md={8}>
             <label htmlFor="edit-firstName"><Text strong>First Name *</Text></label>
             <Input
               id="edit-firstName"
+              status={formErrors.firstName ? 'error' : ''}
               value={formData.firstName}
-              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, firstName: e.target.value });
+                if (formErrors.firstName) setFormErrors({ ...formErrors, firstName: null });
+              }}
             />
+            {formErrors.firstName && (
+              <Text type="danger" style={{ fontSize: 12, display: 'block' }}>{formErrors.firstName}</Text>
+            )}
           </Col>
           <Col xs={24} sm={12} md={8}>
             <label htmlFor="edit-middleName"><Text strong>Middle Name</Text></label>
@@ -158,21 +202,35 @@ export function OverviewTab({ employee, onUpdate }) {
             )}
           </Col>
           <Col xs={24} sm={12} md={8}>
-            <label htmlFor="edit-joiningDate"><Text strong>Date of Joining</Text></label>
+            <label htmlFor="edit-joiningDate"><Text strong>Date of Joining *</Text></label>
             <DatePicker
               id="edit-joiningDate"
+              status={formErrors.dateOfJoining ? 'error' : ''}
               style={{ width: '100%' }}
               value={formData.dateOfJoining ? dayjs(formData.dateOfJoining) : null}
-              onChange={(_, dateStr) => setFormData({ ...formData, dateOfJoining: dateStr })}
+              onChange={(_, dateStr) => {
+                setFormData({ ...formData, dateOfJoining: dateStr });
+                if (formErrors.dateOfJoining) setFormErrors({ ...formErrors, dateOfJoining: null });
+              }}
             />
+            {formErrors.dateOfJoining && (
+              <Text type="danger" style={{ fontSize: 12, display: 'block' }}>{formErrors.dateOfJoining}</Text>
+            )}
           </Col>
           <Col xs={24} sm={12} md={8}>
             <label htmlFor="edit-workEmail"><Text strong>Work Email</Text></label>
             <Input
               id="edit-workEmail"
+              status={formErrors.workEmail ? 'error' : ''}
               value={formData.workEmail}
-              onChange={(e) => setFormData({ ...formData, workEmail: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, workEmail: e.target.value });
+                if (formErrors.workEmail) setFormErrors({ ...formErrors, workEmail: null });
+              }}
             />
+            {formErrors.workEmail && (
+              <Text type="danger" style={{ fontSize: 12, display: 'block' }}>{formErrors.workEmail}</Text>
+            )}
           </Col>
           <Col xs={24} sm={12} md={8}>
             <label htmlFor="edit-mobile"><Text strong>Mobile</Text></label>

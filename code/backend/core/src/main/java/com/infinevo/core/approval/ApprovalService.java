@@ -356,7 +356,26 @@ public class ApprovalService {
                         .filter(inst -> inst.getTenantId().equals(tenantId))
                         .collect(Collectors.toMap(ApprovalInstance::getId, Function.identity()));
 
-        return stepPage.map(step -> ApprovalStepResponse.from(step, instanceMap.get(step.getInstanceId())));
+        List<UUID> definitionIds = instanceMap.values().stream()
+                .map(ApprovalInstance::getDefinitionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<UUID, Integer> totalStepsMap = definitionIds.isEmpty()
+                ? Collections.emptyMap()
+                : definitionRepository.findAllById(definitionIds).stream()
+                        .filter(def -> def.getTenantId().equals(tenantId))
+                        .collect(Collectors.toMap(
+                                ApprovalDefinition::getId,
+                                def -> def.getSteps() != null ? def.getSteps().size() : 1));
+
+        return stepPage.map(step -> {
+            ApprovalInstance inst = instanceMap.get(step.getInstanceId());
+            Integer totalSteps =
+                    (inst != null && inst.getDefinitionId() != null) ? totalStepsMap.get(inst.getDefinitionId()) : null;
+            return ApprovalStepResponse.from(step, inst, totalSteps);
+        });
     }
 
     /**

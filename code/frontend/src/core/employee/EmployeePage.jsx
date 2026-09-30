@@ -6,6 +6,7 @@ import {
   ArrowLeftOutlined,
   StopOutlined,
   DeleteOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { employeeService } from './employeeService.js';
@@ -31,6 +32,9 @@ export function EmployeePage() {
 
   const canUpdate = useCan('core.employee.update');
   const canDelete = useCan('core.employee.delete');
+  const canReadIdentification = useCan('core.employee_identification.read');
+  const canReadBank = useCan('core.employee_bank.read');
+  const canReadOrg = useCan('core.org.read');
 
   const mastersLoadedAt = useSelector((state) => state.employee?.loadedAt);
 
@@ -80,6 +84,27 @@ export function EmployeePage() {
     });
   };
 
+  const handleReactivate = () => {
+    Modal.confirm({
+      title: 'Reactivate Employee',
+      content: `Are you sure you want to reactivate employee ${employee.employeeNumber}? Their status will be set back to ACTIVE.`,
+      okText: 'Reactivate',
+      onOk: async () => {
+        try {
+          const updated = await employeeService.update(employee.id, {
+            ...employee,
+            status: 'ACTIVE',
+            terminationDate: null,
+          });
+          await successMsg('Employee Reactivated', `Employee ${employee.employeeNumber} reactivated successfully.`);
+          setEmployee(updated);
+        } catch (err) {
+          await errorMsg(err);
+        }
+      },
+    });
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 48, textAlign: 'center' }}>
@@ -97,9 +122,16 @@ export function EmployeePage() {
   }
 
   const fullName = [employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ');
-  const isTerminated = employee.status === 'TERMINATED';
+  const isTerminated = employee.status === 'TERMINATED' || employee.status === 'SUSPENDED';
 
-  const tabItems = employeeTabs.map((tab) => ({
+  const visibleTabs = employeeTabs.filter((tab) => {
+    if (tab.key === 'identification' && !canReadIdentification) return false;
+    if (tab.key === 'bank' && !canReadBank) return false;
+    if (tab.key === 'reporting-line' && !canReadOrg) return false;
+    return true;
+  });
+
+  const tabItems = visibleTabs.map((tab) => ({
     key: tab.key,
     label: tab.label,
     children: tab.render({ employee, setEmployee }),
@@ -129,6 +161,17 @@ export function EmployeePage() {
 
           {/* Action buttons */}
           <Space size="small">
+            {canUpdate && isTerminated && (
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={handleReactivate}
+                id="btn-reactivate-employee"
+              >
+                Reactivate
+              </Button>
+            )}
+
             {canUpdate && !isTerminated && (
               <Button
                 danger

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu, Skeleton, Typography, theme as antdTheme } from 'antd';
+import { Layout, Menu, Skeleton, Typography, Button, Result, theme as antdTheme } from 'antd';
 import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
 import { routesFromFeed } from './routes.js';
@@ -20,7 +20,7 @@ const { Sider, Content } = Layout;
  * array anywhere here. An empty feed → empty sidebar and NoModules placeholder.
  */
 export function AppShell() {
-  const { items, loading } = useNavigation();
+  const { items, loading, error, refetch } = useNavigation();
   const location = useLocation();
   const { token } = antdTheme.useToken();
 
@@ -82,7 +82,22 @@ export function AppShell() {
         <Layout style={{ marginLeft: siderWidth }}>
           <Header />
           <Content style={{ padding: token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
-            {!loading && (!items || items.length === 0) ? (
+            {!loading && error ? (
+              <Result
+                status="500"
+                title="Navigation Unavailable"
+                subTitle="Unable to load navigation feed. Please check your connection and try again."
+                extra={
+                  <Button
+                    type="primary"
+                    onClick={() => (refetch ? refetch() : window.location.reload())}
+                    id="btn-retry-navigation"
+                  >
+                    Retry
+                  </Button>
+                }
+              />
+            ) : !loading && (!items || items.length === 0) ? (
               <NoModules />
             ) : (
               <React.Suspense fallback={<Skeleton active />}>

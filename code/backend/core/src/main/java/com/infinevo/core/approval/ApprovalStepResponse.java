@@ -26,13 +26,18 @@ public record ApprovalStepResponse(
         ApprovalFlowType flowType,
         UUID subjectEmployeeId,
         UUID itemId,
-        String summary) {
+        String summary,
+        Integer totalSteps) {
 
     public static ApprovalStepResponse from(ApprovalStep step) {
-        return from(step, null);
+        return from(step, null, null);
     }
 
     public static ApprovalStepResponse from(ApprovalStep step, ApprovalInstance instance) {
+        return from(step, instance, null);
+    }
+
+    public static ApprovalStepResponse from(ApprovalStep step, ApprovalInstance instance, Integer totalSteps) {
         ApprovalFlowType flowType = instance != null ? instance.getFlowType() : null;
         UUID subjectEmployeeId = instance != null ? instance.getSubjectEmployeeId() : null;
         UUID itemId = instance != null ? instance.getSubjectId() : null;
@@ -59,6 +64,7 @@ public record ApprovalStepResponse(
                 flowType,
                 subjectEmployeeId,
                 itemId,
-                summary);
+                summary,
+                totalSteps);
     }
 }

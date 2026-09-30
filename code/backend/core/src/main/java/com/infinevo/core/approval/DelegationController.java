@@ -57,7 +57,10 @@ public class DelegationController {
             @RequestParam(name = "employeeId", required = false) UUID employeeId,
             @RequestParam(name = "activeOn", required = false) LocalDate activeOn) {
         UUID tenantId = TenantContext.require();
-        return delegationService.getDelegations(tenantId, employeeId, activeOn);
+        UUID effectiveEmployeeId = employeeId != null
+                ? employeeId
+                : employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
+        return delegationService.getDelegations(tenantId, effectiveEmployeeId, activeOn);
     }
 
     @DeleteMapping("/api/v1/approval-delegations/{id}")

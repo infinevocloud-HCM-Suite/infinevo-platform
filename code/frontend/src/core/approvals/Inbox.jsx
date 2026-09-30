@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import {
@@ -12,9 +12,10 @@ import {
   theme,
 } from 'antd';
 import { CheckOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
-import { useCan, NotEntitled } from '@shell/screens';
+import { useCan, useNavigation, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { approvalService } from './approvalService.js';
+import { employeeService } from '../employee/employeeService.js';
 import { setPendingCount, decrementPendingCount } from './approvalSlice.js';
 import { DecideModal } from './DecideModal.jsx';
 import { getItemRoute } from './itemRoutes.js';
@@ -36,13 +37,29 @@ export function Inbox() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const canDecide = useCan('core.approval.decide');
+  const { items: navItems } = useNavigation();
+
+  const hasHrms = navItems?.some((it) => it.key?.startsWith('hrms') || it.module === 'hrms');
+  const hasPayroll = navItems?.some((it) => it.key?.startsWith('payroll') || it.module === 'payroll');
+
+  const allowedFlowKeys = useMemo(() => {
+    if (hasPayroll && !hasHrms) {
+      return new Set(['REIMBURSEMENT', 'PROOF_OF_INVESTMENT']);
+    }
+    if (hasHrms && !hasPayroll) {
+      return new Set(['LEAVE', 'REGULARIZATION', 'OVERTIME', 'TIMESHEET']);
+    }
+    return null;
+  }, [hasHrms, hasPayroll]);
 
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
+  const [employeeMap, setEmployeeMap] = useState({});
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [flowTypeFilter, setFlowTypeFilter] = useState(null);
+  const fetchedIdsRef = useRef(new Set());
 
   // Decide modal state
   const [decideModal, setDecideModal] = useState({
@@ -72,9 +89,38 @@ export function Inbox() {
     loadPending();
   }, [loadPending]);
 
-  if (!canDecide) {
-    return <NotEntitled />;
-  }
+  useEffect(() => {
+    if (!canDecide) return;
+    const missingIds = [
+      ...new Set(
+        data
+          .map((d) => d.subjectEmployeeId)
+          .filter((id) => id && !fetchedIdsRef.current.has(id))
+      ),
+    ];
+    if (missingIds.length === 0) return;
+    missingIds.forEach((id) => fetchedIdsRef.current.add(id));
+
+    Promise.all(
+      missingIds.map((id) =>
+        employeeService
+          .get(id)
+          .then((emp) => ({
+            id,
+            name: [emp.firstName, emp.lastName].filter(Boolean).join(' ') || emp.employeeNumber,
+          }))
+          .catch(() => ({ id, name: null }))
+      )
+    ).then((results) => {
+      setEmployeeMap((prev) => {
+        const next = { ...prev };
+        results.forEach((r) => {
+          if (r.name) next[r.id] = r.name;
+        });
+        return next;
+      });
+    });
+  }, [data, canDecide]);
 
   const handleOpenDecide = (step, decision) => {
     setDecideModal({
@@ -95,10 +141,17 @@ export function Inbox() {
     loadPending();
   };
 
-  // Filter items by flowType if selected
-  const filteredData = flowTypeFilter
-    ? data.filter((item) => item.flowType === flowTypeFilter)
-    : data;
+  // Filter items by module entitlements and selected flowType
+  const filteredData = useMemo(() => {
+    let result = data;
+    if (allowedFlowKeys) {
+      result = result.filter((item) => item.flowType && allowedFlowKeys.has(item.flowType));
+    }
+    if (flowTypeFilter) {
+      result = result.filter((item) => item.flowType === flowTypeFilter);
+    }
+    return result;
+  }, [data, allowedFlowKeys, flowTypeFilter]);
 
   const columns = [
     {
@@ -121,7 +174,9 @@ export function Inbox() {
           </Link>
           {record.subjectEmployeeId && (
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Employee ID: {record.subjectEmployeeId}
+              {employeeMap[record.subjectEmployeeId]
+                ? `Employee: ${employeeMap[record.subjectEmployeeId]}`
+                : `Employee ID: ${record.subjectEmployeeId}`}
             </Text>
           )}
         </Space>
@@ -129,10 +184,12 @@ export function Inbox() {
     },
     {
       title: 'Step',
-      dataIndex: 'stepIndex',
       key: 'stepIndex',
-      width: 100,
-      render: (stepIndex) => `Step ${stepIndex + 1}`,
+      width: 130,
+      render: (_, record) => {
+        const stepNum = (record.stepIndex ?? 0) + 1;
+        return record.totalSteps ? `Step ${stepNum} of ${record.totalSteps}` : `Step ${stepNum}`;
+      },
     },
     {
       title: 'Waiting Since',
@@ -190,6 +247,24 @@ export function Inbox() {
     },
   ];
 
+  const allFilterOptions = [
+    { label: 'Leave', value: 'LEAVE' },
+    { label: 'Regularization', value: 'REGULARIZATION' },
+    { label: 'Overtime', value: 'OVERTIME' },
+    { label: 'Reimbursement', value: 'REIMBURSEMENT' },
+    { label: 'Proof of Investment', value: 'PROOF_OF_INVESTMENT' },
+    { label: 'Pay Run', value: 'PAY_RUN' },
+    { label: 'Timesheet', value: 'TIMESHEET' },
+  ];
+
+  const filterOptions = allowedFlowKeys
+    ? allFilterOptions.filter((opt) => allowedFlowKeys.has(opt.value))
+    : allFilterOptions;
+
+  if (!canDecide) {
+    return <NotEntitled />;
+  }
+
   return (
     <Card style={{ margin: token.marginLG }}>
       <div
@@ -216,15 +291,7 @@ export function Inbox() {
           style={{ width: 220 }}
           value={flowTypeFilter}
           onChange={(val) => setFlowTypeFilter(val)}
-          options={[
-            { label: 'Leave', value: 'LEAVE' },
-            { label: 'Regularization', value: 'REGULARIZATION' },
-            { label: 'Overtime', value: 'OVERTIME' },
-            { label: 'Reimbursement', value: 'REIMBURSEMENT' },
-            { label: 'Proof of Investment', value: 'PROOF_OF_INVESTMENT' },
-            { label: 'Pay Run', value: 'PAY_RUN' },
-            { label: 'Timesheet', value: 'TIMESHEET' },
-          ]}
+          options={filterOptions}
         />
       </div>
 

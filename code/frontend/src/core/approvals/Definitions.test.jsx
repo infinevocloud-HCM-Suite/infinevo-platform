@@ -27,6 +27,11 @@ describe('Definitions component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    vi.spyOn(useCanModule, 'useNavigation').mockReturnValue({
+      items: [{ key: 'hrms.leave', path: '/leave' }],
+      actions: ['core.approval_definition.manage'],
+      loading: false,
+    });
 
     roleService.list.mockResolvedValue([
       { id: 'r1', code: 'HR_ADMIN', name: 'HR Administrator' },
@@ -67,9 +72,9 @@ describe('Definitions component', () => {
     });
   });
 
-  it('shows all seven flow tabs even when navigation feed has only core modules (D-7)', async () => {
+  it('shows only REIMBURSEMENT and PROOF_OF_INVESTMENT flow tabs for a Payroll-only tenant (D-36, D-37)', async () => {
     vi.spyOn(useCanModule, 'useNavigation').mockReturnValue({
-      items: [{ key: 'core.employees', path: '/employees' }],
+      items: [{ key: 'payroll.dashboard', path: '/payroll' }],
       actions: ['core.approval_definition.manage'],
       loading: false,
     });
@@ -77,13 +82,13 @@ describe('Definitions component', () => {
     render(<Definitions />);
 
     await waitFor(() => {
-      expect(screen.getByText('Leave')).toBeDefined();
-      expect(screen.getByText('Regularization')).toBeDefined();
-      expect(screen.getByText('Overtime')).toBeDefined();
-      expect(screen.getByText('Timesheet')).toBeDefined();
       expect(screen.getByText('Reimbursement')).toBeDefined();
       expect(screen.getByText('Proof of Investment')).toBeDefined();
-      expect(screen.getByText('Pay Run')).toBeDefined();
+      expect(screen.queryByText('Leave')).toBeNull();
+      expect(screen.queryByText('Regularization')).toBeNull();
+      expect(screen.queryByText('Overtime')).toBeNull();
+      expect(screen.queryByText('Timesheet')).toBeNull();
+      expect(screen.queryByText('Pay Run')).toBeNull();
     });
   });
 

@@ -26,19 +26,21 @@ const { Title, Text } = Typography;
 const validationSchema = Yup.object().shape({
   name: Yup.string().trim().required('Location name is required'),
   code: Yup.string().trim().required('Location code is required'),
-  addressLine1: Yup.string().trim().required('Address Line 1 is required'),
-  addressLine2: Yup.string().trim(),
-  city: Yup.string().trim().required('City is required'),
-  state: Yup.string().trim().required('State is required'),
+  addressLine1: Yup.string().trim().nullable(),
+  addressLine2: Yup.string().trim().nullable(),
+  city: Yup.string().trim().nullable(),
+  state: Yup.string().trim().nullable(),
   stateCode: Yup.string()
     .trim()
-    .required('State code is required (e.g. KA, MH)')
-    .length(2, 'State code must be 2 uppercase letters'),
+    .nullable()
+    .max(8, 'State code must be at most 8 characters'),
   zipCode: Yup.string()
     .trim()
-    .required('PIN code is required')
-    .matches(/^\d{6}$/, 'PIN code must be a 6-digit number'),
-  countryCode: Yup.string().trim().default('IN'),
+    .nullable(),
+  countryCode: Yup.string()
+    .trim()
+    .nullable()
+    .test('iso-country-code', 'Country code must be 2 letters', (val) => !val || val.length === 2),
   filingAddress: Yup.boolean().default(false),
   active: Yup.boolean().default(true),
 });
@@ -225,12 +227,12 @@ export function WorkLocationForm() {
 
               <Col xs={24}>
                 <label htmlFor="input-addressLine1" style={{ display: 'block', marginBottom: 4 }}>
-                  <Text strong>Address Line 1 *</Text>
+                  <Text strong>Address Line 1</Text>
                 </label>
                 <Input
                   id="input-addressLine1"
                   name="addressLine1"
-                  placeholder="Building, street, or suite number"
+                  placeholder="Building, street, or suite number (optional)"
                   value={values.addressLine1}
                   onChange={handleChange}
                   status={touched.addressLine1 && errors.addressLine1 ? 'error' : ''}
@@ -257,12 +259,12 @@ export function WorkLocationForm() {
 
               <Col xs={24} sm={12}>
                 <label htmlFor="input-city" style={{ display: 'block', marginBottom: 4 }}>
-                  <Text strong>City *</Text>
+                  <Text strong>City</Text>
                 </label>
                 <Input
                   id="input-city"
                   name="city"
-                  placeholder="e.g. Bengaluru"
+                  placeholder="e.g. Bengaluru (optional)"
                   value={values.city}
                   onChange={handleChange}
                   status={touched.city && errors.city ? 'error' : ''}
@@ -276,12 +278,12 @@ export function WorkLocationForm() {
 
               <Col xs={24} sm={6}>
                 <label htmlFor="input-state" style={{ display: 'block', marginBottom: 4 }}>
-                  <Text strong>State *</Text>
+                  <Text strong>State</Text>
                 </label>
                 <Input
                   id="input-state"
                   name="state"
-                  placeholder="e.g. Karnataka"
+                  placeholder="e.g. Karnataka (optional)"
                   value={values.state}
                   onChange={handleChange}
                   status={touched.state && errors.state ? 'error' : ''}
@@ -295,13 +297,13 @@ export function WorkLocationForm() {
 
               <Col xs={24} sm={6}>
                 <label htmlFor="input-stateCode" style={{ display: 'block', marginBottom: 4 }}>
-                  <Text strong>State Code (2-letter) *</Text>
+                  <Text strong>State Code (optional)</Text>
                 </label>
                 <Input
                   id="input-stateCode"
                   name="stateCode"
                   placeholder="e.g. KA"
-                  maxLength={2}
+                  maxLength={8}
                   value={values.stateCode}
                   onChange={handleChange}
                   status={touched.stateCode && errors.stateCode ? 'error' : ''}
@@ -315,13 +317,13 @@ export function WorkLocationForm() {
 
               <Col xs={24} sm={12}>
                 <label htmlFor="input-zipCode" style={{ display: 'block', marginBottom: 4 }}>
-                  <Text strong>PIN Code *</Text>
+                  <Text strong>PIN Code</Text>
                 </label>
                 <Input
                   id="input-zipCode"
                   name="zipCode"
-                  placeholder="6-digit PIN"
-                  maxLength={6}
+                  placeholder="PIN code (optional)"
+                  maxLength={16}
                   value={values.zipCode}
                   onChange={handleChange}
                   status={touched.zipCode && errors.zipCode ? 'error' : ''}

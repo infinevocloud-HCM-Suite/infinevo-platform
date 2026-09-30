@@ -15,7 +15,7 @@ import {
   theme,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
-import { useCan, NotEntitled, keycloak } from '@shell/screens';
+import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { delegationService } from './delegationService.js';
 import { employeeService } from '../employee/employeeService.js';
@@ -35,7 +35,6 @@ const FLOW_TYPE_OPTIONS = [
 export function Delegations({ me: propMe, form: externalForm }) {
   const { token } = theme.useToken();
   const canDelegate = useCan('core.approval.delegate');
-  const me = propMe ?? keycloak?.tokenParsed?.employee_id ?? keycloak?.tokenParsed?.sub ?? 'me';
 
   const [loading, setLoading] = useState(false);
   const [delegations, setDelegations] = useState([]);
@@ -70,14 +69,14 @@ export function Delegations({ me: propMe, form: externalForm }) {
     if (!canDelegate) return;
     setLoading(true);
     try {
-      const data = await delegationService.list({ employeeId: me });
+      const data = await delegationService.list(propMe ? { employeeId: propMe } : {});
       setDelegations(Array.isArray(data) ? data : []);
     } catch (err) {
       await errorMsg(err);
     } finally {
       setLoading(false);
     }
-  }, [canDelegate, me]);
+  }, [canDelegate, propMe]);
 
   useEffect(() => {
     loadData();

@@ -38,12 +38,22 @@ describe('WorkLocations component', () => {
         filingAddress: true,
         active: true,
       },
+      {
+        id: 'loc-2',
+        code: 'BLR',
+        name: 'Bengaluru Branch',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        stateCode: 'KA',
+        filingAddress: false,
+        active: true,
+      },
     ]);
 
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
   });
 
-  it('renders locations table and shows filing address badge', async () => {
+  it('renders locations table, shows filing address badge, and disables delete on filing address', async () => {
     render(
       <Provider store={store}>
         <MemoryRouter>
@@ -56,6 +66,10 @@ describe('WorkLocations component', () => {
       expect(screen.getByText('Headquarters')).toBeDefined();
       expect(document.getElementById('tag-filing-address')).toBeDefined();
       expect(screen.getByText('Mumbai')).toBeDefined();
+      const deleteFilingBtn = document.getElementById('btn-delete-location-loc-1');
+      expect(deleteFilingBtn.disabled).toBe(true);
+      const deleteNormalBtn = document.getElementById('btn-delete-location-loc-2');
+      expect(deleteNormalBtn.disabled).toBe(false);
     });
   });
 
@@ -75,10 +89,10 @@ describe('WorkLocations component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Headquarters')).toBeDefined();
+      expect(screen.getByText('Bengaluru Branch')).toBeDefined();
     });
 
-    const deleteBtn = document.getElementById('btn-delete-location-loc-1');
+    const deleteBtn = document.getElementById('btn-delete-location-loc-2');
     fireEvent.click(deleteBtn);
 
     await waitFor(() => {
@@ -94,7 +108,7 @@ describe('WorkLocations component', () => {
     });
 
     await waitFor(() => {
-      expect(workLocationService.update).toHaveBeenCalledWith('loc-1', expect.objectContaining({ active: false }));
+      expect(workLocationService.update).toHaveBeenCalledWith('loc-2', expect.objectContaining({ active: false }));
     });
   });
 });

@@ -78,4 +78,11 @@ public class WorkLocationController extends OrgMasterController {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
     }
+
+    @ExceptionHandler(WorkLocationService.FilingAddressCannotBeDeletedException.class)
+    public ResponseEntity<ApiErrorResponse> handleFilingAddressCannotBeDeleted(
+            WorkLocationService.FilingAddressCannotBeDeletedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+    }
 }

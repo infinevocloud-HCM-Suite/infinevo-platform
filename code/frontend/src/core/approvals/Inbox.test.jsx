@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { Inbox } from './Inbox.jsx';
 import { approvalService } from './approvalService.js';
+import { employeeService } from '../employee/employeeService.js';
 import approvalReducer from './approvalSlice.js';
 import * as useCanModule from '@shell/screens';
 
@@ -12,6 +13,12 @@ vi.mock('./approvalService.js', () => ({
   approvalService: {
     pending: vi.fn(),
     decide: vi.fn(),
+  },
+}));
+
+vi.mock('../employee/employeeService.js', () => ({
+  employeeService: {
+    get: vi.fn(),
   },
 }));
 
@@ -31,12 +38,19 @@ describe('Inbox component', () => {
       },
     });
 
+    employeeService.get.mockImplementation(async (id) => {
+      if (id === 'emp-1') return { id: 'emp-1', firstName: 'Alice', lastName: 'Smith' };
+      if (id === 'emp-2') return { id: 'emp-2', firstName: 'Bob', lastName: 'Jones' };
+      return { id, firstName: 'User', lastName: id };
+    });
+
     approvalService.pending.mockResolvedValue({
       content: [
         {
           id: 'step-101',
           instanceId: 'inst-1',
           stepIndex: 0,
+          totalSteps: 2,
           itemRef: null,
           approverKind: 'REPORTING_MANAGER',
           assigneeEmployeeId: 'emp-mgr-1',
@@ -58,6 +72,7 @@ describe('Inbox component', () => {
           id: 'step-102',
           instanceId: 'inst-2',
           stepIndex: 1,
+          totalSteps: 3,
           itemRef: null,
           approverKind: 'ROLE',
           assigneeEmployeeId: 'emp-hr-1',
@@ -80,9 +95,14 @@ describe('Inbox component', () => {
     });
 
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    vi.spyOn(useCanModule, 'useNavigation').mockReturnValue({
+      items: [{ key: 'hrms.leave' }, { key: 'payroll.dashboard' }],
+      actions: ['core.approval.decide'],
+      loading: false,
+    });
   });
 
-  it('renders rows across two flow types and sets pendingCount', async () => {
+  it('renders rows across two flow types, resolves employee names, displays steps and sets pendingCount', async () => {
     render(
       <Provider store={store}>
         <MemoryRouter>
@@ -91,10 +111,17 @@ describe('Inbox component', () => {
       </Provider>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText('Annual Leave (3 days)')).toBeDefined();
-      expect(screen.getByText('Travel Expense')).toBeDefined();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText('Annual Leave (3 days)')).toBeDefined();
+        expect(screen.getByText('Travel Expense')).toBeDefined();
+        expect(screen.getByText('Employee: Alice Smith')).toBeDefined();
+        expect(screen.getByText('Employee: Bob Jones')).toBeDefined();
+        expect(screen.getByText('Step 1 of 2')).toBeDefined();
+        expect(screen.getByText('Step 2 of 3')).toBeDefined();
+      },
+      { timeout: 5000 }
+    );
 
     expect(store.getState().approvals.pendingCount).toBe(2);
   });

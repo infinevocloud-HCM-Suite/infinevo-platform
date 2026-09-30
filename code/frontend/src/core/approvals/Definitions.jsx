@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Card,
   Tabs,
@@ -18,7 +18,7 @@ import {
   ArrowDownOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
-import { useCan, NotEntitled } from '@shell/screens';
+import { useCan, useNavigation, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { definitionService } from './definitionService.js';
 import { roleService } from './roleService.js';
@@ -50,11 +50,26 @@ const APPROVER_KINDS = [
 export function Definitions() {
   const { token } = theme.useToken();
   const canManage = useCan('core.approval_definition.manage');
+  const { items } = useNavigation();
 
-  // Show all seven flow types from backend (W-46.4 D-7)
-  const flowTypes = ALL_FLOW_TYPES;
+  const hasHrms = items?.some((it) => it.key?.startsWith('hrms') || it.module === 'hrms');
+  const hasPayroll = items?.some((it) => it.key?.startsWith('payroll') || it.module === 'payroll');
 
-  const [activeFlow, setActiveFlow] = useState(ALL_FLOW_TYPES[0]?.key || 'LEAVE');
+  const flowTypes = useMemo(() => {
+    // If tenant holds Payroll only, show only REIMBURSEMENT and PROOF_OF_INVESTMENT (D-36, D-37, W-46.4 §8)
+    if (hasPayroll && !hasHrms) {
+      return ALL_FLOW_TYPES.filter(
+        (f) => f.key === 'REIMBURSEMENT' || f.key === 'PROOF_OF_INVESTMENT'
+      );
+    }
+    // If tenant holds HRMS only, show only HRMS workflows
+    if (hasHrms && !hasPayroll) {
+      return ALL_FLOW_TYPES.filter((f) => f.module === 'hrms');
+    }
+    return ALL_FLOW_TYPES;
+  }, [hasHrms, hasPayroll]);
+
+  const [activeFlow, setActiveFlow] = useState(flowTypes[0]?.key || 'LEAVE');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [steps, setSteps] = useState([]);

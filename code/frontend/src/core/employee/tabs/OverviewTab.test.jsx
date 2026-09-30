@@ -142,4 +142,67 @@ describe('OverviewTab component', () => {
 
     expect(screen.getByText('TERMINATED')).toBeDefined();
   });
+
+  it('blocks saving and shows validation errors when required fields are missing', async () => {
+    const employee = {
+      id: 'emp-104',
+      employeeNumber: 'EMP004',
+      firstName: 'Diana',
+      status: 'ACTIVE',
+      dateOfJoining: '2026-01-01',
+    };
+
+    render(
+      <Provider store={store}>
+        <OverviewTab employee={employee} onUpdate={vi.fn()} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /edit details/i }));
+
+    // Clear employeeNumber and firstName
+    fireEvent.change(document.getElementById('edit-empNum'), { target: { value: '' } });
+    fireEvent.change(document.getElementById('edit-firstName'), { target: { value: '' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Employee Number is required')).toBeDefined();
+      expect(screen.getByText('First Name is required')).toBeDefined();
+    });
+
+    expect(employeeService.update).not.toHaveBeenCalled();
+  });
+
+  it('displays backend 400 fieldErrors on inputs and in error message', async () => {
+    const employee = {
+      id: 'emp-105',
+      employeeNumber: 'EMP005',
+      firstName: 'Evan',
+      status: 'ACTIVE',
+      dateOfJoining: '2026-01-01',
+    };
+
+    const backendError = {
+      status: 400,
+      message: 'Validation failed',
+      fieldErrors: {
+        employeeNumber: 'Employee number already taken',
+      },
+    };
+    employeeService.update.mockRejectedValueOnce(backendError);
+
+    render(
+      <Provider store={store}>
+        <OverviewTab employee={employee} onUpdate={vi.fn()} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /edit details/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Employee number already taken')).toBeDefined();
+    });
+  });
 });

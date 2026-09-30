@@ -11,6 +11,7 @@ import {
   Popconfirm,
   Modal,
   Tag,
+  Tooltip,
   theme,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -178,21 +179,33 @@ export function WorkLocations() {
             onClick={() => navigate(`/org/work-locations/${record.id}/edit`)}
             id={`btn-edit-location-${record.id}`}
           />
-          <Popconfirm
-            title="Delete Work Location?"
-            description="Are you sure you want to delete this location?"
-            onConfirm={() => handleDelete(record)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button
-              type="text"
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              id={`btn-delete-location-${record.id}`}
-            />
-          </Popconfirm>
+          {record.filingAddress ? (
+            <Tooltip title="Filing address cannot be deleted. Statutory registrations are tied to it.">
+              <Button
+                type="text"
+                disabled
+                size="small"
+                icon={<DeleteOutlined />}
+                id={`btn-delete-location-${record.id}`}
+              />
+            </Tooltip>
+          ) : (
+            <Popconfirm
+              title="Delete Work Location?"
+              description="Are you sure you want to delete this location?"
+              onConfirm={() => handleDelete(record)}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button
+                type="text"
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                id={`btn-delete-location-${record.id}`}
+              />
+            </Popconfirm>
+          )}
         </Space>
       ),
     });

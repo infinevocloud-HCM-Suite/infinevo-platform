@@ -45,7 +45,7 @@ describe('WorkLocationForm component', () => {
     expect(screen.getByText('Module Not Subscribed')).toBeDefined();
   });
 
-  it('blocks submission when required fields are missing', async () => {
+  it('blocks submission when required name and code are missing', async () => {
     render(
       <Provider store={store}>
         <MemoryRouter initialEntries={['/org/work-locations/new']}>
@@ -62,11 +62,6 @@ describe('WorkLocationForm component', () => {
     await waitFor(() => {
       expect(screen.getByText('Location name is required')).toBeDefined();
       expect(screen.getByText('Location code is required')).toBeDefined();
-      expect(screen.getByText('Address Line 1 is required')).toBeDefined();
-      expect(screen.getByText('City is required')).toBeDefined();
-      expect(screen.getByText('State is required')).toBeDefined();
-      expect(screen.getByText('State code is required (e.g. KA, MH)')).toBeDefined();
-      expect(screen.getByText('PIN code is required')).toBeDefined();
     });
 
     expect(workLocationService.create).not.toHaveBeenCalled();
@@ -165,6 +160,51 @@ describe('WorkLocationForm component', () => {
       expect(workLocationService.get).toHaveBeenCalledWith('unknown-999');
       expect(screen.getByText('404')).toBeDefined();
       expect(screen.getByText(/page you visited does not exist/i)).toBeDefined();
+    });
+  });
+
+  it('allows saving location without address fields (backend treats them as optional)', async () => {
+    workLocationService.get.mockResolvedValueOnce({
+      id: 'loc-no-addr',
+      name: 'Remote Branch',
+      code: 'REM',
+      addressLine1: null,
+      city: null,
+      state: null,
+      stateCode: null,
+      zipCode: null,
+      countryCode: null,
+      filingAddress: false,
+      active: true,
+    });
+    workLocationService.update.mockResolvedValueOnce({ id: 'loc-no-addr' });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/org/work-locations/loc-no-addr/edit']}>
+          <Routes>
+            <Route path="/org/work-locations/:id/edit" element={<WorkLocationForm />} />
+            <Route path="/org/work-locations" element={<div>Locations List</div>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Remote Branch')).toBeDefined();
+    });
+
+    const submitBtn = document.getElementById('btn-submit-location');
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(workLocationService.update).toHaveBeenCalledWith(
+        'loc-no-addr',
+        expect.objectContaining({
+          name: 'Remote Branch',
+          code: 'REM',
+        })
+      );
     });
   });
 });
