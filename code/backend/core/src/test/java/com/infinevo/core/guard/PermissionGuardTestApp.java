@@ -1,5 +1,6 @@
 package com.infinevo.core.guard;
 
+import com.infinevo.core.document.DocumentService;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.shared.audit.AuditController;
 import com.infinevo.shared.audit.AuditQueryService;
@@ -103,5 +104,10 @@ public class PermissionGuardTestApp {
     @Bean
     public PayInputService payInputService() {
         return Mockito.mock(PayInputService.class);
+    }
+
+    @Bean
+    public DocumentService documentService() {
+        return Mockito.mock(DocumentService.class);
     }
 }

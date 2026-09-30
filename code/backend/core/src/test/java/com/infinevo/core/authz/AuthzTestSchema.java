@@ -141,6 +141,9 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "leave_monthly_lop")) {
                         executeResource(conn, "db/migration/core/V117__leave_monthly_lop.sql");
                     }
+                    if (!tableExists(conn, "core", "leave_import_log")) {
+                        executeResource(conn, "db/migration/core/V118__leave_import_log.sql");
+                    }
                 }
 
             } catch (Exception e) {
