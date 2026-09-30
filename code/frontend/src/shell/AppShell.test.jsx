@@ -4,9 +4,10 @@ import { MemoryRouter } from 'react-router-dom';
 import fs from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Provider } from 'react-redux';
+import { store } from './store.js';
 import { AppShell } from './AppShell.jsx';
 import * as navigationModule from './navigation/useNavigation.js';
-import * as routesModule from './routes.js';
 import * as clientModule from '../shared/api/client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,27 +48,21 @@ describe('AppShell component', () => {
     expect(screen.getByText('404')).toBeDefined();
   });
 
-  it('mounts a route from module index when the feed names its path', () => {
+  it('mounts a route from module index when the feed names its path', async () => {
     vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
-      items: [{ key: 'test-item', labelKey: 'Test Screen', path: '/test-route' }],
+      items: [{ key: 'employees', labelKey: 'Employees', path: '/employees' }],
       loading: false,
     });
 
-    vi.spyOn(routesModule, 'routesFromFeed').mockReturnValue([
-      {
-        path: '/test-route',
-        element: <div data-testid="test-screen-content">Mounted Test Screen</div>,
-      },
-    ]);
-
     render(
-      <MemoryRouter initialEntries={['/test-route']}>
-        <AppShell />
-      </MemoryRouter>,
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/employees']}>
+          <AppShell />
+        </MemoryRouter>
+      </Provider>,
     );
 
-    expect(screen.getByTestId('test-screen-content')).toBeDefined();
-    expect(screen.getByText('Mounted Test Screen')).toBeDefined();
+    expect(await screen.findByRole('heading', { name: /Employees/i })).toBeDefined();
   });
 
   it('renders Suspended screen full-page without sidebar or clickable menu when suspended', () => {
