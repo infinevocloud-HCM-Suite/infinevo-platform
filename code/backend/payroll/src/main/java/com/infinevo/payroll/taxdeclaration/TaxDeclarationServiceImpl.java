@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -195,12 +196,17 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
 
     @Override
     @Transactional(readOnly = true)
-    public EmployeeInvestmentDeclaration require(UUID employeeId, String financialYear) {
+    public Optional<EmployeeInvestmentDeclaration> find(UUID employeeId, String financialYear) {
         FinancialYear fy = FinancialYear.parse(financialYear);
         UUID tenantId = TenantContext.require();
-        return declarationRepository
-                .findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, employeeId, fy.label())
-                .orElseThrow(() -> new DeclarationNotFoundException(employeeId, fy.label()));
+        return declarationRepository.findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, employeeId, fy.label());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EmployeeInvestmentDeclaration require(UUID employeeId, String financialYear) {
+        return find(employeeId, financialYear)
+                .orElseThrow(() -> new DeclarationNotFoundException(employeeId, financialYear));
     }
 
     private TaxDeclarationResponse saveInternal(

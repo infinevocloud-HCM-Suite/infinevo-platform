@@ -51,6 +51,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -110,7 +111,7 @@ class PreTaxPrecedenceTest {
 
         EmployeeInvestmentDeclaration declaration = mock(EmployeeInvestmentDeclaration.class);
         when(declaration.getId()).thenReturn(declarationId);
-        when(declarationService.require(employeeId, fy.label())).thenReturn(declaration);
+        when(declarationService.find(employeeId, fy.label())).thenReturn(Optional.of(declaration));
 
         Earning basicEarning = mock(Earning.class);
         when(basicEarning.getId()).thenReturn(basicCompId);

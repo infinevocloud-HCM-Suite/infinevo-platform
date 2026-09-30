@@ -207,8 +207,8 @@ public class TaxInputAssembler {
         Objects.requireNonNull(employeeId, "employeeId must not be null");
         Objects.requireNonNull(fy, "fy must not be null");
 
-        EmployeeInvestmentDeclaration declaration = declarationService.require(employeeId, fy.label());
-        UUID declarationId = declaration.getId();
+        Optional<EmployeeInvestmentDeclaration> declOpt = declarationService.find(employeeId, fy.label());
+        UUID declarationId = declOpt.map(EmployeeInvestmentDeclaration::getId).orElse(null);
         EmployeeResponse employee = employeeService.get(employeeId);
 
         LocalDate dateOfJoining = employee.dateOfJoining();
@@ -258,8 +258,9 @@ public class TaxInputAssembler {
                         .map(Earning::isTaxable)
                         .orElse(false));
 
-        List<EmployeeInvPrevEmployment> prevEmploymentRows =
-                prevEmploymentRepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
+        List<EmployeeInvPrevEmployment> prevEmploymentRows = declarationId != null
+                ? prevEmploymentRepository.findByTenantIdAndDeclarationId(tenantId, declarationId)
+                : List.of();
 
         Map<PrevEmploymentKind, Money> prevEmploymentMap = new EnumMap<>(PrevEmploymentKind.class);
         for (EmployeeInvPrevEmployment row : prevEmploymentRows) {
@@ -268,16 +269,20 @@ public class TaxInputAssembler {
         }
 
         // Housing records
-        List<EmployeeInvHouseRent> houseRentRows =
-                houseRentRepository.findByTenantIdAndDeclarationIdOrderByFromMonthAsc(tenantId, declarationId);
-        List<EmployeeInvHomeLoan> homeLoanRows =
-                homeLoanRepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
-        List<EmployeeInvLetOutProperty> letOutRows =
-                letOutPropertyRepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
+        List<EmployeeInvHouseRent> houseRentRows = declarationId != null
+                ? houseRentRepository.findByTenantIdAndDeclarationIdOrderByFromMonthAsc(tenantId, declarationId)
+                : List.of();
+        List<EmployeeInvHomeLoan> homeLoanRows = declarationId != null
+                ? homeLoanRepository.findByTenantIdAndDeclarationId(tenantId, declarationId)
+                : List.of();
+        List<EmployeeInvLetOutProperty> letOutRows = declarationId != null
+                ? letOutPropertyRepository.findByTenantIdAndDeclarationId(tenantId, declarationId)
+                : List.of();
 
         // Section 6A items
-        List<EmployeeInvSection6A> sec6aRows =
-                section6ARepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
+        List<EmployeeInvSection6A> sec6aRows = declarationId != null
+                ? section6ARepository.findByTenantIdAndDeclarationId(tenantId, declarationId)
+                : List.of();
         List<DeclaredItem> declaredItems = new ArrayList<>();
         for (EmployeeInvSection6A row : sec6aRows) {
             var item = section6AItemReader.require(row.getSection6aItemId());
@@ -287,8 +292,9 @@ public class TaxInputAssembler {
         }
 
         // Pre-tax deductions
-        List<EmployeeInvPreTaxDeduction> preTaxRows =
-                preTaxDeductionRepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
+        List<EmployeeInvPreTaxDeduction> preTaxRows = declarationId != null
+                ? preTaxDeductionRepository.findByTenantIdAndDeclarationId(tenantId, declarationId)
+                : List.of();
         Map<PreTaxDeductionKind, Money> preTaxMap = new EnumMap<>(PreTaxDeductionKind.class);
         for (EmployeeInvPreTaxDeduction row : preTaxRows) {
             Money current = preTaxMap.getOrDefault(row.getKind(), Money.ZERO);
@@ -296,8 +302,9 @@ public class TaxInputAssembler {
         }
 
         // Other income
-        List<EmployeeInvOtherIncome> otherIncomeRows =
-                otherIncomeRepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
+        List<EmployeeInvOtherIncome> otherIncomeRows = declarationId != null
+                ? otherIncomeRepository.findByTenantIdAndDeclarationId(tenantId, declarationId)
+                : List.of();
 
         // Resolve employee work location stateCode once for Professional Tax resolution
         String stateCode = resolveEmployeeStateCode(employee);
@@ -370,9 +377,11 @@ public class TaxInputAssembler {
                 salaryResult,
                 prevEmploymentMap,
                 ageCategory,
-                declaration.isStayingInRentedHouse(),
-                declaration.isRepayingSelfOccupiedLoan(),
-                declaration.hasLetOutProperty(),
+                declOpt.map(EmployeeInvestmentDeclaration::isStayingInRentedHouse)
+                        .orElse(false),
+                declOpt.map(EmployeeInvestmentDeclaration::isRepayingSelfOccupiedLoan)
+                        .orElse(false),
+                declOpt.map(EmployeeInvestmentDeclaration::hasLetOutProperty).orElse(false),
                 houseRentRows,
                 homeLoanRows,
                 letOutRows,

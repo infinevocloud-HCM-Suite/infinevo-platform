@@ -2,6 +2,7 @@ package com.infinevo.payroll.taxdeclaration;
 
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationRequest;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationResponse;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -44,4 +45,6 @@ public interface TaxDeclarationService {
     EmployeeInvestmentDeclaration require(UUID declarationId);
 
     EmployeeInvestmentDeclaration require(UUID employeeId, String financialYear);
+
+    Optional<EmployeeInvestmentDeclaration> find(UUID employeeId, String financialYear);
 }
