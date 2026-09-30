@@ -31,17 +31,107 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = {"com.infinevo.payroll"},
+        basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"},
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
         })
-@EntityScan(basePackages = {"com.infinevo.payroll"})
-@EnableJpaRepositories(basePackages = {"com.infinevo.payroll"})
+@EntityScan(basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
+@EnableJpaRepositories(
+        basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
 public class PayrollTestApp {
 
     public static final ThreadLocal<EmployeeResponse> CURRENT_EMPLOYEE = new ThreadLocal<>();
+    public static final ThreadLocal<UUID> APPROVER_ID = new ThreadLocal<>();
+    public static final java.util.Map<UUID, com.infinevo.core.document.DocumentResponse> TEST_DOCUMENTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    @Bean
+    public com.infinevo.core.approval.CoreApproverResolver coreApproverResolver() {
+        com.infinevo.core.approval.CoreApproverResolver resolver =
+                org.mockito.Mockito.mock(com.infinevo.core.approval.CoreApproverResolver.class);
+        org.mockito.Mockito.when(resolver.resolve(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> Optional.ofNullable(APPROVER_ID.get()));
+        return resolver;
+    }
+
+    @Bean
+    public com.infinevo.shared.authz.PermissionService permissionService() {
+        com.infinevo.shared.authz.PermissionService service =
+                org.mockito.Mockito.mock(com.infinevo.shared.authz.PermissionService.class);
+        org.mockito.Mockito.when(service.holds(org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(true);
+        return service;
+    }
+
+    @Bean
+    public com.infinevo.core.employee.EmployeeRepository employeeRepository() {
+        return org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeRepository.class);
+    }
+
+    @Bean
+    public com.infinevo.core.org.ReportingLineService reportingLineService() {
+        return org.mockito.Mockito.mock(com.infinevo.core.org.ReportingLineService.class);
+    }
+
+    @Bean
+    public com.infinevo.core.document.DocumentService documentService() {
+        return new com.infinevo.core.document.DocumentService() {
+            @Override
+            public UUID store(
+                    com.infinevo.core.document.DocumentKind kind,
+                    UUID employeeId,
+                    String fileName,
+                    java.io.InputStream content) {
+                UUID id = UUID.randomUUID();
+                com.infinevo.core.document.DocumentResponse doc = new com.infinevo.core.document.DocumentResponse(
+                        id,
+                        employeeId,
+                        kind,
+                        fileName,
+                        "application/pdf",
+                        1024L,
+                        "test_checksum",
+                        Instant.now(),
+                        "system");
+                TEST_DOCUMENTS.put(id, doc);
+                return id;
+            }
+
+            @Override
+            public UUID storeFile(
+                    com.infinevo.core.document.DocumentKind kind,
+                    UUID employeeId,
+                    String fileName,
+                    java.nio.file.Path file) {
+                return store(kind, employeeId, fileName, null);
+            }
+
+            @Override
+            public com.infinevo.core.document.DocumentResponse get(UUID id) {
+                com.infinevo.core.document.DocumentResponse doc = TEST_DOCUMENTS.get(id);
+                if (doc == null) {
+                    throw new com.infinevo.core.document.DocumentService.NotFoundException(id);
+                }
+                return doc;
+            }
+
+            @Override
+            public DocumentContent open(UUID id) {
+                return new DocumentContent(get(id), new java.io.ByteArrayInputStream(new byte[0]));
+            }
+
+            @Override
+            public void delete(UUID id) {
+                TEST_DOCUMENTS.remove(id);
+            }
+        };
+    }
 
     @Bean
     public EmployeeService employeeService(DataSource dataSource) {
@@ -185,6 +275,68 @@ public class PayrollTestApp {
 
             @Override
             public void delete(UUID id) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    @Bean
+    public com.infinevo.core.employee.detail.EmployeePersonalService employeePersonalService(DataSource dataSource) {
+        return new com.infinevo.core.employee.detail.EmployeePersonalService() {
+            @Override
+            public Optional<com.infinevo.core.employee.detail.EmployeePersonalResponse> find(UUID employeeId) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        String sql =
+                                "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, eligible_for_full_tax_exemption, created_at, updated_at "
+                                        + "FROM core.employee_personal WHERE employee_id = ? AND tenant_id = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                            ps.setObject(1, employeeId);
+                            ps.setObject(2, tenantId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                if (rs.next()) {
+                                    java.sql.Date dob = rs.getDate("date_of_birth");
+                                    conn.commit();
+                                    return Optional.of(new com.infinevo.core.employee.detail.EmployeePersonalResponse(
+                                            (UUID) rs.getObject("id"),
+                                            tenantId,
+                                            employeeId,
+                                            dob != null ? dob.toLocalDate() : null,
+                                            rs.getString("marital_status"),
+                                            rs.getString("nationality"),
+                                            rs.getString("ethnicity"),
+                                            rs.getString("father_name"),
+                                            rs.getString("differently_abled_type"),
+                                            rs.getBoolean("eligible_for_full_tax_exemption"),
+                                            rs.getTimestamp("created_at").toInstant(),
+                                            rs.getTimestamp("updated_at").toInstant()));
+                                }
+                                conn.commit();
+                                return Optional.empty();
+                            }
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public com.infinevo.core.employee.detail.EmployeePersonalResponse get(UUID employeeId) {
+                return find(employeeId)
+                        .orElseThrow(
+                                () -> new com.infinevo.core.employee.detail.EmployeeDetailService.NotFoundException(
+                                        "personal", employeeId));
+            }
+
+            @Override
+            public com.infinevo.core.employee.detail.EmployeePersonalResponse put(
+                    UUID employeeId, com.infinevo.core.employee.detail.EmployeePersonalRequest request) {
                 throw new UnsupportedOperationException();
             }
         };
