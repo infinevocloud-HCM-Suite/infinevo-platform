@@ -206,6 +206,10 @@ public final class EmployeeTestSchema {
             if (tableExists(conn, "reporting_line")) {
                 stmt.execute("DELETE FROM core.reporting_line");
             }
+            // employee_invitation (V118) references employee without ON DELETE CASCADE — must go first
+            if (tableExists(conn, "employee_invitation")) {
+                stmt.execute("DELETE FROM core.employee_invitation");
+            }
             stmt.execute("DELETE FROM core.employee");
         }
     }

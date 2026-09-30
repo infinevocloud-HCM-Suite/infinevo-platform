@@ -4,7 +4,16 @@
   "displayName": "Infinevo (local development)",
   "sslRequired": "none",
   "registrationAllowed": false,
-  "resetPasswordAllowed": false,
+  "resetPasswordAllowed": true,
+  "smtpServer": {
+    "host": "mail",
+    "port": "1025",
+    "from": "noreply@infinevo.local",
+    "fromDisplayName": "Infinevo (local)",
+    "auth": "false",
+    "ssl": "false",
+    "starttls": "false"
+  },
   "rememberMe": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,

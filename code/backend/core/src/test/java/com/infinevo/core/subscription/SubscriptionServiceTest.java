@@ -11,11 +11,13 @@ import static org.mockito.Mockito.when;
 
 import com.infinevo.shared.authz.PermissionCache;
 import com.infinevo.shared.entitlement.PlatformModule;
+import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,15 @@ class SubscriptionServiceTest {
 
         subscriptionService = new SubscriptionServiceImpl(
                 subscriptionRepository, subscriptionModuleRepository, jdbcTemplate, permissionCache);
+
+        // Bound to the tenant being changed, so updateModules has nothing to rebind and the only
+        // ConnectionCallback the tests count is the stored procedure.
+        TenantContext.set(TENANT_ID);
+    }
+
+    @AfterEach
+    void clearTenant() {
+        TenantContext.clear();
     }
 
     @Test
@@ -65,6 +76,54 @@ class SubscriptionServiceTest {
 
         verify(jdbcTemplate, times(1)).execute(any(ConnectionCallback.class));
         verify(permissionCache, times(1)).bumpVersion(TENANT_ID);
+    }
+
+    @Test
+    @DisplayName("updateModules eagerly calls SetupChecklistService.assemble when module changes")
+    void updateModules_whenChanged_eagerlyAssemblesChecklist() {
+        com.infinevo.core.setup.SetupChecklistService checklistService =
+                mock(com.infinevo.core.setup.SetupChecklistService.class);
+        SubscriptionServiceImpl serviceWithChecklist = new SubscriptionServiceImpl(
+                subscriptionRepository, subscriptionModuleRepository, jdbcTemplate, permissionCache, checklistService);
+
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+
+        SubscriptionModule mod = new SubscriptionModule(TENANT_ID, sub, PlatformModule.PAYROLL, LocalDate.now());
+        when(subscriptionModuleRepository.findByTenantIdAndRevokedOnIsNull(TENANT_ID))
+                .thenReturn(List.of(mod));
+
+        serviceWithChecklist.updateModules(TENANT_ID, Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
+
+        verify(checklistService, times(1)).assemble(TENANT_ID);
+    }
+
+    @Test
+    @DisplayName("updateModules from another tenant's binding rebinds to the target and restores the caller's")
+    void updateModules_crossTenant_rebindsAndRestores() {
+        UUID platformTenant = UUID.randomUUID();
+        TenantContext.set(platformTenant);
+        com.infinevo.core.setup.SetupChecklistService checklistService =
+                mock(com.infinevo.core.setup.SetupChecklistService.class);
+        SubscriptionServiceImpl serviceWithChecklist = new SubscriptionServiceImpl(
+                subscriptionRepository, subscriptionModuleRepository, jdbcTemplate, permissionCache, checklistService);
+
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());
+        UUID[] boundDuringAssemble = new UUID[1];
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+        when(subscriptionModuleRepository.findByTenantIdAndRevokedOnIsNull(TENANT_ID))
+                .thenReturn(List.of(new SubscriptionModule(TENANT_ID, sub, PlatformModule.HRMS, LocalDate.now())));
+        when(checklistService.assemble(TENANT_ID)).thenAnswer(invocation -> {
+            boundDuringAssemble[0] = TenantContext.require();
+            return List.of();
+        });
+
+        serviceWithChecklist.updateModules(TENANT_ID, Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
+
+        // One callback binds the connection to the target, the other is the stored procedure.
+        verify(jdbcTemplate, times(2)).execute(any(ConnectionCallback.class));
+        assertThat(boundDuringAssemble[0]).isEqualTo(TENANT_ID);
+        assertThat(TenantContext.require()).isEqualTo(platformTenant);
     }
 
     @Test

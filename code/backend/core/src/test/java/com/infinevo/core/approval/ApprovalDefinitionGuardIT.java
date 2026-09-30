@@ -15,6 +15,7 @@ import com.infinevo.shared.test.RedisTestContainerInitializer;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -120,5 +121,12 @@ class ApprovalDefinitionGuardIT extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(body))
                         .with(jwt().jwt(b -> b.subject(adminSub.toString()).claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isOk());
+    }
+
+    // Instances reference employees. Left behind, they block every later suite that wipes
+    // core.employee (attendance, employee, org, job, lop) with a foreign-key error.
+    @AfterAll
+    static void clearApprovalRows() throws Exception {
+        ApprovalTestSchema.clearAll();
     }
 }

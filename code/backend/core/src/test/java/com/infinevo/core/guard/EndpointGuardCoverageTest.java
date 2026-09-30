@@ -40,7 +40,9 @@ class EndpointGuardCoverageTest {
             "recipient only (W-20.1 spec section 4): every member reads their own notifications and nobody"
                     + " else's; the query is scoped to tenant and recipient, so there is no action to hold",
             "com.infinevo.core.navigation.NavigationController",
-            "every signed-in user has a menu; items inside are filtered by module and action (W-12.3)");
+            "every signed-in user has a menu; items inside are filtered by module and action (W-12.3)",
+            "com.infinevo.core.invitation.InvitationAcceptanceController",
+            "unauthenticated single-use bearer token endpoints for invitation acceptance and decline (W-24.2)");
 
     @Test
     @DisplayName("every mapped method in core and shared names the action it requires")

@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -128,5 +129,12 @@ class ApprovalRlsIT extends AbstractIntegrationTest {
         // 3. Raw connection under app_user RLS proves zero visible steps in Tenant A
         assertThat(ApprovalTestSchema.visibleStepCount(TENANT_A)).isEqualTo(0);
         assertThat(ApprovalTestSchema.visibleStepCount(TENANT_B)).isEqualTo(1);
+    }
+
+    // Instances reference employees. Left behind, they block every later suite that wipes
+    // core.employee (attendance, employee, org, job, lop) with a foreign-key error.
+    @AfterAll
+    static void clearApprovalRows() throws Exception {
+        ApprovalTestSchema.clearAll();
     }
 }

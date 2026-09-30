@@ -13,16 +13,30 @@ import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 import javax.sql.DataSource;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.context.TypeExcludeFilter;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * Spring Boot test application for the payroll integration tests (W-26.1, W-26.2).
  */
-@SpringBootApplication(
-        scanBasePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
+// The scan skips the narrower test applications under com.infinevo.payroll (PayScheduleTestApp):
+// picking one up re-runs its @EnableJpaRepositories and registers its repositories twice.
+@SpringBootConfiguration
+@EnableAutoConfiguration
+@ComponentScan(
+        basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"},
+        excludeFilters = {
+            @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+            @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
+            @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
+        })
 @EntityScan(basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})
 @EnableJpaRepositories(
         basePackages = {"com.infinevo.payroll", "com.infinevo.core.approval", "com.infinevo.core.payinput"})

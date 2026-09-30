@@ -45,6 +45,27 @@ public final class ApprovalTestSchema {
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
             }
+            // The Employee entity maps the V014 org columns and the V026 login link. Whichever
+            // test schema runs first creates core.employee for every IT sharing the container,
+            // so each one has to bring the table up to what the entity reads.
+            if (!tableExists(conn, "department")) {
+                executeResource(conn, "db/migration/core/V011__department.sql");
+            }
+            if (!tableExists(conn, "designation")) {
+                executeResource(conn, "db/migration/core/V012__designation.sql");
+            }
+            if (!tableExists(conn, "work_location")) {
+                executeResource(conn, "db/migration/core/V013__work_location.sql");
+            }
+            if (!columnExists(conn, "employee", "department_id")) {
+                executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
+            if (!tableExists(conn, "user_account")) {
+                executeResource(conn, "db/migration/core/V009__user_account.sql");
+            }
+            if (!columnExists(conn, "employee", "user_account_id")) {
+                executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
+            }
             if (!tableExists(conn, "reporting_line")) {
                 executeResource(conn, "db/migration/core/V028__reporting_line.sql");
             }
@@ -193,6 +214,20 @@ public final class ApprovalTestSchema {
         try (PreparedStatement ps =
                 conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
             ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                """
+                SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'core' AND table_name = ? AND column_name = ?
+                """)) {
+            ps.setString(1, table);
+            ps.setString(2, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

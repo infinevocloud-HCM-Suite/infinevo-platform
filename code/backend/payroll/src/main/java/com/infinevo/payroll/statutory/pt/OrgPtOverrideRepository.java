@@ -12,4 +12,6 @@ public interface OrgPtOverrideRepository extends JpaRepository<OrgPtOverride, UU
     Optional<OrgPtOverride> findByTenantIdAndStateCode(UUID tenantId, String stateCode);
 
     void deleteByTenantIdAndStateCode(UUID tenantId, String stateCode);
+
+    boolean existsByTenantId(UUID tenantId);
 }

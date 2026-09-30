@@ -108,4 +108,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
             @Param("status") EmploymentStatus status,
             @Param("includeDeleted") boolean includeDeleted,
             Pageable pageable);
+
+    /** True if at least one active (non-deleted) employee exists in this tenant (W-24.1 setup checker). */
+    boolean existsByTenantIdAndDeletedFalse(UUID tenantId);
 }

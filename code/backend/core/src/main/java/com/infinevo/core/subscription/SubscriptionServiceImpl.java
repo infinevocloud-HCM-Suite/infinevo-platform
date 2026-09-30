@@ -2,6 +2,7 @@ package com.infinevo.core.subscription;
 
 import com.infinevo.shared.authz.PermissionCache;
 import com.infinevo.shared.entitlement.PlatformModule;
+import com.infinevo.shared.tenant.TenantContext;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -11,6 +12,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,18 +37,55 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final SubscriptionModuleRepository subscriptionModuleRepository;
     private final JdbcTemplate jdbcTemplate;
     private final PermissionCache permissionCache;
+    private final com.infinevo.core.setup.SetupChecklistService setupChecklistService;
 
     public SubscriptionServiceImpl(
             SubscriptionRepository subscriptionRepository,
             SubscriptionModuleRepository subscriptionModuleRepository,
             JdbcTemplate jdbcTemplate,
             PermissionCache permissionCache) {
+        this(
+                subscriptionRepository,
+                subscriptionModuleRepository,
+                jdbcTemplate,
+                permissionCache,
+                (com.infinevo.core.setup.SetupChecklistService) null);
+    }
+
+    // The constructor Spring uses. With more than one constructor Spring needs one marked,
+    // or it falls back to a no-arg constructor that does not exist. ObjectProvider keeps
+    // contexts that do not scan SetupChecklistService (the guard test slices) starting.
+    @Autowired
+    public SubscriptionServiceImpl(
+            SubscriptionRepository subscriptionRepository,
+            SubscriptionModuleRepository subscriptionModuleRepository,
+            JdbcTemplate jdbcTemplate,
+            PermissionCache permissionCache,
+            org.springframework.beans.factory.ObjectProvider<com.infinevo.core.setup.SetupChecklistService>
+                    setupChecklistServiceProvider) {
         this.subscriptionRepository =
                 Objects.requireNonNull(subscriptionRepository, "subscriptionRepository must not be null");
         this.subscriptionModuleRepository =
                 Objects.requireNonNull(subscriptionModuleRepository, "subscriptionModuleRepository must not be null");
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.permissionCache = Objects.requireNonNull(permissionCache, "permissionCache must not be null");
+        this.setupChecklistService =
+                setupChecklistServiceProvider != null ? setupChecklistServiceProvider.getIfAvailable() : null;
+    }
+
+    public SubscriptionServiceImpl(
+            SubscriptionRepository subscriptionRepository,
+            SubscriptionModuleRepository subscriptionModuleRepository,
+            JdbcTemplate jdbcTemplate,
+            PermissionCache permissionCache,
+            com.infinevo.core.setup.SetupChecklistService setupChecklistService) {
+        this.subscriptionRepository =
+                Objects.requireNonNull(subscriptionRepository, "subscriptionRepository must not be null");
+        this.subscriptionModuleRepository =
+                Objects.requireNonNull(subscriptionModuleRepository, "subscriptionModuleRepository must not be null");
+        this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
+        this.permissionCache = Objects.requireNonNull(permissionCache, "permissionCache must not be null");
+        this.setupChecklistService = setupChecklistService;
     }
 
     @Override
@@ -69,6 +109,35 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     public SubscriptionResponse updateModules(UUID tenantId, Set<PlatformModule> modules) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Set<PlatformModule> targetSet = modules != null ? modules : Set.of();
+
+        // A platform administrator changes another tenant's modules while bound to their own.
+        // Row-level security on core.subscription and core.tenant_setup_step would then hide the
+        // target's subscription and refuse its checklist rows, so the thread and the open
+        // transaction are rebound to the target first — the same move as
+        // TenantServiceImpl.assembleChecklistAs. The binding lasts until this transaction ends.
+        UUID previousTenant = TenantContext.current().orElse(null);
+        boolean rebind = !tenantId.equals(previousTenant);
+        if (rebind) {
+            TenantContext.set(tenantId);
+            jdbcTemplate.execute((ConnectionCallback<Void>) conn -> {
+                TenantContext.setForConnection(conn);
+                return null;
+            });
+        }
+        try {
+            return applyModules(tenantId, targetSet);
+        } finally {
+            if (rebind) {
+                if (previousTenant != null) {
+                    TenantContext.set(previousTenant);
+                } else {
+                    TenantContext.clear();
+                }
+            }
+        }
+    }
+
+    private SubscriptionResponse applyModules(UUID tenantId, Set<PlatformModule> targetSet) {
 
         // 1. Verify subscription exists
         Subscription subscription = subscriptionRepository
@@ -101,6 +170,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         // 5. Bump cache version to invalidate cached permissions and entitlements
         permissionCache.bumpVersion(tenantId);
+
+        // 6. Eagerly assemble setup checklist for tenant with updated modules
+        if (setupChecklistService != null) {
+            setupChecklistService.assemble(tenantId);
+        }
 
         return toResponse(subscription, targetSet);
     }

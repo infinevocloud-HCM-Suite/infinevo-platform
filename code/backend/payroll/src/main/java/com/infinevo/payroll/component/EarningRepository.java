@@ -25,4 +25,6 @@ public interface EarningRepository extends JpaRepository<Earning, UUID> {
     boolean existsByTenantIdAndCodeAndIdNot(UUID tenantId, String code, UUID id);
 
     boolean existsByTenantIdAndParentEarningIdAndDeletedFalse(UUID tenantId, UUID parentEarningId);
+
+    boolean existsByTenantIdAndDeletedFalse(UUID tenantId);
 }

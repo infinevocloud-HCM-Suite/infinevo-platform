@@ -1,0 +1,98 @@
+package com.infinevo.core.setup;
+
+import com.infinevo.shared.entitlement.PlatformModule;
+import com.infinevo.shared.identity.UserProfileSyncService;
+import java.util.UUID;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.context.TypeExcludeFilter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+
+/**
+ * Spring Boot application context for setup checklist integration tests (W-24.1).
+ */
+@SpringBootConfiguration
+@EnableAutoConfiguration
+@ComponentScan(
+        basePackages = {
+            "com.infinevo.core.setup",
+            "com.infinevo.core.subscription",
+            "com.infinevo.core.tenant",
+            "com.infinevo.core.org",
+            "com.infinevo.core.employee",
+            "com.infinevo.shared.authz"
+        },
+        excludeFilters = {
+            @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+            @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
+        })
+// shared.identity: EmployeeServiceImpl needs UserAccountRepository since W-13.4.
+@EntityScan(
+        basePackages = {
+            "com.infinevo.core.setup",
+            "com.infinevo.core.subscription",
+            "com.infinevo.core.org",
+            "com.infinevo.core.employee",
+            "com.infinevo.shared.identity"
+        })
+@EnableJpaRepositories(
+        basePackages = {
+            "com.infinevo.core.setup",
+            "com.infinevo.core.subscription",
+            "com.infinevo.core.org",
+            "com.infinevo.core.employee",
+            "com.infinevo.shared.identity"
+        })
+// UserProfileSyncService: EmployeeServiceImpl constructor dependency since W-13.4.
+@Import(UserProfileSyncService.class)
+public class SetupChecklistTestApp {
+
+    @Bean
+    SetupStepChecker payScheduleChecker() {
+        return stubChecker("PAY_SCHEDULE");
+    }
+
+    @Bean
+    SetupStepChecker salaryComponentsChecker() {
+        return stubChecker("SALARY_COMPONENTS");
+    }
+
+    @Bean
+    SetupStepChecker epfChecker() {
+        return stubChecker("EPF");
+    }
+
+    @Bean
+    SetupStepChecker esiChecker() {
+        return stubChecker("ESI");
+    }
+
+    @Bean
+    SetupStepChecker ptaxChecker() {
+        return stubChecker("PROFESSIONAL_TAX");
+    }
+
+    private SetupStepChecker stubChecker(String code) {
+        return new SetupStepChecker() {
+            @Override
+            public String code() {
+                return code;
+            }
+
+            @Override
+            public PlatformModule module() {
+                return PlatformModule.PAYROLL;
+            }
+
+            @Override
+            public boolean isComplete(UUID tenantId) {
+                return false;
+            }
+        };
+    }
+}

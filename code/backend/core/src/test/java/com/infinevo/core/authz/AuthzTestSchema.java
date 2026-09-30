@@ -112,6 +112,15 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "attendance")) {
                         executeResource(conn, "db/migration/core/V030__attendance.sql");
                     }
+                    // W-24.1: tenant setup step
+                    executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
+                    // W-17: holiday calendar
+                    executeResource(conn, "db/migration/core/V036__holiday_calendar.sql");
+                    // W-24.2: user and employee invitations
+                    executeResource(conn, "db/migration/core/V117__user_invitation.sql");
+                    executeResource(conn, "db/migration/core/V118__employee_invitation.sql");
+                    // W-18.1: loss-of-pay policy
+                    executeResource(conn, "db/migration/core/V116__lop_policy.sql");
                 }
 
             } catch (Exception e) {
@@ -129,7 +138,7 @@ public final class AuthzTestSchema {
                 PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD);
     }
 
-    static Connection appConnection() throws SQLException {
+    public static Connection appConnection() throws SQLException {
         return DriverManager.getConnection(
                 jdbcUrl(),
                 PostgresTestContainerInitializer.APP_USER,

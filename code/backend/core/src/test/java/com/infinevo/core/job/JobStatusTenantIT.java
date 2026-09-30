@@ -115,16 +115,21 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
             if (tableExists(conn, "employee_personal")) {
                 conn.createStatement().execute("DELETE FROM core.employee_personal");
             }
+            // employee_invitation (V118) references employee without ON DELETE CASCADE — must go first
+            if (tableExists(conn, "employee_invitation")) {
+                conn.createStatement().execute("DELETE FROM core.employee_invitation");
+            }
             if (tableExists(conn, "employee")) {
                 conn.createStatement().execute("DELETE FROM core.employee");
             }
             if (tableExists(conn, "user_account")) {
                 conn.createStatement().execute("DELETE FROM core.user_account");
             }
-            conn.createStatement().execute("DELETE FROM core.tenant");
-
-            try (PreparedStatement ps =
-                    conn.prepareStatement("INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?)")) {
+            // No blanket DELETE FROM core.tenant: tenants provisioned by other classes (LopPolicySeedIT,
+            // TenantCreationIT) carry subscription and policy rows this class does not know about.
+            // The two tenants are only foreign-key targets here, so keeping them is enough.
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
                 ps.setObject(1, TENANT_A);
                 ps.setString(2, "Tenant A");
                 ps.executeUpdate();
