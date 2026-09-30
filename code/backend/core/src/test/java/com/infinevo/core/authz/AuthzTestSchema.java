@@ -132,6 +132,15 @@ public final class AuthzTestSchema {
                         executeResource(conn, "db/migration/core/V114__leave_request.sql");
                         executeResource(conn, "db/migration/core/V115__leave_request_document.sql");
                     }
+                    if (!tableExists(conn, "core", "pay_input")) {
+                        executeResource(conn, "db/migration/core/V031__pay_input.sql");
+                    }
+                    if (!tableExists(conn, "core", "leave_consumption")) {
+                        executeResource(conn, "db/migration/core/V116__leave_consumption.sql");
+                    }
+                    if (!tableExists(conn, "core", "leave_monthly_lop")) {
+                        executeResource(conn, "db/migration/core/V117__leave_monthly_lop.sql");
+                    }
                 }
 
             } catch (Exception e) {

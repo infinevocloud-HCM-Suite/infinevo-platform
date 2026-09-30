@@ -18,6 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
  * App user must be refused UPDATE and DELETE.
  */
 @SpringBootTest(classes = LeaveTestApp.class)
+@org.springframework.test.context.ContextConfiguration(
+        initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveConsumptionImmutabilityIT extends AbstractIntegrationTest {
 
     @BeforeAll

@@ -44,6 +44,9 @@ class LeaveAccrualJobIT extends AbstractIntegrationTest {
     @Autowired
     private DataSource dataSource;
 
+    @Autowired
+    private LeaveAccrualJob leaveAccrualJob;
+
     @BeforeAll
     static void initSchema() throws Exception {
         try (Connection conn = DriverManager.getConnection(
@@ -99,6 +102,7 @@ class LeaveAccrualJobIT extends AbstractIntegrationTest {
                     startLatch.await();
                     executor.executeWithLock(
                             (Runnable) () -> {
+                                leaveAccrualJob.run();
                                 executionCount.incrementAndGet();
                                 try {
                                     Thread.sleep(600);
@@ -107,6 +111,7 @@ class LeaveAccrualJobIT extends AbstractIntegrationTest {
                                 }
                             },
                             lockConfig);
+
                 } catch (Exception ignored) {
                 } finally {
                     finishLatch.countDown();

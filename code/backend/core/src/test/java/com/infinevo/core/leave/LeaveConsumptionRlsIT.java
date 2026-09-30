@@ -20,6 +20,8 @@ import org.springframework.boot.test.context.SpringBootTest;
  * Integration test verifying Row-Level Security for leave_consumption and leave_monthly_lop (W-16.4a, spec section 7).
  */
 @SpringBootTest(classes = LeaveTestApp.class)
+@org.springframework.test.context.ContextConfiguration(
+        initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveConsumptionRlsIT extends AbstractIntegrationTest {
 
     private static UUID empA;
@@ -41,8 +43,11 @@ class LeaveConsumptionRlsIT extends AbstractIntegrationTest {
             typeA = insertLeaveType(conn, TENANT_A, "AL-A", "Annual Leave A");
             typeB = insertLeaveType(conn, TENANT_B, "AL-B", "Annual Leave B");
 
-            allocA = insertAllocation(conn, TENANT_A, empA, typeA, "2026", new BigDecimal("20.00"));
-            allocB = insertAllocation(conn, TENANT_B, empB, typeB, "2026", new BigDecimal("20.00"));
+            UUID policyA = insertPolicy(conn, TENANT_A, typeA);
+            UUID policyB = insertPolicy(conn, TENANT_B, typeB);
+
+            allocA = insertAllocation(conn, TENANT_A, empA, typeA, policyA, "2026", new BigDecimal("20.00"));
+            allocB = insertAllocation(conn, TENANT_B, empB, typeB, policyB, "2026", new BigDecimal("20.00"));
 
             // Insert consumption in Tenant A and Tenant B
             insertConsumption(conn, TENANT_A, empA, allocA, new BigDecimal("3.00"), "2026-04");
@@ -87,19 +92,39 @@ class LeaveConsumptionRlsIT extends AbstractIntegrationTest {
         return id;
     }
 
+    private static UUID insertPolicy(Connection conn, UUID tenantId, UUID leaveTypeId) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO core.leave_policy (id, tenant_id, leave_type_id, annual_days, exceed_balance_mode, effective_from) "
+                        + "VALUES (?, ?, ?, 20.00, 'noLimit', '2026-01-01')")) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.setObject(3, leaveTypeId);
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
     private static UUID insertAllocation(
-            Connection conn, UUID tenantId, UUID employeeId, UUID leaveTypeId, String year, BigDecimal days)
+            Connection conn,
+            UUID tenantId,
+            UUID employeeId,
+            UUID leaveTypeId,
+            UUID policyId,
+            String year,
+            BigDecimal days)
             throws SQLException {
         UUID id = UUID.randomUUID();
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO core.leave_allocation (id, tenant_id, employee_id, leave_type_id, leave_year, year_start_date, year_end_date, entitlement_days, pro_rate_factor, carry_forward_days) "
-                        + "VALUES (?, ?, ?, ?, ?, '2026-01-01', '2026-12-31', ?, 1.0, 0)")) {
+                "INSERT INTO core.leave_allocation (id, tenant_id, employee_id, leave_type_id, policy_id, leave_year, year_start_date, year_end_date, entitlement_days, pro_rate_factor, carried_forward_days) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, '2026-01-01', '2026-12-31', ?, 1.0, 0)")) {
             ps.setObject(1, id);
             ps.setObject(2, tenantId);
             ps.setObject(3, employeeId);
             ps.setObject(4, leaveTypeId);
-            ps.setString(5, year);
-            ps.setBigDecimal(6, days);
+            ps.setObject(5, policyId);
+            ps.setString(6, year);
+            ps.setBigDecimal(7, days);
             ps.executeUpdate();
         }
         return id;

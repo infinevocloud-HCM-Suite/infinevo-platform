@@ -20,6 +20,10 @@ CREATE TABLE core.leave_monthly_lop (
 
 CREATE INDEX idx_leave_monthly_lop_tenant_emp_period ON core.leave_monthly_lop (tenant_id, employee_id, period);
 CREATE INDEX idx_leave_monthly_lop_tenant_request ON core.leave_monthly_lop (tenant_id, leave_request_id);
+CREATE INDEX idx_leave_monthly_lop_tenant_type ON core.leave_monthly_lop (tenant_id, leave_type_id);
+CREATE INDEX idx_leave_monthly_lop_tenant_reverses ON core.leave_monthly_lop (tenant_id, reverses_id);
+CREATE INDEX idx_leave_monthly_lop_tenant_pay_input ON core.leave_monthly_lop (tenant_id, pay_input_id);
+
 
 ALTER TABLE core.leave_monthly_lop ENABLE ROW LEVEL SECURITY;
 

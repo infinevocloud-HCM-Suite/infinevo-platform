@@ -55,8 +55,26 @@ public final class LeaveTestSchema {
             if (!tableExists(conn, "work_location")) {
                 executeResource(conn, "db/migration/core/V013__work_location.sql");
             }
+            if (!tableExists(conn, "user_account")) {
+                executeResource(conn, "db/migration/core/V009__user_account.sql");
+            }
             if (!columnExists(conn, "employee", "department_id")) {
                 executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
+            if (!columnExists(conn, "employee", "user_account_id")) {
+                executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
+            }
+            if (!tableExists(conn, "reference", "action")) {
+                executeResource(conn, "db/migration/reference/V020__action.sql");
+            }
+            if (!tableExists(conn, "role")) {
+                executeResource(conn, "db/migration/core/V021__role.sql");
+            }
+            if (!tableExists(conn, "role_action")) {
+                executeResource(conn, "db/migration/core/V022__role_action.sql");
+            }
+            if (!actionExists(conn, "core.document.read_own")) {
+                executeResource(conn, "db/migration/core/V025__catalogue_correction.sql");
             }
             if (!tableExists(conn, "document")) {
                 executeResource(conn, "db/migration/core/V037__document.sql");
@@ -93,6 +111,12 @@ public final class LeaveTestSchema {
             }
             if (!tableExists(conn, "pay_input")) {
                 executeResource(conn, "db/migration/core/V031__pay_input.sql");
+            }
+            if (!tableExists(conn, "pay_input_period_lock")) {
+                executeResource(conn, "db/migration/core/V032__pay_input_period_lock.sql");
+            }
+            if (!columnExists(conn, "pay_input_period_lock", "run_ref")) {
+                executeResource(conn, "db/migration/core/V060__pay_input_run_ref.sql");
             }
             if (!tableExists(conn, "leave_consumption")) {
                 executeResource(conn, "db/migration/core/V116__leave_consumption.sql");
@@ -141,6 +165,9 @@ public final class LeaveTestSchema {
             }
             if (tableExists(conn, "leave_consumption")) {
                 stmt.execute("DELETE FROM core.leave_consumption");
+            }
+            if (tableExists(conn, "pay_input_period_lock")) {
+                stmt.execute("DELETE FROM core.pay_input_period_lock");
             }
             if (tableExists(conn, "pay_input")) {
                 stmt.execute("DELETE FROM core.pay_input");
@@ -306,14 +333,19 @@ public final class LeaveTestSchema {
         }
     }
 
-    private static boolean tableExists(Connection conn, String table) throws SQLException {
+    private static boolean tableExists(Connection conn, String schema, String table) throws SQLException {
         try (PreparedStatement ps =
-                conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
-            ps.setString(1, table);
+                conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = ? AND tablename = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
         }
+    }
+
+    private static boolean tableExists(Connection conn, String table) throws SQLException {
+        return tableExists(conn, "core", table);
     }
 
     private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
@@ -321,6 +353,15 @@ public final class LeaveTestSchema {
                 "SELECT 1 FROM information_schema.columns WHERE table_schema = 'core' AND table_name = ? AND column_name = ?")) {
             ps.setString(1, table);
             ps.setString(2, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean actionExists(Connection conn, String code) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM reference.action WHERE code = ?")) {
+            ps.setString(1, code);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

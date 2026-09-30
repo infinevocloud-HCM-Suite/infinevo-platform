@@ -3,14 +3,17 @@ package com.infinevo.core.leave;
 import com.infinevo.core.approval.ApprovalFlowType;
 import com.infinevo.core.approval.ApprovalInstanceRepository;
 import com.infinevo.core.approval.ApprovalService;
-import com.infinevo.core.approval.InstanceStatus;
 import com.infinevo.core.approval.SubjectRef;
+import com.infinevo.core.document.Document;
+import com.infinevo.core.document.DocumentRepository;
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.org.WorkLocation;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -40,6 +43,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final ApprovalInstanceRepository approvalInstanceRepository;
     private final EmployeeRepository employeeRepository;
     private final LeaveConsumptionService leaveConsumptionService;
+    private final DocumentRepository documentRepository;
+    private final EmployeeService employeeService;
 
     public LeaveRequestServiceImpl(
             LeaveRequestRepository leaveRequestRepository,
@@ -53,6 +58,38 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             ApprovalInstanceRepository approvalInstanceRepository,
             EmployeeRepository employeeRepository,
             LeaveConsumptionService leaveConsumptionService) {
+        this(
+                leaveRequestRepository,
+                leaveRequestDocumentRepository,
+                leaveTypeRepository,
+                leavePolicyRepository,
+                leaveEligibilityService,
+                leaveBalanceService,
+                workingDayCalculator,
+                approvalService,
+                approvalInstanceRepository,
+                employeeRepository,
+                leaveConsumptionService,
+                null,
+                null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LeaveRequestServiceImpl(
+            LeaveRequestRepository leaveRequestRepository,
+            LeaveRequestDocumentRepository leaveRequestDocumentRepository,
+            LeaveTypeRepository leaveTypeRepository,
+            LeavePolicyRepository leavePolicyRepository,
+            LeaveEligibilityService leaveEligibilityService,
+            LeaveBalanceService leaveBalanceService,
+            WorkingDayCalculator workingDayCalculator,
+            ApprovalService approvalService,
+            ApprovalInstanceRepository approvalInstanceRepository,
+            EmployeeRepository employeeRepository,
+            LeaveConsumptionService leaveConsumptionService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+                    DocumentRepository documentRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) EmployeeService employeeService) {
         this.leaveRequestRepository = Objects.requireNonNull(leaveRequestRepository);
         this.leaveRequestDocumentRepository = Objects.requireNonNull(leaveRequestDocumentRepository);
         this.leaveTypeRepository = Objects.requireNonNull(leaveTypeRepository);
@@ -64,6 +101,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         this.approvalInstanceRepository = Objects.requireNonNull(approvalInstanceRepository);
         this.employeeRepository = Objects.requireNonNull(employeeRepository);
         this.leaveConsumptionService = Objects.requireNonNull(leaveConsumptionService);
+        this.documentRepository = documentRepository;
+        this.employeeService = employeeService;
     }
 
     @Override
@@ -99,6 +138,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                                 tenantId, leaveTypeId, fromDate);
 
         validatePolicyConstraints(policyOpt.orElse(null), fromDate, request.documentIds());
+        validateDocuments(tenantId, employeeId, request.documentIds());
 
         UUID workLocationId = employeeRepository
                 .findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId)
@@ -121,7 +161,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
 
         boolean submit = request.shouldSubmit();
         if (submit) {
-            validateBalanceLimit(policyOpt.orElse(null), tenantId, employeeId, leaveTypeId, fromDate, workingDays);
+            validateBalanceLimit(
+                    policyOpt.orElse(null), tenantId, employeeId, leaveTypeId, fromDate, workingDays, null);
         }
 
         LeaveRequestStatus status = submit ? LeaveRequestStatus.PENDING : LeaveRequestStatus.DRAFT;
@@ -163,6 +204,16 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         Objects.requireNonNull(request, "request must not be null");
 
         UUID employeeId = Objects.requireNonNull(request.employeeId(), "employeeId must not be null");
+
+        // Reject self-on-behalf (W-16.3 review item 20)
+        if (employeeService != null) {
+            employeeService.currentEmployee().ifPresent(caller -> {
+                if (caller.id() != null && caller.id().equals(employeeId)) {
+                    throw new IllegalArgumentException("Cannot create leave request on behalf of oneself");
+                }
+            });
+        }
+
         LocalDate fromDate = Objects.requireNonNull(request.fromDate(), "fromDate must not be null");
         LocalDate toDate = Objects.requireNonNull(request.toDate(), "toDate must not be null");
         boolean isHalfDay = Boolean.TRUE.equals(request.isHalfDay());
@@ -190,6 +241,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                                 tenantId, leaveTypeId, fromDate);
 
         validatePolicyConstraints(policyOpt.orElse(null), fromDate, request.documentIds());
+        validateDocuments(tenantId, employeeId, request.documentIds());
 
         UUID workLocationId = employeeRepository
                 .findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId)
@@ -201,6 +253,9 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 fromDate, toDate, isHalfDay, policyOpt.orElse(null), workLocationId);
 
         checkOverlap(tenantId, employeeId, fromDate, toDate, null);
+
+        // Balance limit check on-behalf too (W-16.3 review item 20)
+        validateBalanceLimit(policyOpt.orElse(null), tenantId, employeeId, leaveTypeId, fromDate, workingDays, null);
 
         // Administrator data entry (D-35): created APPROVED without an approval instance
         LeaveRequest entity = new LeaveRequest(
@@ -240,7 +295,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .findByIdAndTenantId(requestId, tenantId)
                 .orElseThrow(() -> new NoSuchElementException("Leave request not found: " + requestId));
 
-        if (req.getStatus() != LeaveRequestStatus.DRAFT) {
+        if (!req.getStatus().canTransitionTo(LeaveRequestStatus.PENDING)) {
             throw new IllegalStateException(
                     "Only DRAFT leave requests can be submitted; current status: " + req.getStatus());
         }
@@ -258,13 +313,15 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                         .toList();
 
         validatePolicyConstraints(policyOpt.orElse(null), req.getFromDate(), docIds);
+        validateDocuments(tenantId, req.getEmployeeId(), docIds);
         validateBalanceLimit(
                 policyOpt.orElse(null),
                 tenantId,
                 req.getEmployeeId(),
                 req.getLeaveTypeId(),
                 req.getFromDate(),
-                req.getWorkingDays());
+                req.getWorkingDays(),
+                req.getId());
 
         UUID instanceId = approvalService.start(
                 ApprovalFlowType.LEAVE, new SubjectRef("leave_request", req.getId()), req.getEmployeeId());
@@ -284,19 +341,13 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .findByIdAndTenantId(requestId, tenantId)
                 .orElseThrow(() -> new NoSuchElementException("Leave request not found: " + requestId));
 
-        if (req.getStatus() != LeaveRequestStatus.PENDING) {
+        if (!req.getStatus().canTransitionTo(LeaveRequestStatus.WITHDRAWN)) {
             throw new IllegalStateException(
                     "Only PENDING leave requests can be withdrawn; current status: " + req.getStatus());
         }
 
         if (req.getApprovalInstanceId() != null) {
-            approvalInstanceRepository.findById(req.getApprovalInstanceId()).ifPresent(inst -> {
-                if (inst.getStatus() == InstanceStatus.PENDING) {
-                    inst.setStatus(InstanceStatus.REJECTED);
-                    inst.setCompletedAt(Instant.now());
-                    approvalInstanceRepository.save(inst);
-                }
-            });
+            approvalService.cancelInstance(tenantId, req.getApprovalInstanceId(), reason);
         }
 
         req.setStatus(LeaveRequestStatus.WITHDRAWN);
@@ -322,12 +373,12 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .findByIdAndTenantId(requestId, tenantId)
                 .orElseThrow(() -> new NoSuchElementException("Leave request not found: " + requestId));
 
-        if (req.getStatus() != LeaveRequestStatus.APPROVED) {
+        if (!req.getStatus().canTransitionTo(LeaveRequestStatus.CANCELLED)) {
             throw new IllegalStateException(
                     "Only APPROVED leave requests can be cancelled; current status: " + req.getStatus());
         }
 
-        if (!LocalDate.now().isBefore(req.getFromDate())) {
+        if (!LocalDate.now(ZoneOffset.UTC).isBefore(req.getFromDate())) {
             throw new IllegalStateException(
                     "Leave request cannot be cancelled on or after start date: " + req.getFromDate());
         }
@@ -429,19 +480,33 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         }
     }
 
+    private void validateDocuments(UUID tenantId, UUID employeeId, List<UUID> docIds) {
+        if (docIds == null || docIds.isEmpty() || documentRepository == null) {
+            return;
+        }
+        for (UUID docId : docIds) {
+            Document doc = documentRepository
+                    .findByIdAndTenantIdAndDeletedFalse(docId, tenantId)
+                    .orElseThrow(() -> new IllegalArgumentException("Document not found in tenant: " + docId));
+            if (doc.getEmployeeId() != null && !doc.getEmployeeId().equals(employeeId)) {
+                throw new IllegalArgumentException("Document does not belong to employee: " + docId);
+            }
+        }
+    }
+
     private void validatePolicyConstraints(LeavePolicy policy, LocalDate fromDate, List<UUID> docIds) {
         if (policy == null) {
             return;
         }
         if (policy.getFutureBookingLimitDays() != null) {
-            LocalDate maxFuture = LocalDate.now().plusDays(policy.getFutureBookingLimitDays());
+            LocalDate maxFuture = LocalDate.now(ZoneOffset.UTC).plusDays(policy.getFutureBookingLimitDays());
             if (fromDate.isAfter(maxFuture)) {
                 throw new IllegalArgumentException(
                         "Request exceeds future booking limit of " + policy.getFutureBookingLimitDays() + " days");
             }
         }
         if (policy.getPastBookingLimitDays() != null) {
-            LocalDate minPast = LocalDate.now().minusDays(policy.getPastBookingLimitDays());
+            LocalDate minPast = LocalDate.now(ZoneOffset.UTC).minusDays(policy.getPastBookingLimitDays());
             if (fromDate.isBefore(minPast)) {
                 throw new IllegalArgumentException(
                         "Request exceeds past booking limit of " + policy.getPastBookingLimitDays() + " days");
@@ -458,7 +523,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             UUID employeeId,
             UUID leaveTypeId,
             LocalDate fromDate,
-            BigDecimal workingDays) {
+            BigDecimal workingDays,
+            UUID currentRequestId) {
         if (policy == null || policy.getExceedBalanceMode() == null) {
             return;
         }
@@ -473,9 +539,19 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     .map(LeaveBalanceResponse::remainingDays)
                     .orElse(BigDecimal.ZERO);
 
+            BigDecimal pendingDays = BigDecimal.ZERO;
+            List<LeaveRequest> pendingRequests =
+                    leaveRequestRepository.findByTenantIdAndEmployeeIdAndLeaveTypeIdAndStatus(
+                            tenantId, employeeId, leaveTypeId, LeaveRequestStatus.PENDING);
+            for (LeaveRequest pending : pendingRequests) {
+                if (currentRequestId == null || !pending.getId().equals(currentRequestId)) {
+                    pendingDays = pendingDays.add(pending.getWorkingDays());
+                }
+            }
+
             BigDecimal limit =
                     policy.getExceedBalanceLimitDays() != null ? policy.getExceedBalanceLimitDays() : BigDecimal.ZERO;
-            BigDecimal projected = currentRemaining.subtract(workingDays);
+            BigDecimal projected = currentRemaining.subtract(pendingDays).subtract(workingDays);
             if (projected.compareTo(limit.negate()) < 0) {
                 throw new IllegalStateException(
                         "Requested leave exceeds allowable negative balance limit of " + limit + " days");

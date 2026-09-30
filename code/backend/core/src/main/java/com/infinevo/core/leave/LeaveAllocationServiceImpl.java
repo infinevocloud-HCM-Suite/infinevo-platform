@@ -60,19 +60,18 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
                 .findByTenantIdAndId(tenantId, request.leaveTypeId())
                 .orElseThrow(() -> new IllegalArgumentException("Leave type not found: " + request.leaveTypeId()));
 
-        // Lookup employee joining date for pro-rate factor
+        // Lookup employee joining and termination dates for pro-rate factor
         LocalDate joinDate = null;
+        LocalDate terminationDate = null;
         if (request.employeeId() != null) {
             Employee emp = employeeRepository
                     .findByIdAndTenantIdAndDeletedFalse(request.employeeId(), tenantId)
                     .orElse(null);
             if (emp != null) {
                 joinDate = emp.getDateOfJoining();
+                terminationDate = emp.getTerminationDate();
             }
         }
-
-        BigDecimal factor =
-                LeaveProRate.calculateFactor(request.yearStartDate(), request.yearEndDate(), joinDate, null);
 
         // Lookup policy effective on yearStartDate
         LeavePolicy policy = policyRepository
@@ -81,9 +80,17 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
                 .orElseThrow(() ->
                         new IllegalStateException("No effective policy found for leave type " + request.leaveTypeId()));
 
+        BigDecimal factor = BigDecimal.ONE;
+        if (Boolean.TRUE.equals(policy.getProRateEnabled())) {
+            factor = LeaveProRate.calculateFactor(
+                    request.yearStartDate(), request.yearEndDate(), joinDate, terminationDate);
+        }
+
         BigDecimal entitlementDays;
         if (request.openingDays() != null) {
             entitlementDays = request.openingDays();
+        } else if (Boolean.TRUE.equals(policy.getAccrualEnabled())) {
+            entitlementDays = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         } else {
             entitlementDays = LeaveProRate.calculateEntitlement(policy.getAnnualDays(), factor);
         }

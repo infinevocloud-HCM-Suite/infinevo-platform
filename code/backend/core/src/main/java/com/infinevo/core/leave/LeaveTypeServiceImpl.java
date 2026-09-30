@@ -21,16 +21,27 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     private final LeaveTypeRepository leaveTypeRepository;
     private final LeavePolicyRepository leavePolicyRepository;
     private final LeavePolicyEligibilityRepository eligibilityRepository;
+    private final LeaveAllocationService leaveAllocationService;
 
     public LeaveTypeServiceImpl(
             LeaveTypeRepository leaveTypeRepository,
             LeavePolicyRepository leavePolicyRepository,
             LeavePolicyEligibilityRepository eligibilityRepository) {
+        this(leaveTypeRepository, leavePolicyRepository, eligibilityRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public LeaveTypeServiceImpl(
+            LeaveTypeRepository leaveTypeRepository,
+            LeavePolicyRepository leavePolicyRepository,
+            LeavePolicyEligibilityRepository eligibilityRepository,
+            LeaveAllocationService leaveAllocationService) {
         this.leaveTypeRepository = Objects.requireNonNull(leaveTypeRepository, "leaveTypeRepository must not be null");
         this.leavePolicyRepository =
                 Objects.requireNonNull(leavePolicyRepository, "leavePolicyRepository must not be null");
         this.eligibilityRepository =
                 Objects.requireNonNull(eligibilityRepository, "eligibilityRepository must not be null");
+        this.leaveAllocationService = leaveAllocationService;
     }
 
     @Override
@@ -182,7 +193,20 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
                         : null);
         policy.setEffectiveFrom(request.effectiveFrom());
 
+        LocalDate effectiveDate =
+                request.effectiveFrom() != null ? request.effectiveFrom() : LocalDate.now(ZoneOffset.UTC);
+
+        List<OverdrawnEmployee> overdrawn = List.of();
+        if (leaveAllocationService != null && request.annualDays() != null) {
+            overdrawn = leaveAllocationService.previewMidYearPolicyImpact(
+                    tenantId, leaveTypeId, request.annualDays(), effectiveDate);
+        }
+
         LeavePolicy savedPolicy = leavePolicyRepository.save(policy);
+
+        if (leaveAllocationService != null) {
+            leaveAllocationService.applyMidYearPolicyChange(tenantId, leaveTypeId, savedPolicy, effectiveDate);
+        }
 
         List<LeavePolicyEligibility> savedEligibilities = new ArrayList<>();
         if (request.eligibility() != null && !request.eligibility().isEmpty()) {
@@ -193,7 +217,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
             }
         }
 
-        return LeavePolicyResponse.from(savedPolicy, savedEligibilities);
+        return LeavePolicyResponse.from(savedPolicy, savedEligibilities, overdrawn);
     }
 
     @Override

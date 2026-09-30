@@ -34,6 +34,18 @@ CREATE TABLE core.leave_request (
 
 CREATE INDEX idx_leave_request_employee_date ON core.leave_request (tenant_id, employee_id, from_date DESC);
 CREATE INDEX idx_leave_request_status ON core.leave_request (tenant_id, status);
+CREATE INDEX idx_leave_request_tenant_type ON core.leave_request (tenant_id, leave_type_id);
+CREATE INDEX idx_leave_request_tenant_approval_inst ON core.leave_request (tenant_id, approval_instance_id);
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+ALTER TABLE core.leave_request
+    ADD CONSTRAINT no_overlapping_approved_leave
+    EXCLUDE USING gist (
+        tenant_id WITH =,
+        employee_id WITH =,
+        daterange(from_date, to_date, '[]') WITH &&
+    ) WHERE (status = 'APPROVED');
 
 ALTER TABLE core.leave_request ENABLE ROW LEVEL SECURITY;
 
@@ -45,3 +57,4 @@ CREATE POLICY tenant_isolation ON core.leave_request
         ELSE current_setting('app.current_tenant_id', true)::uuid
       END
     );
+

@@ -14,6 +14,7 @@ import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.shared.test.RedisTestContainerInitializer;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -61,6 +62,17 @@ class LeaveRequestOnBehalfIT extends AbstractIntegrationTest {
     @Autowired
     private LeaveRequestRepository leaveRequestRepository;
 
+    @Autowired
+    private LeavePolicyRepository leavePolicyRepository;
+
+    @Autowired
+    private LeaveAllocationRepository leaveAllocationRepository;
+
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager txManager;
+
+    private org.springframework.transaction.support.TransactionTemplate tx;
+
     private UUID tenantId;
     private UUID employeeUserSub;
     private UUID adminUserSub;
@@ -69,6 +81,7 @@ class LeaveRequestOnBehalfIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        tx = new org.springframework.transaction.support.TransactionTemplate(txManager);
         tenantId = AuthzTestSchema.insertTenant("LeaveOnBehalfIT " + UUID.randomUUID());
         TenantContext.set(tenantId);
 
@@ -101,6 +114,29 @@ class LeaveRequestOnBehalfIT extends AbstractIntegrationTest {
                         LocalDate.now().minusYears(1),
                         null));
         leaveTypeId = type.id();
+
+        LeavePolicy policy = new LeavePolicy();
+        policy.setTenantId(tenantId);
+        policy.setLeaveTypeId(leaveTypeId);
+        policy.setAnnualDays(new BigDecimal("20.00"));
+        policy.setEffectiveFrom(LocalDate.of(2024, 1, 1));
+        policy.setExceedBalanceMode(ExceedBalanceMode.NO_LIMIT);
+        policy = leavePolicyRepository.save(policy);
+
+        LeaveAllocation alloc = new LeaveAllocation(
+                tenantId,
+                targetEmpId,
+                leaveTypeId,
+                String.valueOf(LocalDate.now().getYear()),
+                LocalDate.of(LocalDate.now().getYear(), 1, 1),
+                LocalDate.of(LocalDate.now().getYear(), 12, 31),
+                new BigDecimal("20.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ONE,
+                policy.getId());
+        leaveAllocationRepository.save(alloc);
     }
 
     @AfterEach
@@ -154,8 +190,9 @@ class LeaveRequestOnBehalfIT extends AbstractIntegrationTest {
         assertThat(resp.approvalInstanceId()).isNull();
 
         // Verify in DB
-        LeaveRequest dbRecord =
-                leaveRequestRepository.findByIdAndTenantId(resp.id(), tenantId).orElseThrow();
+        TenantContext.set(tenantId);
+        LeaveRequest dbRecord = tx.execute(status ->
+                leaveRequestRepository.findByIdAndTenantId(resp.id(), tenantId).orElseThrow());
         assertThat(dbRecord.getStatus()).isEqualTo(LeaveRequestStatus.APPROVED);
         assertThat(dbRecord.isOnBehalf()).isTrue();
         assertThat(dbRecord.getApprovalInstanceId()).isNull();

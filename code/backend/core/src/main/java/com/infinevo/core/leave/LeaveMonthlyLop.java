@@ -2,26 +2,27 @@ package com.infinevo.core.leave;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 /**
  * Append-only monthly loss-of-pay delta record (W-16.4a, spec section 4 & 6).
  */
 @Entity
 @Table(name = "leave_monthly_lop", schema = "core")
-public class LeaveMonthlyLop {
+public class LeaveMonthlyLop implements Persistable<UUID> {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
@@ -46,7 +47,7 @@ public class LeaveMonthlyLop {
     @Column(name = "reverses_id", updatable = false)
     private UUID reversesId;
 
-    @Column(name = "pay_input_id", updatable = false)
+    @Column(name = "pay_input_id")
     private UUID payInputId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -61,7 +62,17 @@ public class LeaveMonthlyLop {
     @Column(name = "updated_by", nullable = false, length = 100)
     private String updatedBy = "system";
 
-    public LeaveMonthlyLop() {}
+    /**
+     * Transient flag for {@link Persistable}: tells Spring Data to use {@code persist()} (INSERT)
+     * instead of {@code merge()} even when the ID is pre-set. Required because V117 revokes UPDATE
+     * from app_user — this table is append-only.
+     */
+    @Transient
+    private boolean isNew = true;
+
+    public LeaveMonthlyLop() {
+        this.id = UUID.randomUUID();
+    }
 
     public LeaveMonthlyLop(
             UUID tenantId,
@@ -72,6 +83,7 @@ public class LeaveMonthlyLop {
             BigDecimal lopDays,
             UUID reversesId,
             UUID payInputId) {
+        this.id = UUID.randomUUID();
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
         this.employeeId = Objects.requireNonNull(employeeId, "employeeId must not be null");
         this.period = Objects.requireNonNull(period, "period must not be null");
@@ -80,6 +92,11 @@ public class LeaveMonthlyLop {
         this.lopDays = Objects.requireNonNull(lopDays, "lopDays must not be null");
         this.reversesId = reversesId;
         this.payInputId = payInputId;
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
     }
 
     @PrePersist
@@ -99,11 +116,18 @@ public class LeaveMonthlyLop {
         }
     }
 
+    @PostPersist
+    @PostLoad
+    void markNotNew() {
+        isNew = false;
+    }
+
     @PreUpdate
     void onPreUpdate() {
         updatedAt = Instant.now();
     }
 
+    @Override
     public UUID getId() {
         return id;
     }

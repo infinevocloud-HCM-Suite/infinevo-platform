@@ -22,12 +22,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ContextConfiguration;
 
 /**
  * Integration test verifying that LOP writes to core.pay_input as LOP_DAYS with delta row semantics (W-16.4a, spec section 7).
  */
 @SpringBootTest(classes = LeaveTestApp.class)
+@ContextConfiguration(initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LopToPayInputIT extends AbstractIntegrationTest {
+
+    @Autowired
+    private LeaveRequestRepository leaveRequestRepository;
 
     @Autowired
     private LeaveConsumptionService leaveConsumptionService;
@@ -47,6 +52,11 @@ class LopToPayInputIT extends AbstractIntegrationTest {
     @Autowired
     private PayInputService payInputService;
 
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager txManager;
+
+    private org.springframework.transaction.support.TransactionTemplate tx;
+
     private static UUID employeeId;
     private UUID leaveTypeId;
 
@@ -64,6 +74,7 @@ class LopToPayInputIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void setupData() {
+        tx = new org.springframework.transaction.support.TransactionTemplate(txManager);
         TenantContext.set(TENANT_A);
 
         LeaveTypeResponse tA = leaveTypeService.createLeaveType(
@@ -82,15 +93,16 @@ class LopToPayInputIT extends AbstractIntegrationTest {
         policy.setTenantId(TENANT_A);
         policy.setLeaveTypeId(leaveTypeId);
         policy.setAnnualDays(new BigDecimal("5.00"));
-        policy.setEffectiveFrom(LocalDate.now().minusMonths(1));
+        policy.setEffectiveFrom(LocalDate.of(2026, 1, 1));
         policy.setExceedBalanceMode(ExceedBalanceMode.MARK_AS_LOP); // Key setting: markAsLOP
-        leavePolicyRepository.save(policy);
+        policy = leavePolicyRepository.save(policy);
 
         // Give Charlie 2.00 days entitlement
         LeaveAllocation alloc = new LeaveAllocation();
         alloc.setTenantId(TENANT_A);
         alloc.setEmployeeId(employeeId);
         alloc.setLeaveTypeId(leaveTypeId);
+        alloc.setPolicyId(policy.getId());
         alloc.setLeaveYear("2026");
         alloc.setYearStartDate(LocalDate.of(2026, 1, 1));
         alloc.setYearEndDate(LocalDate.of(2026, 12, 31));
@@ -125,13 +137,14 @@ class LopToPayInputIT extends AbstractIntegrationTest {
                 LeaveRequestStatus.APPROVED,
                 null,
                 false);
-        req1.setId(UUID.randomUUID());
+        req1 = leaveRequestRepository.save(req1);
 
         leaveConsumptionService.consume(req1);
 
         // Check Monthly LOP row
-        List<LeaveMonthlyLop> lops1 = leaveMonthlyLopRepository.findByTenantIdAndEmployeeIdAndPeriodOrderByCreatedAtAsc(
-                TENANT_A, employeeId, "2026-04");
+        List<LeaveMonthlyLop> lops1 =
+                tx.execute(status -> leaveMonthlyLopRepository.findByTenantIdAndEmployeeIdAndPeriodOrderByCreatedAtAsc(
+                        TENANT_A, employeeId, "2026-04"));
         assertThat(lops1).hasSize(1);
         LeaveMonthlyLop firstLop = lops1.get(0);
         assertThat(firstLop.getLopDays()).isEqualByComparingTo("3.00");
@@ -159,13 +172,14 @@ class LopToPayInputIT extends AbstractIntegrationTest {
                 LeaveRequestStatus.APPROVED,
                 null,
                 false);
-        req2.setId(UUID.randomUUID());
+        req2 = leaveRequestRepository.save(req2);
 
         leaveConsumptionService.consume(req2);
 
         // Check that a SECOND delta row exists in LeaveMonthlyLop, NOT an update
-        List<LeaveMonthlyLop> lops2 = leaveMonthlyLopRepository.findByTenantIdAndEmployeeIdAndPeriodOrderByCreatedAtAsc(
-                TENANT_A, employeeId, "2026-04");
+        List<LeaveMonthlyLop> lops2 =
+                tx.execute(status -> leaveMonthlyLopRepository.findByTenantIdAndEmployeeIdAndPeriodOrderByCreatedAtAsc(
+                        TENANT_A, employeeId, "2026-04"));
         assertThat(lops2).hasSize(2);
         LeaveMonthlyLop secondLop = lops2.get(1);
         assertThat(secondLop.getLopDays()).isEqualByComparingTo("2.00");
@@ -179,5 +193,16 @@ class LopToPayInputIT extends AbstractIntegrationTest {
         PayInputListResponse payInputs2 = payInputService.forEmployee(employeeId, YearMonth.of(2026, 4));
         assertThat(payInputs2.rows()).hasSize(2);
         assertThat(payInputs2.quantityTotalsByKind().get(PayInputKind.LOP_DAYS)).isEqualByComparingTo("5.00");
+
+        // Cancel req2 and assert pay input reversal (W-16.4a review item 22)
+        leaveConsumptionService.cancel(req2, "Cancelled req2");
+
+        LopResponse lopRespAfterCancel = leaveConsumptionService.getLop(employeeId, YearMonth.of(2026, 4));
+        assertThat(lopRespAfterCancel.totalLopDays()).isEqualByComparingTo("3.00");
+
+        PayInputListResponse payInputsAfterCancel = payInputService.forEmployee(employeeId, YearMonth.of(2026, 4));
+        assertThat(payInputsAfterCancel.rows()).hasSize(3);
+        assertThat(payInputsAfterCancel.quantityTotalsByKind().get(PayInputKind.LOP_DAYS))
+                .isEqualByComparingTo("3.00");
     }
 }

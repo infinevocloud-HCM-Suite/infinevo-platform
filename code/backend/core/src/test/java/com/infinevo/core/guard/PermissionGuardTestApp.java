@@ -1,13 +1,16 @@
 package com.infinevo.core.guard;
 
+import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.shared.audit.AuditController;
 import com.infinevo.shared.audit.AuditQueryService;
 import com.infinevo.shared.cache.RedisConfig;
 import com.infinevo.shared.identity.UserProfileSyncService;
+import org.mockito.Mockito;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.TypeExcludeFilter;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
@@ -95,4 +98,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.shared.identity"
         })
 @Import({RedisConfig.class, UserProfileSyncService.class, AuditController.class, AuditQueryService.class})
-public class PermissionGuardTestApp {}
+public class PermissionGuardTestApp {
+
+    @Bean
+    public PayInputService payInputService() {
+        return Mockito.mock(PayInputService.class);
+    }
+}

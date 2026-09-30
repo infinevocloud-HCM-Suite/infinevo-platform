@@ -63,4 +63,7 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID
             Pageable pageable);
 
     List<LeaveRequest> findByTenantIdAndEmployeeId(UUID tenantId, UUID employeeId);
+
+    List<LeaveRequest> findByTenantIdAndEmployeeIdAndLeaveTypeIdAndStatus(
+            UUID tenantId, UUID employeeId, UUID leaveTypeId, LeaveRequestStatus status);
 }

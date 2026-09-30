@@ -22,6 +22,9 @@ CREATE TABLE core.leave_consumption (
 CREATE INDEX idx_leave_consumption_tenant_emp_period ON core.leave_consumption (tenant_id, employee_id, period);
 CREATE INDEX idx_leave_consumption_tenant_allocation ON core.leave_consumption (tenant_id, allocation_id);
 CREATE INDEX idx_leave_consumption_tenant_request ON core.leave_consumption (tenant_id, leave_request_id);
+CREATE INDEX idx_leave_consumption_tenant_reverses ON core.leave_consumption (tenant_id, reverses_id);
+CREATE UNIQUE INDEX uk_leave_consumption_request ON core.leave_consumption (tenant_id, leave_request_id) WHERE reverses_id IS NULL;
+
 
 ALTER TABLE core.leave_consumption ENABLE ROW LEVEL SECURITY;
 

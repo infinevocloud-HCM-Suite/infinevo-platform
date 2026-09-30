@@ -29,6 +29,8 @@ import org.springframework.boot.test.context.SpringBootTest;
  * </ul>
  */
 @SpringBootTest(classes = LeaveTestApp.class)
+@org.springframework.test.context.ContextConfiguration(
+        initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveCarryForwardExpiryIT extends AbstractIntegrationTest {
 
     @Autowired

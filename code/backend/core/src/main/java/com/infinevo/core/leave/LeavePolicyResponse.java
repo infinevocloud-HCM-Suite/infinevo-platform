@@ -35,9 +35,72 @@ public record LeavePolicyResponse(
         LocalDate effectiveFrom,
         List<LeavePolicyEligibilityResponse> eligibility,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        List<OverdrawnEmployee> overdrawnEmployees) {
+
+    public LeavePolicyResponse(
+            UUID id,
+            UUID leaveTypeId,
+            BigDecimal annualDays,
+            Boolean accrualEnabled,
+            AccrualFrequency accrualFrequency,
+            BigDecimal accrualUnits,
+            Boolean resetEnabled,
+            ResetFrequency resetFrequency,
+            Boolean carryForwardEnabled,
+            BigDecimal carryForwardCap,
+            Integer carryForwardExpiresAfterMonths,
+            boolean requiresDocument,
+            Integer pastBookingLimitDays,
+            Integer futureBookingLimitDays,
+            Boolean includeWeekend,
+            Boolean includeHoliday,
+            ExceedBalanceMode exceedBalanceMode,
+            BigDecimal exceedBalanceLimitDays,
+            Boolean proRateEnabled,
+            BigDecimal maxDaysPerApplication,
+            String gender,
+            LocalDate effectiveFrom,
+            List<LeavePolicyEligibilityResponse> eligibility,
+            Instant createdAt,
+            Instant updatedAt) {
+        this(
+                id,
+                leaveTypeId,
+                annualDays,
+                accrualEnabled,
+                accrualFrequency,
+                accrualUnits,
+                resetEnabled,
+                resetFrequency,
+                carryForwardEnabled,
+                carryForwardCap,
+                carryForwardExpiresAfterMonths,
+                requiresDocument,
+                pastBookingLimitDays,
+                futureBookingLimitDays,
+                includeWeekend,
+                includeHoliday,
+                exceedBalanceMode,
+                exceedBalanceLimitDays,
+                proRateEnabled,
+                maxDaysPerApplication,
+                gender,
+                effectiveFrom,
+                eligibility,
+                createdAt,
+                updatedAt,
+                Collections.emptyList());
+    }
 
     public static LeavePolicyResponse from(LeavePolicy policy, List<LeavePolicyEligibility> eligibilities) {
+        return from(policy, eligibilities, Collections.emptyList());
+    }
+
+    public static LeavePolicyResponse from(
+            LeavePolicy policy,
+            List<LeavePolicyEligibility> eligibilities,
+            List<OverdrawnEmployee> overdrawnEmployees) {
         if (policy == null) {
             return null;
         }
@@ -72,6 +135,7 @@ public record LeavePolicyResponse(
                 policy.getEffectiveFrom(),
                 eligibilityResponses,
                 policy.getCreatedAt(),
-                policy.getUpdatedAt());
+                policy.getUpdatedAt(),
+                overdrawnEmployees != null ? overdrawnEmployees : Collections.emptyList());
     }
 }

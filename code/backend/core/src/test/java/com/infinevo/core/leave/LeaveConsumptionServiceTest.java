@@ -241,17 +241,19 @@ class LeaveConsumptionServiceTest {
         // Verify consumption row
         verify(leaveConsumptionRepository, times(1)).save(any(LeaveConsumption.class));
 
-        // Verify LOP row saved and updated with payInputId
-        verify(leaveMonthlyLopRepository, times(2)).save(any(LeaveMonthlyLop.class));
+        // Verify LOP row saved with payInputId (single INSERT due to REVOKE UPDATE)
+        ArgumentCaptor<LeaveMonthlyLop> lopCaptor = ArgumentCaptor.forClass(LeaveMonthlyLop.class);
+        verify(leaveMonthlyLopRepository, times(1)).save(lopCaptor.capture());
+        LeaveMonthlyLop savedLop = lopCaptor.getValue();
 
-        // Verify PayInputService called with LOP_DAYS and lopId as sourceRef
+        // Verify PayInputService called with LOP_DAYS and savedLop's id as sourceRef
         ArgumentCaptor<PayInputCommand> payCaptor = ArgumentCaptor.forClass(PayInputCommand.class);
         verify(payInputService, times(1)).record(payCaptor.capture());
         PayInputCommand posted = payCaptor.getValue();
         assertThat(posted.employeeId()).isEqualTo(employeeId);
         assertThat(posted.kind()).isEqualTo(PayInputKind.LOP_DAYS);
         assertThat(posted.quantity()).isEqualByComparingTo("2.00");
-        assertThat(posted.sourceRef()).isEqualTo(lopId.toString());
+        assertThat(posted.sourceRef()).isEqualTo(savedLop.getId().toString());
     }
 
     @Test

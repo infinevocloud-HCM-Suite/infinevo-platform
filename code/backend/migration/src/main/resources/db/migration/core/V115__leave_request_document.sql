@@ -14,6 +14,8 @@ CREATE TABLE core.leave_request_document (
 );
 
 CREATE INDEX idx_leave_request_document_lookup ON core.leave_request_document (tenant_id, leave_request_id);
+CREATE INDEX idx_leave_request_document_tenant_doc ON core.leave_request_document (tenant_id, document_id);
+
 
 ALTER TABLE core.leave_request_document ENABLE ROW LEVEL SECURITY;
 

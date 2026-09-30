@@ -38,6 +38,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.approval",
             "com.infinevo.core.authz",
             "com.infinevo.core.payinput",
+            "com.infinevo.core.document",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
@@ -49,6 +50,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.approval",
             "com.infinevo.core.authz",
             "com.infinevo.core.payinput",
+            "com.infinevo.core.document",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })

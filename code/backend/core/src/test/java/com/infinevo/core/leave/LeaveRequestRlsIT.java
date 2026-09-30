@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ContextConfiguration;
 
 /**
  * W-16.3, spec section 7 &amp; 8 — {@code LeaveRequestRlsIT}.
@@ -34,6 +35,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * </ul>
  */
 @SpringBootTest(classes = LeaveTestApp.class)
+@ContextConfiguration(initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveRequestRlsIT extends AbstractIntegrationTest {
 
     @Autowired
@@ -44,6 +46,14 @@ class LeaveRequestRlsIT extends AbstractIntegrationTest {
 
     @Autowired
     private LeaveTypeService leaveTypeService;
+
+    @Autowired
+    private LeaveRequestService leaveRequestService;
+
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager txManager;
+
+    private org.springframework.transaction.support.TransactionTemplate tx;
 
     private UUID empAId;
     private UUID empBId;
@@ -66,6 +76,7 @@ class LeaveRequestRlsIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void seed() throws Exception {
+        tx = new org.springframework.transaction.support.TransactionTemplate(txManager);
         TenantContext.clear();
         LeaveTestSchema.seedTenants();
         LeaveTestSchema.clearAll();
@@ -185,18 +196,42 @@ class LeaveRequestRlsIT extends AbstractIntegrationTest {
     @DisplayName("leave request repository scopes queries by bound tenant")
     void repositoryEnforcesTenancy() {
         TenantContext.set(TENANT_A);
-        Optional<LeaveRequest> aFindsA = leaveRequestRepository.findByIdAndTenantId(reqAId, TENANT_A);
-        assertThat(aFindsA).isPresent();
 
-        Optional<LeaveRequest> aFindsB = leaveRequestRepository.findByIdAndTenantId(reqBId, TENANT_A);
-        assertThat(aFindsB).isEmpty();
+        tx.executeWithoutResult(status -> {
+            Optional<LeaveRequest> aFindsA = leaveRequestRepository.findByIdAndTenantId(reqAId, TENANT_A);
+            assertThat(aFindsA).isPresent();
 
-        List<LeaveRequestDocument> aDocs = documentRepository.findByTenantIdAndLeaveRequestId(TENANT_A, reqAId);
-        assertThat(aDocs).hasSize(1);
-        assertThat(aDocs.get(0).getDocumentId()).isEqualTo(docAId);
+            Optional<LeaveRequest> aFindsB = leaveRequestRepository.findByIdAndTenantId(reqBId, TENANT_A);
+            assertThat(aFindsB).isEmpty();
 
-        List<LeaveRequestDocument> bDocsFromA = documentRepository.findByTenantIdAndLeaveRequestId(TENANT_A, reqBId);
-        assertThat(bDocsFromA).isEmpty();
+            List<LeaveRequestDocument> aDocs = documentRepository.findByTenantIdAndLeaveRequestId(TENANT_A, reqAId);
+            assertThat(aDocs).hasSize(1);
+            assertThat(aDocs.get(0).getDocumentId()).isEqualTo(docAId);
+
+            List<LeaveRequestDocument> bDocsFromA =
+                    documentRepository.findByTenantIdAndLeaveRequestId(TENANT_A, reqBId);
+            assertThat(bDocsFromA).isEmpty();
+        });
+    }
+
+    @Test
+    @DisplayName("cannot attach document belonging to another tenant or employee")
+    void cannotAttachCrossTenantDocument() {
+        TenantContext.set(TENANT_A);
+
+        LeaveApplyRequest request = new LeaveApplyRequest(
+                typeAId,
+                LocalDate.of(2026, 6, 1),
+                LocalDate.of(2026, 6, 2),
+                false,
+                null,
+                "Vacation",
+                List.of(docBId),
+                false);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> leaveRequestService.createRequest(TENANT_A, empAId, request))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private void insertDocument(UUID tenantId, UUID employeeId, UUID docId, String fileName) throws SQLException {

@@ -92,18 +92,21 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                 ? allocation.getCarriedForwardDays()
                 : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
-        // Enforce carry-forward expiry: carried-forward days stop counting after carry_forward_expires_on (W-16.2 spec
-        // section 2 & 7)
-        if (allocation.getCarryForwardExpiresOn() != null && asOf.isAfter(allocation.getCarryForwardExpiresOn())) {
-            carried = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        }
-
         // Sum real consumption from core.leave_consumption (W-16.4a)
         BigDecimal consumed = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         if (leaveConsumptionRepository != null && allocation.getId() != null) {
             BigDecimal sum = leaveConsumptionRepository.sumConsumedDaysByAllocation(tenantId, allocation.getId());
             if (sum != null) {
                 consumed = sum.setScale(2, RoundingMode.HALF_UP);
+            }
+        }
+
+        // Enforce carry-forward expiry: carried-forward days stop counting after carry_forward_expires_on (W-16.2 spec
+        // section 2 & 7)
+        // Expiry only lapses unconsumed CF: if consumed < carried, unconsumed CF lapses and carried becomes consumed
+        if (allocation.getCarryForwardExpiresOn() != null && asOf.isAfter(allocation.getCarryForwardExpiresOn())) {
+            if (consumed.compareTo(carried) < 0) {
+                carried = consumed;
             }
         }
 

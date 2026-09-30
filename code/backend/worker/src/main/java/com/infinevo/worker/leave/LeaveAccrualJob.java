@@ -1,7 +1,6 @@
 package com.infinevo.worker.leave;
 
 import com.infinevo.core.leave.LeaveAccrualService;
-import com.infinevo.core.leave.LeaveAllocationRepository;
 import com.infinevo.core.leave.LeaveResetService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
@@ -12,6 +11,7 @@ import java.util.UUID;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -23,16 +23,13 @@ public class LeaveAccrualJob {
 
     private static final Logger log = LoggerFactory.getLogger(LeaveAccrualJob.class);
 
-    private final LeaveAllocationRepository allocationRepository;
+    private final JdbcTemplate jdbcTemplate;
     private final LeaveAccrualService accrualService;
     private final LeaveResetService resetService;
 
     public LeaveAccrualJob(
-            LeaveAllocationRepository allocationRepository,
-            LeaveAccrualService accrualService,
-            LeaveResetService resetService) {
-        this.allocationRepository =
-                Objects.requireNonNull(allocationRepository, "allocationRepository must not be null");
+            JdbcTemplate jdbcTemplate, LeaveAccrualService accrualService, LeaveResetService resetService) {
+        this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.accrualService = Objects.requireNonNull(accrualService, "accrualService must not be null");
         this.resetService = Objects.requireNonNull(resetService, "resetService must not be null");
     }
@@ -47,7 +44,10 @@ public class LeaveAccrualJob {
 
     public void execute(LocalDate asOf) {
         TenantContext.clear();
-        List<UUID> tenantIds = allocationRepository.findDistinctTenantIds();
+        List<UUID> tenantIds = jdbcTemplate.query(
+                "SELECT tenant_id FROM core.list_tenants_for_sweep()",
+                (rs, rowNum) -> UUID.fromString(rs.getString("tenant_id")));
+
         for (UUID tenantId : tenantIds) {
             try {
                 TenantContext.set(tenantId);

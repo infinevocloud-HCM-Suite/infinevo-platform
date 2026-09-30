@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
+import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ContextConfiguration;
 
 /**
  * W-16.2, spec section 7 — {@code LeaveAllocationRlsIT}.
@@ -33,6 +35,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * </ul>
  */
 @SpringBootTest(classes = LeaveTestApp.class)
+@ContextConfiguration(initializers = PostgresTestContainerInitializer.class)
 class LeaveAllocationRlsIT extends AbstractIntegrationTest {
 
     @Autowired

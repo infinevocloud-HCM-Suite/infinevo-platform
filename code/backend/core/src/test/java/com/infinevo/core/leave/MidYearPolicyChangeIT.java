@@ -33,6 +33,8 @@ import org.springframework.boot.test.context.SpringBootTest;
  * </ul>
  */
 @SpringBootTest(classes = LeaveTestApp.class)
+@org.springframework.test.context.ContextConfiguration(
+        initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class MidYearPolicyChangeIT extends AbstractIntegrationTest {
 
     @Autowired
@@ -123,13 +125,7 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
 
         LocalDate midYearDate = LocalDate.of(2026, 7, 1);
 
-        // Preview impact before applying
-        List<OverdrawnEmployee> overdrawn =
-                allocationService.previewMidYearPolicyImpact(leaveTypeId, BigDecimal.valueOf(5), midYearDate);
-        // With 0 consumption, cutting to 5 doesn't make employee negative, but preview calculates correctly
-        assertThat(overdrawn).isNotNull();
-
-        // Configure new policy with 5 annual days
+        // Configure new policy with 5 annual days via configurePolicy
         LeavePolicyResponse newPolicyResponse = leaveTypeService.setPolicy(
                 leaveTypeId,
                 new LeavePolicyRequest(
@@ -155,19 +151,14 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
                         midYearDate,
                         List.of()));
 
-        LeavePolicy newPolicyEntity =
-                policyRepository.findById(newPolicyResponse.id()).orElseThrow();
+        // Verify configurePolicy returns overdrawn preview
+        assertThat(newPolicyResponse.overdrawnEmployees()).isNotNull();
 
-        // Apply mid-year change
-        int updatedCount =
-                allocationService.applyMidYearPolicyChange(TENANT_A, leaveTypeId, newPolicyEntity, midYearDate);
-        assertThat(updatedCount).isEqualTo(1);
-
-        // Verify allocation reflects the updated entitlement and new policy_id
+        // Verify allocation automatically reflects the updated entitlement and new policy_id
         LeaveAllocation updatedAllocation =
                 allocationRepository.findById(allocationId).orElseThrow();
         assertThat(updatedAllocation.getEntitlementDays()).isEqualByComparingTo(BigDecimal.valueOf(5));
-        assertThat(updatedAllocation.getPolicyId()).isEqualTo(newPolicyEntity.getId());
+        assertThat(updatedAllocation.getPolicyId()).isEqualTo(newPolicyResponse.id());
 
         // Verify audit log has captured the UPDATE operation on leave_allocation
         try (Connection conn = LeaveTestSchema.appConnection()) {

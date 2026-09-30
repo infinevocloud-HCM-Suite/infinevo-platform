@@ -73,7 +73,7 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
             return;
         }
 
-        // 2. Fetch or resolve allocation
+        // 2. Fetch or resolve allocation (auto-create if missing under MARK_AS_LOP or unallocated type)
         LocalDate fromDate = request.getFromDate();
         LeaveAllocation allocation = leaveAllocationRepository
                 .findFirstByTenantIdAndEmployeeIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
@@ -83,8 +83,25 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
                         request.getEmployeeId(),
                         request.getLeaveTypeId(),
                         String.valueOf(fromDate.getYear())))
-                .orElseThrow(() -> new IllegalStateException("No active leave allocation found for employee "
-                        + request.getEmployeeId() + " and leave type " + request.getLeaveTypeId() + " on " + fromDate));
+                .orElseGet(() -> {
+                    String year = String.valueOf(fromDate.getYear());
+                    LocalDate start = LocalDate.of(fromDate.getYear(), 1, 1);
+                    LocalDate end = LocalDate.of(fromDate.getYear(), 12, 31);
+                    LeaveAllocation defAlloc = new LeaveAllocation(
+                            tenantId,
+                            request.getEmployeeId(),
+                            request.getLeaveTypeId(),
+                            year,
+                            start,
+                            end,
+                            BigDecimal.ZERO,
+                            BigDecimal.ZERO,
+                            BigDecimal.ZERO,
+                            null,
+                            BigDecimal.ONE,
+                            null);
+                    return leaveAllocationRepository.save(defAlloc);
+                });
 
         // 3. Compute available balance BEFORE recording consumption
         BigDecimal availableBalance = leaveBalanceService
@@ -92,10 +109,14 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
                 .map(LeaveBalanceResponse::remainingDays)
                 .orElse(BigDecimal.ZERO);
 
-        // 4. Save LeaveConsumption record
+        // 4. Save LeaveConsumption record (clamping reason to 500 chars)
         BigDecimal consumedDays = request.getWorkingDays().setScale(2, RoundingMode.HALF_UP);
         LocalDate consumedOn = LocalDate.now(ZoneOffset.UTC);
         String period = YearMonth.from(fromDate).toString();
+        String reason = request.getReason();
+        if (reason != null && reason.length() > 500) {
+            reason = reason.substring(0, 500);
+        }
 
         LeaveConsumption consumption = new LeaveConsumption(
                 tenantId,
@@ -106,7 +127,7 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
                 consumedOn,
                 period,
                 null,
-                request.getReason());
+                reason);
         leaveConsumptionRepository.save(consumption);
 
         // 5. Derive loss-of-pay if policy mode is markAsLOP
@@ -135,6 +156,10 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
                     YearMonth ym = entry.getKey();
                     BigDecimal lopDays = entry.getValue().setScale(2, RoundingMode.HALF_UP);
 
+                    // Build the entity first — the constructor generates its UUID.
+                    // We use that UUID as sourceRef in pay_input, then set payInputId
+                    // on the entity before the single INSERT. This avoids a prohibited
+                    // UPDATE on the append-only table (V117 revokes UPDATE from app_user).
                     LeaveMonthlyLop monthlyLop = new LeaveMonthlyLop(
                             tenantId,
                             request.getEmployeeId(),
@@ -144,9 +169,8 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
                             lopDays,
                             null,
                             null);
-                    monthlyLop = leaveMonthlyLopRepository.save(monthlyLop);
 
-                    // Post to PayInputService (W-19)
+                    // Post to PayInputService (W-19) using the entity's pre-generated ID
                     PayInputCommand cmd = new PayInputCommand(
                             request.getEmployeeId(),
                             ym,
@@ -157,6 +181,8 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
                             monthlyLop.getId().toString(),
                             null);
                     PayInputResponse payInputResp = payInputService.record(cmd);
+
+                    // Set the back-reference before the one-and-only INSERT
                     monthlyLop.setPayInputId(payInputResp.id());
                     leaveMonthlyLopRepository.save(monthlyLop);
                 }
@@ -170,6 +196,11 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
         Objects.requireNonNull(request, "request must not be null");
         UUID tenantId = request.getTenantId();
         UUID leaveRequestId = request.getId();
+
+        String cancelRemarks = reason != null ? "Cancellation: " + reason : "Cancelled";
+        if (cancelRemarks.length() > 500) {
+            cancelRemarks = cancelRemarks.substring(0, 500);
+        }
 
         // 1. Reversing consumption rows
         List<LeaveConsumption> originalConsumptions =
@@ -185,7 +216,7 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
                         LocalDate.now(ZoneOffset.UTC),
                         orig.getPeriod(),
                         orig.getId(),
-                        reason != null ? "Cancellation: " + reason : "Cancelled");
+                        cancelRemarks);
                 leaveConsumptionRepository.save(reversal);
             }
         }

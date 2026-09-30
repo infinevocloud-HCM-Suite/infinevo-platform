@@ -22,6 +22,7 @@ import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -37,7 +38,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * W-16.3, spec section 7 &amp; 8 — {@code LeaveRequestApprovalIT}.
@@ -50,7 +54,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * </ul>
  */
 @SpringBootTest(classes = LeaveTestApp.class)
+@ContextConfiguration(initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveRequestApprovalIT extends AbstractIntegrationTest {
+
+    @Autowired
+    private PlatformTransactionManager txManager;
+
+    private TransactionTemplate tx;
 
     @Autowired
     private LeaveRequestService leaveRequestService;
@@ -73,6 +83,12 @@ class LeaveRequestApprovalIT extends AbstractIntegrationTest {
     @Autowired
     private OutcomeDispatcher outcomeDispatcher;
 
+    @Autowired
+    private LeavePolicyRepository leavePolicyRepository;
+
+    @Autowired
+    private LeaveAllocationRepository leaveAllocationRepository;
+
     @MockitoBean
     private EmployeeService employeeService;
 
@@ -92,6 +108,7 @@ class LeaveRequestApprovalIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void seed() throws Exception {
+        tx = new TransactionTemplate(txManager);
         TenantContext.clear();
         LeaveTestSchema.seedTenants();
         LeaveTestSchema.clearAll();
@@ -123,6 +140,29 @@ class LeaveRequestApprovalIT extends AbstractIntegrationTest {
                         LocalDate.now().minusYears(1),
                         null));
         leaveTypeId = tA.id();
+
+        LeavePolicy policy = new LeavePolicy();
+        policy.setTenantId(TENANT_A);
+        policy.setLeaveTypeId(leaveTypeId);
+        policy.setAnnualDays(new BigDecimal("20.00"));
+        policy.setEffectiveFrom(LocalDate.of(2024, 1, 1));
+        policy.setExceedBalanceMode(ExceedBalanceMode.NO_LIMIT);
+        policy = leavePolicyRepository.save(policy);
+
+        LeaveAllocation alloc = new LeaveAllocation(
+                TENANT_A,
+                requesterId,
+                leaveTypeId,
+                String.valueOf(LocalDate.now().getYear()),
+                LocalDate.of(LocalDate.now().getYear(), 1, 1),
+                LocalDate.of(LocalDate.now().getYear(), 12, 31),
+                new BigDecimal("20.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ONE,
+                policy.getId());
+        leaveAllocationRepository.save(alloc);
 
         // Configure mock employee service
         Mockito.when(employeeService.currentEmployee())
@@ -188,7 +228,8 @@ class LeaveRequestApprovalIT extends AbstractIntegrationTest {
         assertThat(created.approvalInstanceId()).isNotNull();
 
         UUID instanceId = created.approvalInstanceId();
-        List<ApprovalStep> steps = stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(TENANT_A, instanceId);
+        List<ApprovalStep> steps = tx.execute(
+                status -> stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(TENANT_A, instanceId));
         assertThat(steps).hasSize(1);
         ApprovalStep step = steps.get(0);
         assertThat(step.getAssigneeEmployeeId()).isEqualTo(managerId);
@@ -198,9 +239,9 @@ class LeaveRequestApprovalIT extends AbstractIntegrationTest {
         outcomeDispatcher.retryPendingOutcomes(TENANT_A);
 
         // Verify leave request is now APPROVED
-        LeaveRequest updated = leaveRequestRepository
+        LeaveRequest updated = tx.execute(status -> leaveRequestRepository
                 .findByIdAndTenantId(created.id(), TENANT_A)
-                .orElseThrow();
+                .orElseThrow());
         assertThat(updated.getStatus()).isEqualTo(LeaveRequestStatus.APPROVED);
         assertThat(updated.getDecidedAt()).isNotNull();
     }
