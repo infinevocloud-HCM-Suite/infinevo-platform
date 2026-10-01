@@ -83,6 +83,13 @@ public final class NavigationCatalogue {
             new ItemDefinition("core.roles", "nav.roles", "/roles", "/api/v1/roles", null, "core.role.read"),
             new ItemDefinition("core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"),
             new ItemDefinition(
+                    "core.holiday",
+                    "nav.holidays",
+                    "/holidays",
+                    "/api/v1/holiday-calendars",
+                    null,
+                    "core.holiday.read"),
+            new ItemDefinition(
                     "core.approvals",
                     "nav.approvals",
                     "/approvals",
