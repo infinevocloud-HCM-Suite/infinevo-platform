@@ -24,6 +24,7 @@ public class LeaveAccrualServiceImpl implements LeaveAccrualService {
     private final LeavePolicyRepository leavePolicyRepository;
     private final EmployeeRepository employeeRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public LeaveAccrualServiceImpl(
             LeaveAllocationRepository leaveAllocationRepository,
             LeavePolicyRepository leavePolicyRepository,
