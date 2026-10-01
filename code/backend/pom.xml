@@ -43,9 +43,9 @@
 
   <properties>
     <java.version>21</java.version>
-    <!-- CVE-2026-68497 (jackson-databind DoS, 2026-09-29): Boot 3.5.16 ships 2.21.4; 2.21.6 is the
-         smallest fixed release. Drop this pin when the Boot parent moves past it. -->
-    <jackson-bom.version>2.21.6</jackson-bom.version>
+    <!-- CVE-2026-68497 (jackson-databind DoS, 2026-09-29), CVE-2026-91776, CVE-2026-91777:
+         2.21.7 fixes jackson-databind vulnerabilities. Drop this pin when the Boot parent moves past it. -->
+    <jackson-bom.version>2.21.7</jackson-bom.version>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>

@@ -182,6 +182,7 @@ class NavigationServiceTest {
                         "core.org.read",
                         "core.role.read",
                         "core.audit.read",
+                        "core.holiday.read",
                         "core.approval.decide"));
         NavigationService shipped = new NavigationService(entitlementService, permissionService);
 
