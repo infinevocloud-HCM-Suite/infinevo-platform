@@ -99,6 +99,18 @@ public class LeaveAllocationController {
         return balanceService.getBalancesForEmployee(tenantId, employeeId, asOf);
     }
 
+    @GetMapping("/api/v1/me/leave-balances")
+    @RequiresAction("core.leave.read_own")
+    public List<LeaveBalanceResponse> getMyLeaveBalances(
+            @RequestParam(name = "asOf", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate asOf) {
+        UUID tenantId = TenantContext.require();
+        EmployeeResponse caller = employeeService
+                .currentEmployee()
+                .orElseThrow(() -> new AccessDeniedException("No employee linked to current user"));
+        return balanceService.getBalancesForEmployee(tenantId, caller.id(), asOf);
+    }
+
     @PostMapping("/api/v1/leave-allocations")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresAction("core.leave_balance.manage")

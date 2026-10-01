@@ -56,6 +56,11 @@ public interface DocumentService {
     /** Soft-deletes a document in the bound tenant. The row stays hidden and the blob is kept. */
     void delete(UUID id);
 
+    /** Returns metadata of all live documents for the given employee in the bound tenant. */
+    default java.util.List<DocumentResponse> findByEmployee(UUID employeeId) {
+        return java.util.List.of();
+    }
+
     /** No such live document in the bound tenant. Maps to {@code 404}. */
     class NotFoundException extends RuntimeException {
         @Serial

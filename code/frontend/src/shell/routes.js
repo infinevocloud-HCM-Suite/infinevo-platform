@@ -1,6 +1,17 @@
+import React from 'react';
 import { routes as coreRoutes } from '../core/index.js';
 import { routes as hrmsRoutes } from '../hrms/index.js';
 import { routes as payrollRoutes } from '../payroll/index.js';
+import { PortalLayout } from './portal/PortalLayout.jsx';
+
+/**
+ * Self-service portal routes (W-25 §5).
+ * Mounted for authenticated users; renders panels returned dynamically from /api/v1/me/panels.
+ */
+export const portalRoutes = [
+  { path: '/me', element: React.createElement(PortalLayout) },
+  { path: '/me/:panelId', element: React.createElement(PortalLayout) },
+];
 
 /**
  * Route groups, one per module, and the one way routes reach the router (W-12.3 §5, W-45 §5).
@@ -21,6 +32,7 @@ export const routeGroups = {
   core: coreRoutes || [],
   hrms: hrmsRoutes || [],
   payroll: payrollRoutes || [],
+  portal: portalRoutes,
 };
 
 /**

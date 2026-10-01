@@ -118,6 +118,20 @@ public class LeaveRequestController {
         return leaveRequestService.searchRequests(tenantId, caller.id(), status, fromDate, toDate, pageable);
     }
 
+    @GetMapping("/api/v1/me/leave-requests")
+    @RequiresAction("core.leave.read_own")
+    public Page<LeaveRequestResponse> myRequests(
+            @RequestParam(name = "status", required = false) LeaveRequestStatus status,
+            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate fromDate,
+            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate toDate,
+            @PageableDefault(size = 25) Pageable pageable) {
+        UUID tenantId = TenantContext.require();
+        EmployeeResponse caller = currentCallerEmployee();
+        return leaveRequestService.searchRequests(tenantId, caller.id(), status, fromDate, toDate, pageable);
+    }
+
     @GetMapping("/api/v1/leave-requests/{id}")
     @RequiresAction(
             value = "core.leave.read",
