@@ -58,8 +58,43 @@ class LopAmountTest {
                 .isInstanceOf(NullPointerException.class);
     }
 
+    @Test
+    @DisplayName("A 42,500 joiner on 16 July loses 15 of 31 days, 20,564.52, on any fixed basis: rounded once")
+    void aJoinersShareIsNotRoundedBeforeTheMoney() {
+        // Days rounded first gave 20,570.00 on 14.52 of 30, and 20,563.46 on 12.58 of 26.
+        assertThat(joinerLop(days("30"))).isEqualByComparingTo("20564.52");
+        assertThat(joinerLop(days("26"))).isEqualByComparingTo("20564.52");
+        assertThat(joinerLop(days("31"))).isEqualByComparingTo("20564.52");
+    }
+
+    @Test
+    @DisplayName("The row still records the days at scale 2: 14.52 unpaid and 15.48 paid of 30")
+    void theRecordedDaysStayAtScaleTwo() {
+        PayRunDays days = joiner(days("30")).days();
+
+        assertThat(days.unpaidDays()).isEqualTo(new BigDecimal("14.52"));
+        assertThat(days.paidDays()).isEqualTo(new BigDecimal("15.48"));
+    }
+
+    private BigDecimal joinerLop(BigDecimal divisor) {
+        return lopOf(joiner(divisor));
+    }
+
+    private PayRunEmployeeContext joiner(BigDecimal divisor) {
+        return context(
+                JULY,
+                divisor,
+                divisor,
+                LopRounding.HALF_UP_2,
+                LocalDate.of(2026, 7, 16),
+                null,
+                List.of(),
+                Set.of(BASIC),
+                List.of(structure(LineKind.EARNING, BASIC, "BASIC", "42500")));
+    }
+
     private BigDecimal lop(BigDecimal divisor, LopRounding rounding) {
-        PayRunEmployeeContext ctx = context(
+        return lopOf(context(
                 JULY,
                 divisor,
                 divisor,
@@ -68,7 +103,10 @@ class LopAmountTest {
                 null,
                 List.of(input(PayInputKind.LOP_DAYS, "2", null)),
                 Set.of(BASIC),
-                List.of(structure(LineKind.EARNING, BASIC, "BASIC", "26000")));
+                List.of(structure(LineKind.EARNING, BASIC, "BASIC", "26000"))));
+    }
+
+    private BigDecimal lopOf(PayRunEmployeeContext ctx) {
         return contributor.contribute(ctx).stream()
                 .filter(line -> line.kind() == LineKind.DEDUCTION && line.source() == LineSource.LOP)
                 .map(line -> line.amount().raw())

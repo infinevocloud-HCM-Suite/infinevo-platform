@@ -5,7 +5,7 @@ import java.math.RoundingMode;
 import java.util.Objects;
 
 /**
- * The day figures behind one employee's loss of pay (W-29.3 §3), all at scale 2:
+ * The day figures behind one employee's loss of pay (W-29.3 §3), all at scale 2 but {@code pricedDays}:
  *
  * <pre>
  * lop_days    = Σ LOP_DAYS inputs, capped at payable days, never below zero
@@ -21,13 +21,22 @@ import java.util.Objects;
  * so {@link LopLineContributor} divides like by like (W-18.2). Calendar days divided by a working-day
  * divisor underpaid every joiner and leaver under such a policy. Nothing here counts calendar days.
  *
+ * <p>{@code pricedDays} is {@code unpaid_days} before it is rounded to scale 2, and is what the money is
+ * computed from: a fixed basis's share of the month is rarely a whole number of days, and pricing the
+ * rounded figure would round the amount twice. The scale-2 figures are what the row records.
+ *
  * <p>The sum goes below zero when a {@code LOP_DAYS} reversal lands in a later period than the row it
  * reverses — W-19 moves a reversal of a locked period to the next open one. Those days were deducted
  * in a month already paid, so they are owed back: {@code credit_days} carries them to
  * {@link LopLineContributor}, which writes the refund. They are not {@code paid_days} of this period.
  */
 public record PayRunDays(
-        BigDecimal lopDays, BigDecimal outsideDays, BigDecimal unpaidDays, BigDecimal paidDays, BigDecimal creditDays) {
+        BigDecimal lopDays,
+        BigDecimal outsideDays,
+        BigDecimal unpaidDays,
+        BigDecimal paidDays,
+        BigDecimal creditDays,
+        BigDecimal pricedDays) {
 
     private static final int SCALE = 2;
 
@@ -37,11 +46,12 @@ public record PayRunDays(
         Objects.requireNonNull(unpaidDays, "unpaidDays must not be null");
         Objects.requireNonNull(paidDays, "paidDays must not be null");
         Objects.requireNonNull(creditDays, "creditDays must not be null");
+        Objects.requireNonNull(pricedDays, "pricedDays must not be null");
     }
 
     /**
-     * @param outsideDays the period's days outside the employment window, in the policy's days — zero for
-     *     someone employed all period
+     * @param outsideDays the period's days outside the employment window, in the policy's days and
+     *     unrounded — zero for someone employed all period
      */
     public static PayRunDays of(BigDecimal payableDays, BigDecimal requestedLopDays, BigDecimal outsideDays) {
         Objects.requireNonNull(payableDays, "payableDays must not be null");
@@ -54,7 +64,7 @@ public record PayRunDays(
 
         BigDecimal unpaid = lop.add(outside);
         BigDecimal paid = payableDays.subtract(unpaid).max(BigDecimal.ZERO);
-        return new PayRunDays(scaled(lop), scaled(outside), scaled(unpaid), scaled(paid), scaled(credit));
+        return new PayRunDays(scaled(lop), scaled(outside), scaled(unpaid), scaled(paid), scaled(credit), unpaid);
     }
 
     private static BigDecimal scaled(BigDecimal value) {

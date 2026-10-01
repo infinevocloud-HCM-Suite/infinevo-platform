@@ -103,21 +103,22 @@ class DaysOutsideEmploymentTest {
     }
 
     @Test
-    @DisplayName("FIXED_30: the gap's share of the month — 15 of 31 calendar days × 30 = 14.52")
+    @DisplayName("FIXED_30: the gap's share of the month, unrounded — 15 of 31 calendar days × 30 = 14.516…")
     void fixedBasisTakesTheGapsShare() {
         policy(WorkingDayBasis.FIXED_30, null, true, true);
 
-        assertThat(outside(LocalDate.of(2026, 7, 16), null)).isEqualByComparingTo("14.52");
-        // A joiner on the last day is outside 30 of 31 days, not all 30 paid days: 29.03.
-        assertThat(outside(LocalDate.of(2026, 7, 31), null)).isEqualByComparingTo("29.03");
+        // Not 14.52: the days are not rounded before the money is, or the amount is rounded twice.
+        assertThat(outside(LocalDate.of(2026, 7, 16), null)).isEqualByComparingTo("14.5161290323");
+        // A joiner on the last day is outside 30 of 31 days, not all 30 paid days: 29.03….
+        assertThat(outside(LocalDate.of(2026, 7, 31), null)).isEqualByComparingTo("29.0322580645");
     }
 
     @Test
-    @DisplayName("ORG_DAYS with 26 configured: 15 of 31 calendar days × 26 = 12.58")
+    @DisplayName("ORG_DAYS with 26 configured: 15 of 31 calendar days × 26 = 12.580…, unrounded")
     void configuredOrgDaysTakesTheGapsShare() {
         policy(WorkingDayBasis.ORG_DAYS, new BigDecimal("26"), true, true);
 
-        assertThat(outside(LocalDate.of(2026, 7, 16), null)).isEqualByComparingTo("12.58");
+        assertThat(outside(LocalDate.of(2026, 7, 16), null)).isEqualByComparingTo("12.5806451613");
     }
 
     @Test

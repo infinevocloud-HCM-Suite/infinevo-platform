@@ -34,6 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class WorkingDayBasisCalculator {
 
+    /** A fixed basis's share of the month is kept this precise, so the money is rounded once, not twice. */
+    private static final int SHARE_SCALE = 10;
+
     private final LopPolicyService policyService;
     private final EmployeeRepository employeeRepository;
     private final HolidayQueryService holidayQueryService;
@@ -117,7 +120,12 @@ public class WorkingDayBasisCalculator {
      * <p>A July 2026 joiner on the 16th under Mon–Fri {@code ORG_DAYS} (divisor 23) is outside for the 11
      * working days of 1–15 July and is paid 12 of 23, not 8 of 23 as calendar days would give.
      *
-     * @return the days outside, at scale 2, never more than the divisor; zero when employed all period
+     * <p>A fixed basis's share is rarely a whole number of days — 15 of 31 July days on {@code FIXED_30} is
+     * 14.516… — so it is returned at scale 10, not 2: rounding the days and then the money rounds the
+     * amount twice, which charged a 42,500 joiner 5.48 too much.
+     *
+     * @return the days outside, never more than the divisor; whole days at scale 2 under a counted basis,
+     *     the unrounded share under a fixed one; zero when employed all period
      * @throws NoLopPolicyException as {@link #basisFor}
      */
     @Transactional(readOnly = true)
@@ -151,8 +159,8 @@ public class WorkingDayBasisCalculator {
                 }
                 BigDecimal share = BigDecimal.valueOf(outside)
                         .multiply(fixedDivisor)
-                        .divide(BigDecimal.valueOf(period.lengthOfMonth()), 2, RoundingMode.HALF_UP);
-                return share.min(fixedDivisor).setScale(2, RoundingMode.HALF_UP);
+                        .divide(BigDecimal.valueOf(period.lengthOfMonth()), SHARE_SCALE, RoundingMode.HALF_UP);
+                return share.min(fixedDivisor);
             }
 
             boolean weekendsCount =

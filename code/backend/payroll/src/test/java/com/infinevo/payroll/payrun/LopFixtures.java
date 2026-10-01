@@ -121,7 +121,7 @@ final class LopFixtures {
         }
         return BigDecimal.valueOf(gap)
                 .multiply(divisor)
-                .divide(BigDecimal.valueOf(period.lengthOfMonth()), 2, java.math.RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(period.lengthOfMonth()), 10, java.math.RoundingMode.HALF_UP);
     }
 
     static BigDecimal days(String value) {

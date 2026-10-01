@@ -54,7 +54,8 @@ public class LopLineContributor implements PayLineContributor {
     @Override
     public List<PayLine> contribute(PayRunEmployeeContext ctx) {
         Objects.requireNonNull(ctx, "ctx must not be null");
-        BigDecimal unpaid = ctx.days().unpaidDays();
+        // The unrounded days, so the amount is rounded once (W-18.2).
+        BigDecimal unpaid = ctx.days().pricedDays();
         BigDecimal credit = ctx.days().creditDays();
         if (unpaid.signum() <= 0 && credit.signum() <= 0) {
             return List.of();

@@ -340,7 +340,6 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
         employeePayRuns.saveAndFlush(fresh);
     }
 
-    /** Totals over the rows this attempt computed; {@code COMPUTED}, or {@code FAILED} when a row failed. */
     /**
      * A joiner's or leaver's days outside the employment window, in the policy's days (W-18.2); the
      * calculator is asked only for someone who joined or left inside the period, so everyone else costs
@@ -358,6 +357,7 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 run.getTenantId(), run.getPeriod(), employeeId, joined, terminated);
     }
 
+    /** Totals over the rows this attempt computed; {@code COMPUTED}, or {@code FAILED} when a row failed. */
     private PayRunResponse finish(UUID payrunId, UUID tenantId, String actor, int attempt) {
         return runTransaction.execute(status -> {
             PayRun run =
