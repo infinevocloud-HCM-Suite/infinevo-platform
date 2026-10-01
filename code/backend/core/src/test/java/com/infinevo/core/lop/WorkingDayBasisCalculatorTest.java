@@ -414,6 +414,31 @@ class WorkingDayBasisCalculatorTest {
     }
 
     @Test
+    @DisplayName("W-18.2: an employee with no work location is refused when holidays count, never given the default")
+    void employeeWithoutWorkLocation_isRefusedWhenHolidaysCount() {
+        LopPolicy policy = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, false, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(policy));
+        calculator.setWorkingWeekSource((t, e) ->
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY));
+        UUID nowhere = UUID.randomUUID();
+        Employee withoutLocation = mock(Employee.class);
+        when(withoutLocation.getWorkLocation()).thenReturn(null);
+        when(employeeRepository.findByIdAndTenantIdAndDeletedFalse(nowhere, tenantId))
+                .thenReturn(Optional.of(withoutLocation));
+
+        assertThatThrownBy(() -> calculator.basisFor(tenantId, jul2026, nowhere))
+                .isInstanceOf(NoLopPolicyException.class)
+                .hasMessageContaining("has no work location");
+
+        // Holidays paid: the calendar is never needed, so the missing location does not matter.
+        LopPolicy holidaysPaid = new LopPolicy(
+                tenantId, WorkingDayBasis.ORG_DAYS, null, true, true, LopRounding.HALF_UP_2, LocalDate.of(2026, 1, 1));
+        when(policyService.findPolicyInForceEntity(eq(tenantId), any())).thenReturn(Optional.of(holidaysPaid));
+        assertThat(calculator.basisFor(tenantId, jul2026, nowhere).divisor()).isEqualByComparingTo("23.00");
+    }
+
+    @Test
     @DisplayName("F-6: with no employee the tenant's default calendar is used (location null)")
     void noEmployee_usesDefaultCalendar() {
         LopPolicy policy = new LopPolicy(
