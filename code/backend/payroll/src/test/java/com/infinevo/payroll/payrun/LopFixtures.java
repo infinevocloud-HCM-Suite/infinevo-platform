@@ -36,10 +36,7 @@ final class LopFixtures {
         PayRunDays days = PayRunDays.of(
                 payableDays,
                 PayInputLineContributor.netLopDays(inputs),
-                period.atDay(1),
-                period.atEndOfMonth(),
-                joined,
-                terminated);
+                outside(period, payableDays, joined, terminated));
         return new PayRunEmployeeContext(
                 StructureFixtures.TENANT,
                 UUID.randomUUID(),
@@ -106,6 +103,25 @@ final class LopFixtures {
     static PayLine structure(LineKind kind, UUID componentId, String code, String amount) {
         return new PayLine(
                 kind, LineSource.STRUCTURE, componentId, code, code, Money.of(amount), kind == LineKind.EARNING);
+    }
+
+    /**
+     * Days outside the employment window as a fixed basis counts them — the gap's share of the month
+     * (W-18.2). For a divisor equal to the month's length, as these fixtures use, that is calendar days;
+     * the calculator's counted bases are tested in core ({@code DaysOutsideEmploymentTest}).
+     */
+    static BigDecimal outside(YearMonth period, BigDecimal divisor, LocalDate joined, LocalDate terminated) {
+        LocalDate from = period.atDay(1);
+        LocalDate to = period.atEndOfMonth();
+        long gap = 0;
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if ((joined != null && d.isBefore(joined)) || (terminated != null && d.isAfter(terminated))) {
+                gap++;
+            }
+        }
+        return BigDecimal.valueOf(gap)
+                .multiply(divisor)
+                .divide(BigDecimal.valueOf(period.lengthOfMonth()), 10, java.math.RoundingMode.HALF_UP);
     }
 
     static BigDecimal days(String value) {

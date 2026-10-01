@@ -54,7 +54,8 @@ public class LopLineContributor implements PayLineContributor {
     @Override
     public List<PayLine> contribute(PayRunEmployeeContext ctx) {
         Objects.requireNonNull(ctx, "ctx must not be null");
-        BigDecimal unpaid = ctx.days().unpaidDays();
+        // The unrounded days, so the amount is rounded once (W-18.2).
+        BigDecimal unpaid = ctx.days().pricedDays();
         BigDecimal credit = ctx.days().creditDays();
         if (unpaid.signum() <= 0 && credit.signum() <= 0) {
             return List.of();
@@ -125,9 +126,10 @@ public class LopLineContributor implements PayLineContributor {
         return round(base.multiply(days).divide(divisor), rounding);
     }
 
-    /** W-18.1 §6: the LOP amount is rounded once, per the policy; {@code HALF_UP_2} when unset. */
+    /** W-18.1 §6: the LOP amount is rounded once, by the policy's stamped rule (W-18.2); never a default. */
     static Money round(Money amount, LopRounding rounding) {
-        LopRounding mode = rounding == null ? LopRounding.HALF_UP_2 : rounding;
+        // The stamped rule, never a default one (W-18.2 §9): a figure has a policy or is not written.
+        LopRounding mode = Objects.requireNonNull(rounding, "rounding must not be null");
         return switch (mode) {
             case HALF_UP_2 -> Money.of(amount.raw().setScale(2, RoundingMode.HALF_UP));
             case HALF_UP_0 -> Money.of(amount.raw().setScale(0, RoundingMode.HALF_UP));

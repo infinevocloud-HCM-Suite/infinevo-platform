@@ -55,10 +55,7 @@ class PayRunHandCalculationTest {
         PayRunDays days = PayRunDays.of(
                 thirtyOne,
                 PayInputLineContributor.netLopDays(inputs),
-                JULY.atDay(1),
-                JULY.atEndOfMonth(),
-                joined,
-                null);
+                LopFixtures.outside(JULY, thirtyOne, joined, null));
         PayRunEmployeeContext ctx = new PayRunEmployeeContext(
                 TENANT,
                 UUID.randomUUID(),
