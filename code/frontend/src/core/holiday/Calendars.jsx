@@ -12,10 +12,9 @@ import {
   Select,
   Switch,
   Tag,
-  Popconfirm,
   theme,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CalendarOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, CalendarOutlined, SearchOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { holidayCalendarService } from './holidayCalendarService.js';
@@ -153,16 +152,6 @@ export function Calendars() {
     }
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await holidayCalendarService.remove(id);
-      await successMsg('Calendar Deleted', 'Holiday calendar deleted successfully.');
-      loadCalendars();
-    } catch (err) {
-      await errorMsg(err);
-    }
-  };
-
   const currentYear = useMemo(() => new Date().getFullYear(), []);
 
   const columns = [
@@ -235,31 +224,13 @@ export function Calendars() {
             Manage Holidays
           </Button>
           {canManage && (
-            <>
-              <Button
-                type="text"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => handleOpenEdit(record)}
-                id={`btn-edit-calendar-${record.id}`}
-              />
-              <Popconfirm
-                title="Delete Calendar"
-                description={`Are you sure you want to delete "${record.name}"?`}
-                onConfirm={() => handleDelete(record.id)}
-                okText="Delete"
-                cancelText="Cancel"
-                okButtonProps={{ danger: true, id: `btn-confirm-delete-${record.id}` }}
-              >
-                <Button
-                  danger
-                  type="text"
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  id={`btn-delete-calendar-${record.id}`}
-                />
-              </Popconfirm>
-            </>
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleOpenEdit(record)}
+              id={`btn-edit-calendar-${record.id}`}
+            />
           )}
         </Space>
       ),

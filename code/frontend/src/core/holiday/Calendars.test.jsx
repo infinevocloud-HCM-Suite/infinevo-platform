@@ -15,7 +15,6 @@ vi.mock('./holidayCalendarService.js', () => ({
     get: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
-    remove: vi.fn(),
   },
 }));
 
@@ -72,7 +71,6 @@ describe('Calendars component', () => {
     holidayCalendarService.get.mockResolvedValue(mockCalendars[0]);
     holidayCalendarService.create.mockResolvedValue({ id: 'cal-3', name: 'New Cal' });
     holidayCalendarService.update.mockResolvedValue({ id: 'cal-1', name: 'Updated Cal' });
-    holidayCalendarService.remove.mockResolvedValue({});
 
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
   });
@@ -202,6 +200,21 @@ describe('Calendars component', () => {
 
     expect(document.getElementById('btn-create-calendar')).toBeNull();
     expect(document.getElementById('btn-edit-calendar-cal-1')).toBeNull();
+  });
+
+  it('offers no calendar delete even with core.holiday.manage — W-17 has no such endpoint', async () => {
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/holidays']}>
+          <Calendars />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(document.getElementById('btn-edit-calendar-cal-1')).not.toBeNull();
+    });
+
     expect(document.getElementById('btn-delete-calendar-cal-1')).toBeNull();
   });
 });
