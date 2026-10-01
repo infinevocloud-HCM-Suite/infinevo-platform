@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-35.2` · from ticket #47 (`W-35`) · `PAY-13` |
 | **Promoted to** | `docs/target-state/features/W-35-2-ad-hoc-deductions.md` on the developer's `dev-<name>` branch — **`W-35-2` with hyphens**, never `W-35.2`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | krushna (assigned 2026-10-01) |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for this table), DEBT-004 (discounted), DEBT-007 (fixed), DEBT-008 (fixed), DEBT-011 (fixed), DEBT-018 (honoured), DEBT-022 (fixed) |
 | **Status** | **Ready** |

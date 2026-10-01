@@ -14,6 +14,9 @@ public interface EarningRepository extends JpaRepository<Earning, UUID> {
 
     List<Earning> findAllByTenantIdAndDeletedFalse(UUID tenantId);
 
+    /** The earnings flagged {@code is_pro_rata}: one query per pay run for loss of pay (W-29.3 §4). */
+    List<Earning> findAllByTenantIdAndProRataTrueAndDeletedFalse(UUID tenantId);
+
     List<Earning> findAllByTenantIdAndActiveAndDeletedFalse(UUID tenantId, boolean active);
 
     List<Earning> findAllByTenantIdAndActiveAndDeletedFalseAndFbpComponentTrue(UUID tenantId, boolean active);

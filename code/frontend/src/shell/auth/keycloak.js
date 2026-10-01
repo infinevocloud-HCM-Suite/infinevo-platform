@@ -1,34 +1,10 @@
 import Keycloak from 'keycloak-js';
-
-/**
- * The one Keycloak adapter (W-10). Nothing else constructs a Keycloak instance.
- *
- * Configuration, in the order it is read - the same two-step the API base URL uses
- * (client.js:21-24, W-49): a runtime value injected into the page wins, so one built
- * image can run in dev and in Azure; the build-time VITE_* value is the fallback.
- *
- *   window.__ENV.KEYCLOAK_URL   / VITE_KEYCLOAK_URL        - e.g. http://localhost:8081
- *   window.__ENV.KEYCLOAK_REALM / VITE_KEYCLOAK_REALM      - defaults to 'infinevo'
- *   window.__ENV.KEYCLOAK_CLIENT_ID / VITE_KEYCLOAK_CLIENT_ID - defaults to 'infinevo-web'
- *
- * VITE_KEYCLOAK_URL is already supplied to the web container - infra/docker/compose.yml:212.
- * The realm and client id carry defaults matching infra/docker/keycloak/dev-realm.json:53,
- * so only the URL has to be set anywhere.
- *
- * `infinevo-web` is a PUBLIC client (dev-realm.json:56). There is no client secret and
- * none may be added: every VITE_* value is compiled into the browser bundle, so nothing
- * confidential can live here. The browser proves itself with PKCE instead.
- *
- * The tenant is not configured, stored or sent. It rides in the token's `tenant_id`
- * claim and is resolved server-side - see the note at client.js:16-18.
- */
-
-const runtime = (typeof window !== 'undefined' && window.__ENV) || {};
+import { config } from '../../shared/config.js';
 
 export const keycloak = new Keycloak({
-  url: runtime.KEYCLOAK_URL || import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8081',
-  realm: runtime.KEYCLOAK_REALM || import.meta.env.VITE_KEYCLOAK_REALM || 'infinevo',
-  clientId: runtime.KEYCLOAK_CLIENT_ID || import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'infinevo-web',
+  url: config.keycloak.url,
+  realm: config.keycloak.realm,
+  clientId: config.keycloak.clientId,
 });
 
 /**

@@ -93,6 +93,20 @@ class NavigationServiceTest {
     }
 
     @Test
+    @DisplayName("modules is what the tenant holds, whatever the caller may see")
+    void modulesIsWhatTheTenantHoldsWhateverTheCallerMaySee() {
+        when(entitlementService.holds(PlatformModule.PAYROLL)).thenReturn(true);
+        when(entitlementService.holds(PlatformModule.HRMS)).thenReturn(false);
+        // No payroll action at all: the payroll item is hidden, the module is still reported.
+        when(permissionService.currentActions()).thenReturn(Set.of("core.employee.read"));
+
+        NavigationResponse response = navigationService.navigation();
+
+        assertThat(keysOf(response)).containsExactly("core.employee");
+        assertThat(response.modules()).containsExactly(PlatformModule.PAYROLL);
+    }
+
+    @Test
     @DisplayName("an action the user lacks removes its item")
     void actionUserLacksRemovesItsItem() {
         when(entitlementService.holds(PlatformModule.PAYROLL)).thenReturn(true);
@@ -163,7 +177,16 @@ class NavigationServiceTest {
     @DisplayName("the default constructor serves the shipped catalogue")
     void defaultConstructorServesTheShippedCatalogue() {
         when(permissionService.currentActions())
-                .thenReturn(Set.of("core.employee.read", "core.org.read", "core.role.read", "core.audit.read"));
+                .thenReturn(Set.of(
+                        "core.employee.read",
+                        "core.org.read",
+                        "core.role.read",
+                        "core.audit.read",
+                        "core.holiday.read",
+                        "core.tenant.read",
+                        "core.approval.decide",
+                        "core.user.manage",
+                        "core.employee.create"));
         NavigationService shipped = new NavigationService(entitlementService, permissionService);
 
         List<String> keys = keysOf(shipped.navigation());

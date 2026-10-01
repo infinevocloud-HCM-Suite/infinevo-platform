@@ -13,11 +13,15 @@ import com.infinevo.shared.identity.UserAccountRepository;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -131,6 +135,39 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = require(id);
         employee.markDeleted(currentActor());
         employeeRepository.save(employee);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> displayNames(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        UUID tenantId = TenantContext.require();
+        Map<UUID, String> names = new LinkedHashMap<>();
+        for (Employee employee : employeeRepository.findByTenantIdAndIdIn(tenantId, ids)) {
+            String name = Stream.of(employee.getFirstName(), employee.getLastName())
+                    .filter(part -> part != null && !part.isBlank())
+                    .collect(Collectors.joining(" "));
+            names.put(employee.getId(), name.isBlank() ? employee.getEmployeeNumber() : name);
+        }
+        return names;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EmployeeResponse> listEmployedBetween(LocalDate start, LocalDate end) {
+        Objects.requireNonNull(start, "start must not be null");
+        Objects.requireNonNull(end, "end must not be null");
+        if (start.isAfter(end)) {
+            throw new IllegalArgumentException("start " + start + " is after end " + end);
+        }
+        UUID tenantId = TenantContext.require();
+        return employeeRepository
+                .findEmployedBetween(tenantId, start, end, EmploymentStatus.ACTIVE, EmploymentStatus.TERMINATED)
+                .stream()
+                .map(EmployeeResponse::from)
+                .toList();
     }
 
     @Override

@@ -302,6 +302,19 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "core", "employee_personal")) {
                 st.execute("DELETE FROM core.employee_personal");
             }
+            // W-29.1 / W-29.2: pay run lines and rows reference core.employee, so they go before it.
+            if (tableExists(conn, "payroll", "employee_payrun_line")) {
+                st.execute("DELETE FROM payroll.employee_payrun_line");
+            }
+            if (tableExists(conn, "payroll", "employee_payrun")) {
+                st.execute("DELETE FROM payroll.employee_payrun");
+            }
+            if (tableExists(conn, "payroll", "payrun")) {
+                st.execute("DELETE FROM payroll.payrun");
+            }
+            if (tableExists(conn, "core", "employee_bank")) {
+                st.execute("DELETE FROM core.employee_bank");
+            }
             st.execute("DELETE FROM core.employee");
         }
     }

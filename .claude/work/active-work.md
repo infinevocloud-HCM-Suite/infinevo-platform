@@ -6,6 +6,41 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-01 — `W-18.2` merged (`b580d8b`)
+
+- Every pay figure is stamped: five columns on `payroll.employee_payrun` (`V125`) record the policy, basis, divisor, payable days and rounding. No policy means no figure; that employee fails alone. `GET /api/v1/payroll/payruns/{id}/employees/{id}/explain` returns the stamp.
+- One squash of `krushna-w18-2-fixes` at `0fcdca2`. Gates 5/5, CI green there, one independent read of krushna's `faf6eb8`, no blockers. Both blockers from the earlier send-back are closed. The joiner and leaver underpayment carried from `W-29.3` is closed.
+- Fixed at merge: on a fixed basis the days outside employment were rounded before the money, so a 42,500 joiner was charged 5.48 too much. Tested, not re-read.
+- **Build:** `jackson-bom` moved to 2.21.7 for CVE-2026-91776 and CVE-2026-91777, published 2026-10-01, which turn the dependency scan red on every branch. Every other branch needs `main` merged in, or the same bump.
+- **`V125` is taken.** `dev-karma` (`core/V125__leave_type.sql`) and `dev-devashis` (`core/V125__hrms_project_seed_roles.sql`) renumber above it before they merge.
+- **Decided by the founder at merge, specs amended the same day (`W-29.3` § 3 and § 13, `W-18.2` § 4 and § 13):** on `FIXED_30` and `ORG_DAYS(n)` a joiner or leaver loses the gap's share of the month, which replaces `W-29.3` § 13 decision 2; an employee with no work location fails the run alone when holidays are unpaid, and `core`'s basis endpoint refuses them too; the explain path carries `/payroll/`, unlike `W-18.2` § 4.
+- **Outstanding:** the row keeps days at 2 decimals, so on a fixed basis the explain days do not reproduce a joiner's amount to the paisa. No test for explain 404/409 or a fixed-basis joiner end to end. An employee can explain their own figure on an unapproved run — `W-36` decides. Full list in the merge commit.
+- **Newly Ready:** nothing; no ticket waited on `W-18.2`. krushna's next is `W-30.2`.
+- **krushna's branches:** `krushna-w18-2` and `krushna-w18-2-fixes` have nothing left to merge. He starts `W-30.2` from `main`.
+
+## 2026-09-30 — `W-45`, `W-46.1`, `W-46.3a`, `W-46.4` merged (`11ec157`)
+
+- The frontend has started. One squash of `dev-biren4s-fixes` at `cb75bbe` puts the shell on `main` (API client, `createService`, runtime config, tokens, error screens, module-boundary lint rules) with the employee screens, the organisation setup screens and the approval screens.
+- Gates 5/5 for all four, CI green on `cb75bbe`, one independent read per ticket on biren's `29d916f`. Fixed before merge: Reactivate was offered on a terminated employee, which the server never allows; saving an approval definition reset its step ordering and comment scope; the Payroll-only rule read menu keys the feed never returns; a cold load flashed "no modules" then "not found". The fix commit was tested, not re-read.
+- **Backend added at merge, not in the specs yet:** the navigation feed returns the tenant's `modules`; the pending-approvals list names the subject employee (`EmployeeService.displayNames`, no `core.employee.read` needed); a delegation carries `revocable`; deleting the filing-address work location is a `409`. Founder to confirm and amend `W-46.4` § 4 and `W-46.3a` § 2.
+- **For every screen ticket after this:** a module imports from the shell only through `@shell/screens`, which exports the error screens, `useCan` and `useHasModule` and nothing else. A route beneath a menu path (`/employees/new` under `/employees`) mounts on the parent's permission, so a child screen that needs another action checks it with `useCan`.
+- **Outstanding, the ones that matter next:** nobody has run these screens in a browser, so § 8 is unproven for all four. A manager without `core.employee.read` cannot search employees to pick a delegate. No seed grants `core.approval.*` to manager, hr or employee. Full list in the merge commit.
+- **Newly Ready:** `W-46.3b`, `W-46.6`, `W-46.7` (biren), `W-47.1b` (sayeed), `W-47.1a` (unassigned). `W-47.2` now waits on `W-30.2` only; `W-47.3` on `W-25`; `W-65.3` on `W-65.1` and `W-65.2`; `W-46.2` on `W-16`; `W-46.5` on `W-25` and `W-16.3`.
+- **Branches:** biren resets `dev-biren` (or `dev-biren4s`) to `main` before `W-46.3b`. `dev-biren4s-fixes` can be deleted.
+- **Harness:** `check-done.mjs` now accepts a lettered ticket (`W-46.3a`, `W-47.1b`); it refused them before.
+
+## 2026-09-30 — `W-29.1`, `W-29.2`, `W-29.3`, `W-29.4` merged (`7dfd74e`)
+
+- The pay run is on `main` in one squash of `krushna-w29-fixes` at `342b649`: creation, inclusion and locking (`V055`–`V056`), computation with the `STRUCTURE` contributor (`V057`), loss of pay and pay inputs (`V058`), async compute on the worker with resume (`V059`). All with `tenant_id` and RLS.
+- Gates 5/5 for all four, CI green on `342b649`, one independent read per ticket and one of the first fix commit. Fixed before merge: a loss-of-pay reversal posted to a later period was lost; the payroll officer could not read the job status; an overtaken worker could keep writing and undo a resume. The second fix commit was tested, not re-read. Local: 8 modules, 1716 tests green.
+- **Added at merge, not in the spec yet:** a late loss-of-pay reversal is paid back as `LOP_REVERSAL`, at the current period's salary and divisor. Founder to confirm the rate rule and amend `W-29.3` § 3.
+- **`V059` grants `core.job.read` to `payroll-officer`** by a function and trigger of its own, the `V037` pattern. It does not rewrite `core.seed_system_roles`.
+- **Outstanding, the one that matters next:** joiners and leavers are underpaid when the policy counts working days only (`W-29.3` § 13 decision 2 divides calendar days by a working-day divisor). Exact under the default policy. Goes with `W-18.2`. Full list in the merge commit.
+- **For `W-31.4`:** the run context carries no earned wage per component; derive it from the day figures and the basis, and leave out `LOP`-source and `_REVERSAL` lines.
+- **Not merged:** `W-18.2` (`d8c4b60` on `krushna-w29`). Two blockers from its read: its own § 8 divisor check fails, and the `ORG_DAYS` no-location test was replaced. krushna rebases it onto `main`.
+- **Newly Ready:** `W-31.4`, `W-36.1` (sayeed), `W-36.2` (devashis), `W-30.2` (unassigned), `W-18.2` (krushna). `W-37` now waits on `W-36.2` only; `W-47.2` on `W-45` and `W-30.2`.
+- **krushna's branches:** `krushna-w29-fixes` has nothing left to merge. `krushna-w29` holds only `W-18.2` beyond `main`.
+
 ## 2026-09-30 — `W-24.1`, `W-17`, `W-18.1`, `W-24.2`, `W-28` merged (`288f9fa`)
 
 - Five krushna tickets are on `main` in one squash of `krushna-tickets-fixes` at `346e1de`: setup checklist (`V035`), holiday calendar (`V036`), loss-of-pay policy (`V116`, `V119`), invitations (`V117`–`V118`), pay schedule (`V054`). All with `tenant_id` and RLS.
