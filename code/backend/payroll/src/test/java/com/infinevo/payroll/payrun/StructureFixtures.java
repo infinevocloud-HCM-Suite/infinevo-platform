@@ -140,10 +140,7 @@ final class StructureFixtures {
                 PayRunDays.of(
                         BigDecimal.valueOf(period.lengthOfMonth()),
                         BigDecimal.ZERO,
-                        period.atDay(1),
-                        period.atEndOfMonth(),
-                        joined,
-                        null),
+                        LopFixtures.outside(period, BigDecimal.valueOf(period.lengthOfMonth()), joined, null)),
                 Set.of(),
                 List.of());
     }

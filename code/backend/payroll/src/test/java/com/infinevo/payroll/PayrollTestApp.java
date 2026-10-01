@@ -83,14 +83,47 @@ public class PayrollTestApp {
     }
 
     /**
-     * W-18.1's calculator for W-29.3. Holidays and the employee record are left out: the pay run
-     * tests seed an ACTUAL_DAYS policy with weekends and holidays payable, which needs neither; the
-     * working week comes from W-28's PayScheduleWorkingWeekSource, which this context scans.
+     * Employees the calculator's employee lookup reports without a work location (W-18.2 §7). This
+     * context has no core.employee org columns (V014) or holiday calendar; the location rule itself is
+     * WorkingDayBasisCalculatorTest's, the pay run's reaction to it NoPolicyFailsEmployeeIT's.
+     */
+    public static final java.util.Set<UUID> EMPLOYEES_WITHOUT_LOCATION =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * W-18.1's calculator for W-29.3 and W-18.2. The working week comes from W-28's
+     * PayScheduleWorkingWeekSource, which this context scans. Holidays are none, from any calendar; the
+     * employee lookup answers every employee with a location except those in
+     * {@link #EMPLOYEES_WITHOUT_LOCATION}.
      */
     @Bean
     public com.infinevo.core.lop.WorkingDayBasisCalculator workingDayBasisCalculator(
             com.infinevo.core.lop.LopPolicyService lopPolicyService) {
-        return new com.infinevo.core.lop.WorkingDayBasisCalculator(lopPolicyService, null, null);
+        com.infinevo.core.employee.EmployeeRepository employees =
+                org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeRepository.class);
+        UUID location = UUID.fromString("44444444-4444-4444-4444-444444444444");
+        org.mockito.Mockito.when(employees.findByIdAndTenantIdAndDeletedFalse(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    UUID id = invocation.getArgument(0);
+                    com.infinevo.core.employee.Employee employee =
+                            org.mockito.Mockito.mock(com.infinevo.core.employee.Employee.class);
+                    if (!EMPLOYEES_WITHOUT_LOCATION.contains(id)) {
+                        com.infinevo.core.org.WorkLocation workLocation =
+                                org.mockito.Mockito.mock(com.infinevo.core.org.WorkLocation.class);
+                        org.mockito.Mockito.when(workLocation.getId()).thenReturn(location);
+                        org.mockito.Mockito.when(employee.getWorkLocation()).thenReturn(workLocation);
+                    }
+                    return Optional.of(employee);
+                });
+        com.infinevo.core.holiday.HolidayQueryService holidays =
+                org.mockito.Mockito.mock(com.infinevo.core.holiday.HolidayQueryService.class);
+        org.mockito.Mockito.when(holidays.holidaysBetween(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        return new com.infinevo.core.lop.WorkingDayBasisCalculator(lopPolicyService, employees, holidays);
     }
 
     @Bean

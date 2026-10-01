@@ -135,11 +135,10 @@ class OffCyclePayRunComputeIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("A joiner with no salary version and a tenant with no loss-of-pay policy are still paid")
-    void noSalaryNoPolicyStillComputes() throws SQLException {
+    @DisplayName("A joiner with no salary version is still paid, and the figure carries its policy stamp (W-18.2)")
+    void noSalaryStillComputes() throws SQLException {
         UUID joiner = PayRunTestSchema.insertEmployee(TENANT_A, "J-01", LocalDate.of(2026, 7, 10), "ACTIVE", null);
         PayRunTestSchema.insertBank(TENANT_A, joiner);
-        PayRunTestSchema.deletePolicy(TENANT_A);
         PayRunResponse offCycle = payRunService.createOffCycle(MID_JULY, List.of(joiner), "Joining bonus");
         payRunService.addInputs(
                 offCycle.id(),
