@@ -90,6 +90,8 @@ public final class NavigationCatalogue {
                     null,
                     "core.holiday.read"),
             new ItemDefinition(
+                    "core.setup", "nav.setup", "/setup", "/api/v1/setup-checklist", null, "core.tenant.read"),
+            new ItemDefinition(
                     "core.approvals",
                     "nav.approvals",
                     "/approvals",

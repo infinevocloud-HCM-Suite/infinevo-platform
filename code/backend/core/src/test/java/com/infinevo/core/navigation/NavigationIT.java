@@ -99,7 +99,7 @@ class NavigationIT extends AbstractIntegrationTest {
                 .toList();
         assertThat(keysOf(admin)).containsExactlyElementsOf(catalogueKeys);
         assertThat(keysOf(employee)).isNotEqualTo(keysOf(admin));
-        assertThat(keysOf(employee)).doesNotContain("core.roles", "core.audit");
+        assertThat(keysOf(employee)).doesNotContain("core.roles", "core.audit", "core.setup");
     }
 
     @Test

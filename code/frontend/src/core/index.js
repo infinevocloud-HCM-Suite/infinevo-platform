@@ -48,6 +48,10 @@ const HolidayLookup = lazy(() =>
   import('./holiday/HolidayLookup.jsx').then((m) => ({ default: m.HolidayLookup }))
 );
 
+const SetupChecklist = lazy(() =>
+  import('./setup/SetupChecklist.jsx').then((m) => ({ default: m.SetupChecklist }))
+);
+
 // Employee, leave, holidays, organisation setup, approvals. Available to every tenant.
 // Screens and slices land here as their work items are built.
 export const routes = [
@@ -68,6 +72,7 @@ export const routes = [
   { path: '/holidays/lookup', element: React.createElement(HolidayLookup) },
   { path: '/holidays/:id/edit', element: React.createElement(Calendars) },
   { path: '/holidays/:id', element: React.createElement(CalendarHolidays) },
+  { path: '/setup', element: React.createElement(SetupChecklist) },
 ];
 
 export const reducers = {
