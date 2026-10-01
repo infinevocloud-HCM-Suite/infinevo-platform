@@ -38,6 +38,30 @@ const Definitions = lazy(() =>
   import('./approvals/Definitions.jsx').then((m) => ({ default: m.Definitions }))
 );
 
+const Calendars = lazy(() =>
+  import('./holiday/Calendars.jsx').then((m) => ({ default: m.Calendars }))
+);
+const CalendarHolidays = lazy(() =>
+  import('./holiday/CalendarHolidays.jsx').then((m) => ({ default: m.CalendarHolidays }))
+);
+const HolidayLookup = lazy(() =>
+  import('./holiday/HolidayLookup.jsx').then((m) => ({ default: m.HolidayLookup }))
+);
+
+const SetupChecklist = lazy(() =>
+  import('./setup/SetupChecklist.jsx').then((m) => ({ default: m.SetupChecklist }))
+);
+
+const UserInvitations = lazy(() =>
+  import('./invitation/UserInvitations.jsx').then((m) => ({ default: m.UserInvitations }))
+);
+const EmployeeInvitations = lazy(() =>
+  import('./invitation/EmployeeInvitations.jsx').then((m) => ({ default: m.EmployeeInvitations }))
+);
+const AcceptInvitation = lazy(() =>
+  import('./invitation/AcceptInvitation.jsx').then((m) => ({ default: m.AcceptInvitation }))
+);
+
 // Employee, leave, holidays, organisation setup, approvals. Available to every tenant.
 // Screens and slices land here as their work items are built.
 export const routes = [
@@ -53,6 +77,18 @@ export const routes = [
   { path: '/approvals/:instanceId', element: React.createElement(InstanceDetail) },
   { path: '/approvals/delegations', element: React.createElement(Delegations) },
   { path: '/approvals/definitions', element: React.createElement(Definitions) },
+  { path: '/holidays', element: React.createElement(Calendars) },
+  { path: '/holidays/new', element: React.createElement(Calendars) },
+  { path: '/holidays/lookup', element: React.createElement(HolidayLookup) },
+  { path: '/holidays/:id/edit', element: React.createElement(Calendars) },
+  { path: '/holidays/:id', element: React.createElement(CalendarHolidays) },
+  { path: '/setup', element: React.createElement(SetupChecklist) },
+  { path: '/invitations/users', element: React.createElement(UserInvitations) },
+  { path: '/invitations/employees', element: React.createElement(EmployeeInvitations) },
+];
+
+export const publicRoutes = [
+  { path: '/invitations/accept', element: React.createElement(AcceptInvitation) },
 ];
 
 export const reducers = {

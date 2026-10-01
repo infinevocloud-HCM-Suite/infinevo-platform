@@ -6,6 +6,17 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-01 — `W-46.3b`, `W-46.6`, `W-46.7` merged (`24bb261`)
+
+- Three more core screens are on `main`: holiday calendars with the "holidays between" lookup, the setup checklist at `/setup`, and the user and employee invitation lists with the public accept / decline page. Four menu items added: `core.holiday`, `core.setup`, two `core.invitations.*`.
+- One squash of `dev-biren4s-fixes-2` at `9cf335a`. Gates 5/5 for all three, CI green there, one independent read per ticket on biren's `9adf029`.
+- Fixed at merge: the calendar list offered a Delete button for an endpoint `W-17` does not have. Removed. Tested, not re-read.
+- **The accept page boots before Keycloak.** `main.jsx` renders a path in `core`'s `publicRoutes` without `initAuth`, the store or the shell. Any later public page goes through that list.
+- **Build:** `ci.yml` installs semgrep with `pipx`, not `pip`. It rode in on this branch and is in no spec.
+- **Outstanding, the ones that matter next:** nobody has run these screens in a browser, so § 8 is unproven for all three. The should-fix items from the reads are open: missing § 7 tests, swallowed load errors, a UTC year filter on holidays, no `Suspense` on the accept page. Full list in the merge commit.
+- **Newly Ready:** nothing; no ticket waited on these three. biren's remaining `W-46.2` waits on `W-16`, `W-46.5` on `W-25` and `W-16.3`.
+- **Branches:** biren resets `dev-biren4s` to `main`. `dev-biren4s-fixes-2` can be deleted.
+
 ## 2026-10-01 — `W-18.2` merged (`b580d8b`)
 
 - Every pay figure is stamped: five columns on `payroll.employee_payrun` (`V125`) record the policy, basis, divisor, payable days and rounding. No policy means no figure; that employee fails alone. `GET /api/v1/payroll/payruns/{id}/employees/{id}/explain` returns the stamp.
