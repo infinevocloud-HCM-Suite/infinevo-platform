@@ -15,16 +15,18 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
  * Anonymous endpoint for viewing a payslip by signed link (W-36.2 §4).
  * Serves {@link PublicEndpoints#PAYSLIP_OPEN} without bearer authentication.
  * Every refusal returns 404. Nothing in this class logs a token or a signature.
  */
-@RestController
+@Controller
+@ResponseBody
 public class PayslipOpenController {
 
     private static final Logger log = LoggerFactory.getLogger(PayslipOpenController.class);
