@@ -1,4 +1,4 @@
--- Migration: V129__leave_request.sql
+-- Migration: V130__leave_request.sql
 -- Description: W-16.3 core.leave_request — employee leave requests with RLS isolation
 
 CREATE TABLE core.leave_request (

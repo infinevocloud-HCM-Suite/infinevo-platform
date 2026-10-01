@@ -1,4 +1,4 @@
--- Migration: V130__leave_request_document.sql
+-- Migration: V131__leave_request_document.sql
 -- Description: W-16.3 core.leave_request_document — leave request attachments with RLS isolation
 
 CREATE TABLE core.leave_request_document (
