@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -61,7 +62,12 @@ public class LeaveImportServiceImpl implements LeaveImportService {
 
         // 1. Create initial import log record in PENDING state
         LeaveImportLog importLog = new LeaveImportLog(tenantId, documentId, canonicalYear, dryRun, 0);
-        importLog = allocationHelper.saveLog(importLog);
+        try {
+            importLog = allocationHelper.saveLog(importLog);
+        } catch (DataIntegrityViolationException e) {
+            // The log row references the document, so an id that names no document fails here.
+            throw new IllegalArgumentException("Import document not found: " + documentId, e);
+        }
 
         // 2. Open document stream via DocumentService
         DocumentService.DocumentContent docContent;
@@ -128,54 +134,29 @@ public class LeaveImportServiceImpl implements LeaveImportService {
         importLog.setRowsTotal(totalRows);
         importLog = allocationHelper.saveLog(importLog);
 
-        // 4. Validate rows
-        LeaveImportRowValidator.ValidationResult validation = rowValidator.validate(tenantId, parsedRows);
         List<LeaveImportError> allErrors = new ArrayList<>(parseErrors);
-        allErrors.addAll(validation.errors());
-
         int rowsImported = 0;
 
-        // 5. Create allocations if not dry run
-        if (!dryRun) {
-            LocalDate[] dates = resolveYearDates(startMonth, canonicalYear);
-            for (LeaveImportRowValidator.ValidatedRow validRow : validation.validRows()) {
-                try {
-                    LeaveAllocationRequest allocRequest = new LeaveAllocationRequest(
-                            validRow.employee().getId(),
-                            validRow.leaveType().getId(),
-                            canonicalYear,
-                            dates[0],
-                            dates[1],
-                            validRow.days());
-                    allocationHelper.createOneAllocation(tenantId, allocRequest);
-                    rowsImported++;
-                } catch (Exception e) {
-                    log.warn(
-                            "Allocation creation failed for line {}: {}",
-                            validRow.row().lineNumber(),
-                            e.getMessage());
-                    String reason = "WRITE_FAILED";
-                    Throwable root = e;
-                    while (root.getCause() != null && root.getCause() != root) {
-                        root = root.getCause();
-                    }
-                    String msg = root.getMessage() != null ? root.getMessage().toLowerCase() : "";
-                    if (msg.contains("duplicate")
-                            || msg.contains("uk_leave_allocation")
-                            || msg.contains("unique")
-                            || msg.contains("already exists")
-                            || msg.contains("overlapping")
-                            || msg.contains("no_overlapping_leave_allocation")) {
-                        reason = "DUPLICATE_ALLOCATION";
-                    }
-                    allErrors.add(new LeaveImportError(
-                            validRow.row().lineNumber(),
-                            validRow.row().employeeNumber(),
-                            validRow.row().leaveTypeCode(),
-                            validRow.row().days(),
-                            reason));
-                }
+        // Each allocation commits in its own transaction, so a failure from here on must not leave the
+        // log at PENDING with zero counts while balances already exist.
+        try {
+            // 4. Validate rows
+            LeaveImportRowValidator.ValidationResult validation = rowValidator.validate(tenantId, parsedRows);
+            allErrors.addAll(validation.errors());
+
+            // 5. Create allocations if not dry run
+            if (!dryRun) {
+                rowsImported = createAllocations(tenantId, startMonth, canonicalYear, validation, allErrors);
             }
+        } catch (RuntimeException e) {
+            int written = rowsImported;
+            log.error("Leave import {} failed after {} row(s) were written", importLog.getId(), written, e);
+            importLog.setRowsImported(written);
+            importLog.setRowsFailed(Math.max(totalRows - written, 0));
+            importLog.setStatus(ImportStatus.FAILED);
+            importLog.setFinishedAt(Instant.now());
+            allocationHelper.saveLog(importLog);
+            throw e;
         }
 
         int rowsFailed = allErrors.size();
@@ -199,12 +180,17 @@ public class LeaveImportServiceImpl implements LeaveImportService {
             }
 
             byte[] errorBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
-            UUID errorDocId = documentService.store(
-                    DocumentKind.EXPORT,
-                    null,
-                    "leave-import-errors-" + importLog.getId() + ".csv",
-                    new ByteArrayInputStream(errorBytes));
-            importLog.setErrorDocumentId(errorDocId);
+            try {
+                UUID errorDocId = documentService.store(
+                        DocumentKind.EXPORT,
+                        null,
+                        "leave-import-errors-" + importLog.getId() + ".csv",
+                        new ByteArrayInputStream(errorBytes));
+                importLog.setErrorDocumentId(errorDocId);
+            } catch (RuntimeException e) {
+                // The counts still go on the log; only the downloadable report is lost.
+                log.error("Could not store the error report for leave import {}", importLog.getId(), e);
+            }
         }
 
         // 7. Update final status and counts
@@ -223,6 +209,59 @@ public class LeaveImportServiceImpl implements LeaveImportService {
         importLog = allocationHelper.saveLog(importLog);
 
         return LeaveImportResultResponse.from(importLog);
+    }
+
+    /**
+     * Writes one allocation per valid row, each in its own transaction, and returns how many were written.
+     * A row that fails is added to {@code allErrors} and does not stop the rest.
+     */
+    private int createAllocations(
+            UUID tenantId,
+            int startMonth,
+            String canonicalYear,
+            LeaveImportRowValidator.ValidationResult validation,
+            List<LeaveImportError> allErrors) {
+        int rowsImported = 0;
+        LocalDate[] dates = resolveYearDates(startMonth, canonicalYear);
+        for (LeaveImportRowValidator.ValidatedRow validRow : validation.validRows()) {
+            try {
+                LeaveAllocationRequest allocRequest = new LeaveAllocationRequest(
+                        validRow.employee().getId(),
+                        validRow.leaveType().getId(),
+                        canonicalYear,
+                        dates[0],
+                        dates[1],
+                        validRow.days());
+                allocationHelper.createOneAllocation(tenantId, allocRequest);
+                rowsImported++;
+            } catch (Exception e) {
+                log.warn(
+                        "Allocation creation failed for line {}: {}",
+                        validRow.row().lineNumber(),
+                        e.getMessage());
+                String reason = "WRITE_FAILED";
+                Throwable root = e;
+                while (root.getCause() != null && root.getCause() != root) {
+                    root = root.getCause();
+                }
+                String msg = root.getMessage() != null ? root.getMessage().toLowerCase() : "";
+                if (msg.contains("duplicate")
+                        || msg.contains("uk_leave_allocation")
+                        || msg.contains("unique")
+                        || msg.contains("already exists")
+                        || msg.contains("overlapping")
+                        || msg.contains("no_overlapping_leave_allocation")) {
+                    reason = "DUPLICATE_ALLOCATION";
+                }
+                allErrors.add(new LeaveImportError(
+                        validRow.row().lineNumber(),
+                        validRow.row().employeeNumber(),
+                        validRow.row().leaveTypeCode(),
+                        validRow.row().days(),
+                        reason));
+            }
+        }
+        return rowsImported;
     }
 
     @Override
@@ -267,6 +306,10 @@ public class LeaveImportServiceImpl implements LeaveImportService {
     private String escapeCsv(String val) {
         if (val == null) {
             return "";
+        }
+        // A spreadsheet runs a cell that starts with one of these as a formula; a leading quote makes it text.
+        if (!val.isEmpty() && "=+-@\t\r".indexOf(val.charAt(0)) >= 0) {
+            val = "'" + val;
         }
         if (val.contains(",") || val.contains("\"") || val.contains("\n")) {
             return "\"" + val.replace("\"", "\"\"") + "\"";

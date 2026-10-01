@@ -123,6 +123,17 @@ class LeaveImportRowValidatorTest {
     }
 
     @Test
+    @DisplayName("days with more than two decimals is rejected, not rounded")
+    void tooPreciseDays() {
+        LeaveImportRow row = new LeaveImportRow(8, "EMP-001", "SL", "12.555");
+        var result = validator.validate(tenantId, List.of(row));
+
+        assertThat(result.validRows()).isEmpty();
+        assertThat(result.errors()).singleElement().satisfies(err -> assertThat(err.reason())
+                .isEqualTo("INVALID_DAYS"));
+    }
+
+    @Test
     @DisplayName("duplicate employee and leave type in the same file is rejected with DUPLICATE_IN_FILE")
     void duplicateInFile() {
         LeaveImportRow row1 = new LeaveImportRow(2, "EMP-001", "SL", "10.00");

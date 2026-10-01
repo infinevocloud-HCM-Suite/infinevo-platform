@@ -128,11 +128,19 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
     @Transactional(readOnly = true)
     public List<OverdrawnEmployee> previewMidYearPolicyImpact(
             UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf) {
+        return previewMidYearPolicyImpact(tenantId, leaveTypeId, newAnnualDays, null, asOf);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OverdrawnEmployee> previewMidYearPolicyImpact(
+            UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, Boolean newAccrualEnabled, LocalDate asOf) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(leaveTypeId, "leaveTypeId must not be null");
         Objects.requireNonNull(newAnnualDays, "newAnnualDays must not be null");
 
         LocalDate evalDate = asOf != null ? asOf : LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
 
         List<LeaveAllocation> currentAllocations =
                 allocationRepository
@@ -141,13 +149,15 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
 
         List<OverdrawnEmployee> overdrawn = new ArrayList<>();
         for (LeaveAllocation allocation : currentAllocations) {
-            LeavePolicy currentPolicy =
-                    policyRepository.findById(allocation.getPolicyId()).orElse(null);
-            boolean isAccrual = currentPolicy != null && Boolean.TRUE.equals(currentPolicy.getAccrualEnabled());
-            BigDecimal newEntitlement = isAccrual
-                    ? (allocation.getEntitlementDays() != null ? allocation.getEntitlementDays() : BigDecimal.ZERO)
-                    : LeaveProRate.calculateEntitlement(newAnnualDays, allocation.getProRateFactor());
-            BigDecimal accrued = allocation.getAccruedDays() != null ? allocation.getAccruedDays() : BigDecimal.ZERO;
+            // Apply leaves a closed year alone, so the preview does not report on it either.
+            if (allocation.getYearEndDate().isBefore(today)) {
+                continue;
+            }
+            boolean oldAccrual = isAccrual(allocation.getPolicyId());
+            boolean newAccrual = newAccrualEnabled != null ? newAccrualEnabled : oldAccrual;
+            MidYearOutcome outcome = midYearOutcome(allocation, oldAccrual, newAccrual, newAnnualDays);
+            BigDecimal newEntitlement = outcome.entitlementDays();
+            BigDecimal accrued = outcome.accruedDays();
             BigDecimal carried =
                     allocation.getCarriedForwardDays() != null ? allocation.getCarriedForwardDays() : BigDecimal.ZERO;
             BigDecimal consumed = BigDecimal.ZERO;
@@ -185,23 +195,61 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
                         .findByTenantIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
                                 tenantId, leaveTypeId, evalDate, evalDate);
 
+        boolean newAccrual = Boolean.TRUE.equals(newPolicy.getAccrualEnabled());
         for (LeaveAllocation allocation : currentAllocations) {
             // Closed years must never be rewritten (Spec § 6)
             if (allocation.getYearEndDate().isBefore(today)) {
                 continue;
             }
+            // Read the outgoing policy before the allocation is re-pointed at the new one.
+            boolean oldAccrual = isAccrual(allocation.getPolicyId());
+            MidYearOutcome outcome = midYearOutcome(allocation, oldAccrual, newAccrual, newPolicy.getAnnualDays());
             allocation.setPolicyId(newPolicy.getId());
-            // Accrual allocations accumulate days progressively in accrued_days.
-            // Overwriting entitlement_days corrupts accrual balances (counting days twice)
-            // and destroys imported opening balances.
-            if (!Boolean.TRUE.equals(newPolicy.getAccrualEnabled())) {
-                BigDecimal newEntitlement =
-                        LeaveProRate.calculateEntitlement(newPolicy.getAnnualDays(), allocation.getProRateFactor());
-                allocation.setEntitlementDays(newEntitlement);
+            allocation.setEntitlementDays(outcome.entitlementDays());
+            allocation.setAccruedDays(outcome.accruedDays());
+            if (outcome.accrualClosedForYear()) {
+                allocation.setLastAccruedOn(allocation.getYearEndDate());
             }
             allocationRepository.save(allocation);
         }
         return currentAllocations.size();
+    }
+
+    private boolean isAccrual(UUID policyId) {
+        if (policyId == null) {
+            return false;
+        }
+        LeavePolicy policy = policyRepository.findById(policyId).orElse(null);
+        return policy != null && Boolean.TRUE.equals(policy.getAccrualEnabled());
+    }
+
+    /** What one allocation holds after a mid-year policy change. Preview and apply both read it. */
+    private record MidYearOutcome(BigDecimal entitlementDays, BigDecimal accruedDays, boolean accrualClosedForYear) {}
+
+    /**
+     * The one rule for a mid-year policy change, so the preview reports exactly what apply does.
+     *
+     * <ul>
+     *   <li>fixed to fixed: the entitlement is recalculated from the new annual days;
+     *   <li>accrual to accrual: nothing held changes - the days accrue progressively, and rewriting
+     *       the entitlement would count them twice and destroy an imported opening balance;
+     *   <li>accrual to fixed: the new entitlement replaces the days accrued so far, which become
+     *       part of it and are not added on top;
+     *   <li>fixed to accrual: the entitlement already granted for the year stands and accrual
+     *       starts with the next leave year, so the grant is not accrued a second time.
+     * </ul>
+     */
+    private static MidYearOutcome midYearOutcome(
+            LeaveAllocation allocation, boolean oldAccrual, boolean newAccrual, BigDecimal newAnnualDays) {
+        BigDecimal entitlement =
+                allocation.getEntitlementDays() != null ? allocation.getEntitlementDays() : BigDecimal.ZERO;
+        BigDecimal accrued = allocation.getAccruedDays() != null ? allocation.getAccruedDays() : BigDecimal.ZERO;
+        if (newAccrual) {
+            return new MidYearOutcome(entitlement, accrued, !oldAccrual);
+        }
+        BigDecimal newEntitlement = LeaveProRate.calculateEntitlement(newAnnualDays, allocation.getProRateFactor());
+        return new MidYearOutcome(
+                newEntitlement, oldAccrual ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : accrued, false);
     }
 
     @Override

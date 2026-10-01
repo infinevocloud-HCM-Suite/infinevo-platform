@@ -104,8 +104,12 @@ public class LeaveImportRowValidator {
             // Check days
             BigDecimal parsedDays;
             try {
-                parsedDays = new BigDecimal(daysStr).setScale(2, RoundingMode.HALF_UP);
-                if (parsedDays.compareTo(BigDecimal.ZERO) <= 0) {
+                BigDecimal raw = new BigDecimal(daysStr);
+                // More than two decimals is refused, not rounded: the file must say what will be stored.
+                boolean tooPrecise = raw.stripTrailingZeros().scale() > 2;
+                boolean tooLarge = raw.precision() - raw.scale() > 8;
+                parsedDays = raw.setScale(2, RoundingMode.HALF_UP);
+                if (tooPrecise || tooLarge || parsedDays.compareTo(BigDecimal.ZERO) <= 0) {
                     errors.add(new LeaveImportError(
                             row.lineNumber(), row.employeeNumber(), row.leaveTypeCode(), row.days(), "INVALID_DAYS"));
                     continue;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, Table, Tag, Skeleton, Result, Button, Space, Typography, theme } from 'antd';
-import { FileTextOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { FileTextOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 
 const { Text } = Typography;
@@ -16,7 +16,7 @@ export function MyDocuments() {
     setError(null);
     try {
       const data = await portalService.getDocuments();
-      setDocuments(Array.isArray(data) ? data : data?.items || []);
+      setDocuments(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err?.response?.data?.message || err.message || 'Failed to load documents');
     } finally {
@@ -56,38 +56,26 @@ export function MyDocuments() {
   const columns = [
     {
       title: 'Document Name',
-      dataIndex: 'documentName',
-      key: 'documentName',
-      render: (text, record) => (
+      dataIndex: 'fileName',
+      key: 'fileName',
+      render: (text) => (
         <Space>
           <FileTextOutlined style={{ color: token.colorPrimary }} />
-          <Text strong>{text || record.name || record.fileName || 'Untitled Document'}</Text>
+          <Text strong>{text || 'Untitled Document'}</Text>
         </Space>
       ),
     },
     {
       title: 'Category / Kind',
-      dataIndex: 'documentKind',
-      key: 'documentKind',
-      render: (kind, record) => (
-        <Tag color="blue">{kind || record.category || 'GENERAL'}</Tag>
-      ),
+      dataIndex: 'kind',
+      key: 'kind',
+      render: (kind) => (kind ? <Tag color="blue">{kind}</Tag> : '—'),
     },
     {
       title: 'Uploaded At',
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date) => (date ? new Date(date).toLocaleDateString() : '—'),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => (
-        <Tag color="success" icon={<CheckCircleOutlined />}>
-          {status || 'VERIFIED'}
-        </Tag>
-      ),
     },
   ];
 

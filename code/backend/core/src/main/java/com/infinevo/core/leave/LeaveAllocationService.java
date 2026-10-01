@@ -26,6 +26,13 @@ public interface LeaveAllocationService {
     List<OverdrawnEmployee> previewMidYearPolicyImpact(
             UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf);
 
+    /**
+     * As above, for a change that may also switch accrual on or off. {@code newAccrualEnabled} is
+     * the new policy's flag; {@code null} means the flag does not change.
+     */
+    List<OverdrawnEmployee> previewMidYearPolicyImpact(
+            UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, Boolean newAccrualEnabled, LocalDate asOf);
+
     default List<OverdrawnEmployee> previewMidYearPolicyImpact(
             UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf) {
         return previewMidYearPolicyImpact(TenantContext.require(), leaveTypeId, newAnnualDays, asOf);

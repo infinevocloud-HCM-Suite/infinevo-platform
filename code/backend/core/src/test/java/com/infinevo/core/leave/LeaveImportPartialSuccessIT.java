@@ -45,6 +45,12 @@ import org.springframework.test.context.ContextConfiguration;
 @ContextConfiguration(initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
 
+    /**
+     * The leave year in progress. A policy dated before it is refused and a closed year is never
+     * rewritten, so a fixed year here would start failing the day that year ends.
+     */
+    private static final int YEAR = LocalDate.now(java.time.ZoneOffset.UTC).getYear();
+
     @Autowired
     private LeaveImportService leaveImportService;
 
@@ -86,7 +92,7 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
 
         // Seed 1 active leave type with policy
         LeaveTypeResponse slResp = leaveTypeService.createLeaveType(
-                new LeaveTypeRequest("Sick Leave", "SL", true, LeaveUnit.DAYS, false, LocalDate.of(2026, 1, 1), null));
+                new LeaveTypeRequest("Sick Leave", "SL", true, LeaveUnit.DAYS, false, LocalDate.of(YEAR, 1, 1), null));
         typeSlId = slResp.id();
 
         LeavePolicyResponse polResp = leaveTypeService.setPolicy(
@@ -111,7 +117,7 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
         policyId = polResp.id();
     }
@@ -144,9 +150,9 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
             ps.setObject(2, TENANT_A);
             ps.setObject(3, emp3Id);
             ps.setObject(4, typeSlId);
-            ps.setString(5, "2026");
-            ps.setDate(6, java.sql.Date.valueOf("2026-01-01"));
-            ps.setDate(7, java.sql.Date.valueOf("2026-12-31"));
+            ps.setString(5, String.valueOf(YEAR));
+            ps.setDate(6, java.sql.Date.valueOf(LocalDate.of(YEAR, 1, 1)));
+            ps.setDate(7, java.sql.Date.valueOf(LocalDate.of(YEAR, 12, 31)));
             ps.setBigDecimal(8, java.math.BigDecimal.valueOf(15));
             ps.setBigDecimal(9, java.math.BigDecimal.ZERO);
             ps.setBigDecimal(10, java.math.BigDecimal.ZERO);
@@ -198,7 +204,8 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
         LeaveTestSchema.insertDocumentRow(TENANT_A, errDocId);
 
         // Execute import
-        LeaveImportResultResponse response = leaveImportService.importLeaves(TENANT_A, docId, "2026", false);
+        LeaveImportResultResponse response =
+                leaveImportService.importLeaves(TENANT_A, docId, String.valueOf(YEAR), false);
 
         // Verify response DTO
         assertThat(response.status()).isEqualTo(ImportStatus.COMPLETED_WITH_ERRORS);

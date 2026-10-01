@@ -62,15 +62,16 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         if (request.unit() != LeaveUnit.DAYS) {
             throw new IllegalArgumentException("Unsupported leave unit. Only day-based leave (DAYS) is supported.");
         }
-        if (leaveTypeRepository.existsByTenantIdAndCode(tenantId, request.code())) {
-            throw new IllegalArgumentException(
-                    "Leave type with code '" + request.code() + "' already exists in this tenant");
+        requireTypeFields(request);
+        String code = request.code().trim();
+        if (leaveTypeRepository.existsByTenantIdAndCode(tenantId, code)) {
+            throw new IllegalArgumentException("Leave type with code '" + code + "' already exists in this tenant");
         }
 
         boolean active = request.isActive() == null || request.isActive();
         LeaveType type = new LeaveType(
                 tenantId,
-                request.code().trim(),
+                code,
                 request.name().trim(),
                 Boolean.TRUE.equals(request.isPaid()),
                 request.unit(),
@@ -99,6 +100,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
                 .findByTenantIdAndId(tenantId, id)
                 .orElseThrow(() -> new IllegalArgumentException("Leave type not found with ID: " + id));
 
+        requireTypeFields(request);
         String newCode = request.code().trim();
         if (!type.getCode().equalsIgnoreCase(newCode)
                 && leaveTypeRepository.existsByTenantIdAndCode(tenantId, newCode)) {
@@ -162,6 +164,19 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         });
     }
 
+    /** A missing code, name or start date is the caller's mistake: refuse it before it reaches the database. */
+    private static void requireTypeFields(LeaveTypeRequest request) {
+        if (request.code() == null || request.code().isBlank()) {
+            throw new IllegalArgumentException("Leave type code is required");
+        }
+        if (request.name() == null || request.name().isBlank()) {
+            throw new IllegalArgumentException("Leave type name is required");
+        }
+        if (request.validFrom() == null) {
+            throw new IllegalArgumentException("Leave type validFrom is required");
+        }
+    }
+
     @Override
     public LeavePolicyResponse configurePolicy(UUID tenantId, UUID leaveTypeId, LeavePolicyRequest request) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
@@ -219,7 +234,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         List<OverdrawnEmployee> overdrawn = List.of();
         if (leaveAllocationService != null && request.annualDays() != null) {
             overdrawn = leaveAllocationService.previewMidYearPolicyImpact(
-                    tenantId, leaveTypeId, request.annualDays(), effectiveDate);
+                    tenantId, leaveTypeId, request.annualDays(), request.accrualEnabled(), effectiveDate);
         }
 
         LeavePolicy savedPolicy = leavePolicyRepository.save(policy);
@@ -261,6 +276,13 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     @Transactional(readOnly = true)
     public List<OverdrawnEmployee> previewPolicyChange(
             UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf) {
+        return previewPolicyChange(tenantId, leaveTypeId, newAnnualDays, null, asOf);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OverdrawnEmployee> previewPolicyChange(
+            UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, Boolean newAccrualEnabled, LocalDate asOf) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(leaveTypeId, "leaveTypeId must not be null");
         Objects.requireNonNull(newAnnualDays, "newAnnualDays must not be null");
@@ -272,7 +294,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         LocalDate evaluationDate = asOf != null ? asOf : LocalDate.now(ZoneOffset.UTC);
         if (leaveAllocationService != null) {
             return leaveAllocationService.previewMidYearPolicyImpact(
-                    tenantId, leaveTypeId, newAnnualDays, evaluationDate);
+                    tenantId, leaveTypeId, newAnnualDays, newAccrualEnabled, evaluationDate);
         }
         return List.of();
     }

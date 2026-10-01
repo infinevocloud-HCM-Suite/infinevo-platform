@@ -33,6 +33,12 @@ import org.springframework.boot.test.context.SpringBootTest;
         initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveCarryForwardExpiryIT extends AbstractIntegrationTest {
 
+    /**
+     * The leave year in progress. A policy dated before it is refused and a closed year is never
+     * rewritten, so a fixed year here would start failing the day that year ends.
+     */
+    private static final int YEAR = LocalDate.now(java.time.ZoneOffset.UTC).getYear();
+
     @Autowired
     private LeaveTypeService leaveTypeService;
 
@@ -65,7 +71,7 @@ class LeaveCarryForwardExpiryIT extends AbstractIntegrationTest {
         employeeId = LeaveTestSchema.insertEmployee(TENANT_A, "EMP-01", "Charlie", "charlie@acme.com");
 
         LeaveTypeResponse type = leaveTypeService.createLeaveType(
-                new LeaveTypeRequest("Earned Leave", "EL", true, LeaveUnit.DAYS, true, LocalDate.of(2026, 1, 1), null));
+                new LeaveTypeRequest("Earned Leave", "EL", true, LeaveUnit.DAYS, true, LocalDate.of(YEAR, 1, 1), null));
         leaveTypeId = type.id();
 
         LeavePolicyResponse policy = leaveTypeService.setPolicy(
@@ -90,7 +96,7 @@ class LeaveCarryForwardExpiryIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
 
         // Create allocation with 18 entitlement and 5 carried forward expiring 2026-03-31
@@ -98,13 +104,13 @@ class LeaveCarryForwardExpiryIT extends AbstractIntegrationTest {
                 TENANT_A,
                 employeeId,
                 leaveTypeId,
-                "2026",
-                LocalDate.of(2026, 1, 1),
-                LocalDate.of(2026, 12, 31),
+                String.valueOf(YEAR),
+                LocalDate.of(YEAR, 1, 1),
+                LocalDate.of(YEAR, 12, 31),
                 BigDecimal.valueOf(18),
                 BigDecimal.ZERO,
                 BigDecimal.valueOf(5),
-                LocalDate.of(2026, 3, 31),
+                LocalDate.of(YEAR, 3, 31),
                 BigDecimal.ONE,
                 policy.id());
         allocationRepository.save(allocation);
@@ -122,7 +128,7 @@ class LeaveCarryForwardExpiryIT extends AbstractIntegrationTest {
 
         // Before expiry: 2026-03-31 (on expiry date)
         LeaveBalanceResponse beforeExpiry = balanceService
-                .getBalance(employeeId, leaveTypeId, LocalDate.of(2026, 3, 31))
+                .getBalance(employeeId, leaveTypeId, LocalDate.of(YEAR, 3, 31))
                 .orElseThrow();
 
         assertThat(beforeExpiry.carriedForwardDays()).isEqualByComparingTo(BigDecimal.valueOf(5));
@@ -131,7 +137,7 @@ class LeaveCarryForwardExpiryIT extends AbstractIntegrationTest {
 
         // After expiry: 2026-04-01
         LeaveBalanceResponse afterExpiry = balanceService
-                .getBalance(employeeId, leaveTypeId, LocalDate.of(2026, 4, 1))
+                .getBalance(employeeId, leaveTypeId, LocalDate.of(YEAR, 4, 1))
                 .orElseThrow();
 
         assertThat(afterExpiry.carriedForwardDays()).isEqualByComparingTo(BigDecimal.ZERO);

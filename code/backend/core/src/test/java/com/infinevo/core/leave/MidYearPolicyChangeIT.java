@@ -37,6 +37,12 @@ import org.springframework.boot.test.context.SpringBootTest;
         initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class MidYearPolicyChangeIT extends AbstractIntegrationTest {
 
+    /**
+     * The leave year in progress. A policy dated before it is refused and a closed year is never
+     * rewritten, so a fixed year here would start failing the day that year ends.
+     */
+    private static final int YEAR = LocalDate.now(java.time.ZoneOffset.UTC).getYear();
+
     @Autowired
     private LeaveTypeService leaveTypeService;
 
@@ -48,6 +54,9 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
 
     @Autowired
     private LeavePolicyRepository policyRepository;
+
+    @Autowired
+    private LeaveAccrualService accrualService;
 
     private UUID employeeId;
     private UUID leaveTypeId;
@@ -74,7 +83,7 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
         employeeId = LeaveTestSchema.insertEmployee(TENANT_A, "EMP-01", "Diana", "diana@acme.com");
 
         LeaveTypeResponse type = leaveTypeService.createLeaveType(
-                new LeaveTypeRequest("Annual Leave", "AL", true, LeaveUnit.DAYS, true, LocalDate.of(2026, 1, 1), null));
+                new LeaveTypeRequest("Annual Leave", "AL", true, LeaveUnit.DAYS, true, LocalDate.of(YEAR, 1, 1), null));
         leaveTypeId = type.id();
 
         LeavePolicyResponse policy = leaveTypeService.setPolicy(
@@ -99,16 +108,16 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
         initialPolicyId = policy.id();
 
         LeaveAllocationResponse alloc = allocationService.createAllocation(new LeaveAllocationRequest(
                 employeeId,
                 leaveTypeId,
-                "2026",
-                LocalDate.of(2026, 1, 1),
-                LocalDate.of(2026, 12, 31),
+                String.valueOf(YEAR),
+                LocalDate.of(YEAR, 1, 1),
+                LocalDate.of(YEAR, 12, 31),
                 BigDecimal.valueOf(20)));
         allocationId = alloc.id();
     }
@@ -123,7 +132,7 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
     void midYearPolicyChangeRecalculatesAndAudits() throws SQLException {
         TenantContext.set(TENANT_A);
 
-        LocalDate midYearDate = LocalDate.of(2026, 7, 1);
+        LocalDate midYearDate = LocalDate.of(YEAR, 7, 1);
 
         // Configure new policy with 5 annual days via configurePolicy
         LeavePolicyResponse newPolicyResponse = leaveTypeService.setPolicy(
@@ -190,7 +199,7 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
     @DisplayName("Preview endpoint returns impact without modifying policy or allocations (F-7)")
     void previewPolicyChangeDoesNotMutatePolicyOrAllocations() {
         TenantContext.set(TENANT_A);
-        LocalDate midYearDate = LocalDate.of(2026, 7, 1);
+        LocalDate midYearDate = LocalDate.of(YEAR, 7, 1);
 
         List<OverdrawnEmployee> preview =
                 leaveTypeService.previewPolicyChange(leaveTypeId, BigDecimal.valueOf(5), midYearDate);
@@ -208,7 +217,7 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
         TenantContext.set(TENANT_A);
 
         LeaveTypeResponse type = leaveTypeService.createLeaveType(new LeaveTypeRequest(
-                "Earned Leave", "EL", true, LeaveUnit.DAYS, false, LocalDate.of(2026, 1, 1), null));
+                "Earned Leave", "EL", true, LeaveUnit.DAYS, false, LocalDate.of(YEAR, 1, 1), null));
         UUID elTypeId = type.id();
 
         LeavePolicyResponse policy = leaveTypeService.setPolicy(
@@ -233,16 +242,16 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
 
         // Create allocation with 6 days accrued so far
         LeaveAllocationResponse alloc = allocationService.createAllocation(new LeaveAllocationRequest(
                 employeeId,
                 elTypeId,
-                "2026",
-                LocalDate.of(2026, 1, 1),
-                LocalDate.of(2026, 12, 31),
+                String.valueOf(YEAR),
+                LocalDate.of(YEAR, 1, 1),
+                LocalDate.of(YEAR, 12, 31),
                 BigDecimal.valueOf(6)));
 
         // Mid-year update reducing annual days to 12
@@ -268,11 +277,112 @@ class MidYearPolicyChangeIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 7, 1),
+                        LocalDate.of(YEAR, 7, 1),
                         List.of()));
 
         // Entitlement days must NOT be overwritten with 12
         LeaveAllocation updated = allocationRepository.findById(alloc.id()).orElseThrow();
         assertThat(updated.getEntitlementDays()).isEqualByComparingTo(BigDecimal.valueOf(6));
+    }
+
+    @Test
+    @DisplayName("Accrual to fixed: the new entitlement replaces the accrued days, it is not added on top")
+    void accrualToFixedDoesNotCountLeaveTwice() {
+        TenantContext.set(TENANT_A);
+
+        UUID elTypeId = leaveTypeService
+                .createLeaveType(new LeaveTypeRequest(
+                        "Earned Leave", "EL", true, LeaveUnit.DAYS, false, LocalDate.of(YEAR, 1, 1), null))
+                .id();
+        leaveTypeService.setPolicy(elTypeId, policy(24, true, 2, LocalDate.of(YEAR, 1, 1)));
+
+        UUID elAllocationId = allocationService
+                .createAllocation(new LeaveAllocationRequest(
+                        employeeId,
+                        elTypeId,
+                        String.valueOf(YEAR),
+                        LocalDate.of(YEAR, 1, 1),
+                        LocalDate.of(YEAR, 12, 31),
+                        BigDecimal.ZERO))
+                .id();
+        LeaveAllocation accruing = allocationRepository.findById(elAllocationId).orElseThrow();
+        accruing.setAccruedDays(BigDecimal.valueOf(6));
+        allocationRepository.save(accruing);
+
+        leaveTypeService.setPolicy(elTypeId, policy(24, false, 0, LocalDate.of(YEAR, 7, 1)));
+
+        LeaveAllocation updated = allocationRepository.findById(elAllocationId).orElseThrow();
+        assertThat(updated.getEntitlementDays()).isEqualByComparingTo(BigDecimal.valueOf(24));
+        assertThat(updated.getAccruedDays())
+                .as("24 held, not 24 + the 6 already accrued")
+                .isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    @DisplayName("Fixed to accrual: the year's grant stands and nothing accrues on top of it this year")
+    void fixedToAccrualDoesNotAccrueOnTopOfTheGrant() {
+        TenantContext.set(TENANT_A);
+
+        leaveTypeService.setPolicy(leaveTypeId, policy(24, true, 2, LocalDate.of(YEAR, 7, 1)));
+
+        LeaveAllocation updated = allocationRepository.findById(allocationId).orElseThrow();
+        assertThat(updated.getEntitlementDays()).isEqualByComparingTo(BigDecimal.valueOf(20));
+        assertThat(updated.getLastAccruedOn()).isEqualTo(LocalDate.of(YEAR, 12, 31));
+
+        boolean accrued = accrualService.accrueAllocation(TENANT_A, updated, LocalDate.of(YEAR, 12, 1));
+
+        assertThat(accrued).isFalse();
+        LeaveAllocation afterSweep = allocationRepository.findById(allocationId).orElseThrow();
+        assertThat(afterSweep.getAccruedDays()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    @DisplayName("Preview and apply agree across an accrual switch")
+    void previewUsesTheNewPolicysAccrualFlag() {
+        TenantContext.set(TENANT_A);
+        LocalDate midYearDate = LocalDate.of(YEAR, 7, 1);
+
+        // The allocation holds a fixed 20. Kept as fixed and cut to nothing, it would be reported as it
+        // stands; switched to accrual, the 20 already granted stands, so nobody is over-drawn either way.
+        // What must differ is the entitlement the preview works from.
+        LeaveAllocation allocation = allocationRepository.findById(allocationId).orElseThrow();
+        allocation.setCarriedForwardDays(BigDecimal.valueOf(-25));
+        allocationRepository.save(allocation);
+
+        List<OverdrawnEmployee> keptFixed =
+                leaveTypeService.previewPolicyChange(TENANT_A, leaveTypeId, BigDecimal.valueOf(5), false, midYearDate);
+        List<OverdrawnEmployee> toAccrual =
+                leaveTypeService.previewPolicyChange(TENANT_A, leaveTypeId, BigDecimal.valueOf(5), true, midYearDate);
+
+        // fixed: 5 - 25 = 20 short. accrual: the 20 granted stands, 20 - 25 = 5 short.
+        assertThat(keptFixed).singleElement().satisfies(o -> assertThat(o.overdrawnDays())
+                .isEqualByComparingTo(BigDecimal.valueOf(20)));
+        assertThat(toAccrual).singleElement().satisfies(o -> assertThat(o.overdrawnDays())
+                .isEqualByComparingTo(BigDecimal.valueOf(5)));
+    }
+
+    private static LeavePolicyRequest policy(int annualDays, boolean accrual, int monthlyUnits, LocalDate from) {
+        return new LeavePolicyRequest(
+                BigDecimal.valueOf(annualDays),
+                accrual,
+                accrual ? AccrualFrequency.MONTHLY : null,
+                accrual ? BigDecimal.valueOf(monthlyUnits) : null,
+                false,
+                null,
+                false,
+                null,
+                null,
+                false,
+                null,
+                null,
+                false,
+                false,
+                ExceedBalanceMode.NO_LIMIT,
+                null,
+                false,
+                null,
+                null,
+                from,
+                List.of());
     }
 }

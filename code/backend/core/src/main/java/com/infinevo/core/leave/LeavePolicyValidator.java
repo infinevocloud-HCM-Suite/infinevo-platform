@@ -70,6 +70,7 @@ public final class LeavePolicyValidator {
 
         // Eligibility dimensions validation
         if (request.eligibility() != null) {
+            java.util.Set<String> seen = new java.util.HashSet<>();
             for (LeavePolicyEligibilityRequest elig : request.eligibility()) {
                 if (elig.dimension() == null || elig.dimension().isBlank()) {
                     throw new IllegalArgumentException("Eligibility dimension must not be blank");
@@ -85,6 +86,9 @@ public final class LeavePolicyValidator {
                 }
                 if (elig.valueId() == null) {
                     throw new IllegalArgumentException("Eligibility valueId must not be null");
+                }
+                if (!seen.add(dim + ":" + elig.valueId())) {
+                    throw new IllegalArgumentException("Eligibility row is repeated: " + dim + " " + elig.valueId());
                 }
             }
         }

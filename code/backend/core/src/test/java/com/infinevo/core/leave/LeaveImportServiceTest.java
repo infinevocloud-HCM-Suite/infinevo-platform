@@ -364,4 +364,81 @@ class LeaveImportServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Tenant leave year start month could not be determined");
     }
+
+    @Test
+    @DisplayName("error report cannot be stored: the log still records the counts and the import completes")
+    void errorReportStoreFailureStillRecordsCounts() {
+        String csv =
+                """
+                employee_number,leave_type_code,days
+                EMP-1,SL,10.00
+                EMP-BAD1,SL,10.00
+                """;
+        when(documentService.open(documentId)).thenReturn(mockCsvContent(csv));
+        when(documentService.store(eq(DocumentKind.EXPORT), any(), any(), any(InputStream.class)))
+                .thenThrow(new IllegalStateException("blob store unavailable"));
+
+        Employee emp = mock(Employee.class);
+        when(emp.getId()).thenReturn(UUID.randomUUID());
+        LeaveType lt = mock(LeaveType.class);
+        when(lt.getId()).thenReturn(UUID.randomUUID());
+        LeaveImportRow row = new LeaveImportRow(2, "EMP-1", "SL", "10.00");
+        when(rowValidator.validate(eq(tenantId), any()))
+                .thenReturn(new LeaveImportRowValidator.ValidationResult(
+                        List.of(new LeaveImportRowValidator.ValidatedRow(row, emp, lt, new BigDecimal("10.00"))),
+                        List.of(new LeaveImportError(3, "EMP-BAD1", "SL", "10.00", "EMPLOYEE_NOT_FOUND"))));
+
+        LeaveImportResultResponse resp = service.importLeaves(tenantId, documentId, "2026", false);
+
+        assertThat(resp.status()).isEqualTo(ImportStatus.COMPLETED_WITH_ERRORS);
+        assertThat(resp.rowsImported()).isEqualTo(1);
+        assertThat(resp.rowsFailed()).isEqualTo(1);
+        assertThat(resp.errorDocumentId()).isNull();
+    }
+
+    @Test
+    @DisplayName("failure after parsing marks the log FAILED instead of leaving it PENDING, and rethrows")
+    void failureAfterParsingMarksLogFailed() {
+        List<ImportStatus> savedStatuses = new ArrayList<>();
+        when(allocationHelper.saveLog(any(LeaveImportLog.class))).thenAnswer(inv -> {
+            LeaveImportLog l = inv.getArgument(0);
+            savedStatuses.add(l.getStatus());
+            if (l.getId() == null) {
+                l.setId(UUID.randomUUID());
+            }
+            return l;
+        });
+        when(documentService.open(documentId))
+                .thenReturn(mockCsvContent("employee_number,leave_type_code,days\nEMP-1,SL,10.00\n"));
+        when(rowValidator.validate(eq(tenantId), any())).thenThrow(new IllegalStateException("database unavailable"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.importLeaves(tenantId, documentId, "2026", false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("database unavailable");
+
+        assertThat(savedStatuses).last().isEqualTo(ImportStatus.FAILED);
+        assertThat(savedStatuses).doesNotContain(ImportStatus.COMPLETED, ImportStatus.COMPLETED_WITH_ERRORS);
+    }
+
+    @Test
+    @DisplayName("a cell that a spreadsheet would run as a formula is written to the error report as text")
+    void errorReportNeutralisesFormulaCells() throws Exception {
+        when(documentService.open(documentId))
+                .thenReturn(
+                        mockCsvContent("employee_number,leave_type_code,days\n=HYPERLINK(\"http://x\"),SL,10.00\n"));
+        when(rowValidator.validate(eq(tenantId), any()))
+                .thenReturn(new LeaveImportRowValidator.ValidationResult(
+                        List.of(),
+                        List.of(new LeaveImportError(
+                                2, "=HYPERLINK(\"http://x\")", "SL", "10.00", "EMPLOYEE_NOT_FOUND"))));
+
+        service.importLeaves(tenantId, documentId, "2026", true);
+
+        org.mockito.ArgumentCaptor<InputStream> stream = org.mockito.ArgumentCaptor.forClass(InputStream.class);
+        verify(documentService).store(eq(DocumentKind.EXPORT), any(), any(), stream.capture());
+        String report = new String(stream.getValue().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(report).contains("\"'=HYPERLINK(");
+        assertThat(report).doesNotContain("\n=HYPERLINK(").doesNotContain(",=HYPERLINK(");
+    }
 }

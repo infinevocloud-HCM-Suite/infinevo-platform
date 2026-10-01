@@ -39,6 +39,12 @@ import org.springframework.boot.test.context.SpringBootTest;
         initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveTypeRlsIT extends AbstractIntegrationTest {
 
+    /**
+     * The leave year in progress. A policy dated before it is refused and a closed year is never
+     * rewritten, so a fixed year here would start failing the day that year ends.
+     */
+    private static final int YEAR = LocalDate.now(java.time.ZoneOffset.UTC).getYear();
+
     @Autowired
     private LeaveTypeService leaveTypeService;
 
@@ -64,7 +70,7 @@ class LeaveTypeRlsIT extends AbstractIntegrationTest {
         // Seed Tenant A leave type and policy
         TenantContext.set(TENANT_A);
         LeaveTypeResponse typeA = leaveTypeService.createLeaveType(
-                new LeaveTypeRequest("Annual Leave", "AL", true, LeaveUnit.DAYS, true, LocalDate.of(2026, 1, 1), null));
+                new LeaveTypeRequest("Annual Leave", "AL", true, LeaveUnit.DAYS, true, LocalDate.of(YEAR, 1, 1), null));
         typeAId = typeA.id();
         leaveTypeService.setPolicy(
                 typeAId,
@@ -88,13 +94,13 @@ class LeaveTypeRlsIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
 
         // Seed Tenant B leave type and policy
         TenantContext.set(TENANT_B);
         LeaveTypeResponse typeB = leaveTypeService.createLeaveType(
-                new LeaveTypeRequest("Sick Leave", "SL", true, LeaveUnit.DAYS, false, LocalDate.of(2026, 1, 1), null));
+                new LeaveTypeRequest("Sick Leave", "SL", true, LeaveUnit.DAYS, false, LocalDate.of(YEAR, 1, 1), null));
         typeBId = typeB.id();
         leaveTypeService.setPolicy(
                 typeBId,
@@ -118,7 +124,7 @@ class LeaveTypeRlsIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
     }
 
@@ -201,7 +207,7 @@ class LeaveTypeRlsIT extends AbstractIntegrationTest {
         assertThatThrownBy(() -> leaveTypeService.updateLeaveType(
                         typeBId,
                         new LeaveTypeRequest(
-                                "Hijacked", "HJ", false, LeaveUnit.DAYS, false, LocalDate.of(2026, 1, 1), null)))
+                                "Hijacked", "HJ", false, LeaveUnit.DAYS, false, LocalDate.of(YEAR, 1, 1), null)))
                 .isInstanceOf(IllegalArgumentException.class);
 
         // Raw SQL UPDATE under app_user bound to Tenant A

@@ -79,10 +79,11 @@ public class LeaveTypeController {
     public List<OverdrawnEmployee> previewPolicyChange(
             @PathVariable("id") UUID id,
             @RequestParam("annualDays") java.math.BigDecimal annualDays,
+            @RequestParam(name = "accrualEnabled", required = false) Boolean accrualEnabled,
             @RequestParam(name = "asOf", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate asOf) {
         UUID tenantId = TenantContext.require();
-        return leaveTypeService.previewPolicyChange(tenantId, id, annualDays, asOf);
+        return leaveTypeService.previewPolicyChange(tenantId, id, annualDays, accrualEnabled, asOf);
     }
 
     @GetMapping("/api/v1/leave-types/eligible")

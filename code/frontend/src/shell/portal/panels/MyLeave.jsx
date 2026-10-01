@@ -22,10 +22,11 @@ export function MyLeave() {
       ]);
 
       if (reqData.status === 'fulfilled') {
-        setRequests(Array.isArray(reqData.value) ? reqData.value : reqData.value?.items || []);
+        // GET /me/leave-requests answers with a Spring page: the rows are under `content`.
+        setRequests(Array.isArray(reqData.value) ? reqData.value : reqData.value?.content || []);
       }
       if (balData.status === 'fulfilled') {
-        setBalances(Array.isArray(balData.value) ? balData.value : balData.value?.items || []);
+        setBalances(Array.isArray(balData.value) ? balData.value : []);
       }
 
       if (reqData.status === 'rejected' && balData.status === 'rejected') {
@@ -67,12 +68,17 @@ export function MyLeave() {
     );
   }
 
+  // A request carries only the leave type's id; the balances name it.
+  const leaveTypeNames = new Map(
+    (balances || []).map((bal) => [bal.leaveTypeId, bal.leaveTypeName || bal.leaveTypeCode]),
+  );
+
   const columns = [
     {
       title: 'Leave Type',
-      dataIndex: 'leaveTypeName',
-      key: 'leaveTypeName',
-      render: (text, record) => text || record.leaveTypeCode || 'General Leave',
+      dataIndex: 'leaveTypeId',
+      key: 'leaveTypeId',
+      render: (leaveTypeId) => leaveTypeNames.get(leaveTypeId) || '—',
     },
     {
       title: 'From Date',
@@ -86,8 +92,8 @@ export function MyLeave() {
     },
     {
       title: 'Days',
-      dataIndex: 'daysCount',
-      key: 'daysCount',
+      dataIndex: 'workingDays',
+      key: 'workingDays',
       render: (days) => (days !== undefined && days !== null ? `${days} day(s)` : '—'),
     },
     {
@@ -128,18 +134,18 @@ export function MyLeave() {
         <Card title="Leave Balances" style={{ borderRadius: token.borderRadiusLG }}>
           <Row gutter={[16, 16]}>
             {balances.map((bal, idx) => (
-              <Col xs={24} sm={12} md={8} lg={6} key={bal.id || bal.leaveTypeCode || idx}>
+              <Col xs={24} sm={12} md={8} lg={6} key={bal.leaveTypeId || bal.leaveTypeCode || idx}>
                 <Card type="inner" style={{ textAlign: 'center' }}>
                   <Statistic
                     title={bal.leaveTypeName || bal.leaveTypeCode || 'Leave'}
-                    value={bal.availableDays !== undefined ? bal.availableDays : bal.balance || 0}
+                    value={Number(bal.remainingDays ?? 0)}
                     precision={1}
                     suffix="days available"
                     valueStyle={{ color: token.colorPrimary }}
                   />
-                  {bal.usedDays !== undefined && (
+                  {bal.consumedDays !== undefined && bal.consumedDays !== null && (
                     <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                      Used: {bal.usedDays} days
+                      Used: {bal.consumedDays} days
                     </Text>
                   )}
                 </Card>

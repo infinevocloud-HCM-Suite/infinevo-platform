@@ -35,6 +35,12 @@ import org.springframework.boot.test.context.SpringBootTest;
         initializers = com.infinevo.shared.test.PostgresTestContainerInitializer.class)
 class LeaveTypeHalfDayIT extends AbstractIntegrationTest {
 
+    /**
+     * The leave year in progress. A policy dated before it is refused and a closed year is never
+     * rewritten, so a fixed year here would start failing the day that year ends.
+     */
+    private static final int YEAR = LocalDate.now(java.time.ZoneOffset.UTC).getYear();
+
     @Autowired
     private LeaveTypeService leaveTypeService;
 
@@ -66,7 +72,7 @@ class LeaveTypeHalfDayIT extends AbstractIntegrationTest {
         TenantContext.set(TENANT_A);
 
         LeaveTypeResponse type = leaveTypeService.createLeaveType(
-                new LeaveTypeRequest("Casual Leave", "CL", true, LeaveUnit.DAYS, true, LocalDate.of(2026, 1, 1), null));
+                new LeaveTypeRequest("Casual Leave", "CL", true, LeaveUnit.DAYS, true, LocalDate.of(YEAR, 1, 1), null));
 
         BigDecimal halfDayValue = new BigDecimal("2.50");
 
@@ -92,7 +98,7 @@ class LeaveTypeHalfDayIT extends AbstractIntegrationTest {
                         false,
                         halfDayValue, // maxDaysPerApplication
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
 
         // Service level roundtrip verification

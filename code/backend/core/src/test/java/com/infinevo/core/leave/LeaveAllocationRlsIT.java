@@ -38,6 +38,12 @@ import org.springframework.test.context.ContextConfiguration;
 @ContextConfiguration(initializers = PostgresTestContainerInitializer.class)
 class LeaveAllocationRlsIT extends AbstractIntegrationTest {
 
+    /**
+     * The leave year in progress. A policy dated before it is refused and a closed year is never
+     * rewritten, so a fixed year here would start failing the day that year ends.
+     */
+    private static final int YEAR = LocalDate.now(java.time.ZoneOffset.UTC).getYear();
+
     @Autowired
     private LeaveTypeService leaveTypeService;
 
@@ -72,7 +78,7 @@ class LeaveAllocationRlsIT extends AbstractIntegrationTest {
         TenantContext.set(TENANT_A);
         empAId = LeaveTestSchema.insertEmployee(TENANT_A, "EMP-A1", "Alice", "alice@acme.com");
         LeaveTypeResponse typeA = leaveTypeService.createLeaveType(
-                new LeaveTypeRequest("Annual Leave", "AL", true, LeaveUnit.DAYS, true, LocalDate.of(2026, 1, 1), null));
+                new LeaveTypeRequest("Annual Leave", "AL", true, LeaveUnit.DAYS, true, LocalDate.of(YEAR, 1, 1), null));
         leaveTypeService.setPolicy(
                 typeA.id(),
                 new LeavePolicyRequest(
@@ -95,14 +101,14 @@ class LeaveAllocationRlsIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
         LeaveAllocationResponse allocA = allocationService.createAllocation(new LeaveAllocationRequest(
                 empAId,
                 typeA.id(),
-                "2026",
-                LocalDate.of(2026, 1, 1),
-                LocalDate.of(2026, 12, 31),
+                String.valueOf(YEAR),
+                LocalDate.of(YEAR, 1, 1),
+                LocalDate.of(YEAR, 12, 31),
                 BigDecimal.valueOf(20)));
         allocAId = allocA.id();
 
@@ -110,7 +116,7 @@ class LeaveAllocationRlsIT extends AbstractIntegrationTest {
         TenantContext.set(TENANT_B);
         empBId = LeaveTestSchema.insertEmployee(TENANT_B, "EMP-B1", "Bob", "bob@globex.com");
         LeaveTypeResponse typeB = leaveTypeService.createLeaveType(
-                new LeaveTypeRequest("Sick Leave", "SL", true, LeaveUnit.DAYS, false, LocalDate.of(2026, 1, 1), null));
+                new LeaveTypeRequest("Sick Leave", "SL", true, LeaveUnit.DAYS, false, LocalDate.of(YEAR, 1, 1), null));
         leaveTypeService.setPolicy(
                 typeB.id(),
                 new LeavePolicyRequest(
@@ -133,14 +139,14 @@ class LeaveAllocationRlsIT extends AbstractIntegrationTest {
                         false,
                         null,
                         null,
-                        LocalDate.of(2026, 1, 1),
+                        LocalDate.of(YEAR, 1, 1),
                         List.of()));
         LeaveAllocationResponse allocB = allocationService.createAllocation(new LeaveAllocationRequest(
                 empBId,
                 typeB.id(),
-                "2026",
-                LocalDate.of(2026, 1, 1),
-                LocalDate.of(2026, 12, 31),
+                String.valueOf(YEAR),
+                LocalDate.of(YEAR, 1, 1),
+                LocalDate.of(YEAR, 12, 31),
                 BigDecimal.valueOf(10)));
         allocBId = allocB.id();
     }
@@ -154,13 +160,13 @@ class LeaveAllocationRlsIT extends AbstractIntegrationTest {
     @DisplayName("Service level balances only see the bound tenant")
     void serviceBalancesOnlySeeBoundTenant() {
         TenantContext.set(TENANT_A);
-        List<LeaveBalanceResponse> balancesA = balanceService.getBalancesForEmployee(empAId, LocalDate.of(2026, 6, 1));
+        List<LeaveBalanceResponse> balancesA = balanceService.getBalancesForEmployee(empAId, LocalDate.of(YEAR, 6, 1));
         assertThat(balancesA).hasSize(1);
         assertThat(balancesA.get(0).leaveTypeCode()).isEqualTo("AL");
 
         // Requesting Tenant B employee from Tenant A context returns empty list
         List<LeaveBalanceResponse> crossBalances =
-                balanceService.getBalancesForEmployee(empBId, LocalDate.of(2026, 6, 1));
+                balanceService.getBalancesForEmployee(empBId, LocalDate.of(YEAR, 6, 1));
         assertThat(crossBalances).isEmpty();
     }
 

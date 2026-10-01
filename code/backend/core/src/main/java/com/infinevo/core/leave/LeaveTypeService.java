@@ -80,6 +80,13 @@ public interface LeaveTypeService {
     List<OverdrawnEmployee> previewPolicyChange(
             UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf);
 
+    /**
+     * As above, for a change that may also switch accrual on or off. {@code newAccrualEnabled} is the
+     * proposed policy's flag; {@code null} means the flag does not change.
+     */
+    List<OverdrawnEmployee> previewPolicyChange(
+            UUID tenantId, UUID leaveTypeId, BigDecimal newAnnualDays, Boolean newAccrualEnabled, LocalDate asOf);
+
     default List<OverdrawnEmployee> previewPolicyChange(UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf) {
         return previewPolicyChange(TenantContext.require(), leaveTypeId, newAnnualDays, asOf);
     }

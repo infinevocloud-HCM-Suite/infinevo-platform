@@ -3,9 +3,16 @@ package com.infinevo.core.document;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.shared.authz.RequiresAction;
+import com.infinevo.shared.error.ApiError;
+import com.infinevo.shared.error.ApiErrorResponse;
+import com.infinevo.shared.logging.MdcLoggingContext;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
+import org.slf4j.MDC;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,5 +43,19 @@ public class MyDocumentController {
                 .map(documentService::findByEmployee)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new EmployeeService.NotFoundException("No employee profile linked to current user"));
+    }
+
+    /** A login with no linked employee record: {@code 404}, never an unhandled exception. */
+    @ExceptionHandler(EmployeeService.NotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotFound(EmployeeService.NotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiErrorResponse.of(ApiError.NOT_FOUND, e.getMessage(), traceId()));
+    }
+
+    private static String traceId() {
+        String traceId = MDC.get(MdcLoggingContext.CORRELATION_ID_KEY);
+        return traceId == null || traceId.isBlank()
+                ? UUID.randomUUID().toString().substring(0, 8)
+                : traceId;
     }
 }
