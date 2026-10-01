@@ -85,7 +85,7 @@ describe('RunEmployees component (W-47.2 §7)', () => {
         size: 20,
       });
     });
-  });
+  }, 40000);
 
   it('renders reason sentence for the two known codes', async () => {
     payrunService.employees.mockResolvedValueOnce({

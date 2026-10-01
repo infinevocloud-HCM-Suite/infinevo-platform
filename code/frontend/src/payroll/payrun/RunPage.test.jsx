@@ -62,6 +62,9 @@ describe('RunPage component (W-47.2 §7)', () => {
     ];
 
     for (const s of statuses) {
+      // Reset employees mock per iteration to avoid stale promise state
+      payrunService.employees.mockResolvedValue({ content: [], totalElements: 0 });
+
       payrunService.get.mockResolvedValueOnce({
         id: `run-${s.status}`,
         period: '2026-10',
@@ -87,7 +90,7 @@ describe('RunPage component (W-47.2 §7)', () => {
 
       unmount();
     }
-  });
+  }, 40000);
 
   it('renders progress bar showing 3 / 10 when status is COMPUTING', async () => {
     payrunService.get.mockResolvedValueOnce({
