@@ -1,5 +1,6 @@
 package com.infinevo.payroll.payrun;
 
+import com.infinevo.payroll.payslip.PayRunPaymentRequest;
 import com.infinevo.payroll.schedule.NoPayScheduleException;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.entitlement.PlatformModule;
@@ -115,6 +116,23 @@ public class PayRunController {
             @PathVariable("id") UUID id, @PathVariable("employeeId") UUID employeeId) {
         return ResponseEntity.ok(
                 PayRunApiResponse.ok("Pay run lines retrieved successfully", payRunService.lines(id, employeeId)));
+    }
+
+    @PostMapping("/{id}/approve")
+    @RequiresAction("payroll.run.approve")
+    public ResponseEntity<PayRunApiResponse<PayRunResponse>> approve(@PathVariable("id") UUID id) {
+        return ResponseEntity.ok(PayRunApiResponse.ok("Pay run approved successfully", payRunService.approve(id)));
+    }
+
+    @PostMapping("/{id}/pay")
+    @RequiresAction("payroll.payslip.publish")
+    public ResponseEntity<PayRunApiResponse<PayRunResponse>> pay(
+            @PathVariable("id") UUID id, @RequestBody PayRunPaymentRequest request) {
+        if (request == null || request.paidOn() == null) {
+            throw new IllegalArgumentException("paid_on is required, as YYYY-MM-DD");
+        }
+        return ResponseEntity.ok(
+                PayRunApiResponse.ok("Pay run paid successfully", payRunService.pay(id, request.paidOn())));
     }
 
     @ExceptionHandler(PayRunNotFoundException.class)

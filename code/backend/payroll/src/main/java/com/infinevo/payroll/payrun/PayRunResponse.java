@@ -39,6 +39,13 @@ public record PayRunResponse(
         @JsonProperty("compute_started_at") Instant computeStartedAt,
         @JsonProperty("progress_done") int progressDone,
         @JsonProperty("progress_total") int progressTotal,
+        @JsonProperty("approved_at") Instant approvedAt,
+        @JsonProperty("approved_by") String approvedBy,
+        @JsonProperty("paid_at") Instant paidAt,
+        @JsonProperty("paid_by") String paidBy,
+        @JsonProperty("paid_on") LocalDate paidOn,
+        @JsonProperty("payslips_released_at") Instant payslipsReleasedAt,
+        @JsonProperty("notified") Integer notified,
         @JsonProperty("created_at") Instant createdAt,
         @JsonProperty("updated_at") Instant updatedAt) {
 
@@ -102,7 +109,79 @@ public record PayRunResponse(
                 updatedAt);
     }
 
+    /** The shape before W-36.2 with notes but without approve/pay fields. */
+    public PayRunResponse(
+            UUID id,
+            String period,
+            LocalDate periodStart,
+            LocalDate periodEnd,
+            LocalDate cutoffDate,
+            LocalDate payDate,
+            PayRunType runType,
+            String notes,
+            PayRunStatus status,
+            int includedCount,
+            int skippedCount,
+            BigDecimal totalGross,
+            BigDecimal totalDeductions,
+            BigDecimal totalNetPay,
+            int negativeNetCount,
+            Instant computedAt,
+            String failureReason,
+            Instant lockedAt,
+            String lockedBy,
+            Instant cancelledAt,
+            String cancelledBy,
+            String jobId,
+            int computeAttempt,
+            Instant computeStartedAt,
+            int progressDone,
+            int progressTotal,
+            Instant createdAt,
+            Instant updatedAt) {
+        this(
+                id,
+                period,
+                periodStart,
+                periodEnd,
+                cutoffDate,
+                payDate,
+                runType,
+                notes,
+                status,
+                includedCount,
+                skippedCount,
+                totalGross,
+                totalDeductions,
+                totalNetPay,
+                negativeNetCount,
+                computedAt,
+                failureReason,
+                lockedAt,
+                lockedBy,
+                cancelledAt,
+                cancelledBy,
+                jobId,
+                computeAttempt,
+                computeStartedAt,
+                progressDone,
+                progressTotal,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                createdAt,
+                updatedAt);
+    }
+
     public static PayRunResponse from(PayRun run) {
+        return from(run, null);
+    }
+
+    public static PayRunResponse from(PayRun run, Integer notified) {
         return new PayRunResponse(
                 run.getId(),
                 run.getPeriod().toString(),
@@ -130,6 +209,13 @@ public record PayRunResponse(
                 run.getComputeStartedAt(),
                 run.getProgressDone(),
                 run.getProgressTotal(),
+                run.getApprovedAt(),
+                run.getApprovedBy(),
+                run.getPaidAt(),
+                run.getPaidBy(),
+                run.getPaidOn(),
+                run.getPayslipsReleasedAt(),
+                notified,
                 run.getCreatedAt(),
                 run.getUpdatedAt());
     }

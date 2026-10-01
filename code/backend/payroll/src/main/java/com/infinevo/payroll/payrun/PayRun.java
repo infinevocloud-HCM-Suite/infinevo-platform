@@ -117,6 +117,24 @@ public class PayRun {
     @Column(name = "progress_total", nullable = false)
     private int progressTotal;
 
+    @Column(name = "approved_at")
+    private Instant approvedAt;
+
+    @Column(name = "approved_by", length = 100)
+    private String approvedBy;
+
+    @Column(name = "paid_at")
+    private Instant paidAt;
+
+    @Column(name = "paid_by", length = 100)
+    private String paidBy;
+
+    @Column(name = "paid_on")
+    private LocalDate paidOn;
+
+    @Column(name = "payslips_released_at")
+    private Instant payslipsReleasedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -413,6 +431,65 @@ public class PayRun {
 
     public int getProgressTotal() {
         return progressTotal;
+    }
+
+    /** {@code COMPUTED → APPROVED}: officer signs off on the computed figures. */
+    public void approve(String actor, Instant at) {
+        status.requireTransitionTo(PayRunStatus.APPROVED);
+        this.status = PayRunStatus.APPROVED;
+        this.approvedAt = Objects.requireNonNull(at, "at must not be null");
+        this.approvedBy = Objects.requireNonNull(actor, "actor must not be null");
+        this.updatedBy = actor;
+    }
+
+    /**
+     * {@code APPROVED → PAID}: marks the run paid and releases payslips.
+     *
+     * @param paidOn the payment date; must not be in the future, and not before periodStart
+     * @param actor who recorded the payment
+     * @param at when the transition occurred
+     */
+    public void pay(LocalDate paidOn, String actor, Instant at) {
+        status.requireTransitionTo(PayRunStatus.PAID);
+        Objects.requireNonNull(paidOn, "paidOn must not be null");
+        LocalDate today = LocalDate.now();
+        if (paidOn.isAfter(today)) {
+            throw new IllegalArgumentException("paid_on cannot be in the future: " + paidOn);
+        }
+        if (paidOn.isBefore(periodStart)) {
+            throw new IllegalArgumentException(
+                    "paid_on cannot be before period start (" + periodStart + "): " + paidOn);
+        }
+        this.status = PayRunStatus.PAID;
+        this.paidAt = Objects.requireNonNull(at, "at must not be null");
+        this.paidBy = Objects.requireNonNull(actor, "actor must not be null");
+        this.paidOn = paidOn;
+        this.payslipsReleasedAt = at;
+        this.updatedBy = actor;
+    }
+
+    public Instant getApprovedAt() {
+        return approvedAt;
+    }
+
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public Instant getPaidAt() {
+        return paidAt;
+    }
+
+    public String getPaidBy() {
+        return paidBy;
+    }
+
+    public LocalDate getPaidOn() {
+        return paidOn;
+    }
+
+    public Instant getPayslipsReleasedAt() {
+        return payslipsReleasedAt;
     }
 
     public Instant getCreatedAt() {

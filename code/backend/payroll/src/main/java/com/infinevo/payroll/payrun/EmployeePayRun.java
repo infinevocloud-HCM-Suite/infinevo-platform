@@ -289,6 +289,10 @@ public class EmployeePayRun {
         return paidDays;
     }
 
+    public BigDecimal getPayableDays() {
+        return payableDays;
+    }
+
     public int getUnpricedInputCount() {
         return unpricedInputCount;
     }

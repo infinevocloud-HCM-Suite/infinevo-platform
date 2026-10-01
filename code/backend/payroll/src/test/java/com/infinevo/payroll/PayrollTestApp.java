@@ -551,4 +551,56 @@ public class PayrollTestApp {
             }
         };
     }
+
+    @Bean
+    public static org.springframework.context.support.PropertySourcesPlaceholderConfigurer
+            propertySourcesPlaceholderConfigurer() {
+        org.springframework.context.support.PropertySourcesPlaceholderConfigurer configurer =
+                new org.springframework.context.support.PropertySourcesPlaceholderConfigurer();
+        java.util.Properties props = new java.util.Properties();
+        props.setProperty("document.link.secret", "integration-test-document-link-secret");
+        configurer.setProperties(props);
+        return configurer;
+    }
+
+    @Bean
+    public com.infinevo.core.notification.NotificationService notificationService(DataSource dataSource) {
+        return new com.infinevo.core.notification.NotificationService() {
+            @Override
+            public java.util.List<UUID> compose(
+                    com.infinevo.core.notification.NotificationEvent event,
+                    UUID recipientEmployeeId,
+                    java.util.Map<String, Object> data) {
+                UUID tenantId = TenantContext.require();
+                UUID id = UUID.randomUUID();
+                String link = data != null && data.containsKey("link") ? String.valueOf(data.get("link")) : "";
+                String body = "<p>Your payslip is ready. <a href=\"" + link + "\">Download it</a>.</p>";
+                try (Connection conn = PayrollTestSchema.migrationConnection();
+                        PreparedStatement ps = conn.prepareStatement(
+                                "INSERT INTO core.notification (id, tenant_id, recipient_employee_id, event, channel, body, status, queued_at, created_by, updated_by) "
+                                        + "VALUES (?, ?, ?, ?, 'EMAIL', ?, 'QUEUED', CURRENT_TIMESTAMP, 'system', 'system')")) {
+                    ps.setObject(1, id);
+                    ps.setObject(2, tenantId);
+                    ps.setObject(3, recipientEmployeeId);
+                    ps.setString(4, event.name());
+                    ps.setString(5, body);
+                    ps.executeUpdate();
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                return java.util.List.of(id);
+            }
+
+            @Override
+            public org.springframework.data.domain.Page<com.infinevo.core.notification.NotificationResponse> mine(
+                    boolean unreadOnly, org.springframework.data.domain.Pageable pageable) {
+                return org.springframework.data.domain.Page.empty();
+            }
+
+            @Override
+            public com.infinevo.core.notification.NotificationResponse markRead(UUID id) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
 }

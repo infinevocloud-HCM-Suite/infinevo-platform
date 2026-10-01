@@ -23,6 +23,14 @@ public interface EmployeePayRunRepository extends JpaRepository<EmployeePayRun, 
 
     Optional<EmployeePayRun> findByTenantIdAndPayrunIdAndEmployeeId(UUID tenantId, UUID payrunId, UUID employeeId);
 
+    Optional<EmployeePayRun> findByIdAndTenantId(UUID id, UUID tenantId);
+
+    @Query("SELECT r FROM EmployeePayRun r, PayRun p WHERE r.payrunId = p.id AND r.tenantId = :tenantId"
+            + " AND r.employeeId = :employeeId AND r.inclusionStatus = com.infinevo.payroll.payrun.InclusionStatus.INCLUDED"
+            + " AND p.status = com.infinevo.payroll.payrun.PayRunStatus.PAID ORDER BY p.period DESC")
+    Page<EmployeePayRun> findOwnPaidRuns(
+            @Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId, Pageable pageable);
+
     /**
      * A resumed attempt keeps what the abandoned one finished (W-29.4 §3): the included rows the
      * previous attempt computed without error move to the new attempt number and are not recomputed.

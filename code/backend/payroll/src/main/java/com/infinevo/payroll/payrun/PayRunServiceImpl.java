@@ -5,10 +5,13 @@ import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.job.JobState;
 import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.service.JobService;
+import com.infinevo.core.notification.NotificationEvent;
+import com.infinevo.core.notification.NotificationService;
 import com.infinevo.core.payinput.PayInputCommand;
 import com.infinevo.core.payinput.PayInputKind;
 import com.infinevo.core.payinput.PayInputResponse;
 import com.infinevo.core.payinput.PayInputService;
+import com.infinevo.payroll.payslip.PayslipLinkService;
 import com.infinevo.payroll.schedule.PayPeriodResponse;
 import com.infinevo.payroll.schedule.PayPeriodService;
 import com.infinevo.shared.money.Money;
@@ -19,17 +22,20 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,6 +90,8 @@ public class PayRunServiceImpl implements PayRunService {
     private final EmployeePayRunLineRepository lines;
     private final JobService jobService;
     private final ObjectProvider<QueueProducer> queueProducers;
+    private final PayslipLinkService payslipLinkService;
+    private final ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
 
@@ -98,6 +106,35 @@ public class PayRunServiceImpl implements PayRunService {
             JobService jobService,
             ObjectProvider<QueueProducer> queueProducers,
             PlatformTransactionManager transactionManager) {
+        this(
+                payRuns,
+                employeePayRuns,
+                payPeriodService,
+                employeeService,
+                inclusionService,
+                payInputService,
+                lines,
+                jobService,
+                queueProducers,
+                null,
+                null,
+                transactionManager);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PayRunServiceImpl(
+            PayRunRepository payRuns,
+            EmployeePayRunRepository employeePayRuns,
+            PayPeriodService payPeriodService,
+            EmployeeService employeeService,
+            PayRunInclusionService inclusionService,
+            PayInputService payInputService,
+            EmployeePayRunLineRepository lines,
+            JobService jobService,
+            ObjectProvider<QueueProducer> queueProducers,
+            PayslipLinkService payslipLinkService,
+            ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices,
+            PlatformTransactionManager transactionManager) {
         this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
         this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
         this.payPeriodService = Objects.requireNonNull(payPeriodService, "payPeriodService must not be null");
@@ -107,6 +144,8 @@ public class PayRunServiceImpl implements PayRunService {
         this.lines = Objects.requireNonNull(lines, "lines must not be null");
         this.jobService = Objects.requireNonNull(jobService, "jobService must not be null");
         this.queueProducers = Objects.requireNonNull(queueProducers, "queueProducers must not be null");
+        this.payslipLinkService = payslipLinkService;
+        this.notificationServices = notificationServices;
         Objects.requireNonNull(transactionManager, "transactionManager must not be null");
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
@@ -545,6 +584,96 @@ public class PayRunServiceImpl implements PayRunService {
                         .map(EmployeePayRunLineResponse::from)
                         .toList();
         return new EmployeePayRunLinesResponse(employeeId, row.getComputationError(), rowLines);
+    }
+
+    @Override
+    @Transactional
+    public PayRunResponse approve(UUID id) {
+        PayRun run = requireForUpdate(id);
+        run.approve(currentActor(), now());
+        PayRun saved = payRuns.saveAndFlush(run);
+        log.info("Approved pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
+        return PayRunResponse.from(saved);
+    }
+
+    @Override
+    public PayRunResponse pay(UUID id, LocalDate paidOn) {
+        Objects.requireNonNull(id, "id must not be null");
+        if (paidOn == null) {
+            throw new IllegalArgumentException("paid_on is required, as YYYY-MM-DD");
+        }
+        UUID tenantId = TenantContext.require();
+        String actor = currentActor();
+        Instant now = now();
+
+        record PayCommitResult(PayRun run, List<EmployeePayRun> included) {}
+
+        PayCommitResult result = Objects.requireNonNull(writeTransaction.execute(status -> {
+            PayRun run = requireForUpdate(id);
+            run.pay(paidOn, actor, now);
+            PayRun savedRun = payRuns.saveAndFlush(run);
+            List<EmployeePayRun> includedRows = employeePayRuns.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                    tenantId, id, InclusionStatus.INCLUDED);
+            return new PayCommitResult(savedRun, includedRows);
+        }));
+
+        int notifiedCount = sendPayslipNotifications(tenantId, result.run(), result.included());
+
+        log.info(
+                "Paid pay run {} for {} in tenant {}: {} notified",
+                result.run().getId(),
+                result.run().getPeriod(),
+                tenantId,
+                notifiedCount);
+        return PayRunResponse.from(result.run(), notifiedCount);
+    }
+
+    private int sendPayslipNotifications(UUID tenantId, PayRun run, List<EmployeePayRun> included) {
+        if (notificationServices == null || payslipLinkService == null || included.isEmpty()) {
+            return 0;
+        }
+        NotificationService notificationService = notificationServices.getIfAvailable();
+        if (notificationService == null) {
+            return 0;
+        }
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
+        String periodStr = run.getPeriod().format(formatter);
+        int count = 0;
+
+        for (EmployeePayRun row : included) {
+            try {
+                Boolean success = writeTransaction.execute(status -> {
+                    EmployeeResponse emp = employeeService.get(row.getEmployeeId());
+                    String employeeName = formatEmployeeName(emp);
+                    PayslipLinkService.SignedLink link = payslipLinkService.signedLink(row.getId(), Duration.ofDays(7));
+                    List<UUID> notifIds = notificationService.compose(
+                            NotificationEvent.PAYSLIP_READY,
+                            row.getEmployeeId(),
+                            Map.of(
+                                    "employee_name", employeeName,
+                                    "period", periodStr,
+                                    "link", link.url()));
+                    return notifIds != null && !notifIds.isEmpty();
+                });
+                if (Boolean.TRUE.equals(success)) {
+                    count++;
+                }
+            } catch (Exception e) {
+                log.warn(
+                        "Failed to compose payslip notification for employee {} in pay run {}",
+                        row.getEmployeeId(),
+                        run.getId(),
+                        e);
+            }
+        }
+        return count;
+    }
+
+    private static String formatEmployeeName(EmployeeResponse emp) {
+        String name = Stream.of(emp.firstName(), emp.middleName(), emp.lastName())
+                .filter(part -> part != null && !part.isBlank())
+                .collect(Collectors.joining(" "));
+        return name.isBlank() ? emp.employeeNumber() : name;
     }
 
     private PayRun require(UUID id) {

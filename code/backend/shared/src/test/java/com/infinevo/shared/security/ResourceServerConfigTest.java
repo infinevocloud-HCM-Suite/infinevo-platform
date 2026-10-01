@@ -97,7 +97,8 @@ class ResourceServerConfigTest {
                 .containsExactly(
                         PublicEndpoints.DOCUMENT_DOWNLOAD,
                         PublicEndpoints.INVITATION_ACCEPT,
-                        PublicEndpoints.INVITATION_DECLINE);
+                        PublicEndpoints.INVITATION_DECLINE,
+                        PublicEndpoints.PAYSLIP_OPEN);
     }
 
     @Test

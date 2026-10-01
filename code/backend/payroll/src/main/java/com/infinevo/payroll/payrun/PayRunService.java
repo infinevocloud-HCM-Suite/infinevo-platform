@@ -86,4 +86,24 @@ public interface PayRunService {
 
     /** One employee's lines in {@code sort_order}, with the row's computation error if any. */
     EmployeePayRunLinesResponse lines(UUID id, UUID employeeId);
+
+    /**
+     * {@code COMPUTED → APPROVED}: officer signs off on the computed figures (W-36.2 §4).
+     *
+     * @throws IllegalPayRunTransitionException unless in {@code COMPUTED} status
+     */
+    PayRunResponse approve(UUID id);
+
+    /**
+     * {@code APPROVED → PAID}: marks the run paid and releases payslips to employees (W-36.2 §4).
+     * Dispatches {@code PAYSLIP_READY} notification with 7-day signed link for each included employee
+     * after commit.
+     *
+     * @param id the pay run id
+     * @param paidOn the payment date
+     * @return the paid run response with {@code notified} count
+     * @throws IllegalPayRunTransitionException unless in {@code APPROVED} status
+     * @throws IllegalArgumentException if paidOn is in the future or before period start
+     */
+    PayRunResponse pay(UUID id, LocalDate paidOn);
 }
