@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-47.2` · from ticket #64 · `PAY-05`, `PAY-06` |
 | **Spec file** | `docs/target-state/features/W-47-2-pay-run-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | krushna (assigned 2026-10-01) |
 | **Apps touched** | `code/frontend/src/payroll/payrun` only. No backend, no migration |
 | **Related gaps** | DEBT-008 (closed), BUG-006 (deferred) |
 | **Status** | **Ready** |
