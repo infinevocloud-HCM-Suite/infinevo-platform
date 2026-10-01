@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Modal, Form, Input, Button, Alert } from 'antd';
 import { successMsg } from '@shared/ui/msgHelper.js';
 import { setupService } from './setupService.js';
@@ -103,3 +104,15 @@ export function SkipStepModal({ open, step, onClose, onSuccess }) {
     </Modal>
   );
 }
+
+SkipStepModal.propTypes = {
+  open: PropTypes.bool.isRequired,
+  step: PropTypes.shape({
+    code: PropTypes.string.isRequired,
+    label: PropTypes.string.isRequired,
+    module: PropTypes.string,
+    displayOrder: PropTypes.number,
+  }),
+  onClose: PropTypes.func.isRequired,
+  onSuccess: PropTypes.func.isRequired,
+};

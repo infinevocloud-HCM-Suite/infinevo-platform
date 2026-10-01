@@ -99,7 +99,7 @@ describe('SetupChecklist component', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Not Entitled')).toBeDefined();
+    expect(screen.getByText('Module Not Subscribed')).toBeDefined();
     expect(setupService.get).not.toHaveBeenCalled();
   });
 
@@ -150,7 +150,7 @@ describe('SetupChecklist component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/73%/)).toBeDefined();
+      expect(screen.getByText('Setup Progress: 73%')).toBeDefined();
     });
   });
 
