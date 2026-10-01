@@ -198,13 +198,14 @@ public class PayrollTestApp {
                 try (Connection conn = dataSource.getConnection()) {
                     conn.setAutoCommit(false);
                     try (PreparedStatement ps = conn.prepareStatement(
-                            "SELECT id, employee_number, first_name, last_name, work_email FROM core.employee WHERE id = ? AND tenant_id = ? AND is_deleted = false")) {
+                            "SELECT id, employee_number, first_name, last_name, work_email, date_of_joining FROM core.employee WHERE id = ? AND tenant_id = ? AND is_deleted = false")) {
                         ps.setObject(1, id);
                         ps.setObject(2, tenantId);
                         try (ResultSet rs = ps.executeQuery()) {
                             if (!rs.next()) {
                                 throw new EmployeeService.NotFoundException(id);
                             }
+                            java.sql.Date doj = rs.getDate("date_of_joining");
                             EmployeeResponse response = new EmployeeResponse(
                                     id,
                                     tenantId,
@@ -213,7 +214,7 @@ public class PayrollTestApp {
                                     null,
                                     rs.getString("last_name"),
                                     "MALE",
-                                    LocalDate.now(),
+                                    doj != null ? doj.toLocalDate() : LocalDate.of(2024, 1, 1),
                                     null,
                                     null,
                                     rs.getString("work_email"),

@@ -204,6 +204,10 @@ public final class TaxDeclarationTestSchema {
             if (tableExists(conn, "payroll", "employee_statutory_profile")) {
                 stmt.execute("DELETE FROM payroll.employee_statutory_profile");
             }
+            if (tableExists(conn, "core", "employee_personal")) {
+                stmt.execute("DELETE FROM core.employee_personal WHERE tenant_id IN ('" + TENANT_A + "', '" + TENANT_B
+                        + "')");
+            }
             if (tableExists(conn, "core", "employee")) {
                 stmt.execute("DELETE FROM core.employee WHERE tenant_id IN ('" + TENANT_A + "', '" + TENANT_B + "')");
             }
@@ -214,6 +218,9 @@ public final class TaxDeclarationTestSchema {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
             clearDeclarations();
+            if (tableExists(conn, "core", "employee_personal")) {
+                stmt.execute("DELETE FROM core.employee_personal");
+            }
             if (tableExists(conn, "core", "employee")) {
                 stmt.execute("DELETE FROM core.employee");
             }
