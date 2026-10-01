@@ -14,6 +14,7 @@
   <description>Batch role. Consumes the queue and runs scheduled jobs with cluster locking. Health endpoint only.</description>
 
   <dependencies>
+    <dependency><groupId>com.infinevo</groupId><artifactId>shared</artifactId></dependency>
     <dependency><groupId>com.infinevo</groupId><artifactId>core</artifactId></dependency>
     <dependency><groupId>com.infinevo</groupId><artifactId>hrms</artifactId></dependency>
     <dependency><groupId>com.infinevo</groupId><artifactId>payroll</artifactId></dependency>

@@ -40,6 +40,9 @@ public final class LeaveTestSchema {
             if (!tableExists(conn, "tenant")) {
                 executeResource(conn, "db/migration/core/V001__tenant.sql");
             }
+            if (!columnExists(conn, "tenant", "country_code")) {
+                executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
+            }
             if (!tableExists(conn, "audit_log")) {
                 executeResource(conn, "db/migration/core/V008__audit_log.sql");
             }

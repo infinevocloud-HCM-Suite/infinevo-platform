@@ -259,6 +259,12 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<OverdrawnEmployee> previewPolicyChange(UUID leaveTypeId, BigDecimal newAnnualDays, LocalDate asOf) {
+        return previewPolicyChange(TenantContext.require(), leaveTypeId, newAnnualDays, asOf);
+    }
+
+    @Override
     public LeaveTypeResponse createLeaveType(LeaveTypeRequest request) {
         return createLeaveType(TenantContext.require(), request);
     }
