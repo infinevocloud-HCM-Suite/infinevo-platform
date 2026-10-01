@@ -58,7 +58,18 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
         // Verify leave type exists
         typeRepository
                 .findByTenantIdAndId(tenantId, request.leaveTypeId())
-                .orElseThrow(() -> new IllegalArgumentException("Leave type not found: " + request.leaveTypeId()));
+                .orElseThrow(
+                        () -> new java.util.NoSuchElementException("Leave type not found: " + request.leaveTypeId()));
+
+        if (allocationRepository.existsOverlappingAllocation(
+                tenantId,
+                request.employeeId(),
+                request.leaveTypeId(),
+                request.yearStartDate(),
+                request.yearEndDate())) {
+            throw new IllegalStateException(
+                    "An allocation already exists for this employee, leave type, and overlapping year period");
+        }
 
         // Lookup employee joining and termination dates for pro-rate factor
         LocalDate joinDate = null;
@@ -167,6 +178,7 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
         Objects.requireNonNull(newPolicy, "newPolicy must not be null");
 
         LocalDate evalDate = asOf != null ? asOf : LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
 
         List<LeaveAllocation> currentAllocations =
                 allocationRepository
@@ -174,6 +186,10 @@ public class LeaveAllocationServiceImpl implements LeaveAllocationService {
                                 tenantId, leaveTypeId, evalDate, evalDate);
 
         for (LeaveAllocation allocation : currentAllocations) {
+            // Closed years must never be rewritten (Spec § 6)
+            if (allocation.getYearEndDate().isBefore(today)) {
+                continue;
+            }
             allocation.setPolicyId(newPolicy.getId());
             // Accrual allocations accumulate days progressively in accrued_days.
             // Overwriting entitlement_days corrupts accrual balances (counting days twice)

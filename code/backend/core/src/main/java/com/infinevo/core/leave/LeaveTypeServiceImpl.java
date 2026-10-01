@@ -6,9 +6,11 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,13 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
     private final LeavePolicyRepository leavePolicyRepository;
     private final LeavePolicyEligibilityRepository eligibilityRepository;
     private final LeaveAllocationService leaveAllocationService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private JdbcTemplate jdbcTemplate;
+
+    public void setJdbcTemplate(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
     public LeaveTypeServiceImpl(
             LeaveTypeRepository leaveTypeRepository,
@@ -197,6 +206,16 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         LocalDate effectiveDate =
                 request.effectiveFrom() != null ? request.effectiveFrom() : LocalDate.now(ZoneOffset.UTC);
 
+        // Refuse a policy date before the current leave year (Spec § 6)
+        int startMonth = LeaveDateUtils.getTenantLeaveYearStartMonth(jdbcTemplate, tenantId);
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate currentYearStart = LeaveDateUtils.getCurrentLeaveYearStartDate(today, startMonth);
+        if (effectiveDate.isBefore(currentYearStart)) {
+            throw new IllegalArgumentException(
+                    "Policy effectiveFrom date cannot be before the current leave year start date (" + currentYearStart
+                            + "): " + effectiveDate);
+        }
+
         List<OverdrawnEmployee> overdrawn = List.of();
         if (leaveAllocationService != null && request.annualDays() != null) {
             overdrawn = leaveAllocationService.previewMidYearPolicyImpact(
@@ -248,7 +267,7 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
 
         leaveTypeRepository
                 .findByTenantIdAndId(tenantId, leaveTypeId)
-                .orElseThrow(() -> new IllegalArgumentException("Leave type not found with ID: " + leaveTypeId));
+                .orElseThrow(() -> new NoSuchElementException("Leave type not found with ID: " + leaveTypeId));
 
         LocalDate evaluationDate = asOf != null ? asOf : LocalDate.now(ZoneOffset.UTC);
         if (leaveAllocationService != null) {

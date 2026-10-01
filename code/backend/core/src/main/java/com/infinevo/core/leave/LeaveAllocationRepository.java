@@ -35,4 +35,14 @@ public interface LeaveAllocationRepository extends JpaRepository<LeaveAllocation
 
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT a.tenantId FROM LeaveAllocation a")
     List<UUID> findDistinctTenantIds();
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(a) > 0 FROM LeaveAllocation a "
+            + "WHERE a.tenantId = :tenantId AND a.employeeId = :employeeId AND a.leaveTypeId = :leaveTypeId "
+            + "AND a.yearStartDate <= :yearEnd AND a.yearEndDate >= :yearStart")
+    boolean existsOverlappingAllocation(
+            @org.springframework.data.repository.query.Param("tenantId") UUID tenantId,
+            @org.springframework.data.repository.query.Param("employeeId") UUID employeeId,
+            @org.springframework.data.repository.query.Param("leaveTypeId") UUID leaveTypeId,
+            @org.springframework.data.repository.query.Param("yearStart") LocalDate yearStart,
+            @org.springframework.data.repository.query.Param("yearEnd") LocalDate yearEnd);
 }

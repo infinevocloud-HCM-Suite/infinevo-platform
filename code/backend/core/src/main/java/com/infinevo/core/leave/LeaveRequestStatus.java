@@ -24,7 +24,7 @@ public enum LeaveRequestStatus {
             return false;
         }
         return switch (this) {
-            case DRAFT -> target == PENDING;
+            case DRAFT -> target == PENDING || target == WITHDRAWN;
             case PENDING -> target == APPROVED || target == REJECTED || target == WITHDRAWN;
             case APPROVED -> target == CANCELLED;
             case REJECTED, CANCELLED, WITHDRAWN -> false;

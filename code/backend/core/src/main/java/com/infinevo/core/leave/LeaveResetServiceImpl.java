@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,16 +22,27 @@ public class LeaveResetServiceImpl implements LeaveResetService {
     private final LeaveAllocationRepository leaveAllocationRepository;
     private final LeavePolicyRepository leavePolicyRepository;
     private final LeaveConsumptionRepository leaveConsumptionRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public LeaveResetServiceImpl(
             LeaveAllocationRepository leaveAllocationRepository,
             LeavePolicyRepository leavePolicyRepository,
             LeaveConsumptionRepository leaveConsumptionRepository) {
+        this(leaveAllocationRepository, leavePolicyRepository, leaveConsumptionRepository, null);
+    }
+
+    @Autowired
+    public LeaveResetServiceImpl(
+            LeaveAllocationRepository leaveAllocationRepository,
+            LeavePolicyRepository leavePolicyRepository,
+            LeaveConsumptionRepository leaveConsumptionRepository,
+            @Autowired(required = false) JdbcTemplate jdbcTemplate) {
         this.leaveAllocationRepository =
                 Objects.requireNonNull(leaveAllocationRepository, "leaveAllocationRepository must not be null");
         this.leavePolicyRepository =
                 Objects.requireNonNull(leavePolicyRepository, "leavePolicyRepository must not be null");
         this.leaveConsumptionRepository = leaveConsumptionRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
@@ -74,8 +87,9 @@ public class LeaveResetServiceImpl implements LeaveResetService {
                     BigDecimal priorEntitlement =
                             prior.getEntitlementDays() != null ? prior.getEntitlementDays() : BigDecimal.ZERO;
                     BigDecimal priorAccrued = prior.getAccruedDays() != null ? prior.getAccruedDays() : BigDecimal.ZERO;
-                    BigDecimal priorCarried =
-                            prior.getCarriedForwardDays() != null ? prior.getCarriedForwardDays() : BigDecimal.ZERO;
+                    // Count only leave taken before the expiry date against carried days (W-16.2)
+                    BigDecimal priorCarried = LeaveDateUtils.computeEffectiveCarriedForward(
+                            prior, evalDate, priorConsumed, leaveConsumptionRepository, tenantId);
                     BigDecimal priorUnused =
                             priorEntitlement.add(priorAccrued).add(priorCarried).subtract(priorConsumed);
                     if (priorUnused.compareTo(BigDecimal.ZERO) < 0) {
@@ -97,6 +111,7 @@ public class LeaveResetServiceImpl implements LeaveResetService {
                         allocation.setCarryForwardExpiresOn(null);
                     }
                     allocation.setLastResetOn(evalDate);
+                    // Write ONLY to the new year's row; old year's row (prior) is left alone (W-16.2)
                     leaveAllocationRepository.save(allocation);
                     count++;
                     continue;
@@ -134,41 +149,75 @@ public class LeaveResetServiceImpl implements LeaveResetService {
             return false;
         }
 
+        int startMonth = LeaveDateUtils.getTenantLeaveYearStartMonth(jdbcTemplate, tenantId);
+
+        // Never reset a balance in the same period it was created (W-16.2)
+        LocalDate createdDate = allocation.getCreatedAt() != null
+                ? LocalDate.ofInstant(allocation.getCreatedAt(), ZoneOffset.UTC)
+                : allocation.getYearStartDate();
+        int createdPeriod = LeaveDateUtils.getPeriodIndex(createdDate, startMonth, freq);
+        int asOfPeriod = LeaveDateUtils.getPeriodIndex(asOf, startMonth, freq);
+
+        if (asOfPeriod <= createdPeriod) {
+            return false;
+        }
+
         LocalDate lastReset = allocation.getLastResetOn();
 
-        // Idempotence and boundary checks per frequency
+        // Idempotence and boundary checks per frequency relative to tenant's leave year start
         if (freq == ResetFrequency.YEARLY) {
             // Must be at or after allocation year end date
             if (asOf.isBefore(allocation.getYearEndDate())) {
                 return false;
             }
-            if (lastReset != null
-                    && !lastReset.isBefore(allocation.getYearStartDate())
-                    && !lastReset.isAfter(allocation.getYearEndDate())) {
-                return false;
+            // For YEARLY at year end, only the new year's row is written; old year's row is left alone (W-16.2)
+            LocalDate nextYearDate = allocation.getYearEndDate().plusDays(1);
+            Optional<LeaveAllocation> nextOpt = leaveAllocationRepository
+                    .findFirstByTenantIdAndEmployeeIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
+                            tenantId,
+                            allocation.getEmployeeId(),
+                            allocation.getLeaveTypeId(),
+                            nextYearDate,
+                            nextYearDate);
+            if (nextOpt.isPresent()) {
+                LeaveAllocation nextAlloc = nextOpt.get();
+                if (nextAlloc.getLastResetOn() == null) {
+                    BigDecimal consumed = consumedDays != null ? consumedDays : BigDecimal.ZERO;
+                    BigDecimal entitlement =
+                            allocation.getEntitlementDays() != null ? allocation.getEntitlementDays() : BigDecimal.ZERO;
+                    BigDecimal accrued =
+                            allocation.getAccruedDays() != null ? allocation.getAccruedDays() : BigDecimal.ZERO;
+                    BigDecimal carried = LeaveDateUtils.computeEffectiveCarriedForward(
+                            allocation, asOf, consumed, leaveConsumptionRepository, tenantId);
+                    BigDecimal totalAvailable = entitlement.add(accrued).add(carried);
+                    BigDecimal unused = totalAvailable.subtract(consumed).max(BigDecimal.ZERO);
+
+                    BigDecimal toCarry = BigDecimal.ZERO;
+                    if (Boolean.TRUE.equals(policy.getCarryForwardEnabled())) {
+                        BigDecimal cap = policy.getCarryForwardCap();
+                        toCarry = cap != null ? unused.min(cap) : unused;
+                        if (policy.getCarryForwardExpiresAfterMonths() != null
+                                && policy.getCarryForwardExpiresAfterMonths() > 0) {
+                            nextAlloc.setCarryForwardExpiresOn(nextAlloc
+                                    .getYearStartDate()
+                                    .plusMonths(policy.getCarryForwardExpiresAfterMonths()));
+                        } else {
+                            nextAlloc.setCarryForwardExpiresOn(null);
+                        }
+                    } else {
+                        nextAlloc.setCarryForwardExpiresOn(null);
+                    }
+                    nextAlloc.setCarriedForwardDays(toCarry);
+                    nextAlloc.setLastResetOn(asOf);
+                    leaveAllocationRepository.save(nextAlloc);
+                    return true;
+                }
             }
+            return false;
         } else if (lastReset != null) {
-            switch (freq) {
-                case MONTHLY -> {
-                    if (lastReset.getYear() == asOf.getYear() && lastReset.getMonth() == asOf.getMonth()) {
-                        return false;
-                    }
-                }
-                case QUARTERLY -> {
-                    int lastQ = (lastReset.getMonthValue() - 1) / 3;
-                    int curQ = (asOf.getMonthValue() - 1) / 3;
-                    if (lastReset.getYear() == asOf.getYear() && lastQ == curQ) {
-                        return false;
-                    }
-                }
-                case HALF_YEARLY -> {
-                    boolean lastH1 = lastReset.getMonthValue() <= 6;
-                    boolean curH1 = asOf.getMonthValue() <= 6;
-                    if (lastReset.getYear() == asOf.getYear() && lastH1 == curH1) {
-                        return false;
-                    }
-                }
-                default -> {}
+            int lastResetPeriod = LeaveDateUtils.getPeriodIndex(lastReset, startMonth, freq);
+            if (asOfPeriod <= lastResetPeriod) {
+                return false;
             }
         }
 
@@ -176,8 +225,8 @@ public class LeaveResetServiceImpl implements LeaveResetService {
         BigDecimal entitlement =
                 allocation.getEntitlementDays() != null ? allocation.getEntitlementDays() : BigDecimal.ZERO;
         BigDecimal accrued = allocation.getAccruedDays() != null ? allocation.getAccruedDays() : BigDecimal.ZERO;
-        BigDecimal carried =
-                allocation.getCarriedForwardDays() != null ? allocation.getCarriedForwardDays() : BigDecimal.ZERO;
+        BigDecimal carried = LeaveDateUtils.computeEffectiveCarriedForward(
+                allocation, asOf, consumed, leaveConsumptionRepository, tenantId);
 
         BigDecimal totalAvailable = entitlement.add(accrued).add(carried);
         BigDecimal unused = totalAvailable.subtract(consumed);
@@ -198,34 +247,26 @@ public class LeaveResetServiceImpl implements LeaveResetService {
             allocation.setCarryForwardExpiresOn(null);
         }
 
-        if (freq == ResetFrequency.YEARLY) {
-            allocation.setCarriedForwardDays(toCarry);
-            allocation.setAccruedDays(BigDecimal.ZERO);
-        } else {
-            // For mid-year resets (monthly, quarterly, half-yearly) within the same allocation:
-            // Deduct the dropped (lapsed) unused balance from the allocation so that consumed
-            // is not subtracted twice by LeaveBalanceService.
-            BigDecimal dropped = unused.subtract(toCarry);
-            if (dropped.compareTo(BigDecimal.ZERO) > 0) {
-                if (accrued.compareTo(dropped) >= 0) {
-                    accrued = accrued.subtract(dropped);
+        // Mid-year resets (monthly, quarterly, half-yearly) within the same allocation:
+        BigDecimal dropped = unused.subtract(toCarry);
+        if (dropped.compareTo(BigDecimal.ZERO) > 0) {
+            if (accrued.compareTo(dropped) >= 0) {
+                accrued = accrued.subtract(dropped);
+            } else {
+                dropped = dropped.subtract(accrued);
+                accrued = BigDecimal.ZERO;
+                if (entitlement.compareTo(dropped) >= 0) {
+                    entitlement = entitlement.subtract(dropped);
                 } else {
-                    dropped = dropped.subtract(accrued);
-                    accrued = BigDecimal.ZERO;
-                    if (entitlement.compareTo(dropped) >= 0) {
-                        entitlement = entitlement.subtract(dropped);
-                    } else {
-                        dropped = dropped.subtract(entitlement);
-                        entitlement = BigDecimal.ZERO;
-                        carried = carried.subtract(dropped).max(BigDecimal.ZERO);
-                    }
+                    dropped = dropped.subtract(entitlement);
+                    entitlement = BigDecimal.ZERO;
+                    carried = carried.subtract(dropped).max(BigDecimal.ZERO);
                 }
             }
-            allocation.setEntitlementDays(entitlement);
-            allocation.setAccruedDays(accrued);
-            allocation.setCarriedForwardDays(carried);
         }
-
+        allocation.setEntitlementDays(entitlement);
+        allocation.setAccruedDays(accrued);
+        allocation.setCarriedForwardDays(carried);
         allocation.setLastResetOn(asOf);
         leaveAllocationRepository.save(allocation);
         return true;

@@ -101,14 +101,10 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
             }
         }
 
-        // Enforce carry-forward expiry: carried-forward days stop counting after carry_forward_expires_on (W-16.2 spec
-        // section 2 & 7)
-        // Expiry only lapses unconsumed CF: if consumed < carried, unconsumed CF lapses and carried becomes consumed
-        if (allocation.getCarryForwardExpiresOn() != null && asOf.isAfter(allocation.getCarryForwardExpiresOn())) {
-            if (consumed.compareTo(carried) < 0) {
-                carried = consumed;
-            }
-        }
+        // Enforce carry-forward expiry: carried-forward days stop counting after carry_forward_expires_on (W-16.2)
+        // Count only leave taken before the expiry date against the carried days (in LeaveDateUtils)
+        carried = LeaveDateUtils.computeEffectiveCarriedForward(
+                allocation, asOf, consumed, leaveConsumptionRepository, tenantId);
 
         // remaining = entitlement + accrued + carried_forward - consumed (W-16.2 spec section 3 & 7)
         BigDecimal remaining = entitlement.add(accrued).add(carried).subtract(consumed);

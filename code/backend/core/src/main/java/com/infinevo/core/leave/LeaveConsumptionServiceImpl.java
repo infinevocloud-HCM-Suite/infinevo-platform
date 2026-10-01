@@ -66,22 +66,7 @@ public class LeaveConsumptionServiceImpl implements LeaveConsumptionService {
     }
 
     private int getTenantLeaveYearStartMonth(UUID tenantId) {
-        if (jdbcTemplate != null) {
-            try {
-                java.util.List<Short> results = jdbcTemplate.query(
-                        "SELECT leave_year_start_month FROM core.tenant WHERE tenant_id = ?",
-                        (rs, rowNum) -> (Short) rs.getObject(1),
-                        tenantId);
-                if (!results.isEmpty() && results.get(0) != null) {
-                    short m = results.get(0);
-                    if (m >= 1 && m <= 12) {
-                        return m;
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return 4;
+        return LeaveDateUtils.getTenantLeaveYearStartMonth(jdbcTemplate, tenantId);
     }
 
     private LeaveYearRange calculateLeaveYearRange(UUID tenantId, LocalDate date) {

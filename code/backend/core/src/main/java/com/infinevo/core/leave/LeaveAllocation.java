@@ -273,6 +273,10 @@ public class LeaveAllocation {
         return createdAt;
     }
 
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public String getCreatedBy() {
         return createdBy;
     }

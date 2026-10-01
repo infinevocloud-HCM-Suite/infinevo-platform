@@ -343,6 +343,32 @@ class LeaveRequestServiceImplTest {
 
         assertThatThrownBy(() -> service.withdraw(tenantId, reqId, employeeId, "Changed mind"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Only PENDING leave requests can be withdrawn");
+                .hasMessageContaining("Leave request cannot be withdrawn");
+    }
+
+    @Test
+    @DisplayName("DRAFT leave request can be withdrawn (W-16.3)")
+    void withdrawDraftRequestSucceeds() {
+        UUID reqId = UUID.randomUUID();
+        LocalDate future = LocalDate.now().plusDays(5);
+
+        LeaveRequest req = new LeaveRequest(
+                tenantId,
+                employeeId,
+                leaveTypeId,
+                future,
+                future.plusDays(2),
+                false,
+                null,
+                new BigDecimal("3.00"),
+                "Trip",
+                LeaveRequestStatus.DRAFT,
+                null,
+                false);
+        when(leaveRequestRepository.findByIdAndTenantId(reqId, tenantId)).thenReturn(Optional.of(req));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LeaveRequestResponse resp = service.withdraw(tenantId, reqId, employeeId, "No longer needed");
+        assertThat(resp.status()).isEqualTo(LeaveRequestStatus.WITHDRAWN);
     }
 }

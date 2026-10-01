@@ -17,8 +17,10 @@ class LeaveRequestStatusTest {
     @Test
     @DisplayName("every allowed transition in section 4 is accepted")
     void allowedTransitionsAccepted() {
-        // DRAFT -> PENDING
+        // DRAFT -> PENDING, WITHDRAWN
         assertThat(LeaveRequestStatus.DRAFT.canTransitionTo(LeaveRequestStatus.PENDING))
+                .isTrue();
+        assertThat(LeaveRequestStatus.DRAFT.canTransitionTo(LeaveRequestStatus.WITHDRAWN))
                 .isTrue();
 
         // PENDING -> APPROVED, REJECTED, WITHDRAWN
@@ -41,8 +43,6 @@ class LeaveRequestStatusTest {
         assertThat(LeaveRequestStatus.DRAFT.canTransitionTo(LeaveRequestStatus.APPROVED))
                 .isFalse();
         assertThat(LeaveRequestStatus.DRAFT.canTransitionTo(LeaveRequestStatus.REJECTED))
-                .isFalse();
-        assertThat(LeaveRequestStatus.DRAFT.canTransitionTo(LeaveRequestStatus.WITHDRAWN))
                 .isFalse();
         assertThat(LeaveRequestStatus.DRAFT.canTransitionTo(LeaveRequestStatus.CANCELLED))
                 .isFalse();

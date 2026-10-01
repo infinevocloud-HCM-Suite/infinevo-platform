@@ -62,6 +62,30 @@ public class LeaveApprovalOutcomeHandler implements ApprovalOutcomeHandler {
         try {
             leaveRequestRepository.findByIdAndTenantId(requestId, tenantId).ifPresent(req -> {
                 if (req.getStatus() == LeaveRequestStatus.PENDING) {
+                    List<LeaveRequest> overlappingApproved = leaveRequestRepository.findOverlapping(
+                            tenantId,
+                            req.getEmployeeId(),
+                            req.getFromDate(),
+                            req.getToDate(),
+                            List.of(LeaveRequestStatus.APPROVED),
+                            req.getId());
+                    if (!overlappingApproved.isEmpty()) {
+                        log.warn(
+                                "Leave request {} overlaps with already approved leave {}; auto-rejecting to avoid deadlock",
+                                requestId,
+                                overlappingApproved.get(0).getId());
+                        req.setStatus(LeaveRequestStatus.REJECTED);
+                        req.setReason(
+                                req.getReason() != null
+                                        ? req.getReason() + " | Auto-rejected: overlaps with approved leave "
+                                                + overlappingApproved.get(0).getId()
+                                        : "Auto-rejected: overlaps with approved leave "
+                                                + overlappingApproved.get(0).getId());
+                        req.setDecidedAt(Instant.now());
+                        leaveRequestRepository.save(req);
+                        return;
+                    }
+
                     req.setStatus(LeaveRequestStatus.APPROVED);
                     req.setDecidedAt(Instant.now());
                     leaveRequestRepository.save(req);

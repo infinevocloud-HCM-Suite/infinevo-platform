@@ -27,13 +27,15 @@ class LeaveBalanceServiceTest {
 
     private LeaveAllocationRepository allocationRepository;
     private LeaveTypeRepository leaveTypeRepository;
+    private LeaveConsumptionRepository consumptionRepository;
     private LeaveBalanceService balanceService;
 
     @BeforeEach
     void setUp() {
         allocationRepository = mock(LeaveAllocationRepository.class);
         leaveTypeRepository = mock(LeaveTypeRepository.class);
-        balanceService = new LeaveBalanceServiceImpl(allocationRepository, leaveTypeRepository);
+        consumptionRepository = mock(LeaveConsumptionRepository.class);
+        balanceService = new LeaveBalanceServiceImpl(allocationRepository, leaveTypeRepository, consumptionRepository);
 
         LeaveType leaveType = new LeaveType(
                 TENANT_ID, "AL", "Annual Leave", true, LeaveUnit.DAYS, true, LocalDate.of(2026, 1, 1), null, true);
@@ -112,5 +114,51 @@ class LeaveBalanceServiceTest {
         assertThat(balance.carriedForwardDays()).isEqualByComparingTo("0.00");
         // 15.00 + 0 + 0 - 0 = 15.00
         assertThat(balance.remainingDays()).isEqualByComparingTo("15.00");
+    }
+
+    @Test
+    @DisplayName("Leave consumed after carry_forward_expires_on does not revive lapsed days (W-16.2)")
+    void expiredCarryForwardNotRevivedByLaterConsumption() {
+        UUID allocId = UUID.randomUUID();
+        LocalDate expiry = LocalDate.of(2026, 6, 30);
+        LocalDate evalDate = LocalDate.of(2026, 8, 1);
+
+        LeaveAllocation allocation = new LeaveAllocation(
+                TENANT_ID,
+                EMPLOYEE_ID,
+                LEAVE_TYPE_ID,
+                "2026",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                new BigDecimal("20.00"),
+                new BigDecimal("0.00"),
+                new BigDecimal("5.00"),
+                expiry,
+                BigDecimal.ONE,
+                UUID.randomUUID());
+        allocation.setId(allocId);
+
+        when(allocationRepository
+                        .findFirstByTenantIdAndEmployeeIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
+                                TENANT_ID, EMPLOYEE_ID, LEAVE_TYPE_ID, evalDate, evalDate))
+                .thenReturn(Optional.of(allocation));
+
+        // 2 days consumed before expiry (on or before 2026-06-30)
+        when(consumptionRepository.sumConsumedDaysByAllocationAndConsumedOnLessThanEqual(TENANT_ID, allocId, expiry))
+                .thenReturn(new BigDecimal("2.00"));
+        // Total 6 days consumed as of 2026-08-01 (4 days taken after expiry)
+        when(consumptionRepository.sumConsumedDaysByAllocation(TENANT_ID, allocId))
+                .thenReturn(new BigDecimal("6.00"));
+
+        Optional<LeaveBalanceResponse> balanceOpt =
+                balanceService.getBalance(TENANT_ID, EMPLOYEE_ID, LEAVE_TYPE_ID, evalDate);
+        assertThat(balanceOpt).isPresent();
+        LeaveBalanceResponse balance = balanceOpt.get();
+
+        // Effective carried forward is only the 2 days taken before expiry; the other 3 lapsed
+        assertThat(balance.carriedForwardDays()).isEqualByComparingTo("2.00");
+        assertThat(balance.consumedDays()).isEqualByComparingTo("6.00");
+        // Remaining: 20 entitlement + 2 effective carried - 6 consumed = 16.00 (NOT 19.00!)
+        assertThat(balance.remainingDays()).isEqualByComparingTo("16.00");
     }
 }

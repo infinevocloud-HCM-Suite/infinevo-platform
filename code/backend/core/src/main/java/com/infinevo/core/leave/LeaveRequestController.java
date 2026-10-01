@@ -169,15 +169,20 @@ public class LeaveRequestController {
     public LeaveRequestResponse withdraw(
             @PathVariable("id") UUID id, @RequestBody(required = false) LeaveReasonRequest reasonRequest) {
         UUID tenantId = TenantContext.require();
-        EmployeeResponse caller = currentCallerEmployee();
+        UUID callerEmployeeId = null;
         if (!permissionService.holds("core.leave.manage")) {
+            EmployeeResponse caller = currentCallerEmployee();
+            callerEmployeeId = caller.id();
             LeaveRequestResponse existing = leaveRequestService.getRequest(tenantId, id);
             if (!caller.id().equals(existing.employeeId())) {
                 throw new AccessDeniedException("Cannot withdraw another employee's leave request");
             }
+        } else {
+            callerEmployeeId =
+                    employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
         }
         String reason = reasonRequest != null ? reasonRequest.reason() : null;
-        return leaveRequestService.withdraw(tenantId, id, caller.id(), reason);
+        return leaveRequestService.withdraw(tenantId, id, callerEmployeeId, reason);
     }
 
     @PostMapping("/api/v1/leave-requests/{id}/cancel")
@@ -185,15 +190,20 @@ public class LeaveRequestController {
     public LeaveRequestResponse cancel(
             @PathVariable("id") UUID id, @RequestBody(required = false) LeaveReasonRequest reasonRequest) {
         UUID tenantId = TenantContext.require();
-        EmployeeResponse caller = currentCallerEmployee();
+        UUID callerEmployeeId = null;
         if (!permissionService.holds("core.leave.manage")) {
+            EmployeeResponse caller = currentCallerEmployee();
+            callerEmployeeId = caller.id();
             LeaveRequestResponse existing = leaveRequestService.getRequest(tenantId, id);
             if (!caller.id().equals(existing.employeeId())) {
                 throw new AccessDeniedException("Cannot cancel another employee's leave request");
             }
+        } else {
+            callerEmployeeId =
+                    employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
         }
         String reason = reasonRequest != null ? reasonRequest.reason() : null;
-        return leaveRequestService.cancel(tenantId, id, caller.id(), reason);
+        return leaveRequestService.cancel(tenantId, id, callerEmployeeId, reason);
     }
 
     private EmployeeResponse currentCallerEmployee() {

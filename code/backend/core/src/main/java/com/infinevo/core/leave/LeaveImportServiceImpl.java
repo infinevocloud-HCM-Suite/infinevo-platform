@@ -49,35 +49,18 @@ public class LeaveImportServiceImpl implements LeaveImportService {
         this.allocationHelper = Objects.requireNonNull(allocationHelper, "allocationHelper must not be null");
     }
 
-    @org.springframework.beans.factory.annotation.Autowired(required = false)
-    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
-
-    public void setJdbcTemplate(org.springframework.jdbc.core.JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
-
-    private int getTenantLeaveYearStartMonth(UUID tenantId) {
-        if (jdbcTemplate != null) {
-            try {
-                Short m = jdbcTemplate.queryForObject(
-                        "SELECT leave_year_start_month FROM core.tenant WHERE tenant_id = ?", Short.class, tenantId);
-                if (m != null && m >= 1 && m <= 12) {
-                    return m;
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return 4;
-    }
-
     @Override
     public LeaveImportResultResponse importLeaves(UUID tenantId, UUID documentId, String leaveYear, boolean dryRun) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(documentId, "documentId must not be null");
         Objects.requireNonNull(leaveYear, "leaveYear must not be null");
 
+        // Fail loudly if tenant or start month cannot be read, and enforce single canonical spelling
+        int startMonth = allocationHelper.getTenantLeaveYearStartMonth(tenantId);
+        String canonicalYear = LeaveDateUtils.canonicalizeLeaveYear(startMonth, leaveYear);
+
         // 1. Create initial import log record in PENDING state
-        LeaveImportLog importLog = new LeaveImportLog(tenantId, documentId, leaveYear, dryRun, 0);
+        LeaveImportLog importLog = new LeaveImportLog(tenantId, documentId, canonicalYear, dryRun, 0);
         importLog = allocationHelper.saveLog(importLog);
 
         // 2. Open document stream via DocumentService
@@ -154,13 +137,13 @@ public class LeaveImportServiceImpl implements LeaveImportService {
 
         // 5. Create allocations if not dry run
         if (!dryRun) {
-            LocalDate[] dates = resolveYearDates(tenantId, leaveYear);
+            LocalDate[] dates = resolveYearDates(startMonth, canonicalYear);
             for (LeaveImportRowValidator.ValidatedRow validRow : validation.validRows()) {
                 try {
                     LeaveAllocationRequest allocRequest = new LeaveAllocationRequest(
                             validRow.employee().getId(),
                             validRow.leaveType().getId(),
-                            leaveYear,
+                            canonicalYear,
                             dates[0],
                             dates[1],
                             validRow.days());
@@ -177,7 +160,12 @@ public class LeaveImportServiceImpl implements LeaveImportService {
                         root = root.getCause();
                     }
                     String msg = root.getMessage() != null ? root.getMessage().toLowerCase() : "";
-                    if (msg.contains("duplicate") || msg.contains("uk_leave_allocation") || msg.contains("unique")) {
+                    if (msg.contains("duplicate")
+                            || msg.contains("uk_leave_allocation")
+                            || msg.contains("unique")
+                            || msg.contains("already exists")
+                            || msg.contains("overlapping")
+                            || msg.contains("no_overlapping_leave_allocation")) {
                         reason = "DUPLICATE_ALLOCATION";
                     }
                     allErrors.add(new LeaveImportError(
@@ -286,10 +274,9 @@ public class LeaveImportServiceImpl implements LeaveImportService {
         return val;
     }
 
-    private LocalDate[] resolveYearDates(UUID tenantId, String leaveYear) {
-        Objects.requireNonNull(leaveYear, "leaveYear must not be null");
-        int startMonth = getTenantLeaveYearStartMonth(tenantId);
-        String trimmed = leaveYear.trim();
+    private LocalDate[] resolveYearDates(int startMonth, String canonicalLeaveYear) {
+        Objects.requireNonNull(canonicalLeaveYear, "canonicalLeaveYear must not be null");
+        String trimmed = canonicalLeaveYear.trim();
         int startYear;
         if (trimmed.contains("-")) {
             String[] parts = trimmed.split("-");
@@ -298,7 +285,9 @@ public class LeaveImportServiceImpl implements LeaveImportService {
             startYear = Integer.parseInt(trimmed);
         }
         LocalDate start = LocalDate.of(startYear, startMonth, 1);
-        LocalDate end = LocalDate.of(startYear + 1, startMonth, 1).minusDays(1);
+        LocalDate end = startMonth == 1
+                ? LocalDate.of(startYear, 12, 31)
+                : LocalDate.of(startYear + 1, startMonth, 1).minusDays(1);
         return new LocalDate[] {start, end};
     }
 }

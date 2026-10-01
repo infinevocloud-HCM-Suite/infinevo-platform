@@ -136,7 +136,8 @@ public final class LeaveTestSchema {
     public static void seedTenants() throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
+                        "INSERT INTO core.tenant (tenant_id, name, leave_year_start_month) VALUES (?, ?, 1) "
+                                + "ON CONFLICT (tenant_id) DO UPDATE SET leave_year_start_month = 1")) {
             ps.setObject(1, TENANT_A);
             ps.setString(2, "Acme Manufacturing");
             ps.executeUpdate();

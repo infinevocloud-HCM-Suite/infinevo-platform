@@ -54,6 +54,8 @@ class LeaveImportServiceTest {
             return l;
         });
 
+        when(allocationHelper.getTenantLeaveYearStartMonth(tenantId)).thenReturn(1);
+
         when(documentService.store(eq(DocumentKind.EXPORT), any(), any(), any(InputStream.class)))
                 .thenReturn(errorDocId);
     }
@@ -299,11 +301,7 @@ class LeaveImportServiceTest {
     @Test
     @DisplayName("year dates use tenant's leave_year_start_month when configured (F-10)")
     void datesResolvedWithCustomTenantStartMonth() {
-        org.springframework.jdbc.core.JdbcTemplate mockJdbc = mock(org.springframework.jdbc.core.JdbcTemplate.class);
-        // Tenant uses start month 1 (Calendar year)
-        when(mockJdbc.queryForObject(any(String.class), eq(Short.class), eq(tenantId)))
-                .thenReturn((short) 1);
-        service.setJdbcTemplate(mockJdbc);
+        when(allocationHelper.getTenantLeaveYearStartMonth(tenantId)).thenReturn(1);
 
         String csv =
                 """
@@ -331,5 +329,39 @@ class LeaveImportServiceTest {
         // Start date should be 2026-01-01 and end date 2026-12-31 (start month 1)
         assertThat(captured.yearStartDate()).isEqualTo(java.time.LocalDate.of(2026, 1, 1));
         assertThat(captured.yearEndDate()).isEqualTo(java.time.LocalDate.of(2026, 12, 31));
+    }
+
+    @Test
+    @DisplayName("January-start tenant rejects non-YYYY leave year format (W-16.4b)")
+    void januaryTenantRejectsMultiYearFormat() {
+        when(allocationHelper.getTenantLeaveYearStartMonth(tenantId)).thenReturn(1);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.importLeaves(tenantId, documentId, "2026-27", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Tenant starting in January requires YYYY");
+    }
+
+    @Test
+    @DisplayName("April-start tenant rejects non-YYYY-YY leave year format (W-16.4b)")
+    void aprilTenantRejectsSingleYearFormat() {
+        when(allocationHelper.getTenantLeaveYearStartMonth(tenantId)).thenReturn(4);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.importLeaves(tenantId, documentId, "2026", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires YYYY-YY");
+    }
+
+    @Test
+    @DisplayName("Unreadable tenant start month fails loudly (W-16.4b)")
+    void unreadableTenantStartMonthFailsLoudly() {
+        when(allocationHelper.getTenantLeaveYearStartMonth(tenantId))
+                .thenThrow(new IllegalStateException("Tenant leave year start month could not be determined"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.importLeaves(tenantId, documentId, "2026-27", false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Tenant leave year start month could not be determined");
     }
 }

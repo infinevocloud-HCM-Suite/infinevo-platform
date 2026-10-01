@@ -38,4 +38,12 @@ public interface LeaveConsumptionRepository extends JpaRepository<LeaveConsumpti
     @Query("SELECT COALESCE(SUM(lc.consumedDays), 0) FROM LeaveConsumption lc "
             + "WHERE lc.tenantId = :tenantId AND lc.allocationId = :allocationId")
     BigDecimal sumConsumedDaysByAllocation(@Param("tenantId") UUID tenantId, @Param("allocationId") UUID allocationId);
+
+    @Query("SELECT COALESCE(SUM(lc.consumedDays), 0) FROM LeaveConsumption lc "
+            + "WHERE lc.tenantId = :tenantId AND lc.allocationId = :allocationId "
+            + "AND lc.consumedOn <= :asOfDate")
+    BigDecimal sumConsumedDaysByAllocationAndConsumedOnLessThanEqual(
+            @Param("tenantId") UUID tenantId,
+            @Param("allocationId") UUID allocationId,
+            @Param("asOfDate") java.time.LocalDate asOfDate);
 }

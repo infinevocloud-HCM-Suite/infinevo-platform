@@ -342,8 +342,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .orElseThrow(() -> new NoSuchElementException("Leave request not found: " + requestId));
 
         if (!req.getStatus().canTransitionTo(LeaveRequestStatus.WITHDRAWN)) {
-            throw new IllegalStateException(
-                    "Only PENDING leave requests can be withdrawn; current status: " + req.getStatus());
+            throw new IllegalStateException("Leave request cannot be withdrawn; current status: " + req.getStatus());
         }
 
         if (req.getApprovalInstanceId() != null) {
@@ -565,7 +564,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 employeeId,
                 fromDate,
                 toDate,
-                List.of(LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED, LeaveRequestStatus.DRAFT),
+                List.of(LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED),
                 excludeId);
         if (!overlapping.isEmpty()) {
             throw new IllegalStateException("An existing active leave request overlaps with the requested dates");

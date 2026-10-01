@@ -27,6 +27,17 @@ CREATE TABLE core.leave_allocation (
 CREATE INDEX idx_leave_allocation_accrual_sweep ON core.leave_allocation (tenant_id, last_accrued_on);
 CREATE INDEX idx_leave_allocation_lookup ON core.leave_allocation (tenant_id, employee_id, year_start_date, year_end_date);
 
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+ALTER TABLE core.leave_allocation
+    ADD CONSTRAINT no_overlapping_leave_allocation
+    EXCLUDE USING gist (
+        tenant_id WITH =,
+        employee_id WITH =,
+        leave_type_id WITH =,
+        daterange(year_start_date, year_end_date, '[]') WITH &&
+    );
+
 ALTER TABLE core.leave_allocation ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY tenant_isolation ON core.leave_allocation
