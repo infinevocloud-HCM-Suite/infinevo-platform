@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-30.2` · from ticket #37 · `PAY-06`/`PAY-07` part 2 of 2 |
 | **Promoted to** | `docs/target-state/features/W-30-2-off-cycle-pay-run.md` on the developer's `dev-<name>` branch — **`W-30-2` with hyphens**, never `W-30.2`; `guard-edit` blocks the dotted form |
-| **Owner** | unassigned |
+| **Owner** | krushna (assigned 2026-10-01) |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
 | **Related gaps** | DEBT-007, DEBT-008, DEBT-022 (fixed by the `W-29.1` shape), DEBT-018 (honoured), BUG-010 (kept fixed), DEBT-035, DEBT-036, DEBT-037 (proposed in `.claude/outputs/2026-09-25-analyze-w30-off-cycle.md`, fixed by replacement) |
 | **Status** | **Ready** |

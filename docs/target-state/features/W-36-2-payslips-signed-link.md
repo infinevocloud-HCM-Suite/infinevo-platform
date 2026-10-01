@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-36.2` · from ticket #48 (`W-36`) · `PAY-15` · closes `W-47.2` §13 decision 1 (approve and pay endpoints) |
 | **Promoted to** | `docs/target-state/features/W-36-2-payslips-signed-link.md` on the developer's `dev-<name>` branch — **`W-36-2` with hyphens**, never `W-36.2`; `guard-edit` blocks the dotted form |
-| **Owner** | devashis |
+| **Owner** | krushna (reassigned from devashis 2026-10-01) |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration`; one constant in `code/backend/shared` (`PublicEndpoints`) |
 | **Related gaps** | BUG-002 (fixed), DEBT-007 (fixed), DEBT-008 (fixed), DEBT-022 (fixed); proposed BUG-014 and DEBT-034 (`.claude/outputs/2026-09-29-analyze-w-36-tds-payslips.md`) **fixed for new code** |
 | **Status** | **Ready** |

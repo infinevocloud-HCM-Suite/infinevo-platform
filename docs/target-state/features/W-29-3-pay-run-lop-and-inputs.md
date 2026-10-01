@@ -84,7 +84,7 @@ for each INCLUDED employee, inside W-29.2's loop, after STRUCTURE:
    basis   = WorkingDayBasisCalculator.basisFor(tenant, period, employee)   (W-18.1) -- throws => computation_error, next employee
    inputs  = the employee's slice of PayInputService.forPeriod(period)       (W-19, read once per run)
    lop_days      = Σ quantity of kind LOP_DAYS, min(basis.payableDays)
-   unpaid_days   = lop_days + calendar days of the period outside [date_of_joining, termination_date]
+   unpaid_days   = lop_days + days of the period outside [date_of_joining, termination_date], in the policy's own days (W-18.2)
    paid_days     = basis.payableDays − unpaid_days, floor 0
    LOP line      = DEDUCTION, source LOP, code LOP, amount = Σ(pro-rata STRUCTURE lines) ÷ basis.divisor × unpaid_days
    PAY_INPUT lines, one per kind:
@@ -102,14 +102,21 @@ periodic rule already decides whether a bonus is due this month (`W-29.2` §3); 
 agreed by adding the bonus after LOP (`:1176`).
 
 **Rounding:** `Money` scale 4 throughout; the LOP line is rounded once, per the policy's
-`lop_rounding` (`W-18.1` §6), `HALF_UP_2` by default; `net_pay` rounds as `W-29.2` §3.
+`lop_rounding` (`W-18.1` §6) — the stamped rule, with no default since `W-18.2`; `net_pay`
+rounds as `W-29.2` §3.
 
 **Employment window,** replacing `:1133-1140` and adding the leaver case: `date_of_joining`
 and `termination_date` come from the `EmployeeResponse` that `W-29.1`'s inclusion already
-holds. Days outside the window are **calendar** days, converted with the same `divisor` — the
-legacy rule for joiners (`:1165`, `:1172`), now applied to leavers too. Under `ACTUAL_DAYS`
-this is exact; under `ORG_DAYS` and `FIXED_30` it is the documented approximation
-(decision 2).
+holds. Days outside the window are counted **the way the policy counts its divisor**
+(decision 2, amended 2026-10-01), by `WorkingDayBasisCalculator.daysOutsideEmployment`:
+
+| Basis | Days outside the window |
+|---|---|
+| Counted — `ACTUAL_DAYS` with weekends or holidays unpaid, `ORG_DAYS` without configured days | the payable days in the gap, by the same working week and holidays |
+| Fixed — `FIXED_30`, `ORG_DAYS` with configured days | the gap's share of the month: calendar days outside × divisor ÷ days in the month, not rounded before the money |
+| `ACTUAL_DAYS` with everything payable | calendar days |
+
+So a joiner or leaver is paid the fraction of the month they were employed, on every basis.
 
 **Overtime with hours and no amount** (`W-39.2` §4: `amount` may be null): no line, and the
 row's response carries `unpriced_input_count`. A run does not silently pay zero for hours
@@ -269,7 +276,7 @@ from the locked ledger and the policy in force.
 | # | Question | Answer |
 |---|---|---|
 | 1 | Scale the whole net, as legacy, or only pro-rata components? | **Only components flagged `is_pro_rata`.** A fixed reimbursement or a due bonus is not smaller because someone joined on the 16th |
-| 2 | Days outside the employment window: calendar days, or payable days in the window? | **Calendar days, converted with the policy divisor** — the legacy rule (`:1165`, `:1172`), now for leavers too. Exact under `ACTUAL_DAYS`; an approximation under the other two bases that `W-18.2`'s stamp makes explainable. A windowed `basisFor` is `W-18.1`'s to add if a customer on `ORG_DAYS` asks |
+| 2 | Days outside the employment window: calendar days, or payable days in the window? | **Calendar days, converted with the policy divisor** — the legacy rule (`:1165`, `:1172`), now for leavers too. Exact under `ACTUAL_DAYS`; an approximation under the other two bases that `W-18.2`'s stamp makes explainable. A windowed `basisFor` is `W-18.1`'s to add if a customer on `ORG_DAYS` asks. **Amended 2026-10-01 by the founder at the `W-18.2` merge (`b580d8b`): days in the policy's own days** — working days under a counted basis, the gap's share of the month under a fixed one (§3). Calendar days over a working-day divisor underpaid every joiner and leaver |
 | 3 | One `LOP` line or one per component? | **One line.** The payslip shows "Loss of pay: 11.5 days"; the per-component split is derivable and nobody reads it |
 | 4 | Negative net? | **Stored as negative, counted on the run.** Flooring hides a recovery the employer is owed; carrying it forward is a later ticket |
 | 5 | Overtime with no amount? | **Not paid, counted as unpriced.** `W-39.2` stores what was typed; a rate policy does not exist and this ticket will not invent one |

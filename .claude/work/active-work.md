@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-01 — `W-18.2` merged (`b580d8b`)
+
+- Every pay figure is stamped: five columns on `payroll.employee_payrun` (`V125`) record the policy, basis, divisor, payable days and rounding. No policy means no figure; that employee fails alone. `GET /api/v1/payroll/payruns/{id}/employees/{id}/explain` returns the stamp.
+- One squash of `krushna-w18-2-fixes` at `0fcdca2`. Gates 5/5, CI green there, one independent read of krushna's `faf6eb8`, no blockers. Both blockers from the earlier send-back are closed. The joiner and leaver underpayment carried from `W-29.3` is closed.
+- Fixed at merge: on a fixed basis the days outside employment were rounded before the money, so a 42,500 joiner was charged 5.48 too much. Tested, not re-read.
+- **Build:** `jackson-bom` moved to 2.21.7 for CVE-2026-91776 and CVE-2026-91777, published 2026-10-01, which turn the dependency scan red on every branch. Every other branch needs `main` merged in, or the same bump.
+- **`V125` is taken.** `dev-karma` (`core/V125__leave_type.sql`) and `dev-devashis` (`core/V125__hrms_project_seed_roles.sql`) renumber above it before they merge.
+- **Decided by the founder at merge, specs amended the same day (`W-29.3` § 3 and § 13, `W-18.2` § 4 and § 13):** on `FIXED_30` and `ORG_DAYS(n)` a joiner or leaver loses the gap's share of the month, which replaces `W-29.3` § 13 decision 2; an employee with no work location fails the run alone when holidays are unpaid, and `core`'s basis endpoint refuses them too; the explain path carries `/payroll/`, unlike `W-18.2` § 4.
+- **Outstanding:** the row keeps days at 2 decimals, so on a fixed basis the explain days do not reproduce a joiner's amount to the paisa. No test for explain 404/409 or a fixed-basis joiner end to end. An employee can explain their own figure on an unapproved run — `W-36` decides. Full list in the merge commit.
+- **Newly Ready:** nothing; no ticket waited on `W-18.2`. krushna's next is `W-30.2`.
+- **krushna's branches:** `krushna-w18-2` and `krushna-w18-2-fixes` have nothing left to merge. He starts `W-30.2` from `main`.
+
 ## 2026-09-30 — `W-45`, `W-46.1`, `W-46.3a`, `W-46.4` merged (`11ec157`)
 
 - The frontend has started. One squash of `dev-biren4s-fixes` at `cb75bbe` puts the shell on `main` (API client, `createService`, runtime config, tokens, error screens, module-boundary lint rules) with the employee screens, the organisation setup screens and the approval screens.

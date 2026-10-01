@@ -1,5 +1,7 @@
 package com.infinevo.payroll.payrun;
 
+import com.infinevo.core.lop.LopRounding;
+import com.infinevo.core.lop.WorkingDayBasis;
 import com.infinevo.shared.audit.Audited;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,9 +14,11 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -94,6 +98,23 @@ public class EmployeePayRun {
     @Column(name = "computed_attempt", nullable = false)
     private int computedAttempt;
 
+    @Column(name = "lop_policy_id")
+    private UUID lopPolicyId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "working_day_basis", length = 24)
+    private WorkingDayBasis workingDayBasis;
+
+    @Column(name = "pay_divisor", precision = 10, scale = 2)
+    private BigDecimal payDivisor;
+
+    @Column(name = "payable_days", precision = 10, scale = 2)
+    private BigDecimal payableDays;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lop_rounding", length = 16)
+    private LopRounding lopRounding;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -121,13 +142,26 @@ public class EmployeePayRun {
     }
 
     /**
-     * The row's totals and day figures after a successful computation; clears any earlier error.
-     * {@code unpricedInputCount} is the number of overtime rows with hours and no amount (W-29.3 §3).
+     * The row's totals and day figures after a successful computation, with the policy stamp that
+     * produced them (W-18.2); clears any earlier error. {@code unpricedInputCount} is the number of
+     * overtime rows with hours and no amount (W-29.3 §3). No stamp, no figure: the stamp is required.
      */
     public void recordComputation(
-            PayRunTotals totals, PayRunDays days, int unpricedInputCount, int attempt, String actor, Instant at) {
+            PayRunTotals totals,
+            PayRunDays days,
+            int unpricedInputCount,
+            PolicyStamp stamp,
+            int attempt,
+            String actor,
+            Instant at) {
         Objects.requireNonNull(totals, "totals must not be null");
         Objects.requireNonNull(days, "days must not be null");
+        Objects.requireNonNull(stamp, "stamp must not be null: a pay figure is never written without its policy");
+        this.lopPolicyId = stamp.policyId();
+        this.workingDayBasis = stamp.workingDayBasis();
+        this.payDivisor = stamp.divisor().setScale(2, RoundingMode.HALF_UP);
+        this.payableDays = stamp.payableDays().setScale(2, RoundingMode.HALF_UP);
+        this.lopRounding = stamp.lopRounding();
         this.lopDays = days.lopDays();
         this.unpaidDays = days.unpaidDays();
         this.paidDays = days.paidDays();
@@ -144,7 +178,10 @@ public class EmployeePayRun {
         this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
     }
 
-    /** The employee could not be computed: totals back to zero, the reason kept on the row. */
+    /**
+     * The employee could not be computed: totals back to zero, the reason kept on the row, and no stamp —
+     * there is no figure for it to explain.
+     */
     public void recordError(String error, int attempt, String actor, Instant at) {
         Objects.requireNonNull(error, "error must not be null");
         this.grossEarnings = ZERO_AMOUNT;
@@ -156,6 +193,11 @@ public class EmployeePayRun {
         this.unpaidDays = ZERO_DAYS;
         this.paidDays = ZERO_DAYS;
         this.unpricedInputCount = 0;
+        this.lopPolicyId = null;
+        this.workingDayBasis = null;
+        this.payDivisor = null;
+        this.payableDays = null;
+        this.lopRounding = null;
         this.computedAt = Objects.requireNonNull(at, "at must not be null");
         this.computationError = error.length() > 500 ? error.substring(0, 500) : error;
         this.computedAttempt = attempt;
@@ -244,6 +286,14 @@ public class EmployeePayRun {
 
     public String getComputationError() {
         return computationError;
+    }
+
+    /** The policy stamp behind this row's figure (W-18.2); empty before a computation and after a failure. */
+    public Optional<PolicyStamp> getStamp() {
+        if (lopPolicyId == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new PolicyStamp(lopPolicyId, workingDayBasis, payDivisor, payableDays, lopRounding));
     }
 
     /** The attempt that last computed this row (W-29.4); zero before the first. */
