@@ -54,6 +54,10 @@ public class LopLineContributor implements PayLineContributor {
     @Override
     public List<PayLine> contribute(PayRunEmployeeContext ctx) {
         Objects.requireNonNull(ctx, "ctx must not be null");
+        // W-30.2: no loss of pay on an off-cycle run; its day figures are zero.
+        if (ctx.runType() == PayRunType.OFF_CYCLE) {
+            return List.of();
+        }
         BigDecimal unpaid = ctx.days().unpaidDays();
         BigDecimal credit = ctx.days().creditDays();
         if (unpaid.signum() <= 0 && credit.signum() <= 0) {

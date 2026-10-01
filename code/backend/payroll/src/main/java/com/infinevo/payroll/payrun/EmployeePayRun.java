@@ -120,6 +120,19 @@ public class EmployeePayRun {
         this.updatedBy = actor;
     }
 
+    /** A named employee's row on an off-cycle run (W-30.2): included with or without a salary version. */
+    public EmployeePayRun(UUID tenantId, UUID payrunId, OffCycleInclusion inclusion, String actor) {
+        Objects.requireNonNull(inclusion, "inclusion must not be null");
+        this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
+        this.payrunId = Objects.requireNonNull(payrunId, "payrunId must not be null");
+        this.employeeId = inclusion.employeeId();
+        this.salaryVersionId = inclusion.salaryVersionId();
+        this.inclusionStatus = inclusion.inclusionStatus();
+        this.skipReason = inclusion.skipReason();
+        this.createdBy = Objects.requireNonNull(actor, "actor must not be null");
+        this.updatedBy = actor;
+    }
+
     /**
      * The row's totals and day figures after a successful computation; clears any earlier error.
      * {@code unpricedInputCount} is the number of overtime rows with hours and no amount (W-29.3 §3).

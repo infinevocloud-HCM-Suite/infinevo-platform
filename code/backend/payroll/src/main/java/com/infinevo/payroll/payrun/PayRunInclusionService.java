@@ -14,4 +14,14 @@ public interface PayRunInclusionService {
      */
     List<InclusionDecision> decide(
             UUID tenantId, List<EmployeeResponse> employees, LocalDate periodStart, LocalDate periodEnd);
+
+    /**
+     * An off-cycle run's rows for the employees the officer named, in the order given (W-30.2 §3):
+     * bank details required, a salary version recorded when one is in force but never required.
+     *
+     * @throws EmployeeNotInRunException naming every employee outside the period — the officer named
+     *     them and hears why, rather than a silent skip
+     */
+    List<OffCycleInclusion> forNamed(
+            UUID tenantId, List<EmployeeResponse> employees, LocalDate periodStart, LocalDate periodEnd);
 }

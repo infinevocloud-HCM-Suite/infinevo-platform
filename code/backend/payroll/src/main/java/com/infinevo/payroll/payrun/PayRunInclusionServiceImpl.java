@@ -47,6 +47,39 @@ public class PayRunInclusionServiceImpl implements PayRunInclusionService {
         return decisions;
     }
 
+    @Override
+    public List<OffCycleInclusion> forNamed(
+            UUID tenantId, List<EmployeeResponse> employees, LocalDate periodStart, LocalDate periodEnd) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(employees, "employees must not be null");
+        List<UUID> outside = employees.stream()
+                .filter(employee -> !isConsidered(employee, periodStart, periodEnd))
+                .map(EmployeeResponse::id)
+                .toList();
+        if (!outside.isEmpty()) {
+            throw new EmployeeNotInRunException(
+                    "Not employed between " + periodStart + " and " + periodEnd + ", so not payable on this run",
+                    outside);
+        }
+        List<OffCycleInclusion> inclusions = new ArrayList<>(employees.size());
+        for (EmployeeResponse employee : employees) {
+            if (bankService.find(employee.id()).isEmpty()) {
+                inclusions.add(OffCycleInclusion.skipped(employee.id(), SkipReason.NO_BANK_DETAILS));
+                continue;
+            }
+            UUID salaryVersionId;
+            try {
+                salaryVersionId = salaryService
+                        .versionInForce(tenantId, employee.id(), periodEnd)
+                        .id();
+            } catch (SalaryNotFoundException e) {
+                salaryVersionId = null;
+            }
+            inclusions.add(OffCycleInclusion.included(employee.id(), salaryVersionId));
+        }
+        return inclusions;
+    }
+
     private InclusionDecision decideOne(UUID tenantId, UUID employeeId, LocalDate periodEnd) {
         UUID salaryVersionId;
         try {

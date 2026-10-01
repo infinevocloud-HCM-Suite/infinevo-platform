@@ -49,6 +49,10 @@ public class StructureLineContributor implements PayLineContributor {
     @Override
     public List<PayLine> contribute(PayRunEmployeeContext ctx) {
         Objects.requireNonNull(ctx, "ctx must not be null");
+        // W-30.2: an off-cycle run pays its tagged inputs only — no structure.
+        if (ctx.runType() == PayRunType.OFF_CYCLE) {
+            return List.of();
+        }
         SalaryVersionResponse version = ctx.version();
         Map<UUID, Earning> catalogue = new HashMap<>();
         for (Earning earning : earningRepository.findAllByTenantIdAndDeletedFalse(ctx.tenantId())) {

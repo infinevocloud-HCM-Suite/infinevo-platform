@@ -59,6 +59,9 @@ public class PayRun {
     @Column(name = "run_type", nullable = false, length = 16, updatable = false)
     private PayRunType runType = PayRunType.REGULAR;
 
+    @Column(name = "notes", length = 500, updatable = false)
+    private String notes;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
     private PayRunStatus status = PayRunStatus.DRAFT;
@@ -150,7 +153,37 @@ public class PayRun {
         this.updatedBy = actor;
     }
 
-    /** {@code DRAFT → LOCKED}. The period lock itself is {@code PayInputService.lock}'s, called first. */
+    /**
+     * A run of another type (W-30.2) — an off-cycle run: the regular run's dates from the schedule,
+     * except the pay date, which is the one the officer gave; a note of up to 500 characters.
+     */
+    public static PayRun ofType(
+            PayRunType runType,
+            UUID tenantId,
+            YearMonth period,
+            LocalDate periodStart,
+            LocalDate periodEnd,
+            LocalDate cutoffDate,
+            LocalDate payDate,
+            String notes,
+            int includedCount,
+            int skippedCount,
+            String actor) {
+        String note = notes == null || notes.isBlank() ? null : notes.strip();
+        if (note != null && note.length() > 500) {
+            throw new IllegalArgumentException("notes must be at most 500 characters");
+        }
+        PayRun run = new PayRun(
+                tenantId, period, periodStart, periodEnd, cutoffDate, payDate, includedCount, skippedCount, actor);
+        run.runType = Objects.requireNonNull(runType, "runType must not be null");
+        run.notes = note;
+        return run;
+    }
+
+    /**
+     * {@code DRAFT → LOCKED}. The pay input lock itself — the period's, or an off-cycle run's own — is
+     * {@code PayInputService}'s, called first.
+     */
     public void lock(String actor, Instant at) {
         status.requireTransitionTo(PayRunStatus.LOCKED);
         this.status = PayRunStatus.LOCKED;
@@ -303,6 +336,10 @@ public class PayRun {
 
     public PayRunType getRunType() {
         return runType;
+    }
+
+    public String getNotes() {
+        return notes;
     }
 
     public PayRunStatus getStatus() {

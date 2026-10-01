@@ -9,7 +9,8 @@ import java.util.UUID;
 /**
  * One pay run as the API returns it (W-29.1 §4), with the counts of included and skipped employees
  * and, once computed, the three run totals (W-29.2 §4) and how many rows came out with a negative
- * net (W-29.3 §4). W-29.4 adds the job computing it and the progress the screen polls.
+ * net (W-29.3 §4). W-29.4 adds the job computing it and the progress the screen polls; W-30.2 the
+ * officer's note on an off-cycle run.
  */
 public record PayRunResponse(
         @JsonProperty("id") UUID id,
@@ -19,6 +20,7 @@ public record PayRunResponse(
         @JsonProperty("cutoff_date") LocalDate cutoffDate,
         @JsonProperty("pay_date") LocalDate payDate,
         @JsonProperty("run_type") PayRunType runType,
+        @JsonProperty("notes") String notes,
         @JsonProperty("status") PayRunStatus status,
         @JsonProperty("included_count") int includedCount,
         @JsonProperty("skipped_count") int skippedCount,
@@ -40,6 +42,66 @@ public record PayRunResponse(
         @JsonProperty("created_at") Instant createdAt,
         @JsonProperty("updated_at") Instant updatedAt) {
 
+    /** Without a note — the shape before W-30.2, kept for callers that build a regular run's response. */
+    public PayRunResponse(
+            UUID id,
+            String period,
+            LocalDate periodStart,
+            LocalDate periodEnd,
+            LocalDate cutoffDate,
+            LocalDate payDate,
+            PayRunType runType,
+            PayRunStatus status,
+            int includedCount,
+            int skippedCount,
+            BigDecimal totalGross,
+            BigDecimal totalDeductions,
+            BigDecimal totalNetPay,
+            int negativeNetCount,
+            Instant computedAt,
+            String failureReason,
+            Instant lockedAt,
+            String lockedBy,
+            Instant cancelledAt,
+            String cancelledBy,
+            String jobId,
+            int computeAttempt,
+            Instant computeStartedAt,
+            int progressDone,
+            int progressTotal,
+            Instant createdAt,
+            Instant updatedAt) {
+        this(
+                id,
+                period,
+                periodStart,
+                periodEnd,
+                cutoffDate,
+                payDate,
+                runType,
+                null,
+                status,
+                includedCount,
+                skippedCount,
+                totalGross,
+                totalDeductions,
+                totalNetPay,
+                negativeNetCount,
+                computedAt,
+                failureReason,
+                lockedAt,
+                lockedBy,
+                cancelledAt,
+                cancelledBy,
+                jobId,
+                computeAttempt,
+                computeStartedAt,
+                progressDone,
+                progressTotal,
+                createdAt,
+                updatedAt);
+    }
+
     public static PayRunResponse from(PayRun run) {
         return new PayRunResponse(
                 run.getId(),
@@ -49,6 +111,7 @@ public record PayRunResponse(
                 run.getCutoffDate(),
                 run.getPayDate(),
                 run.getRunType(),
+                run.getNotes(),
                 run.getStatus(),
                 run.getIncludedCount(),
                 run.getSkippedCount(),

@@ -29,7 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * W-29.1 §4, W-29.2 §4 and W-29.4 §4. Create, read, list, lock, cancel, compute — queued, answered
- * with {@code 202} — and one employee's lines. Not ported: the legacy free {@code PUT} that copied
+ * with {@code 202} — and one employee's lines. For both run types; W-30.2 adds the {@code runType}
+ * filter here and the two off-cycle endpoints in {@link OffCyclePayRunController}. Not ported: the legacy free {@code PUT} that copied
  * {@code status} from the body, {@code DELETE} (cancel instead — the row stays) and
  * {@code GET /completed} (a {@code status} filter).
  */
@@ -58,6 +59,7 @@ public class PayRunController {
     @RequiresAction("payroll.run.read")
     public ResponseEntity<PayRunApiResponse<Page<PayRunResponse>>> list(
             @RequestParam(name = "status", required = false) PayRunStatus status,
+            @RequestParam(name = "runType", required = false) PayRunType runType,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "25") int size) {
         PageRequest pageable = PageRequest.of(
@@ -65,7 +67,7 @@ public class PayRunController {
                 clampSize(size),
                 Sort.by(Sort.Direction.DESC, "period").and(Sort.by(Sort.Direction.DESC, "createdAt")));
         return ResponseEntity.ok(
-                PayRunApiResponse.ok("Pay runs retrieved successfully", payRunService.list(status, pageable)));
+                PayRunApiResponse.ok("Pay runs retrieved successfully", payRunService.list(status, runType, pageable)));
     }
 
     @GetMapping("/{id}")

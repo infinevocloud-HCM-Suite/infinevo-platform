@@ -39,6 +39,12 @@ public record PayRunDays(
         Objects.requireNonNull(creditDays, "creditDays must not be null");
     }
 
+    /** Every figure zero — an off-cycle run, which has no loss of pay and no days (W-30.2). */
+    public static PayRunDays zero() {
+        BigDecimal none = scaled(BigDecimal.ZERO);
+        return new PayRunDays(none, none, none, none, none);
+    }
+
     public static PayRunDays of(
             BigDecimal payableDays,
             BigDecimal requestedLopDays,

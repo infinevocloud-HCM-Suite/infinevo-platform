@@ -42,7 +42,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <ol>
  *   <li><b>Check</b> — the run is {@code COMPUTING} at this attempt, or the message is superseded.
- *   <li><b>Once per run</b> — the period's pay inputs ({@code PayInputService.forPeriod}, one call),
+ *   <li><b>Once per run</b> — the period's pay inputs ({@code PayInputService.forPeriod}, one call;
+ *       an off-cycle run's own tagged inputs, {@code forRun}, instead — W-30.2),
  *       the policy's {@code lop_rounding}, and the ids of the pro-rata earning and benefit components
  *       (one query per catalogue). Nothing on this list is read per employee.
  *   <li><b>Each included employee not yet at this attempt</b>, in a transaction of its own
@@ -245,7 +246,11 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
 
     private RunInputs readRunInputs(PayRun run, UUID tenantId) {
         Map<UUID, List<PayInputResponse>> byEmployee = new HashMap<>();
-        for (PayInputResponse row : payInputService.forPeriod(run.getPeriod()).rows()) {
+        // W-30.2: an off-cycle run pays only the inputs tagged with it; a regular run never sees them.
+        List<PayInputResponse> rows = run.getRunType() == PayRunType.OFF_CYCLE
+                ? payInputService.forRun(run.getId()).rows()
+                : payInputService.forPeriod(run.getPeriod()).rows();
+        for (PayInputResponse row : rows) {
             byEmployee
                     .computeIfAbsent(row.employeeId(), id -> new ArrayList<>())
                     .add(row);
@@ -277,19 +282,32 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
             throw new IllegalStateException("Employee " + row.getEmployeeId() + " is no longer employed in "
                     + run.getPeriod() + " or has been deleted");
         }
-        SalaryVersionResponse version =
-                salaryService.versionInForce(run.getTenantId(), row.getEmployeeId(), run.getPeriodEnd());
-        // No policy in force throws NoLopPolicyException: this employee fails, the loop carries on.
-        WorkingDayBasisResponse basis =
-                basisCalculator.basisFor(run.getTenantId(), run.getPeriod(), row.getEmployeeId());
+        boolean offCycle = run.getRunType() == PayRunType.OFF_CYCLE;
         List<PayInputResponse> payInputs = inputs.payInputsByEmployee().getOrDefault(row.getEmployeeId(), List.of());
-        PayRunDays days = PayRunDays.of(
-                basis.payableDays(),
-                PayInputLineContributor.netLopDays(payInputs),
-                run.getPeriodStart(),
-                run.getPeriodEnd(),
-                employee.dateOfJoining(),
-                employee.terminationDate());
+        SalaryVersionResponse version;
+        WorkingDayBasisResponse basis;
+        PayRunDays days;
+        if (offCycle) {
+            // W-30.2: inputs only. A salary version is read only when creation recorded one — asking
+            // for a missing one would throw inside this transaction and mark it rollback-only — and no
+            // working-day basis is read, so a joiner with no CTC yet, or a tenant with no policy, is paid.
+            version = row.getSalaryVersionId() == null
+                    ? null
+                    : salaryService.versionInForce(run.getTenantId(), row.getEmployeeId(), run.getPeriodEnd());
+            basis = null;
+            days = PayRunDays.zero();
+        } else {
+            version = salaryService.versionInForce(run.getTenantId(), row.getEmployeeId(), run.getPeriodEnd());
+            // No policy in force throws NoLopPolicyException: this employee fails, the loop carries on.
+            basis = basisCalculator.basisFor(run.getTenantId(), run.getPeriod(), row.getEmployeeId());
+            days = PayRunDays.of(
+                    basis.payableDays(),
+                    PayInputLineContributor.netLopDays(payInputs),
+                    run.getPeriodStart(),
+                    run.getPeriodEnd(),
+                    employee.dateOfJoining(),
+                    employee.terminationDate());
+        }
         PayRunEmployeeContext ctx = new PayRunEmployeeContext(
                 run.getTenantId(),
                 run.getId(),
@@ -304,7 +322,8 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 payInputs,
                 days,
                 inputs.proRataIds(),
-                List.of());
+                List.of(),
+                run.getRunType());
 
         List<PayLine> produced = new ArrayList<>();
         for (PayLineContributor contributor : contributors) {

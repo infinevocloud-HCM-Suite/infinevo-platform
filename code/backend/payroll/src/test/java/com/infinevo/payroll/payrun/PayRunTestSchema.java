@@ -65,6 +65,10 @@ final class PayRunTestSchema {
             if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "compute_attempt")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V059__payrun_job_progress.sql");
             }
+            // W-30.2: the off-cycle run type, the notes column and the narrowed one-per-period index.
+            if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "notes")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V061__payrun_off_cycle.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -410,6 +414,32 @@ final class PayRunTestSchema {
                 PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setObject(1, tenantId);
             ps.setString(2, period);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    /** W-30.2: lock rows an off-cycle run wrote for itself — {@code run_ref} set. */
+    static int countRunLocks(UUID tenantId, UUID runRef) throws SQLException {
+        return countWhere(
+                "SELECT count(*) FROM core.pay_input_period_lock WHERE tenant_id = ? AND run_ref = ?",
+                tenantId,
+                runRef);
+    }
+
+    /** W-30.2: ledger rows tagged with {@code runRef}. */
+    static int countTaggedInputs(UUID tenantId, UUID runRef) throws SQLException {
+        return countWhere("SELECT count(*) FROM core.pay_input WHERE tenant_id = ? AND run_ref = ?", tenantId, runRef);
+    }
+
+    private static int countWhere(String sql, Object... params) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);

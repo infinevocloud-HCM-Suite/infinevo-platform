@@ -198,7 +198,9 @@ public class PayrollTestApp {
                 try (Connection conn = dataSource.getConnection()) {
                     conn.setAutoCommit(false);
                     try (PreparedStatement ps = conn.prepareStatement(
-                            "SELECT id, employee_number, first_name, last_name, work_email FROM core.employee WHERE id = ? AND tenant_id = ? AND is_deleted = false")) {
+                            "SELECT id, employee_number, first_name, last_name, work_email, date_of_joining, "
+                                    + "termination_date, status FROM core.employee "
+                                    + "WHERE id = ? AND tenant_id = ? AND is_deleted = false")) {
                         ps.setObject(1, id);
                         ps.setObject(2, tenantId);
                         try (ResultSet rs = ps.executeQuery()) {
@@ -213,9 +215,14 @@ public class PayrollTestApp {
                                     null,
                                     rs.getString("last_name"),
                                     "MALE",
-                                    LocalDate.now(),
-                                    null,
-                                    null,
+                                    // The real dates and status, as EmployeeServiceImpl.get returns them:
+                                    // an off-cycle run (W-30.2) tests employment against the period.
+                                    rs.getObject("date_of_joining", LocalDate.class),
+                                    rs.getObject("termination_date", LocalDate.class),
+                                    rs.getString("status") == null
+                                            ? null
+                                            : com.infinevo.core.employee.EmploymentStatus.valueOf(
+                                                    rs.getString("status")),
                                     rs.getString("work_email"),
                                     null,
                                     false,
