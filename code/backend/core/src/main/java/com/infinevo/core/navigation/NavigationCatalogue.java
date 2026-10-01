@@ -119,7 +119,21 @@ public final class NavigationCatalogue {
                                     "/approvals/definitions",
                                     "/api/v1/approval-definitions",
                                     null,
-                                    "core.approval_definition.manage"))));
+                                    "core.approval_definition.manage"))),
+            new ItemDefinition(
+                    "core.invitations.users",
+                    "nav.userInvitations",
+                    "/invitations/users",
+                    "/api/v1/user-invitations",
+                    null,
+                    "core.user.manage"),
+            new ItemDefinition(
+                    "core.invitations.employees",
+                    "nav.employeeInvitations",
+                    "/invitations/employees",
+                    "/api/v1/employee-invitations",
+                    null,
+                    "core.employee.create"));
 
     private NavigationCatalogue() {}
 }
