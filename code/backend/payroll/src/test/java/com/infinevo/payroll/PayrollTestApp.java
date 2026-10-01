@@ -461,7 +461,7 @@ public class PayrollTestApp {
                     try {
                         conn.setAutoCommit(false);
                         String sql =
-                                "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, eligible_for_full_tax_exemption, created_at, updated_at "
+                                "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, is_eligible_for_full_tax_exemption, created_at, updated_at "
                                         + "FROM core.employee_personal WHERE employee_id = ? AND tenant_id = ?";
                         try (PreparedStatement ps = conn.prepareStatement(sql)) {
                             ps.setObject(1, employeeId);
@@ -480,7 +480,7 @@ public class PayrollTestApp {
                                             rs.getString("ethnicity"),
                                             rs.getString("father_name"),
                                             rs.getString("differently_abled_type"),
-                                            rs.getBoolean("eligible_for_full_tax_exemption"),
+                                            rs.getBoolean("is_eligible_for_full_tax_exemption"),
                                             rs.getTimestamp("created_at").toInstant(),
                                             rs.getTimestamp("updated_at").toInstant()));
                                 }
@@ -507,7 +507,54 @@ public class PayrollTestApp {
             @Override
             public com.infinevo.core.employee.detail.EmployeePersonalResponse put(
                     UUID employeeId, com.infinevo.core.employee.detail.EmployeePersonalRequest request) {
-                throw new UnsupportedOperationException();
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        String sql =
+                                """
+                                INSERT INTO core.employee_personal (
+                                    tenant_id, employee_id, date_of_birth, marital_status, nationality,
+                                    ethnicity, father_name, differently_abled_type, is_eligible_for_full_tax_exemption
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ON CONFLICT (tenant_id, employee_id) DO UPDATE SET
+                                    date_of_birth = EXCLUDED.date_of_birth,
+                                    marital_status = EXCLUDED.marital_status,
+                                    nationality = EXCLUDED.nationality,
+                                    ethnicity = EXCLUDED.ethnicity,
+                                    father_name = EXCLUDED.father_name,
+                                    differently_abled_type = EXCLUDED.differently_abled_type,
+                                    is_eligible_for_full_tax_exemption = EXCLUDED.is_eligible_for_full_tax_exemption,
+                                    updated_at = CURRENT_TIMESTAMP
+                                """;
+                        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                            ps.setObject(1, tenantId);
+                            ps.setObject(2, employeeId);
+                            if (request.dateOfBirth() != null) {
+                                ps.setDate(3, java.sql.Date.valueOf(request.dateOfBirth()));
+                            } else {
+                                ps.setNull(3, java.sql.Types.DATE);
+                            }
+                            ps.setString(4, request.maritalStatus());
+                            ps.setString(5, request.nationality());
+                            ps.setString(6, request.ethnicity());
+                            ps.setString(7, request.fatherName());
+                            ps.setString(8, request.differentlyAbledType());
+                            ps.setBoolean(
+                                    9,
+                                    request.eligibleForFullTaxExemption() != null
+                                            && request.eligibleForFullTaxExemption());
+                            ps.executeUpdate();
+                        }
+                        conn.commit();
+                        return get(employeeId);
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }

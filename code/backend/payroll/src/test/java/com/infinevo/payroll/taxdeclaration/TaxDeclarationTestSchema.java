@@ -60,6 +60,9 @@ public final class TaxDeclarationTestSchema {
                 executeResource(conn, "db/migration/reference/V004__reference_tax_masters.sql");
                 executeResource(conn, "db/migration/reference/V005__reference_tax_seed.sql");
             }
+            if (!taxSlabAgeCategoryExists(conn, "SENIOR")) {
+                executeResource(conn, "db/migration/reference/V027__tax_slab_age_categories.sql");
+            }
             if (!ruleForYearExists(conn, "hra_rule_master", "2026-2027")) {
                 executeResource(conn, "db/migration/reference/V105__fy_2026_27_reference_rules.sql");
             }
@@ -256,6 +259,19 @@ public final class TaxDeclarationTestSchema {
         try (PreparedStatement ps =
                 conn.prepareStatement("SELECT 1 FROM reference." + table + " WHERE financial_year = ? LIMIT 1")) {
             ps.setString(1, fy);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    public static boolean taxSlabAgeCategoryExists(Connection conn, String ageCategory) throws SQLException {
+        if (!tableExists(conn, "reference", "tax_slab_master")) {
+            return false;
+        }
+        try (PreparedStatement ps =
+                conn.prepareStatement("SELECT 1 FROM reference.tax_slab_master WHERE age_category = ? LIMIT 1")) {
+            ps.setString(1, ageCategory);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
