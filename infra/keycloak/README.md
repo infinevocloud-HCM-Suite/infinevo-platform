@@ -59,6 +59,6 @@ Keycloak 25.0 expands `${ENV_VAR}` placeholders at import time. In `infinevo-rea
 
 ## Start-up guard and founder steps
 
-- The image refuses to start when `KC_WEB_ORIGIN` or any `KC_SMTP_*` variable is unset (`infra/docker/keycloak.Dockerfile`), because the realm imports once and would keep the literal `${...}` text. After a Bicep deployment, Keycloak stays down until the pipeline's revision step sets `KC_WEB_ORIGIN` again.
+- The image refuses to start when `KC_WEB_ORIGIN` is unset (`infra/docker/keycloak.Dockerfile`), because the realm imports once and would keep the literal `${...}` text. After a Bicep deployment, Keycloak stays down until the pipeline's revision step sets `KC_WEB_ORIGIN` again.
 - **Founder:** store the real Brevo SMTP key as Key Vault secret `brevo-smtp-key` (seeded as a placeholder by `deploy.sh`).
 - **Founder:** set `brevoSmtpLogin` in `infra/azure/parameters/*.bicepparam` to the Brevo SMTP login (Brevo > SMTP & API > SMTP). Until both are set, Keycloak starts but its mail fails with an auth error.
