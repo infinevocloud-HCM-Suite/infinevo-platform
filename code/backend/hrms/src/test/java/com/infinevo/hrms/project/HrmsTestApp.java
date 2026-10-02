@@ -43,12 +43,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = {
-            "com.infinevo.hrms.project",
-            "com.infinevo.hrms.attendance",
-            "com.infinevo.core.authz",
-            "com.infinevo.shared.audit"
-        },
+        basePackages = {"com.infinevo.hrms.project", "com.infinevo.hrms.attendance", "com.infinevo.core.authz"},
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
