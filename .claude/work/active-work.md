@@ -6,6 +6,15 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-02 — `W-10.1` merged (`889b09b`)
+
+- The production realm `infinevo` is baked into the Keycloak image and imported on first start; Brevo SMTP is wired through Key Vault; CI checks the realm file.
+- One squash of `W-10-1-production-realm` at `075a29f`. Gates 5/5, CI green there, one independent read. Fixed at merge: SendGrid-style `apikey` SMTP login, missing start-up guard, a weakened CI 8c, no placeholder check on the SMTP fields, PKCE not enforced on the server.
+- Verified locally on Keycloak 25.0.6: placeholders resolve, reset mail reaches mailpit, a second start skips the import.
+- **Live dev:** a hand-made `infinevo` realm already exists, so the import is skipped and the merge changes nothing visible. It has no password reset and no SMTP.
+- **Founder steps:** store `brevo-smtp-key`; set `brevoSmtpLogin` in the param files; turn on reset and SMTP on the dev realm in the console. `deploy.sh` was not run: it needs Key Vault data access.
+- **Newly Ready:** nothing. Stream C has no open ticket.
+
 ## 2026-10-02 — `W-30.2`, `W-35.2`, `W-36.2` merged (`9d5c0a0`)
 
 - Off-cycle pay runs (`V061`), ad-hoc salary deductions (`V100`–`V101`) and approve, pay and payslips with a 7-day signed link (`V103`) are on `main`. A run can now go all the way to `PAID`.
