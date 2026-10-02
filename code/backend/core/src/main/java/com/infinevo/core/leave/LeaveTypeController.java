@@ -50,9 +50,7 @@ public class LeaveTypeController {
     }
 
     @GetMapping("/api/v1/leave-types")
-    @RequiresAction(
-            value = "core.leave_type.manage",
-            anyOf = "core.leave.read")
+    @RequiresAction(value = "core.leave_type.manage", anyOf = "core.leave.read")
     public List<LeaveTypeResponse> getLeaveTypes(
             @RequestParam(name = "activeOn", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate activeOn) {
