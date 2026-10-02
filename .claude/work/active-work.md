@@ -6,6 +6,54 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-02 — `W-36.1` merged (`9263c30`)
+
+- Employee TDS record (`payroll.employee_tds`, `V102`) and the pay run's monthly TDS line.
+- One squash of `dev-karma` at `6819dad`. Gates 5/5, CI green there, one independent read.
+- Fixed at merge: off-cycle runs took a full month's TDS; no-record went unreported (now `employee_payrun.computation_note`); 500s on a missing figure and a concurrent save; UTC default month; no HTTP tests; TDS tests depended on test order.
+- **Outstanding:** tax on off-cycle payments is undecided; `PayRunTaxLineIT` contributor count goes back to 5 when `W-31.4` lands.
+- **Branches:** karma resets `dev-karma` to `main` before `W-40.1`.
+- **Newly Ready:** `W-33.3` (mohit). `W-36.4` now waits on `W-33.3`, `W-36.3`; `W-38.2` on `W-38.1`, `W-36.4`; `W-34.2`'s event on `W-33.3`.
+
+## 2026-10-02 — `W-47.2` merged (`36c02d1`)
+
+- Pay run screens: list, run page with lock, compute, approve, pay and cancel, employees and lines, off-cycle create. Pay date is checked on the tenant's day.
+- One squash of `krushna-tickets` at `6a7ff117`. Gates 5/5, CI green there, one independent read. Nothing fixed at merge.
+- **Fixed after merge (`c01b5ee`):** the off-cycle grid showed an employee from an earlier search as a raw id (F-1).
+- **Outstanding, the one that matters next:** run-page names page the whole employee directory (F-2). Full list in the merge commit.
+- **Branches:** krushna resets to `main` before `W-38.1`.
+- **Newly Ready:** nothing. `W-47.6` still waits on `W-38.1`.
+
+## 2026-10-02 — `W-41`, `W-65.1`, `W-65.2`, `W-34.1`, `W-34.3`, part of `W-34.2` merged (`5fa04b1`)
+
+- One squash of `dev-devashish` at `426b852`. Gates 5/5 for all six, CI backend job green there, one independent read.
+- Fixed at merge: the branch's own W-36.2 dropped for main's; `V125` → `V135` rebuilt from `V100`; submit/reopen race (W-34.1); reminders before the window opened (W-34.3); approved amounts into `TaxInputAssembler` (W-34.2); `/api/v1/me` 500 while impersonating (W-65.2).
+- **`W-34.2` is not Done:** `ProofVerifiedEvent` waits on `W-33.3` (mohit), which waits on `W-36.1` (karma).
+- **check-done gate 5 tightened:** a green run whose backend or frontend job was skipped no longer counts for a branch that changes that code.
+- **Branches:** devashis resets `dev-devashish` to `main`. `dev-devashis` (no h) is stale and can be deleted.
+- **Newly Ready:** `W-65.3` admin console screens (unassigned).
+
+## 2026-10-02 — `W-10.1` merged (`889b09b`)
+
+- The production realm `infinevo` is baked into the Keycloak image and imported on first start; Brevo SMTP is wired through Key Vault; CI checks the realm file.
+- One squash of `W-10-1-production-realm` at `075a29f`. Gates 5/5, CI green there, one independent read. Fixed at merge: SendGrid-style `apikey` SMTP login, missing start-up guard, a weakened CI 8c, no placeholder check on the SMTP fields, PKCE not enforced on the server.
+- Verified locally on Keycloak 25.0.6: placeholders resolve, reset mail reaches mailpit, a second start skips the import.
+- **Live dev:** a hand-made `infinevo` realm already exists, so the import is skipped and the merge changes nothing visible. It has no password reset and no SMTP.
+- **Founder steps:** store `brevo-smtp-key`; set `brevoSmtpLogin` in the param files; turn on reset and SMTP on the dev realm in the console. `deploy.sh` was not run: it needs Key Vault data access.
+- **Newly Ready:** nothing. Stream C has no open ticket.
+
+## 2026-10-02 — `W-30.2`, `W-35.2`, `W-36.2` merged (`9d5c0a0`)
+
+- Off-cycle pay runs (`V061`), ad-hoc salary deductions (`V100`–`V101`) and approve, pay and payslips with a 7-day signed link (`V103`) are on `main`. A run can now go all the way to `PAID`.
+- One squash of `krushna-tickets-fixes-2` at `210d0bc`. Gates 5/5 for all three, CI green there, one independent read per ticket on krushna's `e273470`.
+- Fixed at merge: one input reference for two employees left the second unpaid; the deduction `400` did not name the line; the real `/me/payslips` clashed with `W-25`'s placeholder; a test-order fault in `TaxDeclarationActionSeedIT`. Tested, not re-read.
+- **Decided by the founder 2026-10-02, specs amended the same day (`W-36.2` § 7, § 10, § 13 decisions 9–10; `W-30.2` § 3, § 13 decisions 7–8; `W-18.2` § 13 decision 5; `W-47.2` § 1, § 5):** a `PAID` run is never cancelled; an off-cycle row needs no loss-of-pay policy or work location and carries no stamp; the `payroll.runs` menu item ships now, through a new `NavigationContributor` so a module adds its own items; the payslip link base is the required `PAYSLIP_LINK_BASE_URL`.
+- **Before the automatic deploy:** run the Bicep and make sure `PAYSLIP_LINK_BASE_URL` reaches `app` and `worker`, or neither starts.
+- **Not merged:** `W-47.2` pay run screens. Two blockers: the screens never unwrap the `{status, message, data}` reply, and the inputs grid offers a `BONUS` kind the server refuses. Back to krushna; the menu item it needs is already on `main`.
+- **Outstanding, the ones that matter next:** the emailed payslip link opens a page no screen serves yet; no payslip test goes through the real security chain. Full list in the merge commit.
+- **Newly Ready:** `W-37` (unassigned). `W-47.4` is unblocked but has no screen spec.
+- **Branches:** krushna resets to `main` and redoes `W-47.2` on top. `krushna-tickets-fixes-2` can be deleted once he has.
+
 ## 2026-10-02 — `W-33.1`, `W-33.2`, `W-47.3` merged (`7907a6c`)
 
 - The tax calculator is on `main` for both regimes: the shared engine (salary projection across CTC versions, slab tax, 87A rebate, surcharge with marginal relief, age category), `GET …/tax` as a pure preview and `POST …/tax/compute` filling both summary rows. No table. The tax declaration screens are on `main` too: window settings, the employee declaration in four sections, the officer header view.

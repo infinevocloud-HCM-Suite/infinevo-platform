@@ -2,6 +2,7 @@ package com.infinevo.core.authz;
 
 import com.infinevo.shared.authz.PermissionCache;
 import com.infinevo.shared.identity.UserAccountRepository;
+import com.infinevo.shared.tenant.PlatformTenant;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -85,12 +86,16 @@ public class RoleServiceImpl implements RoleService {
      */
     private static final String PLATFORM_ADMIN = "platform-admin";
 
+    /** Held by Infinevo staff only: see {@link #requireNoPlatformOnlyActions}. */
+    static final Set<String> PLATFORM_ONLY_ACTIONS = Set.of("core.tenant.provision", "core.tenant.impersonate");
+
     private final RoleRepository roleRepository;
     private final RoleActionRepository roleActionRepository;
     private final UserRoleRepository userRoleRepository;
     private final ActionRepository actionRepository;
     private final UserAccountRepository userAccountRepository;
     private final PermissionCache permissionCache;
+    private final PlatformTenant platformTenant;
 
     public RoleServiceImpl(
             RoleRepository roleRepository,
@@ -98,7 +103,8 @@ public class RoleServiceImpl implements RoleService {
             UserRoleRepository userRoleRepository,
             ActionRepository actionRepository,
             UserAccountRepository userAccountRepository,
-            PermissionCache permissionCache) {
+            PermissionCache permissionCache,
+            PlatformTenant platformTenant) {
         this.roleRepository = Objects.requireNonNull(roleRepository, "roleRepository must not be null");
         this.roleActionRepository =
                 Objects.requireNonNull(roleActionRepository, "roleActionRepository must not be null");
@@ -107,6 +113,7 @@ public class RoleServiceImpl implements RoleService {
         this.userAccountRepository =
                 Objects.requireNonNull(userAccountRepository, "userAccountRepository must not be null");
         this.permissionCache = Objects.requireNonNull(permissionCache, "permissionCache must not be null");
+        this.platformTenant = Objects.requireNonNull(platformTenant, "platformTenant must not be null");
     }
 
     @Override
@@ -132,6 +139,7 @@ public class RoleServiceImpl implements RoleService {
             throw new ValidationException(errors);
         }
         requireKnownActions(actionCodes);
+        requireNoPlatformOnlyActions(tenantId, actionCodes);
 
         if (roleRepository.existsByTenantIdAndCode(tenantId, code)) {
             throw new DuplicateCodeException(code);
@@ -184,6 +192,7 @@ public class RoleServiceImpl implements RoleService {
             throw new ValidationException(errors);
         }
         requireKnownActions(wanted);
+        requireNoPlatformOnlyActions(tenantId, wanted);
 
         String actor = currentActor();
         role.rename(name, actor);
@@ -378,6 +387,28 @@ public class RoleServiceImpl implements RoleService {
         unknown.removeAll(known);
         if (!unknown.isEmpty()) {
             throw new ValidationException(Map.of("actionCodes", "Unknown action codes: " + String.join(", ", unknown)));
+        }
+    }
+
+    /**
+     * Refuses a platform-only action in a role of any tenant but the platform tenant, naming each one.
+     *
+     * <p>{@code core.tenant.provision} changes any tenant's modules and status, and
+     * {@code core.tenant.impersonate} acts as any tenant's user. Both are for Infinevo staff, who hold them
+     * through {@code platform-admin} in the platform tenant, so a customer's custom role carrying either would
+     * be a way to cross tenants. The database refuses them too (V136); this is the answer the caller can read.
+     */
+    private void requireNoPlatformOnlyActions(UUID tenantId, Set<String> actionCodes) {
+        if (platformTenant.isPlatformTenant(tenantId)) {
+            return;
+        }
+        Set<String> platformOnly = new TreeSet<>(actionCodes);
+        platformOnly.retainAll(PLATFORM_ONLY_ACTIONS);
+        if (!platformOnly.isEmpty()) {
+            throw new ValidationException(Map.of(
+                    "actionCodes",
+                    "Platform-only action codes cannot be granted in a customer tenant: "
+                            + String.join(", ", platformOnly)));
         }
     }
 

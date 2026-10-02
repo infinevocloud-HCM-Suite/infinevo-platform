@@ -6,8 +6,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.infinevo.shared.impersonation.ActingAs;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
@@ -42,11 +44,13 @@ class PermissionServiceTest {
         source.grant(tenant, user, READ);
         PermissionCache permissionCache = new PermissionCache(cache);
         service = new PermissionService(() -> permissionCache, () -> source, identityResolver());
+        ActingAs.clear();
     }
 
     @AfterEach
     void tearDown() {
         TenantContext.clear();
+        ActingAs.clear();
         SecurityContextHolder.clearContext();
     }
 
@@ -173,5 +177,62 @@ class PermissionServiceTest {
         authenticate(user);
 
         assertThat(service.holds(READ)).isFalse();
+    }
+
+    @Test
+    @DisplayName("ActingAs in bootstrap mode returns role actions directly without user profile or ActionSource")
+    void actingAsBootstrap_returnsRoleActionCodesWithoutUserAccount() {
+        TenantContext.set(tenant);
+        UUID staffId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        authenticate(staffId);
+
+        ActingAs.set(staffId, null, sessionId, null, Set.of("core.employee.read", "core.invitation.create"));
+
+        assertThat(service.holds("core.employee.read")).isTrue();
+        assertThat(service.holds("core.invitation.create")).isTrue();
+        assertThat(service.holds(DELETE)).isFalse();
+        assertThat(source.calls()).isZero();
+    }
+
+    @Test
+    @DisplayName("ActingAs for target user returns target actions and keys cache by target user account ID")
+    void actingAsTargetUser_returnsTargetUserPermissionsAndCachesByTargetUserId() {
+        TenantContext.set(tenant);
+        UUID staffId = UUID.randomUUID();
+        UUID targetUserId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        authenticate(staffId);
+
+        ActingAs.set(staffId, targetUserId, sessionId, "target@customer.local", Set.of(READ));
+
+        assertThat(service.holds(READ)).isTrue();
+        assertThat(service.holds(DELETE)).isFalse();
+
+        // Verify the cache key used targetUserId and not staffId
+        String version =
+                cache.get(PermissionCache.versionKey(tenant), String.class).orElseThrow();
+        assertThat(cache.contains(PermissionCache.permissionKey(tenant, targetUserId, version)))
+                .isTrue();
+        assertThat(cache.contains(PermissionCache.permissionKey(tenant, staffId, version)))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("ActingAs for target user refuses unheld actions and throws PermissionDeniedException on require()")
+    void actingAsTargetUser_unheldActionIsRefused() {
+        TenantContext.set(tenant);
+        UUID staffId = UUID.randomUUID();
+        UUID targetUserId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        authenticate(staffId);
+
+        ActingAs.set(staffId, targetUserId, sessionId, "target@customer.local", Set.of(READ));
+
+        assertThat(service.holds(DELETE)).isFalse();
+        assertThatThrownBy(() -> service.require(DELETE))
+                .isInstanceOf(PermissionDeniedException.class)
+                .satisfies(e ->
+                        assertThat(((PermissionDeniedException) e).actionCode()).isEqualTo(DELETE));
     }
 }

@@ -29,7 +29,8 @@ public record EmployeePayRunResponse(
         @JsonProperty("paid_days") BigDecimal paidDays,
         @JsonProperty("unpriced_input_count") int unpricedInputCount,
         @JsonProperty("computed_at") Instant computedAt,
-        @JsonProperty("computation_error") String computationError) {
+        @JsonProperty("computation_error") String computationError,
+        @JsonProperty("computation_note") String computationNote) {
 
     public static EmployeePayRunResponse from(EmployeePayRun row, String employeeNumber) {
         return new EmployeePayRunResponse(
@@ -49,6 +50,7 @@ public record EmployeePayRunResponse(
                 row.getPaidDays(),
                 row.getUnpricedInputCount(),
                 row.getComputedAt(),
-                row.getComputationError());
+                row.getComputationError(),
+                row.getComputationNote());
     }
 }

@@ -1,5 +1,6 @@
 package com.infinevo.shared.identity;
 
+import com.infinevo.shared.impersonation.ActingAs;
 import com.infinevo.shared.tenant.TenantContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -27,6 +28,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <p>It does nothing at all unless both conditions hold: a tenant is bound and the principal is a
  * {@link Jwt}. A request on an exempt path, or one authenticated some other way in a test, passes
  * straight through.
+ *
+ * <p>Nor during an impersonation session (W-65.2). The bound tenant is then the customer tenant but
+ * the token is the platform staff member's, so a sync would write that staff member into the
+ * customer's {@code core.user_account} - and a tenant with a user can no longer be bootstrapped.
  */
 public class UserProfileSyncFilter extends OncePerRequestFilter {
 
@@ -52,7 +57,7 @@ public class UserProfileSyncFilter extends OncePerRequestFilter {
         Optional<UUID> tenantId = TenantContext.current();
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (tenantId.isPresent() && auth != null && auth.getPrincipal() instanceof Jwt jwt) {
+        if (tenantId.isPresent() && !ActingAs.isActing() && auth != null && auth.getPrincipal() instanceof Jwt jwt) {
             UUID userId = subjectOf(jwt);
             if (userId != null) {
                 // Contained on purpose. This is bookkeeping running beside the real request: the

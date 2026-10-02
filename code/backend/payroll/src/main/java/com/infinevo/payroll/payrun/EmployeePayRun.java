@@ -95,6 +95,9 @@ public class EmployeePayRun {
     @Column(name = "computation_error", length = 500)
     private String computationError;
 
+    @Column(name = "computation_note", length = 500)
+    private String computationNote;
+
     @Column(name = "computed_attempt", nullable = false)
     private int computedAttempt;
 
@@ -206,6 +209,7 @@ public class EmployeePayRun {
         this.netPay = totals.netPay().setScale(4);
         this.computedAt = Objects.requireNonNull(at, "at must not be null");
         this.computationError = null;
+        this.computationNote = null;
         this.computedAttempt = attempt;
         this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
     }
@@ -232,8 +236,14 @@ public class EmployeePayRun {
         this.lopRounding = null;
         this.computedAt = Objects.requireNonNull(at, "at must not be null");
         this.computationError = error.length() > 500 ? error.substring(0, 500) : error;
+        this.computationNote = null;
         this.computedAttempt = attempt;
         this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    /** What a contributor said about the figure just recorded (W-36.1 §3), or {@code null}. */
+    public void noteComputation(String note) {
+        this.computationNote = note == null || note.length() <= 500 ? note : note.substring(0, 500);
     }
 
     @PrePersist
@@ -322,6 +332,10 @@ public class EmployeePayRun {
 
     public String getComputationError() {
         return computationError;
+    }
+
+    public String getComputationNote() {
+        return computationNote;
     }
 
     /** The policy stamp behind this row's figure (W-18.2); empty before a computation and after a failure. */

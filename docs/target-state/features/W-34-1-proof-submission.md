@@ -283,3 +283,23 @@ Nothing is deployed. All five scripts are additive and forward-only.
 | # | Question | Proposed |
 |---|---|---|
 | 1 | Size-cap exception: five scripts, one table each at most | **Grant.** `migration/README.md` asks for one table per file; same shape as `W-32.1` |
+
+---
+
+## 15. As built (2026-09-30, `dev-devashish`)
+
+What differs from, or is decided beyond, sections 1 to 14.
+
+| Topic | As built |
+|---|---|
+| Grants (`V110`) | Its own `core.seed_proof_roles` function and a trigger on `core.tenant`, the `V070` pattern, **not** a redefinition of `core.seed_system_roles`. That function is rewritten wholesale by several scripts and a copy taken from an older body drops the grants added in between (`W-41` hit this). The trigger is named `tenant_seed_tax_proof_roles` on purpose: Postgres fires same-event triggers by name, the system roles are created by `tenant_seed_system_roles`, and a name sorting before it would grant to roles that do not exist yet. `ProofActionSeedIT` covers a tenant created by the trigger, one seeded later, and a rerun |
+| File cap | At most **10 files per item**, `409 DOCUMENT_LIMIT`. The spec set none |
+| Window `PUT` | The five proof fields are optional: an absent one keeps the stored value, so a caller that only manages the declaration window never sees them. A date cannot be cleared once set, only replaced. `due < opens` is `400`. The old constructors of `TaxDeclarationWindowRequest` and `TaxDeclarationWindowResponse` are kept, so no existing caller changed |
+| Reopen guard | Through `taxdeclaration/ProofInProgressCheck`, a port the declaration package owns and `proof` implements, so `taxdeclaration` imports nothing from `proof`. The officer's `reopen` is not guarded |
+| Submit | Also refused `409 NOT_SUBMITTED` if an officer has reopened the declaration since, because the items mirror the declared lines only while it stays submitted. A resubmission after a return sets every item back to `PENDING`, clears `approved_amount` and the proof's reviewer note and `decided_at`; item reviewer notes stay until replaced |
+| Concurrency | The proof is found by id first and loaded second, **under** `SELECT ... FOR UPDATE`. Loading it first left Hibernate holding the stale `DRAFT` state after the second request had waited, and two simultaneous submits both succeeded; `ProofSubmissionIT.concurrentSubmitIsOnce` caught it. Creating the proof takes a lock on the declaration row first, because a lost insert race aborts a PostgreSQL transaction |
+| Reads | `GET /me/proof-of-investment/{fy}` creates and syncs, as specified. The officer read never does |
+| Notification | `POI_SUBMITTED` is composed inside the submit transaction, as `NotificationServiceImpl` intends (it logs a missing template rather than throwing); a failure to compose is logged with ids only and does not undo the submit |
+| Tests | `ProofItemSyncTest`, `ProofRulesTest`, `ProofSourceReaderTest`, `ProofControllerTest`; `ProofSubmissionIT`, `ProofDocumentIT`, `ProofRlsIT`, `ProofActionSeedIT`. The ITs use `ProofTestDocuments`, a `@Primary` document service that writes real `core.document` rows, because the link table has a foreign key to it and `PayrollTestApp`'s stand-in writes none. They clear their proof rows in every teardown: other ITs delete the declarations, employees and documents these rows reference |
+| Review pass, 2026-10-01 | **Submit now syncs the items with the declaration first** (while the proof is editable and the declaration is submitted), so a proof submitted without being read again after the declaration changed does not claim a line that was removed (`ProofSubmitReviewFixesIT`). **A file soft-deleted through core no longer counts** as attached at submit, in the per-item limit, or in the read; detaching it no longer fails, because `DocumentServiceImpl.get`, `open` and `delete` now name `NotFoundException` in `noRollbackFor` (a caller that treats "already gone" as normal had its joined transaction marked rollback-only and failed at commit; `DocumentNotFoundTransactionTest`). **The notification is composed after the submit commits and in its own transaction**, so an error inside the notification service, a database error included, cannot undo the submit |
+| Not done here | Review, decisions, comments and the tax effect are `W-34.2`; the chase list and reminders are `W-34.3`. `TaxDeclarationController`'s officer endpoints are unchanged |

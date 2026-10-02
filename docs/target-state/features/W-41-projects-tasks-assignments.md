@@ -155,6 +155,8 @@ owns the label. Record it in that ticket.
 (`DEV-TRACKER.md:48`). One table per script (`migration/README.md` §one table creation).
 Copy `payroll/V046__ctc_structure.sql` for the shape and the RLS clause.
 
+**As built (2026-09-30).** `V085` only inserts the four action codes. The role grants and the tenant backfill moved to `core/V135__hrms_project_seed_roles.sql`, which holds the one current `core.seed_system_roles`. Reason: `V097` (`W-35.1`) also redefines the whole function, and whichever of the two ran last dropped the other's grants (a fresh tenant lost the `hrms.project.*` grants; a database that already had `V097` would have lost the reimbursement-claim grants when `V085` ran out of order). `PreExistingTenantCatalogueIT` caught it as a 287 vs 292 grant-count mismatch. A ticket that adds grants extends `V135`'s list, not an older copy. *Merge review 2026-10-02:* `V135` was rebuilt from `V100` (`W-35.2`), which had reached `main` meanwhile, so it keeps the three `payroll.employee_deduction.*` grants as well.
+
 **`V085`** — the pattern is `core/V025__catalogue_correction.sql:27-45,119-243,262`:
 
 | Code | Name | Granted to |
@@ -282,3 +284,5 @@ Nothing is deployed. All four scripts are additive and forward-only.
 | 4 | Manager on a project: free-text id and copied name (`Project.java:46-50`)? | **FK to `core.employee`, no name.** `read_team` means "projects where `manager_employee_id` is me"; it does not use the reporting line from `W-14.2` |
 | 5 | Numbered `Long` ids? | **UUID**, matching `core.employee` and `W-26.1` decision 1 |
 | 6 | Assignment stores a copied employee name? | **No.** Responses carry `employeeId`; the caller resolves names through `GET /api/v1/employees` |
+
+**Renumbered 2026-10-01.** `core/V125__hrms_project_seed_roles.sql` is now `core/V135__hrms_project_seed_roles.sql`, unchanged: `main` took `V125` for `W-18.2` (`payroll/V125__employee_payrun_policy_stamp.sql`), and `dev-karma` took `V126`–`V134`. Reserve `V135` for `W-41` in the tracker. It is still the one current `core.seed_system_roles`: a later ticket that adds grants must extend this list, not an older copy.

@@ -191,6 +191,30 @@
           "11111111-1111-1111-1111-111111111111"
         ]
       }
+    },
+    {
+      "id": "c0000000-0000-0000-0000-000000000001",
+      "username": "staff.infinevo",
+      "email": "staff@infinevo.local",
+      "firstName": "Staff",
+      "lastName": "Infinevo",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local_dev_pw",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "platform-admin"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "00000000-0000-0000-0000-000000000001"
+        ]
+      }
     }
   ]
 }

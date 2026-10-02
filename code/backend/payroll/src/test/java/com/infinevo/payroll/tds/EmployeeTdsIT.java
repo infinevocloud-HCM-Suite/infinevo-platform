@@ -2,31 +2,23 @@ package com.infinevo.payroll.tds;
 
 import static com.infinevo.payroll.PayrollTestSchema.TENANT_A;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.infinevo.core.employee.EmployeeResponse;
-import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.PayrollTestSchema;
-import com.infinevo.payroll.taxcalc.TaxRegime;
-import com.infinevo.shared.authz.PermissionService;
-import com.infinevo.shared.authz.RequiresActionAspect;
+import com.infinevo.payroll.payrun.PayRunTestSchema;
+import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
+import com.infinevo.payroll.taxdeclaration.dto.ApiResponse;
+import com.infinevo.payroll.tds.dto.EmployeeTdsResponse;
+import com.infinevo.payroll.tds.dto.RecordTdsRequest;
+import com.infinevo.payroll.tds.exception.EmployeeTdsNotFoundException;
+import com.infinevo.payroll.tds.exception.EmployeeTdsValidationException;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.EnabledIfDockerAvailable;
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
@@ -35,40 +27,40 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
- * Integration tests for TDS API and entity lifecycle (W-36.1 §7).
+ * Integration test for employee TDS records (W-36.1 §7).
+ *
+ * <p>Covers:
+ * <ul>
+ *   <li>PUT twice leaves two rows: one active (superseded_at null), one inactive (superseded_at set)</li>
+ *   <li>GET returns the active record</li>
+ *   <li>GET .../history returns all rows newest first</li>
+ *   <li>GET /me/tds/{fy} for an employee without a record returns 404</li>
+ * </ul>
  */
 @SpringBootTest(classes = PayrollTestApp.class)
 @EnabledIfDockerAvailable
 class EmployeeTdsIT extends AbstractIntegrationTest {
 
-    @Autowired
-    private EmployeeTdsService employeeTdsService;
+    private static final String FY = "2026-2027";
 
     @Autowired
-    private EmployeeTdsRepository repository;
+    private EmployeeTdsService tdsService;
 
     @Autowired
-    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+    private EmployeeService employeeService;
 
-    private PermissionService permissionService;
-    private MockMvc mvc;
-    private ObjectMapper objectMapper;
-    private UUID employeeAId;
-    private UUID employeeBId;
+    private EmployeeTdsController controller;
+
+    private UUID employeeId1;
+    private UUID employeeId2;
 
     @BeforeAll
-    static void initSchema() throws Exception {
-        PayrollTestSchema.apply();
-        PayrollTestSchema.seedTenants();
+    static void applySchema() throws Exception {
+        PayRunTestSchema.apply();
     }
 
     @AfterAll
@@ -77,155 +69,180 @@ class EmployeeTdsIT extends AbstractIntegrationTest {
     }
 
     @BeforeEach
-    void setUp() throws SQLException {
+    void setUp() throws Exception {
         TenantContext.clear();
         PayrollTestSchema.cleanTables();
+        PayrollTestSchema.seedTenants();
+
+        employeeId1 = TaxDeclarationTestSchema.seedEmployee(TENANT_A, "EMP-TDS-01", "asha@acme.com", "Asha", "Rao");
+        employeeId2 = TaxDeclarationTestSchema.seedEmployee(TENANT_A, "EMP-TDS-02", "bob@acme.com", "Bob", "Smith");
+
         TenantContext.set(TENANT_A);
-
-        employeeAId = UUID.randomUUID();
-        seedEmployee(TENANT_A, employeeAId, "EMP-TDS-01", "Alice", "Smith");
-
-        employeeBId = UUID.randomUUID();
-        seedEmployee(TENANT_A, employeeBId, "EMP-TDS-02", "Bob", "Jones");
-
-        permissionService = mock(PermissionService.class);
-        when(permissionService.holds(anyString())).thenReturn(true);
-
-        EmployeeTdsController controller = new EmployeeTdsController(employeeTdsService);
-        EmployeeTdsController proxied = proxyWithAuthz(controller, permissionService);
-
-        objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
-
-        mvc = MockMvcBuilders.standaloneSetup(proxied)
-                .setMessageConverters(converter)
-                .build();
+        controller = new EmployeeTdsController(tdsService, employeeService);
     }
 
     @AfterEach
     void tearDown() {
-        PayrollTestApp.CURRENT_EMPLOYEE.remove();
         TenantContext.clear();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T proxyWithAuthz(T target, PermissionService permService) {
-        AspectJProxyFactory factory = new AspectJProxyFactory(target);
-        factory.setProxyTargetClass(true);
-        factory.addAspect(new RequiresActionAspect(permService));
-        return (T) factory.getProxy();
+        PayrollTestApp.CURRENT_EMPLOYEE.remove();
     }
 
     @Test
-    @DisplayName(
-            "PUT twice leaves two rows: one active (superseded_at null) and one superseded; GET returns active; history returns both")
-    void putTwiceSupersedesAndReturnsActiveAndHistory() throws Exception {
-        RecordTdsRequest req1 = new RecordTdsRequest(
-                TaxRegime.OLD,
-                new BigDecimal("600000.00"),
-                new BigDecimal("500000.00"),
-                new BigDecimal("100000.00"),
-                "2026-04",
-                "Initial computation");
-
-        mvc.perform(put("/api/v1/payroll/employees/" + employeeAId + "/tds/2026-2027")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req1)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.annual_tax").value(100000.0))
-                .andExpect(jsonPath("$.data.is_active").value(true))
-                .andExpect(jsonPath("$.data.superseded_at").doesNotExist());
-
-        RecordTdsRequest req2 = new RecordTdsRequest(
-                TaxRegime.NEW,
-                new BigDecimal("650000.00"),
-                new BigDecimal("550000.00"),
+    @DisplayName("PUT twice leaves two rows in history: one active with superseded_at null and one superseded")
+    void putTwiceSupersedesFirst() {
+        RecordTdsRequest first = new RecordTdsRequest(
+                "NEW",
+                new BigDecimal("1200000.00"),
+                new BigDecimal("1000000.00"),
                 new BigDecimal("120000.00"),
                 "2026-04",
-                "Revised computation");
+                "initial figure");
 
-        mvc.perform(put("/api/v1/payroll/employees/" + employeeAId + "/tds/2026-2027")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req2)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.annual_tax").value(120000.0))
-                .andExpect(jsonPath("$.data.is_active").value(true))
-                .andExpect(jsonPath("$.data.regime").value("NEW"));
+        ApiResponse<EmployeeTdsResponse> resp1 = controller.put(employeeId1, FY, first);
+        assertThat(resp1.status()).isEqualTo(200);
+        assertThat(resp1.data().annualTax()).isEqualByComparingTo("120000.0000");
+        assertThat(resp1.data().isActive()).isTrue();
+        assertThat(resp1.data().supersededAt()).isNull();
 
-        List<EmployeeTds> rows = new org.springframework.transaction.support.TransactionTemplate(transactionManager)
-                .execute(status -> repository.findByTenantIdAndEmployeeIdAndFinancialYearOrderByCreatedAtDesc(
-                        TENANT_A, employeeAId, "2026-2027"));
+        RecordTdsRequest second = new RecordTdsRequest(
+                "NEW",
+                new BigDecimal("1500000.00"),
+                new BigDecimal("1300000.00"),
+                new BigDecimal("150000.00"),
+                "2026-04",
+                "salary increment revision");
+
+        ApiResponse<EmployeeTdsResponse> resp2 = controller.put(employeeId1, FY, second);
+        assertThat(resp2.status()).isEqualTo(200);
+        assertThat(resp2.data().annualTax()).isEqualByComparingTo("150000.0000");
+        assertThat(resp2.data().isActive()).isTrue();
+        assertThat(resp2.data().supersededAt()).isNull();
+
+        List<EmployeeTds> rows = tdsService.history(employeeId1, FY);
         assertThat(rows).hasSize(2);
 
-        EmployeeTds newest = rows.get(0);
-        EmployeeTds older = rows.get(1);
+        EmployeeTds activeRow = rows.get(0);
+        EmployeeTds supersededRow = rows.get(1);
 
-        assertThat(newest.isActive()).isTrue();
-        assertThat(newest.getSupersededAt()).isNull();
-        assertThat(newest.getAnnualTax()).isEqualByComparingTo("120000.0000");
+        assertThat(activeRow.isActive()).isTrue();
+        assertThat(activeRow.getSupersededAt()).isNull();
+        assertThat(activeRow.getAnnualTax()).isEqualByComparingTo("150000.0000");
+        assertThat(activeRow.getNote()).isEqualTo("salary increment revision");
 
-        assertThat(older.isActive()).isFalse();
-        assertThat(older.getSupersededAt()).isNotNull();
-        assertThat(older.getAnnualTax()).isEqualByComparingTo("100000.0000");
-
-        // GET returns the active one
-        mvc.perform(get("/api/v1/payroll/employees/" + employeeAId + "/tds/2026-2027"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.annual_tax").value(120000.0))
-                .andExpect(jsonPath("$.data.is_active").value(true));
-
-        // GET history returns both rows, newest first
-        mvc.perform(get("/api/v1/payroll/employees/" + employeeAId + "/tds/2026-2027/history"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].annual_tax").value(120000.0))
-                .andExpect(jsonPath("$.data[1].annual_tax").value(100000.0));
+        assertThat(supersededRow.isActive()).isFalse();
+        assertThat(supersededRow.getSupersededAt()).isNotNull();
+        assertThat(supersededRow.getAnnualTax()).isEqualByComparingTo("120000.0000");
+        assertThat(supersededRow.getNote()).isEqualTo("initial figure");
     }
 
     @Test
-    @DisplayName("GET /me/tds/{fy} for user without linked active row is 404")
-    void meTdsNotFoundWhenNoActiveRow() throws Exception {
-        PayrollTestApp.CURRENT_EMPLOYEE.set(new EmployeeResponse(
-                employeeBId,
-                TENANT_A,
-                "EMP-TDS-02",
-                "Bob",
-                null,
-                "Jones",
-                "MALE",
-                LocalDate.of(2025, 1, 1),
-                null,
-                EmploymentStatus.ACTIVE,
-                "bob@example.com",
-                null,
-                true,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null));
-        mvc.perform(get("/api/v1/me/tds/2026-2027")).andExpect(status().isNotFound());
+    @DisplayName("GET returns the active record with year_to_date and remaining")
+    void getReturnsActiveRecord() {
+        controller.put(
+                employeeId1,
+                FY,
+                new RecordTdsRequest(
+                        "NEW",
+                        new BigDecimal("1200000.00"),
+                        new BigDecimal("1000000.00"),
+                        new BigDecimal("120000.00"),
+                        "2026-04",
+                        "v1"));
+
+        controller.put(
+                employeeId1,
+                FY,
+                new RecordTdsRequest(
+                        "OLD",
+                        new BigDecimal("1200000.00"),
+                        new BigDecimal("1000000.00"),
+                        new BigDecimal("140000.00"),
+                        "2026-04",
+                        "v2"));
+
+        ApiResponse<EmployeeTdsResponse> getResp = controller.get(employeeId1, FY);
+        assertThat(getResp.status()).isEqualTo(200);
+        assertThat(getResp.data().regime()).isEqualTo("OLD");
+        assertThat(getResp.data().annualTax()).isEqualByComparingTo("140000.0000");
+        assertThat(getResp.data().isActive()).isTrue();
+        assertThat(getResp.data().supersededAt()).isNull();
+        assertThat(getResp.data().yearToDate()).isEqualByComparingTo("0");
+        assertThat(getResp.data().remaining()).isEqualByComparingTo("140000.0000");
     }
 
-    private static void seedEmployee(UUID tenantId, UUID employeeId, String code, String first, String last)
-            throws SQLException {
-        try (Connection conn = PayrollTestSchema.migrationConnection();
-                PreparedStatement ps = conn.prepareStatement(
-                        """
-                        INSERT INTO core.employee
-                            (id, tenant_id, employee_number, first_name, last_name, gender, date_of_joining, status,
-                             created_by, updated_by)
-                        VALUES (?, ?, ?, ?, ?, 'MALE', DATE '2023-04-01', 'ACTIVE', 'test', 'test')
-                        """)) {
-            ps.setObject(1, employeeId);
-            ps.setObject(2, tenantId);
-            ps.setString(3, code);
-            ps.setString(4, first);
-            ps.setString(5, last);
-            ps.executeUpdate();
-        }
+    @Test
+    @DisplayName("GET .../history returns all rows, newest first")
+    void historyReturnsNewestFirst() {
+        controller.put(
+                employeeId1,
+                FY,
+                new RecordTdsRequest(
+                        "NEW",
+                        new BigDecimal("1000000.00"),
+                        new BigDecimal("900000.00"),
+                        new BigDecimal("100000.00"),
+                        "2026-04",
+                        "first"));
+
+        controller.put(
+                employeeId1,
+                FY,
+                new RecordTdsRequest(
+                        "NEW",
+                        new BigDecimal("1200000.00"),
+                        new BigDecimal("1000000.00"),
+                        new BigDecimal("120000.00"),
+                        "2026-04",
+                        "second"));
+
+        ApiResponse<List<EmployeeTdsResponse>> historyResp = controller.history(employeeId1, FY);
+        assertThat(historyResp.status()).isEqualTo(200);
+        assertThat(historyResp.data()).hasSize(2);
+        assertThat(historyResp.data().get(0).annualTax()).isEqualByComparingTo("120000.0000");
+        assertThat(historyResp.data().get(0).note()).isEqualTo("second");
+        assertThat(historyResp.data().get(1).annualTax()).isEqualByComparingTo("100000.0000");
+        assertThat(historyResp.data().get(1).note()).isEqualTo("first");
+    }
+
+    @Test
+    @DisplayName("GET /me/tds/{fy} returns authenticated employee's row; another employee gets 404")
+    void getOwnReturnsActiveRowOrNotFound() {
+        controller.put(
+                employeeId1,
+                FY,
+                new RecordTdsRequest(
+                        "NEW",
+                        new BigDecimal("1200000.00"),
+                        new BigDecimal("1000000.00"),
+                        new BigDecimal("120000.00"),
+                        "2026-04",
+                        "for emp 1"));
+
+        // Login as employee 1
+        PayrollTestApp.CURRENT_EMPLOYEE.set(employeeService.get(employeeId1));
+        ApiResponse<EmployeeTdsResponse> ownResp = controller.getOwn(FY);
+        assertThat(ownResp.status()).isEqualTo(200);
+        assertThat(ownResp.data().employeeId()).isEqualTo(employeeId1);
+        assertThat(ownResp.data().annualTax()).isEqualByComparingTo("120000.0000");
+
+        // Login as employee 2 (who has no TDS record)
+        PayrollTestApp.CURRENT_EMPLOYEE.set(employeeService.get(employeeId2));
+        assertThatThrownBy(() -> controller.getOwn(FY)).isInstanceOf(EmployeeTdsNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("PUT with a missing annual figure is a validation error (400), not a 500")
+    void putWithMissingFigureIsValidationError() {
+        assertThatThrownBy(() -> controller.put(
+                        employeeId1,
+                        FY,
+                        new RecordTdsRequest(
+                                "NEW",
+                                new BigDecimal("1200000.00"),
+                                new BigDecimal("1000000.00"),
+                                null,
+                                "2026-04",
+                                null)))
+                .isInstanceOf(EmployeeTdsValidationException.class);
     }
 }

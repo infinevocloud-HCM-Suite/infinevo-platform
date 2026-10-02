@@ -9,25 +9,25 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Annual Tax Deducted at Source (TDS) record per employee and financial year (W-36.1 §4, §6).
+ * Annual tax record per employee per financial year (W-36.1 §4, §6).
+ *
+ * <p>Superseded not edited: when a figure changes, the active row is marked {@code is_active = false}
+ * with {@code superseded_at = clock_timestamp()}, and a new active row is inserted.
+ * Replaces legacy employee_tds (legacy/docs/DB_SCHEMA.md:1374-1391, EmployeeTds.java:8-51).
  */
 @Entity
+@Table(name = "employee_tds", schema = "payroll")
 @Audited
-@Table(
-        name = "employee_tds",
-        schema = "payroll",
-        indexes = {
-            @Index(
-                    name = "idx_employee_tds_tenant_employee_fy",
-                    columnList = "tenant_id, employee_id, financial_year, created_at DESC")
-        })
 public class EmployeeTds {
 
     @Id
@@ -73,164 +73,159 @@ public class EmployeeTds {
     @Column(name = "superseded_at")
     private Instant supersededAt;
 
-    @Column(name = "note", length = 255)
+    @Column(name = "note", length = 255, updatable = false)
     private String note;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+    private Instant createdAt;
 
-    @Column(name = "created_by", nullable = false, updatable = false, length = 100)
-    private String createdBy = "system";
+    @Column(name = "created_by", nullable = false, length = 64, updatable = false)
+    private String createdBy;
 
     @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt = Instant.now();
+    private Instant updatedAt;
 
-    @Column(name = "updated_by", nullable = false, length = 100)
-    private String updatedBy = "system";
+    @Column(name = "updated_by", nullable = false, length = 64)
+    private String updatedBy;
 
-    public EmployeeTds() {}
+    protected EmployeeTds() {}
+
+    public EmployeeTds(
+            UUID tenantId,
+            UUID employeeId,
+            String financialYear,
+            TaxRegime regime,
+            TdsSource source,
+            UUID declarationId,
+            BigDecimal annualGross,
+            BigDecimal annualTaxableIncome,
+            BigDecimal annualTax,
+            String effectiveFromPeriod,
+            String note,
+            String actor,
+            Instant now) {
+        this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
+        this.employeeId = Objects.requireNonNull(employeeId, "employeeId must not be null");
+        this.financialYear = Objects.requireNonNull(financialYear, "financialYear must not be null");
+        this.regime = Objects.requireNonNull(regime, "regime must not be null");
+        this.source = Objects.requireNonNull(source, "source must not be null");
+        this.declarationId = declarationId;
+        this.annualGross = Objects.requireNonNull(annualGross, "annualGross must not be null");
+        this.annualTaxableIncome = Objects.requireNonNull(annualTaxableIncome, "annualTaxableIncome must not be null");
+        this.annualTax = Objects.requireNonNull(annualTax, "annualTax must not be null");
+        this.effectiveFromPeriod = Objects.requireNonNull(effectiveFromPeriod, "effectiveFromPeriod must not be null");
+        this.note = note;
+        this.isActive = true;
+        this.supersededAt = null;
+        Instant timestamp = now != null ? now : Instant.now().truncatedTo(ChronoUnit.MICROS);
+        String createdActor = actor != null ? actor : "system";
+        this.createdAt = timestamp;
+        this.createdBy = createdActor;
+        this.updatedAt = timestamp;
+        this.updatedBy = createdActor;
+    }
+
+    /**
+     * Supersedes this active record: marks {@code is_active = false} and sets {@code superseded_at}.
+     */
+    public void supersede(Instant at, String actor) {
+        this.isActive = false;
+        this.supersededAt = Objects.requireNonNull(at, "at must not be null");
+        this.updatedAt = at;
+        this.updatedBy = Objects.requireNonNull(actor, "actor must not be null");
+    }
+
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        if (this.createdAt == null) {
+            this.createdAt = now;
+        }
+        if (this.updatedAt == null) {
+            this.updatedAt = now;
+        }
+        if (this.createdBy == null) {
+            this.createdBy = "system";
+        }
+        if (this.updatedBy == null) {
+            this.updatedBy = this.createdBy;
+        }
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    }
 
     public UUID getId() {
         return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
     }
 
     public UUID getTenantId() {
         return tenantId;
     }
 
-    public void setTenantId(UUID tenantId) {
-        this.tenantId = tenantId;
-    }
-
     public UUID getEmployeeId() {
         return employeeId;
-    }
-
-    public void setEmployeeId(UUID employeeId) {
-        this.employeeId = employeeId;
     }
 
     public String getFinancialYear() {
         return financialYear;
     }
 
-    public void setFinancialYear(String financialYear) {
-        this.financialYear = financialYear;
-    }
-
     public TaxRegime getRegime() {
         return regime;
-    }
-
-    public void setRegime(TaxRegime regime) {
-        this.regime = regime;
     }
 
     public TdsSource getSource() {
         return source;
     }
 
-    public void setSource(TdsSource source) {
-        this.source = source;
-    }
-
     public UUID getDeclarationId() {
         return declarationId;
-    }
-
-    public void setDeclarationId(UUID declarationId) {
-        this.declarationId = declarationId;
     }
 
     public BigDecimal getAnnualGross() {
         return annualGross;
     }
 
-    public void setAnnualGross(BigDecimal annualGross) {
-        this.annualGross = annualGross;
-    }
-
     public BigDecimal getAnnualTaxableIncome() {
         return annualTaxableIncome;
-    }
-
-    public void setAnnualTaxableIncome(BigDecimal annualTaxableIncome) {
-        this.annualTaxableIncome = annualTaxableIncome;
     }
 
     public BigDecimal getAnnualTax() {
         return annualTax;
     }
 
-    public void setAnnualTax(BigDecimal annualTax) {
-        this.annualTax = annualTax;
-    }
-
     public String getEffectiveFromPeriod() {
         return effectiveFromPeriod;
-    }
-
-    public void setEffectiveFromPeriod(String effectiveFromPeriod) {
-        this.effectiveFromPeriod = effectiveFromPeriod;
     }
 
     public boolean isActive() {
         return isActive;
     }
 
-    public void setActive(boolean active) {
-        isActive = active;
-    }
-
     public Instant getSupersededAt() {
         return supersededAt;
-    }
-
-    public void setSupersededAt(Instant supersededAt) {
-        this.supersededAt = supersededAt;
     }
 
     public String getNote() {
         return note;
     }
 
-    public void setNote(String note) {
-        this.note = note;
-    }
-
     public Instant getCreatedAt() {
         return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
     }
 
     public String getCreatedBy() {
         return createdBy;
     }
 
-    public void setCreatedBy(String createdBy) {
-        this.createdBy = createdBy;
-    }
-
     public Instant getUpdatedAt() {
         return updatedAt;
     }
 
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
     public String getUpdatedBy() {
         return updatedBy;
-    }
-
-    public void setUpdatedBy(String updatedBy) {
-        this.updatedBy = updatedBy;
     }
 }

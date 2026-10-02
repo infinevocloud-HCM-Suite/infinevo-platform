@@ -4,6 +4,7 @@ import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
+import com.infinevo.shared.tenant.PlatformTenant;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.Objects;
 import java.util.UUID;
@@ -27,9 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
+    private final PlatformTenant platformTenant;
 
-    public SubscriptionController(SubscriptionService subscriptionService) {
+    public SubscriptionController(SubscriptionService subscriptionService, PlatformTenant platformTenant) {
         this.subscriptionService = Objects.requireNonNull(subscriptionService, "subscriptionService must not be null");
+        this.platformTenant = Objects.requireNonNull(platformTenant, "platformTenant must not be null");
     }
 
     @GetMapping
@@ -46,6 +49,8 @@ public class SubscriptionController {
     @RequiresAction("core.tenant.provision")
     public ResponseEntity<SubscriptionResponse> updateModules(
             @PathVariable("id") UUID id, @RequestBody ModulesUpdateRequest request) {
+        // The action alone is not enough: the path names any tenant, so only the platform tenant may call this.
+        platformTenant.requirePlatformTenant();
         if (request == null || request.modules() == null) {
             throw new IllegalArgumentException("modules must not be null");
         }
@@ -56,6 +61,7 @@ public class SubscriptionController {
     @RequiresAction("core.tenant.provision")
     public ResponseEntity<SubscriptionResponse> updateStatus(
             @PathVariable("id") UUID id, @RequestBody StatusUpdateRequest request) {
+        platformTenant.requirePlatformTenant();
         if (request == null || request.status() == null) {
             throw new IllegalArgumentException("status must not be null");
         }

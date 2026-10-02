@@ -44,13 +44,18 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 // core.lop entities and repositories only: W-29.3's loss of pay reads LopPolicy through the two
 // beans below. The package is not component-scanned, so its controller and other beans stay out.
 // core.job the same way: W-29.4's compute creates a job through the JobServiceImpl bean below.
+// core.employee entities only (no repositories, no beans): W-34.3's chase query joins
+// EmployeeInvestmentDeclaration to Employee. The real application and worker scan all of com.infinevo,
+// so the entity is there in production; this test application's scan is narrower on purpose.
 @EntityScan(
         basePackages = {
             "com.infinevo.payroll",
             "com.infinevo.core.approval",
             "com.infinevo.core.payinput",
             "com.infinevo.core.lop",
-            "com.infinevo.core.job"
+            "com.infinevo.core.job",
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org"
         })
 @EnableJpaRepositories(
         basePackages = {
@@ -693,44 +698,55 @@ public class PayrollTestApp {
         return configurer;
     }
 
+    /**
+     * Writes the queued PAYSLIP_READY row (W-36.2's payslip tests read it back) and is a Mockito mock
+     * delegating to that writer, so W-34's proof tests can {@code verify} and clear its invocations.
+     */
     @Bean
     public com.infinevo.core.notification.NotificationService notificationService(DataSource dataSource) {
-        return new com.infinevo.core.notification.NotificationService() {
-            @Override
-            public java.util.List<UUID> compose(
-                    com.infinevo.core.notification.NotificationEvent event,
-                    UUID recipientEmployeeId,
-                    java.util.Map<String, Object> data) {
-                UUID tenantId = TenantContext.require();
-                UUID id = UUID.randomUUID();
-                String link = data != null && data.containsKey("link") ? String.valueOf(data.get("link")) : "";
-                String body = "<p>Your payslip is ready. <a href=\"" + link + "\">Download it</a>.</p>";
-                try (Connection conn = PayrollTestSchema.migrationConnection();
-                        PreparedStatement ps = conn.prepareStatement(
-                                "INSERT INTO core.notification (id, tenant_id, recipient_employee_id, event, channel, body, status, queued_at, created_by, updated_by) "
-                                        + "VALUES (?, ?, ?, ?, 'EMAIL', ?, 'QUEUED', CURRENT_TIMESTAMP, 'system', 'system')")) {
-                    ps.setObject(1, id);
-                    ps.setObject(2, tenantId);
-                    ps.setObject(3, recipientEmployeeId);
-                    ps.setString(4, event.name());
-                    ps.setString(5, body);
-                    ps.executeUpdate();
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-                return java.util.List.of(id);
-            }
+        return org.mockito.Mockito.mock(
+                com.infinevo.core.notification.NotificationService.class,
+                org.mockito.AdditionalAnswers.delegatesTo(new com.infinevo.core.notification.NotificationService() {
+                    @Override
+                    public java.util.List<UUID> compose(
+                            com.infinevo.core.notification.NotificationEvent event,
+                            UUID recipientEmployeeId,
+                            java.util.Map<String, Object> data) {
+                        // Only the payslip tests read the row back; W-34's proof events stay row-free, as their
+                        // cleanup deletes employees a notification row would still reference.
+                        if (event != com.infinevo.core.notification.NotificationEvent.PAYSLIP_READY) {
+                            return java.util.List.of();
+                        }
+                        UUID tenantId = TenantContext.require();
+                        UUID id = UUID.randomUUID();
+                        String link = data != null && data.containsKey("link") ? String.valueOf(data.get("link")) : "";
+                        String body = "<p>Your payslip is ready. <a href=\"" + link + "\">Download it</a>.</p>";
+                        try (Connection conn = PayrollTestSchema.migrationConnection();
+                                PreparedStatement ps = conn.prepareStatement(
+                                        "INSERT INTO core.notification (id, tenant_id, recipient_employee_id, event, channel, body, status, queued_at, created_by, updated_by) "
+                                                + "VALUES (?, ?, ?, ?, 'EMAIL', ?, 'QUEUED', CURRENT_TIMESTAMP, 'system', 'system')")) {
+                            ps.setObject(1, id);
+                            ps.setObject(2, tenantId);
+                            ps.setObject(3, recipientEmployeeId);
+                            ps.setString(4, event.name());
+                            ps.setString(5, body);
+                            ps.executeUpdate();
+                        } catch (SQLException e) {
+                            throw new RuntimeException(e);
+                        }
+                        return java.util.List.of(id);
+                    }
 
-            @Override
-            public org.springframework.data.domain.Page<com.infinevo.core.notification.NotificationResponse> mine(
-                    boolean unreadOnly, org.springframework.data.domain.Pageable pageable) {
-                return org.springframework.data.domain.Page.empty();
-            }
+                    @Override
+                    public org.springframework.data.domain.Page<com.infinevo.core.notification.NotificationResponse>
+                            mine(boolean unreadOnly, org.springframework.data.domain.Pageable pageable) {
+                        return org.springframework.data.domain.Page.empty();
+                    }
 
-            @Override
-            public com.infinevo.core.notification.NotificationResponse markRead(UUID id) {
-                throw new UnsupportedOperationException();
-            }
-        };
+                    @Override
+                    public com.infinevo.core.notification.NotificationResponse markRead(UUID id) {
+                        throw new UnsupportedOperationException();
+                    }
+                }));
     }
 }

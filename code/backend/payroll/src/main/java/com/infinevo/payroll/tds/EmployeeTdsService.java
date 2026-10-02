@@ -6,42 +6,31 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Service for managing annual TDS records and year-to-date tax deductions (W-36.1 §4).
+ * Service interface for managing employee TDS annual records (W-36.1 §4).
+ *
+ * <p>All methods operate on the bound tenant from {@code TenantContext}.
  */
 public interface EmployeeTdsService {
 
     /**
-     * Records annual TDS figures, superseding any currently active record for the financial year.
+     * Supersedes any currently active row for the employee and financial year, and inserts a new active row.
+     * Called by the officer PUT endpoint and by the tax calculator (W-33).
      */
-    EmployeeTdsResponse record(UUID employeeId, String financialYear, TdsFigures figures);
+    EmployeeTds record(UUID employeeId, String financialYear, TdsFigures figures);
 
     /**
-     * Records annual TDS figures with an explicit source, superseding any currently active record.
+     * Finds the currently active TDS record for the given employee and financial year in the bound tenant.
      */
-    EmployeeTdsResponse record(UUID employeeId, String financialYear, TdsFigures figures, TdsSource source);
+    Optional<EmployeeTds> active(UUID employeeId, String financialYear);
 
     /**
-     * Returns the currently active TDS record for the employee and financial year with YTD and remaining.
+     * Returns all TDS records (active and superseded) for the employee and financial year, newest first.
      */
-    Optional<EmployeeTdsResponse> active(UUID employeeId, String financialYear);
+    List<EmployeeTds> history(UUID employeeId, String financialYear);
 
     /**
-     * Returns the currently active TDS entity for the tenant, employee and financial year.
-     */
-    Optional<EmployeeTds> activeEntity(UUID tenantId, UUID employeeId, String financialYear);
-
-    /**
-     * Returns all TDS records for the employee and financial year, newest first.
-     */
-    List<EmployeeTdsResponse> history(UUID employeeId, String financialYear);
-
-    /**
-     * Sum of tax lines deducted across COMPUTED, APPROVED or PAID runs in the financial year.
+     * Sums all TAX deduction lines on this tenant's runs whose period is in the financial year
+     * and whose status is COMPUTED, APPROVED or PAID.
      */
     BigDecimal yearToDate(UUID employeeId, String financialYear);
-
-    /**
-     * Returns own active TDS record under /me context with YTD and remaining.
-     */
-    Optional<EmployeeTdsResponse> activeOwn(String financialYear);
 }

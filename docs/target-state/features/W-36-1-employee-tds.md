@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-36.1` · from ticket #48 (`W-36`) · `PAY-14` · the `TAX` contributor `W-29.2` reserved |
 | **Promoted to** | `docs/target-state/features/W-36-1-employee-tds.md` on the developer's `dev-<name>` branch — **`W-36-1` with hyphens**, never `W-36.1`; `guard-edit` blocks the dotted form |
-| **Owner** | sayeed |
+| **Owner** | karma (from sayeed 2026-10-02) |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for this table), BUG-011 (fixed), DEBT-007 (fixed), DEBT-008 (fixed), DEBT-018 (honoured), DEBT-019 (fixed), DEBT-022 (fixed); proposed BUG-014 / DEBT-034 (`.claude/outputs/2026-09-29-analyze-w-36-tds-payslips.md`) belong to `W-36.2` |
 | **Status** | **Ready** |
@@ -83,10 +83,11 @@ The frozen Payroll backend has the right idea and the wrong plumbing. All citati
 
 [pay run, W-29.2 loop] --> TaxLineContributor.contribute(ctx)     @Order(500)
    fy        = FinancialYear.of(ctx.period)                           (W-32.1, April–March)
-   record    = active employee_tds for (tenant, employee, fy)        none → no line, note in computation_note
+   record    = active employee_tds for (tenant, employee, fy)        none → no line, note in employee_payrun.computation_note
    period < record.effective_from_period                              → no line
-   ytd       = Σ amount of TAX lines on this tenant's other runs whose period is in fy
-               and whose status is COMPUTED, APPROVED or PAID          (a FAILED or CANCELLED run counts nothing)
+   ytd       = Σ amount of TAX lines on this tenant's other runs whose period is in fy, up to
+               and including ctx.period, and whose status is COMPUTED, APPROVED or PAID
+                                                                       (a FAILED or CANCELLED run counts nothing)
    remaining = record.annual_tax − ytd                                 ≤ 0 → no line
    months    = months from max(ctx.period, record.effective_from_period) to fy's March, inclusive
    amount    = Money.of(remaining).divide(months)                      scale 4, as every other line

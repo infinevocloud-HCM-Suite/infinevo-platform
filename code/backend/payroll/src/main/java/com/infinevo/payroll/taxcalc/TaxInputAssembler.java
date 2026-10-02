@@ -9,6 +9,7 @@ import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
 import com.infinevo.payroll.component.Earning;
 import com.infinevo.payroll.component.EarningRepository;
+import com.infinevo.payroll.proof.ProofSourceKind;
 import com.infinevo.payroll.salary.EmployeeSalaryService;
 import com.infinevo.payroll.salary.SalaryNotFoundException;
 import com.infinevo.payroll.salary.SalaryVersionResponse;
@@ -82,6 +83,8 @@ public class TaxInputAssembler {
     private final ProfessionalTaxService professionalTaxService;
     private final WorkLocationService workLocationService;
     private final CtcEpfComponentRepository ctcEpfComponentRepository;
+    /** Verified proof figures in place of declared ones (W-34.2); {@code null} where no proof feature is wired. */
+    private final ProofAdjustment proofAdjustment;
 
     @Autowired
     public TaxInputAssembler(
@@ -100,7 +103,8 @@ public class TaxInputAssembler {
             Section6AItemReader section6AItemReader,
             ObjectProvider<ProfessionalTaxService> professionalTaxServiceProvider,
             ObjectProvider<WorkLocationService> workLocationServiceProvider,
-            ObjectProvider<CtcEpfComponentRepository> ctcEpfComponentRepositoryProvider) {
+            ObjectProvider<CtcEpfComponentRepository> ctcEpfComponentRepositoryProvider,
+            ObjectProvider<ProofAdjustment> proofAdjustmentProvider) {
         this(
                 declarationService,
                 employeeService,
@@ -117,7 +121,8 @@ public class TaxInputAssembler {
                 section6AItemReader,
                 professionalTaxServiceProvider != null ? professionalTaxServiceProvider.getIfAvailable() : null,
                 workLocationServiceProvider != null ? workLocationServiceProvider.getIfAvailable() : null,
-                ctcEpfComponentRepositoryProvider != null ? ctcEpfComponentRepositoryProvider.getIfAvailable() : null);
+                ctcEpfComponentRepositoryProvider != null ? ctcEpfComponentRepositoryProvider.getIfAvailable() : null,
+                proofAdjustmentProvider != null ? proofAdjustmentProvider.getIfAvailable() : null);
     }
 
     public TaxInputAssembler(
@@ -137,6 +142,44 @@ public class TaxInputAssembler {
             ProfessionalTaxService professionalTaxService,
             WorkLocationService workLocationService,
             CtcEpfComponentRepository ctcEpfComponentRepository) {
+        this(
+                declarationService,
+                employeeService,
+                employeePersonalService,
+                employeeSalaryService,
+                earningRepository,
+                prevEmploymentRepository,
+                houseRentRepository,
+                homeLoanRepository,
+                letOutPropertyRepository,
+                section6ARepository,
+                preTaxDeductionRepository,
+                otherIncomeRepository,
+                section6AItemReader,
+                professionalTaxService,
+                workLocationService,
+                ctcEpfComponentRepository,
+                null);
+    }
+
+    public TaxInputAssembler(
+            TaxDeclarationService declarationService,
+            EmployeeService employeeService,
+            EmployeePersonalService employeePersonalService,
+            EmployeeSalaryService employeeSalaryService,
+            EarningRepository earningRepository,
+            EmployeeInvPrevEmploymentRepository prevEmploymentRepository,
+            EmployeeInvHouseRentRepository houseRentRepository,
+            EmployeeInvHomeLoanRepository homeLoanRepository,
+            EmployeeInvLetOutPropertyRepository letOutPropertyRepository,
+            EmployeeInvSection6ARepository section6ARepository,
+            EmployeeInvPreTaxDeductionRepository preTaxDeductionRepository,
+            EmployeeInvOtherIncomeRepository otherIncomeRepository,
+            Section6AItemReader section6AItemReader,
+            ProfessionalTaxService professionalTaxService,
+            WorkLocationService workLocationService,
+            CtcEpfComponentRepository ctcEpfComponentRepository,
+            ProofAdjustment proofAdjustment) {
         this.declarationService = Objects.requireNonNull(declarationService, "declarationService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.employeePersonalService =
@@ -159,6 +202,7 @@ public class TaxInputAssembler {
         this.professionalTaxService = professionalTaxService;
         this.workLocationService = workLocationService;
         this.ctcEpfComponentRepository = ctcEpfComponentRepository;
+        this.proofAdjustment = proofAdjustment;
     }
 
     public TaxInputAssembler(
@@ -191,7 +235,7 @@ public class TaxInputAssembler {
                 section6AItemReader,
                 (ProfessionalTaxService) null,
                 null,
-                null);
+                (CtcEpfComponentRepository) null);
     }
 
     /**
@@ -210,6 +254,9 @@ public class TaxInputAssembler {
         EmployeeInvestmentDeclaration declaration = declarationService.require(employeeId, fy.label());
         UUID declarationId = declaration.getId();
         EmployeeResponse employee = employeeService.get(employeeId);
+        // W-34.2: an APPROVED proof's verified figures replace the declared ones line by line; otherwise none.
+        ProofAdjustment.Approved approved =
+                proofAdjustment != null ? proofAdjustment.approved(tenantId, declaration) : null;
 
         LocalDate dateOfJoining = employee.dateOfJoining();
         LocalDate dateOfBirth = null;
@@ -269,7 +316,10 @@ public class TaxInputAssembler {
         Map<PrevEmploymentKind, Money> prevEmploymentMap = new EnumMap<>(PrevEmploymentKind.class);
         for (EmployeeInvPrevEmployment row : prevEmploymentRows) {
             Money current = prevEmploymentMap.getOrDefault(row.getKind(), Money.ZERO);
-            prevEmploymentMap.put(row.getKind(), current.add(Money.of(row.getAmount())));
+            BigDecimal amount = approved != null
+                    ? approved.amount(ProofSourceKind.PREV_EMPLOYMENT, row.getId(), row.getAmount())
+                    : row.getAmount();
+            prevEmploymentMap.put(row.getKind(), current.add(Money.of(amount)));
         }
 
         // Housing records
@@ -279,6 +329,11 @@ public class TaxInputAssembler {
                 homeLoanRepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
         List<EmployeeInvLetOutProperty> letOutRows =
                 letOutPropertyRepository.findByTenantIdAndDeclarationId(tenantId, declarationId);
+        if (approved != null) {
+            houseRentRows = approved.houseRent(houseRentRows);
+            homeLoanRows = approved.homeLoans(homeLoanRows);
+            letOutRows = approved.letOutProperties(letOutRows);
+        }
 
         // Section 6A items
         List<EmployeeInvSection6A> sec6aRows =
@@ -287,8 +342,11 @@ public class TaxInputAssembler {
         for (EmployeeInvSection6A row : sec6aRows) {
             var item = section6AItemReader.require(row.getSection6aItemId());
             Money maxLimit = item.maxLimit() != null ? Money.of(item.maxLimit()) : null;
+            BigDecimal amount = approved != null
+                    ? approved.amount(ProofSourceKind.SECTION_6A, row.getId(), row.getAmount())
+                    : row.getAmount();
             declaredItems.add(new DeclaredItem(
-                    item.sectionCode(), item.name(), item.categoryGroupCode(), Money.of(row.getAmount()), maxLimit));
+                    item.sectionCode(), item.name(), item.categoryGroupCode(), Money.of(amount), maxLimit));
         }
 
         // Pre-tax deductions

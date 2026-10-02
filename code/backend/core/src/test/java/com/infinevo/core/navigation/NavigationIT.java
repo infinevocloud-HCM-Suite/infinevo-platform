@@ -96,15 +96,19 @@ class NavigationIT extends AbstractIntegrationTest {
 
         List<String> catalogueKeys = NavigationCatalogue.DEFAULT_ITEMS.stream()
                 .map(ItemDefinition::key)
+                .filter(k -> !k.equals("core.tenants"))
                 .toList();
         assertThat(keysOf(admin)).containsExactlyElementsOf(catalogueKeys);
+        assertThat(keysOf(admin)).doesNotContain("core.tenants");
+        assertThat(keysOf(employee)).isNotEqualTo(keysOf(admin));
         assertThat(keysOf(employee))
                 .doesNotContain(
                         "core.roles",
                         "core.audit",
                         "core.setup",
                         "core.invitations.users",
-                        "core.invitations.employees");
+                        "core.invitations.employees",
+                        "core.tenants");
     }
 
     @Test

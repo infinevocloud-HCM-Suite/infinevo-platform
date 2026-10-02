@@ -6,10 +6,10 @@ import com.infinevo.payroll.payrun.LineSource;
 import com.infinevo.payroll.payrun.PayLine;
 import com.infinevo.payroll.payrun.PayLineContributor;
 import com.infinevo.payroll.payrun.PayRunEmployeeContext;
+import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
-import java.time.Month;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -19,15 +19,12 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * The {@code TAX} contributor (W-36.1 §3), after {@code STATUTORY} (400):
+ * Pay line contributor for income tax deducted at source (W-36.1 §3, §4).
  *
- * <ul>
- *   <li>One {@link LineKind#DEDUCTION} line, {@code source = TAX}, {@code component_code = TDS}</li>
- *   <li>Reads the settled annual tax from the active {@link EmployeeTds} record</li>
- *   <li>Subtracts YTD tax already deducted on other computed/approved/paid runs in the FY</li>
- *   <li>Spreads remaining tax evenly over remaining months to March</li>
- *   <li>Never computes tax on the fly</li>
- * </ul>
+ * <p>Produces one {@link LineKind#DEDUCTION} line with {@link LineSource#TAX} and component code
+ * {@code "TDS"} per included employee with an active TDS record whose effective period has arrived.
+ * The amount spreads the remaining annual tax across the remaining months of the financial year.
+ * Runs at {@code @Order(500)}, after statutory lines (400).
  */
 @Component
 @Order(500)
@@ -36,62 +33,66 @@ public class TaxLineContributor implements PayLineContributor {
     static final String COMPONENT_CODE = "TDS";
     static final String COMPONENT_NAME = "Tax deducted at source";
 
-    private final EmployeeTdsService employeeTdsService;
-    private final EmployeePayRunLineRepository employeePayRunLineRepository;
+    private final EmployeeTdsService tdsService;
+    private final EmployeePayRunLineRepository lineRepository;
 
-    public TaxLineContributor(
-            EmployeeTdsService employeeTdsService, EmployeePayRunLineRepository employeePayRunLineRepository) {
-        this.employeeTdsService = Objects.requireNonNull(employeeTdsService, "employeeTdsService must not be null");
-        this.employeePayRunLineRepository =
-                Objects.requireNonNull(employeePayRunLineRepository, "employeePayRunLineRepository must not be null");
+    public TaxLineContributor(EmployeeTdsService tdsService, EmployeePayRunLineRepository lineRepository) {
+        this.tdsService = Objects.requireNonNull(tdsService, "tdsService must not be null");
+        this.lineRepository = Objects.requireNonNull(lineRepository, "lineRepository must not be null");
     }
 
     @Override
     public List<PayLine> contribute(PayRunEmployeeContext ctx) {
-        if (ctx == null || ctx.period() == null || ctx.employee() == null) {
+        Objects.requireNonNull(ctx, "ctx must not be null");
+        // W-30.2 leaves tax on an off-cycle payment to W-36; W-36.1 does not decide it, so an
+        // off-cycle run carries no monthly TDS — as structure and loss-of-pay lines.
+        if (ctx.runType() == PayRunType.OFF_CYCLE) {
             return List.of();
         }
 
         FinancialYear fy = FinancialYear.of(ctx.period().atDay(1));
-        Optional<EmployeeTds> recordOpt =
-                employeeTdsService.activeEntity(ctx.tenantId(), ctx.employee().id(), fy.label());
+        Optional<EmployeeTds> recordOpt = tdsService.active(ctx.employee().id(), fy.label());
         if (recordOpt.isEmpty()) {
             return List.of();
         }
 
         EmployeeTds record = recordOpt.get();
-        String runPeriodStr = ctx.period().toString();
-        if (runPeriodStr.compareTo(record.getEffectiveFromPeriod()) < 0) {
+        YearMonth effectiveFrom = YearMonth.parse(record.getEffectiveFromPeriod());
+        if (ctx.period().isBefore(effectiveFrom)) {
             return List.of();
         }
 
-        String periodFrom = fy.startYear() + "-04";
-        String periodTo = runPeriodStr;
-        BigDecimal ytd = employeePayRunLineRepository.sumTaxLines(
-                ctx.tenantId(), ctx.employee().id(), periodFrom, periodTo, ctx.payrunId());
-        if (ytd == null) {
-            ytd = BigDecimal.ZERO;
-        }
+        String periodFrom = String.format("%04d-04", fy.startYear());
+        String periodTo = ctx.period().toString();
+        BigDecimal ytd =
+                lineRepository.sumTaxLines(ctx.tenantId(), ctx.employee().id(), periodFrom, periodTo, ctx.payrunId());
 
         BigDecimal remaining = record.getAnnualTax().subtract(ytd);
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
             return List.of();
         }
 
-        YearMonth effectiveYm = YearMonth.parse(record.getEffectiveFromPeriod());
-        YearMonth startYm = ctx.period().isAfter(effectiveYm) ? ctx.period() : effectiveYm;
-        YearMonth marchYm = YearMonth.of(fy.endYear(), Month.MARCH);
-        long months = ChronoUnit.MONTHS.between(startYm, marchYm) + 1;
+        YearMonth startMonth = ctx.period().isAfter(effectiveFrom) ? ctx.period() : effectiveFrom;
+        YearMonth march = YearMonth.of(fy.endYear(), 3);
+        long months = ChronoUnit.MONTHS.between(startMonth, march) + 1;
         if (months <= 0) {
             return List.of();
         }
 
-        Money monthlyAmount = Money.of(remaining).divide(BigDecimal.valueOf(months));
-        if (!monthlyAmount.isPositive()) {
-            return List.of();
-        }
+        Money amount = Money.of(remaining).divide(BigDecimal.valueOf(months));
+        PayLine line =
+                new PayLine(LineKind.DEDUCTION, LineSource.TAX, null, COMPONENT_CODE, COMPONENT_NAME, amount, false);
 
-        return List.of(new PayLine(
-                LineKind.DEDUCTION, LineSource.TAX, null, COMPONENT_CODE, COMPONENT_NAME, monthlyAmount, false));
+        return List.of(line);
+    }
+
+    /** A regular run with no active record for the year says so on the employee's row (§2, §3). */
+    @Override
+    public String note(PayRunEmployeeContext ctx) {
+        if (ctx.runType() == PayRunType.OFF_CYCLE) {
+            return null;
+        }
+        String fy = FinancialYear.of(ctx.period().atDay(1)).label();
+        return tdsService.active(ctx.employee().id(), fy).isPresent() ? null : "No TDS record for " + fy;
     }
 }

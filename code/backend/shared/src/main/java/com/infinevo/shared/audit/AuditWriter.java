@@ -1,5 +1,6 @@
 package com.infinevo.shared.audit;
 
+import com.infinevo.shared.impersonation.ActingAs;
 import com.infinevo.shared.logging.MdcLoggingContext;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.MDC;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -219,6 +221,25 @@ public class AuditWriter {
      * merges. {@code actor_label} is always set, so a system write stays attributable.
      */
     static Actor resolveActor() {
+        Optional<ActingAs.Impersonation> actingAs = ActingAs.current();
+        if (actingAs.isPresent()) {
+            ActingAs.Impersonation session = actingAs.get();
+            String staff = resolveStaffIdentifier(session);
+            String label;
+            if (session.isBootstrap()) {
+                label = staff + " as tenant-admin (bootstrap)";
+            } else {
+                String target =
+                        session.targetEmail() != null && !session.targetEmail().isBlank()
+                                ? session.targetEmail()
+                                : (session.targetUserAccountId() != null
+                                        ? session.targetUserAccountId().toString()
+                                        : "unknown");
+                label = staff + " as " + target;
+            }
+            return new Actor(session.platformUserId(), label);
+        }
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             return new Actor(null, SYSTEM_ACTOR);
@@ -234,6 +255,30 @@ public class AuditWriter {
             return new Actor(null, SYSTEM_ACTOR);
         }
         return new Actor(parseUuidOrNull(subject), subject);
+    }
+
+    private static String resolveStaffIdentifier(ActingAs.Impersonation session) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            if (auth.getPrincipal() instanceof Jwt jwt) {
+                String email = jwt.getClaimAsString("email");
+                if (email != null && !email.isBlank()) {
+                    return email;
+                }
+                String username = jwt.getClaimAsString("preferred_username");
+                if (username != null && !username.isBlank()) {
+                    return username;
+                }
+                if (jwt.getSubject() != null && !jwt.getSubject().isBlank()) {
+                    return jwt.getSubject();
+                }
+            }
+            String name = auth.getName();
+            if (name != null && !name.isBlank()) {
+                return name;
+            }
+        }
+        return session.platformUserId().toString();
     }
 
     /**

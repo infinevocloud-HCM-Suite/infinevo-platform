@@ -18,8 +18,9 @@
 --   a0000000-…-0002  employee.acme     -> Acme Manufacturing  (11111111-…)
 --   b0000000-…-0001  admin.globex      -> Globex Corporation  (22222222-…)
 --   b0000000-…-0002  employee.globex   -> Globex Corporation  (22222222-…)
+--   c0000000-…-0001  staff.infinevo    -> Infinevo            (00000000-…)
 --
--- The `a` / `b` prefix is the tenant the user belongs to, readable at a glance and
+-- The `a` / `b` / `c` prefix is the tenant the user belongs to, readable at a glance and
 -- deliberately unlike the tenant UUIDs themselves so the two are never confused in a log.
 --
 -- Every user here belongs to exactly one tenant. That is a limit worth knowing about: the
@@ -32,7 +33,8 @@ INSERT INTO core.user_tenant (tenant_id, user_id, created_by, updated_by) VALUES
     ('11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000001', 'seed', 'seed'),
     ('11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000002', 'seed', 'seed'),
     ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000001', 'seed', 'seed'),
-    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000002', 'seed', 'seed')
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000002', 'seed', 'seed'),
+    ('00000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'seed', 'seed')
 ON CONFLICT (user_id, tenant_id) DO NOTHING;
 
 SELECT format('seed 02-user-tenants: %s membership(s) present', count(*)) AS status FROM core.user_tenant;

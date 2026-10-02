@@ -31,12 +31,16 @@ import org.springframework.context.ConfigurableApplicationContext;
 @EnabledIfDockerAvailable
 class FlywayMigrationIT {
 
+    // Its own database, like the other migration tests: it migrates the test fixtures, which need an
+    // empty database, and TenantIsolationIT leaves tables in the shared one when it runs first.
+    private static final String DATABASE = "infinevo_flyway_fixtures";
+
     private static String jdbcUrl;
     private static Flyway flyway;
 
     @BeforeAll
     static void runMigrations() {
-        jdbcUrl = PostgresTestContainerInitializer.getJdbcUrl();
+        jdbcUrl = PostgresTestContainerInitializer.provisionAdditionalDatabase(DATABASE);
 
         // Pass overrides as CLI args (highest Spring Boot property priority) so they
         // beat application.yml.  This is what proves the shipped Spring Boot

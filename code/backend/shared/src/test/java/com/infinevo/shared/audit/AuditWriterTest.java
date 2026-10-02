@@ -3,10 +3,12 @@ package com.infinevo.shared.audit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.infinevo.shared.impersonation.ActingAs;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,12 +33,14 @@ class AuditWriterTest {
     void clearContext() {
         SecurityContextHolder.clearContext();
         TenantContext.clear();
+        ActingAs.clear();
     }
 
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
         TenantContext.clear();
+        ActingAs.clear();
     }
 
     /** Every column of a plain table resolves to exactly one database column. */
@@ -361,5 +365,91 @@ class AuditWriterTest {
                 .containsEntry("insurance_provider", "Star Health")
                 .containsEntry("employee_number", "EMP-0001")
                 .containsEntry("note", "joined mid-year");
+    }
+
+    @Test
+    @DisplayName("With ActingAs set, actor_user_id is staff ID and label carries both emails")
+    void actingAs_standardSession_recordsStaffUserIdAndBothEmailsInLabel() {
+        UUID staffId = UUID.randomUUID();
+        UUID targetUserId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+
+        Jwt staffJwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(staffId.toString())
+                .claim("email", "staff@infinevo.local")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(staffJwt, List.of()));
+
+        ActingAs.set(staffId, targetUserId, sessionId, "user@customer.local", Set.of());
+
+        AuditWriter.Actor actor = AuditWriter.resolveActor();
+
+        assertThat(actor.userId()).isEqualTo(staffId);
+        assertThat(actor.label()).isEqualTo("staff@infinevo.local as user@customer.local");
+    }
+
+    @Test
+    @DisplayName("With ActingAs set in bootstrap mode, actor_user_id is staff ID and label indicates bootstrap")
+    void actingAs_bootstrapSession_recordsStaffUserIdAndBootstrapLabel() {
+        UUID staffId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+
+        Jwt staffJwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(staffId.toString())
+                .claim("email", "staff@infinevo.local")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(staffJwt, List.of()));
+
+        ActingAs.set(staffId, null, sessionId, null, Set.of());
+
+        AuditWriter.Actor actor = AuditWriter.resolveActor();
+
+        assertThat(actor.userId()).isEqualTo(staffId);
+        assertThat(actor.label()).isEqualTo("staff@infinevo.local as tenant-admin (bootstrap)");
+    }
+
+    @Test
+    @DisplayName("When ActingAs is cleared, resolveActor falls back to standard behavior")
+    void actingAs_cleared_fallsBackToStandardActor() {
+        UUID staffId = UUID.randomUUID();
+        UUID targetUserId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt(SUBJECT), List.of()));
+
+        ActingAs.set(staffId, targetUserId, sessionId, "user@customer.local", Set.of());
+        ActingAs.clear();
+
+        AuditWriter.Actor actor = AuditWriter.resolveActor();
+
+        assertThat(actor.userId()).isEqualTo(UUID.fromString(SUBJECT));
+        assertThat(actor.label()).isEqualTo(SUBJECT);
+    }
+
+    @Test
+    @DisplayName("buildRow carries staff user ID, dual-identity label, and target tenant during impersonation")
+    void actingAs_buildRowCarriesStaffUserIdAndTargetTenant() {
+        UUID staffId = UUID.randomUUID();
+        UUID targetUserId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+
+        TenantContext.set(TENANT);
+        Jwt staffJwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(staffId.toString())
+                .claim("email", "staff@infinevo.local")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(staffJwt, List.of()));
+        ActingAs.set(staffId, targetUserId, sessionId, "user@customer.local", Set.of());
+
+        AuditWriter.AuditChange change =
+                new AuditWriter.AuditChange("INSERT", "core", "employee", "emp-1", List.of(), Map.of(), Map.of());
+        com.infinevo.shared.audit.AuditLog row = AuditWriter.buildRow(change);
+
+        assertThat(row.getTenantId()).isEqualTo(TENANT);
+        assertThat(row.getActorUserId()).isEqualTo(staffId);
+        assertThat(row.getActorLabel()).isEqualTo("staff@infinevo.local as user@customer.local");
     }
 }

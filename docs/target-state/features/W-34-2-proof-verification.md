@@ -248,3 +248,56 @@ Nothing is deployed. `V115` is additive; the handler and listener are new beans.
 ## 14. Open for the founder
 
 None.
+
+---
+
+## 15. As built (2026-09-30, `dev-devashish`) — Slice A
+
+Slice A is everything in this spec except the tax effect. **Slice B waits on `W-33.3`**: publishing
+`ProofVerifiedEvent` and `TaxInputGatherer` reading `ProofAmountReader`. `ProofOutcomeHandler` carries a
+`// W-33.3` marker where the event is published; nothing is disabled.
+
+| Topic | As built |
+|---|---|
+| Start | `ProofApprovalStarter` listens to `ProofSubmittedEvent` in the submit transaction and starts `PROOF_OF_INVESTMENT` with one item step per claimed item (`claimed_amount > 0`) |
+| Decide | `ProofReviewServiceImpl` locks the proof row, validates (`ProofDecisionRules`), then calls the engine. `RETURN` marks the item `RETURNED` with its reason **before** `decide(REJECTED)`, in one transaction (section 9). The engine enforces the assignee (`403`) and order; the wrapper answers `409 NOT_UNDER_REVIEW` / `ITEMS_UNDECIDED` first |
+| Handler | Idempotent: acts only on a `SUBMITTED` proof whose `approval_instance_id` is the instance's. An approved amount above the claim is clamped and logged. **An item no step decided is allowed nothing** (`0`, `DISALLOWED`) — first committed as "approve the full claim", which would have granted an unreviewed deduction; fixed, with a unit test |
+| Comments | `V115`, flat and append-only; the author's role is set by the endpoint used, never by the request; `/me` only reaches the caller's own items (`404` otherwise); body 1–1000 characters |
+| Amount reader | `ProofAmountReader.approvedAmounts(declarationId)` is empty unless the proof is `APPROVED`; house rent spread per month at scale 4, `HALF_UP` |
+| Constructors | `MyProofController` and `ProofReviewController` have one constructor; as first committed each had a second that left the comment service `null` and made the application context fail to start. `ProofOutcomeHandler`'s `Clock` constructor is package-private for tests |
+| Employee cannot decide | `ProofReviewControllerTest.everyReviewEndpointRefusesACallerWithoutTheAction`: a caller without `payroll.proof.review` is `403` on all five review endpoints (read, decide item, final, list and add comment) and no service is reached. The assignee check is separate and proven by `ProofReviewAccessIT` |
+| Tests | `ProofDecisionRulesTest`, `ProofApprovalStarterTest`, `ProofReviewServiceTest`, `ProofReviewControllerTest`, `ProofCommentServiceTest`, `ProofOutcomeHandlerTest`, `ProofAmountReaderTest`, `EmployeeProofItemCommentTest`; `ProofVerificationIT`, `ProofReviewAccessIT`, `ProofCommentRlsIT` |
+
+### 15a. Slice B hand-off (2026-10-01)
+
+Slice A is complete from our side: every item in section 2 and every test in section 7 is built and green in CI,
+bar the two pieces that need `W-33`. Nothing below is built yet, and none of it should be started before its
+precondition holds: the tax side is another ticket's contract, and guessing it is how two definitions of
+`ProofVerifiedEvent` end up on `main`.
+
+**What is not built, and what the done-when items it leaves open are**
+
+| Missing | Where it belongs | Spec ref |
+|---|---|---|
+| Publishing `ProofVerifiedEvent` on final approval | `ProofOutcomeHandler.onApproved`, at the `// W-33.3` marker | section 2, section 3 flow |
+| The "`ProofVerifiedEvent` captured" clause of `ProofVerificationIT` | `ProofVerificationIT` | section 7 |
+
+**Preconditions, in order**
+
+1. `W-36.1` (sayeed): `EmployeeTdsService.record`. On no branch yet. `W-33.3` cannot start without it.
+2. ~~`W-33.1` and `W-33.2`~~ — on `main` (`7907a6c`). The class this spec calls `TaxInputGatherer` was built as `taxcalc/TaxInputAssembler`.
+3. `W-33.3` (mohit): defines `ProofVerifiedEvent` and its after-commit listener, and adds `payroll.tax_computation` (`V104`). On no branch yet.
+
+**Ask mohit before starting.** Where does `ProofVerifiedEvent` live (`payroll.taxcalc`, `payroll.proof` or `shared`), what are its fields (the spec says tenant, employee, declaration, financial year, as `ProofSubmittedEvent` has), and is it published inside the approving transaction, as `ProofSubmittedEvent` is, so the listener's after-commit handling sees only committed approvals?
+
+**Then, about a day**
+
+1. `ProofOutcomeHandler`: inject an `ApplicationEventPublisher` (the handler has none today; its two constructors, the public one and the package-private one for tests, both gain it) and, at the marker in `onApproved`, publish the event once, after the item amounts and the `APPROVED` status are written. `onRejected` publishes nothing. The handler is already idempotent (it acts only on a `SUBMITTED` proof whose `approval_instance_id` is the instance's), so a repeated dispatch publishes once.
+2. `TaxInputGatherer`: read `ProofAmountReader.approvedAmounts(declarationId)`. It is empty unless the proof is `APPROVED`, so the existing "declared figures" path is the fallback with no branch of its own. The two-argument overload `approvedAmounts(tenantId, declarationId)` is the one for code that runs after commit, where the tenant is passed rather than bound. Keys are `(source_kind, source_line_id)`; house rent is already spread per month at scale 4, `HALF_UP`.
+3. `TaxInputGathererProofTest`: no proof and a `SUBMITTED` proof use declared figures; an `APPROVED` proof uses approved figures per kind, house rent spread over its months.
+4. `ProofVerificationIT`: add `@RecordApplicationEvents` (it has none) and assert the event is captured once on final approve and not on a reject.
+5. One end-to-end check, with `W-33.3`'s listener present: approving a proof writes a `tax_computation` row whose figures are the approved ones. Replace the "Slice A done, Slice B waits on `W-33.3`" note in the tracker with Done.
+
+**Do not**: mark a test `@Disabled` to stand in for any of this. The gate is "green, no skips", so the ticket is simply not Done until Slice B lands.
+
+**Merge review (2026-10-02).** The tax half is built: `taxcalc/ProofAdjustment` reads `ProofAmountReader.approvedAmounts(tenantId, declarationId)` and `TaxInputAssembler` uses it for house rent (per month, as the reader spreads it), home-loan principal and interest, Section 6A, employee-entered previous employment and let-out property (the property's net worked out again from its approved lines with `HousingRules.calculateNetIncomeLoss`). With no proof, or one not yet `APPROVED`, the reader is empty and the declared figures are used. Adjusted rows are detached copies, so nothing is written back to the declaration. `TaxInputAssemblerProofTest` is the test section 7 calls `TaxInputGathererProofTest`. **Still open, waiting on `W-33.3`:** publishing `ProofVerifiedEvent` and the `ProofVerificationIT` clause that captures it.

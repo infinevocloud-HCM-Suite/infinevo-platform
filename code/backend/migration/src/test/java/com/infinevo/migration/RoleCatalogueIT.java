@@ -127,14 +127,29 @@ class RoleCatalogueIT {
 
             int catalogue = count(conn, "SELECT count(*) FROM reference.action");
             assertThat(actionsPerRole.get("platform-admin"))
-                    .as("W-11.3: everything but core.tenant.provision")
-                    .isEqualTo(catalogue - 1);
+                    .as("W-11.3, W-65.2: everything but core.tenant.provision and core.tenant.impersonate")
+                    .isEqualTo(catalogue - 2);
             assertThat(actionsPerRole.get("tenant-admin"))
-                    .as("everything but core.tenant.provision")
-                    .isEqualTo(catalogue - 1);
-            assertThat(count(conn, "SELECT count(*) FROM core.role_action WHERE action_code = 'core.tenant.provision'"))
-                    .as("W-11.3: no tenant-seeded role may provision tenants")
-                    .isZero();
+                    .as("everything but core.tenant.provision and core.tenant.impersonate")
+                    .isEqualTo(catalogue - 2);
+            for (String platformOnly : List.of("core.tenant.provision", "core.tenant.impersonate")) {
+                assertThat(count(
+                                conn,
+                                "SELECT count(*) FROM core.role_action ra JOIN core.role r ON r.id = ra.role_id"
+                                        + " WHERE ra.action_code = '" + platformOnly + "'"
+                                        + " AND NOT (ra.tenant_id = '00000000-0000-0000-0000-000000000001'"
+                                        + " AND r.code = 'platform-admin')"))
+                        .as("W-11.3, W-65: only platform-admin in the platform tenant may hold %s", platformOnly)
+                        .isZero();
+                assertThat(count(
+                                conn,
+                                "SELECT count(*) FROM core.role_action ra JOIN core.role r ON r.id = ra.role_id"
+                                        + " WHERE ra.action_code = '" + platformOnly + "'"
+                                        + " AND ra.tenant_id = '00000000-0000-0000-0000-000000000001'"
+                                        + " AND r.code = 'platform-admin'"))
+                        .as("W-65: platform-admin in the platform tenant holds %s", platformOnly)
+                        .isEqualTo(1);
+            }
         }
     }
 
@@ -189,13 +204,13 @@ class RoleCatalogueIT {
     }
 
     @Test
-    void catalogueCorrection_addsTheTwentyFourCoreCodes_andCoreTotalsSixtyOne() throws SQLException {
+    void catalogueCorrection_addsTheTwentyFourCoreCodes_andCoreTotalsSixtyTwo() throws SQLException {
         try (Connection conn = migrationUserConnection()) {
             assertThat(strings(conn, "SELECT code FROM reference.action WHERE module = 'core'"))
                     .containsAll(NEW_CORE_CODES);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE code LIKE 'core.%'"))
-                    .as("23 original + 14 renamed + 24 added (spec §8)")
-                    .isEqualTo(61);
+                    .as("23 original + 14 renamed + 24 added (spec §8) + core.tenant.impersonate (W-65.2)")
+                    .isEqualTo(62);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE split_part(code, '.', 1) <> module"))
                     .isZero();
         }

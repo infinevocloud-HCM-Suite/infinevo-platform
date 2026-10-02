@@ -97,6 +97,24 @@ public class TaxDeclarationWindowServiceImpl implements TaxDeclarationWindowServ
             window.setNotifyOnRelease(request.notifyOnRelease());
         }
 
+        // W-34.1 proof settings: an absent field keeps the stored value.
+        LocalDate poiOpens = request.poiOpensOn() != null ? request.poiOpensOn() : window.getPoiOpensOn();
+        LocalDate poiDue = request.poiDueDate() != null ? request.poiDueDate() : window.getPoiDueDate();
+        if (poiOpens != null && poiDue != null && poiDue.isBefore(poiOpens)) {
+            throw new WindowValidationException("Proof due date cannot be before the proof opening date");
+        }
+        window.setPoiOpensOn(poiOpens);
+        window.setPoiDueDate(poiDue);
+        if (request.poiLocked() != null) {
+            window.setPoiLocked(request.poiLocked());
+        }
+        if (request.poiAttachmentMandatory() != null) {
+            window.setPoiAttachmentMandatory(request.poiAttachmentMandatory());
+        }
+        if (request.poiCommentMandatory() != null) {
+            window.setPoiCommentMandatory(request.poiCommentMandatory());
+        }
+
         window = windowRepository.save(window);
         return toResponse(window, true);
     }
@@ -142,7 +160,13 @@ public class TaxDeclarationWindowServiceImpl implements TaxDeclarationWindowServ
                 w.isNotifyOnLock(),
                 w.isNotifyOnRelease(),
                 exists,
-                w.isOpenOn(TaxDeclarationRules.today(TaxDeclarationRules.defaultClock())));
+                w.isOpenOn(TaxDeclarationRules.today(TaxDeclarationRules.defaultClock())),
+                w.getPoiOpensOn(),
+                w.getPoiDueDate(),
+                w.isPoiLocked(),
+                w.isPoiAttachmentMandatory(),
+                w.isPoiCommentMandatory(),
+                w.isProofOpenOn(TaxDeclarationRules.today(TaxDeclarationRules.defaultClock())));
     }
 
     private TaxDeclarationWindowResponse defaultResponse(FinancialYear fy) {

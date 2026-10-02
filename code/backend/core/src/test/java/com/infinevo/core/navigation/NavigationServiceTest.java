@@ -186,7 +186,8 @@ class NavigationServiceTest {
                         "core.tenant.read",
                         "core.approval.decide",
                         "core.user.manage",
-                        "core.employee.create"));
+                        "core.employee.create",
+                        "core.tenant.provision"));
         NavigationService shipped = new NavigationService(entitlementService, permissionService);
 
         List<String> keys = keysOf(shipped.navigation());

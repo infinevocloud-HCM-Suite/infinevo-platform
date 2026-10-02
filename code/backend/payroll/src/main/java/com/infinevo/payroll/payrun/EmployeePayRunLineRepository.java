@@ -25,28 +25,29 @@ public interface EmployeePayRunLineRepository extends JpaRepository<EmployeePayR
     long countByTenantIdAndPayrunId(UUID tenantId, UUID payrunId);
 
     /**
-     * Year-to-date tax sum across computed, approved, or paid runs within the given period range (W-36.1 §4).
+     * Year-to-date TAX lines sum for an employee across COMPUTED, APPROVED and PAID runs in a period
+     * range (W-36.1 §4), optionally excluding a specific run (e.g. the run being computed/recomputed).
      */
     @Query(
             """
-        SELECT COALESCE(SUM(l.amount), 0)
-        FROM EmployeePayRunLine l, EmployeePayRun epr, PayRun pr
-        WHERE l.employeePayrunId = epr.id
-          AND l.payrunId = pr.id
-          AND l.tenantId = :tenantId
-          AND epr.tenantId = :tenantId
-          AND pr.tenantId = :tenantId
-          AND epr.employeeId = :employeeId
-          AND l.source = com.infinevo.payroll.payrun.LineSource.TAX
-          AND pr.period >= :periodFrom
-          AND pr.period <= :periodTo
-          AND pr.status IN (
-              com.infinevo.payroll.payrun.PayRunStatus.COMPUTED,
-              com.infinevo.payroll.payrun.PayRunStatus.APPROVED,
-              com.infinevo.payroll.payrun.PayRunStatus.PAID
-          )
-          AND (:excludingPayrunId IS NULL OR pr.id <> :excludingPayrunId)
-    """)
+            SELECT COALESCE(SUM(l.amount), 0)
+            FROM EmployeePayRunLine l
+            JOIN EmployeePayRun epr ON l.employeePayrunId = epr.id
+            JOIN PayRun pr ON l.payrunId = pr.id
+            WHERE l.tenantId = :tenantId
+              AND epr.tenantId = :tenantId
+              AND pr.tenantId = :tenantId
+              AND epr.employeeId = :employeeId
+              AND l.source = com.infinevo.payroll.payrun.LineSource.TAX
+              AND pr.status IN (
+                  com.infinevo.payroll.payrun.PayRunStatus.COMPUTED,
+                  com.infinevo.payroll.payrun.PayRunStatus.APPROVED,
+                  com.infinevo.payroll.payrun.PayRunStatus.PAID
+              )
+              AND pr.period >= :periodFrom
+              AND pr.period <= :periodTo
+              AND (:excludingPayrunId IS NULL OR pr.id != :excludingPayrunId)
+            """)
     BigDecimal sumTaxLines(
             @Param("tenantId") UUID tenantId,
             @Param("employeeId") UUID employeeId,

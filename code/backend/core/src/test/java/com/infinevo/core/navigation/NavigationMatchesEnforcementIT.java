@@ -87,11 +87,15 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("tenant admin: every leaf is visible and every target answers 2xx")
+    @DisplayName("tenant admin: customer leaves are visible and answer 2xx; platform leaves absent and answer 403")
     void tenantAdmin_everyLeafVisibleAndEveryTargetAnswers2xx() throws Exception {
         Set<String> visible = visibleKeys(acmeTenant, acmeAdminSub);
 
-        assertThat(visible).containsAll(leafKeys(NavigationCatalogue.DEFAULT_ITEMS));
+        List<String> customerLeaves = leafKeys(NavigationCatalogue.DEFAULT_ITEMS).stream()
+                .filter(k -> !k.equals("core.tenants"))
+                .toList();
+        assertThat(visible).containsAll(customerLeaves);
+        assertThat(visible).doesNotContain("core.tenants");
         walk(acmeTenant, acmeAdminSub, visible);
     }
 
@@ -102,7 +106,7 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
 
         // The seeded employee role reads the org masters but neither roles nor the audit trail,
         // so this caller exercises both branches of the walk.
-        assertThat(visible).doesNotContain("core.roles", "core.audit");
+        assertThat(visible).doesNotContain("core.roles", "core.audit", "core.tenants");
         assertThat(visible).isNotEmpty();
         walk(globexTenant, globexEmployeeSub, visible);
     }

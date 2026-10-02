@@ -450,13 +450,15 @@ public class PayRun {
      * {@code APPROVED → PAID}: marks the run paid and releases payslips.
      *
      * @param paidOn the payment date; must not be in the future, and not before periodStart
+     * @param today the tenant's date now, in {@code core.tenant.timezone} (W-47.2 §4); the entity never
+     *     reads the clock, because the JVM's date is UTC and would refuse today from 00:00 to 05:30 IST
      * @param actor who recorded the payment
      * @param at when the transition occurred
      */
-    public void pay(LocalDate paidOn, String actor, Instant at) {
+    public void pay(LocalDate paidOn, LocalDate today, String actor, Instant at) {
         status.requireTransitionTo(PayRunStatus.PAID);
         Objects.requireNonNull(paidOn, "paidOn must not be null");
-        LocalDate today = LocalDate.now();
+        Objects.requireNonNull(today, "today must not be null");
         if (paidOn.isAfter(today)) {
             throw new IllegalArgumentException("paid_on cannot be in the future: " + paidOn);
         }
