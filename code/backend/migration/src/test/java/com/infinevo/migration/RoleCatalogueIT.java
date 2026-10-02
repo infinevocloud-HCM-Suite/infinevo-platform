@@ -227,8 +227,11 @@ class RoleCatalogueIT {
                 assertThat(holds(conn, tenant, "tenant-admin", "core.approval.decide"))
                         .isTrue();
                 assertThat(holds(conn, tenant, "hr", "core.approval.decide"))
-                        .as("new codes reach the admin roles only (spec §2)")
-                        .isFalse();
+                        .as("W-40.2: core.approval.decide granted to hr")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "manager", "core.approval.decide"))
+                        .as("W-40.2: core.approval.decide granted to manager")
+                        .isTrue();
             }
         }
     }
