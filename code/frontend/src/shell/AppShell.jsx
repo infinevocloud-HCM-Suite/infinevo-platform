@@ -2,7 +2,7 @@ import React from 'react';
 import { Layout, Menu, Skeleton, Typography, Button, Result, theme as antdTheme } from 'antd';
 import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
-import { routesFromFeed } from './routes.js';
+import { routesFromFeed, portalRoutes } from './routes.js';
 import { Header } from './Header.jsx';
 import { ShellBoundary } from './ShellBoundary.jsx';
 import { NotFound, NoModules } from './screens/index.js';
@@ -101,11 +101,14 @@ export function AppShell() {
               // Nothing to route yet. Rendering the routes here would show NotFound for a
               // path the feed is about to name.
               <Skeleton active />
-            ) : !items || items.length === 0 ? (
+            ) : (!items || items.length === 0) && !location.pathname.startsWith('/me') ? (
               <NoModules />
             ) : (
               <React.Suspense fallback={<Skeleton active />}>
                 <Routes>
+                  {portalRoutes.map((route) => (
+                    <Route key={route.path} path={route.path} element={route.element} />
+                  ))}
                   {feedRoutes.map((route) => (
                     <Route key={route.path} path={route.path} element={route.element} />
                   ))}

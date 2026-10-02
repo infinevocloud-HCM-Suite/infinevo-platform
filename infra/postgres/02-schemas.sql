@@ -5,6 +5,8 @@
 -- Must execute identically via psql, Testcontainers JDBC, and Azure pipelines.
 -- ---------------------------------------------------------------------------
 
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 CREATE SCHEMA IF NOT EXISTS core      AUTHORIZATION migration_user;
 CREATE SCHEMA IF NOT EXISTS hrms      AUTHORIZATION migration_user;
 CREATE SCHEMA IF NOT EXISTS payroll   AUTHORIZATION migration_user;
