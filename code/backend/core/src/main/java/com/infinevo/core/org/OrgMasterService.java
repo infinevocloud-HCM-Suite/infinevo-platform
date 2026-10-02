@@ -37,6 +37,9 @@ public interface OrgMasterService<Q extends OrgMasterRequest, R> {
      */
     List<R> list(boolean activeOnly);
 
+    /** The record with this id in the bound tenant. Maps to {@code 404}. */
+    R get(UUID id);
+
     /** Replaces the mutable fields of a record in the bound tenant. */
     R update(UUID id, Q request);
 

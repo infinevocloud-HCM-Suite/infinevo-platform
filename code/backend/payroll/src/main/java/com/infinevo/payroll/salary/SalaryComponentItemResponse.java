@@ -58,4 +58,32 @@ public record SalaryComponentItemResponse(
                 null,
                 null);
     }
+
+    public SalaryComponentItemResponse(
+            UUID id,
+            UUID componentId,
+            String componentCode,
+            String componentName,
+            CalculationType calculationType,
+            BigDecimal value,
+            PercentageOf percentageOf,
+            BigDecimal monthlyAmount,
+            BigDecimal annualAmount,
+            boolean enabled,
+            boolean includedInCtc) {
+        this(
+                id,
+                componentId,
+                componentCode,
+                componentName,
+                calculationType,
+                value,
+                percentageOf,
+                monthlyAmount,
+                annualAmount,
+                enabled,
+                includedInCtc,
+                null,
+                null);
+    }
 }

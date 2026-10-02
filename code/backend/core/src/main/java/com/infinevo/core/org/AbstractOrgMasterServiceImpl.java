@@ -135,6 +135,13 @@ abstract class AbstractOrgMasterServiceImpl<E extends OrgMaster, Q extends OrgMa
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public R get(UUID id) {
+        UUID tenantId = TenantContext.require();
+        return toResponse(require(id, tenantId));
+    }
+
+    @Override
     @Transactional
     public R update(UUID id, Q request) {
         UUID tenantId = TenantContext.require();

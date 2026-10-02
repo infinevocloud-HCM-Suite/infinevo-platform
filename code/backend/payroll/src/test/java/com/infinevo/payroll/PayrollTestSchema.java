@@ -127,6 +127,15 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "core", "work_location")) {
                 executeResource(conn, "db/migration/core/V013__work_location.sql");
             }
+            if (!columnExists(conn, "core", "employee", "work_location_id")) {
+                if (!tableExists(conn, "core", "department")) {
+                    executeResource(conn, "db/migration/core/V011__department.sql");
+                }
+                if (!tableExists(conn, "core", "designation")) {
+                    executeResource(conn, "db/migration/core/V012__designation.sql");
+                }
+                executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
             if (!tableExists(conn, "reference", "pt_state")) {
                 executeResource(conn, "db/migration/reference/V064__pt_state_and_slab.sql");
             }
@@ -304,6 +313,9 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "core", "attendance")) {
                 st.execute("DELETE FROM core.attendance");
+            }
+            if (columnExists(conn, "core", "employee", "work_location_id")) {
+                st.execute("UPDATE core.employee SET work_location_id = NULL");
             }
             if (tableExists(conn, "core", "work_location")) {
                 st.execute("DELETE FROM core.work_location");
