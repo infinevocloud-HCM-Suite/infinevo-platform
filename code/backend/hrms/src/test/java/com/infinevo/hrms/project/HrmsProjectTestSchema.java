@@ -64,7 +64,18 @@ public final class HrmsProjectTestSchema {
                         "hrms/V086__project.sql",
                         "hrms/V087__task.sql",
                         "hrms/V088__assignment.sql",
-                        "hrms/V121__attendance_preference.sql"
+                        "hrms/V121__attendance_preference.sql",
+                        "core/V030__attendance.sql",
+                        "core/V033__tenant_locale_columns.sql",
+                        "hrms/V123__clock_session.sql"
+                    }) {
+                        executeResource(conn, "db/migration/" + script);
+                    }
+                } else if (!tableExists(conn, "hrms", "clock_session")) {
+                    for (String script : new String[] {
+                        "core/V030__attendance.sql",
+                        "core/V033__tenant_locale_columns.sql",
+                        "hrms/V123__clock_session.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }
