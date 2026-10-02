@@ -303,3 +303,14 @@ Nothing is deployed. All four scripts are additive and forward-only.
 | 4 | Copy project, task and employee names? | **No.** Ids only, as `W-41` decision 6 |
 | 5 | A task on every line? | **Yes**, `task_id NOT NULL`. Legacy always sends one (`TaskEntry.java:20-21`) |
 | 6 | Week start | **Monday**, as legacy (`TimesheetsController.java:138`). Not per tenant |
+
+## 14. As built (devashish, 2026-10-02)
+
+Where the build differs from, or settles a point left open in, the sections above:
+
+- A project line with no tasks, or a task line with no days, is rejected (`projects[i].tasks`, `projects[i].tasks[j].days`). An empty line has no meaning and would leave a row nothing can reach.
+- JSON is snake_case, as `W-41`, and every field also accepts its camelCase name (`@JsonAlias`).
+- The project and task checks give one message, "No such project, or you are not assigned to it", for a missing id, another tenant's id and an unassigned one, so the response does not say which ids exist.
+- `W-25`'s `MyTimesheetPlaceholderController` and its test are replaced by `MyTimesheetController`; `PortalEntitlementIT` and `PortalPanelDiscoveryIT` now mock `TimesheetService` instead.
+- The error handler is `@ControllerAdvice(assignableTypes = ...)`, not `@RestControllerAdvice`: `EntitlementCoverageIT` counts any file whose code contains `@RestController` and wants `@RequiresModule` on it.
+- Deleting a project or task that a live timesheet line names now answers 409 (`ResourceInUseException`), through a `TimesheetUsage` port that `hrms.project` owns and `hrms.timesheet` implements.

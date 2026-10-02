@@ -41,14 +41,31 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = {"com.infinevo.hrms.project", "com.infinevo.core.authz"},
+        basePackages = {
+            "com.infinevo.hrms.project",
+            "com.infinevo.hrms.timesheet",
+            "com.infinevo.hrms.portal",
+            "com.infinevo.hrms.navigation",
+            "com.infinevo.core.authz"
+        },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
         })
-@EntityScan(basePackages = {"com.infinevo.hrms.project", "com.infinevo.core.authz", "com.infinevo.shared.identity"})
+@EntityScan(
+        basePackages = {
+            "com.infinevo.hrms.project",
+            "com.infinevo.hrms.timesheet",
+            "com.infinevo.core.authz",
+            "com.infinevo.shared.identity"
+        })
 @EnableJpaRepositories(
-        basePackages = {"com.infinevo.hrms.project", "com.infinevo.core.authz", "com.infinevo.shared.identity"})
+        basePackages = {
+            "com.infinevo.hrms.project",
+            "com.infinevo.hrms.timesheet",
+            "com.infinevo.core.authz",
+            "com.infinevo.shared.identity"
+        })
 @Import({RedisConfig.class, UserProfileSyncService.class})
 public class HrmsTestApp {
 

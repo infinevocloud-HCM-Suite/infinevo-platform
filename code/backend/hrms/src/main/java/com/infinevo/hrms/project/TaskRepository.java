@@ -21,6 +21,9 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 
     List<Task> findAllByTenantIdAndProjectIdAndDeletedFalse(UUID tenantId, UUID projectId);
 
+    /** The live tasks among these ids (W-42.1: a timesheet line must name a live task of its project). */
+    List<Task> findAllByTenantIdAndIdInAndDeletedFalse(UUID tenantId, Collection<UUID> ids);
+
     @Query(
             """
         SELECT t FROM Task t

@@ -11,6 +11,7 @@ import com.infinevo.core.portal.PanelDescriptor;
 import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.core.portal.PortalPanelService;
 import com.infinevo.hrms.portal.TimesheetPanelProvider;
+import com.infinevo.hrms.timesheet.TimesheetService;
 import com.infinevo.payroll.portal.PayslipPanelProvider;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
@@ -81,6 +82,10 @@ class PortalPanelDiscoveryIT {
 
     @MockBean
     private EmployeeService employeeService;
+
+    // The hrms portal package now holds the real MyTimesheetController (W-42.1), which needs this.
+    @MockBean
+    private TimesheetService timesheetService;
 
     @Test
     @DisplayName("PortalPanelService discovers all 5 providers including module providers from payroll and hrms")

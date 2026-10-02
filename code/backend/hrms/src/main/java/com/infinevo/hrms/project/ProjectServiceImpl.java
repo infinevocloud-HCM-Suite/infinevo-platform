@@ -25,17 +25,20 @@ public class ProjectServiceImpl implements ProjectService {
     private final TaskRepository taskRepository;
     private final AssignmentRepository assignmentRepository;
     private final EmployeeService employeeService;
+    private final TimesheetUsage timesheetUsage;
 
     public ProjectServiceImpl(
             ProjectRepository projectRepository,
             TaskRepository taskRepository,
             AssignmentRepository assignmentRepository,
-            EmployeeService employeeService) {
+            EmployeeService employeeService,
+            TimesheetUsage timesheetUsage) {
         this.projectRepository = Objects.requireNonNull(projectRepository, "projectRepository must not be null");
         this.taskRepository = Objects.requireNonNull(taskRepository, "taskRepository must not be null");
         this.assignmentRepository =
                 Objects.requireNonNull(assignmentRepository, "assignmentRepository must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.timesheetUsage = Objects.requireNonNull(timesheetUsage, "timesheetUsage must not be null");
     }
 
     @Override
@@ -220,6 +223,12 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = projectRepository
                 .findByIdAndTenantIdAndDeletedFalse(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("No project " + id + " found in this tenant"));
+
+        // Hours were worked on it (W-42.1): a project on a live timesheet stays until that timesheet is gone.
+        if (timesheetUsage.projectInUse(tenantId, id)) {
+            throw new ResourceInUseException("Project " + id
+                    + " is on a timesheet and cannot be deleted until that timesheet is deleted or cancelled");
+        }
 
         String actor = ProjectActor.currentActor();
         project.setDeleted(true);

@@ -62,7 +62,11 @@ public final class HrmsProjectTestSchema {
                         "core/V135__hrms_project_seed_roles.sql",
                         "hrms/V086__project.sql",
                         "hrms/V087__task.sql",
-                        "hrms/V088__assignment.sql"
+                        "hrms/V088__assignment.sql",
+                        "hrms/V141__timesheet.sql",
+                        "hrms/V142__timesheet_project_entry.sql",
+                        "hrms/V143__timesheet_task_entry.sql",
+                        "hrms/V144__timesheet_day_entry.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }

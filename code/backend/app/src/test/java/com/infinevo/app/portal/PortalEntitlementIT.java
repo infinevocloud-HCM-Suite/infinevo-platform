@@ -8,7 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.infinevo.hrms.portal.MyTimesheetPlaceholderController;
+import com.infinevo.hrms.portal.MyTimesheetController;
+import com.infinevo.hrms.timesheet.TimesheetService;
 import com.infinevo.payroll.payslip.PayslipController;
 import com.infinevo.payroll.payslip.PayslipService;
 import com.infinevo.shared.authz.AuthzExceptionHandler;
@@ -23,6 +24,7 @@ import com.infinevo.shared.entitlement.RequiresModuleAspect;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -82,9 +84,11 @@ class PortalEntitlementIT {
     @EnableAspectJAutoProxy
     static class TestApp {
 
+        // W-42.1 replaced W-25's timesheet placeholder with the real controller, over a mocked service: this test is
+        // about the module and action guards in front of it, not about timesheets.
         @Bean
-        MyTimesheetPlaceholderController myTimesheetPlaceholderController() {
-            return new MyTimesheetPlaceholderController();
+        MyTimesheetController myTimesheetController(TimesheetService timesheetService) {
+            return new MyTimesheetController(timesheetService);
         }
 
         // W-36.2 replaced W-25's payslips placeholder with the real controller.
@@ -120,6 +124,9 @@ class PortalEntitlementIT {
 
     @MockBean
     private PayslipService payslipService;
+
+    @MockBean
+    private TimesheetService timesheetService;
 
     private final UUID acmeTenant = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private final UUID globexTenant = UUID.fromString("22222222-2222-2222-2222-222222222222");
@@ -212,9 +219,11 @@ class PortalEntitlementIT {
         entitledModules.add(PlatformModule.HRMS);
         entitledModules.add(PlatformModule.PAYROLL);
         grantedActions.add("hrms.timesheet.read_own");
+        when(timesheetService.forWeek(any())).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/v1/me/timesheet"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("placeholder"));
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()));
     }
 }

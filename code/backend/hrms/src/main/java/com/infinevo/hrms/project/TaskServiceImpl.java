@@ -22,17 +22,20 @@ public class TaskServiceImpl implements TaskService {
     private final ProjectRepository projectRepository;
     private final AssignmentRepository assignmentRepository;
     private final EmployeeService employeeService;
+    private final TimesheetUsage timesheetUsage;
 
     public TaskServiceImpl(
             TaskRepository taskRepository,
             ProjectRepository projectRepository,
             AssignmentRepository assignmentRepository,
-            EmployeeService employeeService) {
+            EmployeeService employeeService,
+            TimesheetUsage timesheetUsage) {
         this.taskRepository = Objects.requireNonNull(taskRepository, "taskRepository must not be null");
         this.projectRepository = Objects.requireNonNull(projectRepository, "projectRepository must not be null");
         this.assignmentRepository =
                 Objects.requireNonNull(assignmentRepository, "assignmentRepository must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.timesheetUsage = Objects.requireNonNull(timesheetUsage, "timesheetUsage must not be null");
     }
 
     @Override
@@ -148,6 +151,12 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository
                 .findByIdAndTenantIdAndDeletedFalse(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("No task " + id + " found in this tenant"));
+
+        // Hours were worked on it (W-42.1): a task on a live timesheet stays until that timesheet is gone.
+        if (timesheetUsage.taskInUse(tenantId, id)) {
+            throw new ResourceInUseException("Task " + id
+                    + " is on a timesheet and cannot be deleted until that timesheet is deleted or cancelled");
+        }
 
         task.setDeleted(true);
         task.setUpdatedBy(ProjectActor.currentActor());
