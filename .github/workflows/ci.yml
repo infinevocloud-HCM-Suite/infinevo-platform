@@ -450,6 +450,10 @@ jobs:
           fi
           echo "OK - no floating-point money field outside legacy/"
 
+      - name: production Keycloak realm is clean and valid
+        if: ${{ !cancelled() }}
+        run: node infra/keycloak/check-realm.mjs
+
   # ── dependency vulnerability scanning ───────────────────────────────────────
   # Trivy scans code/ for fixable HIGH and CRITICAL vulnerabilities in backend
   # (pom.xml) and frontend (package-lock.json devDependencies included).
@@ -617,12 +621,17 @@ jobs:
               exit 1
             fi
 
-            # 8c - no realm ships in the production Keycloak image. W-10 supplies it.
-            if docker run --rm --entrypoint sh "$img" \
-                 -c 'ls -A /opt/keycloak/data/import/ 2>/dev/null | grep -q .'; then
-              echo "::error::a realm file is present in $img - W-10 supplies the production realm, and the dev realm must never ship"
-              docker run --rm --entrypoint ls "$img" -la /opt/keycloak/data/import/
-              exit 1
+            # 8c - the production realm (infinevo-realm.json) MUST be in the Keycloak
+            # image (W-10.1 bakes it) and MUST be the only file there: the dev realm,
+            # under any name, must never ship.
+            if [ "$img" = "infinevo-keycloak:test" ]; then
+              IMPORT_FILES=$(docker run --rm --entrypoint sh "$img" \
+                   -c 'ls -A /opt/keycloak/data/import/ 2>/dev/null' || true)
+              if [ "$IMPORT_FILES" != "infinevo-realm.json" ]; then
+                echo "::error::$img import directory must hold exactly infinevo-realm.json (W-10.1), found: ${IMPORT_FILES:-nothing}"
+                docker run --rm --entrypoint ls "$img" -la /opt/keycloak/data/import/ || true
+                exit 1
+              fi
             fi
 
             echo "OK - no secrets in $img (instructions, file contents, import dir)"

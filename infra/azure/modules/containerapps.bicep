@@ -55,6 +55,9 @@ param postgresDatabase string = 'infinevo'
 @description('Blob service endpoint of the environment storage account, e.g. https://stinfinevodev.blob.core.windows.net/. The document store (W-21) reaches it with the container app managed identity - W-51 forbids account keys - and it resolves to the private endpoint through the privatelink zone. Empty leaves the store unconfigured: uploads answer 503.')
 param blobEndpoint string = ''
 
+@description('Brevo SMTP login for Keycloak mail (W-10.1): the account login shown under Brevo > SMTP & API > SMTP, not an API key name. No default, so every parameter file must state it')
+param brevoSmtpLogin string
+
 // Origin protection (W-51 section 2.5). Front Door Standard has no Private Link origin and
 // Container Apps ingress has no header-matching rule, so ipSecurityRestrictions is the only
 // control the ingress schema offers. Anything not arriving from a Front Door backend address
@@ -596,6 +599,11 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-keycloak-pw'
           identity: identities.keycloak.id
         }
+        {
+          name: 'brevo-smtp-key'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/brevo-smtp-key'
+          identity: identities.keycloak.id
+        }
       ]
       registries: [
         {
@@ -648,6 +656,26 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'KC_DB_POOL_MAX_SIZE'
               value: '5'
+            }
+            {
+              name: 'KC_SMTP_HOST'
+              value: 'smtp-relay.brevo.com'
+            }
+            {
+              name: 'KC_SMTP_PORT'
+              value: '587'
+            }
+            {
+              name: 'KC_SMTP_USER'
+              value: brevoSmtpLogin
+            }
+            {
+              name: 'KC_SMTP_FROM'
+              value: 'notifications@infinevocloud.com'
+            }
+            {
+              name: 'KC_SMTP_PASSWORD'
+              secretRef: 'brevo-smtp-key'
             }
           ]
           // ON PORT 9000, NOT THE INGRESS PORT (W-54 round-2 finding F-20). The image bakes
