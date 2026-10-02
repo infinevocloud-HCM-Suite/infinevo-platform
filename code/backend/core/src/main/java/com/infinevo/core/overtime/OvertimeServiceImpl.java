@@ -92,6 +92,84 @@ public class OvertimeServiceImpl implements OvertimeService {
 
     @Override
     @Transactional
+    public OvertimeResponse submit(OvertimeEntry entry) {
+        Objects.requireNonNull(entry, "entry must not be null");
+        UUID tenantId = TenantContext.require();
+
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+        if (entry.amount() != null) {
+            fieldErrors.put("amount", "amount is not allowed on overtime requests");
+        }
+        if (entry.remarks() != null && entry.remarks().length() > 255) {
+            fieldErrors.put("remarks", "remarks must not exceed 255 characters");
+        }
+        validateBaseFields(entry, tenantId, fieldErrors);
+        if (!fieldErrors.isEmpty()) {
+            throw new ValidationException(fieldErrors);
+        }
+
+        String actor = currentActor();
+        OvertimeRequest overtime = overtimeRequests.save(OvertimeRequest.pending(
+                tenantId, entry.employeeId(), entry.overtimeDate(), entry.hours(), entry.remarks(), actor));
+
+        return OvertimeResponse.from(overtime);
+    }
+
+    @Override
+    @Transactional
+    public OvertimeResponse approve(UUID id) {
+        Objects.requireNonNull(id, "id must not be null");
+        UUID tenantId = TenantContext.require();
+        OvertimeRequest overtime =
+                overtimeRequests.findByIdAndTenantId(id, tenantId).orElseThrow(() -> new NotFoundException(id));
+
+        if (overtime.getStatus() == OvertimeStatus.APPROVED) {
+            return OvertimeResponse.from(overtime);
+        }
+        if (overtime.getStatus() != OvertimeStatus.PENDING) {
+            throw new IllegalStateException("Cannot approve overtime request in status: " + overtime.getStatus());
+        }
+
+        String actor = currentActor();
+        PayInputResponse posted = payInputService.record(new PayInputCommand(
+                overtime.getEmployeeId(),
+                YearMonth.from(overtime.getOvertimeDate()),
+                PayInputKind.OVERTIME,
+                overtime.getHours(),
+                overtime.getAmount() != null ? Money.of(overtime.getAmount()) : null,
+                "core",
+                "overtime_request:" + overtime.getId()));
+
+        overtime.approve(actor);
+        overtime.markPosted(posted.id(), posted.postedPeriod(), actor);
+        overtimeRequests.save(overtime);
+
+        return OvertimeResponse.from(overtime);
+    }
+
+    @Override
+    @Transactional
+    public OvertimeResponse reject(UUID id) {
+        Objects.requireNonNull(id, "id must not be null");
+        UUID tenantId = TenantContext.require();
+        OvertimeRequest overtime =
+                overtimeRequests.findByIdAndTenantId(id, tenantId).orElseThrow(() -> new NotFoundException(id));
+
+        if (overtime.getStatus() == OvertimeStatus.REJECTED) {
+            return OvertimeResponse.from(overtime);
+        }
+        if (overtime.getStatus() != OvertimeStatus.PENDING) {
+            throw new IllegalStateException("Cannot reject overtime request in status: " + overtime.getStatus());
+        }
+
+        overtime.reject(currentActor());
+        overtimeRequests.save(overtime);
+
+        return OvertimeResponse.from(overtime);
+    }
+
+    @Override
+    @Transactional
     public OvertimeResponse cancel(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
         UUID tenantId = TenantContext.require();
@@ -100,8 +178,14 @@ public class OvertimeServiceImpl implements OvertimeService {
         if (overtime.getStatus() == OvertimeStatus.CANCELLED) {
             throw new AlreadyCancelledException(id);
         }
+        if (overtime.getStatus() == OvertimeStatus.REJECTED) {
+            throw new NotCancellableException(id);
+        }
 
-        payInputService.reverse(overtime.getPayInputId(), "overtime cancelled");
+        if (overtime.getStatus() == OvertimeStatus.APPROVED) {
+            payInputService.reverse(overtime.getPayInputId(), "overtime cancelled");
+        }
+
         overtime.cancel(currentActor());
         overtimeRequests.save(overtime);
 
@@ -132,7 +216,16 @@ public class OvertimeServiceImpl implements OvertimeService {
 
     private void validate(OvertimeEntry entry, UUID tenantId) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
+        validateBaseFields(entry, tenantId, fieldErrors);
+        if (entry.amount() != null && entry.amount().compareTo(BigDecimal.ZERO) <= 0) {
+            fieldErrors.put("amount", "amount must be positive");
+        }
+        if (!fieldErrors.isEmpty()) {
+            throw new ValidationException(fieldErrors);
+        }
+    }
 
+    private void validateBaseFields(OvertimeEntry entry, UUID tenantId, Map<String, String> fieldErrors) {
         if (entry.employeeId() == null) {
             fieldErrors.put("employeeId", "employeeId is required");
         } else if (employees
@@ -152,14 +245,6 @@ public class OvertimeServiceImpl implements OvertimeService {
         } else if (entry.hours().compareTo(BigDecimal.ZERO) <= 0
                 || entry.hours().compareTo(MAX_HOURS) > 0) {
             fieldErrors.put("hours", "hours must be more than 0 and at most 24");
-        }
-
-        if (entry.amount() != null && entry.amount().compareTo(BigDecimal.ZERO) <= 0) {
-            fieldErrors.put("amount", "amount must be positive");
-        }
-
-        if (!fieldErrors.isEmpty()) {
-            throw new ValidationException(fieldErrors);
         }
     }
 

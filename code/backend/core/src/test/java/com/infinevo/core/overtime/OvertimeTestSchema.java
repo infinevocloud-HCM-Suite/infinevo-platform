@@ -59,7 +59,8 @@ final class OvertimeTestSchema {
                         "core/V031__pay_input.sql",
                         "core/V032__pay_input_period_lock.sql",
                         "core/V060__pay_input_run_ref.sql",
-                        "core/V041__overtime_request.sql"
+                        "core/V041__overtime_request.sql",
+                        "core/V120__overtime_request_states.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }

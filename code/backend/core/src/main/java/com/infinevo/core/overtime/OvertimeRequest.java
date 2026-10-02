@@ -108,16 +108,43 @@ public class OvertimeRequest {
             OvertimeSource source,
             String remarks,
             String actor) {
+        this(tenantId, employeeId, overtimeDate, hours, amount, OvertimeStatus.APPROVED, source, remarks, actor);
+    }
+
+    public OvertimeRequest(
+            UUID tenantId,
+            UUID employeeId,
+            LocalDate overtimeDate,
+            BigDecimal hours,
+            BigDecimal amount,
+            OvertimeStatus status,
+            OvertimeSource source,
+            String remarks,
+            String actor) {
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
         this.employeeId = Objects.requireNonNull(employeeId, "employeeId must not be null");
         this.overtimeDate = Objects.requireNonNull(overtimeDate, "overtimeDate must not be null");
         this.hours = Objects.requireNonNull(hours, "hours must not be null");
         this.amount = amount;
-        this.status = OvertimeStatus.APPROVED;
+        this.status = status != null ? status : OvertimeStatus.APPROVED;
         this.source = source != null ? source : OvertimeSource.ADMIN;
         this.remarks = remarks;
         this.createdBy = actor;
         this.updatedBy = actor;
+    }
+
+    public static OvertimeRequest pending(
+            UUID tenantId, UUID employeeId, LocalDate overtimeDate, BigDecimal hours, String remarks, String actor) {
+        return new OvertimeRequest(
+                tenantId,
+                employeeId,
+                overtimeDate,
+                hours,
+                null,
+                OvertimeStatus.PENDING,
+                OvertimeSource.REQUEST,
+                remarks,
+                actor);
     }
 
     @PrePersist
@@ -136,6 +163,30 @@ public class OvertimeRequest {
     public void markPosted(UUID payInputId, YearMonth postedPeriod, String actor) {
         this.payInputId = Objects.requireNonNull(payInputId, "payInputId must not be null");
         this.postedPeriod = Objects.requireNonNull(postedPeriod, "postedPeriod must not be null");
+        this.updatedBy = actor;
+    }
+
+    /** Transitions this request to APPROVED. Safe to call if already APPROVED. */
+    public void approve(String actor) {
+        if (this.status == OvertimeStatus.APPROVED) {
+            return;
+        }
+        if (this.status != OvertimeStatus.PENDING) {
+            throw new IllegalStateException("Cannot approve overtime request in status: " + this.status);
+        }
+        this.status = OvertimeStatus.APPROVED;
+        this.updatedBy = actor;
+    }
+
+    /** Transitions this request to REJECTED. Safe to call if already REJECTED. */
+    public void reject(String actor) {
+        if (this.status == OvertimeStatus.REJECTED) {
+            return;
+        }
+        if (this.status != OvertimeStatus.PENDING) {
+            throw new IllegalStateException("Cannot reject overtime request in status: " + this.status);
+        }
+        this.status = OvertimeStatus.REJECTED;
         this.updatedBy = actor;
     }
 

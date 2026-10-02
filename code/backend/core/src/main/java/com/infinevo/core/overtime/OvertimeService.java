@@ -27,10 +27,38 @@ public interface OvertimeService {
     OvertimeResponse record(OvertimeEntry entry);
 
     /**
-     * Cancels an entry and reverses the ledger row it posted (spec §3).
+     * Submits an overtime request with status {@link OvertimeStatus#PENDING} and source
+     * {@link OvertimeSource#REQUEST} without writing to the pay input ledger (W-40.5).
+     *
+     * @throws ValidationException if amount is present, remarks exceed 255 chars, or standard
+     *     validations fail
+     */
+    OvertimeResponse submit(OvertimeEntry entry);
+
+    /**
+     * Approves a {@link OvertimeStatus#PENDING} request and posts one {@code OVERTIME} row to the
+     * pay input ledger (W-40.5). Idempotent if already {@link OvertimeStatus#APPROVED}.
+     *
+     * @throws NotFoundException no such entry in the bound tenant
+     * @throws IllegalStateException the entry is {@link OvertimeStatus#REJECTED} or {@link OvertimeStatus#CANCELLED}
+     */
+    OvertimeResponse approve(UUID id);
+
+    /**
+     * Rejects a {@link OvertimeStatus#PENDING} request (W-40.5). Idempotent if already
+     * {@link OvertimeStatus#REJECTED}. Calls no ledger methods.
+     *
+     * @throws NotFoundException no such entry in the bound tenant
+     * @throws IllegalStateException the entry is {@link OvertimeStatus#APPROVED} or {@link OvertimeStatus#CANCELLED}
+     */
+    OvertimeResponse reject(UUID id);
+
+    /**
+     * Cancels an entry and reverses the ledger row it posted if approved (spec §3, W-40.5 §4).
      *
      * @throws NotFoundException no such entry in the bound tenant
      * @throws AlreadyCancelledException the entry is already {@link OvertimeStatus#CANCELLED}
+     * @throws NotCancellableException the entry is {@link OvertimeStatus#REJECTED}
      */
     OvertimeResponse cancel(UUID id);
 
@@ -76,6 +104,16 @@ public interface OvertimeService {
 
         public AlreadyCancelledException(UUID id) {
             super("Overtime entry " + id + " is already cancelled");
+        }
+    }
+
+    /** The entry cannot be cancelled (e.g. it was rejected). Maps to {@code 409}. */
+    class NotCancellableException extends RuntimeException {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        public NotCancellableException(UUID id) {
+            super("Overtime entry " + id + " cannot be cancelled");
         }
     }
 }
