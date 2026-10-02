@@ -4,7 +4,7 @@ import { apiClient } from '@shared/api/client.js';
  * Service for document storage and uploads (W-21 / W-46.2).
  */
 export const documentService = {
-  async upload(file, kind = 'LEAVE_IMPORT') {
+  async upload(file, kind = 'LEAVE_ATTACHMENT') {
     const formData = new FormData();
     formData.append('file', file);
     const res = await apiClient.post(`/v1/documents?kind=${kind}`, formData, {

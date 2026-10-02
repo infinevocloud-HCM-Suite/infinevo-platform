@@ -76,8 +76,12 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
       if (req.leaveTypeId) {
         promises.push(
           leaveTypeService
-            .get(req.leaveTypeId)
-            .then(setLeaveType)
+            .list()
+            .then((res) => {
+              const types = Array.isArray(res) ? res : res?.items || [];
+              const match = types.find((t) => t.id === req.leaveTypeId);
+              if (match) setLeaveType(match);
+            })
             .catch(() => {})
         );
       }
@@ -86,7 +90,10 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
         promises.push(
           approvalService
             .history(req.approvalInstanceId)
-            .then((data) => setApprovalHistory(Array.isArray(data) ? data : []))
+            .then((data) => {
+              const steps = data?.steps || (Array.isArray(data) ? data : []);
+              setApprovalHistory(steps);
+            })
             .catch(() => {})
         );
       }
@@ -207,7 +214,7 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
               <Text strong>{request.workingDays} working day(s)</Text>
               {request.isHalfDay && (
                 <Tag color="cyan">
-                  {request.halfDayPeriod === 'FIRST' ? '1st Half' : '2nd Half'}
+                  {request.halfDayPeriod?.toUpperCase() === 'FIRST' ? '1st Half' : '2nd Half'}
                 </Tag>
               )}
             </Space>
@@ -222,6 +229,11 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
           <Descriptions.Item label="Reason" span={2}>
             {request.reason || '-'}
           </Descriptions.Item>
+          {request.documentIds && request.documentIds.length > 0 && (
+            <Descriptions.Item label="Attachments" span={2}>
+              <Text>{request.documentIds.length} document(s) attached</Text>
+            </Descriptions.Item>
+          )}
           <Descriptions.Item label="Created At">
             {request.createdAt ? dayjs(request.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
           </Descriptions.Item>

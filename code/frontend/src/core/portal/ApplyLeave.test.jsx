@@ -190,7 +190,7 @@ describe('ApplyLeave component (W-46.5 §7)', () => {
     });
   });
 
-  it('attachments field is hidden when upload service is absent', async () => {
+  it('renders attachments field for supporting documents', async () => {
     render(
       <MemoryRouter>
         <ApplyLeave />
@@ -201,7 +201,7 @@ describe('ApplyLeave component (W-46.5 §7)', () => {
       expect(leaveTypeService.eligible).toHaveBeenCalled();
     });
 
-    expect(screen.queryByLabelText(/attachments/i)).toBeNull();
-    expect(screen.queryByRole('button', { name: /upload/i })).toBeNull();
+    expect(screen.getByText(/supporting documents \/ attachments/i)).toBeDefined();
+    expect(screen.getByRole('button', { name: /attach document/i })).toBeDefined();
   });
 });

@@ -20,9 +20,9 @@ describe('documentService', () => {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
-    const res = await documentService.upload(dummyFile, 'LEAVE_IMPORT');
+    const res = await documentService.upload(dummyFile, 'LEAVE_ATTACHMENT');
     expect(apiClient.post).toHaveBeenCalledWith(
-      '/v1/documents?kind=LEAVE_IMPORT',
+      '/v1/documents?kind=LEAVE_ATTACHMENT',
       expect.any(FormData),
       expect.objectContaining({
         headers: { 'Content-Type': 'multipart/form-data' },

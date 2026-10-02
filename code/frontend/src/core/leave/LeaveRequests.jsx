@@ -148,7 +148,7 @@ export function LeaveRequests() {
             <span>{dateStr}</span>
             {record.isHalfDay && (
               <Tag color="cyan">
-                {record.halfDayPeriod === 'FIRST' ? '1st Half' : '2nd Half'}
+                {record.halfDayPeriod?.toUpperCase() === 'FIRST' ? '1st Half' : '2nd Half'}
               </Tag>
             )}
           </Space>

@@ -186,6 +186,7 @@ class NavigationServiceTest {
                         "core.tenant.read",
                         "core.approval.decide",
                         "core.user.manage",
+                        "core.employee.create",
                         "core.tenant.provision",
                         "core.leave.read",
                         "core.leave_type.manage"));

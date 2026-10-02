@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Form, Select, DatePicker, Switch, Input, Row, Col } from 'antd';
+import { Form, Select, DatePicker, Switch, Input, Row, Col, Upload, Button } from 'antd';
+import { UploadOutlined } from '@ant-design/icons';
+import { documentService } from '../document/documentService.js';
 
 const { TextArea } = Input;
 
 export function LeaveRequestFields({
+  form,
   isEmployeeView = false,
   employees = [],
   leaveTypes = [],
@@ -11,6 +15,30 @@ export function LeaveRequestFields({
   isHalfDay = false,
   onHalfDayChange,
 }) {
+  const [fileList, setFileList] = useState([]);
+
+  const handleCustomUpload = async ({ file, onSuccess, onError }) => {
+    try {
+      const res = await documentService.upload(file, 'LEAVE_ATTACHMENT');
+      const docId = res?.id || res?.documentId;
+      file.documentId = docId;
+      onSuccess(res, file);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const handleFileChange = ({ fileList: newFileList }) => {
+    setFileList(newFileList);
+    if (form) {
+      const docIds = newFileList
+        .filter((f) => f.status === 'done' || f.documentId || f.response)
+        .map((f) => f.documentId || f.response?.id || f.response?.documentId)
+        .filter(Boolean);
+      form.setFieldsValue({ documentIds: docIds });
+    }
+  };
+
   return (
     <>
       {!isEmployeeView && (
@@ -101,11 +129,27 @@ export function LeaveRequestFields({
       >
         <TextArea rows={3} placeholder="Enter reason for leave" />
       </Form.Item>
+
+      <Form.Item
+        name="documentIds"
+        label="Supporting Documents / Attachments"
+        extra="Upload supporting documents (PDF, JPG, PNG) if required by the leave policy."
+      >
+        <Upload
+          fileList={fileList}
+          customRequest={handleCustomUpload}
+          onChange={handleFileChange}
+          multiple
+        >
+          <Button icon={<UploadOutlined />}>Attach Document</Button>
+        </Upload>
+      </Form.Item>
     </>
   );
 }
 
 LeaveRequestFields.propTypes = {
+  form: PropTypes.object,
   isEmployeeView: PropTypes.bool,
   employees: PropTypes.arrayOf(
     PropTypes.shape({

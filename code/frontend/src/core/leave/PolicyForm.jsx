@@ -60,7 +60,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         accrualFrequency: p.accrualFrequency || 'MONTHLY',
         accrualUnits: p.accrualUnits,
         resetEnabled: p.resetEnabled,
-        resetFrequency: p.resetFrequency || 'CALENDAR_YEAR',
+        resetFrequency: p.resetFrequency || 'YEARLY',
         carryForwardEnabled: p.carryForwardEnabled,
         carryForwardCap: p.carryForwardCap,
         carryForwardExpiresAfterMonths: p.carryForwardExpiresAfterMonths,
@@ -78,7 +78,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         accrualEnabled: false,
         accrualFrequency: 'MONTHLY',
         resetEnabled: true,
-        resetFrequency: 'CALENDAR_YEAR',
+        resetFrequency: 'YEARLY',
         carryForwardEnabled: false,
         exceedBalanceMode: 'NO_LIMIT',
         gender: 'ALL',
@@ -96,7 +96,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         const eligibility = [
           ...(values.departmentIds || []).map((id) => ({ dimension: 'department', valueId: id })),
           ...(values.designationIds || []).map((id) => ({ dimension: 'designation', valueId: id })),
-          ...(values.locationIds || []).map((id) => ({ dimension: 'location', valueId: id })),
+          ...(values.locationIds || []).map((id) => ({ dimension: 'work_location', valueId: id })),
         ];
 
         const payload = {
@@ -114,7 +114,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
           exceedBalanceMode: values.exceedBalanceMode,
           exceedBalanceLimitDays:
             values.exceedBalanceMode === 'YEAR_END_LIMIT' ? values.exceedBalanceLimitDays : null,
-          gender: values.gender || 'ALL',
+          gender: values.gender && values.gender !== 'ALL' ? values.gender : null,
           eligibility,
         };
 
@@ -162,9 +162,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
               <Select
                 options={[
                   { value: 'MONTHLY', label: 'Monthly' },
-                  { value: 'QUARTERLY', label: 'Quarterly' },
-                  { value: 'BI_ANNUAL', label: 'Bi-Annual' },
-                  { value: 'ANNUAL', label: 'Annual' },
+                  { value: 'YEARLY', label: 'Yearly' },
                 ]}
               />
             </Form.Item>
@@ -190,9 +188,10 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
           <Form.Item name="resetFrequency" label="Reset Frequency">
             <Select
               options={[
-                { value: 'CALENDAR_YEAR', label: 'Calendar Year (Jan 1)' },
-                { value: 'FINANCIAL_YEAR', label: 'Financial Year (Apr 1)' },
-                { value: 'JOINING_DATE', label: 'Joining Date Anniversary' },
+                { value: 'YEARLY', label: 'Yearly' },
+                { value: 'HALF_YEARLY', label: 'Half-Yearly' },
+                { value: 'QUARTERLY', label: 'Quarterly' },
+                { value: 'MONTHLY', label: 'Monthly' },
               ]}
             />
           </Form.Item>

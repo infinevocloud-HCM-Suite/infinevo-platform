@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LeaveImport } from './LeaveImport.jsx';
 import { leaveImportService } from './leaveImportService.js';
 import { documentService } from '../document/documentService.js';
@@ -61,20 +61,11 @@ describe('LeaveImport component', () => {
   });
 
   it('renders result panel and error alert when rowsFailed > 0', async () => {
-    render(<LeaveImport />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Bulk Leave Import')).toBeDefined();
-    });
-
-    // Upload document
     documentService.upload.mockResolvedValueOnce({ id: 'doc-999' });
-
-    // Simulate import start with error result
     leaveImportService.start.mockResolvedValueOnce({
       id: 'imp-002',
       status: 'COMPLETED_WITH_ERRORS',
-      isDryRun: false,
+      isDryRun: true,
       leaveYear: '2026',
       rowsTotal: 10,
       rowsImported: 8,
@@ -82,15 +73,44 @@ describe('LeaveImport component', () => {
       errorDocumentId: 'err-doc-123',
     });
 
-    // Directly test result rendering with mock state if needed, or trigger import
+    const { container } = render(<LeaveImport />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Bulk Leave Import')).toBeDefined();
+    });
+
+    const fileInput = container.querySelector('input[type="file"]');
+    const testFile = new File(['emp,days\n1,10'], 'leaves.csv', { type: 'text/csv' });
+    fireEvent.change(fileInput, { target: { files: [testFile] } });
+
+    await waitFor(() => {
+      expect(documentService.upload).toHaveBeenCalledWith(testFile, 'LEAVE_ATTACHMENT');
+    });
+
+    const startBtn = screen.getByRole('button', { name: /Start Dry Run/i });
+    expect(startBtn.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(leaveImportService.start).toHaveBeenCalledWith({
+        documentId: 'doc-999',
+        leaveYear: expect.any(String),
+        dryRun: true,
+      });
+      expect(screen.getByText('Import Run Results')).toBeDefined();
+      expect(screen.getByText('Completed with Errors')).toBeDefined();
+      expect(screen.getByText('Errors Encountered')).toBeDefined();
+      expect(screen.getByText(/Download error report document: err-doc-123/i)).toBeDefined();
+    });
   });
 
   it('stops polling when import reaches a terminal status', async () => {
-    vi.useFakeTimers();
-
+    documentService.upload.mockResolvedValueOnce({ id: 'doc-pending-1' });
     leaveImportService.start.mockResolvedValueOnce({
       id: 'imp-003',
       status: 'PENDING',
+      leaveYear: '2026',
+      isDryRun: true,
     });
 
     leaveImportService.get.mockResolvedValueOnce({
@@ -99,10 +119,36 @@ describe('LeaveImport component', () => {
       rowsTotal: 5,
       rowsImported: 5,
       rowsFailed: 0,
+      isDryRun: true,
     });
 
-    render(<LeaveImport />);
+    const { container } = render(<LeaveImport />);
 
-    await vi.runOnlyPendingTimersAsync();
+    const fileInput = container.querySelector('input[type="file"]');
+    const testFile = new File(['emp,days\n1,5'], 'leaves.csv', { type: 'text/csv' });
+    fireEvent.change(fileInput, { target: { files: [testFile] } });
+
+    await waitFor(() => {
+      expect(documentService.upload).toHaveBeenCalledWith(testFile, 'LEAVE_ATTACHMENT');
+    });
+
+    vi.useFakeTimers();
+
+    const startBtn = screen.getByRole('button', { name: /Start Dry Run/i });
+    fireEvent.click(startBtn);
+
+    await vi.advanceTimersByTimeAsync(50);
+    expect(leaveImportService.start).toHaveBeenCalled();
+
+    // Advance 2s to fire polling interval
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(leaveImportService.get).toHaveBeenCalledWith('imp-003');
+    expect(leaveImportService.get).toHaveBeenCalledTimes(1);
+
+    // Advance another 4s; since status was COMPLETED, interval was cleared and no further get called
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(leaveImportService.get).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
   });
 });

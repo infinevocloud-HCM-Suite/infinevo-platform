@@ -88,8 +88,34 @@ describe('Allocations component', () => {
       expect(screen.getByText('Manual Leave Allocation')).toBeDefined();
     });
 
+    const employeeSelect = screen.getByLabelText('Employee');
+    fireEvent.mouseDown(employeeSelect);
+    fireEvent.click(await screen.findByText('John Doe (EMP001)'));
+
+    // Select leave type
+    const leaveTypeSelect = screen.getByLabelText('Leave Type');
+    fireEvent.mouseDown(leaveTypeSelect);
+    fireEvent.click(await screen.findByText('Annual Leave (AL)'));
+
+    // Set opening days input
+    const spinbuttons = screen.getAllByRole('spinbutton');
+    const openingDaysInput = spinbuttons[spinbuttons.length - 1];
+    fireEvent.change(openingDaysInput, { target: { value: '10' } });
+
     const saveButton = screen.getByRole('button', { name: /Save Allocation/i });
     fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(leaveBalanceService.allocate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          employeeId: 'emp-1',
+          leaveTypeId: 'type-1',
+          openingDays: 10,
+          yearStartDate: expect.stringMatching(/^\d{4}-01-01$/),
+          yearEndDate: expect.stringMatching(/^\d{4}-12-31$/),
+        })
+      );
+    });
   });
 
   it('accrual button shows confirmation dialog before running', async () => {

@@ -89,6 +89,7 @@ export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSucces
         isHalfDay: !!values.isHalfDay,
         halfDayPeriod: values.isHalfDay ? values.halfDayPeriod : null,
         reason: values.reason,
+        documentIds: values.documentIds || [],
         submit: submitNow,
       };
 
@@ -154,6 +155,7 @@ export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSucces
               onFinish={(vals) => handleFinish(vals, true)}
             >
               <LeaveRequestFields
+                form={form}
                 isEmployeeView={true}
                 leaveTypes={eligibleTypes}
                 isHalfDay={isHalfDay}

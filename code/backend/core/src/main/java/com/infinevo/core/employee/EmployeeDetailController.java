@@ -61,10 +61,10 @@ import org.springframework.web.bind.annotation.RestController;
  * branch. They return the shared {@link ApiErrorResponse} envelope, so the shape is already the
  * common one when that advice arrives.
  *
- * <p><strong>Guarded per section</strong> (W-11.2): personal, contact and employment by
- * {@code core.employee.read} / {@code .update}; identification and bank by their own codes, which
- * fewer roles hold. The self-service {@code core.employee.update_own} is not honoured here yet — it
- * needs ownership, which no service decides today.
+ * <p><strong>Guarded per section</strong> (W-11.2, W-46.5): personal, contact and employment by
+ * {@code core.employee.read} / {@code .update}; self-service allows {@code core.employee.read_own}
+ * and {@code core.employee.update_own} on personal and contact where ownership is enforced by the service.
+ * Identification and bank are guarded by their own codes, which fewer roles hold.
  */
 @RestController
 @RequestMapping("/api/v1/employees/{id}")
@@ -91,7 +91,7 @@ public class EmployeeDetailController {
     }
 
     @GetMapping("/personal")
-    @RequiresAction("core.employee.read")
+    @RequiresAction(value = "core.employee.read", anyOf = "core.employee.read_own")
     public EmployeePersonalResponse getPersonal(@PathVariable("id") UUID id) {
         return personalService.get(id);
     }
@@ -104,7 +104,7 @@ public class EmployeeDetailController {
     }
 
     @GetMapping("/contact")
-    @RequiresAction("core.employee.read")
+    @RequiresAction(value = "core.employee.read", anyOf = "core.employee.read_own")
     public EmployeeContactResponse getContact(@PathVariable("id") UUID id) {
         return contactService.get(id);
     }

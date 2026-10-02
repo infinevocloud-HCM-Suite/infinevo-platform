@@ -46,7 +46,7 @@ export function Allocations() {
     setLoading(true);
     try {
       const [empData, typeData] = await Promise.all([
-        employeeService.list(true),
+        employeeService.list({ size: 1000 }),
         leaveTypeService.list(),
       ]);
 
@@ -98,6 +98,8 @@ export function Allocations() {
         employeeId: values.employeeId,
         leaveTypeId: values.leaveTypeId,
         leaveYear: String(values.leaveYear),
+        yearStartDate: `${values.leaveYear}-01-01`,
+        yearEndDate: `${values.leaveYear}-12-31`,
         openingDays: Number(values.openingDays),
       };
       await leaveBalanceService.allocate(payload);

@@ -23,7 +23,7 @@ export function RecordLeave() {
 
   useEffect(() => {
     employeeService
-      .list(true)
+      .list({ size: 1000 })
       .then((data) => {
         const list = Array.isArray(data) ? data : data?.content || [];
         setEmployees(list);
@@ -56,6 +56,7 @@ export function RecordLeave() {
         isHalfDay: Boolean(values.isHalfDay),
         halfDayPeriod: values.isHalfDay ? values.halfDayPeriod : null,
         reason: values.reason,
+        documentIds: values.documentIds || [],
       };
 
       const res = await leaveRequestService.onBehalf(payload);

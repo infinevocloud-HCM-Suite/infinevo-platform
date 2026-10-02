@@ -128,7 +128,7 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
           {record.fromDate} to {record.toDate}
           {record.isHalfDay && (
             <Tag color="cyan" style={{ marginLeft: 6 }}>
-              {record.halfDayPeriod === 'FIRST' ? '1st Half' : '2nd Half'}
+              {record.halfDayPeriod?.toUpperCase() === 'FIRST' ? '1st Half' : '2nd Half'}
             </Tag>
           )}
         </span>

@@ -8,7 +8,9 @@ import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
@@ -47,6 +49,8 @@ class EmployeeDetailServiceTest {
     private static final UUID EMPLOYEE_B = UUID.fromString("bbbbbbbb-0000-4000-8000-00000000000b");
 
     private EmployeeRepository employees;
+    private PermissionService permissionService;
+    private EmployeeService employeeService;
 
     private EmployeePersonalServiceImpl personalService;
     private EmployeeContactServiceImpl contactService;
@@ -79,9 +83,10 @@ class EmployeeDetailServiceTest {
         personalStore = new ArrayList<>();
         bankStore = new ArrayList<>();
 
-        PermissionService permissionService = mock(PermissionService.class);
+        permissionService = mock(PermissionService.class);
         when(permissionService.holds("core.employee.update")).thenReturn(true);
-        EmployeeService employeeService = mock(EmployeeService.class);
+        when(permissionService.holds("core.employee.read")).thenReturn(true);
+        employeeService = mock(EmployeeService.class);
 
         personalService = new EmployeePersonalServiceImpl(
                 store(EmployeePersonalRepository.class, personalStore), employees, permissionService, employeeService);
@@ -415,6 +420,72 @@ class EmployeeDetailServiceTest {
                             .put(EMPLOYEE_A, new EmployeePersonalRequest(null, "   ", null, null, null, null, null))
                             .maritalStatus())
                     .isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("Self-service caller ownership check (W-46.5)")
+    class SelfServiceOwnership {
+
+        @Test
+        @DisplayName("Caller without core.employee.read can get their own personal section")
+        void ownPersonalCanBeRead() {
+            when(permissionService.holds("core.employee.read")).thenReturn(false);
+            EmployeeResponse me = mock(EmployeeResponse.class);
+            when(me.id()).thenReturn(EMPLOYEE_A);
+            when(employeeService.currentEmployee()).thenReturn(Optional.of(me));
+
+            personalService.put(EMPLOYEE_A, new EmployeePersonalRequest(null, "Single", null, null, null, null, null));
+            assertThat(personalService.get(EMPLOYEE_A).maritalStatus()).isEqualTo("Single");
+        }
+
+        @Test
+        @DisplayName("Caller without core.employee.read cannot get another employee's personal section")
+        void otherPersonalCannotBeRead() {
+            when(permissionService.holds("core.employee.read")).thenReturn(false);
+            EmployeeResponse me = mock(EmployeeResponse.class);
+            when(me.id()).thenReturn(EMPLOYEE_B);
+            when(employeeService.currentEmployee()).thenReturn(Optional.of(me));
+
+            personalService.put(EMPLOYEE_A, new EmployeePersonalRequest(null, "Single", null, null, null, null, null));
+            assertThatThrownBy(() -> personalService.get(EMPLOYEE_A)).isInstanceOf(PermissionDeniedException.class);
+        }
+
+        @Test
+        @DisplayName("Caller without core.employee.read can get their own contact section")
+        void ownContactCanBeRead() {
+            when(permissionService.holds("core.employee.read")).thenReturn(false);
+            EmployeeResponse me = mock(EmployeeResponse.class);
+            when(me.id()).thenReturn(EMPLOYEE_A);
+            when(employeeService.currentEmployee()).thenReturn(Optional.of(me));
+
+            contactService.put(EMPLOYEE_A, contactRequest("me@example.com"));
+            assertThat(contactService.get(EMPLOYEE_A).personalEmail()).isEqualTo("me@example.com");
+        }
+
+        @Test
+        @DisplayName("Caller without core.employee.read cannot get another employee's contact section")
+        void otherContactCannotBeRead() {
+            when(permissionService.holds("core.employee.read")).thenReturn(false);
+            EmployeeResponse me = mock(EmployeeResponse.class);
+            when(me.id()).thenReturn(EMPLOYEE_B);
+            when(employeeService.currentEmployee()).thenReturn(Optional.of(me));
+
+            contactService.put(EMPLOYEE_A, contactRequest("other@example.com"));
+            assertThatThrownBy(() -> contactService.get(EMPLOYEE_A)).isInstanceOf(PermissionDeniedException.class);
+        }
+
+        @Test
+        @DisplayName("Caller without core.employee.update cannot put another employee's personal section")
+        void otherPersonalCannotBeUpdated() {
+            when(permissionService.holds("core.employee.update")).thenReturn(false);
+            EmployeeResponse me = mock(EmployeeResponse.class);
+            when(me.id()).thenReturn(EMPLOYEE_B);
+            when(employeeService.currentEmployee()).thenReturn(Optional.of(me));
+
+            assertThatThrownBy(() -> personalService.put(
+                            EMPLOYEE_A, new EmployeePersonalRequest(null, "Married", null, null, null, null, null)))
+                    .isInstanceOf(PermissionDeniedException.class);
         }
     }
 

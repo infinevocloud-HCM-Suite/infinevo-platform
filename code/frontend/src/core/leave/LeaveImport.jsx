@@ -81,7 +81,7 @@ export function LeaveImport() {
   const handleCustomUpload = async ({ file, onSuccess, onError }) => {
     setUploading(true);
     try {
-      const doc = await documentService.upload(file, 'LEAVE_IMPORT');
+      const doc = await documentService.upload(file, 'LEAVE_ATTACHMENT');
       setDocumentId(doc.id || doc.documentId);
       setFileName(file.name);
       onSuccess(doc);

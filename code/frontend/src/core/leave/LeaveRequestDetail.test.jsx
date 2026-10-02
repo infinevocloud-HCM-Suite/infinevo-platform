@@ -19,6 +19,7 @@ vi.mock('./leaveRequestService.js', () => ({
 vi.mock('./leaveTypeService.js', () => ({
   leaveTypeService: {
     get: vi.fn(),
+    list: vi.fn(),
   },
 }));
 
@@ -85,6 +86,7 @@ describe('LeaveRequestDetail component', () => {
     leaveRequestService.get.mockResolvedValue(mockRequest);
     employeeService.get.mockResolvedValue(mockEmployee);
     leaveTypeService.get.mockResolvedValue(mockLeaveType);
+    leaveTypeService.list.mockResolvedValue([mockLeaveType]);
     approvalService.history.mockResolvedValue(mockHistory);
   });
 
