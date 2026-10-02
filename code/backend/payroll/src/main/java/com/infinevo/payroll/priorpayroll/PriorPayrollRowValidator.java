@@ -25,11 +25,13 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Validates parsed prior payroll import rows before database writes (W-38.1 §4).
  */
 @Component
+@Transactional(readOnly = true)
 public class PriorPayrollRowValidator {
 
     private static final ZoneId DEFAULT_TENANT_ZONE = ZoneId.of("Asia/Kolkata");

@@ -273,6 +273,12 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "core", "pay_input")) {
                 st.execute("DELETE FROM core.pay_input");
             }
+            if (tableExists(conn, "payroll", "prior_payroll_month")) {
+                st.execute("DELETE FROM payroll.prior_payroll_month");
+            }
+            if (tableExists(conn, "payroll", "prior_payroll_import_log")) {
+                st.execute("DELETE FROM payroll.prior_payroll_import_log");
+            }
             if (tableExists(conn, "core", "document")) {
                 st.execute("DELETE FROM core.document");
             }
@@ -321,12 +327,6 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "core", "employee_bank")) {
                 st.execute("DELETE FROM core.employee_bank");
-            }
-            if (tableExists(conn, "payroll", "prior_payroll_month")) {
-                st.execute("DELETE FROM payroll.prior_payroll_month");
-            }
-            if (tableExists(conn, "payroll", "prior_payroll_import_log")) {
-                st.execute("DELETE FROM payroll.prior_payroll_import_log");
             }
             st.execute("DELETE FROM core.employee");
         }
