@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { OffCycleCreate } from './OffCycleCreate.jsx';
+import { OffCycleCreate, INPUT_KINDS } from './OffCycleCreate.jsx';
 import { payrunService } from './payrunService.js';
 
 vi.mock('./payrunService.js', () => ({
@@ -144,5 +144,14 @@ describe('OffCycleCreate component (W-47.2 §7)', () => {
       // Verify DUPLICATE tag is displayed on the row
       expect(screen.getByText('DUPLICATE')).toBeDefined();
     });
+  });
+});
+
+describe('off-cycle input kinds (W-30.2 §4)', () => {
+  it('offers exactly the server PayInputKind values an off-cycle run accepts', () => {
+    // core.payinput.PayInputKind without LOP_DAYS; anything else is a 400 from the server.
+    expect(INPUT_KINDS.map((k) => k.value).sort()).toEqual(
+      ['AD_HOC_DEDUCTION', 'ONE_TIME_PAYOUT', 'OVERTIME', 'REIMBURSEMENT'].sort()
+    );
   });
 });

@@ -87,7 +87,6 @@ public final class PayRunTestSchema {
                 PayrollTestSchema.executeResource(conn, "db/migration/core/V039__notification.sql");
             }
             try (Statement st = conn.createStatement()) {
-                st.execute("ALTER TABLE payroll.payrun DROP CONSTRAINT IF EXISTS chk_payrun_paid_on");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
             }

@@ -16,6 +16,9 @@ import {
   Spin,
   Descriptions,
   Breadcrumb,
+  Modal,
+  DatePicker,
+  Form,
 } from 'antd';
 import {
   LockOutlined,
@@ -23,7 +26,10 @@ import {
   CloseCircleOutlined,
   ArrowLeftOutlined,
   ReloadOutlined,
+  CheckCircleOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
 import { payrunService } from './payrunService.js';
 import { startPolling, stopPolling, setRun } from './payrunSlice.js';
@@ -50,18 +56,31 @@ export function isStaleComputing(run) {
   return Date.now() - started > 15 * 60 * 1000;
 }
 
+// The day a run may be marked paid (W-36.2 §4): not in the future, not before the period starts.
+export function isPaidOnAllowed(day, run) {
+  if (!day) return false;
+  if (day.isAfter(dayjs(), 'day')) return false;
+  const periodStart = run?.period_start;
+  return !(periodStart && day.isBefore(dayjs(periodStart), 'day'));
+}
+
 export function RunPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const canExecute = useCan('payroll.run.execute');
+  const canApproveAction = useCan('payroll.run.approve');
+  const canPayAction = useCan('payroll.payslip.publish');
 
   const runFromStore = useSelector((state) => state.payrun?.byId?.[id]);
   const [localRun, setLocalRun] = useState(null);
   const [loading, setLoading] = useState(!runFromStore);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [payModalOpen, setPayModalOpen] = useState(false);
+  const [paidOn, setPaidOn] = useState(null);
+  const [payNotice, setPayNotice] = useState(null);
 
   const run = runFromStore || localRun;
 
@@ -95,51 +114,43 @@ export function RunPage() {
     };
   }, [id, run?.status, dispatch]);
 
-  const handleCompute = async () => {
+  // One shape for every transition: a 409 means the run moved under us, so re-read it and show
+  // the server's message (W-47.2 §5).
+  const runAction = async (call, failureText) => {
     setActionLoading(true);
     setActionError(null);
     try {
-      await payrunService.compute(id);
+      const result = await call();
       await fetchRun();
+      return result;
     } catch (err) {
       if (err?.status === 409 || err?.code === 'CONFLICT') {
         await fetchRun();
       }
-      setActionError(err?.message || 'Compute failed');
+      setActionError(err?.message || failureText);
+      return null;
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleLock = async () => {
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      await payrunService.lock(id);
-      await fetchRun();
-    } catch (err) {
-      if (err?.status === 409 || err?.code === 'CONFLICT') {
-        await fetchRun();
-      }
-      setActionError(err?.message || 'Lock failed');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleCompute = () => runAction(() => payrunService.compute(id), 'Compute failed');
+  const handleLock = () => runAction(() => payrunService.lock(id), 'Lock failed');
+  const handleCancel = () => runAction(() => payrunService.cancel(id), 'Cancel failed');
+  const handleApprove = () => runAction(() => payrunService.approve(id), 'Approve failed');
+
+  const openPayModal = () => {
+    setPaidOn(dayjs());
+    setPayNotice(null);
+    setPayModalOpen(true);
   };
 
-  const handleCancel = async () => {
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      await payrunService.cancel(id);
-      await fetchRun();
-    } catch (err) {
-      if (err?.status === 409 || err?.code === 'CONFLICT') {
-        await fetchRun();
-      }
-      setActionError(err?.message || 'Cancel failed');
-    } finally {
-      setActionLoading(false);
+  const handlePay = async () => {
+    if (!isPaidOnAllowed(paidOn, run)) return;
+    setPayModalOpen(false);
+    const paid = await runAction(() => payrunService.pay(id, paidOn.format('YYYY-MM-DD')), 'Pay failed');
+    if (paid) {
+      setPayNotice(`Paid on ${paid.paid_on}. ${paid.notified ?? 0} payslip notification(s) sent.`);
     }
   };
 
@@ -179,7 +190,10 @@ export function RunPage() {
       (isComputing && staleComputing));
 
   const canLock = canExecute && status === 'DRAFT';
-  const canCancel = canExecute && (status === 'DRAFT' || status === 'LOCKED');
+  // APPROVED can still be cancelled; PAID never can (W-36.2 §13 decision 9).
+  const canCancel = canExecute && (status === 'DRAFT' || status === 'LOCKED' || status === 'APPROVED');
+  const canApprove = canApproveAction && status === 'COMPUTED';
+  const canPay = canPayAction && status === 'APPROVED';
 
   const progressDone = run.progress_done !== undefined ? run.progress_done : run.progressDone || 0;
   const progressTotal = run.progress_total !== undefined ? run.progress_total : run.progressTotal || 0;
@@ -271,6 +285,33 @@ export function RunPage() {
           </Popconfirm>
 
           <Popconfirm
+            title="Approve this pay run?"
+            description="Approving freezes the computed figures. The run can no longer be recomputed."
+            onConfirm={handleApprove}
+            okText="Approve"
+            cancelText="Back"
+            disabled={!canApprove}
+          >
+            <Button
+              icon={<CheckCircleOutlined />}
+              disabled={!canApprove}
+              loading={actionLoading}
+            >
+              Approve
+            </Button>
+          </Popconfirm>
+
+          <Button
+            type="primary"
+            icon={<DollarOutlined />}
+            disabled={!canPay}
+            loading={actionLoading}
+            onClick={openPayModal}
+          >
+            Pay
+          </Button>
+
+          <Popconfirm
             title="Cancel this pay run?"
             description="Are you sure you want to cancel this pay run? This action cannot be undone."
             onConfirm={handleCancel}
@@ -302,6 +343,45 @@ export function RunPage() {
           style={{ marginBottom: 16 }}
         />
       )}
+
+      {payNotice && (
+        <Alert
+          message={payNotice}
+          type="success"
+          showIcon
+          closable
+          onClose={() => setPayNotice(null)}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      <Modal
+        title="Mark pay run as paid"
+        open={payModalOpen}
+        onOk={handlePay}
+        okText="Mark paid"
+        cancelText="Back"
+        okButtonProps={{ disabled: !isPaidOnAllowed(paidOn, run) }}
+        onCancel={() => setPayModalOpen(false)}
+        destroyOnClose
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Paying releases payslips to every included employee and cannot be undone. A paid run can never be cancelled."
+        />
+        <Form layout="vertical">
+          <Form.Item label="Date paid" required>
+            <DatePicker
+              value={paidOn}
+              onChange={setPaidOn}
+              disabledDate={(day) => !isPaidOnAllowed(day, run)}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {isComputing && (
         <Card style={{ marginBottom: 24, background: '#f6ffed', borderColor: '#b7eb8f' }}>
@@ -339,6 +419,13 @@ export function RunPage() {
               {run.skipped_count !== undefined ? run.skipped_count : run.skippedCount || 0}
             </Text>
           </Descriptions.Item>
+          {run.approved_at && (
+            <Descriptions.Item label="Approved">
+              {dayjs(run.approved_at).format('YYYY-MM-DD HH:mm')}
+              {run.approved_by ? ` by ${run.approved_by}` : ''}
+            </Descriptions.Item>
+          )}
+          {run.paid_on && <Descriptions.Item label="Paid On">{run.paid_on}</Descriptions.Item>}
           {run.notes && (
             <Descriptions.Item label="Notes" span={4}>
               {run.notes}

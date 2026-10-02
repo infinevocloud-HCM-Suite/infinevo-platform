@@ -29,12 +29,13 @@ import { payrunService } from './payrunService.js';
 
 const { Title, Text } = Typography;
 
-const INPUT_KINDS = [
+// core.payinput.PayInputKind less LOP_DAYS, which an off-cycle run refuses (W-30.2 §4). The
+// server knows no other kind, so a bonus is entered as a one-time payout.
+export const INPUT_KINDS = [
   { label: 'One-Time Payout', value: 'ONE_TIME_PAYOUT' },
   { label: 'Overtime', value: 'OVERTIME' },
   { label: 'Reimbursement', value: 'REIMBURSEMENT' },
   { label: 'Ad-Hoc Deduction', value: 'AD_HOC_DEDUCTION' },
-  { label: 'Bonus', value: 'BONUS' },
 ];
 
 export function OffCycleCreate() {
@@ -183,14 +184,16 @@ export function OffCycleCreate() {
         resultMap.set(key, res);
       });
 
-      let recorded = 0;
+      const outcomeOf = (res) =>
+        res.result || (res.pay_input_id || res.payInputId ? 'RECORDED' : 'DUPLICATE');
+      // Counted here, not inside the state updater, which React may run twice.
+      const recorded = (results || []).filter((res) => outcomeOf(res) === 'RECORDED').length;
       setInputRows((prev) =>
         prev.map((row) => {
           const key = `${row.employeeId}_${row.sourceRef}`;
           const res = resultMap.get(key);
           if (res) {
-            const outcome = res.result || (res.pay_input_id || res.payInputId ? 'RECORDED' : 'DUPLICATE');
-            if (outcome === 'RECORDED') recorded++;
+            const outcome = outcomeOf(res);
             return {
               ...row,
               status: outcome,

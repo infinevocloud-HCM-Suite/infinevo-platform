@@ -3,7 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import { RunPage } from './RunPage.jsx';
+import dayjs from 'dayjs';
+import { RunPage, isPaidOnAllowed } from './RunPage.jsx';
 import payrunReducer from './payrunSlice.js';
 import { payrunService } from './payrunService.js';
 import * as useCanModule from '@shell/screens';
@@ -19,6 +20,8 @@ vi.mock('./payrunService.js', () => ({
     compute: vi.fn(),
     lock: vi.fn(),
     cancel: vi.fn(),
+    approve: vi.fn(),
+    pay: vi.fn(),
     employees: vi.fn().mockResolvedValue({ content: [], totalElements: 0 }),
     lines: vi.fn().mockResolvedValue({ lines: [] }),
   },
@@ -50,15 +53,16 @@ describe('RunPage component (W-47.2 §7)', () => {
   };
 
   it('verifies button enablement per status across all eight statuses', async () => {
+    // Mirrors PayRunStatus.ALLOWED on the server; PAID has no way out (W-36.2 §13 decision 9).
     const statuses = [
-      { status: 'DRAFT', canLock: true, canCompute: false, canCancel: true },
-      { status: 'LOCKED', canLock: false, canCompute: true, canCancel: true },
-      { status: 'COMPUTING', canLock: false, canCompute: false, canCancel: false },
-      { status: 'COMPUTED', canLock: false, canCompute: true, canCancel: false },
-      { status: 'FAILED', canLock: false, canCompute: true, canCancel: false },
-      { status: 'APPROVED', canLock: false, canCompute: false, canCancel: false },
-      { status: 'PAID', canLock: false, canCompute: false, canCancel: false },
-      { status: 'CANCELLED', canLock: false, canCompute: false, canCancel: false },
+      { status: 'DRAFT', canLock: true, canCompute: false, canApprove: false, canPay: false, canCancel: true },
+      { status: 'LOCKED', canLock: false, canCompute: true, canApprove: false, canPay: false, canCancel: true },
+      { status: 'COMPUTING', canLock: false, canCompute: false, canApprove: false, canPay: false, canCancel: false },
+      { status: 'COMPUTED', canLock: false, canCompute: true, canApprove: true, canPay: false, canCancel: false },
+      { status: 'FAILED', canLock: false, canCompute: true, canApprove: false, canPay: false, canCancel: false },
+      { status: 'APPROVED', canLock: false, canCompute: false, canApprove: false, canPay: true, canCancel: true },
+      { status: 'PAID', canLock: false, canCompute: false, canApprove: false, canPay: false, canCancel: false },
+      { status: 'CANCELLED', canLock: false, canCompute: false, canApprove: false, canPay: false, canCancel: false },
     ];
 
     for (const s of statuses) {
@@ -82,10 +86,14 @@ describe('RunPage component (W-47.2 §7)', () => {
 
       const lockBtn = screen.getByRole('button', { name: /lock/i });
       const computeBtn = screen.getByRole('button', { name: /compute/i });
+      const approveBtn = screen.getByRole('button', { name: /approve/i });
+      const payBtn = screen.getByRole('button', { name: /pay$/i });
       const cancelBtn = screen.getByRole('button', { name: /cancel/i });
 
       expect(lockBtn.hasAttribute('disabled')).toBe(!s.canLock);
       expect(computeBtn.hasAttribute('disabled')).toBe(!s.canCompute);
+      expect(approveBtn.hasAttribute('disabled')).toBe(!s.canApprove);
+      expect(payBtn.hasAttribute('disabled')).toBe(!s.canPay);
       expect(cancelBtn.hasAttribute('disabled')).toBe(!s.canCancel);
 
       unmount();
@@ -173,5 +181,69 @@ describe('RunPage component (W-47.2 §7)', () => {
         screen.getByText('Pay run has already been locked by another session')
       ).toBeDefined();
     });
+  });
+
+  it('approves a COMPUTED run and re-reads it', async () => {
+    payrunService.get
+      .mockResolvedValueOnce({ id: 'run-ap', period: '2026-10', status: 'COMPUTED' })
+      .mockResolvedValueOnce({ id: 'run-ap', period: '2026-10', status: 'APPROVED' });
+    payrunService.approve.mockResolvedValueOnce({ id: 'run-ap', status: 'APPROVED' });
+
+    renderRunPage('run-ap');
+
+    fireEvent.click(await screen.findByRole('button', { name: /approve/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+
+    await waitFor(() => {
+      expect(payrunService.approve).toHaveBeenCalledWith('run-ap');
+      expect(payrunService.get).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('pays an APPROVED run with today as paid_on and reports the notifications', async () => {
+    const today = dayjs().format('YYYY-MM-DD');
+    payrunService.get
+      .mockResolvedValueOnce({ id: 'run-pay', period: '2026-10', status: 'APPROVED', period_start: '2000-01-01' })
+      .mockResolvedValueOnce({ id: 'run-pay', period: '2026-10', status: 'PAID', paid_on: today });
+    payrunService.pay.mockResolvedValueOnce({ id: 'run-pay', status: 'PAID', paid_on: today, notified: 2 });
+
+    renderRunPage('run-pay');
+
+    fireEvent.click(await screen.findByRole('button', { name: /pay$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark paid' }));
+
+    await waitFor(() => {
+      expect(payrunService.pay).toHaveBeenCalledWith('run-pay', today);
+      expect(screen.getByText(`Paid on ${today}. 2 payslip notification(s) sent.`)).toBeDefined();
+    });
+  });
+
+  it('keeps Approve and Pay disabled without their own actions, even with payroll.run.execute', async () => {
+    useCanModule.useCan.mockImplementation((code) => code === 'payroll.run.execute');
+
+    for (const status of ['COMPUTED', 'APPROVED']) {
+      payrunService.get.mockResolvedValueOnce({ id: `run-perm-${status}`, period: '2026-10', status });
+      const { unmount } = renderRunPage(`run-perm-${status}`);
+      await screen.findByText('Pay Run — 2026-10');
+
+      expect(screen.getByRole('button', { name: /approve/i }).hasAttribute('disabled')).toBe(true);
+      expect(screen.getByRole('button', { name: /pay$/i }).hasAttribute('disabled')).toBe(true);
+      unmount();
+    }
+  });
+});
+
+describe('isPaidOnAllowed (W-36.2 §4)', () => {
+  const run = { period_start: '2026-10-01' };
+
+  it('allows today and any day from the period start', () => {
+    expect(isPaidOnAllowed(dayjs(), { period_start: '2000-01-01' })).toBe(true);
+    expect(isPaidOnAllowed(dayjs('2026-10-01'), run)).toBe(true);
+  });
+
+  it('refuses a future day, a day before the period, and no day', () => {
+    expect(isPaidOnAllowed(dayjs().add(1, 'day'), { period_start: '2000-01-01' })).toBe(false);
+    expect(isPaidOnAllowed(dayjs('2026-09-30'), run)).toBe(false);
+    expect(isPaidOnAllowed(null, run)).toBe(false);
   });
 });

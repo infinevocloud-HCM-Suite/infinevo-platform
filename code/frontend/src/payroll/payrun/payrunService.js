@@ -2,8 +2,14 @@ import { apiClient } from '@shared/api/client.js';
 
 const BASE_PATH = '/v1/payroll/payruns';
 
+// Every payroll pay run endpoint answers `{ status, message, data }` (PayRunApiResponse,
+// CONVENTIONS.md §3); apiClient hands back the axios response, so the payload is two levels in.
+function unwrap(res) {
+  return res.data.data;
+}
+
 /**
- * Pay run API service (W-47.2 §5, W-29.1, W-29.2, W-29.4, W-30.2).
+ * Pay run API service (W-47.2 §5, W-29.1, W-29.2, W-29.4, W-30.2, W-36.2).
  * Every endpoint mapped 1-to-1 with backend controller contracts.
  */
 export const payrunService = {
@@ -17,7 +23,7 @@ export const payrunService = {
     if (runType && runType !== 'ALL') query.runType = runType;
 
     const res = await apiClient.get(BASE_PATH, { params: query });
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
@@ -25,7 +31,7 @@ export const payrunService = {
    */
   async get(id) {
     const res = await apiClient.get(`${BASE_PATH}/${id}`);
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
@@ -33,7 +39,7 @@ export const payrunService = {
    */
   async create(body) {
     const res = await apiClient.post(BASE_PATH, body);
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
@@ -46,7 +52,7 @@ export const payrunService = {
       notes: body.notes || '',
     };
     const res = await apiClient.post(`${BASE_PATH}/off-cycle`, payload);
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
@@ -58,7 +64,7 @@ export const payrunService = {
     if (inclusion && inclusion !== 'ALL') query.inclusion = inclusion;
 
     const res = await apiClient.get(`${BASE_PATH}/${id}/employees`, { params: query });
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
@@ -66,7 +72,7 @@ export const payrunService = {
    */
   async lines(id, employeeId) {
     const res = await apiClient.get(`${BASE_PATH}/${id}/employees/${employeeId}/lines`);
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
@@ -74,7 +80,7 @@ export const payrunService = {
    */
   async compute(id) {
     const res = await apiClient.post(`${BASE_PATH}/${id}/compute`);
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
@@ -82,15 +88,33 @@ export const payrunService = {
    */
   async lock(id) {
     const res = await apiClient.post(`${BASE_PATH}/${id}/lock`);
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
-   * Cancel a draft or locked run.
+   * Cancel a draft, locked or approved run. A paid run is never cancelled (W-36.2 §13 decision 9).
    */
   async cancel(id) {
     const res = await apiClient.post(`${BASE_PATH}/${id}/cancel`);
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
+  },
+
+  /**
+   * Approve a computed run (W-36.2): `COMPUTED → APPROVED`.
+   */
+  async approve(id) {
+    const res = await apiClient.post(`${BASE_PATH}/${id}/approve`);
+    return unwrap(res);
+  },
+
+  /**
+   * Pay an approved run and release its payslips (W-36.2): `APPROVED → PAID`.
+   * @param {string} id Payrun ID
+   * @param {string} paidOn `YYYY-MM-DD`, not in the future and not before the period start
+   */
+  async pay(id, paidOn) {
+    const res = await apiClient.post(`${BASE_PATH}/${id}/pay`, { paid_on: paidOn });
+    return unwrap(res);
   },
 
   /**
@@ -106,7 +130,7 @@ export const payrunService = {
       sourceRef: r.sourceRef || r.source_ref,
     }));
     const res = await apiClient.post(`${BASE_PATH}/${id}/inputs`, payload);
-    return res?.data !== undefined ? res.data : res;
+    return unwrap(res);
   },
 
   /**
