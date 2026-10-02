@@ -99,6 +99,15 @@ export function OffCycleCreate() {
     }
   };
 
+  // The chosen employees as options, from every search so far, not only the latest one.
+  const selectedOptions = selectedEmployees.map(
+    (id) => knownEmployees.current.get(id) || { value: id, label: id }
+  );
+  const pickerOptions = [
+    ...selectedOptions,
+    ...employeeOptions.filter((o) => !selectedEmployees.includes(o.value)),
+  ];
+
   useEffect(() => {
     searchEmployees('');
   }, []);
@@ -241,9 +250,7 @@ export function OffCycleCreate() {
         <Select
           value={val}
           onChange={(v) => handleRowChange(record.key, 'employeeId', v)}
-          options={employeeOptions.filter(
-            (o) => selectedEmployees.length === 0 || selectedEmployees.includes(o.value)
-          )}
+          options={selectedEmployees.length === 0 ? employeeOptions : selectedOptions}
           style={{ width: '100%' }}
           placeholder="Select employee"
         />
@@ -401,7 +408,7 @@ export function OffCycleCreate() {
                     mode="multiple"
                     value={selectedEmployees}
                     onChange={setSelectedEmployees}
-                    options={employeeOptions}
+                    options={pickerOptions}
                     onSearch={searchEmployees}
                     filterOption={false}
                     loading={searching}

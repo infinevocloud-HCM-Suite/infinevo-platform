@@ -124,6 +124,47 @@ describe('OffCycleCreate component (W-47.2 §7)', () => {
     });
   });
 
+  // Text on screen, leaving out antd's hidden accessibility list, which always holds raw values.
+  const shownIds = (id) =>
+    screen.queryAllByText(id).filter((el) => el.getAttribute('role') !== 'option');
+
+  it('names an employee picked in an earlier search, not their id (F-1)', async () => {
+    payrunService.searchEmployees.mockReset();
+    payrunService.searchEmployees.mockImplementation(async (q) =>
+      q === 'Bob' ? [mockEmployees[1]] : [mockEmployees[0]]
+    );
+    payrunService.createOffCycle.mockResolvedValueOnce({
+      id: 'run-off-1',
+      period: '2026-10',
+      run_type: 'OFF_CYCLE',
+    });
+    render(
+      <MemoryRouter>
+        <OffCycleCreate />
+      </MemoryRouter>
+    );
+
+    const dateInput = screen.getByPlaceholderText('Select payment date');
+    fireEvent.change(dateInput, { target: { value: '2026-10-25' } });
+    fireEvent.keyDown(dateInput, { key: 'Enter' });
+
+    const select = screen.getByRole('combobox');
+    fireEvent.mouseDown(select);
+    fireEvent.click(await screen.findByText('E01 — Alice Smith'));
+    fireEvent.change(select, { target: { value: 'Bob' } });
+    fireEvent.click(await screen.findByText('E02 — Bob Jones'));
+
+    // Alice is no longer in the search results, but her tag keeps her name.
+    expect(shownIds(ALICE)).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: /create run & enter inputs/i }));
+    await screen.findByText(/Step 2: Tagged Inputs for Run 2026-10/i);
+
+    expect(screen.getAllByText('E01 — Alice Smith').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('E02 — Bob Jones').length).toBeGreaterThan(0);
+    expect(shownIds(ALICE)).toHaveLength(0);
+  });
+
   it('names nothing as a bonus (W-47.2 §14 decision 5)', () => {
     const { container } = render(
       <MemoryRouter>
