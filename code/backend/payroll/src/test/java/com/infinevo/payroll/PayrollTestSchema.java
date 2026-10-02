@@ -125,8 +125,17 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "reference", "state")) {
                 executeResource(conn, "db/migration/reference/V003__reference_lookups.sql");
             }
+            if (!tableExists(conn, "core", "department")) {
+                executeResource(conn, "db/migration/core/V011__department.sql");
+            }
+            if (!tableExists(conn, "core", "designation")) {
+                executeResource(conn, "db/migration/core/V012__designation.sql");
+            }
             if (!tableExists(conn, "core", "work_location")) {
                 executeResource(conn, "db/migration/core/V013__work_location.sql");
+            }
+            if (!columnExists(conn, "core", "employee", "department_id")) {
+                executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
             }
             if (!tableExists(conn, "reference", "pt_state")) {
                 executeResource(conn, "db/migration/reference/V064__pt_state_and_slab.sql");
@@ -309,9 +318,6 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "core", "attendance")) {
                 st.execute("DELETE FROM core.attendance");
             }
-            if (tableExists(conn, "core", "work_location")) {
-                st.execute("DELETE FROM core.work_location");
-            }
             if (tableExists(conn, "core", "employee_personal")) {
                 st.execute("DELETE FROM core.employee_personal");
             }
@@ -332,6 +338,15 @@ public final class PayrollTestSchema {
                 st.execute("DELETE FROM core.employee_bank");
             }
             st.execute("DELETE FROM core.employee");
+            if (tableExists(conn, "core", "work_location")) {
+                st.execute("DELETE FROM core.work_location");
+            }
+            if (tableExists(conn, "core", "department")) {
+                st.execute("DELETE FROM core.department");
+            }
+            if (tableExists(conn, "core", "designation")) {
+                st.execute("DELETE FROM core.designation");
+            }
         }
         PayrollTestApp.TEST_DOCUMENTS.clear();
         PayrollTestApp.TEST_DOCUMENT_CONTENTS.clear();
