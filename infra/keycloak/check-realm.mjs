@@ -77,6 +77,15 @@ function scanObject(obj, path = '') {
 
 scanObject(realm);
 
+// 3b. Every smtpServer credential and address is an env placeholder, never a literal:
+// the SMTP password is the secret this realm carries (from Key Vault at run time).
+for (const field of ['host', 'port', 'from', 'user', 'password']) {
+  const value = realm.smtpServer?.[field];
+  if (typeof value !== 'string' || !/^\$\{[A-Z0-9_]+\}$/.test(value)) {
+    errors.push(`'smtpServer.${field}' must be a \${ENV_VAR} placeholder, got '${field === 'password' ? '<redacted>' : value}'.`);
+  }
+}
+
 // 4. Client check
 const webClient = realm.clients?.find(c => c.clientId === 'infinevo-web');
 if (!webClient) {

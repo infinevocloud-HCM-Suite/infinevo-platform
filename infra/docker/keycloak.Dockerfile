@@ -89,5 +89,11 @@ USER 1000
 # HTTP port (8080) and Management/health port (9000)
 EXPOSE 8080 9000
 
-ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+# Start-up guard (W-10.1 spec section 4 row 3). Keycloak leaves an unresolved ${VAR} in
+# an imported realm as literal text, and imports the realm only once, so a first start
+# without these variables would store "${KC_WEB_ORIGIN}/*" as the redirect URI for good.
+# Refuse instead. deploy.yml sets KC_WEB_ORIGIN; containerapps.bicep sets the KC_SMTP_*.
+# A Bicep deployment replaces the env list, so after one Keycloak stays down until the
+# pipeline's revision step runs again - loud, rather than a silently broken realm.
+ENTRYPOINT ["/bin/sh", "-c", "for v in KC_WEB_ORIGIN KC_SMTP_HOST KC_SMTP_PORT KC_SMTP_FROM KC_SMTP_USER KC_SMTP_PASSWORD; do [ -n \"$(printenv \"$v\")\" ] || { echo \"refusing to start: $v is not set; the infinevo realm would import it as literal text (W-10.1)\" >&2; exit 1; }; done; exec /opt/keycloak/bin/kc.sh \"$@\"", "kc"]
 CMD ["start", "--optimized", "--import-realm"]

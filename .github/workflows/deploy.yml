@@ -648,7 +648,7 @@ jobs:
       #   INFINEVO_ROLE=app|worker                   infra/docker/backend-entrypoint.sh:12-33
       #   API_BASE_URL, KEYCLOAK_URL,
       #   KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID          infra/docker/frontend-entrypoint.sh:29-32
-      #   realm infinevo, client infinevo-web         infra/docker/keycloak/dev-realm.json:2,31
+      #   realm infinevo, client infinevo-web         infra/keycloak/infinevo-realm.json
       # and the paths against the Front Door routes: /api/* -> app, /auth/* -> keycloak
       # (infra/azure/modules/frontdoor.bicep:348,378).
       - name: Create the new revisions at 0% traffic

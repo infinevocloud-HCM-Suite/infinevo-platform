@@ -88,8 +88,8 @@ param containerAppTrafficRevisions object = {}
 @description('Primary on-call notification email address (W-61: kmohapatra@infinevocloud.com)')
 param alertEmail string = 'kmohapatra@infinevocloud.com'
 
-@description('Brevo SMTP login / username for Keycloak email delivery (W-10.1)')
-param brevoSmtpLogin string = 'apikey'
+@description('Brevo SMTP login for Keycloak mail (W-10.1): the account login shown under Brevo > SMTP & API > SMTP, not an API key name. No default, so every parameter file must state it')
+param brevoSmtpLogin string
 
 // ── Networking (W-51) ────────────────────────────────────────────────────────
 @description('VNet address space, 10.{octet}.0.0/16 - dev 10.10, uat 10.20, prod 10.30')

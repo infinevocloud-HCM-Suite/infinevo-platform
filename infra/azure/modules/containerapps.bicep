@@ -55,8 +55,8 @@ param postgresDatabase string = 'infinevo'
 @description('Blob service endpoint of the environment storage account, e.g. https://stinfinevodev.blob.core.windows.net/. The document store (W-21) reaches it with the container app managed identity - W-51 forbids account keys - and it resolves to the private endpoint through the privatelink zone. Empty leaves the store unconfigured: uploads answer 503.')
 param blobEndpoint string = ''
 
-@description('Brevo SMTP login / username for Keycloak email delivery (W-10.1)')
-param brevoSmtpLogin string = 'apikey'
+@description('Brevo SMTP login for Keycloak mail (W-10.1): the account login shown under Brevo > SMTP & API > SMTP, not an API key name. No default, so every parameter file must state it')
+param brevoSmtpLogin string
 
 // Origin protection (W-51 section 2.5). Front Door Standard has no Private Link origin and
 // Container Apps ingress has no header-matching rule, so ipSecurityRestrictions is the only

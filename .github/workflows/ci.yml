@@ -621,18 +621,14 @@ jobs:
             fi
 
             # 8c - the production realm (infinevo-realm.json) MUST be in the Keycloak
-            # image (W-10.1 bakes it). The dev realm must NEVER ship. Any other
-            # unexpected file is also rejected.
+            # image (W-10.1 bakes it) and MUST be the only file there: the dev realm,
+            # under any name, must never ship.
             if [ "$img" = "infinevo-keycloak:test" ]; then
               IMPORT_FILES=$(docker run --rm --entrypoint sh "$img" \
                    -c 'ls -A /opt/keycloak/data/import/ 2>/dev/null' || true)
-              if echo "$IMPORT_FILES" | grep -q 'dev-realm'; then
-                echo "::error::dev realm found in $img import directory — the dev realm must never ship"
-                docker run --rm --entrypoint ls "$img" -la /opt/keycloak/data/import/
-                exit 1
-              fi
-              if ! echo "$IMPORT_FILES" | grep -q 'infinevo-realm.json'; then
-                echo "::error::production realm (infinevo-realm.json) missing from $img import directory (W-10.1)"
+              if [ "$IMPORT_FILES" != "infinevo-realm.json" ]; then
+                echo "::error::$img import directory must hold exactly infinevo-realm.json (W-10.1), found: ${IMPORT_FILES:-nothing}"
+                docker run --rm --entrypoint ls "$img" -la /opt/keycloak/data/import/ || true
                 exit 1
               fi
             fi

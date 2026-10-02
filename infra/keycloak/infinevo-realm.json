@@ -74,7 +74,8 @@
         "${KC_WEB_ORIGIN}"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "${KC_WEB_ORIGIN}/*"
+        "post.logout.redirect.uris": "${KC_WEB_ORIGIN}/*",
+        "pkce.code.challenge.method": "S256"
       },
       "protocolMappers": [
         {
