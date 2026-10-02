@@ -125,6 +125,10 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
             if (tableExists(conn, "user_account")) {
                 conn.createStatement().execute("DELETE FROM core.user_account");
             }
+            if (tableExists(conn, "audit_log")) {
+                conn.createStatement().execute("DELETE FROM core.audit_log");
+            }
+
             // No blanket DELETE FROM core.tenant: tenants provisioned by other classes (LopPolicySeedIT,
             // TenantCreationIT) carry subscription and policy rows this class does not know about.
             // The two tenants are only foreign-key targets here, so keeping them is enough.

@@ -14,6 +14,7 @@
   <description>Web role. Serves HTTP. Runs no scheduled job and consumes no queue - that is the worker.</description>
 
   <dependencies>
+    <dependency><groupId>com.infinevo</groupId><artifactId>shared</artifactId></dependency>
     <dependency><groupId>com.infinevo</groupId><artifactId>core</artifactId></dependency>
     <dependency><groupId>com.infinevo</groupId><artifactId>hrms</artifactId></dependency>
     <dependency><groupId>com.infinevo</groupId><artifactId>payroll</artifactId></dependency>
