@@ -58,6 +58,11 @@ public class SetupChecklistTestApp {
     }
 
     @Bean
+    SetupStepChecker priorPayrollChecker() {
+        return stubChecker("PRIOR_PAYROLL");
+    }
+
+    @Bean
     SetupStepChecker salaryComponentsChecker() {
         return stubChecker("SALARY_COMPONENTS");
     }

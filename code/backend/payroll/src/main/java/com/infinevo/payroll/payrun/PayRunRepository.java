@@ -43,4 +43,8 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
             @Param("excludedStatus") PayRunStatus excludedStatus,
             @Param("fromPeriod") String fromPeriod,
             @Param("toPeriod") String toPeriod);
+
+    /** The tenant's earliest run of a type, ignoring one status (W-38.3 §3: first regular run not cancelled). */
+    Optional<PayRun> findFirstByTenantIdAndRunTypeAndStatusNotOrderByPeriodAsc(
+            UUID tenantId, PayRunType runType, PayRunStatus status);
 }

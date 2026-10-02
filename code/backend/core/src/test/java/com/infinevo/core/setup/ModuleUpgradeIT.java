@@ -207,7 +207,7 @@ class ModuleUpgradeIT extends AbstractIntegrationTest {
                     .allMatch(r -> r.getCompletedAt() != null);
             assertThat(rows)
                     .filteredOn(r -> r.getModule() == PlatformModule.PAYROLL)
-                    .hasSize(5)
+                    .hasSize(6)
                     .allMatch(r -> r.getCompletedAt() == null);
         } finally {
             TenantContext.clear();

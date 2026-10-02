@@ -5,9 +5,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.setup.TenantSetupStep;
+import com.infinevo.core.setup.TenantSetupStepRepository;
 import com.infinevo.payroll.payrun.PayRunRepository;
 import com.infinevo.payroll.payrun.PayRunStatus;
 import com.infinevo.payroll.payrun.PayRunType;
+import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
 import java.time.Instant;
@@ -20,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * W-38.1 §7: Unit test for PriorPayrollService status endpoint.
@@ -38,8 +42,16 @@ class PriorPayrollStatusTest {
     private PriorPayrollMonthRepository monthRepository;
     private PayRunRepository payRunRepository;
     private EmployeeRepository employeeRepository;
+    private TenantSetupStepRepository setupStepRepository;
     private PriorPayrollRowValidator rowValidator;
     private PriorPayrollServiceImpl service;
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<TenantSetupStepRepository> provider(TenantSetupStepRepository repo) {
+        ObjectProvider<TenantSetupStepRepository> p = mock(ObjectProvider.class);
+        when(p.getIfAvailable()).thenReturn(repo);
+        return p;
+    }
 
     @BeforeEach
     void setUp() {
@@ -47,10 +59,12 @@ class PriorPayrollStatusTest {
         monthRepository = mock(PriorPayrollMonthRepository.class);
         payRunRepository = mock(PayRunRepository.class);
         employeeRepository = mock(EmployeeRepository.class);
+        setupStepRepository = mock(TenantSetupStepRepository.class);
 
         Clock clock = Clock.fixed(OCT_15_2026, ZoneOffset.UTC);
         rowValidator = new PriorPayrollRowValidator(employeeRepository, payRunRepository, null, clock);
-        service = new PriorPayrollServiceImpl(monthRepository, employeeRepository, payRunRepository, rowValidator);
+        service = new PriorPayrollServiceImpl(
+                monthRepository, employeeRepository, payRunRepository, rowValidator, provider(setupStepRepository));
     }
 
     @AfterEach
@@ -73,6 +87,7 @@ class PriorPayrollStatusTest {
         assertThat(response.firstRegularRunPeriod()).isEqualTo("2026-10");
         assertThat(response.importedPeriods()).containsExactly("2026-04", "2026-05", "2026-06", "2026-07");
         assertThat(response.missingPeriods()).containsExactly("2026-08", "2026-09");
+        assertThat(response.setupStepSkipped()).isFalse();
     }
 
     @Test
@@ -90,6 +105,7 @@ class PriorPayrollStatusTest {
         assertThat(response.firstRegularRunPeriod()).isEqualTo("2026-04");
         assertThat(response.importedPeriods()).isEmpty();
         assertThat(response.missingPeriods()).isEmpty();
+        assertThat(response.setupStepSkipped()).isFalse();
     }
 
     @Test
@@ -109,5 +125,43 @@ class PriorPayrollStatusTest {
         assertThat(response.importedPeriods()).containsExactly("2026-04", "2026-05");
         // 04-09 less 04 and 05 => 06, 07, 08, 09
         assertThat(response.missingPeriods()).containsExactly("2026-06", "2026-07", "2026-08", "2026-09");
+        assertThat(response.setupStepSkipped()).isFalse();
+    }
+
+    @Test
+    @DisplayName("a skipped PRIOR_PAYROLL row reports setup_step_skipped")
+    void skippedPriorPayrollRowReportsSetupStepSkipped() {
+        TenantSetupStep step =
+                new TenantSetupStep(TENANT_ID, "PRIOR_PAYROLL", PlatformModule.PAYROLL, 4, Instant.now());
+        step.setSkipped(true);
+        when(setupStepRepository.findByTenantIdAndStepCode(TENANT_ID, "PRIOR_PAYROLL"))
+                .thenReturn(Optional.of(step));
+
+        when(monthRepository.findDistinctPeriods(TENANT_ID, "2026-04", "2027-03"))
+                .thenReturn(List.of());
+        when(payRunRepository.findEarliestPeriod(
+                        TENANT_ID, PayRunType.REGULAR, PayRunStatus.CANCELLED, "2026-04", "2027-03"))
+                .thenReturn(Optional.of("2026-04"));
+
+        PriorPayrollStatusResponse response = service.status(FY);
+
+        assertThat(response.setupStepSkipped()).isTrue();
+    }
+
+    @Test
+    @DisplayName("no setup-step repository in the context reports false")
+    void noSetupStepRepositoryReportsFalse() {
+        PriorPayrollServiceImpl serviceWithoutRepo = new PriorPayrollServiceImpl(
+                monthRepository, employeeRepository, payRunRepository, rowValidator, provider(null));
+
+        when(monthRepository.findDistinctPeriods(TENANT_ID, "2026-04", "2027-03"))
+                .thenReturn(List.of());
+        when(payRunRepository.findEarliestPeriod(
+                        TENANT_ID, PayRunType.REGULAR, PayRunStatus.CANCELLED, "2026-04", "2027-03"))
+                .thenReturn(Optional.of("2026-04"));
+
+        PriorPayrollStatusResponse response = serviceWithoutRepo.status(FY);
+
+        assertThat(response.setupStepSkipped()).isFalse();
     }
 }

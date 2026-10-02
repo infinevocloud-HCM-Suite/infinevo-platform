@@ -145,6 +145,10 @@ public final class PayrollTestSchema {
             if (!columnExists(conn, "core", "employee", "user_account_id")) {
                 executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
             }
+            // W-38.3: the status reads core.tenant_setup_step (V035, needs only core.tenant).
+            if (!tableExists(conn, "core", "tenant_setup_step")) {
+                executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
+            }
             if (!tableExists(conn, "reference", "pt_state")) {
                 executeResource(conn, "db/migration/reference/V064__pt_state_and_slab.sql");
             }
@@ -265,6 +269,9 @@ public final class PayrollTestSchema {
     public static void cleanTables() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement st = conn.createStatement()) {
+            if (tableExists(conn, "core", "tenant_setup_step")) {
+                st.execute("DELETE FROM core.tenant_setup_step");
+            }
             st.execute(
                     "TRUNCATE TABLE payroll.employee_fbp_component, payroll.fbp, payroll.ctc_structure, payroll.employee_statutory_profile, "
                             + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");

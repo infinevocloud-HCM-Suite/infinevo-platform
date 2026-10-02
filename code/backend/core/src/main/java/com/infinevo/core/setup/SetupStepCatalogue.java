@@ -17,14 +17,12 @@ import java.util.Set;
  * would let the two disagree. Holds ordering and display metadata; actual completion
  * logic is supplied by {@link SetupStepChecker} implementations.
  *
- * <p><strong>Prior payroll and organisation tax are not listed yet.</strong> The frozen model
- * carried both as flags ({@code OrgSetupSteps.java:15-23}), but neither feature exists on the
- * new platform: prior payroll import is {@code W-38} and has no table
- * ({@code 02-data-model.md} {@code PAY-17}), and the organisation's tax deductor details are
+ * <p><strong>Organisation tax is not listed yet.</strong> The frozen model carried it as a flag
+ * ({@code OrgSetupSteps.java:15-23}), but the organisation's tax deductor details are
  * {@code W-36.3} ({@code payroll.tax_deductor}, not yet migrated). A step whose checker has
- * nothing to look at could never complete, so each returns with its owning ticket. Display
- * orders 4 and 5 are kept free for them; adding them later does not drop an existing tenant's
- * progress (spec §13 decision 1, {@link SetupChecklistService}).
+ * nothing to look at could never complete, so it returns with its owning ticket. Display order 5
+ * is kept free for it; adding it later does not drop an existing tenant's progress (spec §13
+ * decision 1, {@link SetupChecklistService}). Prior payroll (order 4) arrived with {@code W-38.3}.
  */
 public final class SetupStepCatalogue {
 
@@ -34,6 +32,7 @@ public final class SetupStepCatalogue {
             new StepDefinition("WORK_LOCATION", "Work location", null, 1),
             new StepDefinition("EMPLOYEE", "Employee", null, 2),
             new StepDefinition("PAY_SCHEDULE", "Pay schedule", PlatformModule.PAYROLL, 3),
+            new StepDefinition("PRIOR_PAYROLL", "Prior payroll", PlatformModule.PAYROLL, 4),
             new StepDefinition("SALARY_COMPONENTS", "Salary components", PlatformModule.PAYROLL, 6),
             new StepDefinition("EPF", "EPF", PlatformModule.PAYROLL, 7),
             new StepDefinition("ESI", "ESI", PlatformModule.PAYROLL, 8),

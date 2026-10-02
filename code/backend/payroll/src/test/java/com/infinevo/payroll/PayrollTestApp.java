@@ -47,6 +47,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 // core.employee entities only (no repositories, no beans): W-34.3's chase query joins
 // EmployeeInvestmentDeclaration to Employee. The real application and worker scan all of com.infinevo,
 // so the entity is there in production; this test application's scan is narrower on purpose.
+// core.setup entity and repository only: W-38.3's status reads the tenant's PRIOR_PAYROLL row.
 @EntityScan(
         basePackages = {
             "com.infinevo.payroll",
@@ -55,7 +56,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.lop",
             "com.infinevo.core.job",
             "com.infinevo.core.employee",
-            "com.infinevo.core.org"
+            "com.infinevo.core.org",
+            "com.infinevo.core.setup"
         })
 @EnableJpaRepositories(
         basePackages = {
@@ -64,7 +66,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.payinput",
             "com.infinevo.core.lop",
             "com.infinevo.core.job",
-            "com.infinevo.core.employee"
+            "com.infinevo.core.employee",
+            "com.infinevo.core.setup"
         })
 public class PayrollTestApp {
 

@@ -212,7 +212,7 @@ class PriorPayrollGuardIT {
         when(priorPayrollService.months(any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(), org.springframework.data.domain.PageRequest.of(0, 10), 0));
         when(priorPayrollService.status("2026-2027"))
-                .thenReturn(new PriorPayrollStatusResponse("2026-2027", null, List.of(), List.of()));
+                .thenReturn(new PriorPayrollStatusResponse("2026-2027", null, List.of(), List.of(), false));
 
         mvc.perform(get("/api/v1/payroll/prior-payroll-imports/" + id)).andExpect(status().isOk());
         mvc.perform(get("/api/v1/payroll/prior-payroll-imports")).andExpect(status().isOk());

@@ -2,6 +2,8 @@ package com.infinevo.payroll.priorpayroll;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.setup.TenantSetupStep;
+import com.infinevo.core.setup.TenantSetupStepRepository;
 import com.infinevo.payroll.payrun.PayRunRepository;
 import com.infinevo.payroll.payrun.PayRunStatus;
 import com.infinevo.payroll.payrun.PayRunType;
@@ -16,6 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,20 +30,25 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PriorPayrollServiceImpl implements PriorPayrollService {
 
+    static final String SETUP_STEP_CODE = "PRIOR_PAYROLL";
+
     private final PriorPayrollMonthRepository monthRepository;
     private final EmployeeRepository employeeRepository;
     private final PayRunRepository payRunRepository;
     private final PriorPayrollRowValidator rowValidator;
+    private final ObjectProvider<TenantSetupStepRepository> setupSteps;
 
     public PriorPayrollServiceImpl(
             PriorPayrollMonthRepository monthRepository,
             EmployeeRepository employeeRepository,
             PayRunRepository payRunRepository,
-            PriorPayrollRowValidator rowValidator) {
+            PriorPayrollRowValidator rowValidator,
+            ObjectProvider<TenantSetupStepRepository> setupSteps) {
         this.monthRepository = Objects.requireNonNull(monthRepository, "monthRepository must not be null");
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
         this.payRunRepository = Objects.requireNonNull(payRunRepository, "payRunRepository must not be null");
         this.rowValidator = Objects.requireNonNull(rowValidator, "rowValidator must not be null");
+        this.setupSteps = Objects.requireNonNull(setupSteps, "setupSteps must not be null");
     }
 
     @Override
@@ -121,8 +129,16 @@ public class PriorPayrollServiceImpl implements PriorPayrollService {
             }
         }
 
+        // W-38.3: read-only on purpose — SetupChecklistService.getChecklist writes, and this is a
+        // read-only transaction. No row yet (the checklist was never opened) means not skipped.
+        TenantSetupStepRepository steps = setupSteps.getIfAvailable();
+        boolean setupStepSkipped = steps != null
+                && steps.findByTenantIdAndStepCode(tenantId, SETUP_STEP_CODE)
+                        .map(TenantSetupStep::isSkipped)
+                        .orElse(false);
+
         return new PriorPayrollStatusResponse(
-                financialYear, firstRegularRunOpt.orElse(null), importedPeriods, missingPeriods);
+                financialYear, firstRegularRunOpt.orElse(null), importedPeriods, missingPeriods, setupStepSkipped);
     }
 
     @Override
