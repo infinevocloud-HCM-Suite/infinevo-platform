@@ -15,6 +15,7 @@ import { MyLeave } from './panels/MyLeave.jsx';
 import { MyDocuments } from './panels/MyDocuments.jsx';
 import { MyPayslips } from './panels/MyPayslips.jsx';
 import { MyTimesheet } from './panels/MyTimesheet.jsx';
+import { leaveActions, profileActions } from '../../core/portal/index.js';
 
 const { Title, Text } = Typography;
 
@@ -146,7 +147,11 @@ export function PortalLayout() {
       ),
       children: Component ? (
         <div style={{ marginTop: token.marginMD }}>
-          <Component panel={panel} />
+          <Component
+            panel={panel}
+            actions={panel.code === 'leave' ? leaveActions : panel.code === 'profile' ? profileActions : null}
+            onNavigate={navigate}
+          />
         </div>
       ) : (
         <Empty description="Panel component not found" />

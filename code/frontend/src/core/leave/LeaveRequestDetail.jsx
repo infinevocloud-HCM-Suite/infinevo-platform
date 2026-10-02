@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import PropTypes from 'prop-types';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Card,
   Descriptions,
@@ -35,9 +36,10 @@ const STATUS_TAGS = {
   CANCELLED: { color: 'purple', label: 'Cancelled' },
 };
 
-export function LeaveRequestDetail() {
+export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const canManage = useCan('core.leave.manage');
 
   const [loading, setLoading] = useState(false);
@@ -143,8 +145,12 @@ export function LeaveRequestDetail() {
   }
 
   const statusConfig = STATUS_TAGS[request.status] || { color: 'default', label: request.status };
-  const canWithdraw = canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED');
-  const canCancel = canManage && request.status === 'APPROVED';
+  const isPortal = location.pathname.startsWith('/me');
+  const isReadOnly = readOnly || isPortal;
+  const effectiveBackPath = backPath || (isPortal ? '/me/leave' : '/leave/requests');
+
+  const canWithdraw = !isReadOnly && canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED');
+  const canCancel = !isReadOnly && canManage && request.status === 'APPROVED';
 
   return (
     <Card style={{ margin: 24, maxWidth: 900 }}>
@@ -152,7 +158,7 @@ export function LeaveRequestDetail() {
         <Row justify="space-between" align="middle">
           <Col>
             <Space align="center">
-              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/leave/requests')}>
+              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(effectiveBackPath)}>
                 Back
               </Button>
               <Title level={4} style={{ margin: 0 }}>
@@ -299,3 +305,8 @@ export function LeaveRequestDetail() {
     </Card>
   );
 }
+
+LeaveRequestDetail.propTypes = {
+  readOnly: PropTypes.bool,
+  backPath: PropTypes.string,
+};

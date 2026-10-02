@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import { Card, Table, Tag, Statistic, Row, Col, Skeleton, Result, Button, Typography, Space, theme } from 'antd';
-import { CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { CalendarOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 
 const { Text } = Typography;
 
-export function MyLeave() {
+export function MyLeave({ actions, onNavigate }) {
   const [requests, setRequests] = useState([]);
   const [balances, setBalances] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -162,18 +163,54 @@ export function MyLeave() {
             <span>My Leave Requests</span>
           </Space>
         }
+        extra={
+          actions?.ApplyLeave ? (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                if (onNavigate) {
+                  onNavigate('/me/leave/apply');
+                } else if (typeof window !== 'undefined') {
+                  window.location.href = '/me/leave/apply';
+                }
+              }}
+              id="btn-apply-leave"
+            >
+              Apply for Leave
+            </Button>
+          ) : null
+        }
         style={{ borderRadius: token.borderRadiusLG }}
       >
-        <Table
-          dataSource={requests}
-          columns={columns}
-          rowKey={(r, index) => r.id || index}
-          pagination={{ pageSize: 10 }}
-          locale={{ emptyText: 'No leave requests submitted yet.' }}
-        />
+        {actions?.MyRequests ? (
+          <actions.MyRequests
+            requests={requests.map((r) => ({
+              ...r,
+              leaveTypeName: r.leaveTypeName || leaveTypeNames.get(r.leaveTypeId),
+            }))}
+            onRefresh={fetchLeaveData}
+          />
+        ) : (
+          <Table
+            dataSource={requests}
+            columns={columns}
+            rowKey={(r, index) => r.id || index}
+            pagination={{ pageSize: 10 }}
+            locale={{ emptyText: 'No leave requests submitted yet.' }}
+          />
+        )}
       </Card>
     </Space>
   );
 }
+
+MyLeave.propTypes = {
+  actions: PropTypes.shape({
+    ApplyLeave: PropTypes.elementType,
+    MyRequests: PropTypes.elementType,
+  }),
+  onNavigate: PropTypes.func,
+};
 
 export default MyLeave;

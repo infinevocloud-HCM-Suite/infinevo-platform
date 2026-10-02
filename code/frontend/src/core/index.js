@@ -84,6 +84,9 @@ const EmployeeLeave = lazy(() =>
 const LeaveImport = lazy(() =>
   import('./leave/LeaveImport.jsx').then((m) => ({ default: m.LeaveImport }))
 );
+const ApplyLeave = lazy(() =>
+  import('./portal/ApplyLeave.jsx').then((m) => ({ default: m.ApplyLeave }))
+);
 
 // Employee, leave, holidays, organisation setup, approvals. Available to every tenant.
 // Screens and slices land here as their work items are built.
@@ -115,6 +118,8 @@ export const routes = [
   { path: '/leave/requests/:id', element: React.createElement(LeaveRequestDetail) },
   { path: '/leave/employees/:id', element: React.createElement(EmployeeLeave) },
   { path: '/leave/import', element: React.createElement(LeaveImport) },
+  { path: '/me/leave/apply', element: React.createElement(ApplyLeave) },
+  { path: '/me/leave/requests/:id', element: React.createElement(LeaveRequestDetail, { readOnly: true }) },
 ];
 
 export const publicRoutes = [
@@ -126,3 +131,5 @@ export const reducers = {
   approvals: approvalReducer,
   leave: leaveReducer,
 };
+
+export * from './portal/index.js';

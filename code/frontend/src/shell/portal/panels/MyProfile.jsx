@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import { Card, Descriptions, Tag, Skeleton, Result, Button, Avatar, Space, Typography, theme } from 'antd';
 import { UserOutlined, MailOutlined, PhoneOutlined, CalendarOutlined, IdcardOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 
 const { Title, Text } = Typography;
 
-export function MyProfile() {
+export function MyProfile({ actions }) {
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -116,8 +117,18 @@ export function MyProfile() {
           </Descriptions.Item>
         </Descriptions>
       </Card>
+
+      {actions?.EditOwnSection ? (
+        <actions.EditOwnSection employeeId={employee.id} />
+      ) : actions ? (
+        <div>{typeof actions === 'function' ? actions({ employee, refresh: fetchProfile }) : actions}</div>
+      ) : null}
     </Space>
   );
 }
+
+MyProfile.propTypes = {
+  actions: PropTypes.oneOfType([PropTypes.object, PropTypes.node, PropTypes.func]),
+};
 
 export default MyProfile;

@@ -10,10 +10,12 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 const { Text } = Typography;
 
-export function SectionTab({ employeeId, sectionName }) {
+export function SectionTab({ employeeId, sectionName, canEdit, permissionOverride }) {
   const { token } = theme.useToken();
   const config = sectionFields[sectionName] || { fields: [], permission: 'core.employee.update' };
-  const canUpdate = useCan(config.permission);
+  const permToCheck = permissionOverride || config.permission;
+  const hasPermission = useCan(permToCheck);
+  const canUpdate = canEdit !== undefined ? canEdit : hasPermission;
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -205,4 +207,6 @@ export function SectionTab({ employeeId, sectionName }) {
 SectionTab.propTypes = {
   employeeId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   sectionName: PropTypes.string.isRequired,
+  canEdit: PropTypes.bool,
+  permissionOverride: PropTypes.string,
 };
