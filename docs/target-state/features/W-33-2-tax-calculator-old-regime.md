@@ -69,7 +69,7 @@ All citations are `legacy/Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/se
 | 7 | `grossTotalIncome = max(0, incomeFromSalary + houseProperty + otherIncome)` | | |
 | 8 | **Chapter VI-A** (§ 3b): per item `min(Σ rows, item.max_limit)`, then per `category_group_code` `min(Σ items, groupCap)`; **80TTA/80TTB** on interest: `GENERAL` ⇒ `min(SAVINGS_INTEREST, 80TTA.max_limit)`; `SENIOR`/`SUPER_SENIOR` ⇒ `min(SAVINGS_INTEREST + FD_INTEREST, 80TTB.max_limit)`; **80EE/80EEA**: interest above the 24(b) cap, `min(excess, rule.max_limit)`, only when `is_first_time_buyer` and `loan_sanctioned_on` in `[loan_sanction_from, loan_sanction_to]`; `chapterVia = min(Σ, grossTotalIncome)` | `section6a_item_master` via `Section6AItemReader.groupCap` (`W-32-3-…md:100`) · `other_income_rule_master (fy, section_code)` · `home_loan_rule_master (fy, '80EE'/'80EEA')` | `:880-960`, `:2617-2618` |
 | 9 | `taxableIncome = grossTotalIncome − chapterVia`, rounded down to the rupee | | |
-| 10 | Slabs by `(fy, OLD, input.ageCategory)`, then rebate, surcharge with marginal relief, cess, minus previous-employer TDS — **`.1`'s functions unchanged** | `tax_slab_master` + `V027` rows · `section87a_rebate_rule_master (fy, OLD)` — 12,500 up to 5,00,000 · surcharge `OLD` top band 37 % | `.1` § 3 steps 4–8 |
+| 10 | Slabs by `(fy, OLD, input.ageCategory)`, then rebate, surcharge (no marginal relief — `.1` § 13 decision 4, reversed 2026-10-02), cess, minus previous-employer TDS — **`.1`'s functions unchanged** | `tax_slab_master` + `V027` rows · `section87a_rebate_rule_master (fy, OLD)` — 12,500 up to 5,00,000 · surcharge `OLD` top band 37 % | `.1` § 3 steps 4–8 |
 
 **3a. Pre-tax figures — precedence** (`W-32-3-…md:238`, decision 2: "`W-33`'s to write"):
 

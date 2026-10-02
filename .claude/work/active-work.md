@@ -6,6 +6,34 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-02 — `W-33.1`, `W-33.2`, `W-47.3` merged (`7907a6c`)
+
+- The tax calculator is on `main` for both regimes: the shared engine (salary projection across CTC versions, slab tax, 87A rebate, surcharge with marginal relief, age category), `GET …/tax` as a pure preview and `POST …/tax/compute` filling both summary rows. No table. The tax declaration screens are on `main` too: window settings, the employee declaration in four sections, the officer header view.
+- One squash of `dev-mohit-fixes` at `0edccd0`. Gates 5/5 for all three, CI green there, one independent read per ticket on mohit's `0744ba4`.
+- Fixed before merge: a mid-month joiner lost HRA, EPF and PT for the joining month on the old regime; the old-regime working never reached the API; the screens were built on the pre-`W-45` shell and would not load; the rent PAN threshold was a constant in the screen; saves dropped repeated 6A rows, a second previous employer and the let-out lender. Tested, not re-read.
+- **Added at merge, not in the specs yet:** the declaration header returns `pan_required_for_rent_over_threshold` and `rent_pan_threshold`; the tax response carries the old-regime working. Founder to amend `W-32.1`, `W-33.2` § 4 and `W-47.3`.
+- **Decided by the founder 2026-10-02, specs amended the same day:**
+  - FY 2026-27 tax rules are seeded by carrying FY 2025-26 forward unchanged, in `W-33.3` (§ 2, § 6). Until it merges, a compute for the current year fails on both regimes.
+  - Marginal relief behaves as legacy, which has none. The 87A rebate already matches. Surcharge relief was built and merged; `W-33.3` removes it (`W-33.1` § 3 step 6 and § 13 decision 4).
+  - Taxable income stays rounded half-up (`W-33.1` § 3 step 3 corrected).
+  - Making the tax screens reachable goes into `W-47.1b` (§ 5a): settings menu entry, `/me` panel provider and portal slot, officer route moved under `/employees`. That answers `W-47.3` § 14 decision 1.
+- **No tax screen is reachable yet.** The `W-25` portal mounts only its own panels and payroll has no panel provider for the declaration (`W-47.3` § 14 decision 1, still open); the settings screen waits on `W-47.1b`; the officer route sits under no menu path. Nobody has opened these screens in a browser.
+- **Outstanding:** forms are Ant Design forms, not Formik and Yup. Full list in the merge commit.
+- **Newly Ready:** nothing. `W-33.3` now waits on `W-36.1` only.
+- **Branches:** mohit resets `Dev-Mohit` to `main` before `W-33.3`. `dev-mohit-fixes` can be deleted.
+
+## 2026-10-02 — `W-16.1`, `W-16.2`, `W-16.3`, `W-16.4a`, `W-16.4b`, `W-25` merged (`a53e311`)
+
+- The leave engine and the employee portal are on `main`: leave types, policy and eligibility (`V126`–`V128`), allocation, accrual and reset with the worker's `LeaveAccrualJob` (`V129`), requests through the approval engine (`V130`–`V131`), consumption and loss of pay into the pay input ledger (`V132`–`V133`), bulk import (`V134`); `/me` with panels from `core`, `payroll` and `hrms`. All tables with `tenant_id` and RLS.
+- One squash of `dev-karma-fixes` at `b8e4ee1`. Gates 5/5 for all six, CI green there, one independent read per ticket on karma's `a267ca6`.
+- Fixed at merge: a mid-year switch between accrual and fixed counted leave twice; an import could stay `PENDING` after rows had committed; no seed linked the employee logins to an employee; `/me/employee` and `/me/documents` gave 500 for a login with no employee; the leave and documents panels read fields the server does not send; seven leave ITs would have failed from 2027-01-01. Tested, not re-read.
+- **Decided by the founder 2026-10-01, specs not amended yet (`W-16.1`, `W-16.2`, `W-16.4a`, `W-25`):** fixed to accrual mid-year keeps the year's grant and accrues from the next leave year; the loss-of-pay month split stays on calendar days; `is_paid` stays a label and pay is cut only through `markAsLOP`; next year's allocations stay manual; the portal switch hides the panels only.
+- **Before the automatic deploy:** run the Bicep so `btree_gist` is allowed on the Postgres server, or `V129` stops the migration job.
+- **Local:** run `seed.sh` again; `06-employees.sql` gives `employee.acme` and `employee.globex` an employee record. It was checked against the table, not run.
+- **Outstanding, the ones that matter next:** two half-days on one date are refused as an overlap; a leaver's last month accrues in full; carried-forward days do not expire after a mid-year reset; nothing links to `/me` from the navigation feed; nobody has opened the portal in a browser. Full list in the merge commit.
+- **Newly Ready:** `W-46.2`, `W-46.5` (biren), `W-47.3` (mohit), `W-40.1`, `W-40.2`, `W-40.5` (sayeed). karma's next is `W-10.1`.
+- **Branches:** karma resets `dev-karma` to `main`. `dev-karma-fixes` can be deleted. devashis's `core/V125__hrms_project_seed_roles.sql` now renumbers above `V134`.
+
 ## 2026-10-01 — `W-46.3b`, `W-46.6`, `W-46.7` merged (`24bb261`)
 
 - Three more core screens are on `main`: holiday calendars with the "holidays between" lookup, the setup checklist at `/setup`, and the user and employee invitation lists with the public accept / decline page. Four menu items added: `core.holiday`, `core.setup`, two `core.invitations.*`.
