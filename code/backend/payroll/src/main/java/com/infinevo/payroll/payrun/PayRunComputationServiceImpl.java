@@ -333,8 +333,14 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 run.getRunType());
 
         List<PayLine> produced = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
         for (PayLineContributor contributor : contributors) {
-            produced.addAll(contributor.contribute(ctx.withPriorLines(produced)));
+            PayRunEmployeeContext seen = ctx.withPriorLines(produced);
+            produced.addAll(contributor.contribute(seen));
+            String note = contributor.note(seen);
+            if (note != null) {
+                notes.add(note);
+            }
         }
 
         // One batched INSERT for this employee's lines (W-55), not one round trip per line.
@@ -354,6 +360,7 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
         } else {
             fresh.recordComputation(totals, days, unpriced, stamp, attempt, actor, now());
         }
+        fresh.noteComputation(notes.isEmpty() ? null : String.join("; ", notes));
         employeePayRuns.saveAndFlush(fresh);
     }
 

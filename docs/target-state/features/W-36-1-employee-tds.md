@@ -83,10 +83,11 @@ The frozen Payroll backend has the right idea and the wrong plumbing. All citati
 
 [pay run, W-29.2 loop] --> TaxLineContributor.contribute(ctx)     @Order(500)
    fy        = FinancialYear.of(ctx.period)                           (W-32.1, April–March)
-   record    = active employee_tds for (tenant, employee, fy)        none → no line, note in computation_note
+   record    = active employee_tds for (tenant, employee, fy)        none → no line, note in employee_payrun.computation_note
    period < record.effective_from_period                              → no line
-   ytd       = Σ amount of TAX lines on this tenant's other runs whose period is in fy
-               and whose status is COMPUTED, APPROVED or PAID          (a FAILED or CANCELLED run counts nothing)
+   ytd       = Σ amount of TAX lines on this tenant's other runs whose period is in fy, up to
+               and including ctx.period, and whose status is COMPUTED, APPROVED or PAID
+                                                                       (a FAILED or CANCELLED run counts nothing)
    remaining = record.annual_tax − ytd                                 ≤ 0 → no line
    months    = months from max(ctx.period, record.effective_from_period) to fy's March, inclusive
    amount    = Money.of(remaining).divide(months)                      scale 4, as every other line
