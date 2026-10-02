@@ -20,6 +20,7 @@
 -- 2. core.user_role rows, against the system roles the V022 trigger seeded for each tenant:
 --
 --   admin.acme        -> tenant-admin in Acme Manufacturing
+--   employee.acme     -> employee     in Acme Manufacturing
 --   admin.globex      -> tenant-admin in Globex Corporation
 --   employee.globex   -> employee     in Globex Corporation
 --
@@ -28,6 +29,7 @@
 
 INSERT INTO core.user_account (tenant_id, keycloak_user_id, email, created_by, updated_by) VALUES
     ('11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000001', 'admin@acme-payroll.local', 'seed', 'seed'),
+    ('11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000002', 'emp@acme-payroll.local', 'seed', 'seed'),
     ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000001', 'admin@globex-full.local', 'seed', 'seed'),
     ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000002', 'emp@globex-full.local', 'seed', 'seed')
 ON CONFLICT (tenant_id, keycloak_user_id) DO NOTHING;
@@ -36,6 +38,7 @@ INSERT INTO core.user_role (tenant_id, user_account_id, role_id, created_by, upd
 SELECT ua.tenant_id, ua.id, r.id, 'seed', 'seed'
 FROM (VALUES
         ('11111111-1111-1111-1111-111111111111'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'tenant-admin'),
+        ('11111111-1111-1111-1111-111111111111'::uuid, 'a0000000-0000-0000-0000-000000000002'::uuid, 'employee'),
         ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000001'::uuid, 'tenant-admin'),
         ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid, 'employee')
      ) AS g (tenant_id, keycloak_user_id, role_code)

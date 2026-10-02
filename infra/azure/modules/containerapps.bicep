@@ -308,8 +308,9 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'DOCUMENT_LINK_SECRET'
               secretRef: 'document-link-secret'
             }
-            // W-24.2: KEYCLOAK_ADMIN_URL and INVITATION_LINK_BASE_URL are Front Door
-            // addresses, so deploy.yml sets them next to KEYCLOAK_ISSUER_URI.
+            // W-24.2, W-36.2: KEYCLOAK_ADMIN_URL, INVITATION_LINK_BASE_URL and
+            // PAYSLIP_LINK_BASE_URL are Front Door addresses, so deploy.yml sets them next to
+            // KEYCLOAK_ISSUER_URI (the payslip one on the worker too).
             {
               name: 'KEYCLOAK_ADMIN_USERNAME'
               value: 'admin'

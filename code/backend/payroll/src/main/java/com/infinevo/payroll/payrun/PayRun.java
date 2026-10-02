@@ -59,6 +59,9 @@ public class PayRun {
     @Column(name = "run_type", nullable = false, length = 16, updatable = false)
     private PayRunType runType = PayRunType.REGULAR;
 
+    @Column(name = "notes", length = 500, updatable = false)
+    private String notes;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
     private PayRunStatus status = PayRunStatus.DRAFT;
@@ -114,6 +117,24 @@ public class PayRun {
     @Column(name = "progress_total", nullable = false)
     private int progressTotal;
 
+    @Column(name = "approved_at")
+    private Instant approvedAt;
+
+    @Column(name = "approved_by", length = 100)
+    private String approvedBy;
+
+    @Column(name = "paid_at")
+    private Instant paidAt;
+
+    @Column(name = "paid_by", length = 100)
+    private String paidBy;
+
+    @Column(name = "paid_on")
+    private LocalDate paidOn;
+
+    @Column(name = "payslips_released_at")
+    private Instant payslipsReleasedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -150,7 +171,37 @@ public class PayRun {
         this.updatedBy = actor;
     }
 
-    /** {@code DRAFT → LOCKED}. The period lock itself is {@code PayInputService.lock}'s, called first. */
+    /**
+     * A run of another type (W-30.2) — an off-cycle run: the regular run's dates from the schedule,
+     * except the pay date, which is the one the officer gave; a note of up to 500 characters.
+     */
+    public static PayRun ofType(
+            PayRunType runType,
+            UUID tenantId,
+            YearMonth period,
+            LocalDate periodStart,
+            LocalDate periodEnd,
+            LocalDate cutoffDate,
+            LocalDate payDate,
+            String notes,
+            int includedCount,
+            int skippedCount,
+            String actor) {
+        String note = notes == null || notes.isBlank() ? null : notes.strip();
+        if (note != null && note.length() > 500) {
+            throw new IllegalArgumentException("notes must be at most 500 characters");
+        }
+        PayRun run = new PayRun(
+                tenantId, period, periodStart, periodEnd, cutoffDate, payDate, includedCount, skippedCount, actor);
+        run.runType = Objects.requireNonNull(runType, "runType must not be null");
+        run.notes = note;
+        return run;
+    }
+
+    /**
+     * {@code DRAFT → LOCKED}. The pay input lock itself — the period's, or an off-cycle run's own — is
+     * {@code PayInputService}'s, called first.
+     */
     public void lock(String actor, Instant at) {
         status.requireTransitionTo(PayRunStatus.LOCKED);
         this.status = PayRunStatus.LOCKED;
@@ -159,7 +210,11 @@ public class PayRun {
         this.updatedBy = actor;
     }
 
-    /** {@code DRAFT → CANCELLED} or {@code LOCKED → CANCELLED}. A period lock is never undone (W-19 §6). */
+    /**
+     * {@code DRAFT}, {@code LOCKED} or {@code APPROVED → CANCELLED}. A period lock is never undone
+     * (W-19 §6). A {@code PAID} run is never cancelled (W-36.2 §10, founder 2026-10-01): the money moved,
+     * and cancelling would free the month for a second paid run.
+     */
     public void cancel(String actor, Instant at) {
         status.requireTransitionTo(PayRunStatus.CANCELLED);
         this.status = PayRunStatus.CANCELLED;
@@ -305,6 +360,10 @@ public class PayRun {
         return runType;
     }
 
+    public String getNotes() {
+        return notes;
+    }
+
     public PayRunStatus getStatus() {
         return status;
     }
@@ -376,6 +435,65 @@ public class PayRun {
 
     public int getProgressTotal() {
         return progressTotal;
+    }
+
+    /** {@code COMPUTED → APPROVED}: officer signs off on the computed figures. */
+    public void approve(String actor, Instant at) {
+        status.requireTransitionTo(PayRunStatus.APPROVED);
+        this.status = PayRunStatus.APPROVED;
+        this.approvedAt = Objects.requireNonNull(at, "at must not be null");
+        this.approvedBy = Objects.requireNonNull(actor, "actor must not be null");
+        this.updatedBy = actor;
+    }
+
+    /**
+     * {@code APPROVED → PAID}: marks the run paid and releases payslips.
+     *
+     * @param paidOn the payment date; must not be in the future, and not before periodStart
+     * @param actor who recorded the payment
+     * @param at when the transition occurred
+     */
+    public void pay(LocalDate paidOn, String actor, Instant at) {
+        status.requireTransitionTo(PayRunStatus.PAID);
+        Objects.requireNonNull(paidOn, "paidOn must not be null");
+        LocalDate today = LocalDate.now();
+        if (paidOn.isAfter(today)) {
+            throw new IllegalArgumentException("paid_on cannot be in the future: " + paidOn);
+        }
+        if (paidOn.isBefore(periodStart)) {
+            throw new IllegalArgumentException(
+                    "paid_on cannot be before period start (" + periodStart + "): " + paidOn);
+        }
+        this.status = PayRunStatus.PAID;
+        this.paidAt = Objects.requireNonNull(at, "at must not be null");
+        this.paidBy = Objects.requireNonNull(actor, "actor must not be null");
+        this.paidOn = paidOn;
+        this.payslipsReleasedAt = at;
+        this.updatedBy = actor;
+    }
+
+    public Instant getApprovedAt() {
+        return approvedAt;
+    }
+
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public Instant getPaidAt() {
+        return paidAt;
+    }
+
+    public String getPaidBy() {
+        return paidBy;
+    }
+
+    public LocalDate getPaidOn() {
+        return paidOn;
+    }
+
+    public Instant getPayslipsReleasedAt() {
+        return payslipsReleasedAt;
     }
 
     public Instant getCreatedAt() {

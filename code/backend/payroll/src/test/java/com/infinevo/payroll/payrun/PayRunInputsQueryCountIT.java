@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -48,6 +49,7 @@ class PayRunInputsQueryCountIT extends AbstractIntegrationTest {
     public static class StatementCounter implements StatementInspector {
         private static final Pattern LEDGER = Pattern.compile("\\bfrom core\\.pay_input\\s");
         static final AtomicInteger LEDGER_READS = new AtomicInteger();
+        static final AtomicInteger LEDGER_RUN_READS = new AtomicInteger();
         static final AtomicInteger EARNING_PRO_RATA_READS = new AtomicInteger();
         static final AtomicInteger BENEFIT_PRO_RATA_READS = new AtomicInteger();
 
@@ -57,11 +59,15 @@ class PayRunInputsQueryCountIT extends AbstractIntegrationTest {
             if (!s.startsWith("select")) {
                 return sql;
             }
-            if (LEDGER.matcher(s).find()) {
-                LEDGER_READS.incrementAndGet();
-            }
             int where = s.indexOf(" where ");
             String filter = where < 0 ? "" : s.substring(where);
+            if (LEDGER.matcher(s).find()) {
+                LEDGER_READS.incrementAndGet();
+                // W-30.2: forRun filters on the run tag; forPeriod on its absence ("run_ref is null").
+                if (filter.replace(" ", "").contains("run_ref=")) {
+                    LEDGER_RUN_READS.incrementAndGet();
+                }
+            }
             if (filter.contains("is_pro_rata")) {
                 if (s.contains("from payroll.earning ")) {
                     EARNING_PRO_RATA_READS.incrementAndGet();
@@ -74,6 +80,7 @@ class PayRunInputsQueryCountIT extends AbstractIntegrationTest {
 
         static void reset() {
             LEDGER_READS.set(0);
+            LEDGER_RUN_READS.set(0);
             EARNING_PRO_RATA_READS.set(0);
             BENEFIT_PRO_RATA_READS.set(0);
         }
@@ -147,5 +154,32 @@ class PayRunInputsQueryCountIT extends AbstractIntegrationTest {
                 .isEqualTo(1);
         // Every employee got both the LOP and the overtime line: 7 structure lines + LOP + LOP_BENEFIT + OVERTIME.
         assertThat(PayRunTestSchema.countLines(TENANT_A, run.id())).isEqualTo(EMPLOYEES * 10L);
+    }
+
+    @Test
+    @DisplayName("W-30.2: an off-cycle run of 20 employees reads the ledger once, by forRun, never by forPeriod")
+    void offCycleReadsItsOwnInputsOnce() throws SQLException {
+        YearMonth july = YearMonth.of(2026, 7);
+        List<UUID> employees = new ArrayList<>();
+        List<PayRunInputRequest> bonuses = new ArrayList<>();
+        for (int i = 0; i < EMPLOYEES; i++) {
+            UUID employee = PayRunTestSchema.insertPayableEmployee(TENANT_A, String.format("O-%02d", i));
+            employees.add(employee);
+            bonuses.add(
+                    new PayRunInputRequest(employee, PayInputKind.ONE_TIME_PAYOUT, new BigDecimal("1000"), "b-" + i));
+        }
+        PayRunResponse run = payRunService.createOffCycle(july.atDay(15), employees, null);
+        payRunService.addInputs(run.id(), bonuses);
+        payRunService.lock(run.id());
+
+        StatementCounter.reset();
+        PayRunResponse computed = worker.computeNow(run.id());
+
+        assertThat(computed.status()).isEqualTo(PayRunStatus.COMPUTED);
+        assertThat(StatementCounter.LEDGER_READS.get()).as("one ledger read").isEqualTo(1);
+        assertThat(StatementCounter.LEDGER_RUN_READS.get())
+                .as("and it is forRun")
+                .isEqualTo(1);
+        assertThat(PayRunTestSchema.countLines(TENANT_A, run.id())).isEqualTo(EMPLOYEES);
     }
 }

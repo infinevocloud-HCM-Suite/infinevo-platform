@@ -69,6 +69,10 @@ public interface EmployeeService {
         public NotFoundException(UUID id) {
             super("No employee " + id + " in this tenant");
         }
+
+        public NotFoundException(String message) {
+            super(message);
+        }
     }
 
     /**

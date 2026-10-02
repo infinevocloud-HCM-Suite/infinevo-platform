@@ -42,6 +42,9 @@ public final class ApprovalTestSchema {
             if (!tableExists(conn, "tenant")) {
                 executeResource(conn, "db/migration/core/V001__tenant.sql");
             }
+            if (!columnExists(conn, "tenant", "country_code")) {
+                executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
+            }
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
             }

@@ -1,5 +1,7 @@
 package com.infinevo.core.guard;
 
+import com.infinevo.core.document.DocumentService;
+import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.core.setup.SetupStepChecker;
 import com.infinevo.shared.audit.AuditController;
 import com.infinevo.shared.audit.AuditQueryService;
@@ -7,6 +9,7 @@ import com.infinevo.shared.cache.RedisConfig;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import java.util.UUID;
+import org.mockito.Mockito;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -54,6 +57,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.employee",
             "com.infinevo.core.holiday",
             "com.infinevo.core.invitation",
+            "com.infinevo.core.leave",
             "com.infinevo.core.lop",
             "com.infinevo.core.navigation",
             "com.infinevo.core.org",
@@ -73,6 +77,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.employee",
             "com.infinevo.core.holiday",
             "com.infinevo.core.invitation",
+            "com.infinevo.core.leave",
             "com.infinevo.core.lop",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
@@ -88,6 +93,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.employee",
             "com.infinevo.core.holiday",
             "com.infinevo.core.invitation",
+            "com.infinevo.core.leave",
             "com.infinevo.core.lop",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
@@ -97,6 +103,16 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         })
 @Import({RedisConfig.class, UserProfileSyncService.class, AuditController.class, AuditQueryService.class})
 public class PermissionGuardTestApp {
+
+    @Bean
+    public PayInputService payInputService() {
+        return Mockito.mock(PayInputService.class);
+    }
+
+    @Bean
+    public DocumentService documentService() {
+        return Mockito.mock(DocumentService.class);
+    }
 
     @Bean
     SetupStepChecker payScheduleChecker() {

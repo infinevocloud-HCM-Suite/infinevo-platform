@@ -167,6 +167,30 @@
           "22222222-2222-2222-2222-222222222222"
         ]
       }
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000002",
+      "username": "employee.acme",
+      "email": "emp@acme-payroll.local",
+      "firstName": "Arun",
+      "lastName": "Acme",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local_dev_pw",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "employee"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "11111111-1111-1111-1111-111111111111"
+        ]
+      }
     }
   ]
 }

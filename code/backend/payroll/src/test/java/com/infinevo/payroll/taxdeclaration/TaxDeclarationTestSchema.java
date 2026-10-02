@@ -56,9 +56,15 @@ public final class TaxDeclarationTestSchema {
             if (!tableExists(conn, "core", "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
             }
+            if (!tableExists(conn, "core", "employee_personal")) {
+                executeResource(conn, "db/migration/core/V015__employee_personal.sql");
+            }
             if (!tableExists(conn, "reference", "hra_rule_master")) {
                 executeResource(conn, "db/migration/reference/V004__reference_tax_masters.sql");
                 executeResource(conn, "db/migration/reference/V005__reference_tax_seed.sql");
+            }
+            if (!ageCategorySlabsExist(conn, "SENIOR")) {
+                executeResource(conn, "db/migration/reference/V027__tax_slab_age_categories.sql");
             }
             if (!ruleForYearExists(conn, "hra_rule_master", "2026-2027")) {
                 executeResource(conn, "db/migration/reference/V105__fy_2026_27_reference_rules.sql");
@@ -201,6 +207,10 @@ public final class TaxDeclarationTestSchema {
             if (tableExists(conn, "payroll", "employee_statutory_profile")) {
                 stmt.execute("DELETE FROM payroll.employee_statutory_profile");
             }
+            if (tableExists(conn, "core", "employee_personal")) {
+                stmt.execute("DELETE FROM core.employee_personal WHERE tenant_id IN ('" + TENANT_A + "', '" + TENANT_B
+                        + "')");
+            }
             if (tableExists(conn, "core", "employee")) {
                 stmt.execute("DELETE FROM core.employee WHERE tenant_id IN ('" + TENANT_A + "', '" + TENANT_B + "')");
             }
@@ -211,6 +221,9 @@ public final class TaxDeclarationTestSchema {
         try (Connection conn = migrationConnection();
                 Statement stmt = conn.createStatement()) {
             clearDeclarations();
+            if (tableExists(conn, "core", "employee_personal")) {
+                stmt.execute("DELETE FROM core.employee_personal");
+            }
             if (tableExists(conn, "core", "employee")) {
                 stmt.execute("DELETE FROM core.employee");
             }
@@ -256,6 +269,19 @@ public final class TaxDeclarationTestSchema {
         try (PreparedStatement ps =
                 conn.prepareStatement("SELECT 1 FROM reference." + table + " WHERE financial_year = ? LIMIT 1")) {
             ps.setString(1, fy);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    public static boolean ageCategorySlabsExist(Connection conn, String ageCategory) throws SQLException {
+        if (!tableExists(conn, "reference", "tax_slab_master")) {
+            return false;
+        }
+        try (PreparedStatement ps =
+                conn.prepareStatement("SELECT 1 FROM reference.tax_slab_master WHERE age_category = ? LIMIT 1")) {
+            ps.setString(1, ageCategory);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

@@ -194,6 +194,11 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "employee_reimbursement_request")) {
                 executeResource(conn, "db/migration/payroll/V098__employee_reimbursement_request.sql");
             }
+            // W-35.2: the deduction action codes and grants, after V097 whose seed function they extend.
+            executeResource(conn, "db/migration/reference/V100__employee_deduction_actions.sql");
+            if (!tableExists(conn, "payroll", "employee_deduction")) {
+                executeResource(conn, "db/migration/payroll/V101__employee_deduction.sql");
+            }
             if (!tableExists(conn, "payroll", "ctc_epf_component")) {
                 executeResource(conn, "db/migration/payroll/V068__ctc_epf_component.sql");
             } else {
@@ -253,6 +258,10 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "payroll", "employee_reimbursement_request")) {
                 st.execute("DELETE FROM payroll.employee_reimbursement_request");
+            }
+            // W-35.2: before core.document, core.pay_input and core.employee, which it references.
+            if (tableExists(conn, "payroll", "employee_deduction")) {
+                st.execute("DELETE FROM payroll.employee_deduction");
             }
             if (tableExists(conn, "core", "approval_step")) {
                 st.execute("DELETE FROM core.approval_step");

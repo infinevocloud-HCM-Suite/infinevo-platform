@@ -141,6 +141,19 @@ public class EmployeePayRun {
         this.updatedBy = actor;
     }
 
+    /** A named employee's row on an off-cycle run (W-30.2): included with or without a salary version. */
+    public EmployeePayRun(UUID tenantId, UUID payrunId, OffCycleInclusion inclusion, String actor) {
+        Objects.requireNonNull(inclusion, "inclusion must not be null");
+        this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
+        this.payrunId = Objects.requireNonNull(payrunId, "payrunId must not be null");
+        this.employeeId = inclusion.employeeId();
+        this.salaryVersionId = inclusion.salaryVersionId();
+        this.inclusionStatus = inclusion.inclusionStatus();
+        this.skipReason = inclusion.skipReason();
+        this.createdBy = Objects.requireNonNull(actor, "actor must not be null");
+        this.updatedBy = actor;
+    }
+
     /**
      * The row's totals and day figures after a successful computation, with the policy stamp that
      * produced them (W-18.2); clears any earlier error. {@code unpricedInputCount} is the number of
@@ -154,14 +167,33 @@ public class EmployeePayRun {
             int attempt,
             String actor,
             Instant at) {
-        Objects.requireNonNull(totals, "totals must not be null");
-        Objects.requireNonNull(days, "days must not be null");
         Objects.requireNonNull(stamp, "stamp must not be null: a pay figure is never written without its policy");
         this.lopPolicyId = stamp.policyId();
         this.workingDayBasis = stamp.workingDayBasis();
         this.payDivisor = stamp.divisor().setScale(2, RoundingMode.HALF_UP);
         this.payableDays = stamp.payableDays().setScale(2, RoundingMode.HALF_UP);
         this.lopRounding = stamp.lopRounding();
+        recordFigure(totals, days, unpricedInputCount, attempt, actor, at);
+    }
+
+    /**
+     * An off-cycle row's totals after a successful computation (W-30.2, founder 2026-10-01): it prices no
+     * days, so no loss-of-pay policy produced the figure and the five stamp columns stay empty.
+     */
+    public void recordOffCycleComputation(
+            PayRunTotals totals, PayRunDays days, int unpricedInputCount, int attempt, String actor, Instant at) {
+        this.lopPolicyId = null;
+        this.workingDayBasis = null;
+        this.payDivisor = null;
+        this.payableDays = null;
+        this.lopRounding = null;
+        recordFigure(totals, days, unpricedInputCount, attempt, actor, at);
+    }
+
+    private void recordFigure(
+            PayRunTotals totals, PayRunDays days, int unpricedInputCount, int attempt, String actor, Instant at) {
+        Objects.requireNonNull(totals, "totals must not be null");
+        Objects.requireNonNull(days, "days must not be null");
         this.lopDays = days.lopDays();
         this.unpaidDays = days.unpaidDays();
         this.paidDays = days.paidDays();
@@ -274,6 +306,10 @@ public class EmployeePayRun {
 
     public BigDecimal getPaidDays() {
         return paidDays;
+    }
+
+    public BigDecimal getPayableDays() {
+        return payableDays;
     }
 
     public int getUnpricedInputCount() {

@@ -21,14 +21,14 @@ import java.util.UUID;
  * bank section (W-13.2), the pay schedule (W-28), the two pay run tables and the lines (W-29.2). Rows are written as
  * {@code migration_user}; the tests read through the services, or as {@code app_user} for RLS.
  */
-final class PayRunTestSchema {
+public final class PayRunTestSchema {
 
-    static final UUID TENANT_A = PayrollTestSchema.TENANT_A;
-    static final UUID TENANT_B = PayrollTestSchema.TENANT_B;
+    public static final UUID TENANT_A = PayrollTestSchema.TENANT_A;
+    public static final UUID TENANT_B = PayrollTestSchema.TENANT_B;
 
     private PayRunTestSchema() {}
 
-    static void apply() throws Exception {
+    public static void apply() throws Exception {
         PayrollTestSchema.apply();
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
             // W-18.1's loss-of-pay policy (W-29.3): V116 needs the tenant locale columns and the
@@ -67,9 +67,24 @@ final class PayRunTestSchema {
             if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "compute_attempt")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V059__payrun_job_progress.sql");
             }
+            // W-30.2: the off-cycle run type, the notes column and the narrowed one-per-period index.
+            if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "notes")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V061__payrun_off_cycle.sql");
+            }
             // W-18.2: the policy stamp on every computed row.
             if (!PayrollTestSchema.columnExists(conn, "payroll", "employee_payrun", "lop_policy_id")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V125__employee_payrun_policy_stamp.sql");
+            }
+            // W-36.2: approve and pay columns on payrun.
+            if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "approved_at")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V103__payrun_approve_pay.sql");
+            }
+            // W-20.1: notification templates and notifications for payslip link dispatch.
+            if (!PayrollTestSchema.tableExists(conn, "core", "notification_template")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/core/V038__notification_template.sql");
+            }
+            if (!PayrollTestSchema.tableExists(conn, "core", "notification")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/core/V039__notification.sql");
             }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
@@ -84,13 +99,22 @@ final class PayRunTestSchema {
      * tenants; then both tenants back on the default policy — ACTUAL_DAYS, weekends and holidays
      * payable — so payable days equal calendar days and a full month has no loss of pay.
      */
-    static void clean() throws SQLException {
+    public static void clean() throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection()) {
+            if (PayrollTestSchema.tableExists(conn, "core", "notification")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM core.notification");
+                }
+            }
+        }
         PayrollTestSchema.cleanTables();
-        try (Connection conn = PayrollTestSchema.migrationConnection();
-                PreparedStatement ps = conn.prepareStatement("DELETE FROM core.job_status WHERE tenant_id IN (?, ?)")) {
-            ps.setObject(1, TENANT_A);
-            ps.setObject(2, TENANT_B);
-            ps.executeUpdate();
+        try (Connection conn = PayrollTestSchema.migrationConnection()) {
+            try (PreparedStatement ps =
+                    conn.prepareStatement("DELETE FROM core.job_status WHERE tenant_id IN (?, ?)")) {
+                ps.setObject(1, TENANT_A);
+                ps.setObject(2, TENANT_B);
+                ps.executeUpdate();
+            }
         }
         setPolicy(TENANT_A, "ACTUAL_DAYS", true, true, "HALF_UP_2");
         setPolicy(TENANT_B, "ACTUAL_DAYS", true, true, "HALF_UP_2");
@@ -202,8 +226,8 @@ final class PayRunTestSchema {
         execute("DELETE FROM core.lop_policy WHERE tenant_id = ?", tenantId);
     }
 
-    static UUID insertEmployee(UUID tenantId, String number, LocalDate joined, String status, LocalDate terminated)
-            throws SQLException {
+    public static UUID insertEmployee(
+            UUID tenantId, String number, LocalDate joined, String status, LocalDate terminated) throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         """
@@ -226,7 +250,7 @@ final class PayRunTestSchema {
     }
 
     /** A salary version in force from {@code effectiveFrom}; returns its id. */
-    static UUID insertSalary(UUID tenantId, UUID employeeId, LocalDate effectiveFrom) throws SQLException {
+    public static UUID insertSalary(UUID tenantId, UUID employeeId, LocalDate effectiveFrom) throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         """
@@ -245,7 +269,7 @@ final class PayRunTestSchema {
         }
     }
 
-    static void insertBank(UUID tenantId, UUID employeeId) throws SQLException {
+    public static void insertBank(UUID tenantId, UUID employeeId) throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO core.employee_bank (tenant_id, employee_id, payment_mode) VALUES (?, ?, 'BANK_TRANSFER')")) {
@@ -264,7 +288,7 @@ final class PayRunTestSchema {
     }
 
     /** A catalogue earning; returns its id. */
-    static UUID insertEarningComponent(
+    public static UUID insertEarningComponent(
             UUID tenantId, String code, String name, boolean variable, boolean taxable, boolean fbp)
             throws SQLException {
         return insertReturningId(
@@ -278,7 +302,7 @@ final class PayRunTestSchema {
                 fbp);
     }
 
-    static UUID insertBenefitComponent(UUID tenantId, String code, String name) throws SQLException {
+    public static UUID insertBenefitComponent(UUID tenantId, String code, String name) throws SQLException {
         return insertReturningId(
                 "INSERT INTO payroll.benefit (tenant_id, code, name, is_included_in_ctc) VALUES (?, ?, ?, true) RETURNING id",
                 tenantId,
@@ -286,7 +310,7 @@ final class PayRunTestSchema {
                 name);
     }
 
-    static UUID insertReimbursementComponent(UUID tenantId, String code, String name) throws SQLException {
+    public static UUID insertReimbursementComponent(UUID tenantId, String code, String name) throws SQLException {
         return insertReturningId(
                 "INSERT INTO payroll.reimbursement (tenant_id, code, name, reimbursement_type, is_included_in_ctc) "
                         + "VALUES (?, ?, ?, 'ALLOWANCE', true) RETURNING id",
@@ -296,7 +320,7 @@ final class PayRunTestSchema {
     }
 
     /** One structure line on a salary version: {@code table} is employee_earning, _benefit or _reimbursement. */
-    static void insertStructureLine(
+    public static void insertStructureLine(
             String table, UUID tenantId, UUID ctcId, UUID componentId, String monthly, String frequency)
             throws SQLException {
         boolean earning = "employee_earning".equals(table);
@@ -320,7 +344,7 @@ final class PayRunTestSchema {
         }
     }
 
-    static void insertFbpDeclaration(UUID tenantId, UUID ctcId, UUID employeeId, UUID earningId, String monthly)
+    public static void insertFbpDeclaration(UUID tenantId, UUID ctcId, UUID employeeId, UUID earningId, String monthly)
             throws SQLException {
         BigDecimal m = new BigDecimal(monthly);
         try (Connection conn = PayrollTestSchema.migrationConnection();
@@ -339,9 +363,9 @@ final class PayRunTestSchema {
     }
 
     /** The W-29.2 §8 catalogue for one tenant. */
-    record Catalogue(UUID basic, UUID hra, UUID special, UUID meal, UUID bonus, UUID employerPf, UUID fuel) {}
+    public record Catalogue(UUID basic, UUID hra, UUID special, UUID meal, UUID bonus, UUID employerPf, UUID fuel) {}
 
-    static Catalogue insertWorkedExampleCatalogue(UUID tenantId) throws SQLException {
+    public static Catalogue insertWorkedExampleCatalogue(UUID tenantId) throws SQLException {
         return new Catalogue(
                 insertEarningComponent(tenantId, "BASIC", "Basic", false, true, false),
                 insertEarningComponent(tenantId, "HRA", "House rent allowance", false, true, false),
@@ -356,7 +380,7 @@ final class PayRunTestSchema {
      * An employee paid the §8 worked example: active since 2023-04, a bank section, and a salary
      * version from 2025-01 whose July lines net 47,000.00. Returns the employee id.
      */
-    static UUID insertWorkedExampleEmployee(UUID tenantId, String number, Catalogue c) throws SQLException {
+    public static UUID insertWorkedExampleEmployee(UUID tenantId, String number, Catalogue c) throws SQLException {
         UUID employee = insertEmployee(tenantId, number, LocalDate.of(2023, 4, 1), "ACTIVE", null);
         insertBank(tenantId, employee);
         UUID ctc = insertSalary(tenantId, employee, LocalDate.of(2025, 1, 1));
@@ -462,7 +486,7 @@ final class PayRunTestSchema {
         return result;
     }
 
-    static void execute(String sql, Object... params) throws SQLException {
+    public static void execute(String sql, Object... params) throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.length; i++) {
@@ -499,6 +523,32 @@ final class PayRunTestSchema {
         }
     }
 
+    /** W-30.2: lock rows an off-cycle run wrote for itself — {@code run_ref} set. */
+    static int countRunLocks(UUID tenantId, UUID runRef) throws SQLException {
+        return countWhere(
+                "SELECT count(*) FROM core.pay_input_period_lock WHERE tenant_id = ? AND run_ref = ?",
+                tenantId,
+                runRef);
+    }
+
+    /** W-30.2: ledger rows tagged with {@code runRef}. */
+    static int countTaggedInputs(UUID tenantId, UUID runRef) throws SQLException {
+        return countWhere("SELECT count(*) FROM core.pay_input WHERE tenant_id = ? AND run_ref = ?", tenantId, runRef);
+    }
+
+    private static int countWhere(String sql, Object... params) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
     static int countPeriodLocks(UUID tenantId, String period) throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
@@ -508,6 +558,22 @@ final class PayRunTestSchema {
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
+            }
+        }
+    }
+
+    public static UUID getEmployeePayRunId(UUID tenantId, UUID payrunId, UUID employeeId) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id FROM payroll.employee_payrun WHERE tenant_id = ? AND payrun_id = ? AND employee_id = ?")) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, payrunId);
+            ps.setObject(3, employeeId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return (UUID) rs.getObject(1);
+                }
+                throw new IllegalStateException("No employee_payrun row found");
             }
         }
     }

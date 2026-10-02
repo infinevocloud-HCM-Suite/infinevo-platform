@@ -26,3 +26,23 @@ JOIN (VALUES
     (3, 1000000.0000, NULL,         30.00)
 ) AS v(ord, from_amount, to_amount, rate) ON TRUE
 WHERE m.financial_year = '2026-2027' AND m.regime = 'NEW';
+
+-- Senior and super-senior old-regime pair (W-09.1 deferral closed in W-33.2)
+INSERT INTO reference.tax_slab_master
+    (regime, financial_year, assessment_year, age_category, effective_from, description) VALUES
+    ('OLD', '2026-2027', '2027-2028', 'SENIOR',       DATE '2026-04-01', 'Synthetic fixture — not statutory'),
+    ('OLD', '2026-2027', '2027-2028', 'SUPER_SENIOR', DATE '2026-04-01', 'Synthetic fixture — not statutory');
+
+INSERT INTO reference.tax_slab_detail_history (slab_master_id, from_amount, to_amount, tax_rate_percent, slab_order)
+SELECT m.id, v.from_amount, v.to_amount, v.rate, v.ord
+FROM reference.tax_slab_master m
+JOIN (VALUES
+    ('SENIOR',       1,       0.0000,   300000.0000,  0.00),
+    ('SENIOR',       2,  300000.0000,   500000.0000,  5.00),
+    ('SENIOR',       3,  500000.0000,  1000000.0000, 20.00),
+    ('SENIOR',       4, 1000000.0000,  NULL,         30.00),
+    ('SUPER_SENIOR', 1,       0.0000,   500000.0000,  0.00),
+    ('SUPER_SENIOR', 2,  500000.0000,  1000000.0000, 20.00),
+    ('SUPER_SENIOR', 3, 1000000.0000,  NULL,         30.00)
+) AS v(age, ord, from_amount, to_amount, rate) ON m.age_category = v.age
+WHERE m.financial_year = '2026-2027' AND m.regime = 'OLD';

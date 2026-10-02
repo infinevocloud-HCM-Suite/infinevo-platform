@@ -221,6 +221,19 @@ class TaxDeclarationActionSeedIT extends AbstractIntegrationTest {
             del.setObject(1, tenantId);
             del.executeUpdate();
         }
+        // W-36.2: once a pay run suite has installed V038 in this database, a new tenant is seeded its
+        // notification templates by trigger, and they hold a foreign key to it.
+        try (PreparedStatement exists =
+                        conn.prepareStatement("SELECT to_regclass('core.notification_template') IS NOT NULL");
+                ResultSet rs = exists.executeQuery()) {
+            if (rs.next() && rs.getBoolean(1)) {
+                try (PreparedStatement del =
+                        conn.prepareStatement("DELETE FROM core.notification_template WHERE tenant_id = ?")) {
+                    del.setObject(1, tenantId);
+                    del.executeUpdate();
+                }
+            }
+        }
         try (PreparedStatement del = conn.prepareStatement("DELETE FROM core.tenant WHERE tenant_id = ?")) {
             del.setObject(1, tenantId);
             del.executeUpdate();

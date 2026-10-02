@@ -95,6 +95,17 @@ resource keycloakDb 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08
   }
 }
 
+// Server Configuration: azure.extensions
+// Allow btree_gist extension required by leave_request overlapping exclude constraint (V129)
+resource azureExtensions 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2024-08-01' = {
+  parent: postgresServer
+  name: 'azure.extensions'
+  properties: {
+    value: 'BTREE_GIST'
+    source: 'user-override'
+  }
+}
+
 // The allow-azure-internal firewall rule is deliberately gone (W-51 section 2.3). With
 // publicNetworkAccess Disabled a firewall rule grants nothing, and the rule was the last
 // route from outside the VNet - post-deploy-db.sh:65-93 leaned on it and T4 removes that too.

@@ -49,6 +49,12 @@ public record PayRunDays(
         Objects.requireNonNull(pricedDays, "pricedDays must not be null");
     }
 
+    /** Every figure zero — an off-cycle run, which has no loss of pay and no days (W-30.2). */
+    public static PayRunDays zero() {
+        BigDecimal none = scaled(BigDecimal.ZERO);
+        return new PayRunDays(none, none, none, none, none, BigDecimal.ZERO);
+    }
+
     /**
      * @param outsideDays the period's days outside the employment window, in the policy's days and
      *     unrounded — zero for someone employed all period

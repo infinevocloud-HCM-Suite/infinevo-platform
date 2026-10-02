@@ -5,22 +5,37 @@ import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.job.JobState;
 import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.service.JobService;
+import com.infinevo.core.notification.NotificationEvent;
+import com.infinevo.core.notification.NotificationService;
+import com.infinevo.core.payinput.PayInputCommand;
+import com.infinevo.core.payinput.PayInputKind;
+import com.infinevo.core.payinput.PayInputResponse;
 import com.infinevo.core.payinput.PayInputService;
+import com.infinevo.payroll.payslip.PayslipLinkService;
 import com.infinevo.payroll.schedule.PayPeriodResponse;
 import com.infinevo.payroll.schedule.PayPeriodService;
+import com.infinevo.shared.money.Money;
 import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.queue.QueueProducer;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +78,9 @@ public class PayRunServiceImpl implements PayRunService {
     private static final int ACTOR_MAX_LENGTH = 100;
     private static final String UNIQUE_PERIOD_INDEX = "uk_payrun_tenant_period";
 
+    /** How this module names itself on the pay input ledger, as W-35.1's claims do. */
+    static final String SOURCE_MODULE = "payroll";
+
     private final PayRunRepository payRuns;
     private final EmployeePayRunRepository employeePayRuns;
     private final PayPeriodService payPeriodService;
@@ -72,6 +90,8 @@ public class PayRunServiceImpl implements PayRunService {
     private final EmployeePayRunLineRepository lines;
     private final JobService jobService;
     private final ObjectProvider<QueueProducer> queueProducers;
+    private final PayslipLinkService payslipLinkService;
+    private final ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
 
@@ -86,6 +106,35 @@ public class PayRunServiceImpl implements PayRunService {
             JobService jobService,
             ObjectProvider<QueueProducer> queueProducers,
             PlatformTransactionManager transactionManager) {
+        this(
+                payRuns,
+                employeePayRuns,
+                payPeriodService,
+                employeeService,
+                inclusionService,
+                payInputService,
+                lines,
+                jobService,
+                queueProducers,
+                null,
+                null,
+                transactionManager);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PayRunServiceImpl(
+            PayRunRepository payRuns,
+            EmployeePayRunRepository employeePayRuns,
+            PayPeriodService payPeriodService,
+            EmployeeService employeeService,
+            PayRunInclusionService inclusionService,
+            PayInputService payInputService,
+            EmployeePayRunLineRepository lines,
+            JobService jobService,
+            ObjectProvider<QueueProducer> queueProducers,
+            PayslipLinkService payslipLinkService,
+            ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices,
+            PlatformTransactionManager transactionManager) {
         this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
         this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
         this.payPeriodService = Objects.requireNonNull(payPeriodService, "payPeriodService must not be null");
@@ -95,6 +144,8 @@ public class PayRunServiceImpl implements PayRunService {
         this.lines = Objects.requireNonNull(lines, "lines must not be null");
         this.jobService = Objects.requireNonNull(jobService, "jobService must not be null");
         this.queueProducers = Objects.requireNonNull(queueProducers, "queueProducers must not be null");
+        this.payslipLinkService = payslipLinkService;
+        this.notificationServices = notificationServices;
         Objects.requireNonNull(transactionManager, "transactionManager must not be null");
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
@@ -106,8 +157,10 @@ public class PayRunServiceImpl implements PayRunService {
         Objects.requireNonNull(period, "period must not be null");
         UUID tenantId = TenantContext.require();
 
-        if (Boolean.TRUE.equals(readTransaction.execute(status ->
-                payRuns.existsByTenantIdAndPeriodAndStatusNot(tenantId, period.toString(), PayRunStatus.CANCELLED)))) {
+        // W-30.2: only a regular run blocks the month; off-cycle runs for it do not.
+        if (Boolean.TRUE.equals(
+                readTransaction.execute(status -> payRuns.existsByTenantIdAndPeriodAndRunTypeAndStatusNot(
+                        tenantId, period.toString(), PayRunType.REGULAR, PayRunStatus.CANCELLED)))) {
             throw new DuplicatePayRunException(period);
         }
 
@@ -154,19 +207,243 @@ public class PayRunServiceImpl implements PayRunService {
         }
     }
 
+    /**
+     * W-30.2 §3. Not {@code @Transactional}, as {@link #create}: the seams run in their own
+     * transactions, so a "no salary" throw cannot mark this one rollback-only. No uniqueness check —
+     * a second off-cycle run for the month is fine.
+     */
+    @Override
+    public PayRunResponse createOffCycle(LocalDate payDate, List<UUID> employeeIds, String notes) {
+        if (payDate == null) {
+            throw new IllegalArgumentException("pay_date is required, as YYYY-MM-DD");
+        }
+        if (employeeIds == null || employeeIds.isEmpty()) {
+            throw new IllegalArgumentException("employee_ids must name at least one employee");
+        }
+        if (employeeIds.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("employee_ids must not contain null");
+        }
+        if (notes != null && notes.strip().length() > 500) {
+            throw new IllegalArgumentException("notes must be at most 500 characters");
+        }
+        UUID tenantId = TenantContext.require();
+        YearMonth period = YearMonth.from(payDate);
+        PayPeriodResponse dates = payPeriodService.periodFor(period);
+
+        // Named twice is paid once: one row per employee, in the order first named.
+        Set<UUID> named = new LinkedHashSet<>(employeeIds);
+        List<EmployeeResponse> employees = new ArrayList<>(named.size());
+        List<UUID> unknown = new ArrayList<>();
+        for (UUID employeeId : named) {
+            try {
+                employees.add(employeeService.get(employeeId));
+            } catch (EmployeeService.NotFoundException e) {
+                unknown.add(employeeId);
+            }
+        }
+        if (!unknown.isEmpty()) {
+            throw new EmployeeNotInRunException("No such employee in this tenant", unknown);
+        }
+        List<OffCycleInclusion> inclusions = inclusionService.forNamed(tenantId, employees, dates.start(), dates.end());
+        int included = (int) inclusions.stream()
+                .filter(i -> i.inclusionStatus() == InclusionStatus.INCLUDED)
+                .count();
+        int skipped = inclusions.size() - included;
+        String actor = currentActor();
+
+        PayRun saved = Objects.requireNonNull(writeTransaction.execute(status -> {
+            PayRun run = payRuns.saveAndFlush(PayRun.ofType(
+                    PayRunType.OFF_CYCLE,
+                    tenantId,
+                    period,
+                    dates.start(),
+                    dates.end(),
+                    dates.cutoffDate(),
+                    payDate,
+                    notes,
+                    included,
+                    skipped,
+                    actor));
+            employeePayRuns.saveAll(inclusions.stream()
+                    .map(i -> new EmployeePayRun(tenantId, run.getId(), i, actor))
+                    .toList());
+            employeePayRuns.flush();
+            return run;
+        }));
+        log.info(
+                "Created off-cycle pay run {} for {} in tenant {}, paid {}: {} included, {} skipped",
+                saved.getId(),
+                period,
+                tenantId,
+                payDate,
+                included,
+                skipped);
+        return PayRunResponse.from(saved);
+    }
+
+    /**
+     * W-30.2 §3. Every item is checked first, so a bad item writes nothing. Then each goes through
+     * {@code PayInputService.record} in its own transaction — not one around them all, where the first
+     * duplicate would abort the rest — and a duplicate is reported for that item alone. A lock that
+     * lands between the check and a write is the ledger's {@code RunLockedException}, a {@code 409}.
+     */
+    @Override
+    public List<PayRunInputResponse> addInputs(UUID id, List<PayRunInputRequest> inputs) {
+        Objects.requireNonNull(id, "id must not be null");
+        UUID tenantId = TenantContext.require();
+        PayRun run = Objects.requireNonNull(readTransaction.execute(status -> require(id)));
+        if (run.getRunType() != PayRunType.OFF_CYCLE || run.getStatus() != PayRunStatus.DRAFT) {
+            throw new NotAnOffCycleRunException(id, run.getRunType(), run.getStatus());
+        }
+        if (inputs == null || inputs.isEmpty()) {
+            throw new IllegalArgumentException("At least one input is required");
+        }
+        for (int i = 0; i < inputs.size(); i++) {
+            validateInput(i, inputs.get(i));
+        }
+        Set<UUID> includedIds = Objects.requireNonNull(readTransaction.execute(status ->
+                employeePayRuns
+                        .findAllByTenantIdAndPayrunIdAndInclusionStatus(tenantId, id, InclusionStatus.INCLUDED)
+                        .stream()
+                        .map(EmployeePayRun::getEmployeeId)
+                        .collect(Collectors.toSet())));
+        List<UUID> notIncluded = inputs.stream()
+                .map(PayRunInputRequest::employeeId)
+                .filter(employeeId -> !includedIds.contains(employeeId))
+                .distinct()
+                .toList();
+        if (!notIncluded.isEmpty()) {
+            throw new EmployeeNotInRunException("Not an included employee of pay run " + id, notIncluded);
+        }
+        refuseReferenceClashes(id, inputs);
+
+        List<PayRunInputResponse> results = new ArrayList<>(inputs.size());
+        for (PayRunInputRequest input : inputs) {
+            String sourceRef = input.sourceRef().strip();
+            PayInputCommand command = new PayInputCommand(
+                    input.employeeId(),
+                    run.getPeriod(),
+                    input.kind(),
+                    null,
+                    Money.of(input.amount()),
+                    SOURCE_MODULE,
+                    ledgerRef(id, sourceRef),
+                    id);
+            try {
+                PayInputResponse recorded = payInputService.record(command);
+                results.add(PayRunInputResponse.recorded(input.employeeId(), sourceRef, recorded.id()));
+            } catch (PayInputService.DuplicatePayInputException e) {
+                results.add(PayRunInputResponse.duplicate(input.employeeId(), sourceRef));
+            }
+        }
+        long recorded = results.stream()
+                .filter(r -> r.result() == PayRunInputResponse.Result.RECORDED)
+                .count();
+        log.info(
+                "Off-cycle pay run {} in tenant {}: {} inputs recorded, {} duplicates",
+                id,
+                tenantId,
+                recorded,
+                results.size() - recorded);
+        return results;
+    }
+
+    /**
+     * The ledger's idempotency key is {@code (tenant, module, reference)} and carries no employee, so a
+     * reference used for a different payment would come back {@code DUPLICATE} and that employee would
+     * go unpaid without anyone being told. Refused before the first write: a reference repeated inside
+     * the request, and one this run already holds for another employee, kind or amount. An identical
+     * item is a retry and is still reported {@code DUPLICATE}.
+     */
+    private void refuseReferenceClashes(UUID id, List<PayRunInputRequest> inputs) {
+        Map<String, Integer> firstUse = new HashMap<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            Integer first = firstUse.putIfAbsent(inputs.get(i).sourceRef().strip(), i);
+            if (first != null) {
+                throw new IllegalArgumentException("inputs[" + i + "].source_ref repeats inputs[" + first
+                        + "]: every payment on a run needs its own reference");
+            }
+        }
+        Map<String, PayInputResponse> recorded = new HashMap<>();
+        for (PayInputResponse row : payInputService.forRun(id).rows()) {
+            // A reversal carries its original's reference; the original is the payment.
+            if (row.reversesId() == null) {
+                recorded.put(row.sourceRef(), row);
+            }
+        }
+        for (int i = 0; i < inputs.size(); i++) {
+            PayRunInputRequest input = inputs.get(i);
+            PayInputResponse prior =
+                    recorded.get(ledgerRef(id, input.sourceRef().strip()));
+            if (prior != null
+                    && !(prior.employeeId().equals(input.employeeId())
+                            && prior.kind() == input.kind()
+                            && prior.amount() != null
+                            && prior.amount().compareTo(Money.of(input.amount()).raw()) == 0)) {
+                throw new IllegalArgumentException("inputs[" + i + "].source_ref is already used on this run for"
+                        + " a different payment: every payment on a run needs its own reference");
+            }
+        }
+    }
+
+    private static String ledgerRef(UUID runId, String sourceRef) {
+        return "payrun:" + runId + ":" + sourceRef;
+    }
+
+    private static void validateInput(int index, PayRunInputRequest input) {
+        String at = "inputs[" + index + "]";
+        if (input == null) {
+            throw new IllegalArgumentException(at + " is null");
+        }
+        if (input.employeeId() == null) {
+            throw new IllegalArgumentException(at + ".employee_id is required");
+        }
+        if (input.kind() == null) {
+            throw new IllegalArgumentException(at + ".kind is required");
+        }
+        if (input.kind() == PayInputKind.LOP_DAYS) {
+            throw new IllegalArgumentException(
+                    at + ".kind LOP_DAYS is not allowed: an off-cycle run has no loss of pay");
+        }
+        if (input.amount() == null || input.amount().signum() <= 0) {
+            throw new IllegalArgumentException(at + ".amount must be above zero");
+        }
+        if (input.sourceRef() == null || input.sourceRef().isBlank()) {
+            throw new IllegalArgumentException(at + ".source_ref is required");
+        }
+        if (input.sourceRef().strip().length() > MAX_INPUT_SOURCE_REF_LENGTH) {
+            throw new IllegalArgumentException(
+                    at + ".source_ref must be at most " + MAX_INPUT_SOURCE_REF_LENGTH + " characters");
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
     public PayRunResponse get(UUID id) {
         return PayRunResponse.from(require(id));
     }
 
+    /** Overrides the interface default so a call through the proxy is transactional too. */
     @Override
     @Transactional(readOnly = true)
     public Page<PayRunResponse> list(PayRunStatus status, Pageable pageable) {
+        return list(status, null, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PayRunResponse> list(PayRunStatus status, PayRunType runType, Pageable pageable) {
         UUID tenantId = TenantContext.require();
-        Page<PayRun> page = status == null
-                ? payRuns.findByTenantId(tenantId, pageable)
-                : payRuns.findByTenantIdAndStatus(tenantId, status, pageable);
+        Page<PayRun> page;
+        if (runType == null) {
+            page = status == null
+                    ? payRuns.findByTenantId(tenantId, pageable)
+                    : payRuns.findByTenantIdAndStatus(tenantId, status, pageable);
+        } else {
+            page = status == null
+                    ? payRuns.findByTenantIdAndRunType(tenantId, runType, pageable)
+                    : payRuns.findByTenantIdAndStatusAndRunType(tenantId, status, runType, pageable);
+        }
         return page.map(PayRunResponse::from);
     }
 
@@ -191,9 +468,14 @@ public class PayRunServiceImpl implements PayRunService {
     @Transactional
     public PayRunResponse lock(UUID id) {
         PayRun run = requireForUpdate(id);
-        // Refuse before touching the period lock, so a 409 leaves nothing behind.
+        // Refuse before touching the input lock, so a 409 leaves nothing behind.
         run.getStatus().requireTransitionTo(PayRunStatus.LOCKED);
-        payInputService.lock(run.getPeriod());
+        if (run.getRunType() == PayRunType.OFF_CYCLE) {
+            // W-30.2: the run's own inputs, never the month — the regular run still locks its period.
+            payInputService.lockRun(run.getId(), run.getPeriod());
+        } else {
+            payInputService.lock(run.getPeriod());
+        }
         run.lock(currentActor(), Instant.now().truncatedTo(ChronoUnit.MICROS));
         PayRun saved = payRuns.saveAndFlush(run);
         log.info("Locked pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
@@ -345,6 +627,96 @@ public class PayRunServiceImpl implements PayRunService {
                         .map(EmployeePayRunLineResponse::from)
                         .toList();
         return new EmployeePayRunLinesResponse(employeeId, row.getComputationError(), rowLines);
+    }
+
+    @Override
+    @Transactional
+    public PayRunResponse approve(UUID id) {
+        PayRun run = requireForUpdate(id);
+        run.approve(currentActor(), now());
+        PayRun saved = payRuns.saveAndFlush(run);
+        log.info("Approved pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
+        return PayRunResponse.from(saved);
+    }
+
+    @Override
+    public PayRunResponse pay(UUID id, LocalDate paidOn) {
+        Objects.requireNonNull(id, "id must not be null");
+        if (paidOn == null) {
+            throw new IllegalArgumentException("paid_on is required, as YYYY-MM-DD");
+        }
+        UUID tenantId = TenantContext.require();
+        String actor = currentActor();
+        Instant now = now();
+
+        record PayCommitResult(PayRun run, List<EmployeePayRun> included) {}
+
+        PayCommitResult result = Objects.requireNonNull(writeTransaction.execute(status -> {
+            PayRun run = requireForUpdate(id);
+            run.pay(paidOn, actor, now);
+            PayRun savedRun = payRuns.saveAndFlush(run);
+            List<EmployeePayRun> includedRows = employeePayRuns.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                    tenantId, id, InclusionStatus.INCLUDED);
+            return new PayCommitResult(savedRun, includedRows);
+        }));
+
+        int notifiedCount = sendPayslipNotifications(tenantId, result.run(), result.included());
+
+        log.info(
+                "Paid pay run {} for {} in tenant {}: {} notified",
+                result.run().getId(),
+                result.run().getPeriod(),
+                tenantId,
+                notifiedCount);
+        return PayRunResponse.from(result.run(), notifiedCount);
+    }
+
+    private int sendPayslipNotifications(UUID tenantId, PayRun run, List<EmployeePayRun> included) {
+        if (notificationServices == null || payslipLinkService == null || included.isEmpty()) {
+            return 0;
+        }
+        NotificationService notificationService = notificationServices.getIfAvailable();
+        if (notificationService == null) {
+            return 0;
+        }
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
+        String periodStr = run.getPeriod().format(formatter);
+        int count = 0;
+
+        for (EmployeePayRun row : included) {
+            try {
+                Boolean success = writeTransaction.execute(status -> {
+                    EmployeeResponse emp = employeeService.get(row.getEmployeeId());
+                    String employeeName = formatEmployeeName(emp);
+                    PayslipLinkService.SignedLink link = payslipLinkService.signedLink(row.getId(), Duration.ofDays(7));
+                    List<UUID> notifIds = notificationService.compose(
+                            NotificationEvent.PAYSLIP_READY,
+                            row.getEmployeeId(),
+                            Map.of(
+                                    "employee_name", employeeName,
+                                    "period", periodStr,
+                                    "link", link.url()));
+                    return notifIds != null && !notifIds.isEmpty();
+                });
+                if (Boolean.TRUE.equals(success)) {
+                    count++;
+                }
+            } catch (Exception e) {
+                log.warn(
+                        "Failed to compose payslip notification for employee {} in pay run {}",
+                        row.getEmployeeId(),
+                        run.getId(),
+                        e);
+            }
+        }
+        return count;
+    }
+
+    private static String formatEmployeeName(EmployeeResponse emp) {
+        String name = Stream.of(emp.firstName(), emp.middleName(), emp.lastName())
+                .filter(part -> part != null && !part.isBlank())
+                .collect(Collectors.joining(" "));
+        return name.isBlank() ? emp.employeeNumber() : name;
     }
 
     private PayRun require(UUID id) {

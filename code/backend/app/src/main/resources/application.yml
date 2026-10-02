@@ -138,3 +138,9 @@ keycloak:
 invitation:
   link:
     base-url: ${INVITATION_LINK_BASE_URL}
+
+# W-36.2: the frontend page a payslip email links to; the signed token is appended as ?t=.
+# Absolute and with no default, for the same reason as the invitation link above.
+payslip:
+  link:
+    base-url: ${PAYSLIP_LINK_BASE_URL}

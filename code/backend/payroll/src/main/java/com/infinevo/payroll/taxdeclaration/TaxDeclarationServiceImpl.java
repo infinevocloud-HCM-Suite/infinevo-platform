@@ -7,8 +7,10 @@ import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationResponse;
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotEditableException;
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotFoundException;
 import com.infinevo.payroll.taxdeclaration.exception.WindowValidationException;
+import com.infinevo.payroll.taxdeclaration.housing.HraRuleReader;
 import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.tenant.TenantContext;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -28,26 +30,30 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
     private final EmployeeInvestmentDeclarationRepository declarationRepository;
     private final TaxDeclarationWindowService windowService;
     private final EmployeeService employeeService;
+    private final HraRuleReader hraRuleReader;
     private final Clock clock;
 
     @Autowired
     public TaxDeclarationServiceImpl(
             EmployeeInvestmentDeclarationRepository declarationRepository,
             TaxDeclarationWindowService windowService,
-            EmployeeService employeeService) {
-        this(declarationRepository, windowService, employeeService, TaxDeclarationRules.defaultClock());
+            EmployeeService employeeService,
+            HraRuleReader hraRuleReader) {
+        this(declarationRepository, windowService, employeeService, hraRuleReader, TaxDeclarationRules.defaultClock());
     }
 
     TaxDeclarationServiceImpl(
             EmployeeInvestmentDeclarationRepository declarationRepository,
             TaxDeclarationWindowService windowService,
             EmployeeService employeeService,
+            HraRuleReader hraRuleReader,
             Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.declarationRepository =
                 Objects.requireNonNull(declarationRepository, "declarationRepository must not be null");
         this.windowService = Objects.requireNonNull(windowService, "windowService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.hraRuleReader = Objects.requireNonNull(hraRuleReader, "hraRuleReader must not be null");
     }
 
     @Override
@@ -298,6 +304,9 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
             EmployeeInvestmentDeclaration decl, IncomeTaxDeclarationWindow window, LocalDate today) {
         boolean windowOpen = window != null && window.isOpenOn(today);
         boolean isEditable = TaxDeclarationRules.isEditable(decl, window, today, false);
+        // Rent PAN rule: the same window flag and reference row HousingDeclarationServiceImpl enforces on save.
+        boolean panRequired = window != null && window.isPanRequiredForRentOverThreshold();
+        BigDecimal panThreshold = hraRuleReader.findPanMandatoryThreshold(decl.getFinancialYear(), decl.getTaxRegime());
         return new TaxDeclarationResponse(
                 decl.getId(),
                 decl.getEmployeeId(),
@@ -311,6 +320,8 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
                 decl.getSubmittedAt(),
                 decl.getLockedAt(),
                 windowOpen,
-                isEditable);
+                isEditable,
+                panRequired,
+                panThreshold);
     }
 }

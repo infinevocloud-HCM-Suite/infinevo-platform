@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,16 @@ public class NavigationService {
     private final List<NavigationCatalogue.ItemDefinition> catalogueItems;
 
     @Autowired
+    public NavigationService(
+            EntitlementService entitlementService,
+            PermissionService permissionService,
+            ObjectProvider<NavigationContributor> contributors) {
+        this(
+                entitlementService,
+                permissionService,
+                NavigationCatalogue.withContributed(contributors.orderedStream().toList()));
+    }
+
     public NavigationService(EntitlementService entitlementService, PermissionService permissionService) {
         this(entitlementService, permissionService, NavigationCatalogue.DEFAULT_ITEMS);
     }
