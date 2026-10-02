@@ -21,8 +21,11 @@ const OfficerDeclarationView = lazy(() =>
 const DeclarationPage = lazy(() =>
   import('./tax/DeclarationPage.jsx').then((m) => ({ default: m.DeclarationPage }))
 );
+const PriorPayrollPage = lazy(() =>
+  import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
+);
 
-// Payroll module entry point (W-45 §5, W-47.2 §5, W-47.3 §5).
+// Payroll module entry point (W-45 §5, W-47.2 §5, W-47.3 §5, W-47.6 §5).
 // Screens and slices land here as Payroll features are built.
 export const routes = [
   { path: '/payroll/runs', element: React.createElement(RunList) },
@@ -33,6 +36,7 @@ export const routes = [
     path: '/payroll/tax-declarations/:employeeId/:fy',
     element: React.createElement(OfficerDeclarationView),
   },
+  { path: '/payroll/prior-payroll', element: React.createElement(PriorPayrollPage) },
 ];
 
 export const reducers = {

@@ -19,6 +19,7 @@ import {
 import { PlusOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { payrunService } from './payrunService.js';
+import { MidYearBanner } from '../priorpayroll/MidYearBanner.jsx';
 
 const { Title, Text } = Typography;
 
@@ -275,6 +276,8 @@ export function RunList() {
           style={{ marginBottom: 16 }}
         />
       )}
+
+      <MidYearBanner />
 
       <Table
         dataSource={data}

@@ -3,14 +3,15 @@ import { routes, reducers, portalPanels } from './index.js';
 import payrunReducer from './payrun/payrunSlice.js';
 import taxReducer from './tax/taxSlice.js';
 
-describe('payroll module entry (W-45 §5, W-47.2 §5, W-47.3 §5)', () => {
-  it('registers the pay run and tax admin routes as elements', () => {
+describe('payroll module entry (W-45 §5, W-47.2 §5, W-47.3 §5, W-47.6 §5)', () => {
+  it('registers the pay run, tax and prior payroll routes as elements', () => {
     expect(routes.map((r) => r.path)).toEqual([
       '/payroll/runs',
       '/payroll/runs/new-off-cycle',
       '/payroll/runs/:id',
       '/payroll/settings/tax-declaration',
       '/payroll/tax-declarations/:employeeId/:fy',
+      '/payroll/prior-payroll',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
   });
