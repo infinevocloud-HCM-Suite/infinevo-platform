@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
+import com.infinevo.shared.impersonation.ActingAs;
+import com.infinevo.shared.impersonation.ImpersonationResolver;
+import com.infinevo.shared.impersonation.ImpersonationResolver.ResolvedImpersonation;
 import com.infinevo.shared.logging.MdcLoggingContext;
 import com.infinevo.shared.security.PublicEndpoints;
 import jakarta.servlet.FilterChain;
@@ -24,9 +27,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Servlet filter that extracts tenant claims, verifies membership against {@code core.user_tenant},
- * binds {@link TenantContext} for the request duration, and guarantees {@link TenantContext#clear()} in a {@code finally} block.
+ * binds {@link TenantContext} for the request duration, supports platform impersonation sessions via
+ * {@code X-Impersonation}, and guarantees {@link TenantContext#clear()} and {@link ActingAs#clear()}
+ * in a {@code finally} block.
  */
 public class TenantContextFilter extends OncePerRequestFilter {
+
+    private static final String HEADER_IMPERSONATION = "X-Impersonation";
+    private static final String HEADER_TENANT_ID = "X-Tenant-Id";
 
     /**
      * Paths that need no tenant. Health probes and the API description, and nothing else.
@@ -57,16 +65,26 @@ public class TenantContextFilter extends OncePerRequestFilter {
     private final TenantAuthenticationExtractor extractor;
     private final TenantMembershipService membershipService;
     private final ObjectMapper objectMapper;
+    private final ImpersonationResolver impersonationResolver;
 
     public TenantContextFilter(
             TenantAuthenticationExtractor extractor,
             TenantMembershipService membershipService,
             ObjectMapper objectMapper) {
+        this(extractor, membershipService, objectMapper, null);
+    }
+
+    public TenantContextFilter(
+            TenantAuthenticationExtractor extractor,
+            TenantMembershipService membershipService,
+            ObjectMapper objectMapper,
+            ImpersonationResolver impersonationResolver) {
         this.extractor = extractor;
         this.membershipService = membershipService;
         this.objectMapper = objectMapper != null
                 ? objectMapper.copy().registerModule(new JavaTimeModule())
                 : new ObjectMapper().registerModule(new JavaTimeModule());
+        this.impersonationResolver = impersonationResolver;
     }
 
     /**
@@ -92,6 +110,102 @@ public class TenantContextFilter extends OncePerRequestFilter {
             return;
         }
 
+        String impersonationHeader = request.getHeader(HEADER_IMPERSONATION);
+        String tenantIdHeader = request.getHeader(HEADER_TENANT_ID);
+
+        boolean hasImpersonation = impersonationHeader != null && !impersonationHeader.isBlank();
+        boolean hasTenantId = tenantIdHeader != null && !tenantIdHeader.isBlank();
+
+        // Mutual exclusion: X-Impersonation and X-Tenant-Id together -> 400
+        if (hasImpersonation && hasTenantId) {
+            writeErrorResponse(
+                    response,
+                    HttpStatus.BAD_REQUEST,
+                    ApiError.VALIDATION_FAILED,
+                    "X-Impersonation and X-Tenant-Id headers cannot be used together");
+            return;
+        }
+
+        // Impersonation session branch
+        if (hasImpersonation) {
+            UUID sessionId;
+            try {
+                sessionId = UUID.fromString(impersonationHeader.trim());
+            } catch (IllegalArgumentException e) {
+                writeErrorResponse(
+                        response,
+                        HttpStatus.FORBIDDEN,
+                        ApiError.IMPERSONATION_INVALID,
+                        "Invalid impersonation session");
+                return;
+            }
+
+            if (impersonationResolver == null) {
+                writeErrorResponse(
+                        response,
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        ApiError.INTERNAL,
+                        "Impersonation support is not configured");
+                return;
+            }
+
+            TenantAuthenticationExtractor.TenantExtractionResult extractionResult;
+            try {
+                extractionResult = extractor.extract(request, auth);
+            } catch (IllegalArgumentException e) {
+                writeErrorResponse(response, HttpStatus.BAD_REQUEST, ApiError.VALIDATION_FAILED, e.getMessage());
+                return;
+            }
+
+            UUID staffUserId = extractionResult.userId();
+            Optional<ResolvedImpersonation> resolved;
+            try {
+                resolved = impersonationResolver.resolve(sessionId, staffUserId);
+            } catch (Exception e) {
+                writeErrorResponse(
+                        response,
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        ApiError.INTERNAL,
+                        "Database infrastructure error resolving impersonation session");
+                return;
+            }
+
+            if (resolved.isEmpty()) {
+                writeErrorResponse(
+                        response,
+                        HttpStatus.FORBIDDEN,
+                        ApiError.IMPERSONATION_INVALID,
+                        "Impersonation session is invalid, expired, or not owned by caller");
+                return;
+            }
+
+            ResolvedImpersonation session = resolved.get();
+            UUID targetTenantId = session.tenantId();
+
+            TenantContext.set(targetTenantId);
+            ActingAs.set(
+                    session.platformUserId(),
+                    session.targetUserAccountId(),
+                    session.sessionId(),
+                    session.targetEmail(),
+                    session.actionCodes());
+
+            MDC.put(MdcLoggingContext.TENANT_ID_KEY, targetTenantId.toString());
+            MDC.put(MdcLoggingContext.USER_ID_KEY, staffUserId.toString());
+            MDC.put(MdcLoggingContext.ACTING_AS_KEY, staffUserId.toString());
+            try {
+                filterChain.doFilter(request, response);
+            } finally {
+                MDC.remove(MdcLoggingContext.ACTING_AS_KEY);
+                MDC.remove(MdcLoggingContext.USER_ID_KEY);
+                MDC.remove(MdcLoggingContext.TENANT_ID_KEY);
+                ActingAs.clear();
+                TenantContext.clear();
+            }
+            return;
+        }
+
+        // Standard tenant resolution and membership verification
         TenantAuthenticationExtractor.TenantExtractionResult extractionResult;
         try {
             extractionResult = extractor.extract(request, auth);
@@ -146,6 +260,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
         } finally {
             MDC.remove(MdcLoggingContext.USER_ID_KEY);
             MDC.remove(MdcLoggingContext.TENANT_ID_KEY);
+            ActingAs.clear();
             TenantContext.clear();
         }
     }

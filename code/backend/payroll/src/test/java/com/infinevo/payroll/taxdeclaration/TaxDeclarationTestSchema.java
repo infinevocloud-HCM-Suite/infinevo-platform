@@ -78,6 +78,11 @@ public final class TaxDeclarationTestSchema {
             if (!tableExists(conn, "payroll", "income_tax_declaration")) {
                 executeResource(conn, "db/migration/payroll/V071__income_tax_declaration.sql");
             }
+            // W-34.1: the window entity now selects the five proof columns, so every test that reads the
+            // window needs them, whether or not it is about proofs.
+            if (!columnExists(conn, "payroll", "income_tax_declaration", "poi_opens_on")) {
+                executeResource(conn, "db/migration/payroll/V111__proof_window_columns.sql");
+            }
             if (!tableExists(conn, "payroll", "employee_investment_declaration")) {
                 executeResource(conn, "db/migration/payroll/V072__employee_investment_declaration.sql");
             }
@@ -107,6 +112,15 @@ public final class TaxDeclarationTestSchema {
             }
             if (!tableExists(conn, "payroll", "employee_inv_tax_summary")) {
                 executeResource(conn, "db/migration/payroll/V081__employee_inv_tax_summary.sql");
+            }
+            if (!tableExists(conn, "core", "approval_definition")) {
+                executeResource(conn, "db/migration/core/V089__approval_definition.sql");
+            }
+            if (!tableExists(conn, "core", "approval_instance")) {
+                executeResource(conn, "db/migration/core/V090__approval_instance.sql");
+            }
+            if (!tableExists(conn, "payroll", "employee_proof_of_investment")) {
+                executeResource(conn, "db/migration/payroll/V112__employee_proof_of_investment.sql");
             }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT USAGE ON SCHEMA core, payroll, reference TO app_user");
@@ -195,6 +209,9 @@ public final class TaxDeclarationTestSchema {
             if (tableExists(conn, "payroll", "employee_inv_house_rent")) {
                 stmt.execute("DELETE FROM payroll.employee_inv_house_rent");
             }
+            if (tableExists(conn, "payroll", "employee_proof_of_investment")) {
+                stmt.execute("DELETE FROM payroll.employee_proof_of_investment");
+            }
             if (tableExists(conn, "payroll", "employee_investment_declaration")) {
                 stmt.execute("DELETE FROM payroll.employee_investment_declaration");
             }
@@ -235,6 +252,19 @@ public final class TaxDeclarationTestSchema {
                 conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = ? AND tablename = ?")) {
             ps.setString(1, schema);
             ps.setString(2, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    public static boolean columnExists(Connection conn, String schema, String table, String column)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM information_schema.columns"
+                + " WHERE table_schema = ? AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
+            ps.setString(3, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

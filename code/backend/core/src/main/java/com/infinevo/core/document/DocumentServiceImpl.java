@@ -191,13 +191,13 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, noRollbackFor = NotFoundException.class)
     public DocumentResponse get(UUID id) {
         return DocumentResponse.from(require(id));
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, noRollbackFor = NotFoundException.class)
     public DocumentContent open(UUID id) {
         Document document = require(id);
         InputStream content = blobStorage.open(document.getBlobContainer(), document.getBlobPath());
@@ -205,7 +205,7 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = NotFoundException.class)
     public void delete(UUID id) {
         Document document = require(id);
         document.markDeleted(currentActor());

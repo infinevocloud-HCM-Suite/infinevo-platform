@@ -112,6 +112,38 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "attendance")) {
                         executeResource(conn, "db/migration/core/V030__attendance.sql");
                     }
+                    // V085 rewrites core.seed_system_roles with the full current grant list, which
+                    // includes the payroll.fbp.* codes only V052 inserts into reference.action. Without
+                    // V052 first, every tenant insert fails role_action_action_code_fkey.
+                    if (!actionExists(conn, "payroll.fbp.read")) {
+                        executeResource(conn, "db/migration/reference/V052__fbp_actions.sql");
+                    }
+                    if (!actionExists(conn, "payroll.reimbursement_claim.read")) {
+                        executeResource(conn, "db/migration/reference/V097__reimbursement_claim_actions.sql");
+                    }
+                    // V135 grants W-35.2's payroll.employee_deduction.* codes, which only V100 inserts.
+                    if (!actionExists(conn, "payroll.employee_deduction.read")) {
+                        executeResource(conn, "db/migration/reference/V100__employee_deduction_actions.sql");
+                    }
+                    if (!actionExists(conn, "hrms.project.manage")) {
+                        executeResource(conn, "db/migration/core/V085__hrms_project_actions.sql");
+                        // V135 is the one current seed_system_roles: V100's grants plus hrms.project.*.
+                        executeResource(conn, "db/migration/core/V135__hrms_project_seed_roles.sql");
+                    }
+                    if (!functionExists(conn, "core", "list_tenants")) {
+                        executeResource(conn, "db/migration/core/V082__platform_tenant.sql");
+                    }
+                    // W-65.1 review: V082 wrote the platform tenant's subscription status in lower case, which the
+                    // SubscriptionStatus enum cannot read. V138 corrects it and adds the CHECK.
+                    if (!constraintExists(conn, "core", "subscription", "ck_subscription_status")) {
+                        executeResource(conn, "db/migration/core/V138__subscription_status_check.sql");
+                    }
+                    if (!actionExists(conn, "core.tenant.impersonate")) {
+                        executeResource(conn, "db/migration/reference/V083__action_impersonate.sql");
+                    }
+                    if (!tableExists(conn, "core", "impersonation_session")) {
+                        executeResource(conn, "db/migration/core/V084__impersonation_session.sql");
+                    }
                     // W-24.1: tenant setup step
                     executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
                     // W-17: holiday calendar
@@ -347,6 +379,44 @@ public final class AuthzTestSchema {
                 conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = ? AND tablename = ?")) {
             ps.setString(1, schema);
             ps.setString(2, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean actionExists(Connection conn, String code) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM reference.action WHERE code = ?")) {
+            ps.setString(1, code);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean constraintExists(Connection conn, String schema, String table, String constraint)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                """
+                SELECT 1 FROM pg_constraint c
+                  JOIN pg_class t ON t.oid = c.conrelid
+                  JOIN pg_namespace n ON n.oid = t.relnamespace
+                 WHERE n.nspname = ? AND t.relname = ? AND c.conname = ?
+                """)) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
+            ps.setString(3, constraint);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean functionExists(Connection conn, String schema, String function) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = ? AND p.proname = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, function);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

@@ -153,7 +153,7 @@ cd code/backend && mvn -q verify
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| The worker cannot see payroll's resolvers | low | `worker/pom.xml:19` already depends on `payroll`; `ProofReminderRuleIT` runs the evaluator |
+| The worker cannot see payroll's resolvers | low | `worker/pom.xml:19` already depends on `payroll`; `ProofReminderSweepTest` (in `worker`) runs the evaluator |
 | The sweep's financial year is calendar-derived and differs from the tenant's | low | the anchor resolver and `ReminderEvaluator.java:267-271` both use April–March; resolver uses `FinancialYear.of` |
 | The list and the reminder disagree on "pending" | medium if written twice | one `ProofPendingQuery` for both |
 | A large tenant's audience loads entities | low | ids only, one query, as `SubjectAudienceResolver` |
@@ -193,3 +193,18 @@ Nothing is deployed and no schema changes. Removing the two resolver beans makes
 ## 14. Open for the founder
 
 None.
+
+---
+
+## 15. As built (2026-09-30, `dev-devashish`)
+
+| Topic | As built |
+|---|---|
+| Resolvers | `ProofDueDateAnchorResolver` (`POI_DUE_DATE`) and `ProofPendingAudienceResolver` (`POI_PENDING`) are `@Component`s in `payroll/proof`. `ReminderRuleServiceImpl` already accepts any anchor or audience a bean resolves, so **no core change** was needed; `ProofReminderRuleIT` proves the rule is now accepted. It does **not** run the sweep: it composes a notification itself and verifies its own call, so it proves only that the rule is accepted and that the resolvers answer. The sweep is `ProofReminderSweepTest` |
+| One query | `ProofPendingQueryImpl` backs the audience, the list and the summary, so they cannot disagree. JPQL only, every parameter bound, filter clauses appended only when set (no untyped-null parameters), prefix search escaped with `!` |
+| Who is pending | Active, non-deleted employee with a `SUBMITTED` declaration for the year, and no proof or a `DRAFT`/`REJECTED` one. The **list** shows every non-deleted employee with a submitted declaration, including inactive ones; only the **audience** is restricted to active employees |
+| Totals | `claimed_total` summed in SQL; `approved_total` reported only when the proof is `APPROVED`, otherwise `null` (`93c49fb`) |
+| Paging | 25 by default, clamped to 100; an unknown `status` or a malformed `fy` is `400` |
+| Constructors | The three beans each keep a package-private constructor taking a `Clock` for tests; Spring uses the other one, because no `Clock` bean exists. As first committed, both constructors were public and the payroll application context could not start; fixed before merge |
+| The sweep, for real | `worker/.../notification/ProofReminderSweepTest` runs the real `ReminderEvaluator` with the real `ProofDueDateAnchorResolver` and `ProofPendingAudienceResolver`; the only caller of `compose` is the evaluator. Within its window it reminds exactly the employees the audience resolver names, with the window's `due_date` and the financial year; before the window, after the deadline, with the proof window locked or unset, it sends nothing. The resolvers' ports (`ProofPendingQuery`, the window repository) are stubbed; their queries run against the database in `ProofPendingAudienceIT` |
+| Tests | `ProofDueDateAnchorResolverTest`, `ProofPendingQueryTest`, `ProofPendingAudienceResolverTest`, `ProofChaseControllerTest`, `ProofPendingAudienceIT`, `ProofChaseListIT`, `ProofReminderRuleIT`; worker `ReminderEvaluatorTest` extended |

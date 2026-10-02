@@ -35,4 +35,24 @@ class MdcLoggingContextTest {
         }
         assertThat(MDC.get(MdcLoggingContext.TENANT_ID_KEY)).isNull();
     }
+
+    @Test
+    @DisplayName("Binds and unbinds userId using try-with-resources")
+    void shouldBindAndUnbindUserId() {
+        UUID userId = UUID.randomUUID();
+        try (var ctx = MdcLoggingContext.withUserId(userId)) {
+            assertThat(MDC.get(MdcLoggingContext.USER_ID_KEY)).isEqualTo(userId.toString());
+        }
+        assertThat(MDC.get(MdcLoggingContext.USER_ID_KEY)).isNull();
+    }
+
+    @Test
+    @DisplayName("Binds and unbinds acting_as using try-with-resources")
+    void shouldBindAndUnbindActingAs() {
+        UUID staffId = UUID.randomUUID();
+        try (var ctx = MdcLoggingContext.withActingAs(staffId)) {
+            assertThat(MDC.get(MdcLoggingContext.ACTING_AS_KEY)).isEqualTo(staffId.toString());
+        }
+        assertThat(MDC.get(MdcLoggingContext.ACTING_AS_KEY)).isNull();
+    }
 }

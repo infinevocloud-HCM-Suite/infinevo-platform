@@ -32,8 +32,8 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
     private final EmployeeService employeeService;
     private final HraRuleReader hraRuleReader;
     private final Clock clock;
+    private final ProofInProgressCheck proofInProgressCheck;
 
-    @Autowired
     public TaxDeclarationServiceImpl(
             EmployeeInvestmentDeclarationRepository declarationRepository,
             TaxDeclarationWindowService windowService,
@@ -48,6 +48,35 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
             EmployeeService employeeService,
             HraRuleReader hraRuleReader,
             Clock clock) {
+        this(declarationRepository, windowService, employeeService, hraRuleReader, clock, ProofInProgressCheck.NONE);
+    }
+
+    /** The constructor Spring uses: the proof check is a required part of the reopen rule (W-34.1). */
+    @Autowired
+    public TaxDeclarationServiceImpl(
+            EmployeeInvestmentDeclarationRepository declarationRepository,
+            TaxDeclarationWindowService windowService,
+            EmployeeService employeeService,
+            HraRuleReader hraRuleReader,
+            ProofInProgressCheck proofInProgressCheck) {
+        this(
+                declarationRepository,
+                windowService,
+                employeeService,
+                hraRuleReader,
+                TaxDeclarationRules.defaultClock(),
+                proofInProgressCheck);
+    }
+
+    TaxDeclarationServiceImpl(
+            EmployeeInvestmentDeclarationRepository declarationRepository,
+            TaxDeclarationWindowService windowService,
+            EmployeeService employeeService,
+            HraRuleReader hraRuleReader,
+            Clock clock,
+            ProofInProgressCheck proofInProgressCheck) {
+        this.proofInProgressCheck =
+                Objects.requireNonNull(proofInProgressCheck, "proofInProgressCheck must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.declarationRepository =
                 Objects.requireNonNull(declarationRepository, "declarationRepository must not be null");
@@ -77,7 +106,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
     @Override
     public TaxDeclarationResponse reopenOwn(String financialYear) {
         EmployeeResponse current = currentEmployeeOrDeny("payroll.tax_declaration.declare_own");
-        return reopenInternal(current.id(), financialYear, false);
+        return reopenInternal(current.id(), financialYear, false, true);
     }
 
     @Override
@@ -109,7 +138,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
 
     @Override
     public TaxDeclarationResponse reopen(UUID employeeId, String financialYear) {
-        return reopenInternal(employeeId, financialYear, true);
+        return reopenInternal(employeeId, financialYear, true, false);
     }
 
     @Override
@@ -273,7 +302,8 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
         return toResponse(decl, window, today);
     }
 
-    private TaxDeclarationResponse reopenInternal(UUID employeeId, String financialYear, boolean ignoreWindow) {
+    private TaxDeclarationResponse reopenInternal(
+            UUID employeeId, String financialYear, boolean ignoreWindow, boolean guardProof) {
         FinancialYear fy = FinancialYear.parse(financialYear);
         UUID tenantId = TenantContext.require();
         employeeService.get(employeeId);
@@ -283,6 +313,15 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
 
         if (decl.isLocked()) {
             throw new DeclarationNotEditableException("LOCKED", "Declaration is locked");
+        }
+        // W-34.1: the employee cannot pull the declaration from under a proof that is being reviewed.
+        // The officer's reopen is not guarded: it is how a mistake is put right. The check runs on both
+        // paths all the same, because it takes the proof row's lock and so serialises this reopen with a
+        // concurrent proof submit.
+        boolean proofInProgress = proofInProgressCheck.isProofInProgress(tenantId, decl.getId());
+        if (guardProof && proofInProgress) {
+            throw new DeclarationNotEditableException(
+                    "PROOF_IN_PROGRESS", "The proof of investment for this declaration is submitted or approved");
         }
 
         IncomeTaxDeclarationWindow window = windowService.findOrCreateDefault(tenantId, fy.label());

@@ -1,5 +1,6 @@
 package com.infinevo.shared.authz;
 
+import com.infinevo.shared.impersonation.ActingAs;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.Objects;
 import java.util.Optional;
@@ -51,6 +52,8 @@ public class PermissionService {
     /**
      * Returns the full set of action codes held by the caller in the bound tenant,
      * read from {@link PermissionCache} under the current permission version (W-12.3).
+     * When {@link ActingAs} is set, returns the actions of the target user (or the
+     * seeded {@code tenant-admin} role actions for a bootstrap session).
      * Fails closed by returning an empty set on any error or missing context.
      */
     public Set<String> currentActions() {
@@ -58,6 +61,10 @@ public class PermissionService {
         if (tenantId.isEmpty()) {
             log.warn("Permission check refused: no tenant bound to this request");
             return Set.of();
+        }
+        Optional<ActingAs.Impersonation> actingAs = ActingAs.current();
+        if (actingAs.isPresent() && actingAs.get().isBootstrap()) {
+            return actingAs.get().actionCodes();
         }
         Optional<UUID> userId = currentUserId();
         if (userId.isEmpty()) {
@@ -69,6 +76,10 @@ public class PermissionService {
             if (permissionCache == null) {
                 log.warn("Permission check refused: no PermissionCache is configured");
                 return Set.of();
+            }
+            if (actingAs.isPresent()) {
+                return permissionCache.actionsOf(
+                        tenantId.get(), userId.get(), () -> actingAs.get().actionCodes());
             }
             ActionSource source = actionSource.get();
             if (source == null) {
@@ -130,8 +141,13 @@ public class PermissionService {
      * The Keycloak subject — {@code sub}, as {@code UserProfileSyncFilter.subjectOf} reads it — or,
      * for a principal that is not a {@link Jwt}, the authentication's name, as
      * {@code TenantAuthenticationExtractor} falls back to. Empty unless it is a UUID.
+     * When {@link ActingAs} is active, returns the target user account ID (empty for bootstrap).
      */
     private static Optional<UUID> currentUserId() {
+        Optional<ActingAs.Impersonation> actingAs = ActingAs.current();
+        if (actingAs.isPresent()) {
+            return Optional.ofNullable(actingAs.get().targetUserAccountId());
+        }
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             return Optional.empty();

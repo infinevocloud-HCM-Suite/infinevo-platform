@@ -81,8 +81,11 @@ class DelegationGuardIT extends AbstractIntegrationTest {
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
         TenantContext.clear();
+        // These tests share a database with the employee tests, which delete employees; approval rows
+        // left behind would block that delete through approval_instance's foreign key.
+        ApprovalTestSchema.clearDefinitions();
     }
 
     @Test

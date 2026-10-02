@@ -5,6 +5,7 @@ import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
 import java.net.URI;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.MDC;
@@ -12,13 +13,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controller for tenant provisioning (W-12.1).
+ * Controller for tenant provisioning and overview queries (W-12.1, W-65.1).
  *
  * <p>Restricted to platform administrators holding {@code core.tenant.provision}.
  */
@@ -27,9 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class TenantController {
 
     private final TenantService tenantService;
+    private final TenantQueryService tenantQueryService;
 
-    public TenantController(TenantService tenantService) {
+    public TenantController(TenantService tenantService, TenantQueryService tenantQueryService) {
         this.tenantService = Objects.requireNonNull(tenantService, "tenantService must not be null");
+        this.tenantQueryService = Objects.requireNonNull(tenantQueryService, "tenantQueryService must not be null");
     }
 
     @PostMapping
@@ -41,6 +46,24 @@ public class TenantController {
         TenantResponse response = tenantService.provisionTenant(request);
         return ResponseEntity.created(URI.create("/api/v1/tenants/" + response.tenantId()))
                 .body(response);
+    }
+
+    @GetMapping
+    @RequiresAction("core.tenant.provision")
+    public ResponseEntity<List<TenantOverview>> listTenants() {
+        return ResponseEntity.ok(tenantQueryService.list());
+    }
+
+    @GetMapping("/{id}")
+    @RequiresAction("core.tenant.provision")
+    public ResponseEntity<TenantOverview> getTenant(@PathVariable("id") UUID id) {
+        return ResponseEntity.ok(tenantQueryService.getOverview(id));
+    }
+
+    @ExceptionHandler(TenantNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleTenantNotFound(TenantNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiErrorResponse.of(ApiError.TENANT_NOT_FOUND, e.getMessage(), traceId()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

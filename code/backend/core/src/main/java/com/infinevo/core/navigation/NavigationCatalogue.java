@@ -137,7 +137,9 @@ public final class NavigationCatalogue {
                     "/invitations/employees",
                     "/api/v1/employee-invitations",
                     null,
-                    "core.employee.create"));
+                    "core.employee.create"),
+            new ItemDefinition(
+                    "core.tenants", "nav.tenants", "/admin/tenants", "/api/v1/tenants", null, "core.tenant.provision"));
 
     /** The core items followed by every module's contributed items, in contributor order. */
     public static List<ItemDefinition> withContributed(List<NavigationContributor> contributors) {

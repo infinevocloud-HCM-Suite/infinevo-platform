@@ -47,7 +47,10 @@ class RoleServiceTest {
     private static final UUID TENANT = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID OTHER_TENANT = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
-    private static final Set<String> CATALOGUE = Set.of("core.role.read", "core.org.read", "core.leave.apply");
+    private static final UUID PLATFORM = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+    private static final Set<String> CATALOGUE = Set.of(
+            "core.role.read", "core.org.read", "core.leave.apply", "core.tenant.provision", "core.tenant.impersonate");
 
     private RoleRepository roleRepository;
     private RoleActionRepository roleActionRepository;
@@ -71,7 +74,8 @@ class RoleServiceTest {
                 userRoleRepository,
                 actionRepository,
                 userAccountRepository,
-                permissionCache);
+                permissionCache,
+                new com.infinevo.shared.tenant.PlatformTenant(PLATFORM));
 
         // The catalogue stand-in answers findAllById the way the database would: only codes it holds.
         when(actionRepository.findAllById(anyIterable())).thenAnswer(inv -> {
@@ -132,6 +136,43 @@ class RoleServiceTest {
 
         assertThat(role.getName()).isEqualTo("Reviewer");
         verify(roleActionRepository, never()).saveAll(anyIterable());
+    }
+
+    // ── platform-only actions stay with the platform tenant
+
+    @Test
+    @DisplayName("A customer tenant's role cannot hold a platform-only action, on create or on update")
+    void platformOnlyActionRefusedInACustomerTenant() {
+        for (String action : List.of("core.tenant.provision", "core.tenant.impersonate")) {
+            RoleService.ValidationException created = catchThrowableOfType(
+                    () -> service.create(
+                            new RoleCreateRequest(null, "Sneaky " + action, List.of("core.role.read", action))),
+                    RoleService.ValidationException.class);
+            assertThat(created.fieldErrors().get("actionCodes"))
+                    .as("create names the action")
+                    .contains(action)
+                    .doesNotContain("core.role.read");
+
+            Role role = tenantRole("reviewer", "Reviewer");
+            when(roleRepository.findByIdAndTenantId(role.getId(), TENANT)).thenReturn(Optional.of(role));
+            assertThatThrownBy(() -> service.update(role.getId(), new RoleUpdateRequest("Reviewer", List.of(action))))
+                    .as("update")
+                    .isInstanceOf(RoleService.ValidationException.class)
+                    .hasMessageContaining(action);
+        }
+        verify(roleRepository, never()).saveAndFlush(any());
+        verify(roleActionRepository, never()).saveAll(anyIterable());
+    }
+
+    @Test
+    @DisplayName("The platform tenant's own roles may hold them")
+    void platformOnlyActionAllowedInThePlatformTenant() {
+        TenantContext.set(PLATFORM);
+
+        RoleResponse created = service.create(new RoleCreateRequest(
+                null, "Support lead", List.of("core.tenant.provision", "core.tenant.impersonate")));
+
+        assertThat(created.actionCodes()).containsExactlyInAnyOrder("core.tenant.provision", "core.tenant.impersonate");
     }
 
     // ── system roles cannot be edited or deleted

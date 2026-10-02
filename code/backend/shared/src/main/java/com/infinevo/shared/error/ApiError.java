@@ -17,6 +17,10 @@ public enum ApiError {
     MODULE_NOT_ENTITLED("This tenant does not hold the module required"),
     TENANT_SUSPENDED("This tenant's subscription is suspended"),
 
+    IMPERSONATION_INVALID("The impersonation session is invalid or expired"),
+    TENANT_NOT_FOUND("The requested tenant does not exist"),
+    USER_NOT_FOUND("The requested user does not exist"),
+
     INTERNAL("Something went wrong");
 
     private final String defaultMessage;

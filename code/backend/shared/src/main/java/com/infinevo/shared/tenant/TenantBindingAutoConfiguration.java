@@ -1,6 +1,8 @@
 package com.infinevo.shared.tenant;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.infinevo.shared.impersonation.ImpersonationResolver;
+import com.infinevo.shared.impersonation.ImpersonationService;
 import com.infinevo.shared.security.PublicEndpoints;
 import javax.sql.DataSource;
 import org.springframework.beans.BeansException;
@@ -36,8 +38,23 @@ public class TenantBindingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public PlatformTenant platformTenant(
+            @org.springframework.beans.factory.annotation.Value(
+                            "${infinevo.platform.tenant-id:" + PlatformTenant.DEFAULT_PLATFORM_TENANT_ID_STR + "}")
+                    String tenantId) {
+        return new PlatformTenant(tenantId);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public TenantMembershipService tenantMembershipService(DataSource dataSource) {
         return new TenantMembershipService(dataSource);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ImpersonationResolver.class)
+    public ImpersonationService impersonationService(DataSource dataSource) {
+        return new ImpersonationService(dataSource);
     }
 
     @Bean
@@ -45,8 +62,9 @@ public class TenantBindingAutoConfiguration {
     public TenantContextFilter tenantContextFilter(
             TenantAuthenticationExtractor extractor,
             TenantMembershipService membershipService,
-            ObjectMapper objectMapper) {
-        return new TenantContextFilter(extractor, membershipService, objectMapper);
+            ObjectMapper objectMapper,
+            java.util.Optional<com.infinevo.shared.impersonation.ImpersonationResolver> impersonationResolver) {
+        return new TenantContextFilter(extractor, membershipService, objectMapper, impersonationResolver.orElse(null));
     }
 
     @Bean

@@ -16,4 +16,46 @@ public record TaxDeclarationWindowResponse(
         @JsonProperty("notify_on_lock") boolean notifyOnLock,
         @JsonProperty("notify_on_release") boolean notifyOnRelease,
         boolean exists,
-        @JsonProperty("is_open") boolean isOpen) {}
+        @JsonProperty("is_open") boolean isOpen,
+        @JsonProperty("poi_opens_on") LocalDate poiOpensOn,
+        @JsonProperty("poi_due_date") LocalDate poiDueDate,
+        @JsonProperty("poi_locked") boolean poiLocked,
+        @JsonProperty("poi_attachment_mandatory") boolean poiAttachmentMandatory,
+        @JsonProperty("poi_comment_mandatory") boolean poiCommentMandatory,
+        @JsonProperty("poi_is_open") boolean poiIsOpen) {
+
+    /** The W-32.1 shape: no proof window set, attachments mandatory, comments not. */
+    public TaxDeclarationWindowResponse(
+            UUID id,
+            String financialYear,
+            LocalDate windowOpensOn,
+            LocalDate windowClosesOn,
+            boolean isLocked,
+            String defaultTaxRegime,
+            boolean canChangeTaxRegime,
+            boolean panRequiredForRentOverThreshold,
+            boolean notifyOnLock,
+            boolean notifyOnRelease,
+            boolean exists,
+            boolean isOpen) {
+        this(
+                id,
+                financialYear,
+                windowOpensOn,
+                windowClosesOn,
+                isLocked,
+                defaultTaxRegime,
+                canChangeTaxRegime,
+                panRequiredForRentOverThreshold,
+                notifyOnLock,
+                notifyOnRelease,
+                exists,
+                isOpen,
+                null,
+                null,
+                false,
+                true,
+                false,
+                false);
+    }
+}
