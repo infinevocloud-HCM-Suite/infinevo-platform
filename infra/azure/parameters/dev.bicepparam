@@ -28,3 +28,5 @@ param peSubnetPrefix = '10.10.3.0/24'
 
 param enablePurgeProtection = false
 param alertEmail = 'kmohapatra@infinevocloud.com'
+// Founder step (W-10.1): replace with the Brevo SMTP login (Brevo > SMTP & API > SMTP). Until then Keycloak mail fails auth.
+param brevoSmtpLogin = 'REPLACE-WITH-BREVO-SMTP-LOGIN'

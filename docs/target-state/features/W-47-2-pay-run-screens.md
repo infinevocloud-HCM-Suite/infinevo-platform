@@ -5,7 +5,7 @@
 | **Feature ID** | `W-47.2` · from ticket #64 · `PAY-05`, `PAY-06` |
 | **Spec file** | `docs/target-state/features/W-47-2-pay-run-screens.md` |
 | **Owner** | krushna (assigned 2026-10-01) |
-| **Apps touched** | `code/frontend/src/payroll/payrun` only. No backend, no migration |
+| **Apps touched** | `code/frontend/src/payroll/payrun`, plus one method in `payroll` (§4, founder 2026-10-02). No migration |
 | **Related gaps** | DEBT-008 (closed), BUG-006 (deferred) |
 | **Status** | **Ready** |
 | **Written by** | founder, 2026-09-28 |
@@ -16,13 +16,13 @@
 
 | Axis | This spec | Limit |
 |---|---|---|
-| Backend module | none | 1 |
+| Backend module | `payroll`: the pay-date check only (§4) | 1 |
 | Flyway migration | none | 1 |
-| Externally testable behaviour | a payroll officer creates a run for a period, sees who is in and who was skipped and why, computes it and watches progress, reads every employee's lines, locks or cancels it, and does the same for an off-cycle run, all from the browser | 1 |
+| Externally testable behaviour | a payroll officer creates a run for a period, sees who is in and who was skipped and why, computes it and watches progress, reads every employee's lines, locks or cancels it, approves and pays it, and does the same for an off-cycle run, all from the browser | 1 |
 | Frontend area | `src/payroll/payrun` | 1 |
 
-Within cap. Approve, pay and payslip are not in the `W-29.x` contracts, so they are not
-here either (§14).
+Within cap. Approve and pay are in, against the `W-36.2` endpoints now on `main`
+(`9d5c0a0`); the payslip view is not (§14, founder 2026-10-02).
 
 ---
 
@@ -32,8 +32,8 @@ The pay run is specified in four parts plus the off-cycle run and nothing render
 The `payroll.runs` menu item is on `main` (`9d5c0a0`, founder 2026-10-02): path
 `/payroll/runs`, target `GET /api/v1/payroll/payruns`, action `payroll.run.read`, module
 `PAYROLL`. Core cannot hold a payroll controller, so payroll supplies it through `core`'s
-`NavigationContributor` (`payroll/navigation/PayrollNavigation.java`); this ticket adds no
-backend.
+`NavigationContributor` (`payroll/navigation/PayrollNavigation.java`). The only backend
+change is the pay-date check in §4.
 
 The frozen screens are the largest in the Payroll app and are ported in shape only:
 
@@ -50,7 +50,7 @@ The frozen screens are the largest in the Payroll app and are ported in shape on
 **In scope**
 
 - Run list: paged, newest period first, filters on status and `runType`; "New run" (period picker) and "New off-cycle run"
-- Run page: header (period, type, status `Tag`, counts included and skipped, totals when computed), progress bar while `COMPUTING` (poll every 3 s, stop on any other status), actions Compute, Lock, Cancel gated by `useCan('payroll.run.execute')` and by the status rules of `W-29.1` §4
+- Run page: header (period, type, status `Tag`, counts included and skipped, totals when computed), progress bar while `COMPUTING` (poll every 3 s, stop on any other status), actions Compute, Lock, Cancel gated by `useCan('payroll.run.execute')` and by the status rules of `W-29.1` §4; Approve (`COMPUTED`, `useCan('payroll.run.approve')`) and Pay (`APPROVED`, `useCan('payroll.payslip.publish')`, with a pay date) per `W-36.2`
 - Employees table on the run page: filter `INCLUDED` / `SKIPPED`, skip reason shown plainly; a row opens the lines drawer
 - Lines drawer: earnings, deductions, benefits, reimbursements in `sort_order`, with `computation_error` when present
 - Off-cycle create: pay date, employee multi-select, notes; then the inputs grid (employee, kind, amount, reference) posted to `/inputs`, with per-row result shown (`id` or `DUPLICATE`)
@@ -58,11 +58,12 @@ The frozen screens are the largest in the Payroll app and are ported in shape on
 
 **Out of scope**
 
-- Approve, pay, reject, payment file download — not in `W-29.x`; a later `W-29` or `W-36` ticket adds the endpoints and this screen gains buttons
+- Reject, payment file download — no target endpoint
 - Payslip view, public payslip link, portal payslips panel — `W-36` (`W-25` §4 already names the panel)
-- One-time payout and bonus forms — `W-19` and `W-29.x` inputs, per the `W-30.2` tracker row (`DEV-TRACKER.md:319`)
+- Bonus — rescoped as a full Variable Pay feature, its own ticket (founder 2026-10-02). No screen here names or suggests a bonus
+- One-time payout forms — `W-19` and `W-29.x` inputs, per the `W-30.2` tracker row (`DEV-TRACKER.md:319`)
 - Prior payroll import — `W-38`
-- Any backend change
+- Any backend change other than §4's pay-date check
 
 ## 3. Flow
 
@@ -73,13 +74,19 @@ The frozen screens are the largest in the Payroll app and are ported in shape on
           --> Compute                       --> payrunService.compute(id)  202 {job_id}   --> poll get(id) until status != COMPUTING
           --> row                           --> payrunService.lines(id, employeeId)
           --> Lock / Cancel                 --> payrunService.lock(id) / cancel(id)
+          --> Approve / Pay {paid_on}       --> payrunService.approve(id) / pay(id, paidOn)
           --> "New off-cycle run"           --> payrunService.createOffCycle({payDate, employeeIds, notes}) --> inputs grid
           --> Save inputs                   --> payrunService.addInputs(id, rows[])
 ```
 
 ## 4. Backend changes
 
-None.
+One, founder 2026-10-02. `PayRun.pay` checks `paid_on` against `LocalDate.now()`, the JVM's
+date, which is UTC (`payroll/payrun/PayRun.java:459`). From 00:00 to 05:30 IST today's date
+is refused as "in the future". The check uses the tenant's own date instead: today in
+`core.tenant.timezone` (`V033__tenant_locale_columns.sql:7`, default `Asia/Kolkata`).
+`PayRunServiceImpl.pay` resolves that date and passes it in; `PayRun.pay` takes it as an
+argument and never reads the clock. No migration, no new endpoint.
 
 | Method | Path | Action | Spec |
 |---|---|---|---|
@@ -92,6 +99,8 @@ None.
 | GET | `/api/v1/payroll/payruns/{id}/employees/{employeeId}/lines` | `payroll.run.read` | `W-29-2-pay-run-computation.md:149` |
 | POST | `/api/v1/payroll/payruns/off-cycle` | `payroll.run.execute` | `W-30-2-off-cycle-pay-run.md:159` |
 | POST | `/api/v1/payroll/payruns/{id}/inputs` | `payroll.run.execute` + `core.pay_input.write` | `W-30-2-off-cycle-pay-run.md:160` |
+| POST | `/api/v1/payroll/payruns/{id}/approve` | `payroll.run.approve` | `W-36-2-payslips-signed-link.md:140` |
+| POST | `/api/v1/payroll/payruns/{id}/pay` `{paid_on}` | `payroll.payslip.publish` | `W-36-2-payslips-signed-link.md:141` |
 
 Status vocabulary displayed: `DRAFT`, `LOCKED`, `COMPUTING`, `COMPUTED`, `FAILED`,
 `APPROVED`, `PAID`, `CANCELLED` (`W-29.1` §6). Line kinds: `EARNING`, `DEDUCTION`,
@@ -103,13 +112,13 @@ Follows the `W-45` contract (`W-45-frontend-shell.md` §5, §5b).
 
 | File | Change |
 |---|---|
-| `src/payroll/payrun/payrunService.js` | **new.** `list`, `get`, `create`, `createOffCycle`, `employees`, `lines`, `compute`, `lock`, `cancel`, `addInputs`; one function per row of §4 |
+| `src/payroll/payrun/payrunService.js` | **new.** `list`, `get`, `create`, `createOffCycle`, `employees`, `lines`, `compute`, `lock`, `cancel`, `approve`, `pay`, `addInputs`; one function per row of §4 |
 | `src/payroll/payrun/payrunSlice.js` | **new.** `{ byId, polling: {id, timer} }`. `startPolling(id)` re-fetches every 3 s while `status === 'COMPUTING'` and stops itself; unmount clears it |
 | `src/payroll/payrun/RunList.jsx` | **new.** Ant `Table`: period, pay date, type `Tag` (`REGULAR` / `OFF_CYCLE`), status `Tag`, included / skipped counts, net total when computed, opened by row click. Filters: status `Select`, type `Segmented`. Buttons "New run" (`DatePicker.MonthPicker` in a modal) and "New off-cycle run", both `useCan('payroll.run.execute')`. A `409 DuplicatePayRun` and the no-schedule `409` are shown verbatim with a link to `/payroll/settings/pay-schedule` |
-| `src/payroll/payrun/RunPage.jsx` | **new.** Header card plus `Progress` when `COMPUTING` (`progress_done / progress_total`, attempt number). Action bar: Compute (enabled in `LOCKED`, `COMPUTED`, `FAILED`, and `COMPUTING` only when stale per `W-29.4` §3), Lock (`DRAFT`), Cancel (`DRAFT`, `LOCKED`), each with confirm. A `409` from any action re-fetches and shows the envelope |
+| `src/payroll/payrun/RunPage.jsx` | **new.** Header card plus `Progress` when `COMPUTING` (`progress_done / progress_total`, attempt number). Action bar: Compute (enabled in `LOCKED`, `COMPUTED`, `FAILED`, and `COMPUTING` only when stale per `W-29.4` §3), Lock (`DRAFT`), Cancel (`DRAFT`, `LOCKED`), Approve (`COMPUTED`), Pay (`APPROVED`; a date picker defaulting to today, no later than today, no earlier than the period start), each with confirm. `PAID` is final: no action. A `409` from any action re-fetches and shows the envelope |
 | `src/payroll/payrun/RunEmployees.jsx` | **new.** Server-paged table: number, name, inclusion `Tag`, skip reason as a sentence (`NO_SALARY` → "no salary structure in force", `NO_BANK_DETAILS` → "no bank details"; unknown codes shown raw). Row opens `LinesDrawer` |
 | `src/payroll/payrun/LinesDrawer.jsx` | **new.** Four sections by `line_kind`, rows code, name, amount; `computation_error` as an `Alert` at the top. Totals come from the run, not summed here |
-| `src/payroll/payrun/OffCycleCreate.jsx` | **new.** Step 1 form: `payDate`, employee `Select` multiple (searches `GET /v1/employees?q=`, the `W-46.1` service pattern, called by path not by import), notes. A `400` listing employees not considered renders each name. Step 2 `InputsGrid`: editable rows employee, `kind` (the `W-19` kinds minus `LOP_DAYS`), amount, `sourceRef`; save posts the array and paints each row's result |
+| `src/payroll/payrun/OffCycleCreate.jsx` | **new.** Step 1 form: `payDate`, employee `Select` multiple (searches `GET /v1/employees?q=`, the `W-46.1` service pattern, called by path not by import), notes. A `400` for unknown employees (`EmployeeNotInRunException`: the message lists their ids) marks each of those employees by name in the selection, matched against the names the `Select` already holds; the raw ids are never the only thing shown. Step 2 `InputsGrid`: editable rows employee, `kind` (the `W-19` kinds minus `LOP_DAYS`), amount, `sourceRef` (trimmed before posting, as the server trims it); save posts the array and paints each row's result |
 | `src/payroll/index.js` | `routes` gains the four paths; `reducers` gains `payrun` |
 
 **Routes added**
@@ -121,8 +130,8 @@ Follows the `W-45` contract (`W-45-frontend-shell.md` §5, §5b).
 | `/payroll/runs/:id` | `RunPage` | same |
 
 **Ported logic.** The list columns (`payRuns/index.js:640-682`) and the "employees in this
-run" table shape (`preview.js:184`) are the sources. Approve, reject, payment and download
-are not ported: no target endpoint exists.
+run" table shape (`preview.js:184`) are the sources. Approve and pay call the `W-36.2`
+endpoints; reject, payment file and download are not ported: no target endpoint exists.
 
 ## 6. Database changes
 
@@ -135,10 +144,11 @@ None.
 | Unit | `payrunService.test.js` | every verb hits its path; `compute` accepts `202`; `addInputs` posts an array |
 | Unit | `payrunSlice.test.js` | polling starts on `COMPUTING`, stops on `COMPUTED` and on `FAILED`, clears on unmount (fake timers) |
 | Component | `RunList.test.jsx` | filters send `status` and `runType`; "New run" posts `{period}`; `409` renders with the settings link |
-| Component | `RunPage.test.jsx` | button enablement per status, all eight statuses; progress bar shows `3 / 10`; stale `COMPUTING` enables Compute; a `409` on Lock re-fetches |
+| Component | `RunPage.test.jsx` | button enablement per status, all eight statuses, five actions; Approve and Pay use their own permissions; progress bar shows `3 / 10`; stale `COMPUTING` enables Compute; a `409` on Lock re-fetches |
 | Component | `RunEmployees.test.jsx` | `SKIPPED` filter sent; reason sentence for the two known codes; unknown code shown raw |
 | Component | `LinesDrawer.test.jsx` | four sections; `computation_error` alert; no client-side total |
-| Component | `OffCycleCreate.test.jsx` | `400` names each employee; inputs grid posts `[{employeeId, kind, amount, sourceRef}]`; a `DUPLICATE` row is marked |
+| Component | `OffCycleCreate.test.jsx` | `400` names each employee, mocked with the real `apiClient` error shape (message only); inputs grid posts `[{employeeId, kind, amount, sourceRef}]`; a `DUPLICATE` row is marked |
+| Unit | `PayRunTest.java` | `pay` accepts the tenant's today and refuses the tenant's tomorrow; at 01:00 IST (19:30 UTC the day before) the IST date is accepted |
 | Lint | existing `lint-rules.test.js` | unchanged |
 
 ## 8. Verification
@@ -156,7 +166,8 @@ docker compose -f infra/docker/compose.yml up -d
 | lock, compute | Lock → `LOCKED`; Compute → progress bar moves, ends `COMPUTED`; totals shown equal `GET /payruns/{id}` |
 | lines | open an included employee: BASIC and HRA earnings, PF deduction (if `W-31.4` is on `main`), no error |
 | skipped | an employee with no salary structure appears under `SKIPPED` with "no salary structure in force" |
-| off-cycle | create for two named employees, add one `BONUS` input each, save: two ids; save again: two `DUPLICATE` |
+| off-cycle | create for two named employees, add one `ONE_TIME_PAYOUT` input each, save: two ids; save again: two `DUPLICATE` |
+| approve, pay | Approve a `COMPUTED` run → `APPROVED`; Pay with today's date → `PAID`, notified count shown; between 00:00 and 05:30 IST today's date is accepted |
 | cancel | Cancel a `DRAFT` run; list shows `CANCELLED`; "New run" for the same period succeeds |
 | isolation | admin@globex-full.local sees only Globex's runs; an Acme run id in the URL renders the not-found envelope |
 
@@ -166,12 +177,12 @@ docker compose -f infra/docker/compose.yml up -d
 |---|---|---|
 | `preview.js` and `summary.js` come back as two 1,500-line files | medium | six files, one concern each; `RunPage` composes and holds no table |
 | Polling never stops and hammers the API | medium | the slice test with fake timers; stop on every non-`COMPUTING` status and on unmount |
-| Approve and pay buttons are added "for completeness" against endpoints that do not exist | medium | §2 out of scope; the boot-time catalogue check and the `RunPage` test enumerate exactly three actions |
+| Reject or payment-file buttons are added "for completeness" against endpoints that do not exist | medium | §2 out of scope; the `RunPage` test enumerates exactly five actions |
 | Five backend tickets land over weeks | high | build list and run page against `W-29.1` first; compute, lines, off-cycle as each lands |
 
 ## 10. Rollback
 
-Frontend only. Revert the branch.
+Revert the branch. The pay-date change has no migration, so nothing to undo in the database.
 
 ## 11. Standing rules
 
@@ -201,11 +212,14 @@ Frontend only. Revert the branch.
 | 3 | `src/payroll/payrun` | `RunEmployees`, `LinesDrawer`, tests |
 | 4 | `src/payroll/payrun` | `OffCycleCreate` and the inputs grid, tests |
 | 5 | `src/payroll/index.js` | routes, reducer |
+| 6 | `payroll` | the pay-date check against the tenant's date (§4), `PayRunTest` |
 
 ## 14. Decisions and open questions
 
 | # | Question | Answer |
 |---|---|---|
-| 1 | Approve, pay, reject: the frozen screens have them (`preview.js:418`, `summary.js:457,518`), `W-29.x` has `APPROVED` and `PAID` statuses but no endpoint | **Not built.** The founder decides where the transition endpoints live (`W-29.5` or `W-36`); this screen adds two buttons then |
+| 1 | Approve, pay, reject: the frozen screens have them (`preview.js:418`, `summary.js:457,518`), `W-29.x` has `APPROVED` and `PAID` statuses but no endpoint | **Built.** `W-36.2` added the endpoints (`main` `9d5c0a0`); the screen gains Approve and Pay. Reject stays out: no endpoint (founder 2026-10-02) |
 | 2 | Route is `/payroll/runs`, catalogue comment says `GET /api/v1/payroll/runs` but `W-29.1` serves `/api/v1/payroll/payruns` | **Follow `W-29.1`.** The catalogue line `W-29.1` adds should point at `/api/v1/payroll/payruns`; noted for its implementer. Doc drift, not this ticket's |
 | 3 | Employee names on the run page: `W-29.1` returns `employee_number` only | the screen shows number and name; name resolved through one `GET /v1/employees?q=` per page **only if** `W-29.1`'s row lacks it. Recommendation to `W-29.1`'s implementer: add `employee_name` to the row |
+| 4 | Pay date: the server's date is UTC, the officer's is IST | **The tenant's date.** `pay` checks against today in `core.tenant.timezone`; fixed here because this screen is the first to call it (founder 2026-10-02) |
+| 5 | Bonus | **Out.** Rescoped as a full Variable Pay feature on its own ticket; no placeholder, hint or comment here mentions bonus (founder 2026-10-02) |

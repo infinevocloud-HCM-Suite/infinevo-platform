@@ -27,3 +27,5 @@ param caeSubnetPrefix = '10.20.0.0/23'
 param peSubnetPrefix = '10.20.3.0/24'
 
 param enablePurgeProtection = false
+// Founder step (W-10.1): replace with the Brevo SMTP login (Brevo > SMTP & API > SMTP). Until then Keycloak mail fails auth.
+param brevoSmtpLogin = 'REPLACE-WITH-BREVO-SMTP-LOGIN'

@@ -52,19 +52,14 @@ ENV KC_HTTP_RELATIVE_PATH=/auth
 # to / so probes stay at a fixed path whatever the public routing does.
 ENV KC_HTTP_MANAGEMENT_RELATIVE_PATH=/
 
-# No realm is baked into this image, deliberately.
+# The production realm is baked into this image (W-10.1).
 #
-# infra/docker/keycloak/dev-realm.json is a LOCAL development realm whose own README
-# says every credential in it "must never appear in a deployed environment". It carries
-# three accounts with the literal password local_dev_pw and localhost:5173 redirect URIs.
-# Copying it here put it in the one image this repository deploys, and `--import-realm`
-# created those accounts on first boot against a real database (review F-1).
+# infra/keycloak/infinevo-realm.json holds the canonical production realm:
+# zero users, no secrets, external SSL, and environment variable placeholders for
+# Brevo SMTP and web origins.
 #
-# The local stack does not need it here: compose.yml:111 mounts the same file read-only
-# into the stock Keycloak image, which is where a development realm belongs.
-#
-# W-10 supplies the production realm. Until then this image starts with no realm but
-# the built-in `master`, configured entirely from environment variables.
+# The local development realm (infra/docker/keycloak/dev-realm.json) is still NOT
+# baked here: compose.yml:111 mounts it into the stock image for local stack development.
 
 RUN /opt/keycloak/bin/kc.sh build
 
@@ -72,6 +67,7 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:25.0 AS runtime
 
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
+COPY infra/keycloak/infinevo-realm.json /opt/keycloak/data/import/
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -93,5 +89,14 @@ USER 1000
 # HTTP port (8080) and Management/health port (9000)
 EXPOSE 8080 9000
 
-ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
-CMD ["start", "--optimized"]
+# Start-up guard (W-10.1 spec section 4 row 3). Keycloak leaves an unresolved ${VAR} in
+# an imported realm as literal text, and imports the realm only once, so a first start
+# without these variables would store "${KC_WEB_ORIGIN}/*" as the redirect URI for good.
+# Refuse instead. Only KC_WEB_ORIGIN is checked: deploy.yml sets it on every revision.
+# The KC_SMTP_* come from containerapps.bicep, which the pipeline never runs, so an
+# environment created before W-10.1 lacks them until deploy.sh is re-run; checking them
+# here would take a running Keycloak down on the next image deploy.
+# A Bicep deployment replaces the env list, so after one Keycloak stays down until the
+# pipeline's revision step runs again - loud, rather than a silently broken realm.
+ENTRYPOINT ["/bin/sh", "-c", "for v in KC_WEB_ORIGIN; do [ -n \"$(printenv \"$v\")\" ] || { echo \"refusing to start: $v is not set; the infinevo realm would import it as literal text (W-10.1)\" >&2; exit 1; }; done; exec /opt/keycloak/bin/kc.sh \"$@\"", "kc"]
+CMD ["start", "--optimized", "--import-realm"]
