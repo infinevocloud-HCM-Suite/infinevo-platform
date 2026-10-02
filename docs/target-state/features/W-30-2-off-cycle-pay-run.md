@@ -107,7 +107,8 @@ and it has no structure and no loss of pay.
 [payroll officer] --> POST /payruns/{id}/compute --> exactly W-29.2 / W-29.4:
         for each INCLUDED row, for each PayLineContributor in @Order:
             STRUCTURE : ctx.run().runType() == OFF_CYCLE ? no lines : as W-29.2
-            LOP       : OFF_CYCLE ? no lines, lop_days = unpaid_days = 0, paid_days = null : as W-29.3
+            LOP       : OFF_CYCLE ? no lines, lop_days = unpaid_days = paid_days = 0 : as W-29.3
+            stamp     : OFF_CYCLE ? none — no basis and no policy read, five stamp columns null (§ 13 decision 7) : as W-18.2
             PAY_INPUT : inputs = OFF_CYCLE ? the employee's slice of forRun(id) : of forPeriod(period)   (read once per run)
         then W-29.2 sums; COMPUTED
 [payroll officer] --> POST /payruns/{id}/cancel  --> as W-29.1; the run lock stays (W-19 §6)
@@ -127,7 +128,10 @@ when a version is in force, so `W-31` and `W-36` can read the statutory profile 
 **`sourceRef`.** Idempotency is `(tenant, source_module, source_ref)` (`W-19` §6). The run
 prefixes the officer's reference with its own id so the same reference on two runs is two
 rows, and a retried `POST` for one run is one row — the second is `409` from the index, reported
-per row in the response.
+per row in the response. The key carries no employee, so a reference used for a different
+payment is refused before any write: repeated inside one request, or already held on the run
+for another employee, kind or amount, is a `400` (§ 13 decision 8). Only an identical item is a
+retry and comes back `DUPLICATE`.
 
 ## 4. Backend changes
 
@@ -313,3 +317,13 @@ Nothing is deployed. The migration is additive; an off-cycle run that was never 
 6. **Who writes the tagged input?** The run's own `POST /inputs`, which validates the run and
    the employee before calling the ledger. The `core` endpoint accepts a `runRef` too, but
    nothing checks it there and nothing needs to.
+
+**Decided by the founder at merge, 2026-10-02 (`9d5c0a0`):**
+
+7. **Does an off-cycle row need a loss-of-pay policy and a work location?** **No.** It prices
+   no days, so it asks the working-day calculator for nothing and carries no policy stamp: the
+   five `W-18.2` columns are null and the explain endpoint returns them null. A missing policy
+   or location must not hold back a bonus. Amends `W-18.2` § 13 for off-cycle rows. Day
+   figures are stored as zero, which settles § 3 against the old `paid_days = null`.
+8. **One reference for two employees?** **A `400`, before any write.** Reported as
+   `DUPLICATE`, the second employee went unpaid with one word in a `201` as the only signal.

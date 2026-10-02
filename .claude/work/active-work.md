@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-02 — `W-30.2`, `W-35.2`, `W-36.2` merged (`9d5c0a0`)
+
+- Off-cycle pay runs (`V061`), ad-hoc salary deductions (`V100`–`V101`) and approve, pay and payslips with a 7-day signed link (`V103`) are on `main`. A run can now go all the way to `PAID`.
+- One squash of `krushna-tickets-fixes-2` at `210d0bc`. Gates 5/5 for all three, CI green there, one independent read per ticket on krushna's `e273470`.
+- Fixed at merge: one input reference for two employees left the second unpaid; the deduction `400` did not name the line; the real `/me/payslips` clashed with `W-25`'s placeholder; a test-order fault in `TaxDeclarationActionSeedIT`. Tested, not re-read.
+- **Decided by the founder 2026-10-02, specs amended the same day (`W-36.2` § 7, § 10, § 13 decisions 9–10; `W-30.2` § 3, § 13 decisions 7–8; `W-18.2` § 13 decision 5; `W-47.2` § 1, § 5):** a `PAID` run is never cancelled; an off-cycle row needs no loss-of-pay policy or work location and carries no stamp; the `payroll.runs` menu item ships now, through a new `NavigationContributor` so a module adds its own items; the payslip link base is the required `PAYSLIP_LINK_BASE_URL`.
+- **Before the automatic deploy:** run the Bicep and make sure `PAYSLIP_LINK_BASE_URL` reaches `app` and `worker`, or neither starts.
+- **Not merged:** `W-47.2` pay run screens. Two blockers: the screens never unwrap the `{status, message, data}` reply, and the inputs grid offers a `BONUS` kind the server refuses. Back to krushna; the menu item it needs is already on `main`.
+- **Outstanding, the ones that matter next:** the emailed payslip link opens a page no screen serves yet; no payslip test goes through the real security chain. Full list in the merge commit.
+- **Newly Ready:** `W-37` (unassigned). `W-47.4` is unblocked but has no screen spec.
+- **Branches:** krushna resets to `main` and redoes `W-47.2` on top. `krushna-tickets-fixes-2` can be deleted once he has.
+
 ## 2026-10-02 — `W-33.1`, `W-33.2`, `W-47.3` merged (`7907a6c`)
 
 - The tax calculator is on `main` for both regimes: the shared engine (salary projection across CTC versions, slab tax, 87A rebate, surcharge with marginal relief, age category), `GET …/tax` as a pure preview and `POST …/tax/compute` filling both summary rows. No table. The tax declaration screens are on `main` too: window settings, the employee declaration in four sections, the officer header view.
