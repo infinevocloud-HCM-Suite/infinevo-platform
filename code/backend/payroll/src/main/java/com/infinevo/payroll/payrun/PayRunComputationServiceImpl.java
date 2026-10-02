@@ -294,15 +294,19 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 ? null
                 : salaryService.versionInForce(run.getTenantId(), row.getEmployeeId(), run.getPeriodEnd());
         // No policy in force throws NoLopPolicyException: this employee fails, the loop carries on.
+        // W-30.2 (founder 2026-10-01): an off-cycle row prices no days, so it asks for neither a basis nor
+        // a policy — a missing policy or work location must not hold back a bonus.
         WorkingDayBasisResponse basis =
-                basisCalculator.basisFor(run.getTenantId(), run.getPeriod(), row.getEmployeeId());
-        // W-18.2: the figure is stamped with the policy version that produced it, or not written at all —
-        // an off-cycle figure too, though it prices no days.
-        PolicyStamp stamp = PolicyStamp.of(
-                basis,
-                inputs.policyInForce()
-                        .orElseThrow(() -> new NoLopPolicyException("No loss-of-pay policy in force for "
-                                + run.getPeriod() + "; the figure cannot be stamped")));
+                offCycle ? null : basisCalculator.basisFor(run.getTenantId(), run.getPeriod(), row.getEmployeeId());
+        // W-18.2: a regular figure is stamped with the policy version that produced it, or not written at
+        // all. An off-cycle figure has no policy behind it and carries no stamp.
+        PolicyStamp stamp = offCycle
+                ? null
+                : PolicyStamp.of(
+                        basis,
+                        inputs.policyInForce()
+                                .orElseThrow(() -> new NoLopPolicyException("No loss-of-pay policy in force for "
+                                        + run.getPeriod() + "; the figure cannot be stamped")));
         List<PayInputResponse> payInputs = inputs.payInputsByEmployee().getOrDefault(row.getEmployeeId(), List.of());
         // W-30.2: no loss of pay and no days on an off-cycle run.
         PayRunDays days = offCycle
@@ -321,7 +325,7 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
                 employee,
                 version,
                 basis,
-                stamp.lopRounding(),
+                stamp == null ? null : stamp.lopRounding(),
                 payInputs,
                 days,
                 inputs.proRataIds(),
@@ -343,14 +347,13 @@ public class PayRunComputationServiceImpl implements PayRunComputationService {
         lines.saveAll(entities);
 
         EmployeePayRun fresh = employeePayRuns.findById(row.getId()).orElseThrow();
-        fresh.recordComputation(
-                PayRunTotals.of(produced),
-                days,
-                PayInputLineContributor.unpricedCount(payInputs),
-                stamp,
-                attempt,
-                actor,
-                now());
+        PayRunTotals totals = PayRunTotals.of(produced);
+        int unpriced = PayInputLineContributor.unpricedCount(payInputs);
+        if (stamp == null) {
+            fresh.recordOffCycleComputation(totals, days, unpriced, attempt, actor, now());
+        } else {
+            fresh.recordComputation(totals, days, unpriced, stamp, attempt, actor, now());
+        }
         employeePayRuns.saveAndFlush(fresh);
     }
 

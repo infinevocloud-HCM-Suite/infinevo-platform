@@ -147,7 +147,8 @@ class EmployeeDeductionGuardIT {
                         .content(BATCH.formatted(UUID.randomUUID())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.message").value("Line 2: amount must be greater than 0"));
+                .andExpect(jsonPath("$.message").value("Line 2: amount must be greater than 0"))
+                .andExpect(jsonPath("$.fieldErrors.line").value("2"));
         mvc.perform(post("/api/v1/payroll/employee-deductions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{not json"))

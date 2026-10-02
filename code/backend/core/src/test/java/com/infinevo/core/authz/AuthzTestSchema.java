@@ -121,6 +121,29 @@ public final class AuthzTestSchema {
                     executeResource(conn, "db/migration/core/V118__employee_invitation.sql");
                     // W-18.1: loss-of-pay policy
                     executeResource(conn, "db/migration/core/V116__lop_policy.sql");
+                    if (!tableExists(conn, "core", "document")) {
+                        executeResource(conn, "db/migration/core/V037__document.sql");
+                    }
+                    if (!tableExists(conn, "core", "leave_type")) {
+                        executeResource(conn, "db/migration/core/V126__leave_type.sql");
+                        executeResource(conn, "db/migration/core/V127__leave_policy.sql");
+                        executeResource(conn, "db/migration/core/V128__leave_policy_eligibility.sql");
+                        executeResource(conn, "db/migration/core/V129__leave_allocation.sql");
+                        executeResource(conn, "db/migration/core/V130__leave_request.sql");
+                        executeResource(conn, "db/migration/core/V131__leave_request_document.sql");
+                    }
+                    if (!tableExists(conn, "core", "pay_input")) {
+                        executeResource(conn, "db/migration/core/V031__pay_input.sql");
+                    }
+                    if (!tableExists(conn, "core", "leave_consumption")) {
+                        executeResource(conn, "db/migration/core/V132__leave_consumption.sql");
+                    }
+                    if (!tableExists(conn, "core", "leave_monthly_lop")) {
+                        executeResource(conn, "db/migration/core/V133__leave_monthly_lop.sql");
+                    }
+                    if (!tableExists(conn, "core", "leave_import_log")) {
+                        executeResource(conn, "db/migration/core/V134__leave_import_log.sql");
+                    }
                 }
 
             } catch (Exception e) {

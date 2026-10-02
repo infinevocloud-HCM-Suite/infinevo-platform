@@ -98,8 +98,13 @@ class NavigationIT extends AbstractIntegrationTest {
                 .map(ItemDefinition::key)
                 .toList();
         assertThat(keysOf(admin)).containsExactlyElementsOf(catalogueKeys);
-        assertThat(keysOf(employee)).isNotEqualTo(keysOf(admin));
-        assertThat(keysOf(employee)).doesNotContain("core.roles", "core.audit");
+        assertThat(keysOf(employee))
+                .doesNotContain(
+                        "core.roles",
+                        "core.audit",
+                        "core.setup",
+                        "core.invitations.users",
+                        "core.invitations.employees");
     }
 
     @Test

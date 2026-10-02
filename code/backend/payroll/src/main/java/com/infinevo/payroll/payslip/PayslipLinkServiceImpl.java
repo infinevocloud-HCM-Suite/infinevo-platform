@@ -35,7 +35,6 @@ public class PayslipLinkServiceImpl implements PayslipLinkService {
 
     static final int MIN_SECRET_LENGTH = 24;
     static final Duration MAX_TTL = Duration.ofDays(7);
-    static final String DEFAULT_BASE_URL = "/public/payslips";
 
     private static final String ALGORITHM = "HmacSHA256";
     private static final String DOMAIN = "infinevo:payslip-link:v1";
@@ -50,7 +49,7 @@ public class PayslipLinkServiceImpl implements PayslipLinkService {
     public PayslipLinkServiceImpl(
             EmployeePayRunRepository employeePayRuns,
             @Value("${document.link.secret:}") String secret,
-            @Value("${payslip.link.base-url:" + DEFAULT_BASE_URL + "}") String baseUrl) {
+            @Value("${payslip.link.base-url:}") String baseUrl) {
         this(employeePayRuns, secret, baseUrl, Clock.systemUTC());
     }
 
@@ -67,7 +66,14 @@ public class PayslipLinkServiceImpl implements PayslipLinkService {
                     "document.link.secret must be at least " + MIN_SECRET_LENGTH + " characters long");
         }
         this.key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), ALGORITHM);
-        this.baseUrl = (baseUrl == null || baseUrl.isBlank()) ? DEFAULT_BASE_URL : baseUrl;
+        String base = baseUrl == null ? "" : baseUrl.strip();
+        if (!base.startsWith("https://") && !base.startsWith("http://")) {
+            throw new IllegalStateException("payslip.link.base-url is not set to an absolute URL. Set"
+                    + " PAYSLIP_LINK_BASE_URL to the frontend page a payslip email links to. There is no"
+                    + " default on purpose: the link is opened from a mail client, where a relative path"
+                    + " leads nowhere.");
+        }
+        this.baseUrl = base;
     }
 
     @Override

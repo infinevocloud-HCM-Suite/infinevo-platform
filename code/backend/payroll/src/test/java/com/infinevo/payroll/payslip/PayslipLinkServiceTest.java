@@ -33,6 +33,7 @@ class PayslipLinkServiceTest {
     private static final UUID TENANT = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID OTHER_TENANT = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final String SECRET = "unit-test-document-link-secret-0123456789";
+    private static final String BASE_URL = "https://app.example.test/public/payslips";
     private static final Instant NOW = Instant.parse("2026-09-25T10:00:00Z");
 
     private EmployeePayRunRepository employeePayRuns;
@@ -59,7 +60,7 @@ class PayslipLinkServiceTest {
     void linkShape() {
         PayslipLinkService.SignedLink link = service.signedLink(employeePayrunId, Duration.ofDays(7));
 
-        assertThat(link.url()).startsWith(PayslipLinkServiceImpl.DEFAULT_BASE_URL + "?t=");
+        assertThat(link.url()).startsWith(BASE_URL + "?t=");
         assertThat(token(link)).startsWith(TENANT + "." + employeePayrunId + ".");
         assertThat(link.expiresAt()).isEqualTo(NOW.plus(Duration.ofDays(7)));
     }
@@ -149,7 +150,7 @@ class PayslipLinkServiceTest {
     @DisplayName("A link signed with another secret does not verify")
     void anotherSecretDoesNotVerify() {
         PayslipLinkServiceImpl other = new PayslipLinkServiceImpl(
-                employeePayRuns, "some-other-secret-entirely-0123456789", "/x", Clock.fixed(NOW, ZoneOffset.UTC));
+                employeePayRuns, "some-other-secret-entirely-0123456789", BASE_URL, Clock.fixed(NOW, ZoneOffset.UTC));
 
         assertThat(service.verify(token(other.signedLink(employeePayrunId, Duration.ofDays(7)))))
                 .isEmpty();
@@ -221,12 +222,17 @@ class PayslipLinkServiceTest {
     void secretRequirements() {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 
-        assertThatThrownBy(() -> new PayslipLinkServiceImpl(employeePayRuns, null, "/x", clock))
+        for (String notAbsolute : new String[] {null, "  ", "/public/payslips"}) {
+            assertThatThrownBy(() -> new PayslipLinkServiceImpl(employeePayRuns, SECRET, notAbsolute, clock))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("PAYSLIP_LINK_BASE_URL");
+        }
+        assertThatThrownBy(() -> new PayslipLinkServiceImpl(employeePayRuns, null, BASE_URL, clock))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("DOCUMENT_LINK_SECRET");
-        assertThatThrownBy(() -> new PayslipLinkServiceImpl(employeePayRuns, "   ", "/x", clock))
+        assertThatThrownBy(() -> new PayslipLinkServiceImpl(employeePayRuns, "   ", BASE_URL, clock))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> new PayslipLinkServiceImpl(employeePayRuns, "short-secret", "/x", clock))
+        assertThatThrownBy(() -> new PayslipLinkServiceImpl(employeePayRuns, "short-secret", BASE_URL, clock))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(String.valueOf(PayslipLinkServiceImpl.MIN_SECRET_LENGTH));
     }
@@ -240,8 +246,7 @@ class PayslipLinkServiceTest {
     }
 
     private PayslipLinkServiceImpl at(Instant instant) {
-        return new PayslipLinkServiceImpl(
-                employeePayRuns, SECRET, PayslipLinkServiceImpl.DEFAULT_BASE_URL, Clock.fixed(instant, ZoneOffset.UTC));
+        return new PayslipLinkServiceImpl(employeePayRuns, SECRET, BASE_URL, Clock.fixed(instant, ZoneOffset.UTC));
     }
 
     static String token(PayslipLinkService.SignedLink link) {

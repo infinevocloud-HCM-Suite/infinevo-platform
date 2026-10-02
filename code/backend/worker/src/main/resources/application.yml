@@ -112,6 +112,12 @@ worker:
       username: ${REPORT_READ_DB_USERNAME:readonly_user}
       password: ${REPORT_READ_DB_PASSWORD}
 
+# W-36.2: the worker scans com.infinevo, so it builds the payslip link signer too. Same rule as
+# the app: absolute, no default, and the process does not start without it.
+payslip:
+  link:
+    base-url: ${PAYSLIP_LINK_BASE_URL}
+
 # W-21 document store. The worker scans com.infinevo, so it builds the link signer too -
 # and it is the runtime that will sign the seven-day links in emailed reports (W-23.2)
 # and payslips (W-36). Same rule as the app: no default secret, and the process does not

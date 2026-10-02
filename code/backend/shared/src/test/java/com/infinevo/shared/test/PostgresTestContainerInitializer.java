@@ -326,6 +326,9 @@ public class PostgresTestContainerInitializer
 
     private static final String TEST_INVITATION_LINK_BASE_URL = "http://localhost:5173/invitations/accept";
 
+    /** The payslip link base (W-36.2) has no default in the app or the worker; it only shapes a URL. */
+    private static final String TEST_PAYSLIP_LINK_BASE_URL = "http://localhost:5173/public/payslips";
+
     @Override
     public void initialize(ConfigurableApplicationContext ctx) {
         startIfNeeded();
@@ -336,6 +339,7 @@ public class PostgresTestContainerInitializer
                         "BREVO_API_KEY=" + TEST_BREVO_API_KEY,
                         "KEYCLOAK_ADMIN_PASSWORD=" + TEST_KEYCLOAK_ADMIN_PASSWORD,
                         "INVITATION_LINK_BASE_URL=" + TEST_INVITATION_LINK_BASE_URL,
+                        "PAYSLIP_LINK_BASE_URL=" + TEST_PAYSLIP_LINK_BASE_URL,
                         // The worker's retention (W-22.2) and report-read (W-23.2) pools default their URL to
                         // DB_URL and have no default password. Their own ITs point them at their own database;
                         // every other worker context gets the test roles on the container database.

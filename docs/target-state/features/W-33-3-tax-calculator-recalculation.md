@@ -16,7 +16,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` | 1 |
-| Flyway migration | `V104` — one table, `payroll.tax_computation` | 1 |
+| Flyway migration | `V104` — one table, `payroll.tax_computation`; plus one `reference` seed for FY 2026-27 (added 2026-10-02, founder's exception — no table, rows only) | 1 |
 | Externally testable behaviour | when a declaration is submitted or a salary version changes, the employee's TDS record and summary are recomputed and every computation is kept | 1 |
 | Frontend area | none | 1 |
 
@@ -46,6 +46,11 @@ All citations are `legacy/Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/`,
 - Three triggers as Spring application events handled after commit: `DeclarationSubmittedEvent` (published by `W-32.1`'s submit — one line added there), `SalaryVersionChangedEvent` (published by `W-26.2`'s create, revise and cancel — one line each), `ProofVerifiedEvent` (the type is defined here; `W-34` publishes it)
 - The **no-declaration default**: a salary event for an employee with no header for the year computes under the window's `default_tax_regime` from salary alone and records TDS with trigger `SALARY_DEFAULT`. This is legacy's `DefaultTdsCreationService` moved out of the pay run
 - Officer `POST …/tax/recalculate`; history reads for the officer and under `/me`
+
+**Added 2026-10-02 — founder decisions taken when `W-33.1` and `W-33.2` merged (`7907a6c`)**
+
+- **FY 2026-27 tax rules seed.** No slab, rebate, surcharge, cess or standard-deduction row exists for 2026-27, so every compute for the current year fails with `TAX_RULES_MISSING`. One `reference` migration carries the FY 2025-26 rows forward unchanged, as `V105` and `V106` did for the declaration rules (§ 6)
+- **Surcharge marginal relief is removed**, so surcharge behaves as legacy: the band rate on tax after rebate, in full (`W-33.1` § 3 step 6 and § 13 decision 4, amended the same day). `SurchargeAndCess` loses the relief branch and the threshold-tax calculator that fed it; `marginal_relief` stays on the response as zero, so no contract changes
 
 **Out of scope**
 
@@ -123,7 +128,20 @@ None. `W-47.3b` shows the history and the recalculate button.
 |---|---|---|---|
 | `payroll/V104__tax_computation.sql` | `payroll.tax_computation` | yes | additive |
 
-`V104` reserved 2026-09-29, above `W-36.2`'s `V103`.
+| `reference/V<next>__fy_2026_27_tax_rules.sql` | none — rows only | `reference`, no tenant | additive |
+
+`V104` reserved 2026-09-29, above `W-36.2`'s `V103`. The seed takes the next number above
+everything on `main` when the branch is cut (`V134` is the highest on 2026-10-02); reserve it in
+the tracker first.
+
+**The FY 2026-27 seed** copies, for financial year 2026-27, every FY 2025-26 row the
+calculators read through `TaxRuleReader` and that `V105` and `V106` did not already carry:
+the slab masters and their brackets for `NEW` `GENERAL` and `OLD` `GENERAL`, `SENIOR`,
+`SUPER_SENIOR` (`V005`, `V027`), the 87A rebate rules, the surcharge and cess rules, and the
+standard deduction rules. `INSERT … SELECT` from the 2025-26 rows, guarded by `NOT EXISTS`,
+so it is safe on a database that already holds a 2026-27 row. Values are unchanged by the
+founder's decision of 2026-10-02; the tax-rule owner re-checks them before the first real
+pay run, as for `V105` and `V106`.
 
 `payroll.tax_computation` — replaces legacy's five result tables (§ 1) with one; the
 per-section detail that filled `old_tax_section_deduction` and its revision twin is the `working` document.
@@ -161,6 +179,10 @@ history is append-only at the database.
 | Integration | `payroll/.../taxcalc/recalc/RecalculationIT.java` | **the acceptance test**: employee with CTC 15,75,000, header `NEW`; `POST …/submit` (`W-32.1`) ⇒ within 5 s one `tax_computation` row `DECLARATION_SUBMITTED`, `employee_tds` active row `annual_tax 1,09,200` with `source DECLARATION` and the note naming the trigger, summary `computed_at` set; revise the salary to 18,00,000 from `2025-10-01` (`W-26.2`) ⇒ a second row `SALARY_REVISION`, a new active `employee_tds` and the old one `superseded_at` set; officer `POST …/recalculate` ⇒ third row `OFFICER` with `computed_by`; `GET …/history` ⇒ three rows newest first; `GET /me/…/history` for another employee's login ⇒ `404` |
 | Integration | `payroll/.../taxcalc/recalc/SalaryDefaultIT.java` | employee with a CTC and **no** header, window `default_tax_regime = OLD`; create the first salary version ⇒ one row `SALARY_DEFAULT`, `declaration_id null`, `employee_tds` written under `OLD`; the first computed pay run (`W-36.1`'s `PayRunTaxLineIT` setup) carries a `TAX` line — the legacy default without the run computing anything |
 | Integration | `payroll/.../taxcalc/recalc/TaxComputationRlsIT.java` | as `app_user`, tenant A cannot read tenant B's rows; raw-SQL `UPDATE` and `DELETE` on the table are refused; cross-tenant `INSERT` refused by RLS |
+
+| Integration | `migration/.../ReferenceSchemaIT.java` (change) | after the seed, FY 2026-27 has one slab master per regime and age category with the same brackets as 2025-26, and a rebate, surcharge, cess and standard-deduction rule for each regime |
+| Integration | `payroll/.../taxcalc/TaxComputeIT.java` (change) | a compute for FY 2026-27 against the real migrations returns a figure, not `TAX_RULES_MISSING` |
+| Unit | `payroll/.../taxcalc/SurchargeAndCessTest.java`, `NewRegimeCalculatorTest.java` (change) | taxable 50,10,000 ⇒ surcharge is the full 10 % of tax after rebate and `marginal_relief` is 0; the relief cases added under `W-33.1` are replaced, not deleted without a successor |
 
 All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`. The async listener is
 awaited with Awaitility in the ITs, never with a sleep.
@@ -238,6 +260,9 @@ by the next event or an officer `POST`; every earlier row stays as evidence.
 | 3 | One history table or legacy's five? | **One**, with the working as JSONB. `02-data-model.md:348` lists six `PAY-10` tables; that row should be corrected by `/sync-docs` once this merges |
 | 4 | Where does the legacy "default TDS" go? | **Here, on the first salary event**, never in the pay run — `W-36.1` § 2 |
 | 5 | Which years does a salary change touch? | **Every financial year from its `effective_from` to the current one** |
+| 6 | FY 2026-27 tax rules (2026-10-02) | **Carry FY 2025-26 forward unchanged**, in this ticket |
+| 7 | Surcharge marginal relief (2026-10-02) | **Removed, as legacy**, in this ticket. The 87A rebate has no relief either, also as legacy |
+| 8 | Taxable income rounding (2026-10-02) | **Nearest rupee, half-up**, as built; `W-33.1` § 3 step 3 corrected |
 
 ## 14. Open for the founder
 

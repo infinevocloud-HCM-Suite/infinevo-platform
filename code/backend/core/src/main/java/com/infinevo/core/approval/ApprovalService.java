@@ -427,4 +427,37 @@ public class ApprovalService {
                         .map(ApprovalHistoryResponse.ApprovalHistoryStepResponse::from)
                         .toList());
     }
+
+    /**
+     * Cancels an active approval instance and all its pending steps (W-16.3).
+     */
+    @Transactional
+    public void cancelInstance(UUID tenantId, UUID instanceId, String reason) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(instanceId, "instanceId must not be null");
+
+        instanceRepository.findByTenantIdAndId(tenantId, instanceId).ifPresent(instance -> {
+            if (instance.getStatus() == InstanceStatus.PENDING) {
+                instance.setStatus(InstanceStatus.REJECTED);
+                instance.setCompletedAt(Instant.now());
+                instanceRepository.save(instance);
+
+                List<ApprovalStep> openSteps =
+                        stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instanceId);
+                for (ApprovalStep step : openSteps) {
+                    if (step.getDecision() == null) {
+                        step.setDecision(ApprovalDecision.REJECTED);
+                        step.setComment(reason != null && !reason.isBlank() ? "Withdrawn: " + reason : "Withdrawn");
+                        step.setDecidedAt(Instant.now());
+                        stepRepository.save(step);
+                    }
+                }
+            }
+        });
+    }
+
+    @Transactional
+    public void cancelInstance(UUID instanceId, String reason) {
+        cancelInstance(TenantContext.require(), instanceId, reason);
+    }
 }

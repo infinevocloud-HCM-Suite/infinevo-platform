@@ -3,6 +3,10 @@ package com.infinevo.payroll;
 import com.infinevo.core.employee.EmployeeRequest;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.employee.detail.EmployeeDetailService;
+import com.infinevo.core.employee.detail.EmployeePersonalRequest;
+import com.infinevo.core.employee.detail.EmployeePersonalResponse;
+import com.infinevo.core.employee.detail.EmployeePersonalService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -211,13 +215,120 @@ public class PayrollTestApp {
             }
 
             @Override
-            public DocumentContent open(UUID id) {
-                return new DocumentContent(get(id), new java.io.ByteArrayInputStream(new byte[0]));
+            public com.infinevo.core.document.DocumentService.DocumentContent open(UUID id) {
+                return new com.infinevo.core.document.DocumentService.DocumentContent(
+                        get(id), new java.io.ByteArrayInputStream(new byte[0]));
             }
 
             @Override
             public void delete(UUID id) {
                 TEST_DOCUMENTS.remove(id);
+            }
+        };
+    }
+
+    @Bean
+    public EmployeePersonalService employeePersonalService(DataSource dataSource) {
+        return new EmployeePersonalService() {
+            @Override
+            public Optional<EmployeePersonalResponse> find(UUID employeeId) {
+                try {
+                    return Optional.of(get(employeeId));
+                } catch (EmployeeDetailService.NotFoundException e) {
+                    return Optional.empty();
+                }
+            }
+
+            @Override
+            public EmployeePersonalResponse get(UUID employeeId) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    conn.setAutoCommit(false);
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, is_eligible_for_full_tax_exemption, created_at, updated_at "
+                                    + "FROM core.employee_personal WHERE employee_id = ? AND tenant_id = ?")) {
+                        ps.setObject(1, employeeId);
+                        ps.setObject(2, tenantId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) {
+                                throw new EmployeeDetailService.NotFoundException("employee_personal", employeeId);
+                            }
+                            java.sql.Date dobSql = rs.getDate("date_of_birth");
+                            LocalDate dob = dobSql != null ? dobSql.toLocalDate() : null;
+                            EmployeePersonalResponse response = new EmployeePersonalResponse(
+                                    (UUID) rs.getObject("id"),
+                                    tenantId,
+                                    employeeId,
+                                    dob,
+                                    rs.getString("marital_status"),
+                                    rs.getString("nationality"),
+                                    rs.getString("ethnicity"),
+                                    rs.getString("father_name"),
+                                    rs.getString("differently_abled_type"),
+                                    rs.getBoolean("is_eligible_for_full_tax_exemption"),
+                                    rs.getTimestamp("created_at").toInstant(),
+                                    rs.getTimestamp("updated_at").toInstant());
+                            conn.commit();
+                            return response;
+                        }
+                    } catch (SQLException | RuntimeException e) {
+                        try {
+                            conn.rollback();
+                        } catch (SQLException ignored) {
+                        }
+                        throw e;
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            @Override
+            public EmployeePersonalResponse put(UUID employeeId, EmployeePersonalRequest request) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    conn.setAutoCommit(false);
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            """
+                            INSERT INTO core.employee_personal (
+                                tenant_id, employee_id, date_of_birth, marital_status, nationality,
+                                ethnicity, father_name, differently_abled_type, is_eligible_for_full_tax_exemption,
+                                created_by, updated_by
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'system', 'system')
+                            ON CONFLICT (tenant_id, employee_id) DO UPDATE
+                            SET date_of_birth = EXCLUDED.date_of_birth,
+                                marital_status = EXCLUDED.marital_status,
+                                nationality = EXCLUDED.nationality,
+                                ethnicity = EXCLUDED.ethnicity,
+                                father_name = EXCLUDED.father_name,
+                                differently_abled_type = EXCLUDED.differently_abled_type,
+                                is_eligible_for_full_tax_exemption = EXCLUDED.is_eligible_for_full_tax_exemption,
+                                updated_at = NOW(),
+                                updated_by = 'system'
+                            """)) {
+                        ps.setObject(1, tenantId);
+                        ps.setObject(2, employeeId);
+                        ps.setObject(
+                                3, request.dateOfBirth() != null ? java.sql.Date.valueOf(request.dateOfBirth()) : null);
+                        ps.setString(4, request.maritalStatus());
+                        ps.setString(5, request.nationality());
+                        ps.setString(6, request.ethnicity());
+                        ps.setString(7, request.fatherName());
+                        ps.setString(8, request.differentlyAbledType());
+                        ps.setBoolean(9, Boolean.TRUE.equals(request.eligibleForFullTaxExemption()));
+                        ps.executeUpdate();
+                        conn.commit();
+                        return get(employeeId);
+                    } catch (SQLException | RuntimeException e) {
+                        try {
+                            conn.rollback();
+                        } catch (SQLException ignored) {
+                        }
+                        throw e;
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }
@@ -240,6 +351,8 @@ public class PayrollTestApp {
                             if (!rs.next()) {
                                 throw new EmployeeService.NotFoundException(id);
                             }
+                            java.sql.Date dojSql = rs.getDate("date_of_joining");
+                            LocalDate doj = dojSql != null ? dojSql.toLocalDate() : LocalDate.of(2024, 1, 1);
                             EmployeeResponse response = new EmployeeResponse(
                                     id,
                                     tenantId,
@@ -250,7 +363,7 @@ public class PayrollTestApp {
                                     "MALE",
                                     // The real dates and status, as EmployeeServiceImpl.get returns them:
                                     // an off-cycle run (W-30.2) tests employment against the period.
-                                    rs.getObject("date_of_joining", LocalDate.class),
+                                    doj,
                                     rs.getObject("termination_date", LocalDate.class),
                                     rs.getString("status") == null
                                             ? null
@@ -491,74 +604,13 @@ public class PayrollTestApp {
     }
 
     @Bean
-    public com.infinevo.core.employee.detail.EmployeePersonalService employeePersonalService(DataSource dataSource) {
-        return new com.infinevo.core.employee.detail.EmployeePersonalService() {
-            @Override
-            public Optional<com.infinevo.core.employee.detail.EmployeePersonalResponse> find(UUID employeeId) {
-                UUID tenantId = TenantContext.require();
-                try (Connection conn = dataSource.getConnection()) {
-                    boolean origAutoCommit = conn.getAutoCommit();
-                    try {
-                        conn.setAutoCommit(false);
-                        String sql =
-                                "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, eligible_for_full_tax_exemption, created_at, updated_at "
-                                        + "FROM core.employee_personal WHERE employee_id = ? AND tenant_id = ?";
-                        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                            ps.setObject(1, employeeId);
-                            ps.setObject(2, tenantId);
-                            try (ResultSet rs = ps.executeQuery()) {
-                                if (rs.next()) {
-                                    java.sql.Date dob = rs.getDate("date_of_birth");
-                                    conn.commit();
-                                    return Optional.of(new com.infinevo.core.employee.detail.EmployeePersonalResponse(
-                                            (UUID) rs.getObject("id"),
-                                            tenantId,
-                                            employeeId,
-                                            dob != null ? dob.toLocalDate() : null,
-                                            rs.getString("marital_status"),
-                                            rs.getString("nationality"),
-                                            rs.getString("ethnicity"),
-                                            rs.getString("father_name"),
-                                            rs.getString("differently_abled_type"),
-                                            rs.getBoolean("eligible_for_full_tax_exemption"),
-                                            rs.getTimestamp("created_at").toInstant(),
-                                            rs.getTimestamp("updated_at").toInstant()));
-                                }
-                                conn.commit();
-                                return Optional.empty();
-                            }
-                        }
-                    } finally {
-                        conn.setAutoCommit(origAutoCommit);
-                    }
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public com.infinevo.core.employee.detail.EmployeePersonalResponse get(UUID employeeId) {
-                return find(employeeId)
-                        .orElseThrow(
-                                () -> new com.infinevo.core.employee.detail.EmployeeDetailService.NotFoundException(
-                                        "personal", employeeId));
-            }
-
-            @Override
-            public com.infinevo.core.employee.detail.EmployeePersonalResponse put(
-                    UUID employeeId, com.infinevo.core.employee.detail.EmployeePersonalRequest request) {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    @Bean
     public static org.springframework.context.support.PropertySourcesPlaceholderConfigurer
             propertySourcesPlaceholderConfigurer() {
         org.springframework.context.support.PropertySourcesPlaceholderConfigurer configurer =
                 new org.springframework.context.support.PropertySourcesPlaceholderConfigurer();
         java.util.Properties props = new java.util.Properties();
         props.setProperty("document.link.secret", "integration-test-document-link-secret");
+        props.setProperty("payslip.link.base-url", "http://localhost:5173/public/payslips");
         configurer.setProperties(props);
         return configurer;
     }

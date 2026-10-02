@@ -66,6 +66,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     /** The same check for an update, ignoring the row being updated. */
     boolean existsByTenantIdAndEmployeeNumberAndIdNot(UUID tenantId, String employeeNumber, UUID id);
 
+    /** The one live employee with this employee number in this tenant, if there is one (W-16.4b). */
+    Optional<Employee> findByTenantIdAndEmployeeNumberAndDeletedFalse(UUID tenantId, String employeeNumber);
+
     /**
      * How many employees in this tenant are assigned to this department — W-14.1, spec section 4.
      *

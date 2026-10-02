@@ -67,7 +67,9 @@ class TaxDeclarationControllerTest {
             null,
             null,
             true,
-            true);
+            true,
+            true,
+            new java.math.BigDecimal("100000.0000"));
 
     private final TaxDeclarationWindowResponse sampleWindowResponse = new TaxDeclarationWindowResponse(
             UUID.randomUUID(),
@@ -154,7 +156,11 @@ class TaxDeclarationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.data.financial_year").value(fy))
-                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                // Rent PAN rule on the header, under the two names the W-47.3 screen reads
+                .andExpect(
+                        jsonPath("$.data.pan_required_for_rent_over_threshold").value(true))
+                .andExpect(jsonPath("$.data.rent_pan_threshold").value(100000.0));
     }
 
     @Test

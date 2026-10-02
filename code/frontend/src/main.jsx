@@ -1,3 +1,4 @@
+/* global process */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider } from 'antd';
@@ -9,26 +10,64 @@ import { AppShell } from '@shell/AppShell';
 import { initAuth, getValidToken } from '@shell/auth/keycloak';
 import { theme } from '@shared/theme';
 import { setTokenProvider } from '@shared/api/client';
+import { publicRoutes } from '@core';
 
-// Authentication is resolved before anything renders (W-10). `login-required` sends an
-// unauthenticated visitor to Keycloak, so no part of the app ever paints for someone who
-// is not logged in - there is no guard component to forget on a route.
-//
-// A .then chain rather than top-level await: Vite's default build target is `modules`,
-// which does not include top-level await, and the browser matrix is not worth widening
-// for one call.
-initAuth().then(() => {
-  setTokenProvider(getValidToken);
+/**
+ * Bootstrap entry point for the frontend application.
+ *
+ * For public paths (W-46.7 §5a, e.g. /invitations/accept), renders the public component
+ * directly inside ConfigProvider + BrowserRouter without calling initAuth(), Keycloak,
+ * Redux store, or AppShell.
+ *
+ * For all other paths, initAuth() is called before anything renders (W-10).
+ */
+export function bootstrap(
+  rootElement = typeof document !== 'undefined' ? document.getElementById('root') : null,
+  pathname = typeof window !== 'undefined' ? window.location.pathname : '/',
+) {
+  if (!rootElement) return null;
 
-  ReactDOM.createRoot(document.getElementById('root')).render(
-    <React.StrictMode>
-      <Provider store={store}>
+  const publicRoute = Array.isArray(publicRoutes)
+    ? publicRoutes.find((r) => r.path === pathname)
+    : null;
+
+  if (publicRoute) {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <React.StrictMode>
         <ConfigProvider theme={theme}>
           <BrowserRouter>
-            <AppShell />
+            {publicRoute.element}
           </BrowserRouter>
         </ConfigProvider>
-      </Provider>
-    </React.StrictMode>,
-  );
-});
+      </React.StrictMode>,
+    );
+    return Promise.resolve(root);
+  }
+
+  return initAuth().then(() => {
+    setTokenProvider(getValidToken);
+
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <React.StrictMode>
+        <Provider store={store}>
+          <ConfigProvider theme={theme}>
+            <BrowserRouter>
+              <AppShell />
+            </BrowserRouter>
+          </ConfigProvider>
+        </Provider>
+      </React.StrictMode>,
+    );
+    return root;
+  });
+}
+
+// Auto-bootstrap when running in the browser
+if (typeof document !== 'undefined' && document.getElementById('root')) {
+  const isVitest = typeof process !== 'undefined' && Boolean(process.env?.VITEST);
+  if (!isVitest) {
+    bootstrap();
+  }
+}

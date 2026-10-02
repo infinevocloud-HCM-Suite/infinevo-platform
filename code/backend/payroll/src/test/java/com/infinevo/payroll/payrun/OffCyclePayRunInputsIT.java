@@ -112,6 +112,36 @@ class OffCyclePayRunInputsIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("One reference for two employees is refused whole: nobody is silently left unpaid")
+    void sharedReferenceIsRefused() throws SQLException {
+        // In one request.
+        assertThatThrownBy(() -> payRunService.addInputs(
+                        runId,
+                        List.of(
+                                input(first, PayInputKind.ONE_TIME_PAYOUT, "5000", "diwali"),
+                                input(second, PayInputKind.ONE_TIME_PAYOUT, "5000", "diwali"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("inputs[1].source_ref repeats inputs[0]");
+        assertThat(payInputService.forRun(runId).rows()).isEmpty();
+
+        // Across two requests: the second employee, a different amount, and nothing written beside them.
+        payRunService.addInputs(runId, List.of(input(first, PayInputKind.ONE_TIME_PAYOUT, "5000", "diwali")));
+        assertThatThrownBy(() -> payRunService.addInputs(
+                        runId,
+                        List.of(
+                                input(second, PayInputKind.ONE_TIME_PAYOUT, "700", "other"),
+                                input(second, PayInputKind.ONE_TIME_PAYOUT, "5000", "diwali"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("inputs[1].source_ref is already used on this run");
+        assertThatThrownBy(() -> payRunService.addInputs(
+                        runId, List.of(input(first, PayInputKind.ONE_TIME_PAYOUT, "6000", "diwali"))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(payInputService.forRun(runId).rows())
+                .extracting(PayInputResponse::employeeId)
+                .containsExactly(first);
+    }
+
+    @Test
     @DisplayName("The same POST again reports DUPLICATE per item and writes nothing; a new item beside it is recorded")
     void retryIsDuplicate() throws SQLException {
         payRunService.addInputs(runId, List.of(input(first, PayInputKind.ONE_TIME_PAYOUT, "10000", "bonus-1")));

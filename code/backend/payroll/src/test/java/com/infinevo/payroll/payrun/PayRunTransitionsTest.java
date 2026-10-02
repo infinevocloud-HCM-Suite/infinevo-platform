@@ -29,8 +29,7 @@ class PayRunTransitionsTest {
             "COMPUTING->COMPUTED",
             "COMPUTING->FAILED",
             "APPROVED->PAID",
-            "APPROVED->CANCELLED",
-            "PAID->CANCELLED");
+            "APPROVED->CANCELLED");
 
     @Test
     @DisplayName("Exactly the allowed transitions are permitted; all other pairs throw")
@@ -183,9 +182,10 @@ class PayRunTransitionsTest {
         assertThatThrownBy(() -> run.pay(paidOn, "payer_officer", paidAt))
                 .isInstanceOf(IllegalPayRunTransitionException.class);
 
-        // A paid run can be cancelled
-        run.cancel("officer", Instant.now());
-        assertThat(run.getStatus()).isEqualTo(PayRunStatus.CANCELLED);
+        // A paid run stays paid: the money moved (W-36.2 §10)
+        assertThatThrownBy(() -> run.cancel("officer", Instant.now()))
+                .isInstanceOf(IllegalPayRunTransitionException.class);
+        assertThat(run.getStatus()).isEqualTo(PayRunStatus.PAID);
     }
 
     @Test

@@ -7,9 +7,11 @@ import com.infinevo.shared.entitlement.RequiresModule;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
+import java.time.Instant;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.MDC;
@@ -106,11 +108,23 @@ public class EmployeeDeductionController {
         return error(HttpStatus.CONFLICT, ApiError.CONFLICT, ex.getMessage());
     }
 
-    @ExceptionHandler({
-        EmployeeDeductionValidationException.class,
-        PayInputService.ValidationException.class,
-        IllegalArgumentException.class
-    })
+    /** W-35.2 §4: the {@code 400} names the failing line — its zero-based index, under {@code fieldErrors.line}. */
+    @ExceptionHandler(EmployeeDeductionValidationException.class)
+    public ResponseEntity<ApiErrorResponse> handleLineValidation(EmployeeDeductionValidationException ex) {
+        if (ex.line() == null) {
+            return error(HttpStatus.BAD_REQUEST, ApiError.VALIDATION_FAILED, ex.getMessage());
+        }
+        String traceId = MDC.get(MdcLoggingContext.CORRELATION_ID_KEY);
+        return ResponseEntity.badRequest()
+                .body(new ApiErrorResponse(
+                        ApiError.VALIDATION_FAILED.code(),
+                        ex.getMessage(),
+                        Map.of("line", String.valueOf(ex.line())),
+                        traceId != null ? traceId : UUID.randomUUID().toString(),
+                        Instant.now()));
+    }
+
+    @ExceptionHandler({PayInputService.ValidationException.class, IllegalArgumentException.class})
     public ResponseEntity<ApiErrorResponse> handleValidation(RuntimeException ex) {
         return error(HttpStatus.BAD_REQUEST, ApiError.VALIDATION_FAILED, ex.getMessage());
     }

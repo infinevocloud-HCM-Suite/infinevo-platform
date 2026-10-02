@@ -58,9 +58,16 @@ public class PayFigureExplanationService {
         EmployeePayRun row = employeePayRuns
                 .findByTenantIdAndPayrunIdAndEmployeeId(tenantId, payrunId, employeeId)
                 .orElseThrow(() -> new PayRunNotFoundException(payrunId));
-        PolicyStamp stamp = row.getStamp()
-                .filter(s -> row.getComputationError() == null)
-                .orElseThrow(() -> new PayFigureNotComputedException(payrunId, employeeId, row.getComputationError()));
+        // W-30.2: an off-cycle figure prices no days and carries no stamp; its five stamp fields read null.
+        boolean unstamped = run.getRunType() == PayRunType.OFF_CYCLE
+                && row.getComputedAt() != null
+                && row.getComputationError() == null;
+        PolicyStamp stamp = unstamped
+                ? null
+                : row.getStamp()
+                        .filter(s -> row.getComputationError() == null)
+                        .orElseThrow(() ->
+                                new PayFigureNotComputedException(payrunId, employeeId, row.getComputationError()));
 
         BigDecimal lop = BigDecimal.ZERO.setScale(4);
         BigDecimal benefitLop = BigDecimal.ZERO.setScale(4);
@@ -93,11 +100,11 @@ public class PayFigureExplanationService {
                 row.getLopDays(),
                 row.getUnpaidDays(),
                 row.getPaidDays(),
-                stamp.policyId(),
-                stamp.workingDayBasis(),
-                stamp.divisor(),
-                stamp.payableDays(),
-                stamp.lopRounding(),
+                stamp == null ? null : stamp.policyId(),
+                stamp == null ? null : stamp.workingDayBasis(),
+                stamp == null ? null : stamp.divisor(),
+                stamp == null ? null : stamp.payableDays(),
+                stamp == null ? null : stamp.lopRounding(),
                 row.getComputedAt());
     }
 
