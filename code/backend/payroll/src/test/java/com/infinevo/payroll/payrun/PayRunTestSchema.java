@@ -1,6 +1,7 @@
 package com.infinevo.payroll.payrun;
 
 import com.infinevo.payroll.PayrollTestSchema;
+import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -78,6 +79,12 @@ public final class PayRunTestSchema {
             // W-36.2: approve and pay columns on payrun.
             if (!PayrollTestSchema.columnExists(conn, "payroll", "payrun", "approved_at")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V103__payrun_approve_pay.sql");
+            }
+            // W-36.1: the annual tax record, and the note column it adds to employee_payrun. Its
+            // declaration_id references W-32.1's declaration table, so that schema comes first.
+            if (!PayrollTestSchema.tableExists(conn, "payroll", "employee_tds")) {
+                TaxDeclarationTestSchema.apply();
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V102__employee_tds.sql");
             }
             // W-20.1: notification templates and notifications for payslip link dispatch.
             if (!PayrollTestSchema.tableExists(conn, "core", "notification_template")) {
