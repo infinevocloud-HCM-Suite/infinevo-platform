@@ -43,6 +43,7 @@ public final class HrmsProjectTestSchema {
                     for (String script : new String[] {
                         "core/V001__tenant.sql",
                         "core/V002__user_tenant.sql",
+                        "core/V008__audit_log.sql",
                         "core/V009__user_account.sql",
                         "core/V010__employee.sql",
                         "core/V011__department.sql",

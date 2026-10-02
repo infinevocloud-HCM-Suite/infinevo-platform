@@ -4,6 +4,8 @@ import com.infinevo.core.employee.EmployeeRequest;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.shared.audit.AuditIntegratorConfig;
+import com.infinevo.shared.audit.AuditWriter;
 import com.infinevo.shared.cache.RedisConfig;
 import com.infinevo.shared.entitlement.EntitlementSource;
 import com.infinevo.shared.entitlement.PlatformModule;
@@ -32,7 +34,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
- * Spring Boot test application for the HRMS project integration tests (W-41).
+ * Spring Boot test application for the HRMS integration tests (W-41, W-40.1).
  *
  * <p>Following the pattern of {@code PayInputTestApp} and {@code PayrollTestApp}, this context
  * provides an {@link EmployeeService} test stand-in rather than depending on {@code core.employee}'s
@@ -41,15 +43,31 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = {"com.infinevo.hrms.project", "com.infinevo.core.authz"},
+        basePackages = {
+            "com.infinevo.hrms.project",
+            "com.infinevo.hrms.attendance",
+            "com.infinevo.core.authz",
+            "com.infinevo.shared.audit"
+        },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
         })
-@EntityScan(basePackages = {"com.infinevo.hrms.project", "com.infinevo.core.authz", "com.infinevo.shared.identity"})
+@EntityScan(
+        basePackages = {
+            "com.infinevo.hrms.project",
+            "com.infinevo.hrms.attendance",
+            "com.infinevo.core.authz",
+            "com.infinevo.shared.identity"
+        })
 @EnableJpaRepositories(
-        basePackages = {"com.infinevo.hrms.project", "com.infinevo.core.authz", "com.infinevo.shared.identity"})
-@Import({RedisConfig.class, UserProfileSyncService.class})
+        basePackages = {
+            "com.infinevo.hrms.project",
+            "com.infinevo.hrms.attendance",
+            "com.infinevo.core.authz",
+            "com.infinevo.shared.identity"
+        })
+@Import({RedisConfig.class, UserProfileSyncService.class, AuditWriter.class, AuditIntegratorConfig.class})
 public class HrmsTestApp {
 
     public static final ThreadLocal<EmployeeResponse> CURRENT_EMPLOYEE = new ThreadLocal<>();
