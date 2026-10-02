@@ -78,16 +78,19 @@ class ActionCatalogueIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("platform-admin and tenant-admin each hold the whole catalogue but tenant provisioning")
+    @DisplayName(
+            "platform-admin and tenant-admin each hold the whole catalogue but tenant provisioning and impersonation")
     void adminRolesCoverTheCatalogue() throws SQLException {
         Set<String> catalogue = catalogue();
         Map<String, Set<String>> held = systemRoleActions(tenant);
 
-        assertThat(catalogue).contains("core.tenant.provision");
+        assertThat(catalogue).contains("core.tenant.provision", "core.tenant.impersonate");
         Set<String> expected = new TreeSet<>(catalogue);
         expected.remove("core.tenant.provision");
-        assertThat(held.get("platform-admin")).isEqualTo(expected).hasSize(catalogue.size() - 1);
-        assertThat(held.get("tenant-admin")).isEqualTo(expected).hasSize(catalogue.size() - 1);
+        // W-65.2: platform staff only - held by platform-admin in the platform tenant, never in a customer tenant.
+        expected.remove("core.tenant.impersonate");
+        assertThat(held.get("platform-admin")).isEqualTo(expected).hasSize(catalogue.size() - 2);
+        assertThat(held.get("tenant-admin")).isEqualTo(expected).hasSize(catalogue.size() - 2);
     }
 
     @Test
@@ -111,6 +114,39 @@ class ActionCatalogueIT extends AbstractIntegrationTest {
         Map<String, Set<String>> held = systemRoleActions(tenant);
         assertThat(held.get("hr")).contains("core.leave.read").doesNotContain("hrms.leave.read");
         assertThat(held.get("employee")).contains("core.leave.apply", "hrms.attendance.mark");
+    }
+
+    @Test
+    @DisplayName("W-41: the four hrms.project.* action codes exist and are granted according to the specification")
+    void hrmsProjectActionsSeededCorrectly() throws SQLException {
+        Set<String> catalogue = catalogue();
+        assertThat(catalogue)
+                .contains(
+                        "hrms.project.manage", "hrms.project.read", "hrms.project.read_team", "hrms.project.read_own");
+
+        Map<String, Set<String>> held = systemRoleActions(tenant);
+        assertThat(held.get("platform-admin"))
+                .contains(
+                        "hrms.project.manage", "hrms.project.read", "hrms.project.read_team", "hrms.project.read_own");
+        assertThat(held.get("tenant-admin"))
+                .contains(
+                        "hrms.project.manage", "hrms.project.read", "hrms.project.read_team", "hrms.project.read_own");
+        // Spec §6: read -> hr; read_team -> manager; read_own -> employee; manage -> hr, manager.
+        assertThat(held.get("hr"))
+                .contains("hrms.project.manage", "hrms.project.read")
+                .doesNotContain("hrms.project.read_team", "hrms.project.read_own");
+        assertThat(held.get("manager"))
+                .contains("hrms.project.manage", "hrms.project.read_team")
+                .doesNotContain("hrms.project.read", "hrms.project.read_own");
+        assertThat(held.get("employee"))
+                .contains("hrms.project.read_own")
+                .doesNotContain("hrms.project.manage", "hrms.project.read", "hrms.project.read_team");
+        assertThat(held.get("payroll-officer"))
+                .doesNotContain(
+                        "hrms.project.manage", "hrms.project.read", "hrms.project.read_team", "hrms.project.read_own");
+        assertThat(held.get("finance"))
+                .doesNotContain(
+                        "hrms.project.manage", "hrms.project.read", "hrms.project.read_team", "hrms.project.read_own");
     }
 
     @Test

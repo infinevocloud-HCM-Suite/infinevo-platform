@@ -10,6 +10,7 @@ public final class MdcLoggingContext implements AutoCloseable {
     public static final String CORRELATION_ID_KEY = "correlationId";
     public static final String TENANT_ID_KEY = "tenantId";
     public static final String USER_ID_KEY = "userId";
+    public static final String ACTING_AS_KEY = "acting_as";
 
     private final String key;
 
@@ -36,6 +37,10 @@ public final class MdcLoggingContext implements AutoCloseable {
 
     public static MdcLoggingContext withUserId(Object userId) {
         return with(USER_ID_KEY, userId != null ? userId.toString() : null);
+    }
+
+    public static MdcLoggingContext withActingAs(Object actingAs) {
+        return with(ACTING_AS_KEY, actingAs != null ? actingAs.toString() : null);
     }
 
     @Override

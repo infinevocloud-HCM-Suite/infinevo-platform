@@ -85,4 +85,10 @@ public class UserProfileSyncService {
     public Optional<UserAccount> find(UUID tenantId, UUID keycloakUserId) {
         return repository.findByTenantIdAndKeycloakUserId(tenantId, keycloakUserId);
     }
+
+    /** One user account by its own id, for {@code GET /api/v1/me} while staff act as that user (W-65.2). */
+    @Transactional(readOnly = true)
+    public Optional<UserAccount> findById(UUID tenantId, UUID userAccountId) {
+        return repository.findById(userAccountId).filter(a -> tenantId.equals(a.getTenantId()));
+    }
 }

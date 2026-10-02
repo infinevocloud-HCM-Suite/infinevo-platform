@@ -2,6 +2,7 @@ package com.infinevo.core.subscription;
 
 import com.infinevo.shared.authz.PermissionCache;
 import com.infinevo.shared.entitlement.PlatformModule;
+import com.infinevo.shared.tenant.PlatformTenant;
 import com.infinevo.shared.tenant.TenantContext;
 import java.sql.Array;
 import java.sql.Connection;
@@ -9,6 +10,7 @@ import java.sql.PreparedStatement;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +40,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final JdbcTemplate jdbcTemplate;
     private final PermissionCache permissionCache;
     private final com.infinevo.core.setup.SetupChecklistService setupChecklistService;
+    private final PlatformTenant platformTenant;
 
     public SubscriptionServiceImpl(
             SubscriptionRepository subscriptionRepository,
@@ -49,7 +52,24 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 subscriptionModuleRepository,
                 jdbcTemplate,
                 permissionCache,
-                (com.infinevo.core.setup.SetupChecklistService) null);
+                (com.infinevo.core.setup.SetupChecklistService) null,
+                new PlatformTenant());
+    }
+
+    // W-65.1: no checklist, an explicit platform-tenant guard (unit tests).
+    public SubscriptionServiceImpl(
+            SubscriptionRepository subscriptionRepository,
+            SubscriptionModuleRepository subscriptionModuleRepository,
+            JdbcTemplate jdbcTemplate,
+            PermissionCache permissionCache,
+            PlatformTenant platformTenant) {
+        this(
+                subscriptionRepository,
+                subscriptionModuleRepository,
+                jdbcTemplate,
+                permissionCache,
+                (com.infinevo.core.setup.SetupChecklistService) null,
+                platformTenant);
     }
 
     // The constructor Spring uses. With more than one constructor Spring needs one marked,
@@ -62,7 +82,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             JdbcTemplate jdbcTemplate,
             PermissionCache permissionCache,
             org.springframework.beans.factory.ObjectProvider<com.infinevo.core.setup.SetupChecklistService>
-                    setupChecklistServiceProvider) {
+                    setupChecklistServiceProvider,
+            PlatformTenant platformTenant) {
         this.subscriptionRepository =
                 Objects.requireNonNull(subscriptionRepository, "subscriptionRepository must not be null");
         this.subscriptionModuleRepository =
@@ -71,6 +92,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         this.permissionCache = Objects.requireNonNull(permissionCache, "permissionCache must not be null");
         this.setupChecklistService =
                 setupChecklistServiceProvider != null ? setupChecklistServiceProvider.getIfAvailable() : null;
+        this.platformTenant = platformTenant != null ? platformTenant : new PlatformTenant();
     }
 
     public SubscriptionServiceImpl(
@@ -79,6 +101,22 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             JdbcTemplate jdbcTemplate,
             PermissionCache permissionCache,
             com.infinevo.core.setup.SetupChecklistService setupChecklistService) {
+        this(
+                subscriptionRepository,
+                subscriptionModuleRepository,
+                jdbcTemplate,
+                permissionCache,
+                setupChecklistService,
+                new PlatformTenant());
+    }
+
+    private SubscriptionServiceImpl(
+            SubscriptionRepository subscriptionRepository,
+            SubscriptionModuleRepository subscriptionModuleRepository,
+            JdbcTemplate jdbcTemplate,
+            PermissionCache permissionCache,
+            com.infinevo.core.setup.SetupChecklistService setupChecklistService,
+            PlatformTenant platformTenant) {
         this.subscriptionRepository =
                 Objects.requireNonNull(subscriptionRepository, "subscriptionRepository must not be null");
         this.subscriptionModuleRepository =
@@ -86,6 +124,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.permissionCache = Objects.requireNonNull(permissionCache, "permissionCache must not be null");
         this.setupChecklistService = setupChecklistService;
+        this.platformTenant = platformTenant != null ? platformTenant : new PlatformTenant();
     }
 
     @Override
@@ -108,33 +147,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Transactional
     public SubscriptionResponse updateModules(UUID tenantId, Set<PlatformModule> modules) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
+        if (platformTenant.isPlatformTenant(tenantId)) {
+            throw new IllegalArgumentException("Cannot modify subscription modules for the platform tenant");
+        }
         Set<PlatformModule> targetSet = modules != null ? modules : Set.of();
 
-        // A platform administrator changes another tenant's modules while bound to their own.
-        // Row-level security on core.subscription and core.tenant_setup_step would then hide the
-        // target's subscription and refuse its checklist rows, so the thread and the open
-        // transaction are rebound to the target first — the same move as
-        // TenantServiceImpl.assembleChecklistAs. The binding lasts until this transaction ends.
-        UUID previousTenant = TenantContext.current().orElse(null);
-        boolean rebind = !tenantId.equals(previousTenant);
-        if (rebind) {
-            TenantContext.set(tenantId);
-            jdbcTemplate.execute((ConnectionCallback<Void>) conn -> {
-                TenantContext.setForConnection(conn);
-                return null;
-            });
-        }
-        try {
-            return applyModules(tenantId, targetSet);
-        } finally {
-            if (rebind) {
-                if (previousTenant != null) {
-                    TenantContext.set(previousTenant);
-                } else {
-                    TenantContext.clear();
-                }
-            }
-        }
+        return asTenant(tenantId, () -> applyModules(tenantId, targetSet));
     }
 
     private SubscriptionResponse applyModules(UUID tenantId, Set<PlatformModule> targetSet) {
@@ -184,7 +202,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     public SubscriptionResponse updateStatus(UUID tenantId, SubscriptionStatus status) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(status, "status must not be null");
+        return asTenant(tenantId, () -> applyStatus(tenantId, status));
+    }
 
+    private SubscriptionResponse applyStatus(UUID tenantId, SubscriptionStatus status) {
         // 1. Verify subscription exists
         Subscription subscription = subscriptionRepository
                 .findByTenantId(tenantId)
@@ -222,6 +243,40 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                         .collect(Collectors.toSet());
 
         return toResponse(subscription, activeModules);
+    }
+
+    /**
+     * Runs {@code work} with the thread and the open transaction bound to {@code tenantId}, then puts the previous
+     * binding back.
+     *
+     * <p>A platform administrator changes another tenant's subscription while bound to their own. Row-level
+     * security on {@code core.subscription} and {@code core.tenant_setup_step} would then hide the target's rows
+     * (an unbound read is "not found") or refuse its checklist rows, so the thread and the transaction are rebound
+     * to the target first, the same move as {@code TenantServiceImpl.assembleChecklistAs}. The binding lasts until
+     * the transaction ends. {@code updateStatus} once skipped this and answered 404 for every tenant but the
+     * caller's own.
+     */
+    private <T> T asTenant(UUID tenantId, Supplier<T> work) {
+        UUID previousTenant = TenantContext.current().orElse(null);
+        boolean rebind = !tenantId.equals(previousTenant);
+        if (rebind) {
+            TenantContext.set(tenantId);
+            jdbcTemplate.execute((ConnectionCallback<Void>) conn -> {
+                TenantContext.setForConnection(conn);
+                return null;
+            });
+        }
+        try {
+            return work.get();
+        } finally {
+            if (rebind) {
+                if (previousTenant != null) {
+                    TenantContext.set(previousTenant);
+                } else {
+                    TenantContext.clear();
+                }
+            }
+        }
     }
 
     private static SubscriptionResponse toResponse(Subscription subscription, Set<PlatformModule> modules) {

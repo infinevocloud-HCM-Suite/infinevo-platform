@@ -54,6 +54,23 @@ public class IncomeTaxDeclarationWindow {
     @Column(name = "notify_on_release", nullable = false)
     private boolean notifyOnRelease = false;
 
+    /** W-34.1: the proof-of-investment window for this year opens on this date. */
+    @Column(name = "poi_opens_on")
+    private LocalDate poiOpensOn;
+
+    /** W-34.1: last day an employee may submit proof. */
+    @Column(name = "poi_due_date")
+    private LocalDate poiDueDate;
+
+    @Column(name = "poi_locked", nullable = false)
+    private boolean poiLocked = false;
+
+    @Column(name = "poi_attachment_mandatory", nullable = false)
+    private boolean poiAttachmentMandatory = true;
+
+    @Column(name = "poi_comment_mandatory", nullable = false)
+    private boolean poiCommentMandatory = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -95,6 +112,57 @@ public class IncomeTaxDeclarationWindow {
             return false;
         }
         return !date.isBefore(windowOpensOn) && !date.isAfter(windowClosesOn);
+    }
+
+    /**
+     * Whether proof of investment may be submitted on {@code date} (W-34.1): not locked, both dates
+     * set, and {@code poi_opens_on <= date <= poi_due_date}. Both boundary days are open.
+     */
+    public boolean isProofOpenOn(LocalDate date) {
+        if (poiLocked || date == null || poiOpensOn == null || poiDueDate == null) {
+            return false;
+        }
+        return !date.isBefore(poiOpensOn) && !date.isAfter(poiDueDate);
+    }
+
+    public LocalDate getPoiOpensOn() {
+        return poiOpensOn;
+    }
+
+    public void setPoiOpensOn(LocalDate poiOpensOn) {
+        this.poiOpensOn = poiOpensOn;
+    }
+
+    public LocalDate getPoiDueDate() {
+        return poiDueDate;
+    }
+
+    public void setPoiDueDate(LocalDate poiDueDate) {
+        this.poiDueDate = poiDueDate;
+    }
+
+    public boolean isPoiLocked() {
+        return poiLocked;
+    }
+
+    public void setPoiLocked(boolean poiLocked) {
+        this.poiLocked = poiLocked;
+    }
+
+    public boolean isPoiAttachmentMandatory() {
+        return poiAttachmentMandatory;
+    }
+
+    public void setPoiAttachmentMandatory(boolean poiAttachmentMandatory) {
+        this.poiAttachmentMandatory = poiAttachmentMandatory;
+    }
+
+    public boolean isPoiCommentMandatory() {
+        return poiCommentMandatory;
+    }
+
+    public void setPoiCommentMandatory(boolean poiCommentMandatory) {
+        this.poiCommentMandatory = poiCommentMandatory;
     }
 
     public UUID getId() {

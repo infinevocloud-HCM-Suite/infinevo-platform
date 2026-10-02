@@ -31,11 +31,13 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -543,6 +545,60 @@ class ReminderEvaluatorTest {
 
         verify(ruleRepository, times(1)).claimRun(any(), eq(tenantId), any(), any(), anyBoolean());
         verify(notificationService, times(1)).compose(eq(NotificationEvent.TIMESHEET_REMINDER), eq(recipientId), any());
+    }
+
+    @Test
+    @DisplayName(
+            "POI_REMINDER rule with POI_DUE_DATE and POI_PENDING composes one reminder per pending employee with due_date set; a second run composes none")
+    void poiReminderRuleEvaluatesAndSecondRunComposesNone() {
+        // Friday 2027-01-15 10:00 UTC. Due date is 2027-01-22 (7 days later). Offset is 7 days before due date.
+        Instant now = Instant.parse("2027-01-15T10:00:00Z");
+        LocalDate dueDate = LocalDate.of(2027, 1, 22);
+
+        ReminderRule rule = new ReminderRule(
+                tenantId,
+                NotificationEvent.POI_REMINDER,
+                "POI_PENDING",
+                Anchor.POI_DUE_DATE,
+                7, // 7 days before anchor
+                null,
+                LocalTime.of(9, 0),
+                null,
+                null,
+                "system");
+
+        when(anchorResolver.anchor()).thenReturn(Anchor.POI_DUE_DATE);
+        when(anchorResolver.resolveAnchorDate(rule, tenantId)).thenReturn(Optional.of(dueDate));
+
+        when(audienceResolver.audience()).thenReturn("POI_PENDING");
+        when(audienceResolver.resolve(rule, tenantId)).thenReturn(List.of(recipientId));
+
+        when(ruleRepository.findByTenantIdAndIsActiveTrue(tenantId)).thenReturn(List.of(rule));
+
+        ReminderEvaluator evaluator = new ReminderEvaluator(
+                jdbcTemplate,
+                ruleRepository,
+                notificationService,
+                employeeRepository,
+                List.of(audienceResolver),
+                List.of(anchorResolver),
+                Clock.fixed(now, ZoneOffset.UTC));
+
+        // First run inside the window composes notification with due_date:
+        int executed = evaluator.evaluateTenant(tenantId, ZoneOffset.UTC, now);
+        assertEquals(1, executed);
+
+        ArgumentCaptor<Map<String, Object>> dataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(notificationService).compose(eq(NotificationEvent.POI_REMINDER), eq(recipientId), dataCaptor.capture());
+        assertEquals("2027-01-22", dataCaptor.getValue().get("due_date"));
+        assertEquals("2026-2027", dataCaptor.getValue().get("financial_year"));
+
+        // Second run the same day (repeatCount advanced and lastExecutedAt set):
+        rule.setLastExecutedAt(now);
+        rule.setRepeatCount(1);
+        int executedSecond = evaluator.evaluateTenant(tenantId, ZoneOffset.UTC, now.plusSeconds(3600));
+        assertEquals(0, executedSecond);
+        verify(notificationService, times(1)).compose(any(), any(), any()); // Still 1 call, none added
     }
 
     /** A weekly rule due on Fridays at 09:00, never run. */

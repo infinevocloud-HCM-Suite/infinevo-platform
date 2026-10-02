@@ -95,6 +95,13 @@ class DelegationIT extends AbstractIntegrationTest {
         TenantContext.clear();
     }
 
+    @AfterEach
+    void removeApprovalRows() throws Exception {
+        // These tests share a database with the employee tests, which delete employees; approval rows left
+        // behind by the last test would block that delete through approval_instance's foreign key.
+        ApprovalTestSchema.clearDefinitions();
+    }
+
     @Test
     @DisplayName(
             "a stub-flow request raised while the manager is delegated reaches the delegate, and the step records both")

@@ -107,6 +107,13 @@ class StubFlowApprovalIT extends AbstractIntegrationTest {
         TenantContext.clear();
     }
 
+    @AfterEach
+    void removeApprovalRows() throws Exception {
+        // These tests share a database with the employee tests, which delete employees; approval rows left
+        // behind by the last test would block that delete through approval_instance's foreign key.
+        ApprovalTestSchema.clearDefinitions();
+    }
+
     @Test
     @DisplayName("REGULARIZATION routes to manager then second step; handler runs once after commit")
     void regularizationRoutesAndCompletesAfterCommit() throws Exception {

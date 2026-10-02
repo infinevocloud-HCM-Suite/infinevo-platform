@@ -156,6 +156,29 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    @DisplayName(
+            "updateStatus from another tenant's binding reads the target's subscription, then restores the caller's")
+    void updateStatus_crossTenant_rebindsAndRestores() {
+        UUID platformTenant = UUID.randomUUID();
+        TenantContext.set(platformTenant);
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());
+        UUID[] boundWhenRead = new UUID[1];
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenAnswer(invocation -> {
+            boundWhenRead[0] = TenantContext.require();
+            return Optional.of(sub);
+        });
+
+        subscriptionService.updateStatus(TENANT_ID, SubscriptionStatus.SUSPENDED);
+
+        assertThat(boundWhenRead[0])
+                .as("the lookup runs bound to the target, or row-level security would hide the row (a 404)")
+                .isEqualTo(TENANT_ID);
+        // One callback binds the connection to the target, the other is the stored procedure.
+        verify(jdbcTemplate, times(2)).execute(any(ConnectionCallback.class));
+        assertThat(TenantContext.require()).isEqualTo(platformTenant);
+    }
+
+    @Test
     @DisplayName("a no-op status change does not bump cache version or execute stored procedure")
     void updateStatus_whenSameStatus_doesNotBumpCache() {
         Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());

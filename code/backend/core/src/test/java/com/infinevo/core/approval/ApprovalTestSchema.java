@@ -63,6 +63,10 @@ public final class ApprovalTestSchema {
             if (!columnExists(conn, "employee", "department_id")) {
                 executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
             }
+            // user_account_id (V026) references core.user_account, which needs core.user_tenant first.
+            if (!tableExists(conn, "user_tenant")) {
+                executeResource(conn, "db/migration/core/V002__user_tenant.sql");
+            }
             if (!tableExists(conn, "user_account")) {
                 executeResource(conn, "db/migration/core/V009__user_account.sql");
             }
@@ -213,24 +217,21 @@ public final class ApprovalTestSchema {
         }
     }
 
-    private static boolean tableExists(Connection conn, String table) throws SQLException {
-        try (PreparedStatement ps =
-                conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
+    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM information_schema.columns"
+                + " WHERE table_schema = 'core' AND table_name = ? AND column_name = ?")) {
             ps.setString(1, table);
+            ps.setString(2, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
         }
     }
 
-    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                """
-                SELECT 1 FROM information_schema.columns
-                 WHERE table_schema = 'core' AND table_name = ? AND column_name = ?
-                """)) {
+    private static boolean tableExists(Connection conn, String table) throws SQLException {
+        try (PreparedStatement ps =
+                conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
             ps.setString(1, table);
-            ps.setString(2, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
