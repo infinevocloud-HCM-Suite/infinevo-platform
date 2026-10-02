@@ -24,12 +24,15 @@ class PayRunTransitionsTest {
             "LOCKED->CANCELLED",
             "LOCKED->COMPUTING",
             "COMPUTED->COMPUTING",
+            "COMPUTED->APPROVED",
             "FAILED->COMPUTING",
             "COMPUTING->COMPUTED",
-            "COMPUTING->FAILED");
+            "COMPUTING->FAILED",
+            "APPROVED->PAID",
+            "APPROVED->CANCELLED");
 
     @Test
-    @DisplayName("Exactly the eight W-29.1 and W-29.2 transitions are allowed; all 56 other pairs throw")
+    @DisplayName("Exactly the allowed transitions are permitted; all other pairs throw")
     void onlyTheImplementedTransitionsAreAllowed() {
         int refused = 0;
         for (PayRunStatus from : PayRunStatus.values()) {
@@ -125,17 +128,102 @@ class PayRunTransitionsTest {
                 .isInstanceOf(IllegalPayRunTransitionException.class);
     }
 
+    @Test
+    @DisplayName("Approve: COMPUTED → APPROVED stamps approved_at and approved_by; all other statuses throw")
+    void approveTransitions() {
+        for (PayRunStatus status : PayRunStatus.values()) {
+            if (status != PayRunStatus.COMPUTED) {
+                assertThat(status.canTransitionTo(PayRunStatus.APPROVED))
+                        .as(status + " cannot transition to APPROVED")
+                        .isFalse();
+            }
+        }
+
+        PayRun run = newComputedRun();
+        Instant at = Instant.parse("2026-04-28T12:00:00Z");
+        run.approve("approver_officer", at);
+
+        assertThat(run.getStatus()).isEqualTo(PayRunStatus.APPROVED);
+        assertThat(run.getApprovedAt()).isEqualTo(at);
+        assertThat(run.getApprovedBy()).isEqualTo("approver_officer");
+
+        // Approve again throws
+        assertThatThrownBy(() -> run.approve("approver_officer", at))
+                .isInstanceOf(IllegalPayRunTransitionException.class);
+    }
+
+    @Test
+    @DisplayName(
+            "Pay: APPROVED → PAID stamps paid_at, paid_by, paid_on, payslips_released_at; all other statuses throw")
+    void payTransitions() {
+        for (PayRunStatus status : PayRunStatus.values()) {
+            if (status != PayRunStatus.APPROVED) {
+                assertThat(status.canTransitionTo(PayRunStatus.PAID))
+                        .as(status + " cannot transition to PAID")
+                        .isFalse();
+            }
+        }
+
+        PayRun run = newComputedRun();
+        Instant approvedAt = Instant.parse("2026-04-28T12:00:00Z");
+        run.approve("approver", approvedAt);
+
+        LocalDate paidOn = run.getPeriodEnd().isAfter(LocalDate.now()) ? LocalDate.now() : run.getPeriodEnd();
+        Instant paidAt = Instant.now();
+        run.pay(paidOn, "payer_officer", paidAt);
+
+        assertThat(run.getStatus()).isEqualTo(PayRunStatus.PAID);
+        assertThat(run.getPaidAt()).isEqualTo(paidAt);
+        assertThat(run.getPaidBy()).isEqualTo("payer_officer");
+        assertThat(run.getPaidOn()).isEqualTo(paidOn);
+        assertThat(run.getPayslipsReleasedAt()).isEqualTo(paidAt);
+
+        // Pay again throws
+        assertThatThrownBy(() -> run.pay(paidOn, "payer_officer", paidAt))
+                .isInstanceOf(IllegalPayRunTransitionException.class);
+
+        // A paid run stays paid: the money moved (W-36.2 §10)
+        assertThatThrownBy(() -> run.cancel("officer", Instant.now()))
+                .isInstanceOf(IllegalPayRunTransitionException.class);
+        assertThat(run.getStatus()).isEqualTo(PayRunStatus.PAID);
+    }
+
+    @Test
+    @DisplayName("Pay date validation: null, future date or date before period start throws IllegalArgumentException")
+    void payDateValidation() {
+        PayRun run = newComputedRun();
+        run.approve("approver", Instant.now());
+
+        // Null
+        assertThatThrownBy(() -> run.pay(null, "payer", Instant.now())).isInstanceOf(NullPointerException.class);
+
+        // Future date
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        assertThatThrownBy(() -> run.pay(tomorrow, "payer", Instant.now()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("future");
+
+        // Before period start
+        LocalDate beforePeriod = run.getPeriodStart().minusDays(1);
+        assertThatThrownBy(() -> run.pay(beforePeriod, "payer", Instant.now()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("period start");
+    }
+
+    private static PayRun newComputedRun() {
+        PayRun run = newRun();
+        run.lock("officer", Instant.now());
+        run.startComputing("officer");
+        run.completeComputation(
+                new BigDecimal("50000.00"), BigDecimal.ZERO, new BigDecimal("50000.00"), 0, "officer", Instant.now());
+        return run;
+    }
+
     private static PayRun newRun() {
+        LocalDate start = LocalDate.now().minusMonths(1).withDayOfMonth(1);
+        LocalDate end = start.plusMonths(1).minusDays(1);
         PayRun run = new PayRun(
-                UUID.randomUUID(),
-                YearMonth.of(2026, 4),
-                LocalDate.of(2026, 4, 1),
-                LocalDate.of(2026, 4, 30),
-                LocalDate.of(2026, 4, 25),
-                LocalDate.of(2026, 4, 30),
-                0,
-                0,
-                "officer");
+                UUID.randomUUID(), YearMonth.from(start), start, end, start.plusDays(24), end, 0, 0, "officer");
         assertThat(run.getStatus()).isEqualTo(PayRunStatus.DRAFT);
         return run;
     }

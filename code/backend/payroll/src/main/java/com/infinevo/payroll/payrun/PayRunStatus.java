@@ -31,9 +31,10 @@ public enum PayRunStatus {
     private static final Map<PayRunStatus, Set<PayRunStatus>> ALLOWED = Map.of(
             DRAFT, Set.of(LOCKED, CANCELLED),
             LOCKED, Set.of(CANCELLED, COMPUTING),
-            COMPUTED, Set.of(COMPUTING),
+            COMPUTED, Set.of(COMPUTING, APPROVED),
             FAILED, Set.of(COMPUTING),
-            COMPUTING, Set.of(COMPUTED, FAILED));
+            COMPUTING, Set.of(COMPUTED, FAILED),
+            APPROVED, Set.of(PAID, CANCELLED));
 
     public boolean canTransitionTo(PayRunStatus target) {
         return ALLOWED.getOrDefault(this, Set.of()).contains(target);

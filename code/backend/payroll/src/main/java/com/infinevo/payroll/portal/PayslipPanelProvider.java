@@ -9,7 +9,8 @@ import org.springframework.stereotype.Component;
 /**
  * Self-service portal panel provider for payslips (W-25, spec section 4).
  *
- * <p>Placeholder descriptor until {@code W-36} builds the full payslip feature (spec decision 2).
+ * <p>The endpoint is {@code PayslipController}'s list of the caller's own payslips (W-36.2), which
+ * replaced the W-25 placeholder.
  */
 @Component
 public class PayslipPanelProvider implements PortalPanelProvider {

@@ -17,9 +17,18 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
 
     boolean existsByTenantIdAndPeriodAndStatusNot(UUID tenantId, String period, PayRunStatus status);
 
+    /** W-30.2: only a regular run blocks another regular run for the period; off-cycle runs are many. */
+    boolean existsByTenantIdAndPeriodAndRunTypeAndStatusNot(
+            UUID tenantId, String period, PayRunType runType, PayRunStatus status);
+
     Page<PayRun> findByTenantId(UUID tenantId, Pageable pageable);
 
     Page<PayRun> findByTenantIdAndStatus(UUID tenantId, PayRunStatus status, Pageable pageable);
+
+    Page<PayRun> findByTenantIdAndRunType(UUID tenantId, PayRunType runType, Pageable pageable);
+
+    Page<PayRun> findByTenantIdAndStatusAndRunType(
+            UUID tenantId, PayRunStatus status, PayRunType runType, Pageable pageable);
 
     /** {@code SELECT … FOR UPDATE}: two computes of one run serialise, and the second sees {@code COMPUTING}. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

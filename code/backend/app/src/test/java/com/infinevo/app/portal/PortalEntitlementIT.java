@@ -9,7 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.infinevo.hrms.portal.MyTimesheetPlaceholderController;
-import com.infinevo.payroll.portal.MyPayslipsPlaceholderController;
+import com.infinevo.payroll.payslip.PayslipController;
+import com.infinevo.payroll.payslip.PayslipService;
 import com.infinevo.shared.authz.AuthzExceptionHandler;
 import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.authz.PermissionService;
@@ -42,6 +43,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
@@ -84,9 +87,10 @@ class PortalEntitlementIT {
             return new MyTimesheetPlaceholderController();
         }
 
+        // W-36.2 replaced W-25's payslips placeholder with the real controller.
         @Bean
-        MyPayslipsPlaceholderController myPayslipsPlaceholderController() {
-            return new MyPayslipsPlaceholderController();
+        PayslipController payslipController(PayslipService payslipService) {
+            return new PayslipController(payslipService);
         }
 
         @Bean
@@ -113,6 +117,9 @@ class PortalEntitlementIT {
 
     @MockBean
     private PermissionService permissionService;
+
+    @MockBean
+    private PayslipService payslipService;
 
     private final UUID acmeTenant = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private final UUID globexTenant = UUID.fromString("22222222-2222-2222-2222-222222222222");
@@ -191,10 +198,11 @@ class PortalEntitlementIT {
         TenantContext.set(acmeTenant);
         entitledModules.add(PlatformModule.PAYROLL);
         grantedActions.add("payroll.payslip.read_own");
+        when(payslipService.listOwn(any(Pageable.class))).thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/v1/me/payslips"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("placeholder"));
+                .andExpect(jsonPath("$.status").value(200));
     }
 
     @Test
