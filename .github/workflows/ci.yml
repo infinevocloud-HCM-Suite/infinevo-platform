@@ -494,7 +494,8 @@ jobs:
 
       - name: Install Semgrep and Trivy
         run: |
-          pip install semgrep
+          pipx install semgrep
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 
       - name: Run Semgrep SAST scan

@@ -213,6 +213,18 @@ public class DocumentServiceImpl implements DocumentService {
         log.info("Soft-deleted document {} in tenant {}", id, document.getTenantId());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentResponse> findByEmployee(UUID employeeId) {
+        UUID tenantId = TenantContext.require();
+        if (employeeId == null) {
+            return List.of();
+        }
+        return documents.findByTenantIdAndEmployeeIdAndDeletedFalse(tenantId, employeeId).stream()
+                .map(DocumentResponse::from)
+                .toList();
+    }
+
     /** What {@link #accept} settled: the bound tenant, the cleaned name, and the type it names. */
     private record Accepted(UUID tenantId, String name, DocumentType type) {}
 

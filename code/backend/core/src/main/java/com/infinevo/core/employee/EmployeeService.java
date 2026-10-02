@@ -38,8 +38,28 @@ public interface EmployeeService {
     /** The caller's own employee row in the bound tenant, if linked and live (W-13.4). */
     java.util.Optional<EmployeeResponse> currentEmployee();
 
+    /**
+     * Display names for these employees in the bound tenant, keyed by id: first and last name, or
+     * the employee number when there is no name. An id outside the tenant is simply absent.
+     *
+     * <p>Not guarded by {@code core.employee.read}, deliberately: it exists so a record that already
+     * points at an employee - an approval step assigned to the caller - can say who that is. It
+     * returns a name and nothing else, and only for the ids the caller's own record carries.
+     */
+    default java.util.Map<UUID, String> displayNames(java.util.Collection<UUID> ids) {
+        return java.util.Map.of();
+    }
+
     /** Sets or clears the user account link for an employee in the bound tenant (W-13.4). */
     EmployeeResponse linkLogin(UUID id, UUID userAccountId);
+
+    /**
+     * Everyone employed on any day of {@code [start, end]} in the bound tenant — the batch a pay run
+     * considers (W-29.1 §3): not soft-deleted, joined on or before {@code end}, and either
+     * {@code ACTIVE} or {@code TERMINATED} on or after {@code start}. A {@code SUSPENDED} employee is
+     * not returned. Ordered by employee number, complete, never paged: one statement.
+     */
+    java.util.List<EmployeeResponse> listEmployedBetween(java.time.LocalDate start, java.time.LocalDate end);
 
     /** No such employee in the bound tenant, or it has been soft-deleted. Maps to {@code 404}. */
     class NotFoundException extends RuntimeException {
@@ -48,6 +68,10 @@ public interface EmployeeService {
 
         public NotFoundException(UUID id) {
             super("No employee " + id + " in this tenant");
+        }
+
+        public NotFoundException(String message) {
+            super(message);
         }
     }
 

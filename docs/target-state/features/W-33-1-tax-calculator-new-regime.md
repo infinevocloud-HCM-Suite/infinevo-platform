@@ -45,7 +45,7 @@ All citations are `legacy/Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/`,
 **In scope**
 
 - `TaxCalculationService.compute(employeeId, fy, regime)` — one call, one `TaxComputation` result with every intermediate figure
-- The shared engine: `SalaryProjection` (taxable earnings for the year from the CTC versions), `SlabTax`, `Rebate87A`, `SurchargeAndCess` with marginal relief — all reading the `reference` rule tables by financial year
+- The shared engine: `SalaryProjection` (taxable earnings for the year from the CTC versions), `SlabTax`, `Rebate87A`, `SurchargeAndCess` (no marginal relief, as legacy — § 13 decision 4, reversed 2026-10-02) — all reading the `reference` rule tables by financial year
 - `NewRegimeCalculator` — salary + previous employer − standard deduction → slabs → rebate → surcharge → cess − previous-employer TDS
 - `POST …/tax/compute` — computes every regime the engine knows and writes each to the summary row through `TaxSummaryService.record`; `GET …/tax` previews without writing
 - `RegimeCalculator` as the seam `.2` plugs `OLD` into. Asking for a regime with no calculator is `409 REGIME_NOT_AVAILABLE` until `.2` merges
@@ -86,10 +86,10 @@ compute(employeeId, fy, regime):
 |---|---|---|
 | 1 | `incomeFromSalary = salary + prevEmployment.INCOME` | — (`:155-163`) |
 | 2 | `standardDeduction = min(rule.amount, incomeFromSalary)` | `standard_deduction_rule_master (fy, 'NEW')` — `V005:105` gives 75,000 for 2025-2026 |
-| 3 | `taxableIncome = max(0, incomeFromSalary − standardDeduction)`, rounded down to the rupee | (`:177-181`) |
+| 3 | `taxableIncome = max(0, incomeFromSalary − standardDeduction)`, rounded to the nearest rupee (`HALF_UP`; founder decision 2026-10-02) | (`:177-181`) |
 | 4 | `taxBeforeRebate = SlabTax.of(taxableIncome, slabs)` — consume the income bracket by bracket, `to_amount NULL` is open-ended | `tax_slab_master (regime, fy, age_category = GENERAL)` + `tax_slab_detail_history` ordered by `slab_order`. `NEW` has no age rows by design (`V027:8`) |
 | 5 | `rebate = taxableIncome <= income_threshold ? (is_full_rebate ? taxBeforeRebate : min(taxBeforeRebate, max_rebate_amount)) : 0` | `section87a_rebate_rule_master (fy, regime)` — `V005:119` |
-| 6 | `surcharge` = the one `SURCHARGE` band with `income_from <= taxableIncome < income_to` (or `income_to NULL`), rate on `taxAfterRebate`; **marginal relief** when the band says so: `surcharge = min(surcharge, max(0, (taxableIncome − income_from) − (taxAfterRebate − taxAtThreshold)))` where `taxAtThreshold` is steps 4–6 run at `income_from` | `cess_surcharge_rule_master (fy, rule_type, tax_regime IN (regime, 'BOTH'))` — `V005:228-233` |
+| 6 | `surcharge` = the one `SURCHARGE` band with `income_from <= taxableIncome < income_to` (or `income_to NULL`), rate on `taxAfterRebate`, in full. **No marginal relief**, as legacy (founder decision 2026-10-02): `is_marginal_relief_applicable` stays on the rule row and is not read. The relief formula built under the first version of this step is removed by `W-33.3` | `cess_surcharge_rule_master (fy, rule_type, tax_regime IN (regime, 'BOTH'))` — `V005:228-233` |
 | 7 | `cess = (taxAfterRebate + surcharge) × cess.rate / 100` when that base is positive | the `CESS` row, `V005:227` |
 | 8 | `annualTax = max(0, taxAfterRebate + surcharge + cess − prevEmployment.INCOME_TAX_DEDUCTED)`, rounded to the rupee | (`:388-393`) |
 
@@ -160,14 +160,13 @@ Every repository call carries `tenantId` (DEBT-022); the reference reads carry `
 | Type | File | Covers |
 |---|---|---|
 | Unit | `payroll/.../taxcalc/SlabTaxTest.java` | FY 2025-2026 `NEW` on 10,00,000 ⇒ 40,000 (0 + 20,000 + 20,000); on 15,00,000 ⇒ 1,05,000; on 3,99,999 ⇒ 0; open-ended top bracket on 1,00,00,000 |
-| Unit | `payroll/.../taxcalc/NewRegimeCalculatorTest.java` | **the hand calculation**: salary 15,75,000, no previous employer ⇒ standard deduction 75,000, taxable 15,00,000, tax 1,05,000, rebate 0, cess 4,200, **annual tax 1,09,200**; salary 12,75,000 ⇒ taxable 12,00,000, tax 60,000, full rebate ⇒ **0**; salary 12,75,001 ⇒ rebate 0 (threshold is on taxable income); previous-employer income 2,00,000 and TDS 10,000 added and subtracted; standard deduction never exceeds income; surcharge band 10 % on taxable 55,00,000 and marginal relief on 50,10,000 against the department's published figure for FY 2025-26, source URL in the test |
+| Unit | `payroll/.../taxcalc/NewRegimeCalculatorTest.java` | **the hand calculation**: salary 15,75,000, no previous employer ⇒ standard deduction 75,000, taxable 15,00,000, tax 1,05,000, rebate 0, cess 4,200, **annual tax 1,09,200**; salary 12,75,000 ⇒ taxable 12,00,000, tax 60,000, full rebate ⇒ **0**; salary 12,75,001 ⇒ rebate 0 (threshold is on taxable income); previous-employer income 2,00,000 and TDS 10,000 added and subtracted; standard deduction never exceeds income; surcharge band 10 % on taxable 55,00,000, and on 50,10,000 the same 10 % in full with no relief (decision 4) |
 | Unit | `payroll/.../taxcalc/SalaryProjectionTest.java` | joined 2025-10-15, one version ⇒ 6 months; revision from 2026-01-01 ⇒ 3 + 3 months at the two rates; a non-taxable earning excluded; no version in force ⇒ 0 and an assumption line |
 | Unit | `payroll/.../taxcalc/AgeCategoryTest.java` | born 1966-03-31 ⇒ `SENIOR` for 2025-2026; born 1966-04-01 ⇒ `GENERAL`; 80 on 2026-03-31 ⇒ `SUPER_SENIOR`; no date ⇒ `GENERAL` |
 | Integration | `payroll/.../taxcalc/TaxComputeIT.java` | **the acceptance test**: tenant, employee with a flat taxable CTC of 15,75,000 from 2025-04-01, header `NEW`; `GET …/tax` ⇒ `annual_tax 1,09,200.00`, summary row still `computed: null`; `POST …/tax/compute` ⇒ `NEW` filled, `OLD` `null`, and `GET …/summary` (`W-32.4`) shows `tax_to_be_paid 1,09,200` with `computed_at`; a second `POST` overwrites; `GET …/tax?regime=OLD` ⇒ `409 REGIME_NOT_AVAILABLE`; a year with no rules ⇒ `422` |
 | Integration | `payroll/.../taxcalc/TaxComputeRlsIT.java` | tenant A's officer computing tenant B's employee ⇒ `404`; `record` lands on tenant A's row only |
 
-All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`. The marginal-relief
-case uses a published figure, not one invented here (`09-build-order.md:227`).
+All extend `AbstractIntegrationTest` with `@EnabledIfDockerAvailable`.
 
 ## 8. Verification
 
@@ -192,7 +191,7 @@ cd code/backend && mvn -q verify
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| The port copies the legacy surcharge loop and skips marginal relief | **high** — the legacy code looks complete | § 3 step 6 spells the formula; the unit test pins a published figure |
+| Surcharge is charged in full just above a band's threshold, where the Act gives relief | accepted — the founder chose legacy's behaviour 2026-10-02 | the unit test pins the no-relief figure; revisit before the first real pay run for an employee above 50 lakh |
 | Slab lookup by `(fy, regime)` alone returns three `OLD` rows and the first wins, as legacy (`OldTaxCalculationServiceImpl.java:1172`) and as `ReferenceSchemaIT` once did (`W-09-1-…md:161`) | high | `TaxRuleReader.slabs` takes `ageCategory` and asserts exactly one master row |
 | Projection to March overstates tax for a leaver | medium | no exit date exists on `core.employee`; the assumption is listed in `assumptions[]`; `.3` recomputes when one arrives |
 | Rounding at every step, or never | medium | two rupee roundings named in § 3; everything else `Money` scale 4 |
@@ -230,7 +229,7 @@ Nothing is deployed and nothing is migrated. A wrong figure is overwritten by th
 | 1 | Does `GET …/tax` write anything? | **No.** Preview is pure so the screen can show "what if" per regime. Only `compute` records, and only through `W-32.4`'s `record` |
 | 2 | Where does the shared engine live? | **Here**, under `taxcalc/`, so `.2` adds one class and no plumbing |
 | 3 | Age category rule | **Age reached by 31 March of the financial year.** A person who turns 60 during the year is a senior citizen for the whole year |
-| 4 | Marginal relief | **Implemented**, driven by the rule row's flag; legacy skips it |
+| 4 | Marginal relief | **Not applied, as legacy** — reversed by the founder 2026-10-02. On surcharge it was built and merged (`7907a6c`); `W-33.3` removes it. On the 87A rebate there is none either, also as legacy (`NewTaxCalculationServiceImpl.java:299-309`) |
 | 5 | Where does the income come from? | **Projected from the CTC versions, month by month**, as legacy. Actual pay-run lines are not used: the calculator must work before the first run of the year and for an employee whose run is not yet computed |
 | 6 | Previous-employer TDS | **Reduces `annualTax` here** and is reported separately in the summary, as `W-36.1` § 2 expects |
 | 7 | One summary table, one `record` call per regime | **Yes** — `W-32.4` decision 3 |

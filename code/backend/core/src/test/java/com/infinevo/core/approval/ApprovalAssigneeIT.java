@@ -236,9 +236,26 @@ class ApprovalAssigneeIT extends AbstractIntegrationTest {
         mvc.perform(get("/api/v1/approvals/pending")
                         .with(jwt().jwt(b -> b.subject(adminSub.toString()).claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.content[0].id")
+                        .value(step.getId().toString()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
-                                "$.content[?(@.id == '" + step.getId() + "')]")
-                        .exists());
+                                "$.content[0].flowType")
+                        .value("LEAVE"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[0].subjectEmployeeId")
+                        .value(empEmployeeId.toString()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[0].subjectEmployeeName")
+                        .value("Regular"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[0].totalSteps")
+                        .isNumber())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[0].itemId")
+                        .value(subject.id().toString()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath(
+                                "$.content[0].summary")
+                        .isNotEmpty());
 
         // Admin decides the unassigned step directly
         ApprovalDecideRequest body =

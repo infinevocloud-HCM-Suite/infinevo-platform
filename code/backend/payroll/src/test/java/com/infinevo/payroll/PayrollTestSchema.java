@@ -194,6 +194,11 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "employee_reimbursement_request")) {
                 executeResource(conn, "db/migration/payroll/V098__employee_reimbursement_request.sql");
             }
+            // W-35.2: the deduction action codes and grants, after V097 whose seed function they extend.
+            executeResource(conn, "db/migration/reference/V100__employee_deduction_actions.sql");
+            if (!tableExists(conn, "payroll", "employee_deduction")) {
+                executeResource(conn, "db/migration/payroll/V101__employee_deduction.sql");
+            }
             if (!tableExists(conn, "payroll", "ctc_epf_component")) {
                 executeResource(conn, "db/migration/payroll/V068__ctc_epf_component.sql");
             } else {
@@ -248,6 +253,10 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "employee_reimbursement_request")) {
                 st.execute("DELETE FROM payroll.employee_reimbursement_request");
             }
+            // W-35.2: before core.document, core.pay_input and core.employee, which it references.
+            if (tableExists(conn, "payroll", "employee_deduction")) {
+                st.execute("DELETE FROM payroll.employee_deduction");
+            }
             if (tableExists(conn, "core", "approval_step")) {
                 st.execute("DELETE FROM core.approval_step");
             }
@@ -295,6 +304,19 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "core", "employee_personal")) {
                 st.execute("DELETE FROM core.employee_personal");
+            }
+            // W-29.1 / W-29.2: pay run lines and rows reference core.employee, so they go before it.
+            if (tableExists(conn, "payroll", "employee_payrun_line")) {
+                st.execute("DELETE FROM payroll.employee_payrun_line");
+            }
+            if (tableExists(conn, "payroll", "employee_payrun")) {
+                st.execute("DELETE FROM payroll.employee_payrun");
+            }
+            if (tableExists(conn, "payroll", "payrun")) {
+                st.execute("DELETE FROM payroll.payrun");
+            }
+            if (tableExists(conn, "core", "employee_bank")) {
+                st.execute("DELETE FROM core.employee_bank");
             }
             st.execute("DELETE FROM core.employee");
         }

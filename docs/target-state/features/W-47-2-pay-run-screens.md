@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-47.2` · from ticket #64 · `PAY-05`, `PAY-06` |
 | **Spec file** | `docs/target-state/features/W-47-2-pay-run-screens.md` |
-| **Owner** | unassigned |
+| **Owner** | krushna (assigned 2026-10-01) |
 | **Apps touched** | `code/frontend/src/payroll/payrun` only. No backend, no migration |
 | **Related gaps** | DEBT-008 (closed), BUG-006 (deferred) |
 | **Status** | **Ready** |
@@ -29,8 +29,11 @@ here either (§14).
 ## 1. Problem
 
 The pay run is specified in four parts plus the off-cycle run and nothing renders any of it.
-The navigation catalogue already reserves the item (`NavigationCatalogue.java:18-20`,
-`payroll.runs` → `GET /api/v1/payroll/runs`, "add after `W-29.1` ships").
+The `payroll.runs` menu item is on `main` (`9d5c0a0`, founder 2026-10-02): path
+`/payroll/runs`, target `GET /api/v1/payroll/payruns`, action `payroll.run.read`, module
+`PAYROLL`. Core cannot hold a payroll controller, so payroll supplies it through `core`'s
+`NavigationContributor` (`payroll/navigation/PayrollNavigation.java`); this ticket adds no
+backend.
 
 The frozen screens are the largest in the Payroll app and are ported in shape only:
 
@@ -113,7 +116,7 @@ Follows the `W-45` contract (`W-45-frontend-shell.md` §5, §5b).
 
 | Path | Component | Guard / layout |
 |---|---|---|
-| `/payroll/runs` | `RunList` | inside `AppShell`; present when the feed carries `payroll.runs` (the catalogue item `W-29.1` adds, `NavigationCatalogue.java:18-20`) |
+| `/payroll/runs` | `RunList` | inside `AppShell`; present when the feed carries `payroll.runs` (`PayrollNavigation.RUNS`, on `main` `9d5c0a0`) |
 | `/payroll/runs/new-off-cycle` | `OffCycleCreate` | same; button hidden without `payroll.run.execute` |
 | `/payroll/runs/:id` | `RunPage` | same |
 

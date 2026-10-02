@@ -73,7 +73,7 @@ not less.
   --> figure computed from that divisor, rounded per the policy's lop_rounding
   --> stamp written on the same row, same transaction
 
-[employee or support] --> GET /payruns/{id}/employees/{id}/explain
+[employee or support] --> GET /payroll/payruns/{id}/employees/{id}/explain
   --> figure + policy id + basis + divisor + payable days + rounding
 ```
 
@@ -94,7 +94,7 @@ the policy in `core`.
 
 | Method | Path | Request | Response | `@RequiresAction` |
 |---|---|---|---|---|
-| GET | `/api/v1/payruns/{payrunId}/employees/{employeeId}/explain` | — | figure, policy id, basis, divisor, payable days, rounding | `payroll.run.read`; or `payroll.payslip.read_own` when `{employeeId}` is the caller (decision 2) |
+| GET | `/api/v1/payroll/payruns/{payrunId}/employees/{employeeId}/explain` (as built — `W-29`'s controller prefix) | — | figure, policy id, basis, divisor, payable days, rounding | `payroll.run.read`; or `payroll.payslip.read_own` when `{employeeId}` is the caller (decision 2) |
 
 Bearer, tenant bound, `@RequiresModule(PAYROLL)`. Both codes are already in the catalogue —
 `M/reference/V020__action.sql:117,121` — so this endpoint needs nothing from `W-11.3`
@@ -224,3 +224,12 @@ the decision; the consolidated record is
 
 1. **What does the pay run do when one employee's policy cannot resolve?** **Recommend** failing that employee's figure and completing the rest, with the run reporting which employees failed — a 500-person run should not abort over one, and a silently defaulted figure is exactly what this ticket exists to prevent. **Confirmed by `12-core-contracts.md:147`**, which also removed `W-18.1`'s silent fallback, so the "stamp the fallback" bullet this spec once carried is gone.
 2. **Who may call the explain endpoint?** **Recommend** the employee for their own figure, plus anyone holding the payroll-read action — a disputed payslip is usually raised by the employee, and making them ask an administrator adds a step with no security benefit. Codes: `payroll.payslip.read_own` for self, `payroll.run.read` otherwise (`V020__action.sql:117,121`).
+
+**Decided by the founder at merge, 2026-10-01 (`b580d8b`):**
+
+3. **A joiner's or leaver's days outside employment are counted in the policy's own days** — `core`'s `WorkingDayBasisCalculator.daysOutsideEmployment`, so this ticket touches `core` as well as `payroll`. It amends `W-29.3` §13 decision 2; the rule is in `W-29.3` §3.
+4. **An employee with no work location fails alone when holidays are unpaid**, rather than taking the tenant's default holiday calendar. `core`'s own working-day basis endpoint refuses them too.
+
+**Decided by the founder at merge, 2026-10-02 (`9d5c0a0`):**
+
+5. **An off-cycle figure carries no stamp.** It prices no days, so no policy produced it: the five columns stay null and explain returns them null. "No stamp, no figure" holds for `REGULAR` runs only. The rule is in `W-30.2` § 13 decision 7.

@@ -5,7 +5,7 @@
 | **Feature ID** | `W-47.1b` · from ticket #63 · `PAY-03`, `PAY-04`, `PAY-08` |
 | **Spec file** | `docs/target-state/features/W-47-1b-payroll-settings-screens.md` |
 | **Owner** | sayeed |
-| **Apps touched** | `code/frontend/src/payroll/settings` only. No backend, no migration |
+| **Apps touched** | `code/frontend/src/payroll/settings`. **Added 2026-10-02 (§ 5a):** one class in `code/backend/payroll`, the portal's panel map in `code/frontend/src/shell/portal`, one route path in `src/payroll/index.js`. No migration |
 | **Related gaps** | DEBT-026 (prevented), BUG-006 (deferred) |
 | **Status** | **Ready** |
 | **Written by** | founder, 2026-09-28 |
@@ -18,12 +18,14 @@ Split from `W-47.1` on 2026-09-28; see `W-47-1a-salary-structure-screens.md` "Wh
 
 | Axis | This spec | Limit |
 |---|---|---|
-| Backend module | none | 1 |
+| Backend module | `payroll` — one panel provider class (§ 5a) | 1 |
 | Flyway migration | none | 1 |
 | Externally testable behaviour | an administrator sets the tenant's pay schedule, working-day basis, EPF, ESI, professional tax and FBP plan from the browser, and every number reaches the server as entered | 1 |
-| Frontend area | `src/payroll/settings` | 1 |
+| Frontend area | `src/payroll/settings`, plus the portal panel map in `src/shell/portal` (§ 5a) | 1 |
 
-Within cap.
+Within cap for the settings screens. § 5a is over it on the frontend axis (a second area, the
+shell) by the founder's decision of 2026-10-02: making the `W-47.3` tax screens reachable is
+folded into this ticket rather than raised as its own.
 
 ---
 
@@ -60,8 +62,8 @@ target moved every number server-side:
 
 - The employee's own FBP declaration under `/me` — a portal panel; see §14 decision 2
 - The salary component catalogue — `W-47.1a`
-- Tax declaration window settings — `W-47.3`, with the rest of tax
-- Any backend change
+- The tax declaration window screen itself — built by `W-47.3`, on `main` (`7907a6c`). This ticket only makes it and the other two tax screens reachable (§ 5a)
+- Any backend change other than the one panel provider of § 5a
 
 ## 3. Flow
 
@@ -116,6 +118,32 @@ Follows the `W-45` contract (`W-45-frontend-shell.md` §5, §5b) and the `W-47.1
 | `/payroll/settings/pay-schedule` | `PayScheduleScreen` | inside `AppShell` and `SettingsLayout`; present when the feed carries `payroll.settings` (§14 decision 1) |
 | `/payroll/settings/epf` · `/esi` · `/professional-tax` · `/fbp` | the four screens | same |
 | `/employees/:id` (tab `fbp`) | `FbpDeclarationTab` | inside the `W-46.1` page; rendered when `useCan('payroll.fbp.read')` |
+
+## 5a. Making the tax screens reachable — added 2026-10-02
+
+`W-47.3` put three tax screens on `main` (`7907a6c`) and none can be opened: its settings
+screen waits on this ticket's `SettingsLayout`, its `/me` panel on a provider and a slot
+nobody built (`W-47-3-tax-declaration-screens.md` § 14 decision 1), and its officer route
+sits under no menu path, so `routesFromFeed` never mounts it. The founder folded all three
+into this ticket.
+
+| Where | File | Change |
+|---|---|---|
+| Frontend | `src/payroll/settings/SettingsLayout.jsx` | the left `Menu` gains a sixth entry, "Tax declaration" → `/payroll/settings/tax-declaration`. The route and `TaxWindowScreen` already exist in `src/payroll/index.js` and `src/payroll/tax/`; render it inside the layout like the other five |
+| Backend | `code/backend/payroll/src/main/java/com/infinevo/payroll/portal/TaxDeclarationPanelProvider.java` | **new**, the shape of `PayslipPanelProvider` beside it: code `taxDeclaration`, module `PAYROLL`, title "Tax declaration", endpoint `/api/v1/me/tax-declaration`, action `payroll.tax_declaration.read_own`, ordered after payslips |
+| Frontend | `src/shell/portal/PortalLayout.jsx` | `PANEL_COMPONENTS` is today a fixed map of the shell's own five panels. It also takes each module's `portalPanels` export (`{ code, component }`; `src/payroll/index.js` already exports `taxDeclaration` → `DeclarationPage`), composed in the shell the way `routes.js` composes `routes`. A code the server lists and no module provides keeps today's fallback. `DeclarationPage` is lazy, so the panel renders inside `Suspense` |
+| Frontend | `src/payroll/index.js` | the officer route moves from `/payroll/tax-declarations/:employeeId/:fy` to `/employees/:employeeId/tax-declaration/:fy`, beneath the `/employees` menu path, so the feed mounts it. `OfficerDeclarationView` already checks `useCan('payroll.tax_declaration.read')` and renders `NotEntitled` |
+| Frontend | `src/payroll/index.js` `employeeTabs`, or a link on the `W-46.1` employee page through the same export as the FBP tab | a "Tax declaration" entry, shown when `useCan('payroll.tax_declaration.read')`, opening the officer route for the current financial year (`currentFy()` from `src/payroll/tax/financialYear.js`) |
+
+Tests added to § 7: `TaxDeclarationPanelProviderTest` (descriptor fields); `PortalPanelDiscoveryIT`
+(change) lists `taxDeclaration` for a Payroll tenant and not for an HRMS-only one;
+`PortalLayout.test.jsx` (change) mounts a module-provided panel by code; `index.test.js`
+(change) pins the new officer path; `SettingsLayout` test shows the sixth entry.
+
+Verification added to § 8: as admin@acme.local the settings menu opens "Tax declaration";
+as a linked Acme employee `/me` shows the Tax declaration panel and a header saves; from an
+employee's page the officer opens that employee's declaration; an employee-role login on the
+officer path gets `NotEntitled`. These are `W-47.3` § 8's checks, which nobody could run.
 
 ## 6. Database changes
 
@@ -192,6 +220,7 @@ Frontend only. Revert the branch.
 | 3 | `src/payroll/settings` | `EpfScreen`, `EsiScreen`, `ProfessionalTaxScreen`, tests |
 | 4 | `src/payroll/settings` | `FbpPlanScreen`, `FbpDeclarationTab`, tests |
 | 5 | `src/payroll/index.js` | routes, reducer, tab |
+| 6 | § 5a | tax menu entry, panel provider, portal panel map, officer route and its way in, tests |
 
 ## 14. Decisions and open questions
 
@@ -200,3 +229,4 @@ Frontend only. Revert the branch.
 | 1 | No `payroll.settings` menu item exists (`NavigationCatalogue.java:52-84`) | **Open for the founder**, same as `W-47.1a` §14 decision 1. One `core` line: `payroll.settings` → `/payroll/settings/pay-schedule` → `GET /api/v1/payroll/pay-schedule`, `payroll.structure.read`. Recommendation: one small `core` ticket or an exception adding it under `W-28`, whose endpoint it points at |
 | 2 | Who builds the employee's own FBP panel under `/me`? | **Open.** `W-27.2` says the panel is `W-25`'s (`W-27-2-fbp-declaration.md:69`); `W-25` lists five panels and FBP is not one of them (`W-25` §4). A panel needs a `PortalPanelProvider` bean in `payroll` (backend) plus the panel component. Recommendation: `W-27.2` adds the bean (one class, its own module); the component is `FbpDeclarationForm` from this ticket, mounted by `W-25` |
 | 3 | Effective date for the basis save | **Required, defaulting to the first of next month.** `W-18.1` versions the policy; a same-day change mid-period would move the divisor under a run in progress |
+| 4 | Who makes the `W-47.3` tax screens reachable? | **This ticket** — founder, 2026-10-02. § 5a. It answers `W-47.3` § 14 decision 1: the provider bean is in `payroll`, the mount slot is the portal's panel map |

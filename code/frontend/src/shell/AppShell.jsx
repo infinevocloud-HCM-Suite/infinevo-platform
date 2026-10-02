@@ -1,25 +1,28 @@
-import { Layout, Menu, Skeleton, Typography } from 'antd';
+import React from 'react';
+import { Layout, Menu, Skeleton, Typography, Button, Result, theme as antdTheme } from 'antd';
 import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
-import { routesFromFeed } from './routes.js';
+import { routesFromFeed, portalRoutes } from './routes.js';
+import { Header } from './Header.jsx';
+import { ShellBoundary } from './ShellBoundary.jsx';
+import { NotFound, NoModules } from './screens/index.js';
+import { theme } from '../shared/theme.js';
 
-const { Sider, Header, Content } = Layout;
+const { Sider, Content } = Layout;
 
 /**
- * Layout and navigation shell (W-12.3 §5).
+ * Layout and navigation shell (W-12.3 §5, W-45 §5).
  *
  * Navigation is driven entirely by the server-returned feed:
  *   GET /api/v1/navigation → { items, actions }
  *
  * The shell renders exactly what the server says. There is no static menu
- * array anywhere here — that is the Payroll pattern this ticket removes.
- * An empty feed → empty sidebar, not a default set of items.
- *
- * Renders a skeleton sidebar while loading so the layout does not flicker.
+ * array anywhere here. An empty feed → empty sidebar and NoModules placeholder.
  */
 export function AppShell() {
-  const { items, loading } = useNavigation();
+  const { items, loading, error, refetch } = useNavigation();
   const location = useLocation();
+  const { token } = antdTheme.useToken();
 
   const menuItems = buildMenuItems(items);
   const selectedKey = findSelectedKey(items, location.pathname);
@@ -27,75 +30,96 @@ export function AppShell() {
   // feed is not registered at all (W-12.3 §5). An empty feed → empty route tree.
   const feedRoutes = routesFromFeed(items);
 
+  const siderWidth = theme.components.Layout.siderWidth;
+  const headerHeight = theme.components.Layout.headerHeight;
+
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        width={220}
-        theme="dark"
-        collapsible={false}
-        style={{ position: 'fixed', left: 0, top: 0, bottom: 0, overflowY: 'auto', zIndex: 100 }}
-      >
-        <div
-          style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 20px',
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
-          }}
+    <ShellBoundary>
+      <Layout style={{ minHeight: '100vh' }}>
+        <Sider
+          width={siderWidth}
+          theme="dark"
+          collapsible={false}
+          style={{ position: 'fixed', left: 0, top: 0, bottom: 0, overflowY: 'auto', zIndex: 100 }}
         >
-          <Typography.Text strong style={{ color: '#fff', fontSize: 18, letterSpacing: 1 }}>
-            Infinevo
-          </Typography.Text>
-        </div>
-
-        {loading ? (
-          <div style={{ padding: '16px 20px' }}>
-            {[...Array(5)].map((_, i) => (
-              <Skeleton
-                key={i}
-                active
-                title={{ width: '80%' }}
-                paragraph={false}
-                style={{ marginBottom: 12 }}
-              />
-            ))}
+          <div
+            style={{
+              height: headerHeight,
+              display: 'flex',
+              alignItems: 'center',
+              padding: `0 ${token.padding}px`,
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
+            }}
+          >
+            <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeHeading4, letterSpacing: 1 }}>
+              Infinevo
+            </Typography.Text>
           </div>
-        ) : (
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={selectedKey ? [selectedKey] : []}
-            items={menuItems}
-            style={{ borderRight: 0, marginTop: 8 }}
-          />
-        )}
-      </Sider>
 
-      <Layout style={{ marginLeft: 220 }}>
-        <Header
-          style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 99,
-            background: '#fff',
-            padding: '0 24px',
-            display: 'flex',
-            alignItems: 'center',
-            borderBottom: '1px solid #f0f0f0',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-          }}
-        />
-        <Content style={{ padding: 24, background: '#f5f5f5', minHeight: 'calc(100vh - 64px)' }}>
-          {/* Routes registered from the server feed only — no static route array anywhere (W-12.3 §5) */}
-          <Routes>
-            {feedRoutes.map((route) => (
-              <Route key={route.path} path={route.path} element={route.element} />
-            ))}
-          </Routes>
-        </Content>
+          {loading ? (
+            <div style={{ padding: `${token.padding}px ${token.padding}px` }}>
+              {[...Array(5)].map((_, i) => (
+                <Skeleton
+                  key={i}
+                  active
+                  title={{ width: '80%' }}
+                  paragraph={false}
+                  style={{ marginBottom: token.marginSM }}
+                />
+              ))}
+            </div>
+          ) : (
+            <Menu
+              theme="dark"
+              mode="inline"
+              selectedKeys={selectedKey ? [selectedKey] : []}
+              items={menuItems}
+              style={{ borderRight: 0, marginTop: token.sizeUnit * 2 }}
+            />
+          )}
+        </Sider>
+
+        <Layout style={{ marginLeft: siderWidth }}>
+          <Header />
+          <Content style={{ padding: token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
+            {!loading && error ? (
+              <Result
+                status="500"
+                title="Navigation Unavailable"
+                subTitle="Unable to load navigation feed. Please check your connection and try again."
+                extra={
+                  <Button
+                    type="primary"
+                    onClick={() => (refetch ? refetch() : window.location.reload())}
+                    id="btn-retry-navigation"
+                  >
+                    Retry
+                  </Button>
+                }
+              />
+            ) : loading && (!items || items.length === 0) ? (
+              // Nothing to route yet. Rendering the routes here would show NotFound for a
+              // path the feed is about to name.
+              <Skeleton active />
+            ) : (!items || items.length === 0) && !location.pathname.startsWith('/me') ? (
+              <NoModules />
+            ) : (
+              <React.Suspense fallback={<Skeleton active />}>
+                <Routes>
+                  {portalRoutes.map((route) => (
+                    <Route key={route.path} path={route.path} element={route.element} />
+                  ))}
+                  {feedRoutes.map((route) => (
+                    <Route key={route.path} path={route.path} element={route.element} />
+                  ))}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </React.Suspense>
+            )}
+          </Content>
+        </Layout>
       </Layout>
-    </Layout>
+    </ShellBoundary>
   );
 }
 

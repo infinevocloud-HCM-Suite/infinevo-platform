@@ -1,6 +1,7 @@
 package com.infinevo.core.navigation;
 
 import com.infinevo.shared.entitlement.PlatformModule;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -16,8 +17,11 @@ import java.util.List;
  *
  * <ul>
  *   <li>{@code hrms.timesheets} → {@code GET /api/v1/timesheets} — the HRMS timesheet ticket
- *   <li>{@code payroll.runs} → {@code GET /api/v1/payroll/runs} — W-29 (pay run)
  * </ul>
+ *
+ * <p>A module's items are not listed here: the module supplies them through a
+ * {@link NavigationContributor}, next to the controller they target ({@code payroll.runs} is
+ * payroll's). {@link #withContributed} is the whole menu.
  *
  * <p>A module item names its {@link PlatformModule}; a core item passes {@code null}. The service
  * filters by module first, then by action, and hides a parent whose children are all hidden.
@@ -81,7 +85,68 @@ public final class NavigationCatalogue {
                                     null,
                                     "core.org.read"))),
             new ItemDefinition("core.roles", "nav.roles", "/roles", "/api/v1/roles", null, "core.role.read"),
-            new ItemDefinition("core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"));
+            new ItemDefinition("core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"),
+            new ItemDefinition(
+                    "core.holiday",
+                    "nav.holidays",
+                    "/holidays",
+                    "/api/v1/holiday-calendars",
+                    null,
+                    "core.holiday.read"),
+            new ItemDefinition(
+                    "core.setup", "nav.setup", "/setup", "/api/v1/setup-checklist", null, "core.tenant.read"),
+            new ItemDefinition(
+                    "core.approvals",
+                    "nav.approvals",
+                    "/approvals",
+                    "/api/v1/approvals/pending",
+                    null,
+                    "core.approval.decide",
+                    List.of(
+                            new ItemDefinition(
+                                    "core.approvals.inbox",
+                                    "nav.approvals.inbox",
+                                    "/approvals",
+                                    "/api/v1/approvals/pending",
+                                    null,
+                                    "core.approval.decide"),
+                            new ItemDefinition(
+                                    "core.approvals.delegations",
+                                    "nav.approvals.delegations",
+                                    "/approvals/delegations",
+                                    "/api/v1/approval-delegations",
+                                    null,
+                                    "core.approval.delegate"),
+                            new ItemDefinition(
+                                    "core.approvals.definitions",
+                                    "nav.approvals.definitions",
+                                    "/approvals/definitions",
+                                    "/api/v1/approval-definitions",
+                                    null,
+                                    "core.approval_definition.manage"))),
+            new ItemDefinition(
+                    "core.invitations.users",
+                    "nav.userInvitations",
+                    "/invitations/users",
+                    "/api/v1/user-invitations",
+                    null,
+                    "core.user.manage"),
+            new ItemDefinition(
+                    "core.invitations.employees",
+                    "nav.employeeInvitations",
+                    "/invitations/employees",
+                    "/api/v1/employee-invitations",
+                    null,
+                    "core.employee.create"));
+
+    /** The core items followed by every module's contributed items, in contributor order. */
+    public static List<ItemDefinition> withContributed(List<NavigationContributor> contributors) {
+        List<ItemDefinition> all = new ArrayList<>(DEFAULT_ITEMS);
+        for (NavigationContributor contributor : contributors) {
+            all.addAll(contributor.items());
+        }
+        return List.copyOf(all);
+    }
 
     private NavigationCatalogue() {}
 }

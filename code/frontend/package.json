@@ -19,11 +19,17 @@
     "@reduxjs/toolkit": "^2.3.0",
     "antd": "^5.21.6",
     "axios": "^1.7.7",
+    "formik": "^2.4.9",
     "keycloak-js": "^25.0.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-redux": "^9.1.2",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "sweetalert2": "^11.14.5",
+    "yup": "^1.7.1"
+  },
+  "overrides": {
+    "brace-expansion": "1.1.21"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
@@ -36,5 +42,8 @@
     "prop-types": "^15.8.1",
     "vite": "^8.0.16",
     "vitest": "^5.0.2"
+  },
+  "overrides": {
+    "brace-expansion": "^1.1.21"
   }
 }

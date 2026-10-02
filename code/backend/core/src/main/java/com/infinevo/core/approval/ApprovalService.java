@@ -9,10 +9,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -327,23 +330,63 @@ public class ApprovalService {
         Optional<EmployeeResponse> currentEmployee = employeeService.currentEmployee();
         boolean hasManage = permissionService != null && permissionService.holds("core.approval.manage");
 
+        Page<ApprovalStep> stepPage;
         if (currentEmployee.isPresent()) {
             UUID empId = currentEmployee.get().id();
             if (hasManage) {
-                return stepRepository
-                        .findPendingForAssigneeOrUnassigned(tenantId, empId, pageable)
-                        .map(ApprovalStepResponse::from);
+                stepPage = stepRepository.findPendingForAssigneeOrUnassigned(tenantId, empId, pageable);
             } else {
-                return stepRepository
-                        .findByTenantIdAndAssigneeEmployeeIdAndDecisionIsNullOrderByCreatedAtAsc(
-                                tenantId, empId, pageable)
-                        .map(ApprovalStepResponse::from);
+                stepPage = stepRepository.findByTenantIdAndAssigneeEmployeeIdAndDecisionIsNullOrderByCreatedAtAsc(
+                        tenantId, empId, pageable);
             }
         } else if (hasManage) {
-            return stepRepository.findUnassignedPendingSteps(tenantId, pageable).map(ApprovalStepResponse::from);
+            stepPage = stepRepository.findUnassignedPendingSteps(tenantId, pageable);
+        } else {
+            return Page.empty(pageable);
         }
 
-        return Page.empty(pageable);
+        List<UUID> instanceIds = stepPage.getContent().stream()
+                .map(ApprovalStep::getInstanceId)
+                .distinct()
+                .toList();
+
+        Map<UUID, ApprovalInstance> instanceMap = instanceIds.isEmpty()
+                ? Collections.emptyMap()
+                : instanceRepository.findAllById(instanceIds).stream()
+                        .filter(inst -> inst.getTenantId().equals(tenantId))
+                        .collect(Collectors.toMap(ApprovalInstance::getId, Function.identity()));
+
+        List<UUID> definitionIds = instanceMap.values().stream()
+                .map(ApprovalInstance::getDefinitionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<UUID, Integer> totalStepsMap = definitionIds.isEmpty()
+                ? Collections.emptyMap()
+                : definitionRepository.findAllById(definitionIds).stream()
+                        .filter(def -> def.getTenantId().equals(tenantId))
+                        .collect(Collectors.toMap(
+                                ApprovalDefinition::getId,
+                                def -> def.getSteps() != null ? def.getSteps().size() : 1));
+
+        // One lookup for the page, not one per row: the inbox names the subject of each request.
+        List<UUID> subjectIds = instanceMap.values().stream()
+                .map(ApprovalInstance::getSubjectEmployeeId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, String> subjectNames =
+                subjectIds.isEmpty() ? Collections.emptyMap() : employeeService.displayNames(subjectIds);
+
+        return stepPage.map(step -> {
+            ApprovalInstance inst = instanceMap.get(step.getInstanceId());
+            Integer totalSteps =
+                    (inst != null && inst.getDefinitionId() != null) ? totalStepsMap.get(inst.getDefinitionId()) : null;
+            String subjectName =
+                    (inst != null && subjectNames != null) ? subjectNames.get(inst.getSubjectEmployeeId()) : null;
+            return ApprovalStepResponse.from(step, inst, totalSteps, subjectName);
+        });
     }
 
     /**
@@ -383,5 +426,38 @@ public class ApprovalService {
                 steps.stream()
                         .map(ApprovalHistoryResponse.ApprovalHistoryStepResponse::from)
                         .toList());
+    }
+
+    /**
+     * Cancels an active approval instance and all its pending steps (W-16.3).
+     */
+    @Transactional
+    public void cancelInstance(UUID tenantId, UUID instanceId, String reason) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(instanceId, "instanceId must not be null");
+
+        instanceRepository.findByTenantIdAndId(tenantId, instanceId).ifPresent(instance -> {
+            if (instance.getStatus() == InstanceStatus.PENDING) {
+                instance.setStatus(InstanceStatus.REJECTED);
+                instance.setCompletedAt(Instant.now());
+                instanceRepository.save(instance);
+
+                List<ApprovalStep> openSteps =
+                        stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instanceId);
+                for (ApprovalStep step : openSteps) {
+                    if (step.getDecision() == null) {
+                        step.setDecision(ApprovalDecision.REJECTED);
+                        step.setComment(reason != null && !reason.isBlank() ? "Withdrawn: " + reason : "Withdrawn");
+                        step.setDecidedAt(Instant.now());
+                        stepRepository.save(step);
+                    }
+                }
+            }
+        });
+    }
+
+    @Transactional
+    public void cancelInstance(UUID instanceId, String reason) {
+        cancelInstance(TenantContext.require(), instanceId, reason);
     }
 }

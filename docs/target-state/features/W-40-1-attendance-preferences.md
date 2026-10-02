@@ -3,8 +3,8 @@
 | Field | Value |
 |---|---|
 | **Feature ID** | `W-40.1` · from ticket `W-40` (#51–52) · `HRMS-04` |
-| **Promoted to** | `docs/target-state/features/W-40-1-attendance-preferences.md` on branch `dev-sayeed` — **`W-40-1` with hyphens**, never `W-40.1`; `guard-edit` blocks the dotted form |
-| **Owner** | sayeed, branch `dev-sayeed` |
+| **Promoted to** | `docs/target-state/features/W-40-1-attendance-preferences.md` on branch `dev-karma` — **`W-40-1` with hyphens**, never `W-40.1`; `guard-edit` blocks the dotted form |
+| **Owner** | karma, branch `dev-karma` (from sayeed 2026-10-02) |
 | **Apps touched** | `code/backend/hrms`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for this table), DEBT-007 (fixed), DEBT-013 (not carried), DEBT-018 (honoured), DEBT-022 (fixed) |
 | **Status** | **Ready** |

@@ -33,6 +33,7 @@ JSON has no comment syntax, so explanation lives here instead.
 |---|---|---|---|
 | `admin.acme` | `local_dev_pw` | `acme-payroll` — **Payroll only** | `tenant-admin` |
 | `admin.globex` | `local_dev_pw` | `globex-full` — **HRMS + Payroll** | `tenant-admin` |
+| `employee.acme` | `local_dev_pw` | `acme-payroll` | `employee` |
 | `employee.globex` | `local_dev_pw` | `globex-full` | `employee` |
 
 Two administrators, because the two seeded tenants hold **different module sets**. Once

@@ -41,8 +41,16 @@ public final class PublicEndpoints {
     /** {@code POST} only — public decline of a user or employee invitation (W-24.2), token in the body. */
     public static final String INVITATION_DECLINE = "/api/v1/invitations/decline";
 
+    /**
+     * {@code GET} — serves a payslip to whoever holds a signed, unexpired link (W-36.2). The link
+     * names the tenant, the employee payrun id and the expiry, all inside an HMAC; the controller binds the
+     * tenant from it. Emailed links are opened with no session, which is why it cannot require one.
+     */
+    public static final String PAYSLIP_OPEN = "/api/v1/payroll/payslips/open";
+
     /** Every exact path a request may reach with no bearer token. Grows only on purpose. */
-    public static final List<String> PATHS = List.of(DOCUMENT_DOWNLOAD, INVITATION_ACCEPT, INVITATION_DECLINE);
+    public static final List<String> PATHS =
+            List.of(DOCUMENT_DOWNLOAD, INVITATION_ACCEPT, INVITATION_DECLINE, PAYSLIP_OPEN);
 
     static {
         for (String path : PATHS) {

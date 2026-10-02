@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-36.2` · from ticket #48 (`W-36`) · `PAY-15` · closes `W-47.2` §13 decision 1 (approve and pay endpoints) |
 | **Promoted to** | `docs/target-state/features/W-36-2-payslips-signed-link.md` on the developer's `dev-<name>` branch — **`W-36-2` with hyphens**, never `W-36.2`; `guard-edit` blocks the dotted form |
-| **Owner** | devashis |
+| **Owner** | krushna (reassigned from devashis 2026-10-01) |
 | **Apps touched** | `code/backend/payroll`, `code/backend/migration`; one constant in `code/backend/shared` (`PublicEndpoints`) |
 | **Related gaps** | BUG-002 (fixed), DEBT-007 (fixed), DEBT-008 (fixed), DEBT-022 (fixed); proposed BUG-014 and DEBT-034 (`.claude/outputs/2026-09-29-analyze-w-36-tds-payslips.md`) **fixed for new code** |
 | **Status** | **Ready** |
@@ -102,8 +102,9 @@ PayslipService.render:
 ```
 
 The link names the `employee_payrun` row, not `(payrun, employee)`: one id, one row, and a
-recompute never changes it. A run that is later cancelled makes every link `404`, because
-the verify step checks `PAID`.
+recompute never changes it. A `PAID` run is never cancelled (§ 13 decision 9), so a link
+stays valid until it expires; a run cancelled before it was paid never issued one, and a
+link to any of its rows is `404` because the verify step checks `PAID`.
 
 ## 4. Backend changes
 
@@ -126,7 +127,8 @@ in `payrun/`.
 **Secret and base URL.** `PayslipLinkServiceImpl` reads `document.link.secret` — the same
 Key Vault value as `W-21` (`containerapps.bicep`, `document-link-secret`), so no new secret,
 no `deploy.sh` change. The domain tag keeps a document token from ever verifying as a payslip
-token and vice versa. The link's base is `payslip.link.base-url`, default
+token and vice versa. The link's base is `payslip.link.base-url`, from
+`PAYSLIP_LINK_BASE_URL`: required, absolute, no default (§ 13 decision 10). It names
 `/public/payslips`, the page a `W-47` payslip-screens ticket (not yet opened) builds; the page calls `…/payslips/open?t=` with the
 same token. No default secret, no default shorter than 24 characters — the `W-21` constructor
 checks, copied.
@@ -203,7 +205,7 @@ No table for the payslip and no table for the link: `02-data-model.md:353` and `
 |---|---|---|
 | Unit | `payroll/.../payslip/PayslipLinkServiceTest.java` | a valid link verifies; tampered signature, tampered id, tampered expiry, expired, a `W-21` document token, a token signed with another domain all fail; verify is constant-time (`MessageDigest.isEqual` is the only comparison); ttl over 7 days refused; a blank or short secret refuses to start |
 | Unit | `payroll/.../payrun/PayRunTransitionTest.java` (change) | `approve` from every status but `COMPUTED` is `409`; `pay` from every status but `APPROVED` is `409`; `paid_on` in the future or before the period is `400` |
-| Integration | `payroll/.../payslip/PayslipReleaseIT.java` | **the acceptance test**: compute a two-employee run, approve, pay ⇒ `PAID`, `paid_on` stored, two `core.notification` rows for `PAYSLIP_READY` whose data holds a `link`; `GET …/open?t=` with that link and **no bearer** returns the slip with the `W-29.2` totals and lines; the same call after `cancel` is `404`; a link built with the same secret and the document domain is `404` |
+| Integration | `payroll/.../payslip/PayslipReleaseIT.java` | **the acceptance test**: compute a two-employee run, approve, pay ⇒ `PAID`, `paid_on` stored, two `core.notification` rows for `PAYSLIP_READY` whose data holds a `link`; `GET …/open?t=` with that link and **no bearer** returns the slip with the `W-29.2` totals and lines; `cancel` on the `PAID` run is refused and the link still opens; a link to a row of a run cancelled after `approve` is `404`; a link built with the same secret and the document domain is `404` |
 | Integration | `payroll/.../payslip/PayslipReadIT.java` | officer read on a `COMPUTED` run works and on `LOCKED` is `409`; `GET /me/payslips` before `pay` is empty and after has one row; another employee's `payrunId` under `/me` is `404`; `SKIPPED` employee is `404` |
 | Integration | `payroll/.../payslip/PayslipRlsIT.java` | as `app_user`, tenant A cannot read tenant B's slip by the officer path; a tenant B token presented under tenant A's bearer still resolves tenant B from the token and returns tenant B's slip — the anonymous path binds from the token only, as `DocumentDownloadController` |
 | Integration | `payroll/.../payslip/PayslipLogIT.java` | after `PayslipReleaseIT`'s calls, the captured log output contains no token and no signature (`OutputCaptureExtension`) |
@@ -248,8 +250,8 @@ cd code/backend && mvn -q verify
 
 ## 10. Rollback
 
-Nothing is deployed. `V103` is additive. A run paid in error stays `PAID`: the money moved.
-Its links expire in 7 days on their own; cancelling the run makes them `404` at once.
+Nothing is deployed. `V103` is additive. A run paid in error stays `PAID`: the money moved,
+and `cancel` refuses it (§ 13 decision 9). Its links expire in 7 days on their own.
 
 ## 11. Standing rules
 
@@ -286,3 +288,5 @@ Its links expire in 7 days on their own; cancelling the run makes them `404` at 
 | 6 | PDF? | **Not now.** JSON plus the printed page, as the frozen screen. A PDF is a later ticket with a real library decision |
 | 7 | When may an employee see a slip? | **`PAID` only.** Officer from `COMPUTED`. Legacy showed whatever the row held |
 | 8 | Which action guards `pay`? | **`payroll.payslip.publish`** — "release payslips to employees" is exactly what paying does. `approve` keeps `payroll.run.approve` |
+| 9 | Can a `PAID` run be cancelled? | **No** (founder, 2026-10-02, at merge). Cancelling would free the month's one-per-period index, so a second regular run could be created and paid for a month already paid. `PAID` has no outgoing transition; `V103`'s `CHECK` ties `paid_on` to `PAID`. A wrong approved run is still cancelled before it is paid |
+| 10 | Where does the link's base come from? | **`PAYSLIP_LINK_BASE_URL`**, required and absolute, with no default (founder, 2026-10-02, at merge). The link is opened from a mail client, where a relative path leads nowhere. Wired in `app`, `worker`, compose, Bicep and `deploy.yml`, the `INVITATION_LINK_BASE_URL` pattern. The `/me/payslips` endpoint replaces `W-25`'s placeholder in place |

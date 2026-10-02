@@ -11,6 +11,8 @@ import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../shared/api/client.js', () => ({
   apiClient: { get: vi.fn(), defaults: { baseURL: '/api' } },
+  setUnauthorizedHandler: vi.fn(),
+  setTenantSuspendedHandler: vi.fn(),
 }));
 
 vi.mock('../auth/keycloak.js', () => {
@@ -92,6 +94,42 @@ describe('AppShell over the navigation feed', () => {
     await act(async () => resolve({ data: ACME_FEED }));
     await screen.findByText('nav.roles');
     expect(container.querySelector('.ant-skeleton')).toBeNull();
+  });
+
+  it('shows neither NoModules nor NotFound before the first fetch settles', async () => {
+    let resolve;
+    apiClient.get.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+
+    // Watch from before the first commit: the very first render, before the fetch effect has
+    // run, is the one that used to read "not asked yet" as "empty feed".
+    const host = document.body.appendChild(document.createElement('div'));
+    const seen = [];
+    const observer = new MutationObserver((records) => {
+      // A node shown and then replaced survives only in removedNodes, text intact.
+      records.forEach((record) =>
+        [...record.addedNodes, ...record.removedNodes].forEach((node) => seen.push(node.textContent)),
+      );
+    });
+    observer.observe(host, { childList: true, subtree: true });
+
+    render(
+      <MemoryRouter>
+        <AppShell />
+      </MemoryRouter>,
+      { container: host },
+    );
+    // "/" is not in ACME_FEED, so NotFound is the right answer once the feed has arrived:
+    // stop watching before it does.
+    await act(async () => {});
+    seen.push(host.textContent);
+    observer.disconnect();
+
+    expect(host.querySelector('.ant-layout-content .ant-skeleton')).not.toBeNull();
+    expect(seen.some((text) => text.includes('No Modules Available'))).toBe(false);
+    expect(seen.some((text) => text.includes('404'))).toBe(false);
+
+    await act(async () => resolve({ data: ACME_FEED }));
+    await screen.findByText('nav.roles');
   });
 
   it('renders an empty shell for an empty feed, not a default menu', async () => {

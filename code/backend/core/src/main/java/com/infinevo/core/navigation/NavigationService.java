@@ -2,11 +2,14 @@ package com.infinevo.core.navigation;
 
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
+import com.infinevo.shared.entitlement.PlatformModule;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +27,16 @@ public class NavigationService {
     private final List<NavigationCatalogue.ItemDefinition> catalogueItems;
 
     @Autowired
+    public NavigationService(
+            EntitlementService entitlementService,
+            PermissionService permissionService,
+            ObjectProvider<NavigationContributor> contributors) {
+        this(
+                entitlementService,
+                permissionService,
+                NavigationCatalogue.withContributed(contributors.orderedStream().toList()));
+    }
+
     public NavigationService(EntitlementService entitlementService, PermissionService permissionService) {
         this(entitlementService, permissionService, NavigationCatalogue.DEFAULT_ITEMS);
     }
@@ -48,7 +61,14 @@ public class NavigationService {
             filterItem(itemDef, actions).ifPresent(visibleItems::add);
         }
 
-        return new NavigationResponse(List.copyOf(visibleItems), actions);
+        Set<PlatformModule> modules = EnumSet.noneOf(PlatformModule.class);
+        for (PlatformModule module : PlatformModule.values()) {
+            if (entitlementService.holds(module)) {
+                modules.add(module);
+            }
+        }
+
+        return new NavigationResponse(List.copyOf(visibleItems), actions, modules);
     }
 
     private Optional<NavigationItemResponse> filterItem(
