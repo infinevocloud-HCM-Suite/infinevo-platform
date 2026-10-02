@@ -102,7 +102,10 @@ class NavigationCatalogueValidatorTest {
                 "/api/v1/approval-definitions",
                 "/api/v1/user-invitations",
                 "/api/v1/employee-invitations",
-                "/api/v1/tenants");
+                "/api/v1/tenants",
+                "/api/v1/leave-types",
+                "/api/v1/leave-requests",
+                "/api/v1/leave-imports");
 
         assertThat(NavigationCatalogueValidator.missingEndpoints(
                         NavigationCatalogue.DEFAULT_ITEMS, shippedGetEndpoints))

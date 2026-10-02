@@ -139,7 +139,43 @@ public final class NavigationCatalogue {
                     null,
                     "core.employee.create"),
             new ItemDefinition(
-                    "core.tenants", "nav.tenants", "/admin/tenants", "/api/v1/tenants", null, "core.tenant.provision"));
+                    "core.tenants", "nav.tenants", "/admin/tenants", "/api/v1/tenants", null, "core.tenant.provision"),
+            new ItemDefinition(
+                    "core.leave",
+                    "nav.leave",
+                    "/leave/types",
+                    "/api/v1/leave-types",
+                    null,
+                    "core.leave.read",
+                    List.of(
+                            new ItemDefinition(
+                                    "core.leave.types",
+                                    "nav.leave.types",
+                                    "/leave/types",
+                                    "/api/v1/leave-types",
+                                    null,
+                                    "core.leave_type.manage"),
+                            new ItemDefinition(
+                                    "core.leave.allocations",
+                                    "nav.leave.allocations",
+                                    "/leave/allocations",
+                                    "/api/v1/leave-types",
+                                    null,
+                                    "core.leave_balance.manage"),
+                            new ItemDefinition(
+                                    "core.leave.requests",
+                                    "nav.leave.requests",
+                                    "/leave/requests",
+                                    "/api/v1/leave-requests",
+                                    null,
+                                    "core.leave.read"),
+                            new ItemDefinition(
+                                    "core.leave.import",
+                                    "nav.leave.import",
+                                    "/leave/import",
+                                    "/api/v1/leave-imports",
+                                    null,
+                                    "core.leave_balance.manage"))));
 
     /** The core items followed by every module's contributed items, in contributor order. */
     public static List<ItemDefinition> withContributed(List<NavigationContributor> contributors) {

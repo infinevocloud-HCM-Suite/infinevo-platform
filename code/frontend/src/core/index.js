@@ -1,6 +1,7 @@
 import React, { lazy } from 'react';
 import employeeReducer from './employee/employeeSlice.js';
 import approvalReducer from './approvals/approvalSlice.js';
+import leaveReducer from './leave/leaveSlice.js';
 
 const EmployeeList = lazy(() =>
   import('./employee/EmployeeList.jsx').then((m) => ({ default: m.EmployeeList }))
@@ -62,6 +63,28 @@ const AcceptInvitation = lazy(() =>
   import('./invitation/AcceptInvitation.jsx').then((m) => ({ default: m.AcceptInvitation }))
 );
 
+const LeaveTypes = lazy(() =>
+  import('./leave/LeaveTypes.jsx').then((m) => ({ default: m.LeaveTypes }))
+);
+const Allocations = lazy(() =>
+  import('./leave/Allocations.jsx').then((m) => ({ default: m.Allocations }))
+);
+const LeaveRequests = lazy(() =>
+  import('./leave/LeaveRequests.jsx').then((m) => ({ default: m.LeaveRequests }))
+);
+const RecordLeave = lazy(() =>
+  import('./leave/RecordLeave.jsx').then((m) => ({ default: m.RecordLeave }))
+);
+const LeaveRequestDetail = lazy(() =>
+  import('./leave/LeaveRequestDetail.jsx').then((m) => ({ default: m.LeaveRequestDetail }))
+);
+const EmployeeLeave = lazy(() =>
+  import('./leave/EmployeeLeave.jsx').then((m) => ({ default: m.EmployeeLeave }))
+);
+const LeaveImport = lazy(() =>
+  import('./leave/LeaveImport.jsx').then((m) => ({ default: m.LeaveImport }))
+);
+
 // Employee, leave, holidays, organisation setup, approvals. Available to every tenant.
 // Screens and slices land here as their work items are built.
 export const routes = [
@@ -85,6 +108,13 @@ export const routes = [
   { path: '/setup', element: React.createElement(SetupChecklist) },
   { path: '/invitations/users', element: React.createElement(UserInvitations) },
   { path: '/invitations/employees', element: React.createElement(EmployeeInvitations) },
+  { path: '/leave/types', element: React.createElement(LeaveTypes) },
+  { path: '/leave/allocations', element: React.createElement(Allocations) },
+  { path: '/leave/requests', element: React.createElement(LeaveRequests) },
+  { path: '/leave/requests/new', element: React.createElement(RecordLeave) },
+  { path: '/leave/requests/:id', element: React.createElement(LeaveRequestDetail) },
+  { path: '/leave/employees/:id', element: React.createElement(EmployeeLeave) },
+  { path: '/leave/import', element: React.createElement(LeaveImport) },
 ];
 
 export const publicRoutes = [
@@ -94,4 +124,5 @@ export const publicRoutes = [
 export const reducers = {
   employee: employeeReducer,
   approvals: approvalReducer,
+  leave: leaveReducer,
 };
