@@ -180,3 +180,14 @@ Remove the two default methods' callers; rules with the new event then resolve n
 ## 14. Open for the founder
 
 None.
+
+## 15. As built (devashish, 2026-10-02)
+
+Where the build differs from, or settles a point left open in, the sections above:
+
+- `ReminderRuleServiceImpl.validate` now looks the audience up first, because the event check needs its values. An unknown audience on an event that needs an audience's values reports both `event` and `audience`, so the fix is one trip. The `event` message keeps its form; the list it ends with is now the sweep's values plus the audience's.
+- `ReminderRecipient` has a compact constructor: a null `placeholders` becomes an empty map, the map is copied, and a null `employeeId` is refused. `ReminderRecipient.of(id)` is the no-values recipient the default `recipients()` builds.
+- `ReminderEvaluatorTest` mocks `ReminderAudienceResolver`, and a Mockito mock does not run an interface's default methods, so its set-up now says `recipients(...)` calls the real default. Without that line every existing evaluator test finds no recipients.
+- `NotificationEventTest`'s hard-coded list gains `TIMESHEET_ESCALATION`; its seed and `CHECK` readers pick up `V146` as the latest script, as they did `V096`.
+- `TimesheetEscalationTemplateIT` has no Spring context. The notification test application starts the queue emulator, which needs Docker; the migration and the renderer are the whole subject, so the test needs neither. `NotificationTestSchema` applies `V146` for the other notification ITs.
+- Proven here without Docker: the unit tests and `TimesheetEscalationTemplateIT`, and `ProofReminderSweepTest` unchanged. The worker's database ITs and the notification ITs that use the queue emulator are CI's.
