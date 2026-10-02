@@ -35,6 +35,20 @@ public interface AttendanceService {
     void delete(UUID id);
 
     /**
+     * Writes an attendance status for an employee on a given date from the clock seam (W-40.2).
+     *
+     * <p>If no attendance record exists for the date, inserts a new record with source {@link AttendanceSource#CLOCK}.
+     * If an existing record has source {@link AttendanceSource#CLOCK}, updates its status.
+     * If an existing record has source {@link AttendanceSource#ADMIN}, performs no write and returns the unchanged record.
+     *
+     * @param employeeId the employee ID
+     * @param date the attendance date (cannot be after tenant clock today)
+     * @param status the attendance status
+     * @return result indicating whether the day was written and the final status/source
+     */
+    ClockDayResult recordFromClock(UUID employeeId, LocalDate date, AttendanceStatus status);
+
+    /**
      * Thrown when an attendance record is not found in the current tenant.
      */
     class NotFoundException extends RuntimeException {

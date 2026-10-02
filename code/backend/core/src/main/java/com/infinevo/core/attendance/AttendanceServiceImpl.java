@@ -2,6 +2,7 @@ package com.infinevo.core.attendance;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.tenant.TenantClock;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -14,6 +15,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,7 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Implementation of {@link AttendanceService} and {@link AttendanceQuery} (W-39.1).
+ * Implementation of {@link AttendanceService} and {@link AttendanceQuery} (W-39.1, W-40.2).
  */
 @Service
 public class AttendanceServiceImpl implements AttendanceService, AttendanceQuery {
@@ -31,11 +33,19 @@ public class AttendanceServiceImpl implements AttendanceService, AttendanceQuery
 
     private final AttendanceRepository attendanceRepository;
     private final EmployeeRepository employeeRepository;
+    private final TenantClock tenantClock;
 
     public AttendanceServiceImpl(AttendanceRepository attendanceRepository, EmployeeRepository employeeRepository) {
+        this(attendanceRepository, employeeRepository, null);
+    }
+
+    @Autowired
+    public AttendanceServiceImpl(
+            AttendanceRepository attendanceRepository, EmployeeRepository employeeRepository, TenantClock tenantClock) {
         this.attendanceRepository =
                 Objects.requireNonNull(attendanceRepository, "attendanceRepository must not be null");
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
+        this.tenantClock = tenantClock;
     }
 
     @Override
@@ -142,6 +152,53 @@ public class AttendanceServiceImpl implements AttendanceService, AttendanceQuery
                 attendanceRepository.findByIdAndTenantId(id, tenantId).orElseThrow(() -> new NotFoundException(id));
         attendanceRepository.delete(attendance);
         attendanceRepository.flush();
+    }
+
+    @Override
+    @Transactional
+    public ClockDayResult recordFromClock(UUID employeeId, LocalDate date, AttendanceStatus status) {
+        UUID tenantId = TenantContext.require();
+
+        if (employeeId == null) {
+            throw new IllegalArgumentException("employeeId is required");
+        }
+        if (date == null) {
+            throw new IllegalArgumentException("date is required");
+        }
+        if (status == null) {
+            throw new IllegalArgumentException("status is required");
+        }
+
+        LocalDate today = tenantClock != null ? tenantClock.today() : LocalDate.now();
+        if (date.isAfter(today)) {
+            throw new IllegalArgumentException("Attendance date cannot be in the future: " + date);
+        }
+
+        Employee employee = employeeRepository
+                .findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Employee not found in tenant or is deleted: " + employeeId));
+
+        Optional<Attendance> existing =
+                attendanceRepository.findByTenantIdAndEmployeeIdAndAttendanceDate(tenantId, employeeId, date);
+
+        if (existing.isEmpty()) {
+            String actor = currentActor();
+            Attendance attendance =
+                    new Attendance(tenantId, employee, date, status, AttendanceSource.CLOCK, null, actor);
+            attendanceRepository.save(attendance);
+            return new ClockDayResult(true, status, AttendanceSource.CLOCK);
+        }
+
+        Attendance attendance = existing.get();
+        if (attendance.getSource() == AttendanceSource.ADMIN) {
+            return new ClockDayResult(false, attendance.getStatus(), AttendanceSource.ADMIN);
+        }
+
+        String actor = currentActor();
+        attendance.update(status, AttendanceSource.CLOCK, attendance.getRemarks(), actor);
+        attendanceRepository.save(attendance);
+        return new ClockDayResult(true, status, AttendanceSource.CLOCK);
     }
 
     @Override

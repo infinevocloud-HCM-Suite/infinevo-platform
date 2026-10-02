@@ -130,6 +130,9 @@ public final class AuthzTestSchema {
                         // V135 is the one current seed_system_roles: V100's grants plus hrms.project.*.
                         executeResource(conn, "db/migration/core/V135__hrms_project_seed_roles.sql");
                     }
+                    if (!actionExists(conn, "hrms.overtime.request")) {
+                        executeResource(conn, "db/migration/reference/V122__hrms_request_actions.sql");
+                    }
                     if (!functionExists(conn, "core", "list_tenants")) {
                         executeResource(conn, "db/migration/core/V082__platform_tenant.sql");
                     }

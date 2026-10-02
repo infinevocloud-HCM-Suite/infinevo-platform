@@ -39,6 +39,9 @@ public final class AttendanceTestSchema {
     public static void apply() throws Exception {
         EmployeeTestSchema.apply();
         try (Connection conn = migrationConnection()) {
+            if (!columnExists(conn, "tenant", "timezone")) {
+                executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
+            }
             if (!tableExists(conn, "audit_log")) {
                 executeResource(conn, "db/migration/core/V008__audit_log.sql");
             }
@@ -94,6 +97,20 @@ public final class AttendanceTestSchema {
                 WHERE table_schema = 'core' AND table_name = ?
                 """)) {
             ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'core' AND table_name = ? AND column_name = ?
+                """)) {
+            ps.setString(1, table);
+            ps.setString(2, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
