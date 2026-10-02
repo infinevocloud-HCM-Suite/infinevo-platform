@@ -54,12 +54,17 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
         })
+// core.employee and core.org entities only, no repositories and no beans (W-43.2): the late-timesheet query joins
+// Employee and ReportingLine to hrms's own tables, and a JPQL query can name only entities the context knows.
+// The real application scans all of com.infinevo; this test application's scan is narrower on purpose.
 @EntityScan(
         basePackages = {
             "com.infinevo.hrms.project",
             "com.infinevo.hrms.timesheet",
             "com.infinevo.core.approval",
             "com.infinevo.core.authz",
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org",
             "com.infinevo.shared.identity"
         })
 @EnableJpaRepositories(

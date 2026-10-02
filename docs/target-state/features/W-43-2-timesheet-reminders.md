@@ -185,3 +185,16 @@ Nothing deployed, no schema change. Removing the two beans makes rules on these 
 ## 14. Open for the founder
 
 None.
+
+## 15. As built (devashish, 2026-10-03)
+
+Where the build differs from, or settles a point left open in, the sections above:
+
+- The manager is found in the same JPQL as the employee, by two left joins (the primary reporting line in force on the week's last day, then that manager if active and not deleted). A manager who has left therefore comes back as null and the employee is left out of the escalation, the same as one with no line. If the data ever holds two primary lines in force on one day, the first manager found is kept and the employee is not repeated.
+- `LateEmployee.name` is first and last name joined, `"Employee"` when both are empty.
+- `resolve(rule, tenantId)` of both audiences answers for last week as of today on the system clock. The sweep calls `recipients(...)`, which counts from the tenant-local `slotDate`; `resolve` is there for callers that have no slot date.
+- A manager's recipient is listed in the order of their first late report's name; within a list the names are in name order, as the query returns them.
+- `HrmsTestApp` now scans `core.employee` and `core.org` entities (entities only, no repositories or beans), and `HrmsProjectTestSchema` applies `V028`, because the late query names `Employee` and `ReportingLine`. Each W-43.2 test makes its own tenant and the rows it needs: the query reads every active employee in a tenant, so a shared fixture would put its people in every answer.
+- `TimesheetReminderRuleIT` needs no database: rule validation reads no row, so it builds the real `ReminderRuleServiceImpl` with the real resolvers over stand-ins.
+- `TimesheetReminderSweepTest` also proves the week is counted from the tenant's zone: 00:30 on a Monday in Auckland is still Sunday in UTC.
+- Proven here without Docker: all of the above on the embedded-Postgres rig. CI still has to run the worker's database ITs.

@@ -55,6 +55,7 @@ public final class HrmsProjectTestSchema {
                         "core/V023__user_role.sql",
                         "core/V025__catalogue_correction.sql",
                         "core/V026__employee_user_account.sql",
+                        "core/V028__reporting_line.sql",
                         "reference/V052__fbp_actions.sql",
                         "reference/V097__reimbursement_claim_actions.sql",
                         "reference/V100__employee_deduction_actions.sql",
