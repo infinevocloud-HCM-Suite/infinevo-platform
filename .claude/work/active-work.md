@@ -6,6 +6,15 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-02 — `W-41`, `W-65.1`, `W-65.2`, `W-34.1`, `W-34.3`, part of `W-34.2` merged (`5fa04b1`)
+
+- One squash of `dev-devashish` at `426b852`. Gates 5/5 for all six, CI backend job green there, one independent read.
+- Fixed at merge: the branch's own W-36.2 dropped for main's; `V125` → `V135` rebuilt from `V100`; submit/reopen race (W-34.1); reminders before the window opened (W-34.3); approved amounts into `TaxInputAssembler` (W-34.2); `/api/v1/me` 500 while impersonating (W-65.2).
+- **`W-34.2` is not Done:** `ProofVerifiedEvent` waits on `W-33.3` (mohit), which waits on `W-36.1` (karma).
+- **check-done gate 5 tightened:** a green run whose backend or frontend job was skipped no longer counts for a branch that changes that code.
+- **Branches:** devashis resets `dev-devashish` to `main`. `dev-devashis` (no h) is stale and can be deleted.
+- **Newly Ready:** `W-65.3` admin console screens (unassigned).
+
 ## 2026-10-02 — `W-10.1` merged (`889b09b`)
 
 - The production realm `infinevo` is baked into the Keycloak image and imported on first start; Brevo SMTP is wired through Key Vault; CI checks the realm file.

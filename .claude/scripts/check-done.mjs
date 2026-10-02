@@ -130,7 +130,7 @@ gate("CI green for this commit", () => {
     if (d.code !== 0) return false;
     return d.out.split(NL).map((x) => x.trim()).filter(Boolean).every(IGNORED);
   };
-  const FIELDS = "status,conclusion,url,headSha,workflowName";
+  const FIELDS = "databaseId,status,conclusion,url,headSha,workflowName";
   const runsFor = (sha) => {
     const res = sh("gh", ["run", "list", "--workflow=ci.yml", "--commit", sha, "--json", FIELDS, "--limit", "10"]);
     if (res.code === 0) return res;
@@ -150,6 +150,7 @@ gate("CI green for this commit", () => {
       try {
         const data = JSON.parse(curl.out);
         const mapped = (data.workflow_runs || []).map((w) => ({
+          databaseId: w.id,
           status: w.status,
           conclusion: w.conclusion,
           url: w.html_url,
@@ -202,6 +203,52 @@ gate("CI green for this commit", () => {
   if (skipped) return { ok: false, detail: `CI was SKIPPED for ${short} - it verified nothing: ${skipped.url ?? ""}`.slice(0, 160) };
   const bad = mine.find((x) => x.conclusion !== "success");
   if (bad) return { ok: false, detail: `CI ${bad.conclusion ?? "had no conclusion"} for ${short}: ${bad.url ?? ""}`.slice(0, 160) };
+
+  // A green run is not enough on its own. ci.yml's scope job decides per push which jobs run, from
+  // the diff since the previous push, so a branch that changed backend code and then pushed an
+  // infra-only commit gets a "success" run whose backend job was skipped (2026-10-02, dev-devashish:
+  // the backend run was cancelled by the next push and never re-ran). For every job the branch's
+  // changes need, some run must show that job as success, on a commit where that job's code is
+  // byte-identical to HEAD. Patterns kept identical to ci.yml's scope job.
+  const JOBS = [
+    { name: "backend", covers: (f) => /^(code\/backend\/|pom\.xml$|code\/pom\.xml$)/.test(f) },
+    { name: "frontend", covers: (f) => /^code\/frontend\//.test(f) },
+  ];
+  const jobsOf = (runId) => {
+    const g = sh("gh", ["run", "view", String(runId), "--json", "jobs"]);
+    if (g.code === 0) {
+      try { return (JSON.parse(g.out).jobs || []).map((j) => ({ name: j.name, conclusion: j.conclusion })); } catch {}
+    }
+    const c = sh("curl.exe", ["-s", "-A", "check-done",
+      `https://api.github.com/repos/infinevocloud-HCM-Suite/infinevo-platform/actions/runs/${runId}/jobs?per_page=50`,
+    ], { shell: false });
+    try { return (JSON.parse(c.out).jobs || []).map((j) => ({ name: j.name, conclusion: j.conclusion })); } catch {}
+    return null;
+  };
+  const unchangedFor = (job, sha) => {
+    const d = sh("git", ["diff", "--name-only", sha, head]);
+    return d.code === 0 && !d.out.split(NL).map((x) => x.trim()).filter(Boolean).some(job.covers);
+  };
+  const ancestry = [head, ...(sh("git", ["rev-list", "--max-count=25", `${head}^`]).out
+    .split(NL).map((x) => x.trim()).filter(Boolean))];
+  for (const job of JOBS.filter((j) => changed.some(j.covers))) {
+    let proven = null;
+    for (const c of ancestry) {
+      if (!unchangedFor(job, c)) break;
+      const cr = runsFor(c);
+      let cruns = [];
+      try { cruns = cr.code === 0 ? JSON.parse(cr.out) : []; } catch {}
+      for (const run of (Array.isArray(cruns) ? cruns : []).filter((x) => x.headSha === c && x.databaseId)) {
+        const jobs = jobsOf(run.databaseId);
+        if (jobs && jobs.some((j) => j.name === job.name && j.conclusion === "success")) { proven = c; break; }
+      }
+      if (proven) break;
+    }
+    if (!proven) {
+      return { ok: false, detail: `CI never ran the ${job.name} job on this branch's ${job.name} code (skipped or not green) - re-run the run that carried it, or push a ${job.name} change` };
+    }
+    note += `; ${job.name} job green on ${proven.slice(0, 7)}`;
+  }
   return { ok: true, detail: `${mine.length} run(s) success for ${credited.slice(0, 7)}${note}` };
 });
 
