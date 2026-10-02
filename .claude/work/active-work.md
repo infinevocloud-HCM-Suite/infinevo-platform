@@ -6,6 +6,15 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-02 — `W-47.2` merged (`36c02d1`)
+
+- Pay run screens: list, run page with lock, compute, approve, pay and cancel, employees and lines, off-cycle create. Pay date is checked on the tenant's day.
+- One squash of `krushna-tickets` at `6a7ff117`. Gates 5/5, CI green there, one independent read. Nothing fixed at merge.
+- **Fixed after merge (`c01b5ee`):** the off-cycle grid showed an employee from an earlier search as a raw id (F-1).
+- **Outstanding, the one that matters next:** run-page names page the whole employee directory (F-2). Full list in the merge commit.
+- **Branches:** krushna resets to `main` before `W-38.1`.
+- **Newly Ready:** nothing. `W-47.6` still waits on `W-38.1`.
+
 ## 2026-10-02 — `W-41`, `W-65.1`, `W-65.2`, `W-34.1`, `W-34.3`, part of `W-34.2` merged (`5fa04b1`)
 
 - One squash of `dev-devashish` at `426b852`. Gates 5/5 for all six, CI backend job green there, one independent read.
