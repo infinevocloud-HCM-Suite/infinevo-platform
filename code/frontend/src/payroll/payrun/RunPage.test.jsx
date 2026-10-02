@@ -23,6 +23,7 @@ vi.mock('./payrunService.js', () => ({
     approve: vi.fn(),
     pay: vi.fn(),
     employees: vi.fn().mockResolvedValue({ content: [], totalElements: 0 }),
+    employeeNames: vi.fn().mockResolvedValue(new Map()),
     lines: vi.fn().mockResolvedValue({ lines: [] }),
   },
 }));

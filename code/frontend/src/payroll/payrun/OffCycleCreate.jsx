@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -29,14 +29,27 @@ import { payrunService } from './payrunService.js';
 
 const { Title, Text } = Typography;
 
-// core.payinput.PayInputKind less LOP_DAYS, which an off-cycle run refuses (W-30.2 §4). The
-// server knows no other kind, so a bonus is entered as a one-time payout.
+// core.payinput.PayInputKind less LOP_DAYS, which an off-cycle run refuses (W-30.2 §4).
 export const INPUT_KINDS = [
   { label: 'One-Time Payout', value: 'ONE_TIME_PAYOUT' },
   { label: 'Overtime', value: 'OVERTIME' },
   { label: 'Reimbursement', value: 'REIMBURSEMENT' },
   { label: 'Ad-Hoc Deduction', value: 'AD_HOC_DEDUCTION' },
 ];
+
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/**
+ * The server's 400 for employees it cannot put on the run (EmployeeNotInRunException) is a message
+ * only, ending in their ids: "No such employee in this tenant: [id, id]". Splits it into the reason
+ * and the ids, so the screen can name each employee instead of printing the ids (W-47.2 §5).
+ */
+export function parseEmployeeError(message) {
+  const text = message || '';
+  const ids = text.match(UUID_PATTERN) || [];
+  const reason = ids.length > 0 ? text.replace(/:\s*\[[^\]]*\]\s*$/, '') : text;
+  return { reason, ids };
+}
 
 export function OffCycleCreate() {
   const navigate = useNavigate();
@@ -51,6 +64,8 @@ export function OffCycleCreate() {
   const [step1Loading, setStep1Loading] = useState(false);
   const [step1Error, setStep1Error] = useState(null);
   const [unconsideredEmployees, setUnconsideredEmployees] = useState([]);
+  // Every employee the picker has shown, by id; a later search replaces the options but not this.
+  const knownEmployees = useRef(new Map());
 
   // Step 2: Inputs Grid
   const [createdRun, setCreatedRun] = useState(null);
@@ -75,6 +90,7 @@ export function OffCycleCreate() {
           name,
         };
       });
+      opts.forEach((opt) => knownEmployees.current.set(opt.value, opt));
       setEmployeeOptions(opts);
     } catch {
       setEmployeeOptions([]);
@@ -114,18 +130,15 @@ export function OffCycleCreate() {
       setInputRows(initialRows);
       setCurrentStep(1);
     } catch (err) {
-      setStep1Error(err?.message || 'Failed to create off-cycle pay run');
-
-      // Check if 400 specifies unconsidered employees
-      const unconsidered = err?.unconsideredEmployees || err?.unconsidered_employees || [];
-      if (Array.isArray(unconsidered) && unconsidered.length > 0) {
-        setUnconsideredEmployees(unconsidered);
-      } else if (err?.fieldErrors?.employeeIds || err?.fieldErrors?.employee_ids) {
-        setUnconsideredEmployees([err.fieldErrors.employeeIds || err.fieldErrors.employee_ids]);
-      } else if (err?.message && err.message.toLowerCase().includes('not considered')) {
-        // Parse names from error message if formatted as a list
-        setUnconsideredEmployees([err.message]);
-      }
+      const { reason, ids } = parseEmployeeError(err?.message);
+      setStep1Error(reason || 'Failed to create off-cycle pay run');
+      setUnconsideredEmployees(
+        ids.map((id) => {
+          const known = knownEmployees.current.get(id);
+          if (!known) return `Unknown employee (${id})`;
+          return known.num ? `${known.name} (${known.num})` : known.name;
+        })
+      );
     } finally {
       setStep1Loading(false);
     }
@@ -159,7 +172,11 @@ export function OffCycleCreate() {
     setStep2Loading(true);
     setStep2Error(null);
 
-    const payload = inputRows
+    // The server strips the reference and echoes it back stripped; trimming here keeps each result
+    // matched to its row (W-47.2 §5).
+    const trimmedRows = inputRows.map((r) => ({ ...r, sourceRef: (r.sourceRef || '').trim() }));
+    const trimmedRefs = new Map(trimmedRows.map((r) => [r.key, r.sourceRef]));
+    const payload = trimmedRows
       .filter(
         (r) => r.employeeId && r.kind && r.amount !== null && r.amount !== undefined && r.sourceRef
       )
@@ -189,7 +206,10 @@ export function OffCycleCreate() {
       // Counted here, not inside the state updater, which React may run twice.
       const recorded = (results || []).filter((res) => outcomeOf(res) === 'RECORDED').length;
       setInputRows((prev) =>
-        prev.map((row) => {
+        prev.map((current) => {
+          const row = trimmedRefs.has(current.key)
+            ? { ...current, sourceRef: trimmedRefs.get(current.key) }
+            : current;
           const key = `${row.employeeId}_${row.sourceRef}`;
           const res = resultMap.get(key);
           if (res) {
@@ -268,7 +288,7 @@ export function OffCycleCreate() {
         <Input
           value={val}
           onChange={(e) => handleRowChange(record.key, 'sourceRef', e.target.value)}
-          placeholder="e.g. BONUS_2026_01"
+          placeholder="e.g. OT-SEP-2026"
         />
       ),
     },
@@ -396,7 +416,7 @@ export function OffCycleCreate() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
-                    placeholder="e.g. Diwali bonus, quarterly incentives, one-off correction"
+                    placeholder="e.g. arrears correction, overtime settlement"
                   />
                 </Form.Item>
               </Col>

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { OffCycleCreate, INPUT_KINDS } from './OffCycleCreate.jsx';
+import { OffCycleCreate, INPUT_KINDS, parseEmployeeError } from './OffCycleCreate.jsx';
 import { payrunService } from './payrunService.js';
 
 vi.mock('./payrunService.js', () => ({
@@ -12,20 +12,14 @@ vi.mock('./payrunService.js', () => ({
   },
 }));
 
+const ALICE = '3f1c2a64-7d0e-4b8a-9c11-0a2b3c4d5e01';
+const BOB = '3f1c2a64-7d0e-4b8a-9c11-0a2b3c4d5e02';
+const STRANGER = '9a9a9a9a-0000-4000-8000-000000000009';
+
 describe('OffCycleCreate component (W-47.2 §7)', () => {
   const mockEmployees = [
-    {
-      id: 'emp-1',
-      employeeNumber: 'E01',
-      firstName: 'Alice',
-      lastName: 'Smith',
-    },
-    {
-      id: 'emp-2',
-      employeeNumber: 'E02',
-      firstName: 'Bob',
-      lastName: 'Jones',
-    },
+    { id: ALICE, employeeNumber: 'E01', firstName: 'Alice', lastName: 'Smith' },
+    { id: BOB, employeeNumber: 'E02', firstName: 'Bob', lastName: 'Jones' },
   ];
 
   beforeEach(() => {
@@ -33,117 +27,126 @@ describe('OffCycleCreate component (W-47.2 §7)', () => {
     payrunService.searchEmployees.mockResolvedValue(mockEmployees);
   });
 
-  it('renders 400 error naming each unconsidered employee', async () => {
-    payrunService.createOffCycle.mockRejectedValueOnce({
-      status: 400,
-      message: 'Some employees are not considered in this run',
-      unconsideredEmployees: ['Alice Smith (terminated)', 'Bob Jones (no active bank)'],
-    });
-
+  // Fills step 1 with a pay date and the given employees, then submits it.
+  const submitStep1 = async (labels) => {
     render(
       <MemoryRouter>
         <OffCycleCreate />
       </MemoryRouter>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText('Create Off-Cycle Pay Run')).toBeDefined();
-    });
-
-    // Enter payment date
     const dateInput = screen.getByPlaceholderText('Select payment date');
     fireEvent.change(dateInput, { target: { value: '2026-10-25' } });
     fireEvent.keyDown(dateInput, { key: 'Enter' });
 
-    // Select employee via hidden form logic or direct submit
-    // In our component, we can simulate step 1 submission after selecting date and employees
-    const submitBtn = screen.getByRole('button', { name: /create run & enter inputs/i });
-
-    // Since selectedEmployees is empty initially, button is disabled. Select employee:
     const select = screen.getByRole('combobox');
-    fireEvent.mouseDown(select);
+    for (const label of labels) {
+      fireEvent.mouseDown(select);
+      fireEvent.click(await screen.findByText(label));
+    }
 
-    await waitFor(() => {
-      expect(screen.getByText('E01 — Alice Smith')).toBeDefined();
-    });
-    fireEvent.click(screen.getByText('E01 — Alice Smith'));
-
+    const submitBtn = screen.getByRole('button', { name: /create run & enter inputs/i });
     expect(submitBtn.hasAttribute('disabled')).toBe(false);
     fireEvent.click(submitBtn);
+  };
 
-    await waitFor(() => {
-      expect(screen.getByText('Alice Smith (terminated)')).toBeDefined();
-      expect(screen.getByText('Bob Jones (no active bank)')).toBeDefined();
-    });
-  });
-
-  it('advances to step 2, posts [{employeeId, kind, amount, sourceRef}], and marks DUPLICATE row', async () => {
+  const goToStep2 = async () => {
     payrunService.createOffCycle.mockResolvedValueOnce({
       id: 'run-off-1',
       period: '2026-10',
       run_type: 'OFF_CYCLE',
     });
+    await submitStep1(['E01 — Alice Smith']);
+    await screen.findByText(/Step 2: Tagged Inputs for Run 2026-10/i);
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '7500' } });
+  };
 
-    render(
+  it('names each employee from a 400 that carries only a message with their ids', async () => {
+    // The real apiClient error for EmployeeNotInRunException: a message, nothing else.
+    payrunService.createOffCycle.mockRejectedValueOnce({
+      code: 'VALIDATION_FAILED',
+      message: `No such employee in this tenant: [${ALICE}, ${BOB}, ${STRANGER}]`,
+      status: 400,
+      isModuleNotEntitled: false,
+      isForbidden: false,
+    });
+
+    await submitStep1(['E01 — Alice Smith', 'E02 — Bob Jones']);
+
+    await waitFor(() => {
+      expect(screen.getByText('No such employee in this tenant')).toBeDefined();
+      expect(screen.getByText('Alice Smith (E01)')).toBeDefined();
+      expect(screen.getByText('Bob Jones (E02)')).toBeDefined();
+      expect(screen.getByText(`Unknown employee (${STRANGER})`)).toBeDefined();
+    });
+    // The raw id list is never the only thing shown.
+    expect(screen.queryByText(new RegExp(`\\[${ALICE}`))).toBeNull();
+  });
+
+  it('posts [{employeeId, kind, amount, sourceRef}] and marks a DUPLICATE row', async () => {
+    await goToStep2();
+    payrunService.addInputs.mockResolvedValueOnce([
+      { employee_id: ALICE, source_ref: 'OT-SEP-2026', result: 'DUPLICATE', pay_input_id: null },
+    ]);
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. OT-SEP-2026'), { target: { value: 'OT-SEP-2026' } });
+    fireEvent.click(screen.getByRole('button', { name: /save inputs/i }));
+
+    await waitFor(() => {
+      expect(payrunService.addInputs).toHaveBeenCalledWith('run-off-1', [
+        { employeeId: ALICE, kind: 'ONE_TIME_PAYOUT', amount: 7500, sourceRef: 'OT-SEP-2026' },
+      ]);
+      expect(screen.getByText('DUPLICATE')).toBeDefined();
+    });
+  });
+
+  it('trims sourceRef before posting, so the result lands on its row', async () => {
+    await goToStep2();
+    payrunService.addInputs.mockResolvedValueOnce([
+      {
+        employee_id: ALICE,
+        source_ref: 'OT-SEP-2026',
+        result: 'RECORDED',
+        pay_input_id: 'a1b2c3d4-0000-4000-8000-000000000001',
+      },
+    ]);
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. OT-SEP-2026'), {
+      target: { value: '  OT-SEP-2026 ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save inputs/i }));
+
+    await waitFor(() => {
+      expect(payrunService.addInputs).toHaveBeenCalledWith('run-off-1', [
+        { employeeId: ALICE, kind: 'ONE_TIME_PAYOUT', amount: 7500, sourceRef: 'OT-SEP-2026' },
+      ]);
+      expect(screen.getByText('ID: a1b2c3d4')).toBeDefined();
+    });
+  });
+
+  it('names nothing as a bonus (W-47.2 §14 decision 5)', () => {
+    const { container } = render(
       <MemoryRouter>
         <OffCycleCreate />
       </MemoryRouter>
     );
+    expect(container.innerHTML.toLowerCase()).not.toContain('bonus');
+  });
+});
 
-    // Pick date
-    const dateInput = screen.getByPlaceholderText('Select payment date');
-    fireEvent.change(dateInput, { target: { value: '2026-10-20' } });
-    fireEvent.keyDown(dateInput, { key: 'Enter' });
-
-    // Pick employee
-    const select = screen.getByRole('combobox');
-    fireEvent.mouseDown(select);
-    await waitFor(() => {
-      expect(screen.getByText('E01 — Alice Smith')).toBeDefined();
+describe('parseEmployeeError', () => {
+  it('splits the reason from the ids', () => {
+    expect(
+      parseEmployeeError(`Not employed between 2026-10-01 and 2026-10-31, so not payable on this run: [${BOB}]`)
+    ).toEqual({
+      reason: 'Not employed between 2026-10-01 and 2026-10-31, so not payable on this run',
+      ids: [BOB],
     });
-    fireEvent.click(screen.getByText('E01 — Alice Smith'));
+  });
 
-    const submitBtn = screen.getByRole('button', { name: /create run & enter inputs/i });
-    fireEvent.click(submitBtn);
-
-    // Step 2 is now active!
-    await waitFor(() => {
-      expect(screen.getByText(/Step 2: Tagged Inputs for Run 2026-10/i)).toBeDefined();
-    });
-
-    // Fill in amount in inputs grid
-    const amountInput = screen.getByPlaceholderText('0.00');
-    fireEvent.change(amountInput, { target: { value: '7500' } });
-
-    // Mock addInputs returning DUPLICATE
-    payrunService.addInputs.mockResolvedValueOnce([
-      {
-        employee_id: 'emp-1',
-        source_ref: 'OFF_REF_1',
-        result: 'DUPLICATE',
-        pay_input_id: null,
-      },
-    ]);
-
-    // Set sourceRef to match mock
-    const refInput = screen.getByPlaceholderText('e.g. BONUS_2026_01');
-    fireEvent.change(refInput, { target: { value: 'OFF_REF_1' } });
-
-    const saveBtn = screen.getByRole('button', { name: /save inputs/i });
-    fireEvent.click(saveBtn);
-
-    await waitFor(() => {
-      expect(payrunService.addInputs).toHaveBeenCalledWith('run-off-1', [
-        {
-          employeeId: 'emp-1',
-          kind: 'ONE_TIME_PAYOUT',
-          amount: 7500,
-          sourceRef: 'OFF_REF_1',
-        },
-      ]);
-      // Verify DUPLICATE tag is displayed on the row
-      expect(screen.getByText('DUPLICATE')).toBeDefined();
-    });
+  it('leaves a message without ids untouched', () => {
+    expect(parseEmployeeError('pay_date is required')).toEqual({ reason: 'pay_date is required', ids: [] });
+    expect(parseEmployeeError(undefined)).toEqual({ reason: '', ids: [] });
   });
 });
 

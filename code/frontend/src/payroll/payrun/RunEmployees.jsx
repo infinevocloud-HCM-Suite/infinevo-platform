@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Table, Tag, Segmented, Typography, Alert, Card, Button } from 'antd';
 import { EyeOutlined } from '@ant-design/icons';
@@ -27,6 +27,9 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
   const [pageSize, setPageSize] = useState(20);
   const [inclusionFilter, setInclusionFilter] = useState('ALL');
   const [loadError, setLoadError] = useState(null);
+  // Names by employee id, kept across pages and filters so each employee is looked up once.
+  const [names, setNames] = useState({});
+  const namesAsked = useRef(new Set());
 
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -63,8 +66,31 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
     fetchEmployees();
   }, [fetchEmployees]);
 
+  // The run's rows carry only the employee number; names come from core, by path (W-47.2 §14.3).
+  useEffect(() => {
+    const missing = employees
+      .map((e) => e.employee_id || e.employeeId)
+      .filter((id) => id && !namesAsked.current.has(id));
+    if (missing.length === 0) return;
+    missing.forEach((id) => namesAsked.current.add(id));
+    // Merged even if the page has changed meanwhile: these ids are marked asked, and a name is
+    // the same whichever page shows it.
+    payrunService
+      .employeeNames(missing)
+      .then((found) => {
+        if (found.size > 0) {
+          setNames((prev) => ({ ...prev, ...Object.fromEntries(found) }));
+        }
+      })
+      .catch(() => {
+        // Names are a courtesy: the number still identifies the row. Let a later page retry them.
+        missing.forEach((id) => namesAsked.current.delete(id));
+      });
+  }, [employees]);
+
   const handleRowClick = (record) => {
-    setSelectedEmployee(record);
+    const name = names[record.employee_id || record.employeeId];
+    setSelectedEmployee(name && !record.employee_name ? { ...record, employee_name: name } : record);
     setDrawerOpen(true);
   };
 
@@ -81,7 +107,11 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
       title: 'Name',
       key: 'employee_name',
       render: (_, record) => {
-        const name = record.employee_name || record.employeeName || record.employee_number || record.employeeNumber || '-';
+        const name =
+          record.employee_name ||
+          record.employeeName ||
+          names[record.employee_id || record.employeeId] ||
+          '-';
         return <Text>{name}</Text>;
       },
     },

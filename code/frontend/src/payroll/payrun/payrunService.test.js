@@ -169,6 +169,46 @@ describe('payrunService (W-47.2 §7)', () => {
     expect(res[1].result).toBe('DUPLICATE');
   });
 
+  it('employeeNames reads one page of 100 when it names everyone asked for', async () => {
+    apiClient.get.mockResolvedValueOnce({
+      data: {
+        content: [
+          { id: 'e1', firstName: 'Asha', lastName: 'Rao' },
+          { id: 'e2', firstName: 'Ravi', lastName: null },
+          { id: 'e9', firstName: 'Not', lastName: 'Asked' },
+        ],
+        last: false,
+      },
+    });
+
+    const names = await payrunService.employeeNames(['e1', 'e2']);
+
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/employees', {
+      params: { page: 0, size: 100, includeDeleted: true },
+    });
+    expect(names).toEqual(new Map([['e1', 'Asha Rao'], ['e2', 'Ravi']]));
+  });
+
+  it('employeeNames reads further pages only while someone is unnamed, and stops at the last', async () => {
+    apiClient.get
+      .mockResolvedValueOnce({ data: { content: [{ id: 'e1', firstName: 'Asha' }], last: false } })
+      .mockResolvedValueOnce({ data: { content: [{ id: 'e3', firstName: 'Meera' }], last: true } });
+
+    const names = await payrunService.employeeNames(['e1', 'gone']);
+
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+    expect(apiClient.get).toHaveBeenLastCalledWith('/v1/employees', {
+      params: { page: 1, size: 100, includeDeleted: true },
+    });
+    expect(names).toEqual(new Map([['e1', 'Asha']]));
+  });
+
+  it('employeeNames makes no call for no ids', async () => {
+    expect(await payrunService.employeeNames([])).toEqual(new Map());
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
   it('hits searchEmployees via core HTTP path, which answers a bare page', async () => {
     apiClient.get.mockResolvedValueOnce({ data: { content: [{ id: 'e1', firstName: 'John' }] } });
 

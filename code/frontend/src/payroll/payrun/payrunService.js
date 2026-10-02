@@ -134,6 +134,31 @@ export const payrunService = {
   },
 
   /**
+   * Names for the employees of a run page, as `Map<employeeId, "First Last">` (W-47.2 §14 decision 3).
+   * The run's rows carry the employee number only, and `q` matches one prefix, so this reads the
+   * tenant's employees a page of 100 at a time - one call for a company of up to 100 - and stops as
+   * soon as every id asked for is named. Leavers are included: a past run still names them.
+   */
+  async employeeNames(employeeIds) {
+    const wanted = new Set((employeeIds || []).filter(Boolean));
+    const names = new Map();
+    for (let page = 0; wanted.size > 0; page++) {
+      const res = await apiClient.get('/v1/employees', {
+        params: { page, size: 100, includeDeleted: true },
+      });
+      const data = res?.data || {};
+      (data.content || []).forEach((emp) => {
+        if (wanted.has(emp.id)) {
+          names.set(emp.id, [emp.firstName, emp.lastName].filter(Boolean).join(' '));
+          wanted.delete(emp.id);
+        }
+      });
+      if (data.last !== false || (data.content || []).length === 0) break;
+    }
+    return names;
+  },
+
+  /**
    * Search employees by query for off-cycle employee select.
    * Note: Module boundary rule forbids importing from @core, so this calls core API path directly.
    */
