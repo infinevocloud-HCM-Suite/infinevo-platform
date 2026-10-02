@@ -53,6 +53,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.hrms.project",
             "com.infinevo.hrms.attendance",
             "com.infinevo.core.authz",
+            "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
 @EnableJpaRepositories(
@@ -60,6 +61,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.hrms.project",
             "com.infinevo.hrms.attendance",
             "com.infinevo.core.authz",
+            "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
 @Import({RedisConfig.class, UserProfileSyncService.class, AuditWriter.class, AuditIntegratorConfig.class})
