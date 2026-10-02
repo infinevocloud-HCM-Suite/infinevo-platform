@@ -199,7 +199,11 @@ class TaxDeclarationRulesTest {
         com.infinevo.core.employee.EmployeeService employeeService =
                 Mockito.mock(com.infinevo.core.employee.EmployeeService.class);
 
-        TaxDeclarationService service = new TaxDeclarationServiceImpl(declRepo, windowService, employeeService);
+        TaxDeclarationService service = new TaxDeclarationServiceImpl(
+                declRepo,
+                windowService,
+                employeeService,
+                Mockito.mock(com.infinevo.payroll.taxdeclaration.housing.HraRuleReader.class));
 
         TenantContext.set(TENANT_ID);
         try {
@@ -223,6 +227,47 @@ class TaxDeclarationRulesTest {
                                 (com.infinevo.payroll.taxdeclaration.exception.DeclarationNotEditableException) e;
                         assertThat(ex.reasonCode()).isEqualTo("REGIME_CHANGE_NOT_ALLOWED");
                     });
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "Header carries the rent PAN rule: the window flag and the hra_rule_master threshold, null with no row")
+    void headerCarriesRentPanRule() {
+        EmployeeInvestmentDeclarationRepository declRepo = Mockito.mock(EmployeeInvestmentDeclarationRepository.class);
+        TaxDeclarationWindowService windowService = Mockito.mock(TaxDeclarationWindowService.class);
+        com.infinevo.core.employee.EmployeeService employeeService =
+                Mockito.mock(com.infinevo.core.employee.EmployeeService.class);
+        com.infinevo.payroll.taxdeclaration.housing.HraRuleReader hraRuleReader =
+                Mockito.mock(com.infinevo.payroll.taxdeclaration.housing.HraRuleReader.class);
+
+        TaxDeclarationService service =
+                new TaxDeclarationServiceImpl(declRepo, windowService, employeeService, hraRuleReader);
+
+        TenantContext.set(TENANT_ID);
+        try {
+            EmployeeInvestmentDeclaration header = new EmployeeInvestmentDeclaration(TENANT_ID, EMPLOYEE_ID, FY, "OLD");
+            Mockito.when(declRepo.findByTenantIdAndEmployeeIdAndFinancialYear(TENANT_ID, EMPLOYEE_ID, FY))
+                    .thenReturn(Optional.of(header));
+            IncomeTaxDeclarationWindow window =
+                    new IncomeTaxDeclarationWindow(TENANT_ID, FY, opens, closes, "NEW", true, true);
+            Mockito.when(windowService.findOrCreateDefault(TENANT_ID, FY)).thenReturn(window);
+            Mockito.when(hraRuleReader.findPanMandatoryThreshold(FY, "OLD"))
+                    .thenReturn(new java.math.BigDecimal("100000.0000"));
+
+            com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationResponse withRule = service.read(EMPLOYEE_ID, FY);
+            assertThat(withRule.panRequiredForRentOverThreshold()).isTrue();
+            assertThat(withRule.rentPanThreshold()).isEqualByComparingTo("100000");
+
+            // Tenant switched the rule off and no reference row exists for the year
+            window.setPanRequiredForRentOverThreshold(false);
+            Mockito.when(hraRuleReader.findPanMandatoryThreshold(FY, "OLD")).thenReturn(null);
+
+            com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationResponse withoutRule = service.read(EMPLOYEE_ID, FY);
+            assertThat(withoutRule.panRequiredForRentOverThreshold()).isFalse();
+            assertThat(withoutRule.rentPanThreshold()).isNull();
         } finally {
             TenantContext.clear();
         }

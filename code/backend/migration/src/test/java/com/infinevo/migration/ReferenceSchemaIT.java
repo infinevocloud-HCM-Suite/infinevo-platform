@@ -337,7 +337,7 @@ class ReferenceSchemaIT {
         try (Connection conn = appUserConnection()) {
             assertThat(count(conn, "SELECT count(*) FROM reference.tax_slab_master WHERE financial_year = '2026-2027'"))
                     .as("the new financial year is readable straight after the migration")
-                    .isEqualTo(1);
+                    .isEqualTo(3);
             assertThat(brackets(conn, "2026-2027", "NEW"))
                     .as("and so are its brackets")
                     .containsExactly(

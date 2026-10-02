@@ -18,9 +18,26 @@ public class HraRuleReader {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * The annual rent above which a landlord PAN is mandatory, as the house-rent save validates it.
+     *
+     * @throws ReferenceDataMissingException when no active rule row exists for the year
+     */
     public BigDecimal getPanMandatoryThreshold(String financialYear, String taxRegime) {
-        if (financialYear == null || taxRegime == null) {
+        BigDecimal threshold = findPanMandatoryThreshold(financialYear, taxRegime);
+        if (threshold == null) {
             throw new ReferenceDataMissingException("reference.hra_rule_master", financialYear, taxRegime);
+        }
+        return threshold;
+    }
+
+    /**
+     * Same lookup as {@link #getPanMandatoryThreshold}, but {@code null} when no active rule row exists — for
+     * the declaration header, which tells the screen the threshold the server will enforce (W-47.3).
+     */
+    public BigDecimal findPanMandatoryThreshold(String financialYear, String taxRegime) {
+        if (financialYear == null || taxRegime == null) {
+            return null;
         }
         String sql =
                 """
@@ -34,9 +51,6 @@ public class HraRuleReader {
         // still find it, so the regime orders the rows rather than filtering them.
         List<BigDecimal> results =
                 jdbcTemplate.query(sql, (rs, rowNum) -> rs.getBigDecimal(1), financialYear, taxRegime);
-        if (results.isEmpty() || results.get(0) == null) {
-            throw new ReferenceDataMissingException("reference.hra_rule_master", financialYear, taxRegime);
-        }
-        return results.get(0);
+        return results.isEmpty() ? null : results.get(0);
     }
 }
