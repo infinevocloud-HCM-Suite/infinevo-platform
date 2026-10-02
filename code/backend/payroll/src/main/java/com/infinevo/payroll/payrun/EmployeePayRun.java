@@ -167,14 +167,33 @@ public class EmployeePayRun {
             int attempt,
             String actor,
             Instant at) {
-        Objects.requireNonNull(totals, "totals must not be null");
-        Objects.requireNonNull(days, "days must not be null");
         Objects.requireNonNull(stamp, "stamp must not be null: a pay figure is never written without its policy");
         this.lopPolicyId = stamp.policyId();
         this.workingDayBasis = stamp.workingDayBasis();
         this.payDivisor = stamp.divisor().setScale(2, RoundingMode.HALF_UP);
         this.payableDays = stamp.payableDays().setScale(2, RoundingMode.HALF_UP);
         this.lopRounding = stamp.lopRounding();
+        recordFigure(totals, days, unpricedInputCount, attempt, actor, at);
+    }
+
+    /**
+     * An off-cycle row's totals after a successful computation (W-30.2, founder 2026-10-01): it prices no
+     * days, so no loss-of-pay policy produced the figure and the five stamp columns stay empty.
+     */
+    public void recordOffCycleComputation(
+            PayRunTotals totals, PayRunDays days, int unpricedInputCount, int attempt, String actor, Instant at) {
+        this.lopPolicyId = null;
+        this.workingDayBasis = null;
+        this.payDivisor = null;
+        this.payableDays = null;
+        this.lopRounding = null;
+        recordFigure(totals, days, unpricedInputCount, attempt, actor, at);
+    }
+
+    private void recordFigure(
+            PayRunTotals totals, PayRunDays days, int unpricedInputCount, int attempt, String actor, Instant at) {
+        Objects.requireNonNull(totals, "totals must not be null");
+        Objects.requireNonNull(days, "days must not be null");
         this.lopDays = days.lopDays();
         this.unpaidDays = days.unpaidDays();
         this.paidDays = days.paidDays();

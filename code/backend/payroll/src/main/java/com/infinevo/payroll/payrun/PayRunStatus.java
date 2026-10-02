@@ -34,8 +34,7 @@ public enum PayRunStatus {
             COMPUTED, Set.of(COMPUTING, APPROVED),
             FAILED, Set.of(COMPUTING),
             COMPUTING, Set.of(COMPUTED, FAILED),
-            APPROVED, Set.of(PAID, CANCELLED),
-            PAID, Set.of(CANCELLED));
+            APPROVED, Set.of(PAID, CANCELLED));
 
     public boolean canTransitionTo(PayRunStatus target) {
         return ALLOWED.getOrDefault(this, Set.of()).contains(target);

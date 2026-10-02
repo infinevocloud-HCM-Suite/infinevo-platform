@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -16,7 +17,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * The "every menu item's target endpoint exists" check (W-12.3, spec §2).
  *
  * <p>Runs once all singletons are built, in every profile, and <strong>refuses to start the
- * application</strong> if a leaf of {@link NavigationCatalogue#DEFAULT_ITEMS} names a
+ * application</strong> if a leaf of {@link NavigationCatalogue#DEFAULT_ITEMS}, or of a module's
+ * {@link NavigationContributor}, names a
  * {@code targetEndpoint} that no controller maps for {@code GET}. A menu item that leads to a
  * 404 is the drift this ticket exists to prevent, and a warning in a log nobody reads would not
  * prevent it.
@@ -37,21 +39,26 @@ class NavigationCatalogueValidator implements SmartInitializingSingleton {
      */
     private final List<RequestMappingHandlerMapping> handlerMappings;
 
-    NavigationCatalogueValidator(List<RequestMappingHandlerMapping> handlerMappings) {
+    /** The module items (W-47.2); checked with the core ones, so a module item cannot lead to a 404 either. */
+    private final ObjectProvider<NavigationContributor> contributors;
+
+    NavigationCatalogueValidator(
+            List<RequestMappingHandlerMapping> handlerMappings, ObjectProvider<NavigationContributor> contributors) {
         this.handlerMappings = handlerMappings;
+        this.contributors = contributors;
     }
 
     @Override
     public void afterSingletonsInstantiated() {
-        List<String> missing = missingEndpoints(NavigationCatalogue.DEFAULT_ITEMS, registeredGetPaths());
+        List<NavigationCatalogue.ItemDefinition> items =
+                NavigationCatalogue.withContributed(contributors.orderedStream().toList());
+        List<String> missing = missingEndpoints(items, registeredGetPaths());
         if (!missing.isEmpty()) {
             throw new IllegalStateException("Navigation catalogue names endpoints that do not exist: "
                     + String.join("; ", missing)
                     + ". Remove the item, or ship the controller in the same ticket (W-12.3 §2).");
         }
-        log.info(
-                "Navigation catalogue: all {} leaf items have a GET mapping",
-                countLeaves(NavigationCatalogue.DEFAULT_ITEMS));
+        log.info("Navigation catalogue: all {} leaf items have a GET mapping", countLeaves(items));
     }
 
     /**

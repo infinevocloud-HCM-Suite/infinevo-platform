@@ -2,6 +2,7 @@ package com.infinevo.payroll.payslip;
 
 import static com.infinevo.payroll.payrun.PayRunTestSchema.TENANT_A;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -12,6 +13,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.PayrollTestSchema;
+import com.infinevo.payroll.payrun.IllegalPayRunTransitionException;
 import com.infinevo.payroll.payrun.InProcessPayRunWorker;
 import com.infinevo.payroll.payrun.PayRunResponse;
 import com.infinevo.payroll.payrun.PayRunService;
@@ -28,6 +30,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -54,13 +57,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 /**
  * Acceptance integration test for payslip release and public access (W-36.2 §7).
  * Compute 2-employee run -> approve -> pay -> verify 2 notifications with links -> open with no bearer ->
- * verify slip contents -> cancel run -> open becomes 404 -> document domain token is 404.
+ * verify slip contents -> cancel refused, link still opens -> a cancelled run's link is 404 -> document
+ * domain token is 404.
  */
 @SpringBootTest(classes = PayrollTestApp.class)
 @TestPropertySource(properties = "document.link.secret=integration-test-document-link-secret")
 public class PayslipReleaseIT extends AbstractIntegrationTest {
 
     private static final YearMonth JULY = YearMonth.of(2026, 7);
+    private static final YearMonth AUGUST = YearMonth.of(2026, 8);
 
     @Autowired
     private PayRunService payRunService;
@@ -73,6 +78,9 @@ public class PayslipReleaseIT extends AbstractIntegrationTest {
 
     @Autowired
     private PayslipOpenController payslipOpenController;
+
+    @Autowired
+    private PayslipLinkService payslipLinkService;
 
     private MockMvc mvc;
     private UUID firstEmployeeId;
@@ -113,7 +121,7 @@ public class PayslipReleaseIT extends AbstractIntegrationTest {
 
     @Test
     @DisplayName(
-            "Acceptance test: compute -> approve -> pay -> 2 notifications -> open without bearer -> 404 after cancel")
+            "Acceptance test: compute -> approve -> pay -> 2 notifications -> open without bearer -> paid stays paid")
     void releaseAndOpenPayslipAcceptanceFlow() throws Exception {
         // 1. Create, lock and compute a two-employee pay run
         PayRunResponse run = payRunService.create(JULY);
@@ -177,12 +185,27 @@ public class PayslipReleaseIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.data.earnings").isArray())
                 .andExpect(jsonPath("$.data.link.expires_at").isNotEmpty());
 
-        // 6. Cancel the pay run -> same call after cancel is 404
+        // 6. A paid run stays paid (W-36.2 §10): cancel is refused and the link still opens
         TenantContext.set(TENANT_A);
-        payRunService.cancel(run.id());
+        assertThatThrownBy(() -> payRunService.cancel(run.id())).isInstanceOf(IllegalPayRunTransitionException.class);
         TenantContext.clear();
 
-        mvc.perform(get(PublicEndpoints.PAYSLIP_OPEN).param("t", token))
+        mvc.perform(get(PublicEndpoints.PAYSLIP_OPEN).param("t", token)).andExpect(status().isOk());
+
+        // 6b. A run cancelled after approve was never paid: a well-signed link to one of its rows is 404
+        TenantContext.set(TENANT_A);
+        PayRunResponse august = payRunService.create(AUGUST);
+        payRunService.lock(august.id());
+        worker.computeNow(august.id());
+        payRunService.approve(august.id());
+        payRunService.cancel(august.id());
+        UUID cancelledRow = PayRunTestSchema.getEmployeePayRunId(TENANT_A, august.id(), firstEmployeeId);
+        String cancelledUrl =
+                payslipLinkService.signedLink(cancelledRow, Duration.ofDays(1)).url();
+        String cancelledToken = cancelledUrl.substring(cancelledUrl.indexOf("?t=") + 3);
+        TenantContext.clear();
+
+        mvc.perform(get(PublicEndpoints.PAYSLIP_OPEN).param("t", cancelledToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value(PayslipOpenController.NOT_A_LINK));
 

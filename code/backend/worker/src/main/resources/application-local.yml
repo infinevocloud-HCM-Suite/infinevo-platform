@@ -50,6 +50,11 @@ document:
     # Local default, as in the app module's local profile. The base profile has none.
     secret: ${DOCUMENT_LINK_SECRET:local_document_link_secret}
 
+payslip:
+  link:
+    # Local default, as in the app module's local profile. The base profile has none.
+    base-url: ${PAYSLIP_LINK_BASE_URL:http://localhost:5173/public/payslips}
+
 worker:
   retention:
     datasource:

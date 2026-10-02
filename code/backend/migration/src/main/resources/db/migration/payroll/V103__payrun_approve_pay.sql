@@ -10,3 +10,8 @@ ALTER TABLE payroll.payrun
     ADD COLUMN paid_by varchar(100),
     ADD COLUMN paid_on date,
     ADD COLUMN payslips_released_at timestamptz;
+
+-- A run is PAID exactly when it has a payment date (W-36.2 §6). PAID is final: a paid run is never
+-- cancelled, so the date never outlives the status.
+ALTER TABLE payroll.payrun
+    ADD CONSTRAINT ck_payrun_paid_on CHECK ((status = 'PAID') = (paid_on IS NOT NULL));

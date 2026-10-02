@@ -210,7 +210,11 @@ public class PayRun {
         this.updatedBy = actor;
     }
 
-    /** {@code DRAFT → CANCELLED} or {@code LOCKED → CANCELLED}. A period lock is never undone (W-19 §6). */
+    /**
+     * {@code DRAFT}, {@code LOCKED} or {@code APPROVED → CANCELLED}. A period lock is never undone
+     * (W-19 §6). A {@code PAID} run is never cancelled (W-36.2 §10, founder 2026-10-01): the money moved,
+     * and cancelling would free the month for a second paid run.
+     */
     public void cancel(String actor, Instant at) {
         status.requireTransitionTo(PayRunStatus.CANCELLED);
         this.status = PayRunStatus.CANCELLED;

@@ -135,7 +135,7 @@ class OffCyclePayRunComputeIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("A joiner with no salary version is still paid, and the figure carries its policy stamp (W-18.2)")
+    @DisplayName("A joiner with no salary version is still paid")
     void noSalaryStillComputes() throws SQLException {
         UUID joiner = PayRunTestSchema.insertEmployee(TENANT_A, "J-01", LocalDate.of(2026, 7, 10), "ACTIVE", null);
         PayRunTestSchema.insertBank(TENANT_A, joiner);
@@ -151,6 +151,29 @@ class OffCyclePayRunComputeIT extends AbstractIntegrationTest {
         assertThat(computed.totalNetPay()).isEqualByComparingTo("25000");
         assertThat(payRunService.lines(offCycle.id(), joiner).computationError())
                 .isNull();
+    }
+
+    @Test
+    @DisplayName("No loss-of-pay policy in force: the bonus is still paid and the row carries no stamp")
+    void noPolicyStillComputesUnstamped() throws SQLException {
+        PayRunTestSchema.deletePolicy(TENANT_A);
+        PayRunResponse offCycle = payRunService.createOffCycle(MID_JULY, List.of(first), "Bonus");
+        payRunService.addInputs(
+                offCycle.id(),
+                List.of(new PayRunInputRequest(first, PayInputKind.ONE_TIME_PAYOUT, new BigDecimal("10000"), "b")));
+        payRunService.lock(offCycle.id());
+
+        PayRunResponse computed = worker.computeNow(offCycle.id());
+
+        assertThat(computed.status()).isEqualTo(PayRunStatus.COMPUTED);
+        assertThat(computed.totalNetPay()).isEqualByComparingTo("10000");
+        assertThat(PayRunTestSchema.stamps(TENANT_A, offCycle.id()))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.computationError()).isNull();
+                    assertThat(row.lopPolicyId()).isNull();
+                    assertThat(row.unstamped()).isTrue();
+                });
     }
 
     private static EmployeePayRunResponse row(List<EmployeePayRunResponse> rows, UUID employeeId) {

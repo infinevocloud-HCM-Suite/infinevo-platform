@@ -315,6 +315,7 @@ public class PayRunServiceImpl implements PayRunService {
         if (!notIncluded.isEmpty()) {
             throw new EmployeeNotInRunException("Not an included employee of pay run " + id, notIncluded);
         }
+        refuseReferenceClashes(id, inputs);
 
         List<PayRunInputResponse> results = new ArrayList<>(inputs.size());
         for (PayRunInputRequest input : inputs) {
@@ -326,7 +327,7 @@ public class PayRunServiceImpl implements PayRunService {
                     null,
                     Money.of(input.amount()),
                     SOURCE_MODULE,
-                    "payrun:" + id + ":" + sourceRef,
+                    ledgerRef(id, sourceRef),
                     id);
             try {
                 PayInputResponse recorded = payInputService.record(command);
@@ -345,6 +346,48 @@ public class PayRunServiceImpl implements PayRunService {
                 recorded,
                 results.size() - recorded);
         return results;
+    }
+
+    /**
+     * The ledger's idempotency key is {@code (tenant, module, reference)} and carries no employee, so a
+     * reference used for a different payment would come back {@code DUPLICATE} and that employee would
+     * go unpaid without anyone being told. Refused before the first write: a reference repeated inside
+     * the request, and one this run already holds for another employee, kind or amount. An identical
+     * item is a retry and is still reported {@code DUPLICATE}.
+     */
+    private void refuseReferenceClashes(UUID id, List<PayRunInputRequest> inputs) {
+        Map<String, Integer> firstUse = new HashMap<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            Integer first = firstUse.putIfAbsent(inputs.get(i).sourceRef().strip(), i);
+            if (first != null) {
+                throw new IllegalArgumentException("inputs[" + i + "].source_ref repeats inputs[" + first
+                        + "]: every payment on a run needs its own reference");
+            }
+        }
+        Map<String, PayInputResponse> recorded = new HashMap<>();
+        for (PayInputResponse row : payInputService.forRun(id).rows()) {
+            // A reversal carries its original's reference; the original is the payment.
+            if (row.reversesId() == null) {
+                recorded.put(row.sourceRef(), row);
+            }
+        }
+        for (int i = 0; i < inputs.size(); i++) {
+            PayRunInputRequest input = inputs.get(i);
+            PayInputResponse prior =
+                    recorded.get(ledgerRef(id, input.sourceRef().strip()));
+            if (prior != null
+                    && !(prior.employeeId().equals(input.employeeId())
+                            && prior.kind() == input.kind()
+                            && prior.amount() != null
+                            && prior.amount().compareTo(Money.of(input.amount()).raw()) == 0)) {
+                throw new IllegalArgumentException("inputs[" + i + "].source_ref is already used on this run for"
+                        + " a different payment: every payment on a run needs its own reference");
+            }
+        }
+    }
+
+    private static String ledgerRef(UUID runId, String sourceRef) {
+        return "payrun:" + runId + ":" + sourceRef;
     }
 
     private static void validateInput(int index, PayRunInputRequest input) {

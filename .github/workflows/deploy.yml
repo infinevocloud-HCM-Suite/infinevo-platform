@@ -667,6 +667,7 @@ jobs:
               "KEYCLOAK_JWK_SET_URI=https://${FD_HOST}/auth/realms/infinevo/protocol/openid-connect/certs" \
               "KEYCLOAK_ADMIN_URL=https://${FD_HOST}/auth" \
               "INVITATION_LINK_BASE_URL=https://${FD_HOST}/invitations/accept" \
+              "PAYSLIP_LINK_BASE_URL=https://${FD_HOST}/public/payslips" \
               "MANAGEMENT_HEALTH_REDIS_ENABLED=false" \
             --revision-suffix "$SUFFIX" --output none
           echo "app      -> ${backend}"
@@ -681,6 +682,7 @@ jobs:
               "INFINEVO_ROLE=worker" \
               "KEYCLOAK_ISSUER_URI=https://${FD_HOST}/auth/realms/infinevo" \
               "KEYCLOAK_JWK_SET_URI=https://${FD_HOST}/auth/realms/infinevo/protocol/openid-connect/certs" \
+              "PAYSLIP_LINK_BASE_URL=https://${FD_HOST}/public/payslips" \
               "MANAGEMENT_HEALTH_REDIS_ENABLED=false" \
             --revision-suffix "$SUFFIX" --output none
           echo "worker   -> ${backend}"

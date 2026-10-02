@@ -559,6 +559,7 @@ public class PayrollTestApp {
                 new org.springframework.context.support.PropertySourcesPlaceholderConfigurer();
         java.util.Properties props = new java.util.Properties();
         props.setProperty("document.link.secret", "integration-test-document-link-secret");
+        props.setProperty("payslip.link.base-url", "http://localhost:5173/public/payslips");
         configurer.setProperties(props);
         return configurer;
     }
