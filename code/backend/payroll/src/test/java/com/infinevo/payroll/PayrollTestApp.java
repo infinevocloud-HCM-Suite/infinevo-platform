@@ -63,7 +63,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.approval",
             "com.infinevo.core.payinput",
             "com.infinevo.core.lop",
-            "com.infinevo.core.job"
+            "com.infinevo.core.job",
+            "com.infinevo.core.employee"
         })
 public class PayrollTestApp {
 
@@ -167,11 +168,6 @@ public class PayrollTestApp {
         org.mockito.Mockito.when(service.holds(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(true);
         return service;
-    }
-
-    @Bean
-    public com.infinevo.core.employee.EmployeeRepository employeeRepository() {
-        return org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeRepository.class);
     }
 
     @Bean

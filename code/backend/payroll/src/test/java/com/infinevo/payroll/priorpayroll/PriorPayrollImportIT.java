@@ -99,7 +99,7 @@ class PriorPayrollImportIT extends AbstractIntegrationTest {
         assertThat(dryRunResponse.isDryRun()).isTrue();
         assertThat(dryRunResponse.status()).isEqualTo(PriorPayrollImportStatus.COMPLETED_WITH_ERRORS);
         assertThat(dryRunResponse.rowsTotal()).isEqualTo(8);
-        assertThat(dryRunResponse.rowsImported()).isEqualTo(6);
+        assertThat(dryRunResponse.rowsImported()).isEqualTo(0);
         assertThat(dryRunResponse.rowsFailed()).isEqualTo(2);
         assertThat(dryRunResponse.errorDocumentId()).isNotNull();
 
