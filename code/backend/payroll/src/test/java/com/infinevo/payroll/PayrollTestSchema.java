@@ -9,6 +9,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -213,6 +214,9 @@ public final class PayrollTestSchema {
                     st.execute("ALTER TABLE payroll.ctc_esi_component NO FORCE ROW LEVEL SECURITY");
                 }
             }
+            if (!tableExists(conn, "payroll", "prior_payroll_import_log")) {
+                executeResource(conn, "db/migration/payroll/V140__prior_payroll.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -318,7 +322,70 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "core", "employee_bank")) {
                 st.execute("DELETE FROM core.employee_bank");
             }
+            if (tableExists(conn, "payroll", "prior_payroll_month")) {
+                st.execute("DELETE FROM payroll.prior_payroll_month");
+            }
+            if (tableExists(conn, "payroll", "prior_payroll_import_log")) {
+                st.execute("DELETE FROM payroll.prior_payroll_import_log");
+            }
             st.execute("DELETE FROM core.employee");
+        }
+        PayrollTestApp.TEST_DOCUMENTS.clear();
+        PayrollTestApp.TEST_DOCUMENT_CONTENTS.clear();
+    }
+
+    public static UUID insertDocument(UUID tenantId, String fileName, byte[] content) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.document
+                            (id, tenant_id, employee_id, kind, file_name, content_type, size_bytes,
+                             blob_container, blob_path, checksum_sha256)
+                        VALUES (?, ?, NULL, 'EXPORT', ?, 'text/csv', ?, 'documents', ?, ?)
+                        """)) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.setString(3, fileName);
+            ps.setLong(4, content.length);
+            ps.setString(5, tenantId + "/test/EXPORT/" + id);
+            ps.setString(6, "0".repeat(64));
+            ps.executeUpdate();
+        }
+        PayrollTestApp.TEST_DOCUMENT_CONTENTS.put(id, content);
+        PayrollTestApp.TEST_DOCUMENTS.put(
+                id,
+                new com.infinevo.core.document.DocumentResponse(
+                        id,
+                        null,
+                        com.infinevo.core.document.DocumentKind.EXPORT,
+                        fileName,
+                        "text/csv",
+                        (long) content.length,
+                        "test_checksum",
+                        java.time.Instant.now(),
+                        "system"));
+        return id;
+    }
+
+    public static UUID insertEmployee(UUID tenantId, String employeeNumber, LocalDate dateOfJoining)
+            throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.employee
+                            (id, tenant_id, employee_number, first_name, last_name, date_of_joining, status,
+                             created_by, updated_by)
+                        VALUES (gen_random_uuid(), ?, ?, 'Test', 'Employee', ?, 'ACTIVE', 'test', 'test')
+                        RETURNING id
+                        """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, employeeNumber);
+            ps.setDate(3, java.sql.Date.valueOf(dateOfJoining));
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return (UUID) rs.getObject(1);
+            }
         }
     }
 

@@ -280,7 +280,7 @@ public final class PayRunTestSchema {
     }
 
     /** An employee who will be INCLUDED: active since 2025, a salary from then, and a bank section. */
-    static UUID insertPayableEmployee(UUID tenantId, String number) throws SQLException {
+    public static UUID insertPayableEmployee(UUID tenantId, String number) throws SQLException {
         UUID id = insertEmployee(tenantId, number, LocalDate.of(2025, 1, 1), "ACTIVE", null);
         insertSalary(tenantId, id, LocalDate.of(2025, 1, 1));
         insertBank(tenantId, id);
