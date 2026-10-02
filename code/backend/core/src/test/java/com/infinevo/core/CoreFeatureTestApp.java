@@ -1,5 +1,6 @@
 package com.infinevo.core;
 
+import com.infinevo.core.tenant.TenantClock;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -51,5 +52,5 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             // W-13.4: same reason — UserAccountRepository must be registered.
             "com.infinevo.shared.identity"
         })
-@Import(UserProfileSyncService.class)
+@Import({UserProfileSyncService.class, TenantClock.class})
 public class CoreFeatureTestApp {}

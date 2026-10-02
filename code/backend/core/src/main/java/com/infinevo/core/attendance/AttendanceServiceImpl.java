@@ -36,16 +36,26 @@ public class AttendanceServiceImpl implements AttendanceService, AttendanceQuery
     private final TenantClock tenantClock;
 
     public AttendanceServiceImpl(AttendanceRepository attendanceRepository, EmployeeRepository employeeRepository) {
-        this(attendanceRepository, employeeRepository, null);
+        this(attendanceRepository, employeeRepository, (TenantClock) null);
     }
 
-    @Autowired
     public AttendanceServiceImpl(
             AttendanceRepository attendanceRepository, EmployeeRepository employeeRepository, TenantClock tenantClock) {
         this.attendanceRepository =
                 Objects.requireNonNull(attendanceRepository, "attendanceRepository must not be null");
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
         this.tenantClock = tenantClock;
+    }
+
+    @Autowired
+    public AttendanceServiceImpl(
+            AttendanceRepository attendanceRepository,
+            EmployeeRepository employeeRepository,
+            org.springframework.beans.factory.ObjectProvider<TenantClock> tenantClockProvider) {
+        this(
+                attendanceRepository,
+                employeeRepository,
+                tenantClockProvider != null ? tenantClockProvider.getIfAvailable() : null);
     }
 
     @Override
