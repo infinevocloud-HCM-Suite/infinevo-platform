@@ -20,6 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implementation of {@link PriorPayrollImportService} (W-38.1 §4 &amp; §9).
@@ -246,17 +247,22 @@ public class PriorPayrollImportServiceImpl implements PriorPayrollImportService 
         return PriorPayrollImportResponse.from(importLog);
     }
 
+    // The reads need a transaction of their own: the tenant binding is transaction-local, and in
+    // auto-commit TenantBindingDataSourceProxy refuses it (RLS would return nothing). Only the class
+    // stays non-transactional, for the import's per-row writes.
     @Override
+    @Transactional(readOnly = true)
     public PriorPayrollImportResponse getImport(UUID id) {
         UUID tenantId = TenantContext.require();
         Objects.requireNonNull(id, "id must not be null");
         PriorPayrollImportLog logEntity = importLogRepository
                 .findByTenantIdAndId(tenantId, id)
-                .orElseThrow(() -> new IllegalArgumentException("Prior payroll import not found: " + id));
+                .orElseThrow(() -> new PriorPayrollNotFoundException(id));
         return PriorPayrollImportResponse.from(logEntity);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<PriorPayrollImportResponse> listImports(Pageable pageable) {
         UUID tenantId = TenantContext.require();
         Objects.requireNonNull(pageable, "pageable must not be null");

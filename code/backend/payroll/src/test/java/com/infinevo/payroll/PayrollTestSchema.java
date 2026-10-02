@@ -137,6 +137,14 @@ public final class PayrollTestSchema {
             if (!columnExists(conn, "core", "employee", "department_id")) {
                 executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
             }
+            // W-38.1 reads employees through core's JPA Employee, which maps every column of
+            // core.employee; user_account_id (V026) references core.user_account (V009).
+            if (!tableExists(conn, "core", "user_account")) {
+                executeResource(conn, "db/migration/core/V009__user_account.sql");
+            }
+            if (!columnExists(conn, "core", "employee", "user_account_id")) {
+                executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
+            }
             if (!tableExists(conn, "reference", "pt_state")) {
                 executeResource(conn, "db/migration/reference/V064__pt_state_and_slab.sql");
             }
