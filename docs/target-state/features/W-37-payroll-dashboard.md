@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-37` · from ticket #49 · `PAY-16` |
 | **Promoted to** | `docs/target-state/features/W-37-payroll-dashboard.md` on the developer's `dev-<name>` branch |
-| **Owner** | unassigned |
+| **Owner** | biren |
 | **Apps touched** | `code/backend/payroll` only |
 | **Related gaps** | DEBT-028 (fixed for new code), DEBT-007 (fixed), DEBT-008 (fixed), DEBT-022 (fixed), BUG-011 (fixed for the response), DEBT-001 / DEBT-031 (discounted) |
 | **Status** | **Ready** |
