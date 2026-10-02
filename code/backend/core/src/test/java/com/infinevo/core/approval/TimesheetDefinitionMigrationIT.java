@@ -44,8 +44,10 @@ class TimesheetDefinitionMigrationIT extends AbstractIntegrationTest {
 
     @AfterAll
     static void clearApprovalRows() throws Exception {
+        // The tenants this test made stay: in a database shared with the authorization tests, a tenant has roles
+        // seeded for it (a foreign key from core.role), so deleting one here is refused. What a later test could
+        // trip on is their approval rows, and those are cleared.
         ApprovalTestSchema.clearAll();
-        execute("DELETE FROM core.tenant WHERE name LIKE 'V145 %'");
     }
 
     @Test
