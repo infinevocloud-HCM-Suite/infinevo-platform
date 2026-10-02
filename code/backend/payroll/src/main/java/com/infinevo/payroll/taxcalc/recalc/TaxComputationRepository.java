@@ -14,5 +14,8 @@ public interface TaxComputationRepository extends JpaRepository<TaxComputationRe
     List<TaxComputationRecord> findByTenantIdAndEmployeeIdAndFinancialYearOrderByComputedAtDesc(
             UUID tenantId, UUID employeeId, String financialYear);
 
+    java.util.Optional<TaxComputationRecord> findFirstByTenantIdAndEmployeeIdAndFinancialYearOrderByComputedAtDesc(
+            UUID tenantId, UUID employeeId, String financialYear);
+
     List<TaxComputationRecord> findByTenantIdAndDeclarationIdOrderByComputedAtDesc(UUID tenantId, UUID declarationId);
 }

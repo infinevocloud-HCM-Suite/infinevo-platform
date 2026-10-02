@@ -606,6 +606,72 @@ public class PayrollTestApp {
     }
 
     @Bean
+    public com.infinevo.core.employee.detail.EmployeeIdentificationService employeeIdentificationService(
+            DataSource dataSource) {
+        return new com.infinevo.core.employee.detail.EmployeeIdentificationService() {
+            @Override
+            public Optional<com.infinevo.core.employee.detail.EmployeeIdentificationResponse> find(UUID employeeId) {
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                "SELECT id, pan_number, aadhaar_number FROM core.employee_identification WHERE employee_id = ? AND tenant_id = ?")) {
+                            ps.setObject(1, employeeId);
+                            ps.setObject(2, tenantId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                Optional<com.infinevo.core.employee.detail.EmployeeIdentificationResponse> result =
+                                        Optional.empty();
+                                if (rs.next()) {
+                                    result = Optional.of(
+                                            new com.infinevo.core.employee.detail.EmployeeIdentificationResponse(
+                                                    (UUID) rs.getObject("id"),
+                                                    tenantId,
+                                                    employeeId,
+                                                    null,
+                                                    rs.getString("aadhaar_number"),
+                                                    rs.getString("pan_number"),
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    Instant.now(),
+                                                    Instant.now()));
+                                }
+                                conn.commit();
+                                return result;
+                            }
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    return Optional.empty();
+                }
+            }
+
+            @Override
+            public com.infinevo.core.employee.detail.EmployeeIdentificationResponse get(UUID employeeId) {
+                return find(employeeId)
+                        .orElseThrow(
+                                () -> new com.infinevo.core.employee.detail.EmployeeDetailService.NotFoundException(
+                                        "identification", employeeId));
+            }
+
+            @Override
+            public com.infinevo.core.employee.detail.EmployeeIdentificationResponse put(
+                    UUID employeeId, com.infinevo.core.employee.detail.EmployeeIdentificationRequest request) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    @Bean
     public com.infinevo.core.org.WorkLocationService workLocationService(DataSource dataSource) {
         return new com.infinevo.core.org.WorkLocationService() {
             @Override

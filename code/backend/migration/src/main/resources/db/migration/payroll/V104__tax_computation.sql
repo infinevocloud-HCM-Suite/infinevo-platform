@@ -47,10 +47,11 @@ ALTER TABLE payroll.tax_computation ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY tenant_isolation ON payroll.tax_computation
     USING (
-        CASE
-            WHEN current_setting('app.tenant_id', true) IS NULL THEN false
-            ELSE tenant_id = current_setting('app.tenant_id', true)::uuid
-        END
+      tenant_id = CASE
+        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
+        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
+        ELSE current_setting('app.current_tenant_id', true)::uuid
+      END
     );
 
 -- Enforce append-only at the database role level (no UPDATE / DELETE for app_user)

@@ -47,4 +47,22 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
     /** The tenant's earliest run of a type, ignoring one status (W-38.3 §3: first regular run not cancelled). */
     Optional<PayRun> findFirstByTenantIdAndRunTypeAndStatusNotOrderByPeriodAsc(
             UUID tenantId, PayRunType runType, PayRunStatus status);
+
+    /**
+     * Counts distinct regular periods with PAID status in the given period range (W-36.4 §4).
+     */
+    @Query(
+            """
+            SELECT COUNT(DISTINCT pr.period)
+            FROM PayRun pr
+            WHERE pr.tenantId = :tenantId
+              AND pr.status = com.infinevo.payroll.payrun.PayRunStatus.PAID
+              AND pr.runType = com.infinevo.payroll.payrun.PayRunType.REGULAR
+              AND pr.period >= :startPeriod
+              AND pr.period <= :endPeriod
+            """)
+    long countPaidRegularPeriods(
+            @Param("tenantId") UUID tenantId,
+            @Param("startPeriod") String startPeriod,
+            @Param("endPeriod") String endPeriod);
 }

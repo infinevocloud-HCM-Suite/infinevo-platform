@@ -54,4 +54,29 @@ public interface EmployeePayRunLineRepository extends JpaRepository<EmployeePayR
             @Param("periodFrom") String periodFrom,
             @Param("periodTo") String periodTo,
             @Param("excludingPayrunId") UUID excludingPayrunId);
+
+    /**
+     * Tax line totals grouped by period for PAID runs (W-36.4 §4).
+     */
+    @Query(
+            """
+            SELECT pr.period AS period, COALESCE(SUM(l.amount), 0) AS amount
+            FROM EmployeePayRunLine l
+            JOIN EmployeePayRun epr ON l.employeePayrunId = epr.id
+            JOIN PayRun pr ON l.payrunId = pr.id
+            WHERE l.tenantId = :tenantId
+              AND epr.tenantId = :tenantId
+              AND pr.tenantId = :tenantId
+              AND epr.employeeId = :employeeId
+              AND l.source = com.infinevo.payroll.payrun.LineSource.TAX
+              AND pr.status = com.infinevo.payroll.payrun.PayRunStatus.PAID
+              AND pr.period >= :periodFrom
+              AND pr.period <= :periodTo
+            GROUP BY pr.period
+            """)
+    List<PeriodTaxTotal> sumTaxLinesByPeriod(
+            @Param("tenantId") UUID tenantId,
+            @Param("employeeId") UUID employeeId,
+            @Param("periodFrom") String periodFrom,
+            @Param("periodTo") String periodTo);
 }

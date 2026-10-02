@@ -13,6 +13,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Immutable audit entity recording an annual income tax recalculation snapshot (W-33.3).
@@ -88,6 +90,7 @@ public class TaxComputationRecord {
     @Column(name = "annual_tax", nullable = false, precision = 19, scale = 4)
     private BigDecimal annualTax;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "working", nullable = false, columnDefinition = "jsonb")
     private String working;
 

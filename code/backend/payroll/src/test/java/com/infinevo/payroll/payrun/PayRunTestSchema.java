@@ -86,6 +86,18 @@ public final class PayRunTestSchema {
                 TaxDeclarationTestSchema.apply();
                 PayrollTestSchema.executeResource(conn, "db/migration/payroll/V102__employee_tds.sql");
             }
+            if (PayrollTestSchema.tableExists(conn, "payroll", "tax_computation")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DROP TABLE payroll.tax_computation CASCADE");
+                }
+            }
+            PayrollTestSchema.executeResource(conn, "db/migration/payroll/V104__tax_computation.sql");
+            if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DROP TABLE payroll.tax_deductor CASCADE");
+                }
+            }
+            PayrollTestSchema.executeResource(conn, "db/migration/payroll/V107__tax_deductor.sql");
             // W-20.1: notification templates and notifications for payslip link dispatch.
             if (!PayrollTestSchema.tableExists(conn, "core", "notification_template")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/core/V038__notification_template.sql");
@@ -111,6 +123,21 @@ public final class PayRunTestSchema {
             if (PayrollTestSchema.tableExists(conn, "core", "notification")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DELETE FROM core.notification");
+                }
+            }
+            if (PayrollTestSchema.tableExists(conn, "payroll", "employee_tds")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.employee_tds");
+                }
+            }
+            if (PayrollTestSchema.tableExists(conn, "payroll", "tax_computation")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.tax_computation");
+                }
+            }
+            if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.tax_deductor");
                 }
             }
         }
