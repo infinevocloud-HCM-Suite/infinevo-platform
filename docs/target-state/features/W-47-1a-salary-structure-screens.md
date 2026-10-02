@@ -4,7 +4,7 @@
 |---|---|
 | **Feature ID** | `W-47.1a` · from ticket #63 · `PAY-01`, `PAY-02` |
 | **Spec file** | `docs/target-state/features/W-47-1a-salary-structure-screens.md` |
-| **Owner** | karma, branch `dev-karma` (assigned 2026-10-02) |
+| **Owner** | sayeed, branch `dev-sayeed` (from karma 2026-10-02) |
 | **Apps touched** | `code/frontend/src/payroll/salary` only. No backend, no migration |
 | **Related gaps** | DEBT-008 (closed by the envelope), DEBT-026 (prevented), BUG-006 (deferred) |
 | **Status** | **Ready** |
