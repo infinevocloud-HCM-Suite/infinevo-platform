@@ -132,6 +132,7 @@ public final class AuthzTestSchema {
                     }
                     if (!actionExists(conn, "hrms.overtime.request")) {
                         executeResource(conn, "db/migration/reference/V122__hrms_request_actions.sql");
+                        executeResource(conn, "db/migration/core/V139__hrms_request_seed_roles.sql");
                     }
                     if (!functionExists(conn, "core", "list_tenants")) {
                         executeResource(conn, "db/migration/core/V082__platform_tenant.sql");
