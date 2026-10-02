@@ -54,7 +54,7 @@ import org.springframework.security.test.context.support.WithMockUser;
  * class fails rather than reporting green having run nothing (#117).
  */
 @SpringBootTest(classes = CoreFeatureTestApp.class)
-@WithMockUser(authorities = "core.employee.update")
+@WithMockUser(authorities = {"core.employee.read", "core.employee.update"})
 class EmployeeDetailRlsIT extends AbstractIntegrationTest {
 
     @Autowired
@@ -97,6 +97,7 @@ class EmployeeDetailRlsIT extends AbstractIntegrationTest {
     void seed() throws Exception {
         TenantContext.clear();
         BDDMockito.given(permissionService.holds("core.employee.update")).willReturn(true);
+        BDDMockito.given(permissionService.holds("core.employee.read")).willReturn(true);
         EmployeeTestSchema.seedTenants();
         EmployeeDetailTestSchema.clearAll();
         employeeOfA = EmployeeTestSchema.seedEmployee(TENANT_A, "A-001", "Asha");

@@ -54,9 +54,7 @@ public class ApprovalController {
     }
 
     @GetMapping("/api/v1/approvals/{instanceId}/history")
-    @RequiresAction(
-            value = "core.approval.read",
-            anyOf = {"core.leave.read_own", "core.leave.read", "core.approval.decide"})
+    @RequiresAction("core.approval.read")
     public ApprovalHistoryResponse getApprovalHistory(@PathVariable("instanceId") UUID instanceId) {
         return approvalService.getHistory(instanceId);
     }

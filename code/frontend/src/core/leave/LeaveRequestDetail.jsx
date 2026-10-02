@@ -82,7 +82,18 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
               const match = types.find((t) => t.id === req.leaveTypeId);
               if (match) setLeaveType(match);
             })
-            .catch(() => {})
+            .catch(() => {
+              if (req.employeeId) {
+                return leaveTypeService
+                  .eligible(req.employeeId)
+                  .then((res) => {
+                    const types = Array.isArray(res) ? res : res?.items || [];
+                    const match = types.find((t) => t.id === req.leaveTypeId);
+                    if (match) setLeaveType(match);
+                  })
+                  .catch(() => {});
+              }
+            })
         );
       }
 
