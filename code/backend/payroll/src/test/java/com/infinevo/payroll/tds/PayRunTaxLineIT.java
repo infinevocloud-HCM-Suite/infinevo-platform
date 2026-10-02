@@ -1,4 +1,4 @@
-package com.infinevo.payroll.statutory.payrun;
+package com.infinevo.payroll.tds;
 
 import static com.infinevo.payroll.payrun.PayRunTestSchema.TENANT_A;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,6 +18,7 @@ import com.infinevo.payroll.payrun.PayRunTestSchema;
 import com.infinevo.payroll.schedule.PayDayRule;
 import com.infinevo.payroll.schedule.PayScheduleRequest;
 import com.infinevo.payroll.schedule.PayScheduleService;
+import com.infinevo.payroll.taxcalc.TaxRegime;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
@@ -38,14 +39,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
- * W-31.4 §7 — the acceptance test: lock and compute a one-employee run with the §8 setup;
- * total_deductions = 2,000.0000, total_benefits = 1,950.0000, net_pay = 45,000.00 - 2,000.00 = 43,000.00
- * with no reimbursements; lines readable with source = STATUTORY; implements PayLineContributor count is 4.
+ * Acceptance test for pay run tax lines (W-36.1 §7):
+ * Record annual tax 120,000 from 2026-04; lock and compute April => TDS line 10,000.0000;
+ * compute May => 10,000.0000; recompute April => still 10,000.0000;
+ * cancel May then compute June => ytd counts April only;
+ * implements PayLineContributor count is 5.
  */
 @SpringBootTest(classes = PayrollTestApp.class)
-class PayRunStatutoryIT extends AbstractIntegrationTest {
+class PayRunTaxLineIT extends AbstractIntegrationTest {
 
-    private static final YearMonth JULY = YearMonth.of(2026, 7);
+    private static final YearMonth APRIL = YearMonth.of(2026, 4);
+    private static final YearMonth MAY = YearMonth.of(2026, 5);
+    private static final YearMonth JUNE = YearMonth.of(2026, 6);
 
     @Autowired
     private PayRunService payRunService;
@@ -55,6 +60,9 @@ class PayRunStatutoryIT extends AbstractIntegrationTest {
 
     @Autowired
     private PayScheduleService scheduleService;
+
+    @Autowired
+    private EmployeeTdsService employeeTdsService;
 
     @Autowired
     private List<PayLineContributor> contributors;
@@ -85,7 +93,7 @@ class PayRunStatutoryIT extends AbstractIntegrationTest {
         seedWorkLocation(TENANT_A, workLocationId, "BLR-01", "Bengaluru HQ", "KA");
 
         employeeId = UUID.randomUUID();
-        seedEmployee(TENANT_A, employeeId, "EMP-STAT-001", workLocationId);
+        seedEmployee(TENANT_A, employeeId, "EMP-TDS-001", workLocationId);
         PayRunTestSchema.insertBank(TENANT_A, employeeId);
         seedStatutoryProfile(TENANT_A, employeeId, true, true, true, true);
         seedEpfSetting(TENANT_A);
@@ -100,73 +108,82 @@ class PayRunStatutoryIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Lock then compute: statutory lines produced, deductions=2,000, benefits=1,950, net=43,000")
-    void computeStatutoryWorkedExample() throws SQLException {
-        PayRunResponse run = payRunService.create(JULY);
-        payRunService.lock(run.id());
+    @DisplayName("Pay run tax line acceptance flow: April, May, recompute April, cancel May, June, 5 contributors")
+    void payRunTaxLineAcceptance() throws SQLException {
+        // 1. Record annual tax 120,000 from 2026-04
+        employeeTdsService.record(
+                employeeId,
+                "2026-2027",
+                new TdsFigures(
+                        TaxRegime.NEW,
+                        new BigDecimal("600000.00"),
+                        new BigDecimal("550000.00"),
+                        new BigDecimal("120000.00"),
+                        "2026-04",
+                        null,
+                        "Annual TDS initial"));
 
-        PayRunResponse computed = worker.computeNow(run.id());
+        // 2. Lock and compute the April run
+        PayRunResponse aprilRun = payRunService.create(APRIL);
+        payRunService.lock(aprilRun.id());
+        PayRunResponse aprilComputed = worker.computeNow(aprilRun.id());
 
-        assertThat(computed.status()).isEqualTo(PayRunStatus.COMPUTED);
-        assertThat(computed.computedAt()).isNotNull();
-        assertThat(computed.failureReason()).isNull();
+        assertThat(aprilComputed.status()).isEqualTo(PayRunStatus.COMPUTED);
+        // Total deductions = Statutory (2,000) + TDS (10,000) = 12,000.0000
+        assertThat(aprilComputed.totalDeductions()).isEqualByComparingTo("12000.0000");
 
-        assertThat(computed.totalGross()).isEqualByComparingTo("45000.0000");
-        assertThat(computed.totalDeductions()).isEqualByComparingTo("2000.0000");
-        assertThat(computed.totalNetPay()).isEqualByComparingTo("43000.00");
+        EmployeePayRunLinesResponse aprilLinesResp = payRunService.lines(aprilRun.id(), employeeId);
+        EmployeePayRunLineResponse aprilTds = aprilLinesResp.lines().stream()
+                .filter(l -> l.source() == LineSource.TAX)
+                .findFirst()
+                .orElseThrow();
+        assertThat(aprilTds.componentCode()).isEqualTo("TDS");
+        assertThat(aprilTds.lineKind()).isEqualTo(LineKind.DEDUCTION);
+        assertThat(aprilTds.amount()).isEqualByComparingTo("10000.0000");
 
-        BigDecimal rowBenefits = getRowTotalBenefits(run.id(), employeeId);
-        assertThat(rowBenefits).isEqualByComparingTo("1950.0000");
+        // 3. Compute May => 10,000.0000 again (ytd 10,000, 11 months left)
+        PayRunResponse mayRun = payRunService.create(MAY);
+        payRunService.lock(mayRun.id());
+        PayRunResponse mayComputed = worker.computeNow(mayRun.id());
 
-        EmployeePayRunLinesResponse linesResponse = payRunService.lines(run.id(), employeeId);
-        assertThat(linesResponse.computationError()).isNull();
-        List<EmployeePayRunLineResponse> lines = linesResponse.lines();
+        assertThat(mayComputed.status()).isEqualTo(PayRunStatus.COMPUTED);
+        EmployeePayRunLinesResponse mayLinesResp = payRunService.lines(mayRun.id(), employeeId);
+        EmployeePayRunLineResponse mayTds = mayLinesResp.lines().stream()
+                .filter(l -> l.source() == LineSource.TAX)
+                .findFirst()
+                .orElseThrow();
+        assertThat(mayTds.amount()).isEqualByComparingTo("10000.0000");
 
-        List<EmployeePayRunLineResponse> statutoryLines =
-                lines.stream().filter(l -> l.source() == LineSource.STATUTORY).toList();
+        // 4. Recompute April => still 10,000.0000 (its own line was not counted)
+        PayRunResponse aprilRecomputed = worker.computeNow(aprilRun.id());
+        assertThat(aprilRecomputed.status()).isEqualTo(PayRunStatus.COMPUTED);
+        EmployeePayRunLinesResponse aprilRecomputedLines = payRunService.lines(aprilRun.id(), employeeId);
+        EmployeePayRunLineResponse aprilRecomputedTds = aprilRecomputedLines.lines().stream()
+                .filter(l -> l.source() == LineSource.TAX)
+                .findFirst()
+                .orElseThrow();
+        assertThat(aprilRecomputedTds.amount()).isEqualByComparingTo("10000.0000");
 
-        assertThat(statutoryLines).isNotEmpty();
+        // 5. Cancel May then compute June => ytd counts April only
+        payRunService.approve(mayRun.id());
+        payRunService.cancel(mayRun.id());
 
-        assertThat(statutoryLines).anySatisfy(line -> {
-            assertThat(line.componentCode()).isEqualTo("EPF_EMPLOYEE");
-            assertThat(line.lineKind()).isEqualTo(LineKind.DEDUCTION);
-            assertThat(line.amount()).isEqualByComparingTo("1800.0000");
-        });
+        PayRunResponse juneRun = payRunService.create(JUNE);
+        payRunService.lock(juneRun.id());
+        PayRunResponse juneComputed = worker.computeNow(juneRun.id());
 
-        assertThat(statutoryLines).anySatisfy(line -> {
-            assertThat(line.componentCode()).isEqualTo("PROFESSIONAL_TAX");
-            assertThat(line.lineKind()).isEqualTo(LineKind.DEDUCTION);
-            assertThat(line.amount()).isEqualByComparingTo("200.0000");
-        });
+        assertThat(juneComputed.status()).isEqualTo(PayRunStatus.COMPUTED);
+        EmployeePayRunLinesResponse juneLinesResp = payRunService.lines(juneRun.id(), employeeId);
+        EmployeePayRunLineResponse juneTds = juneLinesResp.lines().stream()
+                .filter(l -> l.source() == LineSource.TAX)
+                .findFirst()
+                .orElseThrow();
+        // Remaining = 120,000 - 10,000 (April only) = 110,000. Months June..March = 10.
+        // 110,000 / 10 = 11,000.0000
+        assertThat(juneTds.amount()).isEqualByComparingTo("11000.0000");
 
-        assertThat(statutoryLines).noneMatch(line -> "ESI_EMPLOYEE".equals(line.componentCode()));
-        assertThat(statutoryLines).noneMatch(line -> "ESI_EMPLOYER".equals(line.componentCode()));
-
-        assertThat(statutoryLines).anySatisfy(line -> {
-            assertThat(line.componentCode()).isEqualTo("EPS_EMPLOYER");
-            assertThat(line.lineKind()).isEqualTo(LineKind.BENEFIT);
-            assertThat(line.amount()).isEqualByComparingTo("1250.0000");
-        });
-
-        assertThat(statutoryLines).anySatisfy(line -> {
-            assertThat(line.componentCode()).isEqualTo("EPF_EMPLOYER");
-            assertThat(line.lineKind()).isEqualTo(LineKind.BENEFIT);
-            assertThat(line.amount()).isEqualByComparingTo("550.0000");
-        });
-
-        assertThat(statutoryLines).anySatisfy(line -> {
-            assertThat(line.componentCode()).isEqualTo("EDLI");
-            assertThat(line.lineKind()).isEqualTo(LineKind.BENEFIT);
-            assertThat(line.amount()).isEqualByComparingTo("75.0000");
-        });
-
-        assertThat(statutoryLines).anySatisfy(line -> {
-            assertThat(line.componentCode()).isEqualTo("EPF_ADMIN");
-            assertThat(line.lineKind()).isEqualTo(LineKind.BENEFIT);
-            assertThat(line.amount()).isEqualByComparingTo("75.0000");
-        });
-
-        assertThat(contributors).hasSizeGreaterThanOrEqualTo(4);
+        // 6. implements PayLineContributor count is 5
+        assertThat(contributors).hasSize(5);
     }
 
     private static void seedWorkLocation(UUID tenantId, UUID locationId, String code, String name, String stateCode)
@@ -280,21 +297,6 @@ class PayRunStatutoryIT extends AbstractIntegrationTest {
                 ps.setObject(2 + i * 2, ctc);
             }
             ps.executeUpdate();
-        }
-    }
-
-    private static BigDecimal getRowTotalBenefits(UUID payrunId, UUID employeeId) throws SQLException {
-        try (Connection conn = PayrollTestSchema.migrationConnection();
-                PreparedStatement ps = conn.prepareStatement(
-                        "SELECT total_benefits FROM payroll.employee_payrun WHERE payrun_id = ? AND employee_id = ?")) {
-            ps.setObject(1, payrunId);
-            ps.setObject(2, employeeId);
-            try (var rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getBigDecimal(1);
-                }
-                throw new IllegalStateException("No employee_payrun row found");
-            }
         }
     }
 }

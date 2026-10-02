@@ -1,5 +1,6 @@
 package com.infinevo.payroll.payrun;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +23,34 @@ public interface EmployeePayRunLineRepository extends JpaRepository<EmployeePayR
     List<EmployeePayRunLine> findByTenantIdAndEmployeePayrunIdOrderBySortOrderAsc(UUID tenantId, UUID employeePayrunId);
 
     long countByTenantIdAndPayrunId(UUID tenantId, UUID payrunId);
+
+    /**
+     * Year-to-date tax sum across computed, approved, or paid runs within the given period range (W-36.1 §4).
+     */
+    @Query(
+            """
+        SELECT COALESCE(SUM(l.amount), 0)
+        FROM EmployeePayRunLine l, EmployeePayRun epr, PayRun pr
+        WHERE l.employeePayrunId = epr.id
+          AND l.payrunId = pr.id
+          AND l.tenantId = :tenantId
+          AND epr.tenantId = :tenantId
+          AND pr.tenantId = :tenantId
+          AND epr.employeeId = :employeeId
+          AND l.source = com.infinevo.payroll.payrun.LineSource.TAX
+          AND pr.period >= :periodFrom
+          AND pr.period <= :periodTo
+          AND pr.status IN (
+              com.infinevo.payroll.payrun.PayRunStatus.COMPUTED,
+              com.infinevo.payroll.payrun.PayRunStatus.APPROVED,
+              com.infinevo.payroll.payrun.PayRunStatus.PAID
+          )
+          AND (:excludingPayrunId IS NULL OR pr.id <> :excludingPayrunId)
+    """)
+    BigDecimal sumTaxLines(
+            @Param("tenantId") UUID tenantId,
+            @Param("employeeId") UUID employeeId,
+            @Param("periodFrom") String periodFrom,
+            @Param("periodTo") String periodTo,
+            @Param("excludingPayrunId") UUID excludingPayrunId);
 }
