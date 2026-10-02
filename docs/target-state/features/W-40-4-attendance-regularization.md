@@ -3,8 +3,8 @@
 | Field | Value |
 |---|---|
 | **Feature ID** | `W-40.4` · from ticket `W-40` (#51–52) · `HRMS-03`, `HRMS-12` |
-| **Promoted to** | `docs/target-state/features/W-40-4-attendance-regularization.md` on branch `dev-sayeed` — **`W-40-4` with hyphens** |
-| **Owner** | sayeed, branch `dev-sayeed` |
+| **Promoted to** | `docs/target-state/features/W-40-4-attendance-regularization.md` on branch `dev-karma` — **`W-40-4` with hyphens** |
+| **Owner** | karma, branch `dev-karma` (from sayeed 2026-10-02) |
 | **Apps touched** | `code/backend/hrms`, `code/backend/migration` |
 | **Related gaps** | BUG-002 (fixed for this table), DEBT-018 (honoured) |
 | **Status** | **Ready** |

@@ -229,3 +229,7 @@ the decision; the consolidated record is
 
 3. **A joiner's or leaver's days outside employment are counted in the policy's own days** — `core`'s `WorkingDayBasisCalculator.daysOutsideEmployment`, so this ticket touches `core` as well as `payroll`. It amends `W-29.3` §13 decision 2; the rule is in `W-29.3` §3.
 4. **An employee with no work location fails alone when holidays are unpaid**, rather than taking the tenant's default holiday calendar. `core`'s own working-day basis endpoint refuses them too.
+
+**Decided by the founder at merge, 2026-10-02 (`9d5c0a0`):**
+
+5. **An off-cycle figure carries no stamp.** It prices no days, so no policy produced it: the five columns stay null and explain returns them null. "No stamp, no figure" holds for `REGULAR` runs only. The rule is in `W-30.2` § 13 decision 7.
