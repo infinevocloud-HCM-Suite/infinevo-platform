@@ -14,4 +14,12 @@ import java.util.List;
 public interface PayLineContributor {
 
     List<PayLine> contribute(PayRunEmployeeContext ctx);
+
+    /**
+     * Why this contributor wrote nothing an officer would expect, or {@code null} (W-36.1 §3). The
+     * computation keeps the notes of every contributor on the employee's row.
+     */
+    default String note(PayRunEmployeeContext ctx) {
+        return null;
+    }
 }

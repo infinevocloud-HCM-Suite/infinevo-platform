@@ -6,6 +6,15 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-02 — `W-36.1` merged (`9263c30`)
+
+- Employee TDS record (`payroll.employee_tds`, `V102`) and the pay run's monthly TDS line.
+- One squash of `dev-karma` at `6819dad`. Gates 5/5, CI green there, one independent read.
+- Fixed at merge: off-cycle runs took a full month's TDS; no-record went unreported (now `employee_payrun.computation_note`); 500s on a missing figure and a concurrent save; UTC default month; no HTTP tests; TDS tests depended on test order.
+- **Outstanding:** tax on off-cycle payments is undecided; `PayRunTaxLineIT` contributor count goes back to 5 when `W-31.4` lands.
+- **Branches:** karma resets `dev-karma` to `main` before `W-40.1`.
+- **Newly Ready:** `W-33.3` (mohit). `W-36.4` now waits on `W-33.3`, `W-36.3`; `W-38.2` on `W-38.1`, `W-36.4`; `W-34.2`'s event on `W-33.3`.
+
 ## 2026-10-02 — `W-47.2` merged (`36c02d1`)
 
 - Pay run screens: list, run page with lock, compute, approve, pay and cancel, employees and lines, off-cycle create. Pay date is checked on the tenant's day.

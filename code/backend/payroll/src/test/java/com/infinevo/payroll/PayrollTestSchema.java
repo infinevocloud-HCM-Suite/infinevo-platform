@@ -315,6 +315,9 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "payrun")) {
                 st.execute("DELETE FROM payroll.payrun");
             }
+            if (tableExists(conn, "payroll", "employee_tds")) {
+                st.execute("DELETE FROM payroll.employee_tds");
+            }
             if (tableExists(conn, "core", "employee_bank")) {
                 st.execute("DELETE FROM core.employee_bank");
             }
