@@ -15,9 +15,12 @@ import java.util.UUID;
  *
  * <p>The tenant is set once, from {@code TenantContext}, by the service that builds the row; row-level security
  * is what keeps every other tenant's rows out of reach.
+ *
+ * <p>Public, though nothing outside the package extends it: a Hibernate proxy of a lazy parent (a project line's
+ * timesheet) calls the inherited getters by reflection, which a package-private declaring class refuses.
  */
 @MappedSuperclass
-abstract class TimesheetRow {
+public abstract class TimesheetRow {
 
     static final String ACTOR_SYSTEM = "system";
 

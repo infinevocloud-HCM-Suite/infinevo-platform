@@ -50,7 +50,12 @@ class HrmsNavigationTest {
 
         Method target = Arrays.stream(TimesheetController.class.getDeclaredMethods())
                 .filter(m -> m.isAnnotationPresent(GetMapping.class))
-                .filter(m -> (base + m.getAnnotation(GetMapping.class).value()[0]).equals(item.targetEndpoint()))
+                .filter(m -> {
+                    // A bare @GetMapping (HR's list, W-42.4) maps the base path itself.
+                    String[] paths = m.getAnnotation(GetMapping.class).value();
+                    return Arrays.stream(paths.length == 0 ? new String[] {""} : paths)
+                            .anyMatch(path -> (base + path).equals(item.targetEndpoint()));
+                })
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no GET mapping serves " + item.targetEndpoint()));
 

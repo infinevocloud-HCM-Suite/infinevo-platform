@@ -2,36 +2,21 @@ package com.infinevo.hrms.timesheet;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
-import com.infinevo.hrms.project.AssignmentRepository;
-import com.infinevo.hrms.project.ProjectRepository;
 import com.infinevo.hrms.project.ResourceNotFoundException;
-import com.infinevo.hrms.project.Task;
-import com.infinevo.hrms.project.TaskRepository;
 import com.infinevo.hrms.project.ValidationException;
-import com.infinevo.hrms.timesheet.TimesheetRequest.DayLine;
 import com.infinevo.hrms.timesheet.TimesheetRequest.ProjectLine;
-import com.infinevo.hrms.timesheet.TimesheetRequest.TaskLine;
 import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.tenant.TenantContext;
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,47 +36,34 @@ public class TimesheetServiceImpl implements TimesheetService {
     static final String ACTION_SUBMIT = "hrms.timesheet.submit";
     static final String ACTION_READ_OWN = "hrms.timesheet.read_own";
     private static final String UNIQUE_WEEK = "uk_timesheet_tenant_employee_week";
-    private static final String NOT_ASSIGNED = "No such project, or you are not assigned to it";
-    private static final String NO_SUCH_TASK = "No such task on this project";
     private static final LocalDate EARLIEST = LocalDate.of(1900, 1, 1);
     private static final LocalDate LATEST = LocalDate.of(9999, 12, 31);
 
     private final TimesheetRepository timesheetRepository;
-    private final ProjectRepository projectRepository;
-    private final TaskRepository taskRepository;
-    private final AssignmentRepository assignmentRepository;
+    private final TimesheetValidator validator;
+    private final TimesheetSubmitService submitService;
     private final EmployeeService employeeService;
     private final Clock clock;
 
     @Autowired
     public TimesheetServiceImpl(
             TimesheetRepository timesheetRepository,
-            ProjectRepository projectRepository,
-            TaskRepository taskRepository,
-            AssignmentRepository assignmentRepository,
+            TimesheetValidator validator,
+            TimesheetSubmitService submitService,
             EmployeeService employeeService) {
-        this(
-                timesheetRepository,
-                projectRepository,
-                taskRepository,
-                assignmentRepository,
-                employeeService,
-                Clock.systemDefaultZone());
+        this(timesheetRepository, validator, submitService, employeeService, Clock.systemDefaultZone());
     }
 
     /** For tests: a fixed clock for "this week". Spring uses the other constructor, as there is no Clock bean. */
     TimesheetServiceImpl(
             TimesheetRepository timesheetRepository,
-            ProjectRepository projectRepository,
-            TaskRepository taskRepository,
-            AssignmentRepository assignmentRepository,
+            TimesheetValidator validator,
+            TimesheetSubmitService submitService,
             EmployeeService employeeService,
             Clock clock) {
         this.timesheetRepository = Objects.requireNonNull(timesheetRepository, "timesheetRepository must not be null");
-        this.projectRepository = Objects.requireNonNull(projectRepository, "projectRepository must not be null");
-        this.taskRepository = Objects.requireNonNull(taskRepository, "taskRepository must not be null");
-        this.assignmentRepository =
-                Objects.requireNonNull(assignmentRepository, "assignmentRepository must not be null");
+        this.validator = Objects.requireNonNull(validator, "validator must not be null");
+        this.submitService = Objects.requireNonNull(submitService, "submitService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
@@ -100,7 +72,7 @@ public class TimesheetServiceImpl implements TimesheetService {
     public TimesheetResponse create(TimesheetRequest request) {
         UUID tenantId = TenantContext.require();
         EmployeeResponse me = currentEmployee(ACTION_SUBMIT);
-        validate(tenantId, me.id(), request);
+        validator.validate(tenantId, me.id(), request);
 
         LocalDate week = request.weekStartDate();
         if (timesheetRepository.existsByTenantIdAndEmployeeIdAndWeekStartDateAndStatusNot(
@@ -128,6 +100,10 @@ public class TimesheetServiceImpl implements TimesheetService {
         UUID tenantId = TenantContext.require();
         EmployeeResponse me = currentEmployee(ACTION_SUBMIT);
         Timesheet sheet = owned(tenantId, me.id(), id);
+        if (sheet.getStatus() == TimesheetStatus.REJECTED) {
+            // After a rejection the employee edits the same week and only the rejected projects go back (W-42.3).
+            return submitService.resubmit(id, request);
+        }
         requireDraft(sheet, "changed");
 
         if (request != null
@@ -138,7 +114,7 @@ public class TimesheetServiceImpl implements TimesheetService {
                     "week_start_date cannot be changed; delete the draft and create one for the other week");
         }
         TimesheetRequest body = request;
-        validate(tenantId, me.id(), body);
+        validator.validate(tenantId, me.id(), body);
 
         String actor = currentActor();
         // Old lines go first, in their own flush: a line that keeps its project or task would otherwise be inserted
@@ -240,79 +216,14 @@ public class TimesheetServiceImpl implements TimesheetService {
         return cause.getMessage() != null && cause.getMessage().contains(UNIQUE_WEEK);
     }
 
-    /**
-     * Every rule of the spec's table: the shape ({@link TimesheetRules}), then what needs the database. All errors are
-     * reported together, by field.
-     */
-    private void validate(UUID tenantId, UUID employeeId, TimesheetRequest request) {
-        Map<String, String> errors = new LinkedHashMap<>(TimesheetRules.validate(request));
-        if (!errors.isEmpty()) {
-            throw new ValidationException(errors);
-        }
-
-        List<ProjectLine> projects = request.projects();
-        Set<UUID> projectIds = projects.stream().map(ProjectLine::projectId).collect(Collectors.toSet());
-        Set<UUID> liveProjects =
-                projectRepository.findAllByTenantIdAndIdInAndDeletedFalse(tenantId, projectIds).stream()
-                        .map(p -> p.getId())
-                        .collect(Collectors.toSet());
-        Set<UUID> assigned =
-                assignmentRepository.findAllByTenantIdAndEmployeeIdAndDeletedFalse(tenantId, employeeId).stream()
-                        .map(a -> a.getProjectId())
-                        .collect(Collectors.toSet());
-
-        Set<UUID> taskIds = new HashSet<>();
-        for (ProjectLine project : projects) {
-            project.tasks().forEach(t -> taskIds.add(t.taskId()));
-        }
-        Map<UUID, Task> liveTasks = taskRepository.findAllByTenantIdAndIdInAndDeletedFalse(tenantId, taskIds).stream()
-                .collect(Collectors.toMap(Task::getId, Function.identity()));
-
-        for (int p = 0; p < projects.size(); p++) {
-            ProjectLine project = projects.get(p);
-            String pk = "projects[" + p + "]";
-            // One message for "no such project" and "not yours", so a probe cannot tell the two apart.
-            if (!liveProjects.contains(project.projectId()) || !assigned.contains(project.projectId())) {
-                errors.put(pk + ".project_id", NOT_ASSIGNED);
-                continue;
-            }
-            List<TaskLine> tasks = project.tasks();
-            for (int t = 0; t < tasks.size(); t++) {
-                Task task = liveTasks.get(tasks.get(t).taskId());
-                if (task == null || !project.projectId().equals(task.getProjectId())) {
-                    errors.put(pk + ".tasks[" + t + "].task_id", NO_SUCH_TASK);
-                }
-            }
-        }
-        if (!errors.isEmpty()) {
-            throw new ValidationException(errors);
-        }
-    }
-
-    /** Builds the nested lines of a request onto a timesheet. Hours are held at scale 2, as the column is. */
+    /** Builds the nested lines of a request onto a timesheet. */
     private static void applyLines(Timesheet sheet, TimesheetRequest request, String actor) {
         for (ProjectLine project : request.projects()) {
-            TimesheetProjectEntry projectEntry = sheet.addProject(project.projectId(), actor);
-            for (TaskLine task : project.tasks()) {
-                TimesheetTaskEntry taskEntry = projectEntry.addTask(task.taskId(), actor);
-                for (DayLine day : task.days()) {
-                    BigDecimal hours = day.hours().setScale(2);
-                    taskEntry.addDay(day.date(), hours, day.description(), actor);
-                }
-            }
+            TimesheetLines.addTasks(sheet.addProject(project.projectId(), actor), project, actor);
         }
     }
 
-    /** The audit actor: the authenticated caller's name, or {@code system}. */
     private static String currentActor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null
-                || !auth.isAuthenticated()
-                || auth.getName() == null
-                || auth.getName().isBlank()) {
-            return TimesheetRow.ACTOR_SYSTEM;
-        }
-        String name = auth.getName();
-        return name.length() > 100 ? name.substring(0, 100) : name;
+        return TimesheetLines.currentActor();
     }
 }

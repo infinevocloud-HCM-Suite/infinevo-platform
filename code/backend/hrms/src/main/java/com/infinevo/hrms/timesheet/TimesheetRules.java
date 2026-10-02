@@ -45,6 +45,15 @@ final class TimesheetRules {
      * @param request the body
      */
     static Map<String, String> validate(TimesheetRequest request) {
+        return validate(request, Map.of());
+    }
+
+    /**
+     * As {@link #validate(TimesheetRequest)}, when the request is not the whole week: {@code carried} is the hours per
+     * date that the week already holds on lines the request does not replace (a resubmit sends only the rejected
+     * projects), so that the 24 hours a day rule still counts the whole week.
+     */
+    static Map<String, String> validate(TimesheetRequest request, Map<LocalDate, BigDecimal> carried) {
         Map<String, String> errors = new LinkedHashMap<>();
         if (request == null) {
             errors.put("request", "A request body is required");
@@ -69,7 +78,7 @@ final class TimesheetRules {
 
         Set<UUID> seenProjects = new HashSet<>();
         // Hours per date across every project and task, for the 24 hours a day rule.
-        Map<LocalDate, BigDecimal> dayTotals = new TreeMap<>();
+        Map<LocalDate, BigDecimal> dayTotals = new TreeMap<>(carried);
         for (int p = 0; p < projects.size(); p++) {
             ProjectLine project = projects.get(p);
             String pk = "projects[" + p + "]";

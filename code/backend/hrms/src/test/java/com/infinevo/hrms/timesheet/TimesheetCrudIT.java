@@ -145,16 +145,20 @@ class TimesheetCrudIT extends TimesheetItSupport {
     }
 
     @Test
-    @DisplayName("Replace or delete of a timesheet that is not a draft is 409, whatever its status")
+    @DisplayName(
+            "Replace or delete of a timesheet that is not a draft is 409, whatever its status; a rejected one is resubmitted")
     void nonDraftIsLocked() throws Exception {
         for (String status : new String[] {"SUBMITTED", "APPROVED", "REJECTED"}) {
             TimesheetResponse created = timesheets.create(simple(WEEK));
             HrmsProjectTestSchema.update("UPDATE hrms.timesheet SET status = ? WHERE id = ?", status, created.id());
 
-            assertThatThrownBy(() -> timesheets.replace(created.id(), simple(WEEK)))
-                    .as("replace %s", status)
-                    .isInstanceOf(TimesheetConflictException.class)
-                    .hasMessageContaining(status);
+            // A rejected week is replaced by a resubmit of its rejected projects (W-42.3, TimesheetDecisionIT).
+            if (!status.equals("REJECTED")) {
+                assertThatThrownBy(() -> timesheets.replace(created.id(), simple(WEEK)))
+                        .as("replace %s", status)
+                        .isInstanceOf(TimesheetConflictException.class)
+                        .hasMessageContaining(status);
+            }
             assertThatThrownBy(() -> timesheets.delete(created.id()))
                     .as("delete %s", status)
                     .isInstanceOf(TimesheetConflictException.class);

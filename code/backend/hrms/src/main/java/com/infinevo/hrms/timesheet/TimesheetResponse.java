@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -63,16 +64,38 @@ public record TimesheetResponse(
                 timesheet.getUpdatedAt());
     }
 
+    /**
+     * The same week trimmed to the lines on the given projects, and never a draft line: what a project manager sees
+     * (W-42.4). The week's own status and dates are shown as they are.
+     */
+    public static TimesheetResponse from(Timesheet timesheet, Set<UUID> onlyProjects) {
+        TimesheetResponse whole = from(timesheet);
+        List<ProjectEntryResponse> kept = whole.projects().stream()
+                .filter(p -> onlyProjects.contains(p.projectId()) && p.status() != TimesheetStatus.DRAFT)
+                .toList();
+        return new TimesheetResponse(
+                whole.id(),
+                whole.employeeId(),
+                whole.weekStartDate(),
+                whole.weekEndDate(),
+                whole.status(),
+                whole.submittedAt(),
+                kept,
+                whole.createdAt(),
+                whole.updatedAt());
+    }
+
     private static ProjectEntryResponse project(TimesheetProjectEntry entry) {
         return new ProjectEntryResponse(
-                entry.getId(),
-                entry.getProjectId(),
-                entry.getStatus(),
-                entry.getRejectionReason(),
-                entry.getTasks().stream()
-                        .sorted(Comparator.comparing(TimesheetTaskEntry::getTaskId))
-                        .map(TimesheetResponse::task)
-                        .toList());
+                entry.getId(), entry.getProjectId(), entry.getStatus(), entry.getRejectionReason(), tasksOf(entry));
+    }
+
+    /** The tasks of a project line, each with its days, in a fixed order. */
+    static List<TaskEntryResponse> tasksOf(TimesheetProjectEntry entry) {
+        return entry.getTasks().stream()
+                .sorted(Comparator.comparing(TimesheetTaskEntry::getTaskId))
+                .map(TimesheetResponse::task)
+                .toList();
     }
 
     private static TaskEntryResponse task(TimesheetTaskEntry entry) {
