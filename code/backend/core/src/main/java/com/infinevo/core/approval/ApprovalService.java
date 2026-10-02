@@ -133,6 +133,15 @@ public class ApprovalService {
         }
     }
 
+    /**
+     * What the approver resolver is told about a step (W-42.2). A {@code PROJECT_MANAGER} step is per item, and its item
+     * is the project, so it resolves by the step's {@code itemRef}. Every other kind keeps the definition's
+     * {@code assignee}: a per-item {@code ROLE} step, as proof of investment's, still needs its role code, not its item.
+     */
+    private static String resolverContextRef(ApprovalStepDefinition stepDef, String itemRef) {
+        return stepDef.kind() == ApproverKind.PROJECT_MANAGER && itemRef != null ? itemRef : stepDef.assignee();
+    }
+
     private void createSingleStep(
             UUID tenantId,
             ApprovalInstance instance,
@@ -141,8 +150,8 @@ public class ApprovalService {
             ApprovalStepDefinition stepDef,
             int stepIndex,
             String itemRef) {
-        Optional<UUID> assignee =
-                approverResolver.resolve(tenantId, subjectEmployeeId, stepDef.kind(), stepDef.assignee());
+        Optional<UUID> assignee = approverResolver.resolve(
+                tenantId, subjectEmployeeId, stepDef.kind(), resolverContextRef(stepDef, itemRef));
         UUID assignedId = assignee.orElse(null);
         UUID delegatedFromId = null;
         if (delegationService != null && assignedId != null) {
@@ -290,7 +299,7 @@ public class ApprovalService {
                                             tenantId,
                                             instance.getSubjectEmployeeId(),
                                             stepDefs.get(nextIndex).kind(),
-                                            stepDefs.get(nextIndex).assignee());
+                                            resolverContextRef(stepDefs.get(nextIndex), nextStep.getItemRef()));
                                     assignee.ifPresent(nextStep::setAssigneeEmployeeId);
                                 }
                                 nextStep.setCreatedAt(Instant.now());

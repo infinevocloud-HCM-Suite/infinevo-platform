@@ -21,7 +21,17 @@ public final class ApprovalTestSchema {
     public static final UUID TENANT_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
     public static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
+    /** W-42.2's script, which replaces V089's seed function and flips the untouched TIMESHEET rows. */
+    public static final String TIMESHEET_PER_PROJECT = "db/migration/core/V145__timesheet_approval_per_project.sql";
+
     private ApprovalTestSchema() {}
+
+    /** Runs {@code V145} again, as Flyway would have on a database that already had tenants. */
+    public static void applyTimesheetPerProject() throws Exception {
+        try (Connection conn = migrationConnection()) {
+            executeResource(conn, TIMESHEET_PER_PROJECT);
+        }
+    }
 
     public static Connection migrationConnection() throws SQLException {
         return DriverManager.getConnection(
@@ -79,6 +89,8 @@ public final class ApprovalTestSchema {
             if (!tableExists(conn, "approval_definition")) {
                 executeResource(conn, "db/migration/core/V089__approval_definition.sql");
             }
+            // W-42.2: the seed function that every tenant inserted from here on is seeded by. Safe to run again.
+            executeResource(conn, TIMESHEET_PER_PROJECT);
             if (!tableExists(conn, "approval_instance")) {
                 executeResource(conn, "db/migration/core/V090__approval_instance.sql");
             }

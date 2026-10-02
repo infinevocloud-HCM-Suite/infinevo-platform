@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.authz.Role;
@@ -12,14 +13,18 @@ import com.infinevo.core.authz.UserRole;
 import com.infinevo.core.authz.UserRoleRepository;
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.org.ReportingLineService;
+import com.infinevo.shared.tenant.TenantContext;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /**
  * W-15.2, spec section 7 — {@code ApproverResolverTest}.
@@ -147,5 +152,81 @@ class ApproverResolverTest {
     void projectManagerWithoutBeanYieldsEmpty() {
         Optional<UUID> resolved = resolver.resolve(tenantId, employeeId, ApproverKind.PROJECT_MANAGER, null);
         assertThat(resolved).isEmpty();
+    }
+
+    @AfterEach
+    void unbind() {
+        TenantContext.clear();
+    }
+
+    /**
+     * Starts a one-step flow of the given kind through {@link ApprovalService}, with the given item references, and
+     * returns what the step's approver was resolved with.
+     */
+    private String contextRefPassedFor(ApprovalStepDefinition step, List<String> itemRefs) {
+        ApprovalDefinitionRepository definitions = mock(ApprovalDefinitionRepository.class);
+        ApprovalInstanceRepository instances = mock(ApprovalInstanceRepository.class);
+        ApprovalStepRepository steps = mock(ApprovalStepRepository.class);
+        CoreApproverResolver approverResolver = mock(CoreApproverResolver.class);
+        when(approverResolver.resolve(any(), any(), any(), any())).thenReturn(Optional.empty());
+        // An unsaved definition has no id, which an instance requires, so the definition is a stand-in.
+        ApprovalDefinition definition = mock(ApprovalDefinition.class);
+        when(definition.getId()).thenReturn(UUID.randomUUID());
+        when(definition.getSteps()).thenReturn(List.of(step));
+        when(definition.getStepOrdering()).thenReturn(StepOrdering.SEQUENTIAL);
+        when(definitions.findEffectiveDefinitions(eq(tenantId), eq(ApprovalFlowType.TIMESHEET), any()))
+                .thenReturn(List.of(definition));
+        when(instances.save(any())).thenAnswer(invocation -> {
+            ApprovalInstance saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+        ApprovalService service = new ApprovalService(
+                definitions,
+                instances,
+                steps,
+                approverResolver,
+                mock(EmployeeService.class),
+                mock(OutcomeDispatcher.class));
+
+        TenantContext.set(tenantId);
+        service.start(
+                ApprovalFlowType.TIMESHEET,
+                new SubjectRef("hrms.timesheet_project_entry", UUID.randomUUID()),
+                employeeId,
+                itemRefs);
+
+        ArgumentCaptor<String> contextRef = ArgumentCaptor.forClass(String.class);
+        verify(approverResolver).resolve(eq(tenantId), eq(employeeId), eq(step.getKind()), contextRef.capture());
+        return contextRef.getValue();
+    }
+
+    @Test
+    @DisplayName("W-42.2: a per-item PROJECT_MANAGER step is resolved by its item, the project id")
+    void projectManagerStepIsResolvedByItsItem() {
+        UUID projectId = UUID.randomUUID();
+
+        String passed = contextRefPassedFor(
+                new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER, null, 3, true), List.of(projectId.toString()));
+
+        assertThat(passed).isEqualTo(projectId.toString());
+    }
+
+    @Test
+    @DisplayName("W-42.2: a per-item ROLE step still gets its assignee (\"hr\"), not its item")
+    void perItemRoleStepStillGetsItsAssignee() {
+        String passed =
+                contextRefPassedFor(new ApprovalStepDefinition(ApproverKind.ROLE, "hr", 3, true), List.of("item-1"));
+
+        assertThat(passed).isEqualTo("hr");
+    }
+
+    @Test
+    @DisplayName("W-42.2: a PROJECT_MANAGER step started with no item reference passes null, as before")
+    void projectManagerStepWithoutItemPassesItsAssignee() {
+        String passed = contextRefPassedFor(
+                new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER, null, 3, true), Collections.emptyList());
+
+        assertThat(passed).isNull();
     }
 }
