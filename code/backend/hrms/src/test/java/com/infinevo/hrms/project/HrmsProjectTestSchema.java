@@ -63,7 +63,8 @@ public final class HrmsProjectTestSchema {
                         "core/V135__hrms_project_seed_roles.sql",
                         "hrms/V086__project.sql",
                         "hrms/V087__task.sql",
-                        "hrms/V088__assignment.sql"
+                        "hrms/V088__assignment.sql",
+                        "hrms/V121__attendance_preference.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }
@@ -151,6 +152,11 @@ public final class HrmsProjectTestSchema {
                 tenantId,
                 accountId,
                 roleId);
+    }
+
+    public static int countAuditRows(UUID tenantId, String entityTable) throws SQLException {
+        return (int) count(
+                "SELECT count(*) FROM core.audit_log WHERE tenant_id = ? AND entity_table = ?", tenantId, entityTable);
     }
 
     public static long count(String sql, Object... params) throws SQLException {
