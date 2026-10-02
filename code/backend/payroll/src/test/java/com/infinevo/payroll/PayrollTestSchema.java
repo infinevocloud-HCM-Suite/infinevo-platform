@@ -225,12 +225,6 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "tax_deductor")) {
                 executeResource(conn, "db/migration/payroll/V107__tax_deductor.sql");
             }
-            if (!tableExists(conn, "payroll", "employee_investment_declaration")) {
-                executeResource(conn, "db/migration/payroll/V072__employee_investment_declaration.sql");
-            }
-            if (!tableExists(conn, "payroll", "employee_tds")) {
-                executeResource(conn, "db/migration/payroll/V102__employee_tds.sql");
-            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -268,18 +262,15 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "employee_investment_declaration")) {
                 st.execute("TRUNCATE TABLE payroll.employee_investment_declaration CASCADE");
             }
-            if (tableExists(conn, "payroll", "tax_deductor")) {
-                st.execute("DELETE FROM payroll.tax_deductor");
-            }
-            if (tableExists(conn, "payroll", "employee_tds")) {
-                st.execute("DELETE FROM payroll.employee_tds");
-            }
             if (tableExists(conn, "payroll", "employee_reimbursement_request")) {
                 st.execute("DELETE FROM payroll.employee_reimbursement_request");
             }
             // W-35.2: before core.document, core.pay_input and core.employee, which it references.
             if (tableExists(conn, "payroll", "employee_deduction")) {
                 st.execute("DELETE FROM payroll.employee_deduction");
+            }
+            if (tableExists(conn, "payroll", "tax_deductor")) {
+                st.execute("DELETE FROM payroll.tax_deductor");
             }
             if (tableExists(conn, "core", "approval_step")) {
                 st.execute("DELETE FROM core.approval_step");
