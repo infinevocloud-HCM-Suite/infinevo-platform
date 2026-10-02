@@ -18,10 +18,13 @@ import com.infinevo.shared.money.Money;
 import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.queue.QueueProducer;
 import com.infinevo.shared.tenant.TenantContext;
+import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -43,6 +46,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -78,6 +82,9 @@ public class PayRunServiceImpl implements PayRunService {
     private static final int ACTOR_MAX_LENGTH = 100;
     private static final String UNIQUE_PERIOD_INDEX = "uk_payrun_tenant_period";
 
+    /** A tenant's zone when its row names none it can use: {@code core.tenant.timezone}'s default (V033). */
+    static final ZoneId DEFAULT_TENANT_ZONE = ZoneId.of("Asia/Kolkata");
+
     /** How this module names itself on the pay input ledger, as W-35.1's claims do. */
     static final String SOURCE_MODULE = "payroll";
 
@@ -92,6 +99,8 @@ public class PayRunServiceImpl implements PayRunService {
     private final ObjectProvider<QueueProducer> queueProducers;
     private final PayslipLinkService payslipLinkService;
     private final ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices;
+    private final JdbcTemplate jdbcTemplate;
+    private final Clock clock;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
 
@@ -118,6 +127,8 @@ public class PayRunServiceImpl implements PayRunService {
                 queueProducers,
                 null,
                 null,
+                null,
+                Clock.systemUTC(),
                 transactionManager);
     }
 
@@ -134,6 +145,43 @@ public class PayRunServiceImpl implements PayRunService {
             ObjectProvider<QueueProducer> queueProducers,
             PayslipLinkService payslipLinkService,
             ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices,
+            JdbcTemplate jdbcTemplate,
+            PlatformTransactionManager transactionManager) {
+        this(
+                payRuns,
+                employeePayRuns,
+                payPeriodService,
+                employeeService,
+                inclusionService,
+                payInputService,
+                lines,
+                jobService,
+                queueProducers,
+                payslipLinkService,
+                notificationServices,
+                jdbcTemplate,
+                Clock.systemUTC(),
+                transactionManager);
+    }
+
+    /**
+     * Every collaborator, the clock included. {@code jdbcTemplate} may be {@code null} in a unit test,
+     * which then pays against {@link #DEFAULT_TENANT_ZONE}.
+     */
+    PayRunServiceImpl(
+            PayRunRepository payRuns,
+            EmployeePayRunRepository employeePayRuns,
+            PayPeriodService payPeriodService,
+            EmployeeService employeeService,
+            PayRunInclusionService inclusionService,
+            PayInputService payInputService,
+            EmployeePayRunLineRepository lines,
+            JobService jobService,
+            ObjectProvider<QueueProducer> queueProducers,
+            PayslipLinkService payslipLinkService,
+            ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices,
+            JdbcTemplate jdbcTemplate,
+            Clock clock,
             PlatformTransactionManager transactionManager) {
         this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
         this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
@@ -146,6 +194,8 @@ public class PayRunServiceImpl implements PayRunService {
         this.queueProducers = Objects.requireNonNull(queueProducers, "queueProducers must not be null");
         this.payslipLinkService = payslipLinkService;
         this.notificationServices = notificationServices;
+        this.jdbcTemplate = jdbcTemplate;
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         Objects.requireNonNull(transactionManager, "transactionManager must not be null");
         this.writeTransaction = new TransactionTemplate(transactionManager);
         this.readTransaction = new TransactionTemplate(transactionManager);
@@ -610,6 +660,36 @@ public class PayRunServiceImpl implements PayRunService {
         });
     }
 
+    /**
+     * Today in the tenant's own timezone (W-47.2 §4). The JVM runs on UTC, whose date is a day behind
+     * India's from 00:00 to 05:30 IST, so a check against it refused an officer paying on the day.
+     */
+    LocalDate tenantToday(UUID tenantId) {
+        return LocalDate.now(clock.withZone(tenantZone(tenantId)));
+    }
+
+    private ZoneId tenantZone(UUID tenantId) {
+        if (jdbcTemplate == null) {
+            return DEFAULT_TENANT_ZONE;
+        }
+        List<String> zones = jdbcTemplate.queryForList(
+                "SELECT timezone FROM core.tenant WHERE tenant_id = ?", String.class, tenantId);
+        String zone = zones.isEmpty() ? null : zones.get(0);
+        if (zone == null || zone.isBlank()) {
+            return DEFAULT_TENANT_ZONE;
+        }
+        try {
+            return ZoneId.of(zone.strip());
+        } catch (DateTimeException e) {
+            log.warn(
+                    "Tenant {} has an unreadable timezone '{}'; paying against {}",
+                    tenantId,
+                    zone,
+                    DEFAULT_TENANT_ZONE);
+            return DEFAULT_TENANT_ZONE;
+        }
+    }
+
     private static Instant now() {
         return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
@@ -653,7 +733,7 @@ public class PayRunServiceImpl implements PayRunService {
 
         PayCommitResult result = Objects.requireNonNull(writeTransaction.execute(status -> {
             PayRun run = requireForUpdate(id);
-            run.pay(paidOn, actor, now);
+            run.pay(paidOn, tenantToday(tenantId), actor, now);
             PayRun savedRun = payRuns.saveAndFlush(run);
             List<EmployeePayRun> includedRows = employeePayRuns.findAllByTenantIdAndPayrunIdAndInclusionStatus(
                     tenantId, id, InclusionStatus.INCLUDED);

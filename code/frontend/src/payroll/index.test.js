@@ -1,18 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { routes, reducers, portalPanels } from './index.js';
+import payrunReducer from './payrun/payrunSlice.js';
 import taxReducer from './tax/taxSlice.js';
 
-describe('payroll module entry (W-45 §5, W-47.3 §5)', () => {
-  it('registers the two admin routes as elements', () => {
+describe('payroll module entry (W-45 §5, W-47.2 §5, W-47.3 §5)', () => {
+  it('registers the pay run and tax admin routes as elements', () => {
     expect(routes.map((r) => r.path)).toEqual([
+      '/payroll/runs',
+      '/payroll/runs/new-off-cycle',
+      '/payroll/runs/:id',
       '/payroll/settings/tax-declaration',
       '/payroll/tax-declarations/:employeeId/:fy',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
   });
 
-  it('registers the tax slice', () => {
-    expect(reducers).toEqual({ tax: taxReducer });
+  it('registers the payrun and tax slices', () => {
+    expect(reducers).toEqual({ payrun: payrunReducer, tax: taxReducer });
   });
 
   it('offers the taxDeclaration portal panel as a component', () => {

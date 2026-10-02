@@ -170,7 +170,7 @@ class PayRunTransitionsTest {
 
         LocalDate paidOn = run.getPeriodEnd().isAfter(LocalDate.now()) ? LocalDate.now() : run.getPeriodEnd();
         Instant paidAt = Instant.now();
-        run.pay(paidOn, "payer_officer", paidAt);
+        run.pay(paidOn, LocalDate.now(), "payer_officer", paidAt);
 
         assertThat(run.getStatus()).isEqualTo(PayRunStatus.PAID);
         assertThat(run.getPaidAt()).isEqualTo(paidAt);
@@ -179,7 +179,7 @@ class PayRunTransitionsTest {
         assertThat(run.getPayslipsReleasedAt()).isEqualTo(paidAt);
 
         // Pay again throws
-        assertThatThrownBy(() -> run.pay(paidOn, "payer_officer", paidAt))
+        assertThatThrownBy(() -> run.pay(paidOn, LocalDate.now(), "payer_officer", paidAt))
                 .isInstanceOf(IllegalPayRunTransitionException.class);
 
         // A paid run stays paid: the money moved (W-36.2 §10)
@@ -195,17 +195,18 @@ class PayRunTransitionsTest {
         run.approve("approver", Instant.now());
 
         // Null
-        assertThatThrownBy(() -> run.pay(null, "payer", Instant.now())).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> run.pay(null, LocalDate.now(), "payer", Instant.now()))
+                .isInstanceOf(NullPointerException.class);
 
         // Future date
         LocalDate tomorrow = LocalDate.now().plusDays(1);
-        assertThatThrownBy(() -> run.pay(tomorrow, "payer", Instant.now()))
+        assertThatThrownBy(() -> run.pay(tomorrow, LocalDate.now(), "payer", Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("future");
 
         // Before period start
         LocalDate beforePeriod = run.getPeriodStart().minusDays(1);
-        assertThatThrownBy(() -> run.pay(beforePeriod, "payer", Instant.now()))
+        assertThatThrownBy(() -> run.pay(beforePeriod, LocalDate.now(), "payer", Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("period start");
     }
