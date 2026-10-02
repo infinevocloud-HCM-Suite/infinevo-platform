@@ -129,4 +129,31 @@ describe('PortalLayout component (W-25 §7)', () => {
 
     expect(screen.getByText('Panel Not Available')).toBeDefined();
   });
+
+  it('mounts module-provided panel by code (e.g. taxDeclaration)', async () => {
+    const panelsWithTax = [
+      {
+        code: 'taxDeclaration',
+        title: 'Tax Declaration',
+        displayOrder: 5,
+        endpoint: '/api/v1/me/tax-declaration',
+        requiredAction: 'payroll.tax_declaration.read_own',
+      },
+    ];
+
+    vi.spyOn(portalService, 'getPanels').mockResolvedValue(panelsWithTax);
+
+    render(
+      <MemoryRouter initialEntries={['/me']}>
+        <Routes>
+          <Route path="/me" element={<PortalLayout />} />
+          <Route path="/me/:panelId" element={<PortalLayout />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /tax declaration/i })).toBeDefined();
+    });
+  });
 });

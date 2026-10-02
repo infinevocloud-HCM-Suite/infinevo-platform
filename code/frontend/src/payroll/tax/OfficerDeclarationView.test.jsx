@@ -18,6 +18,7 @@ function renderAt(route, { actions = ['payroll.tax_declaration.read'] } = {}) {
     <NavigationProvider value={{ items: [], actions, loading: false, error: null }}>
       <MemoryRouter initialEntries={[route]}>
         <Routes>
+          <Route path="/employees/:employeeId/tax-declaration/:fy" element={<OfficerDeclarationView />} />
           <Route path="/payroll/tax-declarations/:employeeId/:fy" element={<OfficerDeclarationView />} />
         </Routes>
       </MemoryRouter>

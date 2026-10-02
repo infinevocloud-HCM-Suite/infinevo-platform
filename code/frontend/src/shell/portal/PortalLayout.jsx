@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Tabs, Skeleton, Result, Button, Empty, Typography, Space, theme } from 'antd';
 import {
@@ -15,6 +15,7 @@ import { MyLeave } from './panels/MyLeave.jsx';
 import { MyDocuments } from './panels/MyDocuments.jsx';
 import { MyPayslips } from './panels/MyPayslips.jsx';
 import { MyTimesheet } from './panels/MyTimesheet.jsx';
+import { portalPanels as payrollPortalPanels } from '../../payroll/index.js';
 
 const { Title, Text } = Typography;
 
@@ -24,6 +25,7 @@ const PANEL_ICONS = {
   documents: <FileTextOutlined />,
   payslips: <DollarOutlined />,
   timesheet: <ClockCircleOutlined />,
+  taxDeclaration: <FileTextOutlined />,
 };
 
 const PANEL_COMPONENTS = {
@@ -33,6 +35,11 @@ const PANEL_COMPONENTS = {
   payslips: MyPayslips,
   timesheet: MyTimesheet,
 };
+
+const modulePanels = [...(payrollPortalPanels || [])];
+const MODULE_PANEL_COMPONENTS = Object.fromEntries(
+  modulePanels.map((p) => [p.code, p.component])
+);
 
 export function PortalLayout() {
   const { panelId } = useParams();
@@ -88,7 +95,6 @@ export function PortalLayout() {
     );
   }
 
-  // Spec §9: If is_portal_enabled is false or no panels are returned, render empty portal
   if (!panels || panels.length === 0) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-empty">
@@ -109,12 +115,10 @@ export function PortalLayout() {
     );
   }
 
-  // Active panel determination
   const activeKey = panelId && panels.some((p) => p.code === panelId)
     ? panelId
     : panels[0]?.code;
 
-  // If a specific panelId was requested in the URL that is NOT in the allowed panels list
   if (panelId && !panels.some((p) => p.code === panelId)) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-panel-forbidden">
@@ -135,7 +139,7 @@ export function PortalLayout() {
   }
 
   const tabItems = panels.map((panel) => {
-    const Component = PANEL_COMPONENTS[panel.code];
+    const Component = PANEL_COMPONENTS[panel.code] || MODULE_PANEL_COMPONENTS[panel.code];
     return {
       key: panel.code,
       label: (
@@ -146,7 +150,9 @@ export function PortalLayout() {
       ),
       children: Component ? (
         <div style={{ marginTop: token.marginMD }}>
-          <Component panel={panel} />
+          <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
+            <Component panel={panel} />
+          </Suspense>
         </div>
       ) : (
         <Empty description="Panel component not found" />
