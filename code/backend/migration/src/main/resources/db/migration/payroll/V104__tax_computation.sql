@@ -46,10 +46,21 @@ CREATE INDEX idx_tax_computation_tenant_declaration
 ALTER TABLE payroll.tax_computation ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY tenant_isolation ON payroll.tax_computation
+    FOR ALL
     USING (
         CASE
-            WHEN current_setting('app.tenant_id', true) IS NULL THEN false
-            ELSE tenant_id = current_setting('app.tenant_id', true)::uuid
+            WHEN current_setting('app.current_tenant_id', true) IS NULL
+              OR current_setting('app.current_tenant_id', true) = ''
+            THEN false
+            ELSE tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+        END
+    )
+    WITH CHECK (
+        CASE
+            WHEN current_setting('app.current_tenant_id', true) IS NULL
+              OR current_setting('app.current_tenant_id', true) = ''
+            THEN false
+            ELSE tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
         END
     );
 
