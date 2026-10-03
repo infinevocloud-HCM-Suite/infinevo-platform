@@ -5,6 +5,7 @@ import com.infinevo.core.lop.LopRounding;
 import com.infinevo.core.lop.WorkingDayBasisResponse;
 import com.infinevo.core.payinput.PayInputResponse;
 import com.infinevo.payroll.salary.SalaryVersionResponse;
+import com.infinevo.payroll.salary.StatutoryProfileResponse;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -22,6 +23,8 @@ import java.util.UUID;
  * <p>W-30.2: the run type. On an off-cycle run the pay inputs are the employee's slice of the
  * inputs tagged with the run, the day figures are zero, and {@code version} and {@code basis} may be
  * null — the structure and loss-of-pay contributors produce nothing there.
+ *
+ * <p>W-31.4: the statutory eligibility profile.
  */
 public record PayRunEmployeeContext(
         UUID tenantId,
@@ -38,7 +41,8 @@ public record PayRunEmployeeContext(
         PayRunDays days,
         Set<UUID> proRataComponentIds,
         List<PayLine> priorLines,
-        PayRunType runType) {
+        PayRunType runType,
+        StatutoryProfileResponse statutoryProfile) {
 
     /** A {@code REGULAR} run's context — the shape before W-30.2. */
     public PayRunEmployeeContext(
@@ -71,7 +75,44 @@ public record PayRunEmployeeContext(
                 days,
                 proRataComponentIds,
                 priorLines,
-                PayRunType.REGULAR);
+                PayRunType.REGULAR,
+                null);
+    }
+
+    /** The shape before W-31.4. */
+    public PayRunEmployeeContext(
+            UUID tenantId,
+            UUID payrunId,
+            UUID employeePayrunId,
+            YearMonth period,
+            LocalDate periodStart,
+            LocalDate periodEnd,
+            EmployeeResponse employee,
+            SalaryVersionResponse version,
+            WorkingDayBasisResponse basis,
+            LopRounding lopRounding,
+            List<PayInputResponse> payInputs,
+            PayRunDays days,
+            Set<UUID> proRataComponentIds,
+            List<PayLine> priorLines,
+            PayRunType runType) {
+        this(
+                tenantId,
+                payrunId,
+                employeePayrunId,
+                period,
+                periodStart,
+                periodEnd,
+                employee,
+                version,
+                basis,
+                lopRounding,
+                payInputs,
+                days,
+                proRataComponentIds,
+                priorLines,
+                runType,
+                null);
     }
 
     public PayRunEmployeeContext {
@@ -110,6 +151,28 @@ public record PayRunEmployeeContext(
                 days,
                 proRataComponentIds,
                 lines,
-                runType);
+                runType,
+                statutoryProfile);
+    }
+
+    /** The same context with the employee's statutory profile. */
+    public PayRunEmployeeContext withStatutoryProfile(StatutoryProfileResponse profile) {
+        return new PayRunEmployeeContext(
+                tenantId,
+                payrunId,
+                employeePayrunId,
+                period,
+                periodStart,
+                periodEnd,
+                employee,
+                version,
+                basis,
+                lopRounding,
+                payInputs,
+                days,
+                proRataComponentIds,
+                priorLines,
+                runType,
+                profile);
     }
 }

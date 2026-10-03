@@ -347,8 +347,8 @@ public class PayrollTestApp {
                 try (Connection conn = dataSource.getConnection()) {
                     conn.setAutoCommit(false);
                     try (PreparedStatement ps = conn.prepareStatement(
-                            "SELECT id, employee_number, first_name, last_name, work_email, date_of_joining, "
-                                    + "termination_date, status FROM core.employee "
+                            "SELECT id, employee_number, first_name, last_name, gender, work_email, date_of_joining, "
+                                    + "termination_date, status, work_location_id FROM core.employee "
                                     + "WHERE id = ? AND tenant_id = ? AND is_deleted = false")) {
                         ps.setObject(1, id);
                         ps.setObject(2, tenantId);
@@ -358,6 +358,19 @@ public class PayrollTestApp {
                             }
                             java.sql.Date dojSql = rs.getDate("date_of_joining");
                             LocalDate doj = dojSql != null ? dojSql.toLocalDate() : LocalDate.of(2024, 1, 1);
+                            UUID workLocationId = null;
+                            try {
+                                workLocationId = rs.getObject("work_location_id", UUID.class);
+                            } catch (SQLException ignored) {
+                            }
+                            String gender = "MALE";
+                            try {
+                                String g = rs.getString("gender");
+                                if (g != null && !g.isBlank()) {
+                                    gender = g;
+                                }
+                            } catch (SQLException ignored) {
+                            }
                             EmployeeResponse response = new EmployeeResponse(
                                     id,
                                     tenantId,
@@ -365,7 +378,7 @@ public class PayrollTestApp {
                                     rs.getString("first_name"),
                                     null,
                                     rs.getString("last_name"),
-                                    "MALE",
+                                    gender,
                                     // The real dates and status, as EmployeeServiceImpl.get returns them:
                                     // an off-cycle run (W-30.2) tests employment against the period.
                                     doj,
@@ -380,7 +393,7 @@ public class PayrollTestApp {
                                     null,
                                     null,
                                     null,
-                                    null,
+                                    workLocationId,
                                     Instant.now(),
                                     Instant.now());
                             conn.commit();
@@ -433,8 +446,8 @@ public class PayrollTestApp {
                     try {
                         conn.setAutoCommit(false);
                         try (PreparedStatement ps = conn.prepareStatement(
-                                "SELECT id, employee_number, first_name, last_name, work_email, date_of_joining, "
-                                        + "termination_date, status FROM core.employee "
+                                "SELECT id, employee_number, first_name, last_name, gender, work_email, date_of_joining, "
+                                        + "termination_date, status, work_location_id FROM core.employee "
                                         + "WHERE tenant_id = ? AND is_deleted = false AND date_of_joining <= ? "
                                         + "AND (status = 'ACTIVE' OR (status = 'TERMINATED' AND termination_date >= ?)) "
                                         + "ORDER BY employee_number")) {
@@ -444,6 +457,19 @@ public class PayrollTestApp {
                             java.util.List<EmployeeResponse> list = new java.util.ArrayList<>();
                             try (ResultSet rs = ps.executeQuery()) {
                                 while (rs.next()) {
+                                    UUID workLocationId = null;
+                                    try {
+                                        workLocationId = rs.getObject("work_location_id", UUID.class);
+                                    } catch (SQLException ignored) {
+                                    }
+                                    String gender = "MALE";
+                                    try {
+                                        String g = rs.getString("gender");
+                                        if (g != null && !g.isBlank()) {
+                                            gender = g;
+                                        }
+                                    } catch (SQLException ignored) {
+                                    }
                                     list.add(new EmployeeResponse(
                                             (UUID) rs.getObject("id"),
                                             tenantId,
@@ -451,7 +477,7 @@ public class PayrollTestApp {
                                             rs.getString("first_name"),
                                             null,
                                             rs.getString("last_name"),
-                                            "MALE",
+                                            gender,
                                             rs.getObject("date_of_joining", LocalDate.class),
                                             rs.getObject("termination_date", LocalDate.class),
                                             com.infinevo.core.employee.EmploymentStatus.valueOf(rs.getString("status")),
@@ -461,7 +487,7 @@ public class PayrollTestApp {
                                             null,
                                             null,
                                             null,
-                                            null,
+                                            workLocationId,
                                             Instant.now(),
                                             Instant.now()));
                                 }
@@ -579,6 +605,58 @@ public class PayrollTestApp {
                                 }
                                 conn.commit();
                                 return list;
+                            }
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            public static final java.util.concurrent.atomic.AtomicInteger WORK_LOCATION_GET_COUNT =
+                    new java.util.concurrent.atomic.AtomicInteger();
+
+            @Override
+            public com.infinevo.core.org.WorkLocationResponse get(UUID id) {
+                WORK_LOCATION_GET_COUNT.incrementAndGet();
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        String sql =
+                                "SELECT id, tenant_id, code, name, address_line1, address_line2, city, state, state_code, zip_code, country_code, is_filing_address, is_active, created_at, updated_at "
+                                        + "FROM core.work_location WHERE tenant_id = ? AND id = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                            ps.setObject(1, tenantId);
+                            ps.setObject(2, id);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                if (rs.next()) {
+                                    com.infinevo.core.org.WorkLocationResponse resp =
+                                            new com.infinevo.core.org.WorkLocationResponse(
+                                                    (UUID) rs.getObject("id"),
+                                                    (UUID) rs.getObject("tenant_id"),
+                                                    rs.getString("code"),
+                                                    rs.getString("name"),
+                                                    rs.getString("address_line1"),
+                                                    rs.getString("address_line2"),
+                                                    rs.getString("city"),
+                                                    rs.getString("state"),
+                                                    rs.getString("state_code"),
+                                                    rs.getString("zip_code"),
+                                                    rs.getString("country_code"),
+                                                    rs.getBoolean("is_filing_address"),
+                                                    rs.getBoolean("is_active"),
+                                                    rs.getTimestamp("created_at")
+                                                            .toInstant(),
+                                                    rs.getTimestamp("updated_at")
+                                                            .toInstant());
+                                    conn.commit();
+                                    return resp;
+                                }
+                                throw new com.infinevo.core.org.OrgMasterService.NotFoundException("work location", id);
                             }
                         }
                     } finally {

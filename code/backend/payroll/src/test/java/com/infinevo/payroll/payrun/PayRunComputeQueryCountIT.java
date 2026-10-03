@@ -42,12 +42,13 @@ class PayRunComputeQueryCountIT extends AbstractIntegrationTest {
     private static final int LINES_PER_EMPLOYEE = 7;
 
     /**
-     * Measured at 25 for the worked-example structure: about 14 are W-26.2's {@code versionInForce}
+     * Measured at ~31 for the worked-example structure: about 14 are W-26.2's {@code versionInForce}
      * (the version, its three line lists, FBP declarations, one catalogue lookup per component and the
-     * statutory lines), one is the contributor's catalogue read, the rest are the row read and write.
-     * The bound is per employee and independent of how many employees the run holds.
+     * statutory lines), one is the contributor's catalogue read, one is W-36.1's active TDS record read,
+     * the rest are the row read and write. The bound is per employee and independent of how many employees
+     * the run holds.
      */
-    private static final int SELECTS_PER_EMPLOYEE = 30;
+    private static final int SELECTS_PER_EMPLOYEE = 32;
 
     public static class StatementCounter implements StatementInspector {
         static final AtomicInteger SELECTS = new AtomicInteger();

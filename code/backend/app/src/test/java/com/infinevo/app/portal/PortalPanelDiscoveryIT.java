@@ -12,6 +12,7 @@ import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.core.portal.PortalPanelService;
 import com.infinevo.hrms.portal.TimesheetPanelProvider;
 import com.infinevo.payroll.portal.PayslipPanelProvider;
+import com.infinevo.payroll.portal.TaxDeclarationPanelProvider;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
 import com.infinevo.shared.entitlement.PlatformModule;
@@ -83,14 +84,17 @@ class PortalPanelDiscoveryIT {
     private EmployeeService employeeService;
 
     @Test
-    @DisplayName("PortalPanelService discovers all 5 providers including module providers from payroll and hrms")
-    void discoversAllFiveProviders() {
-        assertThat(providers).hasSize(5);
+    @DisplayName("PortalPanelService discovers all 6 providers including module providers from payroll and hrms")
+    void discoversAllSixProviders() {
+        assertThat(providers).hasSize(6);
 
         List<String> codes = providers.stream().map(PortalPanelProvider::code).toList();
-        assertThat(codes).containsExactlyInAnyOrder("profile", "leave", "documents", "payslips", "timesheet");
+        assertThat(codes)
+                .containsExactlyInAnyOrder("profile", "leave", "documents", "payslips", "taxDeclaration", "timesheet");
 
         assertThat(providers.stream().anyMatch(p -> p instanceof PayslipPanelProvider))
+                .isTrue();
+        assertThat(providers.stream().anyMatch(p -> p instanceof TaxDeclarationPanelProvider))
                 .isTrue();
         assertThat(providers.stream().anyMatch(p -> p instanceof TimesheetPanelProvider))
                 .isTrue();
@@ -133,7 +137,7 @@ class PortalPanelDiscoveryIT {
         List<PanelDescriptor> panels = portalPanelService.getPanels();
         List<String> panelCodes = panels.stream().map(PanelDescriptor::code).toList();
 
-        // Acme sees profile, leave, documents, payslips - but NOT timesheet
-        assertThat(panelCodes).containsExactly("profile", "leave", "documents", "payslips");
+        // Acme sees profile, leave, documents, payslips, taxDeclaration - but NOT timesheet
+        assertThat(panelCodes).containsExactly("profile", "leave", "documents", "payslips", "taxDeclaration");
     }
 }

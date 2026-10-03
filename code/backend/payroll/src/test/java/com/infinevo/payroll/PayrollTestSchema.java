@@ -127,6 +127,15 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "core", "work_location")) {
                 executeResource(conn, "db/migration/core/V013__work_location.sql");
             }
+            if (!columnExists(conn, "core", "employee", "work_location_id")) {
+                if (!tableExists(conn, "core", "department")) {
+                    executeResource(conn, "db/migration/core/V011__department.sql");
+                }
+                if (!tableExists(conn, "core", "designation")) {
+                    executeResource(conn, "db/migration/core/V012__designation.sql");
+                }
+                executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
             if (!tableExists(conn, "reference", "pt_state")) {
                 executeResource(conn, "db/migration/reference/V064__pt_state_and_slab.sql");
             }
@@ -213,6 +222,9 @@ public final class PayrollTestSchema {
                     st.execute("ALTER TABLE payroll.ctc_esi_component NO FORCE ROW LEVEL SECURITY");
                 }
             }
+            if (!tableExists(conn, "payroll", "tax_deductor")) {
+                executeResource(conn, "db/migration/payroll/V107__tax_deductor.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -257,6 +269,9 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "employee_deduction")) {
                 st.execute("DELETE FROM payroll.employee_deduction");
             }
+            if (tableExists(conn, "payroll", "tax_deductor")) {
+                st.execute("DELETE FROM payroll.tax_deductor");
+            }
             if (tableExists(conn, "core", "approval_step")) {
                 st.execute("DELETE FROM core.approval_step");
             }
@@ -298,6 +313,9 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "core", "attendance")) {
                 st.execute("DELETE FROM core.attendance");
+            }
+            if (columnExists(conn, "core", "employee", "work_location_id")) {
+                st.execute("UPDATE core.employee SET work_location_id = NULL");
             }
             if (tableExists(conn, "core", "work_location")) {
                 st.execute("DELETE FROM core.work_location");
