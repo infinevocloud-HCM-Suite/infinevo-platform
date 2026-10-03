@@ -471,6 +471,45 @@ public class PayrollTestApp {
                 return Optional.ofNullable(CURRENT_EMPLOYEE.get());
             }
 
+            // The same rule as EmployeeServiceImpl.displayNames: first and last name, else the employee
+            // number; the bound tenant's rows only (W-47.4 §4).
+            @Override
+            public java.util.Map<UUID, String> displayNames(java.util.Collection<UUID> ids) {
+                if (ids == null || ids.isEmpty()) {
+                    return java.util.Map.of();
+                }
+                UUID tenantId = TenantContext.require();
+                java.util.Map<UUID, String> names = new java.util.LinkedHashMap<>();
+                try (Connection conn = dataSource.getConnection()) {
+                    // Auto-commit off before the first statement, so the tenant binds (D-57).
+                    conn.setAutoCommit(false);
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "SELECT id, employee_number, first_name, last_name FROM core.employee "
+                                    + "WHERE tenant_id = ? AND id = ANY (?)")) {
+                        ps.setObject(1, tenantId);
+                        ps.setArray(2, conn.createArrayOf("uuid", ids.toArray()));
+                        try (ResultSet rs = ps.executeQuery()) {
+                            while (rs.next()) {
+                                String name = java.util.stream.Stream.of(
+                                                rs.getString("first_name"), rs.getString("last_name"))
+                                        .filter(part -> part != null && !part.isBlank())
+                                        .collect(java.util.stream.Collectors.joining(" "));
+                                names.put(
+                                        rs.getObject("id", UUID.class),
+                                        name.isBlank() ? rs.getString("employee_number") : name);
+                            }
+                        }
+                        conn.commit();
+                    } catch (SQLException | RuntimeException e) {
+                        conn.rollback();
+                        throw e;
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                return names;
+            }
+
             @Override
             public EmployeeResponse linkLogin(UUID id, UUID userAccountId) {
                 throw new UnsupportedOperationException();
@@ -668,7 +707,93 @@ public class PayrollTestApp {
                     UUID employeeId, com.infinevo.core.employee.detail.EmployeeIdentificationRequest request) {
                 throw new UnsupportedOperationException();
             }
+
+            /**
+             * W-36.5: the same predicate as EmployeeIdentificationRepository.findByTenantIdAndPanNumberIn —
+             * bound tenant on both tables, live employees only, upper-cased PANs, a PAN on two employees
+             * left out. EmployeeIdentificationPanLookupIT covers the real JPQL in core.
+             */
+            @Override
+            public java.util.Map<String, UUID> employeeIdsByPan(java.util.Set<String> pans) {
+                UUID tenantId = TenantContext.require();
+                java.util.Set<String> normalised = new java.util.HashSet<>();
+                if (pans != null) {
+                    for (String pan : pans) {
+                        if (pan != null && !pan.isBlank()) {
+                            normalised.add(pan.trim().toUpperCase(java.util.Locale.ROOT));
+                        }
+                    }
+                }
+                if (normalised.isEmpty()) {
+                    return java.util.Map.of();
+                }
+                java.util.Map<String, UUID> byPan = new java.util.HashMap<>();
+                java.util.Set<String> ambiguous = new java.util.HashSet<>();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        try (PreparedStatement ps =
+                                conn.prepareStatement("SELECT i.pan_number, e.id FROM core.employee_identification i "
+                                        + "JOIN core.employee e ON e.id = i.employee_id "
+                                        + "WHERE i.tenant_id = ? AND e.tenant_id = ? AND e.is_deleted = false "
+                                        + "AND i.pan_number = ANY (?)")) {
+                            ps.setObject(1, tenantId);
+                            ps.setObject(2, tenantId);
+                            ps.setArray(3, conn.createArrayOf("varchar", normalised.toArray()));
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) {
+                                    String pan = rs.getString(1);
+                                    UUID id = rs.getObject(2, UUID.class);
+                                    UUID previous = byPan.putIfAbsent(pan, id);
+                                    if (previous != null && !previous.equals(id)) {
+                                        ambiguous.add(pan);
+                                    }
+                                }
+                            }
+                        }
+                        conn.commit();
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    return java.util.Map.of();
+                }
+                byPan.keySet().removeAll(ambiguous);
+                return java.util.Map.copyOf(byPan);
+            }
         };
+    }
+
+    /**
+     * W-36.5: core's real link signer. Its repository is a stand-in that answers from {@code core.document}
+     * — a live row in the bound tenant — because this context does not scan core.document.
+     */
+    @Bean
+    public com.infinevo.core.document.DocumentLinkService documentLinkService() {
+        com.infinevo.core.document.DocumentRepository documents =
+                org.mockito.Mockito.mock(com.infinevo.core.document.DocumentRepository.class);
+        org.mockito.Mockito.when(documents.findByIdAndTenantIdAndDeletedFalse(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    UUID id = invocation.getArgument(0);
+                    UUID tenantId = invocation.getArgument(1);
+                    try (Connection conn = PayrollTestSchema.migrationConnection();
+                            PreparedStatement ps = conn.prepareStatement(
+                                    "SELECT 1 FROM core.document WHERE id = ? AND tenant_id = ? AND NOT is_deleted")) {
+                        ps.setObject(1, id);
+                        ps.setObject(2, tenantId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            return rs.next()
+                                    ? Optional.of(org.mockito.Mockito.mock(com.infinevo.core.document.Document.class))
+                                    : Optional.empty();
+                        }
+                    }
+                });
+        return new com.infinevo.core.document.DocumentLinkServiceImpl(
+                documents,
+                "integration-test-document-link-secret",
+                com.infinevo.shared.security.PublicEndpoints.DOCUMENT_DOWNLOAD);
     }
 
     @Bean

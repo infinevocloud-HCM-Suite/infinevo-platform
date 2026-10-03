@@ -55,12 +55,13 @@ spring:
   servlet:
     multipart:
       # W-21: the document store refuses anything over document.upload.max-bytes (10 MB)
-      # with its own 413. Spring's limit sits just above it, so a file between the two gets
-      # the store's sentence and one far over it is still refused before it is buffered.
-      # resolve-lazily lets DocumentController's handler answer that second case in the
-      # platform's error envelope rather than Spring's.
-      max-file-size: 11MB
-      max-request-size: 12MB
+      # with its own 413. W-36.5: the Form 16 Part A ZIP is allowed 50 MB, the system cap
+      # (DocumentServiceImpl.DEFAULT_SYSTEM_MAX_BYTES), so Spring's limit sits just above
+      # that; each endpoint still gives its own 413 below it, and one far over is refused
+      # before it is buffered. resolve-lazily lets the handler answer that second case in
+      # the platform's error envelope rather than Spring's.
+      max-file-size: 51MB
+      max-request-size: 52MB
       resolve-lazily: true
 
 # W-21 document store.

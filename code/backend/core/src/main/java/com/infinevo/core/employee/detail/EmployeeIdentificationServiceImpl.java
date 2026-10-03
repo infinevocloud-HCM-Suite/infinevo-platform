@@ -2,9 +2,17 @@ package com.infinevo.core.employee.detail;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.shared.tenant.TenantContext;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The identification section (W-13.2) — {@code core.employee_identification},
@@ -49,9 +57,49 @@ public class EmployeeIdentificationServiceImpl
     /** {@code Identification.java:23} — five letters, four digits, one letter, upper case. */
     private static final String PAN_PATTERN = "[A-Z]{5}[0-9]{4}[A-Z]";
 
+    private final EmployeeIdentificationRepository identifications;
+
     public EmployeeIdentificationServiceImpl(
             EmployeeIdentificationRepository repository, EmployeeRepository employees) {
         super(repository, employees);
+        this.identifications = repository;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>One read through {@link EmployeeIdentificationRepository#findByTenantIdAndPanNumberIn}; an
+     * empty input issues none, since {@code IN ()} is not valid SQL. A PAN that comes back with two
+     * distinct employee ids is dropped rather than resolved to either.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, UUID> employeeIdsByPan(Set<String> pans) {
+        UUID tenantId = TenantContext.require();
+        Set<String> normalised = new HashSet<>();
+        if (pans != null) {
+            for (String pan : pans) {
+                if (pan != null && !pan.isBlank()) {
+                    normalised.add(pan.trim().toUpperCase(Locale.ROOT));
+                }
+            }
+        }
+        if (normalised.isEmpty()) {
+            return Map.of();
+        }
+
+        List<EmployeeIdentificationRepository.PanHolder> holders =
+                identifications.findByTenantIdAndPanNumberIn(tenantId, normalised);
+        Map<String, UUID> byPan = new HashMap<>();
+        Set<String> ambiguous = new HashSet<>();
+        for (EmployeeIdentificationRepository.PanHolder holder : holders) {
+            UUID previous = byPan.putIfAbsent(holder.getPanNumber(), holder.getEmployeeId());
+            if (previous != null && !Objects.equals(previous, holder.getEmployeeId())) {
+                ambiguous.add(holder.getPanNumber());
+            }
+        }
+        byPan.keySet().removeAll(ambiguous);
+        return Map.copyOf(byPan);
     }
 
     @Override
