@@ -64,6 +64,11 @@ describe('routesFromFeed', () => {
     expect(routeGroups).toHaveProperty('payroll');
     expect(routesFromFeed([{ key: 'core.roles', path: '/roles' }])).toEqual([]);
     const employeeRoutes = routesFromFeed([{ key: 'core.employees', path: '/employees' }]);
-    expect(employeeRoutes.map((r) => r.path)).toEqual(['/employees', '/employees/new', '/employees/:id']);
+    expect(employeeRoutes.map((r) => r.path)).toEqual([
+      '/employees',
+      '/employees/new',
+      '/employees/:id',
+      '/employees/:employeeId/tax-declaration/:fy',
+    ]);
   });
 });
