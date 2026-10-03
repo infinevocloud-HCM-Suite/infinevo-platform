@@ -50,6 +50,23 @@ const PriorPayrollPage = lazy(() =>
   import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
 );
 
+const ClaimList = lazy(() =>
+  import('./claims/ClaimList.jsx').then((m) => ({ default: m.ClaimList }))
+);
+const ClaimDetail = lazy(() =>
+  import('./claims/ClaimDetail.jsx').then((m) => ({ default: m.ClaimDetail }))
+);
+const DeductionList = lazy(() =>
+  import('./claims/DeductionList.jsx').then((m) => ({ default: m.DeductionList }))
+);
+const MyClaimsPanel = lazy(() =>
+  import('./claims/MyClaimsPanel.jsx').then((m) => ({ default: m.MyClaimsPanel }))
+);
+
+const DashboardPage = lazy(() =>
+  import('./dashboard/DashboardPage.jsx').then((m) => ({ default: m.DashboardPage }))
+);
+
 const ComponentsScreen = lazy(() =>
   import('./salary/ComponentsScreen.jsx').then((m) => ({ default: m.ComponentsScreen }))
 );
@@ -57,8 +74,9 @@ const SalaryTab = lazy(() =>
   import('./salary/SalaryTab.jsx').then((m) => ({ default: m.SalaryTab }))
 );
 
-// Payroll module entry point (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2 §5, W-47.3 §5, W-47.6 §5).
+// Payroll module entry point (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2 §5, W-47.3 §5, W-47.4 §5, W-47.5 §5, W-47.6 §5).
 export const routes = [
+  { path: '/payroll/dashboard', element: React.createElement(DashboardPage) },
   { path: '/payroll/runs', element: React.createElement(RunList) },
   { path: '/payroll/runs/new-off-cycle', element: React.createElement(OffCycleCreate) },
   { path: '/payroll/runs/:id', element: React.createElement(RunPage) },
@@ -92,6 +110,9 @@ export const routes = [
   },
   { path: '/payroll/components', element: React.createElement(ComponentsScreen) },
   { path: '/payroll/prior-payroll', element: React.createElement(PriorPayrollPage) },
+  { path: '/payroll/claims', element: React.createElement(ClaimList) },
+  { path: '/payroll/claims/:id', element: React.createElement(ClaimDetail) },
+  { path: '/payroll/deductions', element: React.createElement(DeductionList) },
 ];
 
 export const reducers = {
@@ -101,9 +122,12 @@ export const reducers = {
   settings: settingsReducer,
 };
 
-// Components the `/me` portal mounts by panel code (W-47.3 §5, §14 decision 1). Lazy, so the
+// Components the `/me` portal mounts by panel code (W-47.3 §5, §14 decision 1; W-47.4 §5). Lazy, so the
 // portal renders them inside a Suspense boundary, as AppShell does for routes.
-export const portalPanels = [{ code: 'taxDeclaration', component: DeclarationPage }];
+export const portalPanels = [
+  { code: 'taxDeclaration', component: DeclarationPage },
+  { code: 'claims', component: MyClaimsPanel },
+];
 
 // Employee page tabs exported for shell composition (W-47.1a §5, W-47.1b §5, §5a).
 export const employeeTabs = [

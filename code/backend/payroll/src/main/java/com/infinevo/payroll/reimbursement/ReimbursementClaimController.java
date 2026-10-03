@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * REST controller for employee reimbursement claims (W-35.1).
- * Exactly five endpoints: 3 for employee self-service under /api/v1/me,
+ * Six endpoints: 4 for employee self-service under /api/v1/me (the claimable-components read is W-47.4 §4),
  * 2 for payroll officer under /api/v1/payroll. Approval actions belong to core approvals.
  */
 @RestController
@@ -57,6 +57,15 @@ public class ReimbursementClaimController {
     public ResponseEntity<ReimbursementApiResponse<List<ReimbursementClaimResponse>>> listOwn() {
         List<ReimbursementClaimResponse> claims = reimbursementClaimService.listOwn();
         return ResponseEntity.ok(ReimbursementApiResponse.ok("Reimbursement claims retrieved successfully", claims));
+    }
+
+    /** W-47.4 §4. A literal segment, so Spring prefers it over {@code /{id}}. */
+    @GetMapping("/api/v1/me/reimbursement-claims/components")
+    @RequiresAction("payroll.reimbursement_claim.submit_own")
+    public ResponseEntity<ReimbursementApiResponse<List<ClaimableComponentResponse>>> claimableComponents() {
+        List<ClaimableComponentResponse> components = reimbursementClaimService.claimableComponents();
+        return ResponseEntity.ok(
+                ReimbursementApiResponse.ok("Claimable reimbursement components retrieved successfully", components));
     }
 
     @GetMapping("/api/v1/me/reimbursement-claims/{id}")

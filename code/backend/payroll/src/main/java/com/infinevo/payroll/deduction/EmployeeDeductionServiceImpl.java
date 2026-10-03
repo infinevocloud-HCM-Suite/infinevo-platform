@@ -23,7 +23,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -108,6 +110,7 @@ public class EmployeeDeductionServiceImpl implements EmployeeDeductionService {
         }
 
         String actor = currentActor();
+        Map<UUID, String> names = employeeService.displayNames(employees.keySet());
         List<EmployeeDeductionResponse> rows = new ArrayList<>(parsed.size());
         for (ParsedLine line : parsed) {
             UUID id = UUID.randomUUID();
@@ -132,7 +135,7 @@ public class EmployeeDeductionServiceImpl implements EmployeeDeductionService {
                     posted.id(),
                     posted.postedPeriod(),
                     actor));
-            rows.add(EmployeeDeductionResponse.from(saved));
+            rows.add(EmployeeDeductionResponse.from(saved, names.get(saved.getEmployeeId())));
         }
         deductions.flush();
         log.info("Entered {} salary deductions in tenant {}", rows.size(), tenantId);
@@ -156,13 +159,14 @@ public class EmployeeDeductionServiceImpl implements EmployeeDeductionService {
                 employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
         deduction.reverse(reversal.id(), reversedBy, Instant.now().truncatedTo(ChronoUnit.MICROS), currentActor());
         EmployeeDeduction saved = deductions.saveAndFlush(deduction);
+        EmployeeDeductionResponse response = withName(saved);
         log.info(
                 "Reversed salary deduction {} in tenant {}: reversal pay input {} in {}",
                 id,
                 tenantId,
                 reversal.id(),
                 reversal.postedPeriod());
-        return EmployeeDeductionResponse.from(saved);
+        return response;
     }
 
     @Override
@@ -172,7 +176,7 @@ public class EmployeeDeductionServiceImpl implements EmployeeDeductionService {
         UUID tenantId = TenantContext.require();
         return deductions
                 .findByTenantIdAndId(tenantId, id)
-                .map(EmployeeDeductionResponse::from)
+                .map(this::withName)
                 .orElseThrow(() -> new EmployeeDeductionNotFoundException(id));
     }
 
@@ -198,7 +202,9 @@ public class EmployeeDeductionServiceImpl implements EmployeeDeductionService {
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-        return deductions.findAll(spec, pageable).map(EmployeeDeductionResponse::from);
+        Page<EmployeeDeduction> page = deductions.findAll(spec, pageable);
+        Map<UUID, String> names = namesOf(page.getContent());
+        return page.map(d -> EmployeeDeductionResponse.from(d, names.get(d.getEmployeeId())));
     }
 
     @Override
@@ -208,9 +214,23 @@ public class EmployeeDeductionServiceImpl implements EmployeeDeductionService {
         EmployeeResponse employee = employeeService
                 .currentEmployee()
                 .orElseThrow(() -> new AccessDeniedException("No employee profile linked to current user account"));
-        return deductions.findByTenantIdAndEmployeeIdOrderByPeriodDescCreatedAtDesc(tenantId, employee.id()).stream()
-                .map(EmployeeDeductionResponse::from)
+        List<EmployeeDeduction> own =
+                deductions.findByTenantIdAndEmployeeIdOrderByPeriodDescCreatedAtDesc(tenantId, employee.id());
+        Map<UUID, String> names = namesOf(own);
+        return own.stream()
+                .map(d -> EmployeeDeductionResponse.from(d, names.get(d.getEmployeeId())))
                 .toList();
+    }
+
+    /** W-47.4 §4: one {@code displayNames} call for a page or list of rows. */
+    private Map<UUID, String> namesOf(List<EmployeeDeduction> rows) {
+        Set<UUID> ids = rows.stream().map(EmployeeDeduction::getEmployeeId).collect(Collectors.toSet());
+        return ids.isEmpty() ? Map.of() : employeeService.displayNames(ids);
+    }
+
+    private EmployeeDeductionResponse withName(EmployeeDeduction d) {
+        return EmployeeDeductionResponse.from(
+                d, employeeService.displayNames(Set.of(d.getEmployeeId())).get(d.getEmployeeId()));
     }
 
     /** §4: an active employee of the bound tenant; an unknown id and an inactive one are both {@code 400}. */

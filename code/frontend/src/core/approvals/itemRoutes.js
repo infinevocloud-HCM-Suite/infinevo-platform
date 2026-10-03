@@ -6,7 +6,8 @@ export const itemRoutes = {
   LEAVE: (itemId) => (itemId ? `/leave/requests/${itemId}` : null),
   REGULARIZATION: null,
   OVERTIME: null,
-  REIMBURSEMENT: null,
+  // The inbox passes subjectId, which for a claim is the claim id (W-47.4 §5, W-35.1 §3).
+  REIMBURSEMENT: (id) => (id ? `/payroll/claims/${id}` : null),
   PROOF_OF_INVESTMENT: null,
   PAY_RUN: null,
   TIMESHEET: null,
