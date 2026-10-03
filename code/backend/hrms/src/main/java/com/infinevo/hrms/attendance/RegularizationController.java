@@ -69,16 +69,6 @@ public class RegularizationController {
                 .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
     }
 
-    /**
-     * The approval engine refuses to start when the tenant has no active {@code REGULARIZATION} definition
-     * ({@code ApprovalService.start}); the submit has rolled back by then. Not the caller's input, so {@code 409}.
-     */
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ApiErrorResponse> handleIllegalState(IllegalStateException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
-    }
-
     @ExceptionHandler(RegularizationService.ValidationException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(RegularizationService.ValidationException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

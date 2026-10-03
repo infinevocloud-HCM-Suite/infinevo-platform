@@ -21,6 +21,7 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,6 +39,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class RegularizationServiceImpl implements RegularizationService {
 
     private static final Duration MAX_SPAN = Duration.ofHours(24);
+
+    /** The partial unique index that allows one PENDING request per employee and date (W-40.4 §3). */
+    static final String INDEX_PENDING_UNIQUE = "uk_attendance_regularization_tenant_employee_date_pending";
+
+    /** The message prefix of {@code ApprovalService.start}'s refusal when no definition is active. */
+    static final String NO_ACTIVE_DEFINITION = "No active approval definition found";
 
     private final AttendanceRegularizationRepository regularizations;
     private final ClockSessionRepository clockSessions;
@@ -152,7 +159,7 @@ public class RegularizationServiceImpl implements RegularizationService {
         }
         if (regularizations.existsByTenantIdAndEmployeeIdAndAttendanceDateAndStatus(
                 tenantId, employee.id(), date, RegularizationStatus.PENDING)) {
-            throw new ConflictException("a pending regularization already exists for " + date);
+            throw pendingExists(date);
         }
         boolean adminDay = attendanceQuery.days(employee.id(), date, date).stream()
                 .anyMatch(d -> date.equals(d.date()) && d.source() == AttendanceSource.ADMIN);
@@ -162,10 +169,28 @@ public class RegularizationServiceImpl implements RegularizationService {
 
         AttendanceRegularization row =
                 new AttendanceRegularization(tenantId, employee.id(), date, inAt, outAt, reason, currentActor());
-        row = regularizations.save(row);
+        try {
+            row = regularizations.saveAndFlush(row);
+        } catch (DataIntegrityViolationException e) {
+            // Two submits for the same day at the same moment both pass the exists check above; the index decides.
+            if (namesIndex(e, INDEX_PENDING_UNIQUE)) {
+                throw pendingExists(date);
+            }
+            throw e;
+        }
 
-        UUID instanceId = approvalService.start(
-                ApprovalFlowType.REGULARIZATION, new SubjectRef(SUBJECT_TABLE, row.getId()), employee.id());
+        UUID instanceId;
+        try {
+            instanceId = approvalService.start(
+                    ApprovalFlowType.REGULARIZATION, new SubjectRef(SUBJECT_TABLE, row.getId()), employee.id());
+        } catch (IllegalStateException e) {
+            // The engine refuses when the tenant has no active REGULARIZATION definition. The transaction rolls back
+            // either way; only that refusal is the state of the tenant (409), anything else stays a server error.
+            if (e.getMessage() != null && e.getMessage().startsWith(NO_ACTIVE_DEFINITION)) {
+                throw new ConflictException(e.getMessage());
+            }
+            throw e;
+        }
         row.attachInstance(instanceId);
         row = regularizations.save(row);
         return RegularizationResponse.from(row);
@@ -212,6 +237,24 @@ public class RegularizationServiceImpl implements RegularizationService {
                     tenantId, from, to);
         }
         return rows.stream().map(RegularizationResponse::from).toList();
+    }
+
+    private static ConflictException pendingExists(LocalDate date) {
+        return new ConflictException("a pending regularization already exists for " + date);
+    }
+
+    /** Whether an index name appears anywhere in a throwable's cause chain. */
+    static boolean namesIndex(Throwable e, String indexName) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            String message = t.getMessage();
+            if (message != null && message.contains(indexName)) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
     }
 
     private EmployeeResponse requireCurrentEmployee() {

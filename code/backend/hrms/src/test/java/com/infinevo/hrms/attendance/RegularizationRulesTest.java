@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -84,13 +86,8 @@ class RegularizationRulesTest {
 
         preferences(null, null, true);
         when(attendanceQuery.days(any(), any(), any())).thenReturn(List.of());
-        when(regularizations.save(any())).thenAnswer(inv -> {
-            AttendanceRegularization row = inv.getArgument(0);
-            if (row.getId() == null) {
-                ReflectionTestUtils.setField(row, "id", UUID.randomUUID());
-            }
-            return row;
-        });
+        when(regularizations.save(any())).thenAnswer(inv -> withId(inv.getArgument(0)));
+        when(regularizations.saveAndFlush(any())).thenAnswer(inv -> withId(inv.getArgument(0)));
         instanceId = UUID.randomUUID();
         when(approvalService.start(eq(ApprovalFlowType.REGULARIZATION), any(SubjectRef.class), eq(EMPLOYEE)))
                 .thenReturn(instanceId);
@@ -110,6 +107,13 @@ class RegularizationRulesTest {
     @AfterEach
     void tearDown() {
         TenantContext.clear();
+    }
+
+    private static AttendanceRegularization withId(AttendanceRegularization row) {
+        if (row.getId() == null) {
+            ReflectionTestUtils.setField(row, "id", UUID.randomUUID());
+        }
+        return row;
     }
 
     private void preferences(Integer windowDays, Integer maxPerMonth, boolean allowWithoutSession) {
@@ -139,7 +143,7 @@ class RegularizationRulesTest {
 
     private void assertValidation(RegularizationRequest request) {
         assertThatThrownBy(() -> service.submit(request)).isInstanceOf(RegularizationService.ValidationException.class);
-        verify(regularizations, never()).save(any());
+        verify(regularizations, never()).saveAndFlush(any());
     }
 
     @Test
@@ -292,7 +296,7 @@ class RegularizationRulesTest {
                 .thenReturn(true);
         assertThatThrownBy(() -> service.submit(normal(DAY)))
                 .isInstanceOf(RegularizationService.ConflictException.class);
-        verify(regularizations, never()).save(any());
+        verify(regularizations, never()).saveAndFlush(any());
     }
 
     @Test
@@ -303,7 +307,7 @@ class RegularizationRulesTest {
         assertThatThrownBy(() -> service.submit(normal(DAY)))
                 .isInstanceOf(RegularizationService.ConflictException.class)
                 .hasMessageContaining("administrator");
-        verify(regularizations, never()).save(any());
+        verify(regularizations, never()).saveAndFlush(any());
 
         when(attendanceQuery.days(EMPLOYEE, DAY, DAY))
                 .thenReturn(List.of(new AttendanceDay(DAY, AttendanceStatus.ABSENT, AttendanceSource.CLOCK, null)));
@@ -311,11 +315,46 @@ class RegularizationRulesTest {
     }
 
     @Test
-    @DisplayName("No active REGULARIZATION definition: the engine's refusal propagates, so the transaction rolls back")
+    @DisplayName("A concurrent submit that loses the pending unique index is the same 409 as the exists check")
+    void concurrentPendingDuplicate() {
+        doThrow(new DataIntegrityViolationException(
+                        "could not execute statement",
+                        new RuntimeException("ERROR: duplicate key value violates unique constraint \""
+                                + RegularizationServiceImpl.INDEX_PENDING_UNIQUE + "\"")))
+                .when(regularizations)
+                .saveAndFlush(any());
+        assertThatThrownBy(() -> service.submit(normal(DAY)))
+                .isInstanceOf(RegularizationService.ConflictException.class)
+                .hasMessage("a pending regularization already exists for " + DAY);
+        verify(approvalService, never()).start(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Any other integrity violation on save is not turned into a 409")
+    void otherIntegrityViolationPropagates() {
+        DataIntegrityViolationException other = new DataIntegrityViolationException(
+                "could not execute statement", new RuntimeException("ERROR: violates check constraint \"ck_other\""));
+        doThrow(other).when(regularizations).saveAndFlush(any());
+        assertThatThrownBy(() -> service.submit(normal(DAY))).isSameAs(other);
+    }
+
+    @Test
+    @DisplayName(
+            "No active REGULARIZATION definition: the engine's refusal becomes a 409 and the transaction rolls back")
     void noDefinition() {
         when(approvalService.start(any(), any(), any()))
                 .thenThrow(new IllegalStateException("No active approval definition found for flow REGULARIZATION"));
-        assertThatThrownBy(() -> service.submit(normal(DAY))).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.submit(normal(DAY)))
+                .isInstanceOf(RegularizationService.ConflictException.class)
+                .hasMessageContaining("No active approval definition");
+    }
+
+    @Test
+    @DisplayName("Any other IllegalStateException from the engine is not turned into a 409")
+    void otherEngineFailurePropagates() {
+        IllegalStateException other = new IllegalStateException("No approver resolved for step 0");
+        when(approvalService.start(any(), any(), any())).thenThrow(other);
+        assertThatThrownBy(() -> service.submit(normal(DAY))).isSameAs(other);
     }
 
     @Test
