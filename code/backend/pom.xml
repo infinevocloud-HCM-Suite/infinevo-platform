@@ -65,6 +65,7 @@
          if an engine ever needs otherwise. -->
     <docker.api.version>1.41</docker.api.version>
     <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+    <argLine></argLine>
     <!-- W-52: Queue & Worker -->
     <azure-sdk-bom.version>1.2.26</azure-sdk-bom.version>
     <shedlock.version>5.16.0</shedlock.version>
