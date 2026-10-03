@@ -143,7 +143,8 @@ public class PayRunController {
     @ExceptionHandler({
         DuplicatePayRunException.class,
         IllegalPayRunTransitionException.class,
-        PayRunComputeInProgressException.class
+        PayRunComputeInProgressException.class,
+        com.infinevo.payroll.priorpayroll.PriorPayrollExistsException.class
     })
     public ResponseEntity<ApiErrorResponse> handleConflict(RuntimeException ex) {
         return error(HttpStatus.CONFLICT, ApiError.CONFLICT, ex.getMessage());

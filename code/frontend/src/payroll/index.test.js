@@ -5,8 +5,8 @@ import taxReducer from './tax/taxSlice.js';
 import salaryReducer from './salary/salarySlice.js';
 import settingsReducer from './settings/settingsSlice.js';
 
-describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2 §5, W-47.3 §5)', () => {
-  it('registers the pay run, settings, officer tax declaration, and salary component routes as elements', () => {
+describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2 §5, W-47.3 §5, W-47.6 §5)', () => {
+  it('registers the pay run, settings, officer tax declaration, salary component and prior payroll routes as elements', () => {
     expect(routes.map((r) => r.path)).toEqual([
       '/payroll/runs',
       '/payroll/runs/new-off-cycle',
@@ -19,6 +19,7 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/settings/tax-declaration',
       '/employees/:employeeId/tax-declaration/:fy',
       '/payroll/components',
+      '/payroll/prior-payroll',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
   });

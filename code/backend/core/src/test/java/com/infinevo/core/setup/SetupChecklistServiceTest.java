@@ -35,6 +35,7 @@ class SetupChecklistServiceTest {
     private SetupStepChecker workLocationChecker;
     private SetupStepChecker employeeChecker;
     private SetupStepChecker payScheduleChecker;
+    private SetupStepChecker priorPayrollChecker;
     private SetupStepChecker salaryComponentsChecker;
     private SetupStepChecker epfChecker;
     private SetupStepChecker esiChecker;
@@ -76,6 +77,7 @@ class SetupChecklistServiceTest {
         workLocationChecker = createChecker("WORK_LOCATION", null, false);
         employeeChecker = createChecker("EMPLOYEE", null, false);
         payScheduleChecker = createChecker("PAY_SCHEDULE", PlatformModule.PAYROLL, false);
+        priorPayrollChecker = createChecker("PRIOR_PAYROLL", PlatformModule.PAYROLL, false);
         salaryComponentsChecker = createChecker("SALARY_COMPONENTS", PlatformModule.PAYROLL, false);
         epfChecker = createChecker("EPF", PlatformModule.PAYROLL, false);
         esiChecker = createChecker("ESI", PlatformModule.PAYROLL, false);
@@ -85,6 +87,7 @@ class SetupChecklistServiceTest {
                 workLocationChecker,
                 employeeChecker,
                 payScheduleChecker,
+                priorPayrollChecker,
                 salaryComponentsChecker,
                 epfChecker,
                 esiChecker,
@@ -325,6 +328,7 @@ class SetupChecklistServiceTest {
                         createChecker("WORK_LOCATION", null, true),
                         createChecker("EMPLOYEE", null, true),
                         payScheduleChecker,
+                        priorPayrollChecker,
                         salaryComponentsChecker,
                         epfChecker,
                         esiChecker,
@@ -339,7 +343,7 @@ class SetupChecklistServiceTest {
 
         assertThat(upgraded.newCount()).isZero();
         assertThat(upgraded.totalCount()).isEqualTo(SetupStepCatalogue.DEFAULT_STEPS.size());
-        assertThat(upgraded.progressPercentage()).isEqualTo(Math.round(2.0 / 7.0 * 1000.0) / 10.0);
+        assertThat(upgraded.progressPercentage()).isEqualTo(Math.round(2.0 / 8.0 * 1000.0) / 10.0);
     }
 
     @Test
@@ -348,14 +352,36 @@ class SetupChecklistServiceTest {
         UUID tenantId = UUID.randomUUID();
         when(entitlementSource.modulesOf(tenantId)).thenReturn(Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
         database.put(
-                tenantId + ":PRIOR_PAYROLL",
-                new TenantSetupStep(tenantId, "PRIOR_PAYROLL", PlatformModule.PAYROLL, 4, Instant.now()));
+                tenantId + ":RETIRED_STEP",
+                new TenantSetupStep(tenantId, "RETIRED_STEP", PlatformModule.PAYROLL, 99, Instant.now()));
 
         SetupChecklistResponse response = service.getChecklist(tenantId);
 
-        assertThat(response.steps()).extracting(SetupStepResponse::code).doesNotContain("PRIOR_PAYROLL");
-        assertThatThrownBy(() -> service.skipStep(tenantId, "PRIOR_PAYROLL", "Gone"))
+        assertThat(response.steps()).extracting(SetupStepResponse::code).doesNotContain("RETIRED_STEP");
+        assertThatThrownBy(() -> service.skipStep(tenantId, "RETIRED_STEP", "Gone"))
                 .isInstanceOf(SetupChecklistService.SetupStepNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("a payroll tenant gets 8 steps with PRIOR_PAYROLL at order 4; an HRMS-only tenant gets none of it")
+    void priorPayrollStepIsListedForPayrollTenantsOnly() {
+        UUID payrollTenant = UUID.randomUUID();
+        when(entitlementSource.modulesOf(payrollTenant)).thenReturn(Set.of(PlatformModule.PAYROLL));
+        SetupChecklistResponse payroll = service.getChecklist(payrollTenant);
+        assertThat(payroll.steps()).hasSize(8);
+        assertThat(payroll.steps())
+                .filteredOn(s -> s.code().equals("PRIOR_PAYROLL"))
+                .singleElement()
+                .satisfies(s -> {
+                    assertThat(s.displayOrder()).isEqualTo(4);
+                    assertThat(s.module()).isEqualTo(PlatformModule.PAYROLL);
+                });
+
+        UUID hrmsTenant = UUID.randomUUID();
+        when(entitlementSource.modulesOf(hrmsTenant)).thenReturn(Set.of(PlatformModule.HRMS));
+        assertThat(service.getChecklist(hrmsTenant).steps())
+                .extracting(SetupStepResponse::code)
+                .doesNotContain("PRIOR_PAYROLL");
     }
 
     private static final class MutableClock extends Clock {

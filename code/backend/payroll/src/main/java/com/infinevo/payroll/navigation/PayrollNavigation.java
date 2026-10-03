@@ -22,8 +22,17 @@ public class PayrollNavigation implements NavigationContributor {
             PlatformModule.PAYROLL,
             "payroll.run.read");
 
+    /** Prior payroll import & history — {@code PriorPayrollController}'s {@code GET /api/v1/payroll/prior-payroll-imports} (W-38.1 §4). */
+    public static final ItemDefinition PRIOR_PAYROLL = new ItemDefinition(
+            "payroll.prior_payroll",
+            "nav.payroll.prior_payroll",
+            "/payroll/prior-payroll",
+            "/api/v1/payroll/prior-payroll-imports",
+            PlatformModule.PAYROLL,
+            "payroll.run.read");
+
     @Override
     public List<ItemDefinition> items() {
-        return List.of(RUNS);
+        return List.of(RUNS, PRIOR_PAYROLL);
     }
 }

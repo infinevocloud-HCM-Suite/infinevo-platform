@@ -34,4 +34,17 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM PayRun r WHERE r.id = :id AND r.tenantId = :tenantId")
     Optional<PayRun> findForUpdate(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
+
+    @Query("SELECT MIN(r.period) FROM PayRun r WHERE r.tenantId = :tenantId AND r.runType = :runType "
+            + "AND r.status != :excludedStatus AND r.period >= :fromPeriod AND r.period <= :toPeriod")
+    Optional<String> findEarliestPeriod(
+            @Param("tenantId") UUID tenantId,
+            @Param("runType") PayRunType runType,
+            @Param("excludedStatus") PayRunStatus excludedStatus,
+            @Param("fromPeriod") String fromPeriod,
+            @Param("toPeriod") String toPeriod);
+
+    /** The tenant's earliest run of a type, ignoring one status (W-38.3 §3: first regular run not cancelled). */
+    Optional<PayRun> findFirstByTenantIdAndRunTypeAndStatusNotOrderByPeriodAsc(
+            UUID tenantId, PayRunType runType, PayRunStatus status);
 }

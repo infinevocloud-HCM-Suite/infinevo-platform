@@ -4,6 +4,11 @@ import com.infinevo.core.org.WorkLocation;
 import com.infinevo.core.org.WorkLocationRepository;
 import com.infinevo.core.setup.SetupStepChecker;
 import com.infinevo.payroll.component.EarningRepository;
+import com.infinevo.payroll.payrun.PayRun;
+import com.infinevo.payroll.payrun.PayRunRepository;
+import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.payrun.PayRunType;
+import com.infinevo.payroll.priorpayroll.PriorPayrollMonthRepository;
 import com.infinevo.payroll.schedule.PayScheduleRepository;
 import com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository;
 import com.infinevo.payroll.statutory.settings.EpfSettingRepository;
@@ -30,9 +35,8 @@ import org.springframework.context.annotation.Configuration;
  * <p>Annotated with {@link ConditionalOnMissingBean} so that a feature ticket introducing a
  * dedicated checker bean of the same name takes precedence automatically.
  *
- * <p>Prior payroll ({@code W-38}) and organisation tax ({@code W-36.3}) have no checker because
- * they have no catalogue step yet — neither feature has a table on this platform. See
- * {@code SetupStepCatalogue}.
+ * <p>Organisation tax ({@code W-36.3}) has no checker because it has no catalogue step yet — the
+ * feature has no table on this platform. See {@code SetupStepCatalogue}.
  */
 @Configuration
 public class PayrollSetupStepConfiguration {
@@ -42,6 +46,39 @@ public class PayrollSetupStepConfiguration {
     public SetupStepChecker payScheduleSetupStepChecker(ObjectProvider<PayScheduleRepository> repositoryProvider) {
         return checker("PAY_SCHEDULE", repositoryProvider, (repo, tenantId) -> repo.findByTenantId(tenantId)
                 .isPresent());
+    }
+
+    /**
+     * Prior payroll (W-38.3 §3, §13 decision 1) is settled once any month is imported, or when the
+     * tenant's first regular run that is not cancelled is for April: a tenant that started payroll at
+     * the start of the financial year has no earlier months to load. Not "any run exists" — that was
+     * the frozen rule ({@code OrgSetupStepsServiceImpl.java:75}) and it means "has run payroll".
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "priorPayrollSetupStepChecker")
+    public SetupStepChecker priorPayrollSetupStepChecker(
+            ObjectProvider<PriorPayrollMonthRepository> monthRepositoryProvider,
+            ObjectProvider<PayRunRepository> payRunRepositoryProvider) {
+        Objects.requireNonNull(monthRepositoryProvider, "monthRepositoryProvider must not be null");
+        Objects.requireNonNull(payRunRepositoryProvider, "payRunRepositoryProvider must not be null");
+        return new PayrollChecker("PRIOR_PAYROLL") {
+            @Override
+            boolean check(UUID tenantId) {
+                PriorPayrollMonthRepository months = monthRepositoryProvider.getIfAvailable();
+                if (months != null && months.existsByTenantId(tenantId)) {
+                    return true;
+                }
+                PayRunRepository runs = payRunRepositoryProvider.getIfAvailable();
+                if (runs == null) {
+                    return false;
+                }
+                return runs.findFirstByTenantIdAndRunTypeAndStatusNotOrderByPeriodAsc(
+                                tenantId, PayRunType.REGULAR, PayRunStatus.CANCELLED)
+                        .map(PayRun::getPeriod)
+                        .filter(period -> period != null && period.getMonthValue() == 4)
+                        .isPresent();
+            }
+        };
     }
 
     @Bean

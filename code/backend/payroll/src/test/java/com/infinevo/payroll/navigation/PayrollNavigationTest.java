@@ -36,11 +36,23 @@ class PayrollNavigationTest {
     }
 
     @Test
+    @DisplayName(
+            "payroll.prior_payroll targets PriorPayrollController's list GET, behind the same action and the PAYROLL module")
+    void priorPayrollItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.PRIOR_PAYROLL;
+        assertThat(item.targetEndpoint()).isEqualTo("/api/v1/payroll/prior-payroll-imports");
+        assertThat(item.requiredAction()).isEqualTo("payroll.run.read");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        assertThat(item.path()).isEqualTo("/payroll/prior-payroll");
+    }
+
+    @Test
     @DisplayName("the whole menu is the core items followed by payroll's")
     void contributedItemsFollowTheCoreOnes() {
         List<ItemDefinition> all = NavigationCatalogue.withContributed(List.of(new PayrollNavigation()));
 
         assertThat(all).startsWith(NavigationCatalogue.DEFAULT_ITEMS.toArray(ItemDefinition[]::new));
-        assertThat(all).last().isEqualTo(PayrollNavigation.RUNS);
+        assertThat(all).contains(PayrollNavigation.RUNS, PayrollNavigation.PRIOR_PAYROLL);
+        assertThat(all).last().isEqualTo(PayrollNavigation.PRIOR_PAYROLL);
     }
 }

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { RunList } from './RunList.jsx';
 import { payrunService } from './payrunService.js';
+import { priorPayrollService } from '../priorpayroll/priorPayrollService.js';
 import * as useCanModule from '@shell/screens';
 
 vi.mock('./payrunService.js', () => ({
@@ -12,10 +13,20 @@ vi.mock('./payrunService.js', () => ({
   },
 }));
 
+vi.mock('../priorpayroll/priorPayrollService.js', () => ({
+  priorPayrollService: {
+    status: vi.fn(),
+  },
+}));
+
 describe('RunList component (W-47.2 §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    priorPayrollService.status.mockResolvedValue({
+      missing_periods: [],
+      setup_step_skipped: false,
+    });
     payrunService.list.mockResolvedValue({
       content: [
         {
@@ -136,5 +147,30 @@ describe('RunList component (W-47.2 §7)', () => {
       expect(link).toBeDefined();
       expect(link.getAttribute('href')).toBe('/payroll/settings/pay-schedule');
     });
+  });
+
+  it('renders mid-year warning above the runs table when prior payroll months are missing', async () => {
+    priorPayrollService.status.mockResolvedValueOnce({
+      financial_year: '2026-2027',
+      missing_periods: ['2026-04'],
+      setup_step_skipped: false,
+    });
+
+    const { container } = render(
+      <MemoryRouter>
+        <RunList />
+      </MemoryRouter>
+    );
+
+    const alert = await screen.findByText(
+      /Payroll for Apr 2026 is not loaded. Tax already deducted in those months will be charged again./i,
+      {},
+      { timeout: 5000 }
+    );
+    expect(alert).toBeDefined();
+
+    const table = container.querySelector('.ant-table');
+    expect(table).toBeDefined();
+    expect(alert.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

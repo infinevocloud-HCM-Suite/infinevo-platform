@@ -47,6 +47,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 // core.employee entities only (no repositories, no beans): W-34.3's chase query joins
 // EmployeeInvestmentDeclaration to Employee. The real application and worker scan all of com.infinevo,
 // so the entity is there in production; this test application's scan is narrower on purpose.
+// core.setup entity and repository only: W-38.3's status reads the tenant's PRIOR_PAYROLL row.
 @EntityScan(
         basePackages = {
             "com.infinevo.payroll",
@@ -55,7 +56,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.lop",
             "com.infinevo.core.job",
             "com.infinevo.core.employee",
-            "com.infinevo.core.org"
+            "com.infinevo.core.org",
+            "com.infinevo.core.setup"
         })
 @EnableJpaRepositories(
         basePackages = {
@@ -63,13 +65,17 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.approval",
             "com.infinevo.core.payinput",
             "com.infinevo.core.lop",
-            "com.infinevo.core.job"
+            "com.infinevo.core.job",
+            "com.infinevo.core.employee",
+            "com.infinevo.core.setup"
         })
 public class PayrollTestApp {
 
     public static final ThreadLocal<EmployeeResponse> CURRENT_EMPLOYEE = new ThreadLocal<>();
     public static final ThreadLocal<UUID> APPROVER_ID = new ThreadLocal<>();
     public static final java.util.Map<UUID, com.infinevo.core.document.DocumentResponse> TEST_DOCUMENTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    public static final java.util.Map<UUID, byte[]> TEST_DOCUMENT_CONTENTS =
             new java.util.concurrent.ConcurrentHashMap<>();
 
     @Bean
@@ -168,11 +174,6 @@ public class PayrollTestApp {
     }
 
     @Bean
-    public com.infinevo.core.employee.EmployeeRepository employeeRepository() {
-        return org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeRepository.class);
-    }
-
-    @Bean
     public com.infinevo.core.org.ReportingLineService reportingLineService() {
         return org.mockito.Mockito.mock(com.infinevo.core.org.ReportingLineService.class);
     }
@@ -187,17 +188,48 @@ public class PayrollTestApp {
                     String fileName,
                     java.io.InputStream content) {
                 UUID id = UUID.randomUUID();
+                UUID tenantId = TenantContext.current().orElse(PayrollTestSchema.TENANT_A);
+                byte[] bytes = new byte[0];
+                if (content != null) {
+                    try {
+                        bytes = content.readAllBytes();
+                    } catch (java.io.IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                TEST_DOCUMENT_CONTENTS.put(id, bytes);
                 com.infinevo.core.document.DocumentResponse doc = new com.infinevo.core.document.DocumentResponse(
                         id,
                         employeeId,
                         kind,
                         fileName,
-                        "application/pdf",
-                        1024L,
+                        "text/csv",
+                        (long) bytes.length,
                         "test_checksum",
                         Instant.now(),
                         "system");
                 TEST_DOCUMENTS.put(id, doc);
+                try (Connection conn = PayrollTestSchema.migrationConnection();
+                        PreparedStatement ps = conn.prepareStatement(
+                                """
+                                INSERT INTO core.document
+                                    (id, tenant_id, employee_id, kind, file_name, content_type, size_bytes,
+                                     blob_container, blob_path, checksum_sha256)
+                                VALUES (?, ?, ?, ?, ?, 'text/csv', ?, 'documents', ?, ?)
+                                ON CONFLICT (id) DO NOTHING
+                                """)) {
+                    ps.setObject(1, id);
+                    ps.setObject(2, tenantId);
+                    ps.setObject(3, employeeId);
+                    ps.setString(4, kind.name());
+                    ps.setString(5, fileName);
+                    ps.setLong(6, bytes.length);
+                    ps.setString(7, tenantId + "/test/" + kind.name() + "/" + id);
+                    ps.setString(8, "0".repeat(64));
+                    ps.executeUpdate();
+                } catch (Exception ignored) {
+                    // Ignored if core.document table doesn't exist yet in tests
+                }
                 return id;
             }
 
@@ -221,13 +253,15 @@ public class PayrollTestApp {
 
             @Override
             public com.infinevo.core.document.DocumentService.DocumentContent open(UUID id) {
+                byte[] bytes = TEST_DOCUMENT_CONTENTS.getOrDefault(id, new byte[0]);
                 return new com.infinevo.core.document.DocumentService.DocumentContent(
-                        get(id), new java.io.ByteArrayInputStream(new byte[0]));
+                        get(id), new java.io.ByteArrayInputStream(bytes));
             }
 
             @Override
             public void delete(UUID id) {
                 TEST_DOCUMENTS.remove(id);
+                TEST_DOCUMENT_CONTENTS.remove(id);
             }
         };
     }

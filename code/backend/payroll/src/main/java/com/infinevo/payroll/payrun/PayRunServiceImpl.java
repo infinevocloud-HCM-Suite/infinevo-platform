@@ -12,6 +12,8 @@ import com.infinevo.core.payinput.PayInputKind;
 import com.infinevo.core.payinput.PayInputResponse;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.payroll.payslip.PayslipLinkService;
+import com.infinevo.payroll.priorpayroll.PriorPayrollExistsException;
+import com.infinevo.payroll.priorpayroll.PriorPayrollService;
 import com.infinevo.payroll.schedule.PayPeriodResponse;
 import com.infinevo.payroll.schedule.PayPeriodService;
 import com.infinevo.shared.money.Money;
@@ -99,6 +101,7 @@ public class PayRunServiceImpl implements PayRunService {
     private final ObjectProvider<QueueProducer> queueProducers;
     private final PayslipLinkService payslipLinkService;
     private final ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices;
+    private final PriorPayrollService priorPayrollService;
     private final JdbcTemplate jdbcTemplate;
     private final Clock clock;
     private final TransactionTemplate writeTransaction;
@@ -128,6 +131,7 @@ public class PayRunServiceImpl implements PayRunService {
                 null,
                 null,
                 null,
+                null,
                 Clock.systemUTC(),
                 transactionManager);
     }
@@ -145,6 +149,8 @@ public class PayRunServiceImpl implements PayRunService {
             ObjectProvider<QueueProducer> queueProducers,
             PayslipLinkService payslipLinkService,
             ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+                    PriorPayrollService priorPayrollService,
             JdbcTemplate jdbcTemplate,
             PlatformTransactionManager transactionManager) {
         this(
@@ -159,6 +165,7 @@ public class PayRunServiceImpl implements PayRunService {
                 queueProducers,
                 payslipLinkService,
                 notificationServices,
+                priorPayrollService,
                 jdbcTemplate,
                 Clock.systemUTC(),
                 transactionManager);
@@ -183,6 +190,40 @@ public class PayRunServiceImpl implements PayRunService {
             JdbcTemplate jdbcTemplate,
             Clock clock,
             PlatformTransactionManager transactionManager) {
+        this(
+                payRuns,
+                employeePayRuns,
+                payPeriodService,
+                employeeService,
+                inclusionService,
+                payInputService,
+                lines,
+                jobService,
+                queueProducers,
+                payslipLinkService,
+                notificationServices,
+                null,
+                jdbcTemplate,
+                clock,
+                transactionManager);
+    }
+
+    PayRunServiceImpl(
+            PayRunRepository payRuns,
+            EmployeePayRunRepository employeePayRuns,
+            PayPeriodService payPeriodService,
+            EmployeeService employeeService,
+            PayRunInclusionService inclusionService,
+            PayInputService payInputService,
+            EmployeePayRunLineRepository lines,
+            JobService jobService,
+            ObjectProvider<QueueProducer> queueProducers,
+            PayslipLinkService payslipLinkService,
+            ObjectProvider<com.infinevo.core.notification.NotificationService> notificationServices,
+            PriorPayrollService priorPayrollService,
+            JdbcTemplate jdbcTemplate,
+            Clock clock,
+            PlatformTransactionManager transactionManager) {
         this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
         this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
         this.payPeriodService = Objects.requireNonNull(payPeriodService, "payPeriodService must not be null");
@@ -194,6 +235,7 @@ public class PayRunServiceImpl implements PayRunService {
         this.queueProducers = Objects.requireNonNull(queueProducers, "queueProducers must not be null");
         this.payslipLinkService = payslipLinkService;
         this.notificationServices = notificationServices;
+        this.priorPayrollService = priorPayrollService;
         this.jdbcTemplate = jdbcTemplate;
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         Objects.requireNonNull(transactionManager, "transactionManager must not be null");
@@ -212,6 +254,11 @@ public class PayRunServiceImpl implements PayRunService {
                 readTransaction.execute(status -> payRuns.existsByTenantIdAndPeriodAndRunTypeAndStatusNot(
                         tenantId, period.toString(), PayRunType.REGULAR, PayRunStatus.CANCELLED)))) {
             throw new DuplicatePayRunException(period);
+        }
+
+        // W-38.1: imported rows exist for period -> throw PriorPayrollExistsException
+        if (priorPayrollService != null && priorPayrollService.hasImportedRows(period.toString())) {
+            throw new PriorPayrollExistsException(period);
         }
 
         PayPeriodResponse dates = payPeriodService.periodFor(period);

@@ -9,6 +9,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -124,6 +125,12 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "reference", "state")) {
                 executeResource(conn, "db/migration/reference/V003__reference_lookups.sql");
             }
+            if (!tableExists(conn, "core", "department")) {
+                executeResource(conn, "db/migration/core/V011__department.sql");
+            }
+            if (!tableExists(conn, "core", "designation")) {
+                executeResource(conn, "db/migration/core/V012__designation.sql");
+            }
             if (!tableExists(conn, "core", "work_location")) {
                 executeResource(conn, "db/migration/core/V013__work_location.sql");
             }
@@ -135,6 +142,18 @@ public final class PayrollTestSchema {
                     executeResource(conn, "db/migration/core/V012__designation.sql");
                 }
                 executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
+            // W-38.1 reads employees through core's JPA Employee, which maps every column of
+            // core.employee; user_account_id (V026) references core.user_account (V009).
+            if (!tableExists(conn, "core", "user_account")) {
+                executeResource(conn, "db/migration/core/V009__user_account.sql");
+            }
+            if (!columnExists(conn, "core", "employee", "user_account_id")) {
+                executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
+            }
+            // W-38.3: the status reads core.tenant_setup_step (V035, needs only core.tenant).
+            if (!tableExists(conn, "core", "tenant_setup_step")) {
+                executeResource(conn, "db/migration/core/V035__tenant_setup_step.sql");
             }
             if (!tableExists(conn, "reference", "pt_state")) {
                 executeResource(conn, "db/migration/reference/V064__pt_state_and_slab.sql");
@@ -225,6 +244,9 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "tax_deductor")) {
                 executeResource(conn, "db/migration/payroll/V107__tax_deductor.sql");
             }
+            if (!tableExists(conn, "payroll", "prior_payroll_import_log")) {
+                executeResource(conn, "db/migration/payroll/V140__prior_payroll.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -256,6 +278,9 @@ public final class PayrollTestSchema {
     public static void cleanTables() throws SQLException {
         try (Connection conn = migrationConnection();
                 Statement st = conn.createStatement()) {
+            if (tableExists(conn, "core", "tenant_setup_step")) {
+                st.execute("DELETE FROM core.tenant_setup_step");
+            }
             st.execute(
                     "TRUNCATE TABLE payroll.employee_fbp_component, payroll.fbp, payroll.ctc_structure, payroll.employee_statutory_profile, "
                             + "payroll.earning, payroll.deduction, payroll.benefit, payroll.reimbursement CASCADE");
@@ -283,6 +308,12 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "core", "pay_input")) {
                 st.execute("DELETE FROM core.pay_input");
+            }
+            if (tableExists(conn, "payroll", "prior_payroll_month")) {
+                st.execute("DELETE FROM payroll.prior_payroll_month");
+            }
+            if (tableExists(conn, "payroll", "prior_payroll_import_log")) {
+                st.execute("DELETE FROM payroll.prior_payroll_import_log");
             }
             if (tableExists(conn, "core", "document")) {
                 st.execute("DELETE FROM core.document");
@@ -314,12 +345,6 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "core", "attendance")) {
                 st.execute("DELETE FROM core.attendance");
             }
-            if (columnExists(conn, "core", "employee", "work_location_id")) {
-                st.execute("UPDATE core.employee SET work_location_id = NULL");
-            }
-            if (tableExists(conn, "core", "work_location")) {
-                st.execute("DELETE FROM core.work_location");
-            }
             if (tableExists(conn, "core", "employee_personal")) {
                 st.execute("DELETE FROM core.employee_personal");
             }
@@ -340,6 +365,72 @@ public final class PayrollTestSchema {
                 st.execute("DELETE FROM core.employee_bank");
             }
             st.execute("DELETE FROM core.employee");
+            if (tableExists(conn, "core", "work_location")) {
+                st.execute("DELETE FROM core.work_location");
+            }
+            if (tableExists(conn, "core", "department")) {
+                st.execute("DELETE FROM core.department");
+            }
+            if (tableExists(conn, "core", "designation")) {
+                st.execute("DELETE FROM core.designation");
+            }
+        }
+        PayrollTestApp.TEST_DOCUMENTS.clear();
+        PayrollTestApp.TEST_DOCUMENT_CONTENTS.clear();
+    }
+
+    public static UUID insertDocument(UUID tenantId, String fileName, byte[] content) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.document
+                            (id, tenant_id, employee_id, kind, file_name, content_type, size_bytes,
+                             blob_container, blob_path, checksum_sha256)
+                        VALUES (?, ?, NULL, 'EXPORT', ?, 'text/csv', ?, 'documents', ?, ?)
+                        """)) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.setString(3, fileName);
+            ps.setLong(4, content.length);
+            ps.setString(5, tenantId + "/test/EXPORT/" + id);
+            ps.setString(6, "0".repeat(64));
+            ps.executeUpdate();
+        }
+        PayrollTestApp.TEST_DOCUMENT_CONTENTS.put(id, content);
+        PayrollTestApp.TEST_DOCUMENTS.put(
+                id,
+                new com.infinevo.core.document.DocumentResponse(
+                        id,
+                        null,
+                        com.infinevo.core.document.DocumentKind.EXPORT,
+                        fileName,
+                        "text/csv",
+                        (long) content.length,
+                        "test_checksum",
+                        java.time.Instant.now(),
+                        "system"));
+        return id;
+    }
+
+    public static UUID insertEmployee(UUID tenantId, String employeeNumber, LocalDate dateOfJoining)
+            throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.employee
+                            (id, tenant_id, employee_number, first_name, last_name, date_of_joining, status,
+                             created_by, updated_by)
+                        VALUES (gen_random_uuid(), ?, ?, 'Test', 'Employee', ?, 'ACTIVE', 'test', 'test')
+                        RETURNING id
+                        """)) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, employeeNumber);
+            ps.setDate(3, java.sql.Date.valueOf(dateOfJoining));
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return (UUID) rs.getObject(1);
+            }
         }
     }
 
