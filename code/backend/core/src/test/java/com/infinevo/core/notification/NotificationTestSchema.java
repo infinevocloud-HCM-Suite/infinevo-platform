@@ -20,7 +20,7 @@ import org.springframework.context.ConfigurableApplicationContext;
  *
  * <p>The shipped scripts, run as the owner: identity and roles for the permission check, the employee
  * a notification is addressed to, and {@code V038}/{@code V039}, whose trigger seeds each new tenant's
- * thirty-two default templates.
+ * thirty-four default templates.
  */
 final class NotificationTestSchema {
 
@@ -64,7 +64,8 @@ final class NotificationTestSchema {
                         "core/V038__notification_template.sql",
                         "core/V039__notification.sql",
                         "core/V093__reminder_rule.sql",
-                        "core/V096__scheduled_report_notification.sql"
+                        "core/V096__scheduled_report_notification.sql",
+                        "core/V146__timesheet_escalation_notification.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }

@@ -4,6 +4,7 @@ import com.infinevo.core.employee.EmployeeRequest;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.core.org.ReportingLineRepository;
 import com.infinevo.shared.audit.AuditIntegratorConfig;
 import com.infinevo.shared.audit.AuditWriter;
 import com.infinevo.shared.cache.RedisConfig;
@@ -44,16 +45,31 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = {"com.infinevo.hrms.project", "com.infinevo.hrms.attendance", "com.infinevo.core.authz"},
+        basePackages = {
+            "com.infinevo.hrms.project",
+            "com.infinevo.hrms.attendance",
+            "com.infinevo.hrms.timesheet",
+            "com.infinevo.hrms.portal",
+            "com.infinevo.hrms.navigation",
+            "com.infinevo.core.approval",
+            "com.infinevo.core.authz"
+        },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
             @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class)
         })
+// core.employee and core.org entities only, no repositories and no beans (W-43.2): the late-timesheet query joins
+// Employee and ReportingLine to hrms's own tables, and a JPQL query can name only entities the context knows.
+// The real application scans all of com.infinevo; this test application's scan is narrower on purpose.
 @EntityScan(
         basePackages = {
             "com.infinevo.hrms.project",
             "com.infinevo.hrms.attendance",
+            "com.infinevo.hrms.timesheet",
+            "com.infinevo.core.approval",
             "com.infinevo.core.authz",
+            "com.infinevo.core.employee",
+            "com.infinevo.core.org",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
@@ -61,6 +77,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         basePackages = {
             "com.infinevo.hrms.project",
             "com.infinevo.hrms.attendance",
+            "com.infinevo.hrms.timesheet",
+            "com.infinevo.core.approval",
             "com.infinevo.core.authz",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
@@ -195,6 +213,37 @@ public class HrmsTestApp {
     @Bean
     public EntitlementSource entitlementSource() {
         return tenantId -> ENTITLED.getOrDefault(tenantId, Set.of());
+    }
+
+    /**
+     * Stand-in for core's reporting lines, which this context does not load: the review tests (W-42.4) say who a
+     * manager's direct reports are by stubbing {@code findDirectReports}. With nothing stubbed a manager has none.
+     */
+    @Bean
+    public ReportingLineRepository reportingLineRepository() {
+        return org.mockito.Mockito.mock(ReportingLineRepository.class);
+    }
+
+    /**
+     * The approval engine's collaborators that live in core packages this context does not load (W-42.3): the employee
+     * and reporting-line lookups its resolver and escalation read, and the notification service the timesheet flow
+     * composes through. The approval beans themselves are the real ones, so a submit starts real instances and a
+     * decision runs the real outcome handler. Tests stub what they need: with nothing stubbed the chain above an
+     * employee is empty, and a notification composes nothing.
+     */
+    @Bean
+    public com.infinevo.core.employee.EmployeeRepository employeeRepository() {
+        return org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeRepository.class);
+    }
+
+    @Bean
+    public com.infinevo.core.org.ReportingLineService reportingLineService() {
+        return org.mockito.Mockito.mock(com.infinevo.core.org.ReportingLineService.class);
+    }
+
+    @Bean
+    public com.infinevo.core.notification.NotificationService notificationService() {
+        return org.mockito.Mockito.mock(com.infinevo.core.notification.NotificationService.class);
     }
 
     @Bean

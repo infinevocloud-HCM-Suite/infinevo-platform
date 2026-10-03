@@ -205,3 +205,16 @@ no data.
 | 3 | Reporting manager: direct reports or the whole chain below? | **Direct reports only**, as legacy (`:972-976`) (spec's choice) |
 | 4 | Does anyone but the owner see drafts? | **No.** HR in legacy saw `CANCELLED` too; there is no `CANCELLED` row in the new model (`W-42.1` decision 3) (spec's choice) |
 | 5 | Menu items for the lists | **None here.** `W-48` adds them with their labels (spec's choice, as `W-41` §5) |
+
+## 14. As built (devashish, 2026-10-02)
+
+Where the build differs from, or settles a point left open in, the sections above:
+
+- The three lists answer `{"status", "message", "data": {"content", "page", "size", "total_elements", "total_pages"}}` (`TimesheetPage`), snake_case like the rest of the timesheet API.
+- `size` above 100 is cut to 100, as `ApprovalController` does; a negative `page` or a `size` under 1 is `400`. `DRAFT` and `CANCELLED` are `400` on `status`.
+- Optional filters are a flag plus an always-bound value, as `ProjectRepository` does, because an untyped null does not bind on PostgreSQL. The week ids come first, in a page; the weeks load in one query that brings their project lines, and tasks and days load in batches of 50.
+- `GET /{id}` accepts any of `read_own`, `read_team`, `approve` and `read` at the door (`@RequiresAction(anyOf=...)`), then `TimesheetAccessResolver` decides what the caller sees; a week they see none of is `404`. The owner needs `read_own` to see their own draft: `approve` alone does not open it.
+- A project manager's trimmed week also drops any line still in `DRAFT`. The week's own status and dates are shown as stored.
+- `HrmsTestApp` gains a mocked `ReportingLineRepository`, because the test application does not load core's reporting lines; the tests say who a manager's direct reports are by stubbing `findDirectReports`.
+- `HrmsNavigationTest` now also accepts a bare `@GetMapping`, which HR's list is.
+- No menu items, as the spec says. **`W-48` owns the three labels** and must add them with their endpoints: `/api/v1/hrms/timesheets/managed` (`hrms.timesheet.approve`), `/team` (`read_team`) and `/api/v1/hrms/timesheets` (`read`).

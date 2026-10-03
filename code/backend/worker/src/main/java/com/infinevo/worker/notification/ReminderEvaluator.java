@@ -6,6 +6,7 @@ import com.infinevo.core.notification.Anchor;
 import com.infinevo.core.notification.NotificationService;
 import com.infinevo.core.notification.ReminderAnchorResolver;
 import com.infinevo.core.notification.ReminderAudienceResolver;
+import com.infinevo.core.notification.ReminderRecipient;
 import com.infinevo.core.notification.ReminderRule;
 import com.infinevo.core.notification.ReminderRuleRepository;
 import com.infinevo.shared.tenant.TenantContext;
@@ -212,7 +213,7 @@ public class ReminderEvaluator {
                 && (lastExecDate == null
                         || lastExecDate.isBefore(anchorDate.get().minusDays(rule.getOffsetDays())));
 
-        List<UUID> recipientIds = resolver.get().resolve(rule, tenantId);
+        List<ReminderRecipient> recipients = resolver.get().recipients(rule, tenantId, localDate);
 
         // Claim before composing: a crash below leaves a missed reminder, never a second one to everyone.
         int claimed = reminderRuleRepository.claimRun(rule.getId(), tenantId, rule.getLastExecutedAt(), now, newCycle);
@@ -225,12 +226,13 @@ public class ReminderEvaluator {
 
         LocalDate dueDate = anchorDate.orElse(localDate);
         int failed = 0;
-        for (UUID recipientId : recipientIds) {
+        for (ReminderRecipient recipient : recipients) {
             try {
-                notificationService.compose(
-                        rule.getEvent(),
-                        recipientId,
-                        buildPlaceholderData(rule, recipientId, tenantId, localDate, dueDate));
+                Map<String, Object> data =
+                        buildPlaceholderData(rule, recipient.employeeId(), tenantId, localDate, dueDate);
+                // What the audience supplies replaces what the sweep filled in under the same name (W-43.1).
+                data.putAll(recipient.placeholders());
+                notificationService.compose(rule.getEvent(), recipient.employeeId(), data);
             } catch (RuntimeException e) {
                 failed++;
                 log.warn("Reminder rule {} could not notify one recipient", rule.getId(), e);
@@ -240,8 +242,8 @@ public class ReminderEvaluator {
                 "Executed reminder rule {} (repeatCount={}): {} of {} recipient(s) notified",
                 rule.getId(),
                 rule.getRepeatCount(),
-                recipientIds.size() - failed,
-                recipientIds.size());
+                recipients.size() - failed,
+                recipients.size());
         return true;
     }
 

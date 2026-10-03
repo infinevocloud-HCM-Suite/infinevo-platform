@@ -124,6 +124,12 @@ public class ProjectController {
                 .body(ApiErrorResponse.validation(e.fieldErrors(), traceId()));
     }
 
+    @ExceptionHandler(ResourceInUseException.class)
+    public ResponseEntity<ApiErrorResponse> handleInUse(ResourceInUseException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+    }
+
     @ExceptionHandler(DuplicateAssignmentException.class)
     public ResponseEntity<ApiErrorResponse> handleConflict(DuplicateAssignmentException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

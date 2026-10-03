@@ -53,9 +53,12 @@ class ProjectValidationTest {
         assignmentRepository = mock(AssignmentRepository.class);
         employeeService = mock(EmployeeService.class);
 
-        projectService =
-                new ProjectServiceImpl(projectRepository, taskRepository, assignmentRepository, employeeService);
-        taskService = new TaskServiceImpl(taskRepository, projectRepository, assignmentRepository, employeeService);
+        // Nothing is on a timesheet here; the delete refusal is ProjectCrudIT's, against the real tables.
+        TimesheetUsage noTimesheets = mock(TimesheetUsage.class);
+        projectService = new ProjectServiceImpl(
+                projectRepository, taskRepository, assignmentRepository, employeeService, noTimesheets);
+        taskService = new TaskServiceImpl(
+                taskRepository, projectRepository, assignmentRepository, employeeService, noTimesheets);
         assignmentService = new AssignmentServiceImpl(assignmentRepository, projectRepository, employeeService);
 
         EmployeeResponse mockManager = mock(EmployeeResponse.class);

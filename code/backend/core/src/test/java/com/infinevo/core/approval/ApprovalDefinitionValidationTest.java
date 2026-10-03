@@ -137,10 +137,28 @@ class ApprovalDefinitionValidationTest {
 
         ApprovalDefinitionService service = new ApprovalDefinitionService(repository, List.of(pmResolver));
 
-        ApprovalStepDefinition pmStep = new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER);
+        ApprovalStepDefinition pmStep = new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER, null, 3, true);
         ApprovalDefinitionRequest request = new ApprovalDefinitionRequest(
                 StepOrdering.SEQUENTIAL, CommentScope.PER_STEP, LocalDate.now(), List.of(pmStep));
 
         service.validate(request); // Passes without exception
+    }
+
+    @Test
+    @DisplayName("a PROJECT_MANAGER step that is not per_item is refused, even with a resolver registered (W-42.2)")
+    void projectManagerMustBePerItem() {
+        ApprovalDefinitionRepository repository = mock(ApprovalDefinitionRepository.class);
+        ApproverResolver pmResolver = mock(ApproverResolver.class);
+        when(pmResolver.kind()).thenReturn(ApproverKind.PROJECT_MANAGER);
+        ApprovalDefinitionService service = new ApprovalDefinitionService(repository, List.of(pmResolver));
+
+        ApprovalStepDefinition approver = new ApprovalStepDefinition(ApproverKind.REPORTING_MANAGER);
+        ApprovalStepDefinition pmStep = new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER, null, 3, false);
+        ApprovalDefinitionRequest request = new ApprovalDefinitionRequest(
+                StepOrdering.SEQUENTIAL, CommentScope.PER_STEP, LocalDate.now(), List.of(approver, pmStep));
+
+        assertThatThrownBy(() -> service.validate(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Step at index 1: PROJECT_MANAGER must be per_item");
     }
 }

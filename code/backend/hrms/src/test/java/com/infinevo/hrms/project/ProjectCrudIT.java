@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.hrms.timesheet.TimesheetRequest;
+import com.infinevo.hrms.timesheet.TimesheetResponse;
+import com.infinevo.hrms.timesheet.TimesheetService;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
@@ -46,6 +49,9 @@ class ProjectCrudIT extends AbstractIntegrationTest {
 
     @Autowired
     private AssignmentService assignmentService;
+
+    @Autowired
+    private TimesheetService timesheetService;
 
     private UUID tenantId;
     private UUID employeeId;
@@ -173,6 +179,77 @@ class ProjectCrudIT extends AbstractIntegrationTest {
             assertThat(isDeleted(conn, "hrms.task", task.id())).isTrue();
             assertThat(isDeleted(conn, "hrms.assignment", assignment.id())).isTrue();
         }
+    }
+
+    @Test
+    @DisplayName("A project or task on a live timesheet cannot be deleted (409); once the timesheet is gone it can")
+    void projectAndTaskOnATimesheetCannotBeDeleted() {
+        ProjectResponse project = projectService.create(new ProjectRequest(
+                "Timesheet Guarded " + UUID.randomUUID(),
+                "Dev",
+                "Has hours booked",
+                LocalDate.of(2026, 1, 1),
+                null,
+                Priority.MEDIUM,
+                ProjectStatus.STARTED,
+                BigDecimal.valueOf(1000),
+                managerId));
+        assignmentService.assign(project.id(), new AssignmentRequest(employeeId, LocalDate.of(2026, 1, 1)));
+        TaskResponse task = taskService.create(
+                project.id(), new TaskRequest("Booked task", "d", null, null, Priority.LOW, TaskStatus.TODO, 4));
+        HrmsTestApp.CURRENT_EMPLOYEE.set(currentEmployeeResponse);
+        LocalDate monday = LocalDate.of(2026, 10, 5);
+        TimesheetResponse sheet = timesheetService.create(new TimesheetRequest(
+                monday,
+                List.of(new TimesheetRequest.ProjectLine(
+                        project.id(),
+                        List.of(new TimesheetRequest.TaskLine(
+                                task.id(),
+                                List.of(new TimesheetRequest.DayLine(monday, new BigDecimal("8"), null))))))));
+
+        assertThatThrownBy(() -> taskService.delete(task.id())).isInstanceOf(ResourceInUseException.class);
+        assertThatThrownBy(() -> projectService.delete(project.id())).isInstanceOf(ResourceInUseException.class);
+        assertThat(projectService.get(project.id()))
+                .as("the project is still there")
+                .isNotNull();
+        assertThat(taskService.get(task.id())).as("and so is the task").isNotNull();
+
+        timesheetService.delete(sheet.id());
+
+        taskService.delete(task.id());
+        projectService.delete(project.id());
+        assertThatThrownBy(() -> projectService.get(project.id())).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("A cancelled timesheet does not hold its project or task")
+    void cancelledTimesheetDoesNotBlockDeletion() throws SQLException {
+        ProjectResponse project = projectService.create(new ProjectRequest(
+                "Cancelled Timesheet " + UUID.randomUUID(),
+                "Dev",
+                "Hours were cancelled",
+                LocalDate.of(2026, 1, 1),
+                null,
+                Priority.MEDIUM,
+                ProjectStatus.STARTED,
+                BigDecimal.valueOf(1000),
+                managerId));
+        assignmentService.assign(project.id(), new AssignmentRequest(employeeId, LocalDate.of(2026, 1, 1)));
+        TaskResponse task = taskService.create(
+                project.id(), new TaskRequest("Cancelled task", "d", null, null, Priority.LOW, TaskStatus.TODO, 4));
+        HrmsTestApp.CURRENT_EMPLOYEE.set(currentEmployeeResponse);
+        LocalDate monday = LocalDate.of(2026, 10, 12);
+        TimesheetResponse sheet = timesheetService.create(new TimesheetRequest(
+                monday,
+                List.of(new TimesheetRequest.ProjectLine(
+                        project.id(),
+                        List.of(new TimesheetRequest.TaskLine(
+                                task.id(),
+                                List.of(new TimesheetRequest.DayLine(monday, new BigDecimal("2"), null))))))));
+        HrmsProjectTestSchema.update("UPDATE hrms.timesheet SET status = 'CANCELLED' WHERE id = ?", sheet.id());
+
+        taskService.delete(task.id());
+        projectService.delete(project.id());
     }
 
     @Test

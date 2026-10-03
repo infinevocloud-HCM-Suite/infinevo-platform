@@ -211,3 +211,13 @@ here rather than logging it.
 | 1 | Who approves a timesheet? | **Each project's manager, for that project only**, as legacy |
 | 2 | One instance per timesheet with per-item steps, or one instance per project entry? | **One per project entry.** A rejection then ends only that project's instance, and the engine's rejection rule stays as it is |
 | 3 | After a rejection | **The employee edits the same timesheet and resubmits.** `W-42.3` starts a fresh instance for the rejected project only |
+
+## 14. As built (devashish, 2026-10-02)
+
+Where the build differs from, or settles a point left open in, the sections above:
+
+- The rule is one private method, `ApprovalService.resolverContextRef`, used at both resolve sites.
+- The new validation sits after the resolver-bean check, so a tenant with no `PROJECT_MANAGER` resolver still sees "requires an ApproverResolver bean registered" first. `ApprovalDefinitionGuardIT` therefore registers a stub resolver to reach the per_item message.
+- `ApproverResolverTest` could not exercise the rule: `CoreApproverResolver` never sees an `itemRef`. The three cases (`PROJECT_MANAGER` gets the item; per-item `ROLE` still gets `"hr"`; no item gives `null`) start a flow through `ApprovalService` with a mocked resolver instead.
+- `ApprovalTestSchema.apply()` now runs `V145` after `V089` (it is safe to run again), so every approval IT seeds new tenants as a fresh database would. `TimesheetDefinitionMigrationIT` also runs it over rows put back to the old seed, and over one edited by the tenant and one created by them.
+- `ProjectManagerStepIT` registers its stub resolver and a `TIMESHEET` outcome handler as a `@TestConfiguration`, not as scanned beans, so the other approval ITs keep their `PROJECT_MANAGER`-less context.

@@ -151,6 +151,10 @@ public class ApprovalDefinitionService {
                     throw new IllegalArgumentException(
                             "Step at index " + i + ": PROJECT_MANAGER requires an ApproverResolver bean registered");
                 }
+                // The resolver finds the manager by the step's item (the project), and only a per-item step has one.
+                if (!Boolean.TRUE.equals(step.getPerItem())) {
+                    throw new IllegalArgumentException("Step at index " + i + ": PROJECT_MANAGER must be per_item");
+                }
             }
         }
     }

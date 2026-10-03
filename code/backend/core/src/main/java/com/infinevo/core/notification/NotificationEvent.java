@@ -38,7 +38,13 @@ public enum NotificationEvent {
     /** Rule-driven by {@code W-20.2}, from HRMS's {@code NotificationSchedular}. */
     TIMESHEET_REMINDER("employee_name", "week_start"),
     /** Sent by the scheduled-report evaluator when a scheduled export run completes (W-23.2). */
-    SCHEDULED_REPORT("report_name", "link", "expires_at");
+    SCHEDULED_REPORT("report_name", "link", "expires_at"),
+    /**
+     * W-43.1. To a manager: the people in their team who have not submitted a timesheet for a week
+     * (legacy {@code NotificationSchedularServiceImpl.java:677}). The audience supplies {@code week_start} and
+     * {@code late_employees}; the sweep supplies the name.
+     */
+    TIMESHEET_ESCALATION("employee_name", "week_start", "late_employees");
 
     private final Set<String> placeholders;
 

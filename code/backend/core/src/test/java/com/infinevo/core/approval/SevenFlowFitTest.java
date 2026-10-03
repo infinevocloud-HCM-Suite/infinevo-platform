@@ -197,7 +197,7 @@ class SevenFlowFitTest {
     void timesheetFlowFits() throws Exception {
         UUID tenantId = UUID.randomUUID();
         List<ApprovalStepDefinition> steps =
-                List.of(new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER, null, 3, false));
+                List.of(new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER, null, 3, true));
 
         ApprovalDefinition def = new ApprovalDefinition(
                 tenantId,
@@ -214,6 +214,9 @@ class SevenFlowFitTest {
         assertThat(def.getCommentScope()).isEqualTo(CommentScope.PER_STEP);
         assertThat(def.getSteps()).hasSize(1);
         assertThat(def.getSteps().get(0).getKind()).isEqualTo(ApproverKind.PROJECT_MANAGER);
+        assertThat(def.getSteps().get(0).getPerItem())
+                .as("one instance per project entry, so the step is per item (W-42.2)")
+                .isTrue();
 
         assertJsonRoundTrip(def.getSteps());
     }

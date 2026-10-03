@@ -1,7 +1,10 @@
 package com.infinevo.core.notification;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Turns a reminder rule's audience into recipient employee IDs for a given tenant (W-20.2,
@@ -10,6 +13,11 @@ import java.util.UUID;
  * <p>Each audience type (e.g. SUBJECT, MANAGER, HR) is supplied by an implementing bean,
  * allowing other modules (HRMS, Payroll) to contribute recipient resolution without Core
  * coupling to them.
+ *
+ * <p>An audience that knows something the sweep cannot, such as which week it checked or who in a manager's team is
+ * late, supplies those values itself (W-43.1): it names them in {@link #suppliedPlaceholders()} and returns them with
+ * each recipient from {@link #recipients}. An audience that supplies nothing implements only {@link #resolve} and
+ * behaves as before.
  */
 public interface ReminderAudienceResolver {
 
@@ -25,4 +33,31 @@ public interface ReminderAudienceResolver {
      * ({@code TenantContext.setForConnection}, D-57).
      */
     List<UUID> resolve(ReminderRule rule, UUID tenantId);
+
+    /**
+     * The placeholder names this audience puts into the mail itself, beyond the ones the sweep supplies. A rule whose
+     * event needs one of them is accepted for this audience and refused for any that does not supply it.
+     * Default: none.
+     */
+    default Set<String> suppliedPlaceholders() {
+        return Set.of();
+    }
+
+    /**
+     * The recipients of the rule, each with the values this audience supplies for them. The sweep calls this, not
+     * {@link #resolve}, and the same rules apply to it: tenant bound, no transaction open, so a database read opens its
+     * own.
+     *
+     * <p>Default: {@link #resolve}'s ids, with no values, so an audience written before this method behaves as before.
+     * The default opens the read-only transaction itself. It has to: it calls {@code resolve} on the bean directly, past
+     * the Spring proxy that would have opened the one on {@code resolve}, and a read outside a transaction is refused
+     * ({@code TenantContext.setForConnection}, D-57). An audience that overrides this opens its own, as for {@code resolve}.
+     *
+     * @param slotDate the tenant-local day the sweep is sending for, so an audience counts weeks in the tenant's
+     *     zone and not the server's
+     */
+    @Transactional(readOnly = true)
+    default List<ReminderRecipient> recipients(ReminderRule rule, UUID tenantId, LocalDate slotDate) {
+        return resolve(rule, tenantId).stream().map(ReminderRecipient::of).toList();
+    }
 }

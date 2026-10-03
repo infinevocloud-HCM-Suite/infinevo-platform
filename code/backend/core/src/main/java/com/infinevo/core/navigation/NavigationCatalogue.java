@@ -12,12 +12,7 @@ import java.util.List;
  * to start the application if any leaf's {@code targetEndpoint} has no {@code GET} mapping, and
  * {@code NavigationMatchesEnforcementIT} walks every leaf against the real controllers.
  *
- * <p><strong>An item is added here in the ticket that ships its endpoint, never before.</strong>
- * Items that are not here yet, and the ticket that adds each one:
- *
- * <ul>
- *   <li>{@code hrms.timesheets} → {@code GET /api/v1/timesheets} — the HRMS timesheet ticket
- * </ul>
+ * <p><strong>An item is added in the ticket that ships its endpoint, never before.</strong>
  *
  * <p>A module's items are not listed here: the module supplies them through a
  * {@link NavigationContributor}, next to the controller they target ({@code payroll.runs} is

@@ -11,5 +11,12 @@ public interface ApproverResolver {
 
     ApproverKind kind();
 
+    /**
+     * Resolves the approver of one step.
+     *
+     * <p>{@code contextRef} depends on the kind. For {@link ApproverKind#PROJECT_MANAGER} it is the step's item
+     * reference (W-42.3: the project id as a UUID string); a step with no item reference passes {@code null}. For
+     * {@link ApproverKind#NAMED_EMPLOYEE} and {@link ApproverKind#ROLE} it is the step definition's {@code assignee}.
+     */
     Optional<UUID> resolve(UUID tenantId, UUID employeeId, String contextRef);
 }

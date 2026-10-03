@@ -21,6 +21,7 @@ import com.infinevo.core.notification.NotificationEvent;
 import com.infinevo.core.notification.NotificationService;
 import com.infinevo.core.notification.ReminderAnchorResolver;
 import com.infinevo.core.notification.ReminderAudienceResolver;
+import com.infinevo.core.notification.ReminderRecipient;
 import com.infinevo.core.notification.ReminderRule;
 import com.infinevo.core.notification.ReminderRuleRepository;
 import java.time.Clock;
@@ -78,6 +79,10 @@ class ReminderEvaluatorTest {
 
         when(audienceResolver.audience()).thenReturn("SUBJECT");
         when(audienceResolver.resolve(any(ReminderRule.class), eq(tenantId))).thenReturn(List.of(recipientId));
+        // A mock does not run an interface's default methods; the sweep calls recipients(), whose default (W-43.1) is
+        // resolve() with no values, which is the behaviour every audience written before it keeps.
+        when(audienceResolver.recipients(any(ReminderRule.class), eq(tenantId), any(LocalDate.class)))
+                .thenCallRealMethod();
         // The claim succeeds unless a test says otherwise.
         when(ruleRepository.claimRun(any(), any(), any(), any(), anyBoolean())).thenReturn(1);
     }
@@ -625,5 +630,112 @@ class ReminderEvaluatorTest {
                 List.of(audienceResolver),
                 List.of(),
                 Clock.fixed(now, ZoneOffset.UTC));
+    }
+
+    // ── W-43.1: an audience supplies its own values ──────────────────────────────────────────
+
+    private ReminderRule escalationRule() {
+        return new ReminderRule(
+                tenantId,
+                NotificationEvent.TIMESHEET_ESCALATION,
+                "SUBJECT",
+                Anchor.WEEKLY,
+                0,
+                5,
+                LocalTime.of(9, 0),
+                null,
+                null,
+                "system");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> composedData(NotificationEvent event) {
+        ArgumentCaptor<Map<String, Object>> data = ArgumentCaptor.forClass(Map.class);
+        verify(notificationService).compose(eq(event), eq(recipientId), data.capture());
+        return data.getValue();
+    }
+
+    @Test
+    @DisplayName("a stub audience's week_start replaces the sweep's, and its late_employees reaches compose")
+    void anAudiencesValuesReachComposeAndWinOnAClash() {
+        // Friday 2026-10-02: the sweep's own week_start would be this week's Monday, 2026-09-28.
+        Instant now = Instant.parse("2026-10-02T10:00:00Z");
+        when(audienceResolver.recipients(any(ReminderRule.class), eq(tenantId), any(LocalDate.class)))
+                .thenReturn(List.of(new ReminderRecipient(
+                        recipientId, Map.of("week_start", "2026-09-21", "late_employees", "Asha Rao, Ravi Nair"))));
+        when(ruleRepository.findByTenantIdAndIsActiveTrue(tenantId)).thenReturn(List.of(escalationRule()));
+
+        assertEquals(1, evaluator(now).evaluateTenant(tenantId, ZoneOffset.UTC, now));
+
+        Map<String, Object> data = composedData(NotificationEvent.TIMESHEET_ESCALATION);
+        assertEquals("2026-09-21", data.get("week_start"), "the audience's week, not this week's Monday");
+        assertEquals("Asha Rao, Ravi Nair", data.get("late_employees"));
+        assertTrue(data.containsKey("employee_name"), "the sweep still supplies the name");
+        assertEquals("2026-10-02", data.get("due_date"), "and every value the audience did not name");
+    }
+
+    @Test
+    @DisplayName("an audience that supplies nothing gets exactly the values the sweep always filled in")
+    void anAudienceWithNoOverrideGetsTodaysValues() {
+        Instant now = Instant.parse("2026-10-02T10:00:00Z");
+        when(ruleRepository.findByTenantIdAndIsActiveTrue(tenantId)).thenReturn(List.of(fridayRule()));
+
+        assertEquals(1, evaluator(now).evaluateTenant(tenantId, ZoneOffset.UTC, now));
+
+        Map<String, Object> data = composedData(NotificationEvent.TIMESHEET_REMINDER);
+        assertEquals(
+                java.util.Set.of(
+                        "employee_name",
+                        "due_date",
+                        "week_start",
+                        "financial_year",
+                        "period",
+                        com.infinevo.core.notification.NotificationService.SUBJECT_REF),
+                data.keySet());
+        assertEquals("2026-09-28", data.get("week_start"), "this week's Monday, as before");
+    }
+
+    @Test
+    @DisplayName("each recipient gets their own values: one audience, two managers, two lists")
+    void eachRecipientGetsTheirOwnValues() {
+        Instant now = Instant.parse("2026-10-02T10:00:00Z");
+        UUID other = UUID.randomUUID();
+        when(audienceResolver.recipients(any(ReminderRule.class), eq(tenantId), any(LocalDate.class)))
+                .thenReturn(List.of(
+                        new ReminderRecipient(recipientId, Map.of("late_employees", "Asha")),
+                        new ReminderRecipient(other, Map.of("late_employees", "Ravi"))));
+        when(ruleRepository.findByTenantIdAndIsActiveTrue(tenantId)).thenReturn(List.of(escalationRule()));
+
+        evaluator(now).evaluateTenant(tenantId, ZoneOffset.UTC, now);
+
+        assertEquals(
+                "Asha", composedData(NotificationEvent.TIMESHEET_ESCALATION).get("late_employees"));
+        ArgumentCaptor<Map<String, Object>> second = ArgumentCaptor.forClass(Map.class);
+        verify(notificationService).compose(eq(NotificationEvent.TIMESHEET_ESCALATION), eq(other), second.capture());
+        assertEquals("Ravi", second.getValue().get("late_employees"));
+    }
+
+    @Test
+    @DisplayName(
+            "the slot date passed is the tenant-local day, not the server's: 23:55 Friday in Los Angeles is Saturday UTC")
+    void theSlotDatePassedIsTenantLocal() {
+        // 23:55 on Friday 2026-10-02 in Los Angeles (UTC-7) is already 06:55 on Saturday 2026-10-03 UTC.
+        Instant now = Instant.parse("2026-10-03T06:55:00Z");
+        ReminderRule lateFridayRule = new ReminderRule(
+                tenantId,
+                NotificationEvent.TIMESHEET_REMINDER,
+                "SUBJECT",
+                Anchor.WEEKLY,
+                0,
+                5,
+                LocalTime.of(23, 50),
+                null,
+                null,
+                "system");
+        when(ruleRepository.findByTenantIdAndIsActiveTrue(tenantId)).thenReturn(List.of(lateFridayRule));
+
+        assertEquals(1, evaluator(now).evaluateTenant(tenantId, ZoneId.of("America/Los_Angeles"), now));
+
+        verify(audienceResolver).recipients(any(ReminderRule.class), eq(tenantId), eq(LocalDate.of(2026, 10, 2)));
     }
 }

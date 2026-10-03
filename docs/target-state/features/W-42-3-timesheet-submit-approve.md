@@ -255,3 +255,19 @@ Nothing is deployed and there is no migration. Removing the beans leaves submitt
 | 5 | Withdraw after submit | **No** |
 | 6 | Fix after rejection | **Edit the same week; only the rejected projects go back** (from `W-42` decision 7) |
 | 7 | Submit-all | **Not ported** (spec's choice) |
+
+## 14. As built (devashish, 2026-10-02)
+
+Where the build differs from, or settles a point left open in, the sections above:
+
+- The save rules moved out of `TimesheetServiceImpl` into `TimesheetValidator`, so that the draft save and the resubmit meet the same rules. `TimesheetRules.validate` takes the hours already held on the lines a resubmit does not replace, so 24 hours a day still counts the whole week.
+- Resubmit is `TimesheetSubmitService.resubmit`. `TimesheetServiceImpl.replace` hands a `REJECTED` week to it; the body must carry the week's own `week_start_date`. A project that is not a rejected line of the week is `409`, checked after the shape of the body and before the database rules.
+- `APPROVAL_PENDING` is composed after the submit commits, in a transaction of its own (`REQUIRES_NEW`), because a callback after commit has no live transaction to write in. Every name and title is read before the commit: the callback runs while the submit's connection is still held, and reading there starved the tests' two-connection pool. `APPROVAL_DECIDED` is composed inside the outcome handler's own transaction, as `ProofOutcomeHandler` does. Both are wrapped and logged.
+- The rejection reason is the first rejecting decision's comment that is not blank, cut to 1000 characters; a rejection with no comment leaves the reason empty. The cut is a guard only: core already holds a step comment to 1000, so a longer one is refused there.
+- `TimesheetRow` is public: a Hibernate proxy of a lazy parent (a line's timesheet) calls its inherited getters by reflection, and a package-private declaring class refuses that.
+- The outcome handler binds the tenant when none is bound, as the spec says, but it cannot read the instance before that: core's dispatcher binds it first in every real path, so no test calls it unbound.
+- The outcome handler binds the tenant when none is bound, as the spec says, but it cannot read the instance before that; core's dispatcher binds it first in every real path, so no test calls it unbound.
+- The outcome is ignored when the line is not `SUBMITTED` or when its instance is not the newest for the line (newest by `created_at`, then `started_at`).
+- The approver's read answers `404` unless the caller is the assignee of a step on any instance for the line, so an unassigned step, which an administrator decides, is not readable here.
+- `HrmsTestApp` now loads core's real approval beans (`core.approval` scanned, its entities and repositories), the way `PayrollTestApp` does, with mocks for `EmployeeRepository`, `ReportingLineService` and `NotificationService`; `HrmsProjectTestSchema` applies `V089`–`V092` and `V145`. The decisions in the tests go through the real `ApprovalService.decide`, and one through the real endpoint with `core.approval.decide` granted to the test login. **That grant is the part to delete when `W-40.2` is on `main`.**
+- `PUT /{id}/submit` of a week that has no `TIMESHEET` definition answers `409` with core's message ("No active approval definition found for flow TIMESHEET").

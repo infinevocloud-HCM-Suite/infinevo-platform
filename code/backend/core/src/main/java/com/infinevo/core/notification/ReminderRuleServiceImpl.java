@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -139,26 +140,32 @@ public class ReminderRuleServiceImpl implements ReminderRuleService {
     private void validate(ReminderRuleRequest request) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
 
+        // What a reminder can fill in is what the sweep supplies plus what the named audience supplies itself (W-43.1).
+        Optional<ReminderAudienceResolver> audience =
+                request.audience() == null || request.audience().isBlank()
+                        ? Optional.empty()
+                        : audienceResolvers.stream()
+                                .filter(resolver -> resolver.audience()
+                                        .equalsIgnoreCase(request.audience().trim()))
+                                .findFirst();
+        Set<String> supplied = new TreeSet<>(SUPPLIED_PLACEHOLDERS);
+        audience.ifPresent(resolver -> supplied.addAll(resolver.suppliedPlaceholders()));
+
         if (request.event() == null) {
             fieldErrors.put("event", "event is required");
-        } else if (!SUPPLIED_PLACEHOLDERS.containsAll(request.event().placeholders())) {
+        } else if (!supplied.containsAll(request.event().placeholders())) {
             Set<String> missing = new TreeSet<>(request.event().placeholders());
-            missing.removeAll(SUPPLIED_PLACEHOLDERS);
+            missing.removeAll(supplied);
             fieldErrors.put(
                     "event",
                     request.event() + " needs " + missing + ", which a reminder cannot supply; a reminder supplies "
-                            + new TreeSet<>(SUPPLIED_PLACEHOLDERS));
+                            + supplied);
         }
 
         if (request.audience() == null || request.audience().isBlank()) {
             fieldErrors.put("audience", "audience is required");
-        } else {
-            String trimmedAudience = request.audience().trim();
-            boolean supported = audienceResolvers.stream()
-                    .anyMatch(resolver -> resolver.audience().equalsIgnoreCase(trimmedAudience));
-            if (!supported) {
-                fieldErrors.put("audience", "Unknown audience: " + request.audience());
-            }
+        } else if (audience.isEmpty()) {
+            fieldErrors.put("audience", "Unknown audience: " + request.audience());
         }
 
         if (request.anchor() == null) {

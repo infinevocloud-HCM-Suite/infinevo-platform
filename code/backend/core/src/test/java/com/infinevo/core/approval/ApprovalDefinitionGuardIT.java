@@ -1,8 +1,10 @@
 package com.infinevo.core.approval;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,6 +16,7 @@ import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.shared.test.RedisTestContainerInitializer;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -23,6 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
@@ -38,6 +44,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(classes = PermissionGuardTestApp.class)
 @AutoConfigureMockMvc
+@Import(ApprovalDefinitionGuardIT.ProjectManagerResolver.class)
 @ContextConfiguration(
         initializers = {
             PostgresTestContainerInitializer.class,
@@ -45,6 +52,26 @@ import org.springframework.test.web.servlet.MockMvc;
             RedisTestContainerInitializer.class
         })
 class ApprovalDefinitionGuardIT extends AbstractIntegrationTest {
+
+    /** A PROJECT_MANAGER resolver is registered, as hrms's will be (W-42.3), so only the step's shape is in question. */
+    @TestConfiguration
+    static class ProjectManagerResolver {
+
+        @Bean
+        ApproverResolver projectManagerResolver() {
+            return new ApproverResolver() {
+                @Override
+                public ApproverKind kind() {
+                    return ApproverKind.PROJECT_MANAGER;
+                }
+
+                @Override
+                public Optional<UUID> resolve(UUID tenantId, UUID employeeId, String contextRef) {
+                    return Optional.empty();
+                }
+            };
+        }
+    }
 
     @Autowired
     private MockMvc mvc;
@@ -120,6 +147,39 @@ class ApprovalDefinitionGuardIT extends AbstractIntegrationTest {
                 List.of(new ApprovalStepDefinition(ApproverKind.REPORTING_MANAGER)));
 
         mvc.perform(put("/api/v1/approval-definitions/LEAVE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body))
+                        .with(jwt().jwt(b -> b.subject(adminSub.toString()).claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("PUT of a PROJECT_MANAGER step that is not per_item gets 400, and says why (W-42.2)")
+    void putProjectManagerStepNotPerItemGets400() throws Exception {
+        ApprovalDefinitionRequest body = new ApprovalDefinitionRequest(
+                StepOrdering.SEQUENTIAL,
+                CommentScope.PER_STEP,
+                LocalDate.now(),
+                List.of(new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER, null, 3, false)));
+
+        mvc.perform(put("/api/v1/approval-definitions/TIMESHEET")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body))
+                        .with(jwt().jwt(b -> b.subject(adminSub.toString()).claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("Step at index 0: PROJECT_MANAGER must be per_item")));
+    }
+
+    @Test
+    @DisplayName("PUT of a per_item PROJECT_MANAGER step gets 200 (W-42.2)")
+    void putProjectManagerStepPerItemGets200() throws Exception {
+        ApprovalDefinitionRequest body = new ApprovalDefinitionRequest(
+                StepOrdering.SEQUENTIAL,
+                CommentScope.PER_STEP,
+                LocalDate.now(),
+                List.of(new ApprovalStepDefinition(ApproverKind.PROJECT_MANAGER, null, 3, true)));
+
+        mvc.perform(put("/api/v1/approval-definitions/TIMESHEET")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body))
                         .with(jwt().jwt(b -> b.subject(adminSub.toString()).claim("tenant_id", tenantId.toString()))))

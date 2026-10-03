@@ -24,13 +24,4 @@ class TimesheetPanelProviderTest {
         assertThat(desc.endpoint()).isEqualTo("/api/v1/me/timesheet");
         assertThat(desc.requiredAction()).isEqualTo("hrms.timesheet.read_own");
     }
-
-    @Test
-    @DisplayName("MyTimesheetPlaceholderController returns placeholder 200 response")
-    void placeholderControllerReturnsOk() {
-        MyTimesheetPlaceholderController controller = new MyTimesheetPlaceholderController();
-        var response = controller.getMyTimesheet();
-        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        assertThat(response.getBody()).containsEntry("status", "placeholder");
-    }
 }

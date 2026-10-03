@@ -26,7 +26,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
  * code cannot drift apart unnoticed.
  *
  * <p>A new event is a migration that replaces the seed function and widens the {@code CHECK} (V038 did
- * the first sixteen, V096 added {@code SCHEDULED_REPORT}), so the test reads whichever core script
+ * the first sixteen, V096 added {@code SCHEDULED_REPORT}, V146 {@code TIMESHEET_ESCALATION}), so the test reads whichever core script
  * defined each of them last, by version.
  */
 class NotificationEventTest {
@@ -93,7 +93,9 @@ class NotificationEventTest {
                         "APPROVAL_DECIDED",
                         "TIMESHEET_REMINDER",
                         // Not in contracts section 5 row 15: W-23.2 adds it for scheduled reports (V096).
-                        "SCHEDULED_REPORT");
+                        "SCHEDULED_REPORT",
+                        // W-43.1 (V146): the manager's list of late employees.
+                        "TIMESHEET_ESCALATION");
     }
 
     @Test
