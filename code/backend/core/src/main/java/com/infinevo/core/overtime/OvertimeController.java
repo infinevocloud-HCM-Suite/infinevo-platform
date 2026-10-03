@@ -81,6 +81,11 @@ public class OvertimeController {
         return error(HttpStatus.CONFLICT, ApiError.CONFLICT, e.getMessage());
     }
 
+    @ExceptionHandler(OvertimeService.NotCancellableException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotCancellable(OvertimeService.NotCancellableException e) {
+        return error(HttpStatus.CONFLICT, ApiError.CONFLICT, e.getMessage());
+    }
+
     /**
      * Two cancels of the same entry at the same moment: both read {@code APPROVED}, the ledger lets
      * only one reversal through (W-19, {@code uk_pay_input_tenant_reverses}), and the loser's whole

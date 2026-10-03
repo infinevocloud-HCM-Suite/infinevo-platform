@@ -7,6 +7,8 @@ package com.infinevo.core.overtime;
  * form, not a request).
  */
 public enum OvertimeStatus {
+    PENDING,
     APPROVED,
+    REJECTED,
     CANCELLED
 }

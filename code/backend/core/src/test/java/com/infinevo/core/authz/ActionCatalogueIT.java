@@ -150,6 +150,28 @@ class ActionCatalogueIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("W-40.2: hrms.overtime.request exists and employee holds it; manager and hr hold core.approval.decide")
+    void hrmsRequestActionsSeededCorrectly() throws SQLException {
+        Set<String> catalogue = catalogue();
+        assertThat(catalogue).contains("hrms.overtime.request", "core.approval.decide");
+
+        Map<String, Set<String>> held = systemRoleActions(tenant);
+        assertThat(held.get("platform-admin")).contains("hrms.overtime.request", "core.approval.decide");
+        assertThat(held.get("tenant-admin")).contains("hrms.overtime.request", "core.approval.decide");
+
+        // employee holds hrms.overtime.request, but not core.approval.decide
+        assertThat(held.get("employee")).contains("hrms.overtime.request").doesNotContain("core.approval.decide");
+
+        // hr and manager hold core.approval.decide, but not hrms.overtime.request
+        assertThat(held.get("hr")).contains("core.approval.decide").doesNotContain("hrms.overtime.request");
+        assertThat(held.get("manager")).contains("core.approval.decide").doesNotContain("hrms.overtime.request");
+
+        // payroll-officer and finance hold neither
+        assertThat(held.get("payroll-officer")).doesNotContain("hrms.overtime.request", "core.approval.decide");
+        assertThat(held.get("finance")).doesNotContain("hrms.overtime.request", "core.approval.decide");
+    }
+
+    @Test
     @DisplayName(
             "Through the service: the catalogue is the reference table, and the tenant's roles are the seeded ones")
     void serviceReadsMatchTheDatabase() throws SQLException {

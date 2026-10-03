@@ -1,5 +1,6 @@
 package com.infinevo.core.audit;
 
+import com.infinevo.core.tenant.TenantClock;
 import com.infinevo.shared.audit.AuditIntegratorConfig;
 import com.infinevo.shared.audit.AuditWriter;
 import com.infinevo.shared.identity.UserProfileSyncService;
@@ -48,5 +49,5 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
-@Import({AuditWriter.class, AuditIntegratorConfig.class, UserProfileSyncService.class})
+@Import({AuditWriter.class, AuditIntegratorConfig.class, UserProfileSyncService.class, TenantClock.class})
 public class CoreAuditTestApp {}
