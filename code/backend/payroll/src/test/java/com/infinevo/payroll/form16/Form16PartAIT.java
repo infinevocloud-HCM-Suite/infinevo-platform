@@ -19,6 +19,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.core.document.DocumentController;
 import com.infinevo.core.document.DocumentLinkService;
 import com.infinevo.core.document.DocumentService;
+import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.core.employee.detail.EmployeeIdentificationService;
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.PayrollTestSchema;
 import com.infinevo.payroll.proof.ProofTestDocuments;
@@ -31,6 +33,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -50,6 +53,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * W-36.5 §7 — the acceptance test. The Part A ZIP is uploaded through the controller; certificates are
@@ -87,6 +91,18 @@ class Form16PartAIT extends AbstractIntegrationTest {
 
     @Autowired
     private DocumentLinkService documentLinkService;
+
+    @Autowired
+    private Form16PartARepository partARepository;
+
+    @Autowired
+    private EmployeeIdentificationService identificationService;
+
+    @Autowired
+    private EmployeeService employeeService;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private final ObjectMapper mapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
@@ -255,6 +271,74 @@ class Form16PartAIT extends AbstractIntegrationTest {
         assertThat(data.get("unmatched").get(0).asText()).isEqualTo("certificate.pdf");
         assertThat(data.get("skipped")).hasSize(5);
         assertThat(count("SELECT count(*) FROM payroll.form16_part_a WHERE tenant_id = ?", TENANT_A))
+                .isZero();
+        assertWorkDirEmpty();
+    }
+
+    @Test
+    @DisplayName("a PAN held by two live employees is skipped, not unmatched, and files nothing for either")
+    void ambiguousPanIsSkipped() throws Exception {
+        UUID employeeC =
+                TaxDeclarationTestSchema.seedEmployee(TENANT_A, "EMP-PA-03", "chitra@acme.com", "Chitra", "Das");
+        insertPan(TENANT_A, employeeC, PAN_B);
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put(PAN_A + ".pdf", pdf("asha"));
+        entries.put(PAN_B + ".pdf", pdf("bala or chitra"));
+
+        JsonNode data = upload(zip(entries));
+
+        assertThat(data.get("matched").asInt()).isEqualTo(1);
+        assertThat(data.get("unmatched")).isEmpty();
+        assertThat(data.get("skipped")).hasSize(1);
+        assertThat(data.get("skipped").get(0).asText()).isEqualTo(PAN_B + ".pdf");
+        assertThat(count(
+                        "SELECT count(*) FROM payroll.form16_part_a WHERE tenant_id = ? AND employee_id IN (?, ?)",
+                        TENANT_A,
+                        employeeB,
+                        employeeC))
+                .isZero();
+        assertThat(count(
+                        "SELECT count(*) FROM core.document WHERE tenant_id = ? AND employee_id IN (?, ?)",
+                        TENANT_A,
+                        employeeB,
+                        employeeC))
+                .isZero();
+        assertWorkDirEmpty();
+    }
+
+    @Test
+    @DisplayName(
+            "a ZIP that inflates past the unpacked limit is 400 ZIP_LIMIT_EXCEEDED, files nothing, leaves no temp file")
+    void unpackedSizeLimit() throws Exception {
+        long limit = 64 * 1024;
+        Form16PartAServiceImpl lowLimit = new Form16PartAServiceImpl(
+                partARepository,
+                documentService,
+                documentLinkService,
+                identificationService,
+                employeeService,
+                transactionManager,
+                WORK_ROOT.toString(),
+                Clock.systemUTC(),
+                limit);
+        MockMvc guarded = MockMvcBuilders.standaloneSetup(new Form16PartAController(lowLimit))
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))
+                .build();
+        // Two candidates of 40 KB each: neither alone crosses 64 KB, together they do — the count is
+        // cumulative and taken from inflated bytes. Zeros deflate to a few hundred bytes on the wire.
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put(PAN_A + ".pdf", new byte[40 * 1024]);
+        entries.put(PAN_B + ".pdf", new byte[40 * 1024]);
+        byte[] bomb = zip(entries);
+        assertThat(bomb.length).as("highly compressible").isLessThan((int) limit / 4);
+
+        guarded.perform(multipart("/api/v1/payroll/form16/{fy}/part-a", FY).file(zipPart(bomb)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ZIP_LIMIT_EXCEEDED"));
+
+        assertThat(count("SELECT count(*) FROM payroll.form16_part_a WHERE tenant_id = ?", TENANT_A))
+                .isZero();
+        assertThat(count("SELECT count(*) FROM core.document WHERE tenant_id = ?", TENANT_A))
                 .isZero();
         assertWorkDirEmpty();
     }

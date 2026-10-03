@@ -31,7 +31,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 /**
- * W-36.5 — {@link EmployeeIdentificationService#employeeIdsByPan} against real Postgres, as
+ * W-36.5 — {@link EmployeeIdentificationService#lookupByPan} and
+ * {@link EmployeeIdentificationService#employeeIdsByPan} against real Postgres, as
  * {@code app_user} (spec section 7).
  *
  * <p>The query count is read from Hibernate's own statistics, switched on for this context only, so
@@ -110,8 +111,8 @@ class EmployeeIdentificationPanLookupIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("A PAN held by two live employees is left out, not guessed")
-    void ambiguousPanIsLeftOut() throws SQLException {
+    @DisplayName("A PAN held by two live employees is reported ambiguous, not guessed, in one query")
+    void ambiguousPanIsReported() throws SQLException {
         String shared = pan(1);
         try (Connection conn = EmployeeTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
@@ -120,11 +121,18 @@ class EmployeeIdentificationPanLookupIT extends AbstractIntegrationTest {
             ps.setObject(2, seeded.get(pan(2)));
             ps.executeUpdate();
         }
+        Statistics statistics =
+                entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         TenantContext.set(TENANT_A);
+        statistics.clear();
 
-        Map<String, UUID> found = service.employeeIdsByPan(Set.of(shared, pan(3)));
+        PanLookup lookup = service.lookupByPan(Set.of(shared.toLowerCase(), pan(3), "ZZZZZ9999Z"));
 
-        assertThat(found).containsOnlyKeys(pan(3));
+        assertThat(lookup.ambiguous()).as("held by two live employees").containsExactly(shared);
+        assertThat(lookup.unique()).containsExactly(Map.entry(pan(3), seeded.get(pan(3))));
+        assertThat(statistics.getPrepareStatementCount()).as("still one query").isEqualTo(1);
+        assertThat(service.employeeIdsByPan(Set.of(shared, pan(3)))).containsOnlyKeys(pan(3));
+        assertThat(service.lookupByPan(Set.of())).isEqualTo(PanLookup.EMPTY);
     }
 
     @Test

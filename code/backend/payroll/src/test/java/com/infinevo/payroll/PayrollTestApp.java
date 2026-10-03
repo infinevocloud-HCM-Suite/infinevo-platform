@@ -711,10 +711,10 @@ public class PayrollTestApp {
             /**
              * W-36.5: the same predicate as EmployeeIdentificationRepository.findByTenantIdAndPanNumberIn —
              * bound tenant on both tables, live employees only, upper-cased PANs, a PAN on two employees
-             * left out. EmployeeIdentificationPanLookupIT covers the real JPQL in core.
+             * reported ambiguous. EmployeeIdentificationPanLookupIT covers the real JPQL in core.
              */
             @Override
-            public java.util.Map<String, UUID> employeeIdsByPan(java.util.Set<String> pans) {
+            public com.infinevo.core.employee.detail.PanLookup lookupByPan(java.util.Set<String> pans) {
                 UUID tenantId = TenantContext.require();
                 java.util.Set<String> normalised = new java.util.HashSet<>();
                 if (pans != null) {
@@ -725,7 +725,7 @@ public class PayrollTestApp {
                     }
                 }
                 if (normalised.isEmpty()) {
-                    return java.util.Map.of();
+                    return com.infinevo.core.employee.detail.PanLookup.EMPTY;
                 }
                 java.util.Map<String, UUID> byPan = new java.util.HashMap<>();
                 java.util.Set<String> ambiguous = new java.util.HashSet<>();
@@ -757,10 +757,10 @@ public class PayrollTestApp {
                         conn.setAutoCommit(origAutoCommit);
                     }
                 } catch (SQLException e) {
-                    return java.util.Map.of();
+                    return com.infinevo.core.employee.detail.PanLookup.EMPTY;
                 }
                 byPan.keySet().removeAll(ambiguous);
-                return java.util.Map.copyOf(byPan);
+                return new com.infinevo.core.employee.detail.PanLookup(byPan, ambiguous);
             }
         };
     }

@@ -6,6 +6,7 @@ import com.infinevo.core.document.DocumentService;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.detail.EmployeeIdentificationService;
+import com.infinevo.core.employee.detail.PanLookup;
 import com.infinevo.payroll.form16.PartAEntryParser.Outcome;
 import com.infinevo.payroll.form16.PartAEntryParser.ParsedEntry;
 import com.infinevo.payroll.form16.exception.PartANotFoundException;
@@ -57,7 +58,7 @@ import org.springframework.web.multipart.MultipartFile;
  * <p><strong>The ZIP is never trusted.</strong> Entries are streamed one by one to a temp directory of
  * this call's own, each under a name this class chooses; the entry name is only ever parsed
  * ({@link PartAEntryParser}). Reading stops at {@link #MAX_ENTRIES} entries or {@link #MAX_UNPACKED_BYTES}
- * unpacked, counted from the bytes actually inflated rather than the sizes the archive declares — the
+ * unpacked (lowerable only by tests), counted from the bytes actually inflated rather than the sizes the archive declares — the
  * zip-bomb guard (§9). The directory is deleted in {@code finally}, whatever happened.
  *
  * <p><strong>One transaction per certificate.</strong> {@code upload} itself is not transactional: one
@@ -88,6 +89,7 @@ public class Form16PartAServiceImpl implements Form16PartAService {
     private final TransactionTemplate entryTransaction;
     private final Path workRoot;
     private final Clock clock;
+    private final long maxUnpackedBytes;
 
     @Autowired
     public Form16PartAServiceImpl(
@@ -106,9 +108,11 @@ public class Form16PartAServiceImpl implements Form16PartAService {
                 employeeService,
                 transactionManager,
                 workDir,
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                MAX_UNPACKED_BYTES);
     }
 
+    /** {@code maxUnpackedBytes} is {@link #MAX_UNPACKED_BYTES} in production; tests lower it (§9). */
     Form16PartAServiceImpl(
             Form16PartARepository repository,
             DocumentService documentService,
@@ -117,7 +121,8 @@ public class Form16PartAServiceImpl implements Form16PartAService {
             EmployeeService employeeService,
             PlatformTransactionManager transactionManager,
             String workDir,
-            Clock clock) {
+            Clock clock,
+            long maxUnpackedBytes) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.documentService = Objects.requireNonNull(documentService, "documentService must not be null");
         this.documentLinkService = Objects.requireNonNull(documentLinkService, "documentLinkService must not be null");
@@ -130,6 +135,10 @@ public class Form16PartAServiceImpl implements Form16PartAService {
                 ? Path.of(System.getProperty("java.io.tmpdir"))
                 : Path.of(workDir.strip());
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        if (maxUnpackedBytes <= 0) {
+            throw new IllegalArgumentException("maxUnpackedBytes must be positive");
+        }
+        this.maxUnpackedBytes = maxUnpackedBytes;
     }
 
     @Override
@@ -202,7 +211,7 @@ public class Form16PartAServiceImpl implements Form16PartAService {
                     if (count > MAX_ENTRIES) {
                         throw PartAZipException.tooManyEntries(MAX_ENTRIES);
                     }
-                    long remaining = MAX_UNPACKED_BYTES - unpacked;
+                    long remaining = maxUnpackedBytes - unpacked;
                     if (entry.isDirectory()) {
                         unpacked += copyBounded(zip, OutputStream.nullOutputStream(), remaining);
                         continue;
@@ -246,8 +255,9 @@ public class Form16PartAServiceImpl implements Form16PartAService {
                 pans.add(extracted.entry().pan());
             }
         }
-        // One query for the whole upload (DEBT-019). A PAN on two employees comes back absent.
-        Map<String, UUID> employees = pans.isEmpty() ? Map.of() : identificationService.employeeIdsByPan(pans);
+        // One query for the whole upload (DEBT-019). A PAN on two live employees comes back ambiguous.
+        PanLookup lookup = pans.isEmpty() ? PanLookup.EMPTY : identificationService.lookupByPan(pans);
+        Map<String, UUID> employees = lookup.unique();
 
         int matched = 0;
         List<String> unmatched = new ArrayList<>();
@@ -258,6 +268,12 @@ public class Form16PartAServiceImpl implements Form16PartAService {
         for (Extracted extracted : entries) {
             ParsedEntry entry = extracted.entry();
             if (entry.outcome().isSkipped()) {
+                skipped.add(entry.name());
+                continue;
+            }
+            if (entry.outcome() == Outcome.CANDIDATE && lookup.ambiguous().contains(entry.pan())) {
+                // §9: a certificate is never filed against a guess between two employees.
+                log.warn("Skipped a Part A entry in tenant {}: PAN held by more than one employee", tenantId);
                 skipped.add(entry.name());
                 continue;
             }
@@ -327,14 +343,14 @@ public class Form16PartAServiceImpl implements Form16PartAService {
     }
 
     /** Copies the current entry, refusing as soon as it passes {@code limit} bytes. */
-    private static long copyBounded(InputStream in, OutputStream out, long limit) throws IOException {
+    private long copyBounded(InputStream in, OutputStream out, long limit) throws IOException {
         byte[] chunk = new byte[CHUNK];
         long total = 0;
         int read;
         while ((read = in.read(chunk)) != -1) {
             total += read;
             if (total > limit) {
-                throw PartAZipException.tooLargeUnpacked(MAX_UNPACKED_BYTES);
+                throw PartAZipException.tooLargeUnpacked(maxUnpackedBytes);
             }
             out.write(chunk, 0, read);
         }

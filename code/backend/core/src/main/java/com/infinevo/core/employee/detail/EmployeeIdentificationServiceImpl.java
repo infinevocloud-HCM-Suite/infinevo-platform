@@ -70,11 +70,19 @@ public class EmployeeIdentificationServiceImpl
      *
      * <p>One read through {@link EmployeeIdentificationRepository#findByTenantIdAndPanNumberIn}; an
      * empty input issues none, since {@code IN ()} is not valid SQL. A PAN that comes back with two
-     * distinct employee ids is dropped rather than resolved to either.
+     * distinct employee ids goes to {@code ambiguous} rather than being resolved to either.
      */
     @Override
     @Transactional(readOnly = true)
     public Map<String, UUID> employeeIdsByPan(Set<String> pans) {
+        // Overridden only so the call runs inside this bean's transaction: the interface default
+        // would reach lookupByPan as a self-call, past the proxy, with no tenant-bound connection.
+        return lookupByPan(pans).unique();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PanLookup lookupByPan(Set<String> pans) {
         UUID tenantId = TenantContext.require();
         Set<String> normalised = new HashSet<>();
         if (pans != null) {
@@ -85,7 +93,7 @@ public class EmployeeIdentificationServiceImpl
             }
         }
         if (normalised.isEmpty()) {
-            return Map.of();
+            return PanLookup.EMPTY;
         }
 
         List<EmployeeIdentificationRepository.PanHolder> holders =
@@ -99,7 +107,7 @@ public class EmployeeIdentificationServiceImpl
             }
         }
         byPan.keySet().removeAll(ambiguous);
-        return Map.copyOf(byPan);
+        return new PanLookup(byPan, ambiguous);
     }
 
     @Override
