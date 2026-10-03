@@ -4,11 +4,20 @@ import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
 import { routesFromFeed, portalRoutes } from './routes.js';
 import { Header } from './Header.jsx';
+import { useImpersonationSession } from './useImpersonationSession.js';
 import { ShellBoundary } from './ShellBoundary.jsx';
 import { NotFound, NoModules } from './screens/index.js';
 import { theme } from '../shared/theme.js';
 
 const { Sider, Content } = Layout;
+
+/**
+ * The platform-staff tenant screens (W-65.1, W-65.3). While an "act as" session is live the feed
+ * is the customer's and no longer names this path, yet staff still need the tenant page to read
+ * the session's audit and to stop it. So these routes stay mounted for the life of a session; the
+ * menu still follows the feed, and every endpoint behind them refuses on its own (W-12.2).
+ */
+const IMPERSONATION_ADMIN_PATH = '/admin/tenants';
 
 /**
  * Layout and navigation shell (W-12.3 §5, W-45 §5).
@@ -23,12 +32,20 @@ export function AppShell() {
   const { items, loading, error, refetch } = useNavigation();
   const location = useLocation();
   const { token } = antdTheme.useToken();
+  const session = useImpersonationSession();
 
   const menuItems = buildMenuItems(items);
   const selectedKey = findSelectedKey(items, location.pathname);
   // Only register routes whose path is in the navigation feed — a route not in the
   // feed is not registered at all (W-12.3 §5). An empty feed → empty route tree.
-  const feedRoutes = routesFromFeed(items);
+  // The one exception: a live impersonation session keeps the tenant admin routes mounted.
+  const feedRoutes = routesFromFeed(
+    session ? [...(items || []), { path: IMPERSONATION_ADMIN_PATH }] : items,
+  );
+  const onSessionAdminPath =
+    !!session &&
+    (location.pathname === IMPERSONATION_ADMIN_PATH ||
+      location.pathname.startsWith(`${IMPERSONATION_ADMIN_PATH}/`));
 
   const siderWidth = theme.components.Layout.siderWidth;
   const headerHeight = theme.components.Layout.headerHeight;
@@ -97,11 +114,13 @@ export function AppShell() {
                   </Button>
                 }
               />
-            ) : loading && (!items || items.length === 0) ? (
+            ) : loading && (!items || items.length === 0) && !onSessionAdminPath ? (
               // Nothing to route yet. Rendering the routes here would show NotFound for a
               // path the feed is about to name.
               <Skeleton active />
-            ) : (!items || items.length === 0) && !location.pathname.startsWith('/me') ? (
+            ) : (!items || items.length === 0) &&
+              !location.pathname.startsWith('/me') &&
+              !onSessionAdminPath ? (
               <NoModules />
             ) : (
               <React.Suspense fallback={<Skeleton active />}>
