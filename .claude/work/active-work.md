@@ -1,10 +1,20 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-03**, against `main` `2780d098`.
+> Last refreshed: **2026-10-03**, against `main` `8b7705c3`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-10-03 — `W-33.3`, `W-36.4` merged (`8b7705c3`)
+
+- Tax recalculation with TDS history (`V104`), the FY 2026-27 tax rules (`reference/V147`), and Form 16 Part B for officer and employee.
+- `Dev-Mohit` was 139 commits behind with its own copies of `W-33.1`, `W-33.2`, `W-47.3`, `W-36.1` and `W-36.3`: 42 files conflicted. Replayed mohit's five `W-33.3`/`W-36.4` commits onto `main` as `Dev-Mohit-fresh`, fast-forwarded. Local 2,908 tests green; CI on `main` green, backend 15 min.
+- Fixed at merge: `Form16Controller` had no `@RequiresModule` (CI red) and used `@PreAuthorize`; the FY 2026-27 seed and the marginal-relief removal (`W-33.3` § 2) were missing; the branch's own deductor and `V107` dropped for `W-36.3`'s. No independent read.
+- **Behaviour:** surcharge now has no marginal relief, as legacy — at taxable 50,10,000 the annual tax is 12,38,952, not 11,33,600. The `V999` annual-update fixture moved to the synthetic FY 2099-2100.
+- **Before the first real pay run:** the tax-rule owner checks the FY 2026-27 values, carried forward unchanged.
+- **Newly Ready:** `W-36.5` (mohit), `W-38.2` (krushna), `W-34.2`'s `ProofVerifiedEvent` (devashis).
+- **Branches:** mohit resets `Dev-Mohit` to `main`; `Dev-Mohit-fresh` and `dev-mohit-fixes` can be deleted.
 
 ## 2026-10-03 — 19 tickets from five lanes merged (`2780d098`)
 
