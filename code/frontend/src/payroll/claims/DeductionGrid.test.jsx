@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import dayjs from 'dayjs';
-import { DeductionGrid, MAX_LINES, addLine, blankLine, toRequestLine } from './DeductionGrid.jsx';
+import {
+  DeductionGrid, MAX_LINES, addLine, blankLine, toRequestLine, withoutLineNumber,
+} from './DeductionGrid.jsx';
 import { deductionService } from './deductionService.js';
 import { claimService } from './claimService.js';
 
@@ -53,10 +55,19 @@ describe('DeductionGrid (W-47.4 §7)', () => {
       expect(rows[0].getAttribute('aria-invalid')).toBeNull();
       expect(rows[1].getAttribute('aria-invalid')).toBeNull();
     });
-    expect(screen.getByText('Line 3: nothing was posted')).toBeDefined();
-    expect(screen.getByText('Line 2: amount must be greater than zero')).toBeDefined();
+    // One number for the row: the screen's one-based "Row 3", never the server's zero-based "Line 2".
+    expect(screen.getByText('Row 3: nothing was posted')).toBeDefined();
+    expect(screen.getByText('amount must be greater than zero')).toBeDefined();
+    expect(screen.queryByText(/Line 2/)).toBeNull();
     expect(onPosted).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('withoutLineNumber drops only a leading server line number', () => {
+    expect(withoutLineNumber('Line 2: amount must be greater than zero')).toBe('amount must be greater than zero');
+    expect(withoutLineNumber('line 0 - employee not found')).toBe('employee not found');
+    expect(withoutLineNumber('amount on line 2 is negative')).toBe('amount on line 2 is negative');
+    expect(withoutLineNumber('Line 4')).toBe('Line 4');
   });
 
   it('the 501st line cannot be added', () => {

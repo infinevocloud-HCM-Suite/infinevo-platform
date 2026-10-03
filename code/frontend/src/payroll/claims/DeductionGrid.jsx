@@ -37,6 +37,16 @@ export function addLine(lines) {
 /** No later than the end of next month. */
 const tooFarAhead = (day) => Boolean(day) && day.isAfter(dayjs().add(1, 'month').endOf('month'));
 
+/**
+ * The server's message without its own leading "Line n:" - that n is the zero-based index, so
+ * next to the screen's one-based "Row n+1" it would name a different number for the same row.
+ */
+export function withoutLineNumber(message) {
+  if (typeof message !== 'string') return message;
+  const stripped = message.replace(/^\s*line\s+\d+\s*[:.-]?\s*/i, '');
+  return stripped || message;
+}
+
 /** A grid line as the API reads it. The amount stays text; nothing is computed here. */
 export function toRequestLine(line) {
   return {
@@ -243,8 +253,8 @@ export function DeductionGrid({ open, onClose, onPosted }) {
         <Alert
           type="error"
           showIcon
-          message={errorLine === null ? error : `Line ${errorLine + 1}: nothing was posted`}
-          description={errorLine === null ? null : error}
+          message={errorLine === null ? error : `Row ${errorLine + 1}: nothing was posted`}
+          description={errorLine === null ? null : withoutLineNumber(error)}
           style={{ marginBottom: 16 }}
         />
       )}
