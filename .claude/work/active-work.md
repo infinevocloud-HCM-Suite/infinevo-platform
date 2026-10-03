@@ -1,10 +1,29 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-09-29**, checked row by row against `main`.
+> Last refreshed: **2026-10-03**, against `main` `2780d098`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-10-03 — 19 tickets from five lanes merged (`2780d098`)
+
+| Developer | Branch | Tickets |
+|---|---|---|
+| sayeed | `dev-sayeed` | `W-36.3`, `W-31.4`, `W-47.1a`, `W-47.1b` |
+| karma | `dev-karma` | `W-40.1`, `W-40.2`, `W-40.5`, `W-40.3` |
+| biren | `dev-biren4s` | `W-46.2`, `W-46.5` |
+| krushna | `krushna-tickets` | `W-38.1`, `W-38.3`, `W-47.6` |
+| devashis | `dev-devashish` | `W-42.1`–`W-42.4`, `W-43.1`, `W-43.2` |
+
+- Merged together on `integration-2026-10-03` and fast-forwarded to `main`, not squashed per ticket: `main` carries the developers' commits and five merge commits.
+- Gates 5/5 for all 19. Local on the merged tree: backend 2,871 tests, frontend 532, lint and build green. CI on `main` green, backend 15 min.
+- Fixed at merge: six conflicts in test schemas, test apps and menu files, both sides kept; `W-47.1b`'s shell route test now expects the officer route under `/employees` (`4be5bccb`, pushed to `dev-sayeed`). No independent read.
+- **Build:** the CI backend job limit is now 30 minutes; at 15 the combined suite was cancelled with no test failing.
+- **Founder decisions 2026-10-03:** sayeed's `V107` stands, and mohit moves `W-36.4`'s changes to a new script; `W-40.3` merged with the rest; karma's `V139` kept outside the reserved block.
+- **Newly Ready:** `W-40.4`, `W-40.6` (karma). `W-47.3`'s tax screens are now reachable. `W-36.4` waits on `W-33.3` only; `W-38.2` on `W-36.4`.
+- **Not merged:** `Dev-Mohit` (`W-33.3`, `W-36.4`): CI red, conflicts with `main`. mohit merges `main` in, resolves `payroll/taxcalc`, replaces his `V107` with a new script on top of `W-36.3`'s.
+- **Branches:** the five developers reset to `main`. `krushna-tickts` and `dev-devashis` deleted 2026-10-03; `krushna-tickts`'s worktree edits are in `stash@{0}`.
 
 ## 2026-10-02 — `W-36.1` merged (`9263c30`)
 
