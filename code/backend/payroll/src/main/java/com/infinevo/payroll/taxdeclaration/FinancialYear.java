@@ -2,6 +2,7 @@ package com.infinevo.payroll.taxdeclaration;
 
 import java.time.LocalDate;
 import java.time.Month;
+import java.time.YearMonth;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -44,6 +45,29 @@ public record FinancialYear(int startYear, int endYear) implements Comparable<Fi
      */
     public static FinancialYear of(int startYear, int endYear) {
         return new FinancialYear(startYear, endYear);
+    }
+
+    /**
+     * The financial year starting 1 April of {@code startYear} (W-37 §4): {@code of(2026)} is
+     * April 2026 to March 2027.
+     */
+    public static FinancialYear of(int startYear) {
+        return new FinancialYear(startYear, startYear + 1);
+    }
+
+    /** The financial year containing {@code date} — the April rule (W-37 §3); same as {@link #of(LocalDate)}. */
+    public static FinancialYear containing(LocalDate date) {
+        return of(date);
+    }
+
+    /** The twelve pay periods of this year, April to March, in order (W-37 §4). */
+    public java.util.List<YearMonth> months() {
+        java.util.List<YearMonth> months = new java.util.ArrayList<>(12);
+        YearMonth month = YearMonth.of(startYear, Month.APRIL);
+        for (int i = 0; i < 12; i++) {
+            months.add(month.plusMonths(i));
+        }
+        return java.util.List.copyOf(months);
     }
 
     /**
