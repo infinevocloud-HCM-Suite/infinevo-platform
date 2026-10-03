@@ -160,11 +160,13 @@ public class TaxRecalculationServiceImpl implements TaxRecalculationService {
         // Publish to EmployeeTdsService if bean is present (W-36.1 hook)
         if (employeeTdsService != null) {
             try {
+                // Rounded here, once: employee_tds is a stored amount and refuses a scale above 2. A refusal is
+                // not just logged - it marks this transaction rollback-only and the tax_computation row is lost.
                 EmployeeTdsService.TdsFigures tdsFigures = new EmployeeTdsService.TdsFigures(
                         regime.name(),
-                        result.grossTotalIncome().raw(),
-                        result.taxableIncome().raw(),
-                        result.annualTax().raw(),
+                        result.grossTotalIncome().toAmount(),
+                        result.taxableIncome().toAmount(),
+                        result.annualTax().toAmount(),
                         declarationId,
                         effectiveTrigger.name() + " " + record.getId());
                 employeeTdsService.record(employeeId, fy.label(), tdsFigures);
