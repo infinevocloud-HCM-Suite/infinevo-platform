@@ -53,6 +53,20 @@ public class EmployeeContactServiceImpl
     }
 
     @Override
+    @Transactional(
+            readOnly = true,
+            noRollbackFor = {NotFoundException.class})
+    public EmployeeContactResponse get(UUID employeeId) {
+        if (!permissionService.holds("core.employee.read")) {
+            Optional<EmployeeResponse> current = employeeService.currentEmployee();
+            if (current.isEmpty() || !current.get().id().equals(employeeId)) {
+                throw new PermissionDeniedException("core.employee.read");
+            }
+        }
+        return super.get(employeeId);
+    }
+
+    @Override
     @Transactional
     public EmployeeContactResponse put(UUID employeeId, EmployeeContactRequest request) {
         if (!permissionService.holds("core.employee.update")) {

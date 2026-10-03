@@ -16,6 +16,7 @@ import { MyDocuments } from './panels/MyDocuments.jsx';
 import { MyPayslips } from './panels/MyPayslips.jsx';
 import { MyTimesheet } from './panels/MyTimesheet.jsx';
 import { portalPanels as payrollPortalPanels } from '../../payroll/index.js';
+import { leaveActions, profileActions } from '../../core/portal/index.js';
 
 const { Title, Text } = Typography;
 
@@ -151,7 +152,11 @@ export function PortalLayout() {
       children: Component ? (
         <div style={{ marginTop: token.marginMD }}>
           <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
-            <Component panel={panel} />
+            <Component
+              panel={panel}
+              actions={panel.code === 'leave' ? leaveActions : panel.code === 'profile' ? profileActions : null}
+              onNavigate={navigate}
+            />
           </Suspense>
         </div>
       ) : (
