@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.navigation.NavigationCatalogue;
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
+import com.infinevo.payroll.dashboard.PayrollDashboardController;
+import com.infinevo.payroll.deduction.EmployeeDeductionController;
 import com.infinevo.payroll.payrun.PayRunController;
+import com.infinevo.payroll.reimbursement.ReimbursementClaimController;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.entitlement.PlatformModule;
 import java.lang.reflect.Method;
@@ -52,7 +55,71 @@ class PayrollNavigationTest {
         List<ItemDefinition> all = NavigationCatalogue.withContributed(List.of(new PayrollNavigation()));
 
         assertThat(all).startsWith(NavigationCatalogue.DEFAULT_ITEMS.toArray(ItemDefinition[]::new));
-        assertThat(all).contains(PayrollNavigation.RUNS, PayrollNavigation.PRIOR_PAYROLL);
-        assertThat(all).last().isEqualTo(PayrollNavigation.PRIOR_PAYROLL);
+        assertThat(all)
+                .contains(
+                        PayrollNavigation.DASHBOARD,
+                        PayrollNavigation.RUNS,
+                        PayrollNavigation.PRIOR_PAYROLL,
+                        PayrollNavigation.CLAIMS,
+                        PayrollNavigation.DEDUCTIONS);
+        assertThat(all).last().isEqualTo(PayrollNavigation.DEDUCTIONS);
+        assertThat(new PayrollNavigation().items()).first().isEqualTo(PayrollNavigation.DASHBOARD);
+    }
+
+    @Test
+    @DisplayName("payroll.dashboard targets PayrollDashboardController's GET, behind the same action (W-47.5 §4)")
+    void dashboardItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.DASHBOARD;
+        Method summary = Arrays.stream(PayrollDashboardController.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class)
+                        && m.getAnnotation(GetMapping.class).value().length == 0)
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(PayrollDashboardController.class
+                        .getAnnotation(RequestMapping.class)
+                        .value())
+                .containsExactly(item.targetEndpoint());
+        assertThat(summary.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
+        assertThat(item.key()).isEqualTo("payroll.dashboard");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.dashboard");
+        assertThat(item.path()).isEqualTo("/payroll/dashboard");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+    }
+
+    @Test
+    @DisplayName("payroll.claims targets ReimbursementClaimController's officer list GET, behind the same action")
+    void claimsItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.CLAIMS;
+        assertThat(item.key()).isEqualTo("payroll.claims");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.claims");
+        assertThat(item.path()).isEqualTo("/payroll/claims");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        assertResolvesToGet(ReimbursementClaimController.class, item);
+    }
+
+    @Test
+    @DisplayName("payroll.deductions targets EmployeeDeductionController's list GET, behind the same action")
+    void deductionsItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.DEDUCTIONS;
+        assertThat(item.key()).isEqualTo("payroll.deductions");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.deductions");
+        assertThat(item.path()).isEqualTo("/payroll/deductions");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        assertResolvesToGet(EmployeeDeductionController.class, item);
+    }
+
+    /**
+     * What the boot-time catalogue check asks (NavigationCatalogueValidator): some {@code GET} handler maps
+     * exactly the item's {@code targetEndpoint}. Here also: that handler asks for the item's action.
+     */
+    private static void assertResolvesToGet(Class<?> controller, ItemDefinition item) {
+        Method handler = Arrays.stream(controller.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class)
+                        && Arrays.asList(m.getAnnotation(GetMapping.class).value())
+                                .contains(item.targetEndpoint()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no GET mapping for " + item.targetEndpoint()));
+        assertThat(handler.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
     }
 }
