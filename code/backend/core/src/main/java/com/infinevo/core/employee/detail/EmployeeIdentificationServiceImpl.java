@@ -2,7 +2,14 @@ package com.infinevo.core.employee.detail;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.shared.tenant.TenantContext;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -49,9 +56,70 @@ public class EmployeeIdentificationServiceImpl
     /** {@code Identification.java:23} — five letters, four digits, one letter, upper case. */
     private static final String PAN_PATTERN = "[A-Z]{5}[0-9]{4}[A-Z]";
 
+    private final EmployeeIdentificationRepository identificationRepository;
+
     public EmployeeIdentificationServiceImpl(
             EmployeeIdentificationRepository repository, EmployeeRepository employees) {
         super(repository, employees);
+        this.identificationRepository = repository;
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public Map<String, UUID> employeeIdsByPan(Set<String> pans) {
+        if (pans == null || pans.isEmpty()) {
+            return Map.of();
+        }
+        UUID tenantId = TenantContext.require();
+        List<EmployeeIdentification> records = identificationRepository.findByTenantIdAndPanNumberIn(tenantId, pans);
+
+        Map<String, List<UUID>> panToEmployees = new HashMap<>();
+        for (EmployeeIdentification record : records) {
+            String pan = record.getPanNumber();
+            if (pan != null
+                    && record.getEmployee() != null
+                    && !record.getEmployee().isDeleted()) {
+                panToEmployees
+                        .computeIfAbsent(pan.toUpperCase(), k -> new ArrayList<>())
+                        .add(record.getEmployee().getId());
+            }
+        }
+
+        Map<String, UUID> result = new HashMap<>();
+        for (Map.Entry<String, List<UUID>> entry : panToEmployees.entrySet()) {
+            if (entry.getValue().size() == 1) {
+                result.put(entry.getKey(), entry.getValue().get(0));
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public Set<String> duplicatePans(Set<String> pans) {
+        if (pans == null || pans.isEmpty()) {
+            return Set.of();
+        }
+        UUID tenantId = TenantContext.require();
+        List<EmployeeIdentification> records = identificationRepository.findByTenantIdAndPanNumberIn(tenantId, pans);
+
+        Map<String, Integer> counts = new HashMap<>();
+        for (EmployeeIdentification record : records) {
+            String pan = record.getPanNumber();
+            if (pan != null
+                    && record.getEmployee() != null
+                    && !record.getEmployee().isDeleted()) {
+                counts.merge(pan.toUpperCase(), 1, Integer::sum);
+            }
+        }
+
+        Set<String> duplicates = new HashSet<>();
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+            if (entry.getValue() > 1) {
+                duplicates.add(entry.getKey());
+            }
+        }
+        return Collections.unmodifiableSet(duplicates);
     }
 
     @Override

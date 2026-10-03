@@ -105,6 +105,16 @@ public final class PayRunTestSchema {
             if (!PayrollTestSchema.tableExists(conn, "core", "notification")) {
                 PayrollTestSchema.executeResource(conn, "db/migration/core/V039__notification.sql");
             }
+            if (!PayrollTestSchema.tableExists(conn, "core", "document")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/core/V037__document.sql");
+            }
+            PayrollTestSchema.executeResource(conn, "db/migration/core/V108__document_kind_form16.sql");
+            if (!PayrollTestSchema.tableExists(conn, "core", "employee_identification")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/core/V017__employee_identification.sql");
+            }
+            if (!PayrollTestSchema.tableExists(conn, "payroll", "form16_part_a")) {
+                PayrollTestSchema.executeResource(conn, "db/migration/payroll/V109__form16_part_a.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -138,6 +148,11 @@ public final class PayRunTestSchema {
             if (PayrollTestSchema.tableExists(conn, "payroll", "tax_deductor")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DELETE FROM payroll.tax_deductor");
+                }
+            }
+            if (PayrollTestSchema.tableExists(conn, "payroll", "form16_part_a")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.form16_part_a");
                 }
             }
         }

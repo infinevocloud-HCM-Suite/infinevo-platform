@@ -245,7 +245,12 @@ public class PayrollTestApp {
                     UUID employeeId,
                     String fileName,
                     java.nio.file.Path file) {
-                return store(kind, employeeId, fileName, null);
+                try {
+                    return store(
+                            kind, employeeId, fileName, file != null ? java.nio.file.Files.newInputStream(file) : null);
+                } catch (java.io.IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override
@@ -268,6 +273,29 @@ public class PayrollTestApp {
             public void delete(UUID id) {
                 TEST_DOCUMENTS.remove(id);
                 TEST_DOCUMENT_CONTENTS.remove(id);
+            }
+        };
+    }
+
+    @Bean
+    public com.infinevo.core.document.DocumentLinkService documentLinkService() {
+        return new com.infinevo.core.document.DocumentLinkService() {
+            @Override
+            public com.infinevo.core.document.DocumentLinkService.SignedLink signedLink(UUID documentId) {
+                return signedLink(documentId, com.infinevo.core.document.DocumentLinkService.INTERACTIVE_TTL);
+            }
+
+            @Override
+            public com.infinevo.core.document.DocumentLinkService.SignedLink signedLink(
+                    UUID documentId, java.time.Duration ttl) {
+                return new com.infinevo.core.document.DocumentLinkService.SignedLink(
+                        "http://localhost:8080/api/v1/documents/download?t=token-" + documentId,
+                        Instant.now().plus(ttl));
+            }
+
+            @Override
+            public Optional<com.infinevo.core.document.DocumentLinkService.LinkClaims> verify(String token) {
+                return Optional.empty();
             }
         };
     }
@@ -667,6 +695,95 @@ public class PayrollTestApp {
             public com.infinevo.core.employee.detail.EmployeeIdentificationResponse put(
                     UUID employeeId, com.infinevo.core.employee.detail.EmployeeIdentificationRequest request) {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public java.util.Map<String, UUID> employeeIdsByPan(java.util.Set<String> pans) {
+                if (pans == null || pans.isEmpty()) {
+                    return java.util.Map.of();
+                }
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                """
+                                SELECT ei.pan_number, ei.employee_id
+                                FROM core.employee_identification ei
+                                JOIN core.employee e ON e.id = ei.employee_id
+                                WHERE ei.tenant_id = ? AND e.is_deleted = false
+                                """)) {
+                            ps.setObject(1, tenantId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                java.util.Map<String, java.util.List<UUID>> panMap = new java.util.HashMap<>();
+                                while (rs.next()) {
+                                    String pan = rs.getString("pan_number");
+                                    if (pan != null && pans.contains(pan.toUpperCase())) {
+                                        panMap.computeIfAbsent(pan.toUpperCase(), k -> new java.util.ArrayList<>())
+                                                .add((UUID) rs.getObject("employee_id"));
+                                    }
+                                }
+                                java.util.Map<String, UUID> result = new java.util.HashMap<>();
+                                for (java.util.Map.Entry<String, java.util.List<UUID>> e : panMap.entrySet()) {
+                                    if (e.getValue().size() == 1) {
+                                        result.put(e.getKey(), e.getValue().get(0));
+                                    }
+                                }
+                                conn.commit();
+                                return java.util.Collections.unmodifiableMap(result);
+                            }
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException("employeeIdsByPan failed", e);
+                }
+            }
+
+            @Override
+            public java.util.Set<String> duplicatePans(java.util.Set<String> pans) {
+                if (pans == null || pans.isEmpty()) {
+                    return java.util.Set.of();
+                }
+                UUID tenantId = TenantContext.require();
+                try (Connection conn = dataSource.getConnection()) {
+                    boolean origAutoCommit = conn.getAutoCommit();
+                    try {
+                        conn.setAutoCommit(false);
+                        try (PreparedStatement ps = conn.prepareStatement(
+                                """
+                                SELECT ei.pan_number
+                                FROM core.employee_identification ei
+                                JOIN core.employee e ON e.id = ei.employee_id
+                                WHERE ei.tenant_id = ? AND e.is_deleted = false
+                                """)) {
+                            ps.setObject(1, tenantId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+                                while (rs.next()) {
+                                    String pan = rs.getString("pan_number");
+                                    if (pan != null && pans.contains(pan.toUpperCase())) {
+                                        counts.merge(pan.toUpperCase(), 1, Integer::sum);
+                                    }
+                                }
+                                java.util.Set<String> dups = new java.util.HashSet<>();
+                                for (java.util.Map.Entry<String, Integer> e : counts.entrySet()) {
+                                    if (e.getValue() > 1) {
+                                        dups.add(e.getKey());
+                                    }
+                                }
+                                conn.commit();
+                                return java.util.Collections.unmodifiableSet(dups);
+                            }
+                        }
+                    } finally {
+                        conn.setAutoCommit(origAutoCommit);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException("duplicatePans failed", e);
+                }
             }
         };
     }

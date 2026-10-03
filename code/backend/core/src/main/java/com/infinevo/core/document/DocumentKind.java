@@ -19,7 +19,8 @@ public enum DocumentKind {
     REIMBURSEMENT_RECEIPT,
     INVESTMENT_PROOF,
     PAYSLIP,
-    EXPORT;
+    EXPORT,
+    FORM16_PART_A;
 
     /**
      * Kinds the platform writes itself and a client may never upload.
@@ -29,7 +30,7 @@ public enum DocumentKind {
      * a caller put a file of their own making into the store under a kind the rest of the platform
      * treats as system output — a forged payslip is the obvious case.
      */
-    static final Set<DocumentKind> SYSTEM_GENERATED = Set.of(PAYSLIP, EXPORT);
+    static final Set<DocumentKind> SYSTEM_GENERATED = Set.of(PAYSLIP, EXPORT, FORM16_PART_A);
 
     /** True when a client may upload a file of this kind. */
     public boolean isUploadable() {
