@@ -50,7 +50,14 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
             EmployeeService employeeService,
             HraRuleReader hraRuleReader,
             Clock clock) {
-        this(declarationRepository, windowService, employeeService, hraRuleReader, clock, ProofInProgressCheck.NONE, null);
+        this(
+                declarationRepository,
+                windowService,
+                employeeService,
+                hraRuleReader,
+                clock,
+                ProofInProgressCheck.NONE,
+                null);
     }
 
     /** The constructor Spring uses: the proof check is a required part of the reopen rule (W-34.1). */

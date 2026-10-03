@@ -208,7 +208,7 @@ class ReferenceSchemaIT {
     void taxSlabMasterAndDetails_seededPerFinancialYear() throws SQLException {
         try (Connection conn = appUserConnection()) {
             // Scoped to the three seeded years rather than counting the whole table:
-            // annualUpdateSimulation adds FY 2026-2027 to this same database, and JUnit
+            // annualUpdateSimulation adds FY 2099-2100 to this same database, and JUnit
             // does not promise an order, so an unscoped count passes or fails depending on
             // which test ran first.
             assertThat(count(
@@ -316,6 +316,50 @@ class ReferenceSchemaIT {
         }
     }
 
+    // ── 7b. FY 2026-27 carried forward from FY 2025-26 (W-33.3 § 2, V147)
+
+    @Test
+    void fy2026_27_taxRules_carriedForwardFrom2025_26() throws SQLException {
+        try (Connection conn = appUserConnection()) {
+            assertThat(count(conn, "SELECT count(*) FROM reference.tax_slab_master WHERE financial_year = '2026-2027'"))
+                    .as("NEW GENERAL, OLD GENERAL, SENIOR, SUPER_SENIOR")
+                    .isEqualTo(4);
+            for (String[] key : List.of(
+                    new String[] {"NEW", "GENERAL"},
+                    new String[] {"OLD", "GENERAL"},
+                    new String[] {"OLD", "SENIOR"},
+                    new String[] {"OLD", "SUPER_SENIOR"})) {
+                assertThat(brackets(conn, "2026-2027", key[0], key[1]))
+                        .as("%s %s brackets", key[0], key[1])
+                        .isNotEmpty()
+                        .containsExactlyElementsOf(brackets(conn, "2025-2026", key[0], key[1]));
+            }
+            for (String regime : List.of("OLD", "NEW")) {
+                assertThat(count(
+                                conn,
+                                "SELECT count(*) FROM reference.section87a_rebate_rule_master"
+                                        + " WHERE financial_year = '2026-2027' AND regime = '" + regime + "'"))
+                        .as("87A rebate %s", regime)
+                        .isEqualTo(1);
+                assertThat(count(
+                                conn,
+                                "SELECT count(*) FROM reference.standard_deduction_rule_master"
+                                        + " WHERE financial_year = '2026-2027' AND regime = '" + regime + "'"))
+                        .as("standard deduction %s", regime)
+                        .isEqualTo(1);
+            }
+            assertThat(
+                            count(
+                                    conn,
+                                    "SELECT count(*) FROM reference.cess_surcharge_rule_master WHERE financial_year = '2026-2027'"))
+                    .as("surcharge and cess rows")
+                    .isEqualTo(count(
+                            conn,
+                            "SELECT count(*) FROM reference.cess_surcharge_rule_master"
+                                    + " WHERE financial_year = '2025-2026'"));
+        }
+    }
+
     // ── 8. the annual update runbook, executed rather than described
 
     @Test
@@ -335,10 +379,10 @@ class ReferenceSchemaIT {
                         + ",classpath:db/migration-annual/reference");
 
         try (Connection conn = appUserConnection()) {
-            assertThat(count(conn, "SELECT count(*) FROM reference.tax_slab_master WHERE financial_year = '2026-2027'"))
+            assertThat(count(conn, "SELECT count(*) FROM reference.tax_slab_master WHERE financial_year = '2099-2100'"))
                     .as("the new financial year is readable straight after the migration")
                     .isEqualTo(3);
-            assertThat(brackets(conn, "2026-2027", "NEW"))
+            assertThat(brackets(conn, "2099-2100", "NEW"))
                     .as("and so are its brackets")
                     .containsExactly(
                             bracket("0", "500000", "0.00"),

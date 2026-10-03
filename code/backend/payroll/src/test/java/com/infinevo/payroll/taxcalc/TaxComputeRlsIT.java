@@ -19,7 +19,6 @@ import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationWindowService;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationRequest;
 import com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationWindowRequest;
-import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotFoundException;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
@@ -177,12 +176,13 @@ class TaxComputeRlsIT extends AbstractIntegrationTest {
         TenantContext.set(TaxDeclarationTestSchema.TENANT_A);
         PayrollTestApp.CURRENT_EMPLOYEE.set(employeeService.get(employeeA));
 
-        // Tenant A officer attempting to compute Tenant B employee throws DeclarationNotFoundException (404)
+        // Tenant A officer computing a Tenant B employee is refused: the employee does not exist in Tenant A.
+        // The preview fails on the employee lookup; compute-and-record looks up the declaration first. Both 404.
         assertThatThrownBy(() -> taxCalculationService.compute(employeeB, fy, TaxRegime.NEW))
-                .isInstanceOf(DeclarationNotFoundException.class);
+                .isInstanceOf(com.infinevo.core.employee.EmployeeService.NotFoundException.class);
 
         assertThatThrownBy(() -> taxCalculationService.computeAndRecord(employeeB, fy))
-                .isInstanceOf(DeclarationNotFoundException.class);
+                .isInstanceOf(com.infinevo.payroll.taxdeclaration.exception.DeclarationNotFoundException.class);
 
         // Tenant A computes its own employee
         Map<TaxRegime, TaxComputation> result = taxCalculationService.computeAndRecord(employeeA, fy);

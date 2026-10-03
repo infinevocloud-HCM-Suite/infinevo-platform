@@ -255,8 +255,9 @@ public class TaxInputAssembler {
         UUID declarationId = declOpt.map(EmployeeInvestmentDeclaration::getId).orElse(null);
         EmployeeResponse employee = employeeService.get(employeeId);
         // W-34.2: an APPROVED proof's verified figures replace the declared ones line by line; otherwise none.
-        ProofAdjustment.Approved approved =
-                proofAdjustment != null ? proofAdjustment.approved(tenantId, declaration) : null;
+        ProofAdjustment.Approved approved = proofAdjustment != null && declOpt.isPresent()
+                ? proofAdjustment.approved(tenantId, declOpt.get())
+                : null;
 
         LocalDate dateOfJoining = employee.dateOfJoining();
         LocalDate dateOfBirth = null;

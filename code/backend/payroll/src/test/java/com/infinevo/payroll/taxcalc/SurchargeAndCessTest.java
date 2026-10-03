@@ -11,7 +11,6 @@ import com.infinevo.payroll.taxcalc.reader.model.Section87aRebateRule;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.function.Function;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -126,11 +125,8 @@ class SurchargeAndCessTest {
         Money taxableIncome = Money.of("5500000");
         Money taxAfterRebate = SlabTax.of(taxableIncome, NEW_REGIME_SLABS).totalTax(); // 12,30,000
 
-        Function<Money, Money> thresholdCalc = SurchargeAndCess.createThresholdTaxCalculator(
-                NEW_REGIME_SLABS, NEW_REBATE_RULE, SURCHARGE_BANDS_NEW_REGIME);
-
-        SurchargeAndCessResult result = SurchargeAndCess.of(
-                taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE, thresholdCalc);
+        SurchargeAndCessResult result =
+                SurchargeAndCess.of(taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE);
 
         // Nominal surcharge = 10% of 12,30,000 = 1,23,000
         assertThat(result.nominalSurcharge()).isEqualTo(Money.of("123000"));
@@ -142,127 +138,71 @@ class SurchargeAndCessTest {
     }
 
     @Test
-    @DisplayName("marginal relief just above 50 Lakh (taxable 50,10,000) against IT Dept published example")
-    void calculatesMarginalReliefOn50Lakh10Thousand() {
-        // Pinned to: https://incometaxindia.gov.in/tutorials/10.%20tax%20rates.pdf (Page 3-4, Surcharge & Marginal
-        // relief)
-        // Employee earned Rs. 10,000 over Rs. 50,00,000 threshold.
-        // Tax at 50,00,000 = Rs. 10,80,000. Surcharge at 50L threshold = 0.
-        // Tax on 50,10,000 before surcharge = 10,80,000 + 10,000 * 30% = Rs. 10,83,000.
-        // Nominal 10% surcharge = Rs. 1,08,300 (exceeds the extra Rs. 10,000 income).
-        // Marginal relief caps total increase to incremental income:
-        // Max allowed surcharge = (10,80,000 + 0) + 10,000 - 10,83,000 = 7,000.
+    @DisplayName("full 10% surcharge just above 50 Lakh (taxable 50,10,000), no marginal relief (W-33.3)")
+    void appliesFullSurchargeOn50Lakh10Thousand() {
         Money taxableIncome = Money.of("5010000");
         Money taxAfterRebate = SlabTax.of(taxableIncome, NEW_REGIME_SLABS).totalTax(); // 10,83,000
 
-        Function<Money, Money> thresholdCalc = SurchargeAndCess.createThresholdTaxCalculator(
-                NEW_REGIME_SLABS, NEW_REBATE_RULE, SURCHARGE_BANDS_NEW_REGIME);
-
-        SurchargeAndCessResult result = SurchargeAndCess.of(
-                taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE, thresholdCalc);
+        SurchargeAndCessResult result =
+                SurchargeAndCess.of(taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE);
 
         assertThat(result.nominalSurcharge()).isEqualTo(Money.of("108300"));
-        assertThat(result.surcharge()).isEqualTo(Money.of("7000"));
-        assertThat(result.marginalRelief()).isEqualTo(Money.of("101300"));
+        assertThat(result.surcharge()).isEqualTo(Money.of("108300"));
+        assertThat(result.marginalRelief()).isEqualTo(Money.ZERO);
 
-        // Cess = 4% on (10,83,000 + 7,000 = 10,90,000) = 43,600
-        assertThat(result.cess()).isEqualTo(Money.of("43600"));
-        // Total tax + surcharge is 10,90,000 = exactly taxAtThreshold (10,80,000) + 10,000 extra income!
+        // Legacy: band rate on tax after rebate in full; cess 4% of (10,83,000 + 1,08,300)
+        assertThat(result.cess()).isEqualTo(Money.of("47652"));
     }
 
     @Test
-    @DisplayName("marginal relief just above 1 Crore (taxable 1,00,10,000) against IT Dept published example")
-    void calculatesMarginalReliefOn1Crore10Thousand() {
-        // Pinned to: https://incometaxindia.gov.in/tutorials/10.%20tax%20rates.pdf (Page 4, Surcharge & Marginal
-        // relief)
-        // Employee earned Rs. 10,000 over Rs. 1,00,00,000 threshold.
-        // Tax at 1,00,00,000 = Rs. 25,80,000.
-        // Surcharge at 1 Cr threshold using band below (10% rate) = Rs. 2,58,000.
-        // Total tax + surcharge at 1 Cr = 25,80,000 + 2,58,000 = Rs. 28,38,000.
-        // Tax on 1,00,10,000 = Rs. 25,83,000.
-        // Nominal 15% surcharge = 15% of 25,83,000 = Rs. 3,87,450.
-        // Max allowed surcharge = (25,80,000 + 2,58,000) + 10,000 - 25,83,000 = Rs. 2,65,000.
-        // Marginal relief = 3,87,450 - 2,65,000 = Rs. 1,22,450.
+    @DisplayName("full 15% surcharge just above 1 Crore (taxable 1,00,10,000), no marginal relief (W-33.3)")
+    void appliesFullSurchargeOn1Crore10Thousand() {
         Money taxableIncome = Money.of("10010000");
         Money taxAfterRebate = SlabTax.of(taxableIncome, NEW_REGIME_SLABS).totalTax(); // 25,83,000
 
-        Function<Money, Money> thresholdCalc = SurchargeAndCess.createThresholdTaxCalculator(
-                NEW_REGIME_SLABS, NEW_REBATE_RULE, SURCHARGE_BANDS_NEW_REGIME);
-
-        SurchargeAndCessResult result = SurchargeAndCess.of(
-                taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE, thresholdCalc);
+        SurchargeAndCessResult result =
+                SurchargeAndCess.of(taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE);
 
         assertThat(result.nominalSurcharge()).isEqualTo(Money.of("387450"));
-        assertThat(result.surcharge()).isEqualTo(Money.of("265000"));
-        assertThat(result.marginalRelief()).isEqualTo(Money.of("122450"));
+        assertThat(result.surcharge()).isEqualTo(Money.of("387450"));
+        assertThat(result.marginalRelief()).isEqualTo(Money.ZERO);
 
-        // Cess = 4% on (25,83,000 + 2,65,000 = 28,48,000) = 1,13,920
-        assertThat(result.cess()).isEqualTo(Money.of("113920"));
-        // Total tax + surcharge is 28,48,000 = exactly taxAtThreshold (28,38,000) + 10,000 extra income!
+        // cess 4% of (25,83,000 + 3,87,450)
+        assertThat(result.cess()).isEqualTo(Money.of("118818"));
     }
 
     @Test
-    @DisplayName("marginal relief just above 2 Crore (taxable 2,00,10,000) against IT Dept published example")
-    void calculatesMarginalReliefOn2Crore10Thousand() {
-        // Pinned to: https://incometaxindia.gov.in/tutorials/10.%20tax%20rates.pdf (Page 4, Surcharge & Marginal
-        // relief)
-        // Employee earned Rs. 10,000 over Rs. 2,00,00,000 threshold.
-        // Tax at 2,00,00,000 = Rs. 55,80,000.
-        // Surcharge at 2 Cr threshold using band below (15% rate) = Rs. 8,37,000.
-        // Total tax + surcharge at 2 Cr = 55,80,000 + 8,37,000 = Rs. 64,17,000.
-        // Tax on 2,00,10,000 = Rs. 55,83,000.
-        // Nominal 25% surcharge = 25% of 55,83,000 = Rs. 13,95,750.
-        // Max allowed surcharge = (55,80,000 + 8,37,000) + 10,000 - 55,83,000 = Rs. 8,44,000.
-        // Marginal relief = 13,95,750 - 8,44,000 = Rs. 5,51,750.
+    @DisplayName("full 25% surcharge just above 2 Crore (taxable 2,00,10,000), no marginal relief (W-33.3)")
+    void appliesFullSurchargeOn2Crore10Thousand() {
         Money taxableIncome = Money.of("20010000");
         Money taxAfterRebate = SlabTax.of(taxableIncome, NEW_REGIME_SLABS).totalTax(); // 55,83,000
 
-        Function<Money, Money> thresholdCalc = SurchargeAndCess.createThresholdTaxCalculator(
-                NEW_REGIME_SLABS, NEW_REBATE_RULE, SURCHARGE_BANDS_NEW_REGIME);
-
-        SurchargeAndCessResult result = SurchargeAndCess.of(
-                taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE, thresholdCalc);
+        SurchargeAndCessResult result =
+                SurchargeAndCess.of(taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE);
 
         assertThat(result.nominalSurcharge()).isEqualTo(Money.of("1395750"));
-        assertThat(result.surcharge()).isEqualTo(Money.of("844000"));
-        assertThat(result.marginalRelief()).isEqualTo(Money.of("551750"));
+        assertThat(result.surcharge()).isEqualTo(Money.of("1395750"));
+        assertThat(result.marginalRelief()).isEqualTo(Money.ZERO);
 
-        // Cess = 4% on (55,83,000 + 8,44,000 = 64,27,000) = 2,57,080
-        assertThat(result.cess()).isEqualTo(Money.of("257080"));
-        // Total tax + surcharge is 64,27,000 = exactly taxAtThreshold (64,17,000) + 10,000 extra income!
+        // cess 4% of (55,83,000 + 13,95,750)
+        assertThat(result.cess()).isEqualTo(Money.of("279150"));
     }
 
     @Test
-    @DisplayName(
-            "marginal relief just above 5 Crore under Old Regime (taxable 5,00,10,000) against IT Dept published example")
-    void calculatesMarginalReliefOn5Crore10ThousandOldRegime() {
-        // Pinned to: https://incometaxindia.gov.in/tutorials/10.%20tax%20rates.pdf (Page 5, Old Regime 37% surcharge)
-        // Employee earned Rs. 10,000 over Rs. 5,00,00,000 threshold under Old Regime.
-        // Tax at 5,00,00,000:
-        // Slabs: 0-2.5L=0, 2.5-5L=12,500, 5-10L=1,00,000, 10L-5Cr (4.9Cr @ 30%) = 1,47,00,000.
-        // Total tax at 5 Cr = Rs. 1,48,12,500.
-        // Surcharge at 5 Cr threshold using band below (25% rate) = Rs. 37,03,125.
-        // Total tax + surcharge at 5 Cr = 1,48,12,500 + 37,03,125 = Rs. 1,85,15,625.
-        // Tax on 5,00,10,000 = Rs. 1,48,15,500.
-        // Nominal 37% surcharge = 37% of 1,48,15,500 = Rs. 54,81,735.
-        // Max allowed surcharge = (1,48,12,500 + 37,03,125) + 10,000 - 1,48,15,500 = Rs. 37,10,125.
-        // Marginal relief = 54,81,735 - 37,10,125 = Rs. 17,71,610.
+    @DisplayName("full 37% surcharge just above 5 Crore, Old Regime (taxable 5,00,10,000), no marginal relief (W-33.3)")
+    void appliesFullSurchargeOn5Crore10ThousandOldRegime() {
         Money taxableIncome = Money.of("50010000");
         Money taxAfterRebate = SlabTax.of(taxableIncome, OLD_REGIME_SLABS).totalTax(); // 1,48,15,500
 
-        Function<Money, Money> thresholdCalc = SurchargeAndCess.createThresholdTaxCalculator(
-                OLD_REGIME_SLABS, OLD_REBATE_RULE, SURCHARGE_BANDS_OLD_REGIME);
-
-        SurchargeAndCessResult result = SurchargeAndCess.of(
-                taxableIncome, taxAfterRebate, SURCHARGE_BANDS_OLD_REGIME, CESS_RULE, thresholdCalc);
+        SurchargeAndCessResult result =
+                SurchargeAndCess.of(taxableIncome, taxAfterRebate, SURCHARGE_BANDS_OLD_REGIME, CESS_RULE);
 
         assertThat(result.nominalSurcharge()).isEqualTo(Money.of("5481735"));
-        assertThat(result.surcharge()).isEqualTo(Money.of("3710125"));
-        assertThat(result.marginalRelief()).isEqualTo(Money.of("1771610"));
+        assertThat(result.surcharge()).isEqualTo(Money.of("5481735"));
+        assertThat(result.marginalRelief()).isEqualTo(Money.ZERO);
 
-        // Cess = 4% on (1,48,15,500 + 37,10,125 = 1,85,25,625) = 7,41,025
-        assertThat(result.cess()).isEqualTo(Money.of("741025"));
-        // Total tax + surcharge is 1,85,25,625 = exactly taxAtThreshold (1,85,15,625) + 10,000 extra income!
+        // cess 4% of (1,48,15,500 + 54,81,735)
+        assertThat(result.cess()).isEqualTo(Money.of("811889.40"));
     }
 
     @Test
@@ -271,11 +211,8 @@ class SurchargeAndCessTest {
         Money taxableIncome = Money.of("5000000");
         Money taxAfterRebate = SlabTax.of(taxableIncome, NEW_REGIME_SLABS).totalTax();
 
-        Function<Money, Money> thresholdCalc = SurchargeAndCess.createThresholdTaxCalculator(
-                NEW_REGIME_SLABS, NEW_REBATE_RULE, SURCHARGE_BANDS_NEW_REGIME);
-
-        SurchargeAndCessResult result = SurchargeAndCess.of(
-                taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE, thresholdCalc);
+        SurchargeAndCessResult result =
+                SurchargeAndCess.of(taxableIncome, taxAfterRebate, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE);
 
         assertThat(result.nominalSurcharge()).isEqualTo(Money.ZERO);
         assertThat(result.marginalRelief()).isEqualTo(Money.ZERO);
@@ -288,8 +225,8 @@ class SurchargeAndCessTest {
     @Test
     @DisplayName("zero tax results in zero surcharge and zero cess")
     void zeroTaxResultsInZeroSurchargeAndCess() {
-        SurchargeAndCessResult result = SurchargeAndCess.of(
-                Money.of("1200000"), Money.ZERO, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE, threshold -> Money.ZERO);
+        SurchargeAndCessResult result =
+                SurchargeAndCess.of(Money.of("1200000"), Money.ZERO, SURCHARGE_BANDS_NEW_REGIME, CESS_RULE);
 
         assertThat(result.nominalSurcharge()).isEqualTo(Money.ZERO);
         assertThat(result.marginalRelief()).isEqualTo(Money.ZERO);

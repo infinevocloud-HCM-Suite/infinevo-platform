@@ -8,8 +8,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.PayrollTestSchema;
-import com.infinevo.payroll.taxdeductor.TaxDeductorRequest;
-import com.infinevo.payroll.taxdeductor.TaxDeductorService;
 import com.infinevo.payroll.form16.exception.DeductorNotSetException;
 import com.infinevo.payroll.payrun.PayRunTestSchema;
 import com.infinevo.payroll.taxcalc.TaxRegime;
@@ -17,6 +15,8 @@ import com.infinevo.payroll.taxcalc.recalc.TaxComputationRecord;
 import com.infinevo.payroll.taxcalc.recalc.TaxComputationRepository;
 import com.infinevo.payroll.taxcalc.recalc.TaxTrigger;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
+import com.infinevo.payroll.taxdeductor.TaxDeductorRequest;
+import com.infinevo.payroll.taxdeductor.TaxDeductorService;
 import com.infinevo.payroll.tds.EmployeeTdsService;
 import com.infinevo.payroll.tds.TdsFigures;
 import com.infinevo.payroll.tds.TdsSource;
@@ -122,7 +122,7 @@ class Form16IT extends AbstractIntegrationTest {
     @DisplayName("Throws EmployeeTdsNotFoundException (HTTP 404) when no active TDS record exists")
     void missingTdsRecordThrowsNotFound() {
         taxDeductorService.save(new TaxDeductorRequest(
-                "MUMA12345B", "AAACM1234F", "CIT-TDS-MUMBAI", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
+                "MUMA12345B", "AAACM1234F", "MUM/TD/001/01", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
 
         assertThatThrownBy(() -> form16Service.render(employeeIdA, FY))
                 .isInstanceOf(EmployeeTdsNotFoundException.class);
@@ -133,7 +133,7 @@ class Form16IT extends AbstractIntegrationTest {
     void rendersCompleteForm16Statement() throws Exception {
         // 1. Configure deductor
         taxDeductorService.save(new TaxDeductorRequest(
-                "MUMA12345B", "AAACM1234F", "CIT-TDS-MUMBAI", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
+                "MUMA12345B", "AAACM1234F", "MUM/TD/001/01", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
 
         // 2. Seed active TDS
         employeeTdsService.record(
@@ -220,7 +220,7 @@ class Form16IT extends AbstractIntegrationTest {
     @DisplayName("Self-service endpoint getOwn returns Form 16 statement for authenticated employee")
     void selfServiceGetOwnReturnsStatement() {
         taxDeductorService.save(new TaxDeductorRequest(
-                "MUMA12345B", "AAACM1234F", "CIT-TDS-MUMBAI", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
+                "MUMA12345B", "AAACM1234F", "MUM/TD/001/01", null, "Rajesh Kumar", "Suresh Kumar", "Director"));
 
         employeeTdsService.record(
                 employeeIdA,

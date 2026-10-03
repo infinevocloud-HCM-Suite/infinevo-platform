@@ -39,7 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 /**
@@ -56,7 +55,7 @@ import org.springframework.stereotype.Component;
  *   <li>Gross Total Income = max(0, incomeFromSalary + houseProperty + otherIncome)</li>
  *   <li>Chapter VI-A deductions (80C group, 80CCD(1B), 80D, 80E, 80TTA/80TTB, 80EE/80EEA)</li>
  *   <li>Taxable income = grossTotalIncome − Chapter VI-A, rounded to rupee</li>
- *   <li>Slabs by (fy, OLD, ageCategory), rebate, surcharge with marginal relief, cess, TDS</li>
+ *   <li>Slabs by (fy, OLD, ageCategory), rebate, surcharge (no marginal relief, W-33.3), cess, TDS</li>
  * </ol>
  */
 @Component
@@ -206,11 +205,7 @@ public class OldRegimeCalculator implements RegimeCalculator {
         List<CessSurchargeRule> surchargeBands = ruleReader.surchargeBands(fy, TaxRegime.OLD);
         CessSurchargeRule cessRule = ruleReader.cess(fy, TaxRegime.OLD);
 
-        Function<Money, Money> thresholdTaxCalc =
-                SurchargeAndCess.createThresholdTaxCalculator(slabs, rebateRule, surchargeBands);
-
-        SurchargeAndCessResult scResult =
-                SurchargeAndCess.of(taxableIncome, taxAfterRebate, surchargeBands, cessRule, thresholdTaxCalc);
+        SurchargeAndCessResult scResult = SurchargeAndCess.of(taxableIncome, taxAfterRebate, surchargeBands, cessRule);
 
         Money prevTds = input.prevEmploymentTds();
         Money totalTaxBeforeTds = taxAfterRebate.add(scResult.surcharge()).add(scResult.cess());

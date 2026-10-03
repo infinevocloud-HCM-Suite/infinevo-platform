@@ -18,7 +18,6 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 /**
@@ -31,7 +30,7 @@ import org.springframework.stereotype.Component;
  *   <li>Taxable income = max(0, incomeFromSalary − standardDeduction), rounded to rupee</li>
  *   <li>Tax before rebate = progressive slab tax across 7 brackets</li>
  *   <li>Section 87A rebate = full rebate up to threshold, else zero</li>
- *   <li>High-income surcharge with statutory marginal relief</li>
+ *   <li>High-income surcharge, no marginal relief (W-33.3)</li>
  *   <li>Health & education cess (4%) on tax plus surcharge</li>
  *   <li>Annual tax = max(0, tax + surcharge + cess − previous employer TDS), rounded to rupee</li>
  * </ol>
@@ -86,15 +85,11 @@ public class NewRegimeCalculator implements RegimeCalculator {
             taxAfterRebate = Money.ZERO;
         }
 
-        // Steps 6 & 7: Surcharge with marginal relief and cess
+        // Steps 6 & 7: Surcharge and cess
         List<CessSurchargeRule> surchargeBands = ruleReader.surchargeBands(fy, TaxRegime.NEW);
         CessSurchargeRule cessRule = ruleReader.cess(fy, TaxRegime.NEW);
 
-        Function<Money, Money> thresholdTaxCalc =
-                SurchargeAndCess.createThresholdTaxCalculator(slabs, rebateRule, surchargeBands);
-
-        SurchargeAndCessResult scResult =
-                SurchargeAndCess.of(taxableIncome, taxAfterRebate, surchargeBands, cessRule, thresholdTaxCalc);
+        SurchargeAndCessResult scResult = SurchargeAndCess.of(taxableIncome, taxAfterRebate, surchargeBands, cessRule);
 
         // Step 8: Net annual tax after previous employer TDS, rounded to the rupee
         Money prevTds = input.prevEmploymentTds();

@@ -53,13 +53,13 @@ class Form16RlsIT extends AbstractIntegrationTest {
                         INSERT INTO payroll.tax_deductor (
                             tenant_id, tan, pan, tds_circle, signatory_name, signatory_parent_name, signatory_designation,
                             created_by, updated_by
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, null, null)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'test', 'test')
                         """)) {
             // Tenant A
             ps.setObject(1, TENANT_A);
             ps.setString(2, "MUMA12345A");
             ps.setString(3, "AAACM1234A");
-            ps.setString(4, "CIT-TDS-MUMBAI-A");
+            ps.setString(4, "MUM/TD/001/01");
             ps.setString(5, "Signatory A");
             ps.setString(6, "Parent A");
             ps.setString(7, "Director");
@@ -69,7 +69,7 @@ class Form16RlsIT extends AbstractIntegrationTest {
             ps.setObject(1, TENANT_B);
             ps.setString(2, "DELB12345B");
             ps.setString(3, "BBBCM1234B");
-            ps.setString(4, "CIT-TDS-DELHI-B");
+            ps.setString(4, "DEL/TD/002/02");
             ps.setString(5, "Signatory B");
             ps.setString(6, "Parent B");
             ps.setString(7, "VP");
@@ -133,7 +133,7 @@ class Form16RlsIT extends AbstractIntegrationTest {
                     INSERT INTO payroll.tax_deductor (
                         tenant_id, tan, pan, tds_circle, signatory_name, signatory_parent_name, signatory_designation,
                         created_by, updated_by
-                    ) VALUES (?, 'PUNX12345Z', 'XXXXM1234Z', 'CIT-TDS', 'Spoofer', 'Parent', 'Hacker', null, null)
+                    ) VALUES (?, 'PUNX12345Z', 'XXXXM1234Z', 'CIT-TDS', 'Spoofer', 'Parent', 'Hacker', 'test', 'test')
                     """)) {
                 // Try inserting tenant B's ID while bound as tenant A
                 ps.setObject(1, TENANT_B);

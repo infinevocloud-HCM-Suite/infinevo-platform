@@ -166,15 +166,14 @@ class NewRegimeCalculatorTest {
      */
 
     @Test
-    @DisplayName("taxable 50,10,000: 10% surcharge cut by marginal relief to 7,000 -> annual tax 11,33,600")
-    void surchargeWithMarginalRelief() {
+    @DisplayName("taxable 50,10,000: full 10% surcharge, no marginal relief (W-33.3) -> annual tax 12,38,952")
+    void fullSurchargeJustAboveFiftyLakh() {
         // salary 50,85,000 - SD 75,000 = taxable 50,10,000
         // slab tax       = 3,00,000 + 30% x 26,10,000          = 10,83,000 (no 87A rebate)
         // nominal surch. = 10% x 10,83,000                     =  1,08,300
-        // relief cap     = 10,80,000 + (50,10,000 - 50,00,000) - 10,83,000 = 7,000
-        // surcharge      = 7,000; marginal relief = 1,08,300 - 7,000 = 1,01,300
-        // cess           = 4% x (10,83,000 + 7,000)            =    43,600
-        // annual tax     = 10,83,000 + 7,000 + 43,600          = 11,33,600
+        // surcharge      = 1,08,300, no marginal relief (W-33.3, as legacy)
+        // cess           = 4% x (10,83,000 + 1,08,300)         =    47,652
+        // annual tax     = 10,83,000 + 1,08,300 + 47,652       = 12,38,952
         TaxInput input = createInput(Money.of("5085000"), Map.of());
 
         TaxComputation computation = calculator.compute(input, FY_2025_2026);
@@ -182,10 +181,10 @@ class NewRegimeCalculatorTest {
         assertThat(computation.taxableIncome()).isEqualTo(Money.of("5010000"));
         assertThat(computation.taxBeforeRebate()).isEqualTo(Money.of("1083000"));
         assertThat(computation.rebate()).isEqualTo(Money.ZERO);
-        assertThat(computation.surcharge()).isEqualTo(Money.of("7000"));
-        assertThat(computation.marginalRelief()).isEqualTo(Money.of("101300"));
-        assertThat(computation.cess()).isEqualTo(Money.of("43600"));
-        assertThat(computation.annualTax()).isEqualTo(Money.of("1133600"));
+        assertThat(computation.surcharge()).isEqualTo(Money.of("108300"));
+        assertThat(computation.marginalRelief()).isEqualTo(Money.ZERO);
+        assertThat(computation.cess()).isEqualTo(Money.of("47652"));
+        assertThat(computation.annualTax()).isEqualTo(Money.of("1238952"));
     }
 
     @Test
@@ -194,7 +193,6 @@ class NewRegimeCalculatorTest {
         // salary 55,75,000 - SD 75,000 = taxable 55,00,000
         // slab tax       = 3,00,000 + 30% x 31,00,000          = 12,30,000
         // nominal surch. = 10% x 12,30,000                     =  1,23,000
-        // relief cap     = 10,80,000 + 5,00,000 - 12,30,000    =  3,50,000 (not binding)
         // cess           = 4% x (12,30,000 + 1,23,000)         =    54,120
         // annual tax     = 12,30,000 + 1,23,000 + 54,120       = 14,07,120
         TaxInput input = createInput(Money.of("5575000"), Map.of());
