@@ -4,11 +4,16 @@ import com.infinevo.payroll.taxcalc.recalc.TaxComputationRecord;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.YearMonth;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 /**
  * Assembler utility for computing quarters, balances, assessment years,
@@ -32,6 +37,68 @@ public final class Form16Assembler {
         int startYear = Integer.parseInt(matcher.group(1));
         int endYear = Integer.parseInt(matcher.group(2));
         return (startYear + 1) + "-" + (endYear + 1);
+    }
+
+    /**
+     * Assembles the statement from run tax and imported tax (W-38.2 §3).
+     *
+     * <p>Each quarter adds the imported TDS of its months to the {@code PAID} run tax. A month counts
+     * as covered for {@code final} when it has a {@code PAID} regular run or an imported row for the
+     * tenant (§13 decision 3).
+     */
+    public static Form16Statement assemble(
+            String financialYear,
+            DeductorDetails deductor,
+            EmployeeDetails employee,
+            String regime,
+            BigDecimal annualTax,
+            Map<String, BigDecimal> paidTaxByPeriod,
+            Map<String, BigDecimal> importedTaxByPeriod,
+            TaxComputationRecord computation,
+            Set<String> paidRegularPeriods,
+            Set<String> importedPeriods,
+            Instant generatedAt) {
+        Objects.requireNonNull(financialYear, "financialYear must not be null");
+        Map<String, BigDecimal> merged = new HashMap<>();
+        if (paidTaxByPeriod != null) {
+            paidTaxByPeriod.forEach((period, amount) -> {
+                if (period != null && amount != null) {
+                    merged.merge(period, amount, BigDecimal::add);
+                }
+            });
+        }
+        if (importedTaxByPeriod != null) {
+            importedTaxByPeriod.forEach((period, amount) -> {
+                if (period != null && amount != null) {
+                    merged.merge(period, amount, BigDecimal::add);
+                }
+            });
+        }
+
+        Set<String> covered = new HashSet<>();
+        if (paidRegularPeriods != null) {
+            covered.addAll(paidRegularPeriods);
+        }
+        if (importedPeriods != null) {
+            covered.addAll(importedPeriods);
+        }
+        long coveredCount =
+                yearPeriods(financialYear).stream().filter(covered::contains).count();
+
+        return assemble(
+                financialYear, deductor, employee, regime, annualTax, merged, computation, coveredCount, generatedAt);
+    }
+
+    /** The twelve periods April..March of {@code financialYear}, as {@code YYYY-MM}. */
+    static List<String> yearPeriods(String financialYear) {
+        Matcher matcher = FY_PATTERN.matcher(financialYear.trim());
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("Invalid financial year format: " + financialYear);
+        }
+        YearMonth april = YearMonth.of(Integer.parseInt(matcher.group(1)), 4);
+        return IntStream.range(0, 12)
+                .mapToObj(i -> april.plusMonths(i).toString())
+                .toList();
     }
 
     /**

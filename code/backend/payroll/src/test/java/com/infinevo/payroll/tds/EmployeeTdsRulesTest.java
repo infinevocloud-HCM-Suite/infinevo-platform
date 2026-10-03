@@ -9,7 +9,9 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.payrun.EmployeePayRunLineRepository;
+import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.taxcalc.TaxRegime;
+import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.tds.exception.EmployeeTdsConflictException;
 import com.infinevo.payroll.tds.exception.EmployeeTdsValidationException;
 import com.infinevo.shared.tenant.TenantContext;
@@ -49,6 +51,7 @@ class EmployeeTdsRulesTest {
     private EmployeeTdsRepository repository;
     private EmployeePayRunLineRepository lineRepository;
     private EmployeeService employeeService;
+    private PriorPayrollTaxQuery priorTax;
     private EmployeeTdsServiceImpl service;
 
     @BeforeEach
@@ -57,6 +60,7 @@ class EmployeeTdsRulesTest {
         repository = mock(EmployeeTdsRepository.class);
         lineRepository = mock(EmployeePayRunLineRepository.class);
         employeeService = mock(EmployeeService.class);
+        priorTax = mock(PriorPayrollTaxQuery.class);
 
         EmployeeResponse emp = new EmployeeResponse(
                 EMPLOYEE_ID,
@@ -80,7 +84,7 @@ class EmployeeTdsRulesTest {
                 Instant.now());
         when(employeeService.get(EMPLOYEE_ID)).thenReturn(emp);
 
-        service = new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, FIXED_CLOCK);
+        service = new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, priorTax, FIXED_CLOCK);
     }
 
     @AfterEach
@@ -229,7 +233,7 @@ class EmployeeTdsRulesTest {
     void defaultPeriodIsTheIndianMonth() {
         Clock utcClock = Clock.fixed(Instant.parse("2026-04-30T19:00:00Z"), ZoneOffset.UTC);
         EmployeeTdsServiceImpl atMidnight =
-                new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, utcClock);
+                new EmployeeTdsServiceImpl(repository, lineRepository, employeeService, priorTax, utcClock);
         when(repository.saveAndFlush(any(EmployeeTds.class))).thenAnswer(inv -> inv.getArgument(0));
 
         EmployeeTds saved = atMidnight.record(EMPLOYEE_ID, "2026-2027", figures(null));
@@ -245,6 +249,17 @@ class EmployeeTdsRulesTest {
 
         assertThatThrownBy(() -> service.record(EMPLOYEE_ID, "2026-2027", figures("2026-04")))
                 .isInstanceOf(EmployeeTdsConflictException.class);
+    }
+
+    @Test
+    @DisplayName("W-38.2: year to date adds the imported TDS to the run tax lines")
+    void yearToDateAddsImportedTax() {
+        FinancialYear fy = FinancialYear.parse("2026-2027");
+        when(lineRepository.sumTaxLines(TENANT_ID, EMPLOYEE_ID, "2026-04", "2027-03", null))
+                .thenReturn(new BigDecimal("10000.0000"));
+        when(priorTax.total(TENANT_ID, EMPLOYEE_ID, fy)).thenReturn(new BigDecimal("60000.0000"));
+
+        assertThat(service.yearToDate(EMPLOYEE_ID, "2026-2027")).isEqualByComparingTo("70000.0000");
     }
 
     private static TdsFigures figures(String effectiveFrom) {

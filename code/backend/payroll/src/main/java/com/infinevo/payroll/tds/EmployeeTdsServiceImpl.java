@@ -2,6 +2,7 @@ package com.infinevo.payroll.tds;
 
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.payroll.payrun.EmployeePayRunLineRepository;
+import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationRules;
 import com.infinevo.payroll.tds.exception.EmployeeTdsConflictException;
@@ -39,6 +40,7 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
     private final EmployeeTdsRepository repository;
     private final EmployeePayRunLineRepository lineRepository;
     private final EmployeeService employeeService;
+    private final PriorPayrollTaxQuery priorTax;
     private final Clock clock;
 
     @Autowired
@@ -46,18 +48,21 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
             EmployeeTdsRepository repository,
             EmployeePayRunLineRepository lineRepository,
             EmployeeService employeeService,
+            PriorPayrollTaxQuery priorTax,
             @Autowired(required = false) Clock clock) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.lineRepository = Objects.requireNonNull(lineRepository, "lineRepository must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.priorTax = Objects.requireNonNull(priorTax, "priorTax must not be null");
         this.clock = clock != null ? clock : TaxDeclarationRules.defaultClock();
     }
 
     public EmployeeTdsServiceImpl(
             EmployeeTdsRepository repository,
             EmployeePayRunLineRepository lineRepository,
-            EmployeeService employeeService) {
-        this(repository, lineRepository, employeeService, TaxDeclarationRules.defaultClock());
+            EmployeeService employeeService,
+            PriorPayrollTaxQuery priorTax) {
+        this(repository, lineRepository, employeeService, priorTax, TaxDeclarationRules.defaultClock());
     }
 
     @Override
@@ -138,7 +143,10 @@ public class EmployeeTdsServiceImpl implements EmployeeTdsService {
         FinancialYear fy = validateAndParseFinancialYear(financialYear);
         String periodFrom = String.format("%04d-04", fy.startYear());
         String periodTo = String.format("%04d-03", fy.endYear());
-        return lineRepository.sumTaxLines(tenantId, employeeId, periodFrom, periodTo, null);
+        // W-38.2: the same imported total the tax line counts, so the screen and the line agree.
+        return lineRepository
+                .sumTaxLines(tenantId, employeeId, periodFrom, periodTo, null)
+                .add(priorTax.total(tenantId, employeeId, fy));
     }
 
     private FinancialYear validateAndParseFinancialYear(String financialYear) {

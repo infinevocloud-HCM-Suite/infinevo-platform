@@ -6,7 +6,9 @@ import com.infinevo.payroll.taxcalc.recalc.TaxComputationRecord;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -94,5 +96,82 @@ class Form16AssemblerTest {
     void testHalfUpRounding() {
         QuarterTax qt = new QuarterTax("Q1", new BigDecimal("1234.565"));
         assertThat(qt.amountDeducted()).isEqualTo(new BigDecimal("1234.57"));
+    }
+
+    @Test
+    @DisplayName("W-38.2: imported Apr-Sep 10k/mo + PAID Oct-Mar 10k/mo -> 30k per quarter, balance 0, final=true")
+    void importedMonthsJoinTheirQuarterAndCountAsCovered() {
+        Map<String, BigDecimal> imported = new HashMap<>();
+        Set<String> importedPeriods = new HashSet<>();
+        for (int m = 4; m <= 9; m++) {
+            String period = String.format("2026-%02d", m);
+            imported.put(period, new BigDecimal("10000.0000"));
+            importedPeriods.add(period);
+        }
+        Map<String, BigDecimal> paid = new HashMap<>();
+        Set<String> paidPeriods = new HashSet<>();
+        for (String period : new String[] {"2026-10", "2026-11", "2026-12", "2027-01", "2027-02", "2027-03"}) {
+            paid.put(period, new BigDecimal("10000.0000"));
+            paidPeriods.add(period);
+        }
+
+        Form16Statement statement = Form16Assembler.assemble(
+                FY,
+                DEDUCTOR,
+                EMPLOYEE,
+                "NEW",
+                new BigDecimal("120000.00"),
+                paid,
+                imported,
+                null,
+                paidPeriods,
+                importedPeriods,
+                Instant.now());
+
+        assertThat(statement.quarters().get(0).amountDeducted()).isEqualByComparingTo("30000.00");
+        assertThat(statement.quarters().get(1).amountDeducted()).isEqualByComparingTo("30000.00");
+        assertThat(statement.quarters().get(2).amountDeducted()).isEqualByComparingTo("30000.00");
+        assertThat(statement.quarters().get(3).amountDeducted()).isEqualByComparingTo("30000.00");
+        assertThat(statement.totalDeducted()).isEqualByComparingTo("120000.00");
+        assertThat(statement.balance()).isEqualByComparingTo("0.00");
+        assertThat(statement.isFinal()).isTrue();
+    }
+
+    @Test
+    @DisplayName("W-38.2: a month neither imported nor paid -> final=false")
+    void monthNeitherImportedNorPaidIsNotFinal() {
+        Map<String, BigDecimal> imported = new HashMap<>();
+        Set<String> importedPeriods = new HashSet<>();
+        for (int m = 4; m <= 9; m++) {
+            String period = String.format("2026-%02d", m);
+            imported.put(period, new BigDecimal("10000.0000"));
+            importedPeriods.add(period);
+        }
+        Map<String, BigDecimal> paid = new HashMap<>();
+        Set<String> paidPeriods = new HashSet<>();
+        // 2027-03 missing
+        for (String period : new String[] {"2026-10", "2026-11", "2026-12", "2027-01", "2027-02"}) {
+            paid.put(period, new BigDecimal("10000.0000"));
+            paidPeriods.add(period);
+        }
+        // A period outside the year never counts towards coverage
+        paidPeriods.add("2027-04");
+
+        Form16Statement statement = Form16Assembler.assemble(
+                FY,
+                DEDUCTOR,
+                EMPLOYEE,
+                "NEW",
+                new BigDecimal("120000.00"),
+                paid,
+                imported,
+                null,
+                paidPeriods,
+                importedPeriods,
+                Instant.now());
+
+        assertThat(statement.quarters().get(3).amountDeducted()).isEqualByComparingTo("20000.00");
+        assertThat(statement.balance()).isEqualByComparingTo("10000.00");
+        assertThat(statement.isFinal()).isFalse();
     }
 }

@@ -8,8 +8,10 @@ import com.infinevo.payroll.form16.exception.DeductorNotSetException;
 import com.infinevo.payroll.payrun.EmployeePayRunLineRepository;
 import com.infinevo.payroll.payrun.PayRunRepository;
 import com.infinevo.payroll.payrun.PeriodTaxTotal;
+import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.taxcalc.recalc.TaxComputationRecord;
 import com.infinevo.payroll.taxcalc.recalc.TaxComputationRepository;
+import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeductor.TaxDeductorResponse;
 import com.infinevo.payroll.taxdeductor.TaxDeductorService;
 import com.infinevo.payroll.tds.EmployeeTds;
@@ -19,9 +21,11 @@ import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +44,7 @@ public class Form16ServiceImpl implements Form16Service {
     private final PayRunRepository payRunRepository;
     private final EmployeeService employeeService;
     private final EmployeeIdentificationService employeeIdentificationService;
+    private final PriorPayrollTaxQuery priorTax;
 
     public Form16ServiceImpl(
             TaxDeductorService taxDeductorService,
@@ -48,7 +53,8 @@ public class Form16ServiceImpl implements Form16Service {
             EmployeePayRunLineRepository payRunLineRepository,
             PayRunRepository payRunRepository,
             EmployeeService employeeService,
-            EmployeeIdentificationService employeeIdentificationService) {
+            EmployeeIdentificationService employeeIdentificationService,
+            PriorPayrollTaxQuery priorTax) {
         this.taxDeductorService = Objects.requireNonNull(taxDeductorService, "taxDeductorService must not be null");
         this.employeeTdsService = Objects.requireNonNull(employeeTdsService, "employeeTdsService must not be null");
         this.taxComputationRepository =
@@ -59,6 +65,7 @@ public class Form16ServiceImpl implements Form16Service {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.employeeIdentificationService =
                 Objects.requireNonNull(employeeIdentificationService, "employeeIdentificationService must not be null");
+        this.priorTax = Objects.requireNonNull(priorTax, "priorTax must not be null");
     }
 
     @Override
@@ -131,12 +138,28 @@ public class Form16ServiceImpl implements Form16Service {
             }
         }
 
-        // 6. Check count of paid regular pay run periods
-        long paidCount = payRunRepository.countPaidRegularPeriods(tenantId, startPeriod, endPeriod);
+        // 6. Imported months (W-38.1): their TDS joins its quarter, and they count as covered (W-38.2 §3)
+        FinancialYear fy = FinancialYear.parse(financialYear);
+        Map<String, BigDecimal> importedMap = priorTax.byPeriod(tenantId, employeeId, fy);
+        Set<String> importedPeriods = priorTax.importedPeriods(tenantId, fy);
 
-        // 7. Assemble statement
+        // 7. Periods with a paid regular pay run
+        Set<String> paidPeriods =
+                new HashSet<>(payRunRepository.findPaidRegularPeriods(tenantId, startPeriod, endPeriod));
+
+        // 8. Assemble statement
         return Form16Assembler.assemble(
-                financialYear, deductor, employee, regime, annualTax, periodMap, computation, paidCount, Instant.now());
+                financialYear,
+                deductor,
+                employee,
+                regime,
+                annualTax,
+                periodMap,
+                importedMap,
+                computation,
+                paidPeriods,
+                importedPeriods,
+                Instant.now());
     }
 
     @Override

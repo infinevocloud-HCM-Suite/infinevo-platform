@@ -1,6 +1,7 @@
 package com.infinevo.payroll.payrun;
 
 import jakarta.persistence.LockModeType;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -49,11 +50,12 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
             UUID tenantId, PayRunType runType, PayRunStatus status);
 
     /**
-     * Counts distinct regular periods with PAID status in the given period range (W-36.4 §4).
+     * Distinct regular periods with PAID status in the given period range (W-36.4 §4). Form 16 adds
+     * the tenant's imported periods to these before deciding {@code final} (W-38.2 §3).
      */
     @Query(
             """
-            SELECT COUNT(DISTINCT pr.period)
+            SELECT DISTINCT pr.period
             FROM PayRun pr
             WHERE pr.tenantId = :tenantId
               AND pr.status = com.infinevo.payroll.payrun.PayRunStatus.PAID
@@ -61,7 +63,7 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
               AND pr.period >= :startPeriod
               AND pr.period <= :endPeriod
             """)
-    long countPaidRegularPeriods(
+    List<String> findPaidRegularPeriods(
             @Param("tenantId") UUID tenantId,
             @Param("startPeriod") String startPeriod,
             @Param("endPeriod") String endPeriod);

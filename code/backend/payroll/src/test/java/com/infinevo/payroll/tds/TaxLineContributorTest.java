@@ -1,6 +1,7 @@
 package com.infinevo.payroll.tds;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -15,8 +16,10 @@ import com.infinevo.payroll.payrun.PayLine;
 import com.infinevo.payroll.payrun.PayRunDays;
 import com.infinevo.payroll.payrun.PayRunEmployeeContext;
 import com.infinevo.payroll.payrun.PayRunType;
+import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.salary.SalaryVersionResponse;
 import com.infinevo.payroll.taxcalc.TaxRegime;
+import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -41,6 +44,7 @@ import org.junit.jupiter.api.Test;
  *   <li>Period before effective_from_period ⇒ no line</li>
  *   <li>No active record ⇒ no line</li>
  *   <li>March with remaining 1,234.5 ⇒ one line of 1,234.5000</li>
+ *   <li>W-38.2: imported TDS counts in ytd — 60,000 ⇒ 10,000.0000, 70,000 ⇒ 8,333.3333, ≥ annual ⇒ no line</li>
  * </ul>
  */
 class TaxLineContributorTest {
@@ -50,14 +54,19 @@ class TaxLineContributorTest {
     private static final UUID EMPLOYEE_ID = UUID.randomUUID();
 
     private EmployeeTdsService tdsService;
+    private static final FinancialYear FY_2026 = FinancialYear.parse("2026-2027");
+
     private EmployeePayRunLineRepository lineRepository;
+    private PriorPayrollTaxQuery priorTax;
     private TaxLineContributor contributor;
 
     @BeforeEach
     void setUp() {
         tdsService = mock(EmployeeTdsService.class);
         lineRepository = mock(EmployeePayRunLineRepository.class);
-        contributor = new TaxLineContributor(tdsService, lineRepository);
+        priorTax = mock(PriorPayrollTaxQuery.class);
+        when(priorTax.total(any(), any(), any())).thenReturn(BigDecimal.ZERO);
+        contributor = new TaxLineContributor(tdsService, lineRepository, priorTax);
     }
 
     @Test
@@ -192,6 +201,55 @@ class TaxLineContributorTest {
 
         assertThat(lines).hasSize(1);
         assertThat(lines.get(0).amount().raw()).isEqualByComparingTo("1234.5000");
+    }
+
+    @Test
+    @DisplayName("W-38.2: October 2026, no runs, imported 10,000 for each of April-September ⇒ 10,000.0000")
+    void importedTaxCountsAsAlreadyDeducted() {
+        YearMonth period = YearMonth.of(2026, 10);
+        EmployeeTds record = record("2026-2027", new BigDecimal("120000.0000"), "2026-04");
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027")).thenReturn(Optional.of(record));
+        when(lineRepository.sumTaxLines(TENANT, EMPLOYEE_ID, "2026-04", "2026-10", PAYRUN_ID))
+                .thenReturn(BigDecimal.ZERO);
+        // 10,000 for each of 2026-04 .. 2026-09
+        when(priorTax.total(TENANT, EMPLOYEE_ID, FY_2026)).thenReturn(new BigDecimal("60000.0000"));
+
+        List<PayLine> lines = contributor.contribute(context(period));
+
+        assertThat(lines).hasSize(1);
+        assertThat(lines.get(0).amount().raw()).isEqualByComparingTo("10000.0000");
+    }
+
+    @Test
+    @DisplayName("W-38.2: October 2026, no runs, imported 70,000 ⇒ 50,000 / 6 ⇒ 8,333.3333")
+    void importedSeventyThousand() {
+        YearMonth period = YearMonth.of(2026, 10);
+        EmployeeTds record = record("2026-2027", new BigDecimal("120000.0000"), "2026-04");
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027")).thenReturn(Optional.of(record));
+        when(lineRepository.sumTaxLines(TENANT, EMPLOYEE_ID, "2026-04", "2026-10", PAYRUN_ID))
+                .thenReturn(BigDecimal.ZERO);
+        when(priorTax.total(TENANT, EMPLOYEE_ID, FY_2026)).thenReturn(new BigDecimal("70000.0000"));
+
+        List<PayLine> lines = contributor.contribute(context(period));
+
+        assertThat(lines).hasSize(1);
+        assertThat(lines.get(0).amount().raw()).isEqualByComparingTo("8333.3333");
+    }
+
+    @Test
+    @DisplayName("W-38.2: imported TDS at or above the annual tax ⇒ no tax line")
+    void importedAtOrAboveAnnualProducesNoLine() {
+        YearMonth period = YearMonth.of(2026, 10);
+        EmployeeTds record = record("2026-2027", new BigDecimal("120000.0000"), "2026-04");
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027")).thenReturn(Optional.of(record));
+        when(lineRepository.sumTaxLines(TENANT, EMPLOYEE_ID, "2026-04", "2026-10", PAYRUN_ID))
+                .thenReturn(BigDecimal.ZERO);
+
+        when(priorTax.total(TENANT, EMPLOYEE_ID, FY_2026)).thenReturn(new BigDecimal("120000.0000"));
+        assertThat(contributor.contribute(context(period))).isEmpty();
+
+        when(priorTax.total(TENANT, EMPLOYEE_ID, FY_2026)).thenReturn(new BigDecimal("130000.0000"));
+        assertThat(contributor.contribute(context(period))).isEmpty();
     }
 
     private static EmployeeTds record(String fy, BigDecimal annualTax, String effectiveFrom) {
