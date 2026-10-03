@@ -65,6 +65,10 @@ public class ClockSession {
     @Column(name = "void_reason", length = 24)
     private VoidReason voidReason;
 
+    /** The regularization request that inserted this session (W-40.4); null for a clocked session. */
+    @Column(name = "regularization_id", updatable = false)
+    private UUID regularizationId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -93,6 +97,24 @@ public class ClockSession {
         this.origin = origin != null ? origin : SessionOrigin.CLOCK;
         this.createdBy = actor != null ? actor : "system";
         this.updatedBy = this.createdBy;
+    }
+
+    /**
+     * A closed session carrying an approved regularization's times (W-40.4 §4, the handler's step 3).
+     */
+    public static ClockSession regularized(
+            UUID tenantId,
+            UUID employeeId,
+            LocalDate attendanceDate,
+            Instant clockInAt,
+            Instant clockOutAt,
+            UUID regularizationId,
+            String actor) {
+        ClockSession session =
+                new ClockSession(tenantId, employeeId, attendanceDate, clockInAt, SessionOrigin.REGULARIZATION, actor);
+        session.clockOutAt = Objects.requireNonNull(clockOutAt, "clockOutAt must not be null");
+        session.regularizationId = Objects.requireNonNull(regularizationId, "regularizationId must not be null");
+        return session;
     }
 
     @PrePersist
@@ -152,6 +174,10 @@ public class ClockSession {
 
     public VoidReason getVoidReason() {
         return voidReason;
+    }
+
+    public UUID getRegularizationId() {
+        return regularizationId;
     }
 
     public Instant getCreatedAt() {

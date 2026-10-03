@@ -51,8 +51,11 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.hrms.timesheet",
             "com.infinevo.hrms.portal",
             "com.infinevo.hrms.navigation",
+            "com.infinevo.hrms.overtime",
             "com.infinevo.core.approval",
-            "com.infinevo.core.authz"
+            "com.infinevo.core.authz",
+            "com.infinevo.core.overtime",
+            "com.infinevo.core.payinput"
         },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
@@ -61,6 +64,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 // core.employee and core.org entities only, no repositories and no beans (W-43.2): the late-timesheet query joins
 // Employee and ReportingLine to hrms's own tables, and a JPQL query can name only entities the context knows.
 // The real application scans all of com.infinevo; this test application's scan is narrower on purpose.
+// core.overtime and core.payinput are real (W-40.6): the overtime outcome handler calls the real OvertimeService, which
+// posts to the real pay input ledger, so OvertimeRequestFlowIT counts real core.pay_input rows. OvertimeServiceImpl
+// checks the employee through the EmployeeRepository stand-in below, which those tests stub.
 @EntityScan(
         basePackages = {
             "com.infinevo.hrms.project",
@@ -70,6 +76,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.authz",
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
+            "com.infinevo.core.overtime",
+            "com.infinevo.core.payinput",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
@@ -80,6 +88,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.hrms.timesheet",
             "com.infinevo.core.approval",
             "com.infinevo.core.authz",
+            "com.infinevo.core.overtime",
+            "com.infinevo.core.payinput",
             "com.infinevo.shared.audit",
             "com.infinevo.shared.identity"
         })
@@ -202,6 +212,31 @@ public class HrmsTestApp {
                 return new com.infinevo.core.attendance.ClockDayResult(
                         true, status, com.infinevo.core.attendance.AttendanceSource.CLOCK);
             }
+        };
+    }
+
+    /**
+     * Stand-in for {@code core}'s {@code AttendanceQuery} (W-40.4): reads {@code core.attendance} under the bound
+     * tenant, as the real {@code AttendanceServiceImpl} does.
+     */
+    @Bean
+    public com.infinevo.core.attendance.AttendanceQuery attendanceQuery(DataSource dataSource) {
+        return (employeeId, from, to) -> {
+            UUID tenantId = TenantContext.require();
+            return new org.springframework.jdbc.core.JdbcTemplate(dataSource)
+                    .query(
+                            "SELECT attendance_date, status, source, remarks FROM core.attendance "
+                                    + "WHERE tenant_id = ? AND employee_id = ? AND attendance_date BETWEEN ? AND ? "
+                                    + "ORDER BY attendance_date",
+                            (rs, i) -> new com.infinevo.core.attendance.AttendanceDay(
+                                    rs.getDate("attendance_date").toLocalDate(),
+                                    com.infinevo.core.attendance.AttendanceStatus.valueOf(rs.getString("status")),
+                                    com.infinevo.core.attendance.AttendanceSource.valueOf(rs.getString("source")),
+                                    rs.getString("remarks")),
+                            tenantId,
+                            employeeId,
+                            from,
+                            to);
         };
     }
 
