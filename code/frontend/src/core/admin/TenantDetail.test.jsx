@@ -187,6 +187,37 @@ describe('TenantDetail', () => {
     await waitFor(() => expect(auditService.search).toHaveBeenCalledWith({ page: 0, size: 20 }));
   });
 
+  it("keeps the acting message, the invitation link and the audit tab once the feed is the target's", async () => {
+    // While acting, the feed is the target user's and never carries core.tenant.impersonate.
+    screens.useCan.mockImplementation(() => false);
+    setup({
+      overview: { ...globex, user_count: 0 },
+      session: {
+        sessionId: 'sess-2',
+        tenantId: 'tenant-globex',
+        tenantName: 'Globex',
+        userLabel: 'setup admin (no user yet)',
+        expiresAt: '2026-10-03T10:30:00Z',
+      },
+    });
+
+    expect(await screen.findByText(/You are acting as setup admin \(no user yet\) in Globex/)).toBeDefined();
+    const link = screen.getByRole('link', { name: /first admin/i });
+    expect(link.getAttribute('href')).toBe(INVITATION_FORM_PATH);
+    expect(screen.queryByLabelText('Reason')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Set up as admin' })).toBeNull();
+    const auditTab = screen.getByRole('tab', { name: 'Audit' });
+    expect(auditTab.getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('hides the act-as card without the permission and with no session here', async () => {
+    screens.useCan.mockImplementation(() => false);
+    setup();
+    await screen.findByRole('tab', { name: 'Audit' });
+    expect(screen.queryByLabelText('Reason')).toBeNull();
+    expect(screen.queryByText(/You are acting as/)).toBeNull();
+  });
+
   it('shows the platform tenant with its tag and no switches, status or act-as', async () => {
     setup({ overview: { ...globex, tenant_id: '00000000-0000-0000-0000-000000000001', name: 'Infinevo', modules: [] } });
     const title = await screen.findAllByText('Infinevo');

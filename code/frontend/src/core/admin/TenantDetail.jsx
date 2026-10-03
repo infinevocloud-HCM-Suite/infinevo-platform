@@ -69,6 +69,9 @@ export function TenantDetail() {
   const modules = tenant.modules || [];
   const noUsers = Number(tenant.user_count) === 0;
   const sessionHere = !!session && session.tenantId === tenant.tenant_id;
+  // A session here while the tenant has no user accounts can only be a bootstrap one: the server
+  // opens a user session only for an existing user. So the invitation link survives a remount.
+  const bootstrapHere = sessionHere && (bootstrapped || noUsers);
 
   const applyModules = async (next) => {
     setBusy(true);
@@ -199,15 +202,19 @@ export function TenantDetail() {
         </Card>
       )}
 
-      {!platform && canImpersonate && (
+      {!platform && (canImpersonate || sessionHere) && (
         <Card size="small" title="Act as">
-          {sessionHere ? (
+          {sessionHere && (
             <Alert
               type="info"
               showIcon
               message={`You are acting as ${session.userLabel} in ${tenant.name}. Stop from the banner at the top.`}
             />
-          ) : (
+          )}
+          {/* Only starting a session needs the permission. Once one is live the feed is the
+              target's, which never carries core.tenant.impersonate, so what follows a start is
+              keyed on the store's session instead. */}
+          {!sessionHere && canImpersonate && (
             <Form form={form} layout="vertical" style={{ maxWidth: 480 }} onFinish={onActAs}>
               {!noUsers && (
                 <Form.Item
@@ -241,7 +248,7 @@ export function TenantDetail() {
               )}
             </Form>
           )}
-          {bootstrapped && (
+          {bootstrapHere && (
             <Alert
               style={{ marginTop: token.marginSM }}
               type="success"

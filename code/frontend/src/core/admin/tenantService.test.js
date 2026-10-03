@@ -21,30 +21,34 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 describe('tenantService', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('list GETs /v1/tenants and returns the bare array', async () => {
+  it('list GETs /v1/tenants without the impersonation header and returns the bare array', async () => {
     const rows = [{ tenant_id: 't-1', name: 'Acme' }];
     apiClient.get.mockResolvedValueOnce({ data: rows });
     expect(await tenantService.list()).toEqual(rows);
-    expect(apiClient.get).toHaveBeenCalledWith('/v1/tenants', { params: undefined });
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/tenants', {
+      params: undefined,
+      skipImpersonation: true,
+    });
   });
 
-  it('get GETs /v1/tenants/{id}', async () => {
+  it('get GETs /v1/tenants/{id} without the impersonation header', async () => {
     apiClient.get.mockResolvedValueOnce({ data: { tenant_id: 't-1' } });
     expect(await tenantService.get('t-1')).toEqual({ tenant_id: 't-1' });
-    expect(apiClient.get).toHaveBeenCalledWith('/v1/tenants/t-1');
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/tenants/t-1', { skipImpersonation: true });
   });
 
-  it('create POSTs /v1/tenants with the body', async () => {
+  it('create POSTs /v1/tenants with the body, without the impersonation header', async () => {
     const body = { name: 'Initech', country_code: 'IN' };
     apiClient.post.mockResolvedValueOnce({ data: { tenantId: 't-9' } });
     expect(await tenantService.create(body)).toEqual({ tenantId: 't-9' });
-    expect(apiClient.post).toHaveBeenCalledWith('/v1/tenants', body);
+    expect(apiClient.post).toHaveBeenCalledWith('/v1/tenants', body, { skipImpersonation: true });
   });
 
-  it('subscription GETs /v1/tenants/{id}/subscription', async () => {
+  it('subscription GETs /v1/tenants/{id}/subscription and keeps the impersonation header', async () => {
     apiClient.get.mockResolvedValueOnce({ data: { status: 'ACTIVE' } });
     expect(await tenantService.subscription('t-1')).toEqual({ status: 'ACTIVE' });
     expect(apiClient.get).toHaveBeenCalledWith('/v1/tenants/t-1/subscription');
+    expect(apiClient.get.mock.calls[0]).toHaveLength(1);
   });
 
   it('setModules PUTs { modules } without the impersonation header', async () => {
@@ -103,12 +107,13 @@ describe('impersonationService', () => {
 describe('auditService', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('search GETs /v1/audit and drops empty filters', async () => {
+  it('search GETs /v1/audit, drops empty filters and keeps the impersonation header', async () => {
     apiClient.get.mockResolvedValueOnce({ data: { content: [], totalElements: 0 } });
     await auditService.search({ entity: 'employee', actor: '', page: 0, size: 20 });
     expect(apiClient.get).toHaveBeenCalledWith('/v1/audit', {
       params: { entity: 'employee', page: 0, size: 20 },
     });
+    expect(apiClient.get.mock.calls[0][1].skipImpersonation).toBeUndefined();
   });
 });
 

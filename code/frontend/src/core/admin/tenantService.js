@@ -10,7 +10,9 @@ import { createService } from '@shared/api/createService.js';
  *   - create: `TenantResponse` (camelCase: tenantId, name, ...) - core TenantController
  *   - subscription, setModules, setStatus: `SubscriptionResponse` - core SubscriptionController
  *
- * The two PUTs are platform-tenant endpoints, so they never carry `X-Impersonation`.
+ * list, get, create and the two PUTs are platform-tenant endpoints (`core.tenant.provision`), so
+ * they never carry `X-Impersonation`: with it the server binds the customer tenant and checks the
+ * acted-as user's permissions, and answers 403. Only `subscription` keeps the header.
  */
 const base = createService('/v1/tenants');
 
@@ -18,6 +20,24 @@ const PLATFORM_ONLY = { skipImpersonation: true };
 
 export const tenantService = {
   ...base,
+
+  /** `GET /v1/tenants` - every tenant, platform staff only. */
+  async list(params) {
+    const res = await apiClient.get(base.basePath, { params, ...PLATFORM_ONLY });
+    return res?.data !== undefined ? res.data : res;
+  },
+
+  /** `GET /v1/tenants/{id}` - one tenant's overview, platform staff only. */
+  async get(id) {
+    const res = await apiClient.get(`${base.basePath}/${id}`, PLATFORM_ONLY);
+    return res?.data !== undefined ? res.data : res;
+  },
+
+  /** `POST /v1/tenants` - provision a tenant, platform staff only. */
+  async create(body) {
+    const res = await apiClient.post(base.basePath, body, PLATFORM_ONLY);
+    return res?.data !== undefined ? res.data : res;
+  },
 
   /** `GET /v1/tenants/{id}/subscription` - answers only for the bound tenant, i.e. while acting in it. */
   async subscription(id) {
