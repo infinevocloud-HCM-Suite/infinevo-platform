@@ -25,13 +25,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Implementation of {@link TaxRecalculationService} (W-33.3).
  */
 @Service
-@Transactional
+@Transactional(propagation = Propagation.REQUIRES_NEW)
 public class TaxRecalculationServiceImpl implements TaxRecalculationService {
 
     private static final Logger log = LoggerFactory.getLogger(TaxRecalculationServiceImpl.class);

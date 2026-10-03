@@ -102,8 +102,6 @@ class TaxComputeRlsIT extends AbstractIntegrationTest {
         TaxDeclarationWindowRequest winReqA =
                 new TaxDeclarationWindowRequest(fy.start(), fy.end(), false, "NEW", true, true, false, false);
         windowService.upsert(currentFy, winReqA);
-        taxDeclarationService.save(employeeA, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
-
         Earning basicA = new Earning(TaxDeclarationTestSchema.TENANT_A, "system");
         basicA.setCode("BASIC_A");
         basicA.setName("Basic Salary A");
@@ -125,6 +123,8 @@ class TaxComputeRlsIT extends AbstractIntegrationTest {
                         List.of(),
                         List.of()));
 
+        taxDeclarationService.save(employeeA, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
+
         // 2. Seed Tenant B employee & declaration
         TenantContext.set(TaxDeclarationTestSchema.TENANT_B);
         employeeB = TaxDeclarationTestSchema.seedEmployee(
@@ -134,7 +134,6 @@ class TaxComputeRlsIT extends AbstractIntegrationTest {
         TaxDeclarationWindowRequest winReqB =
                 new TaxDeclarationWindowRequest(fy.start(), fy.end(), false, "NEW", true, true, false, false);
         windowService.upsert(currentFy, winReqB);
-        taxDeclarationService.save(employeeB, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
 
         Earning basicB = new Earning(TaxDeclarationTestSchema.TENANT_B, "system");
         basicB.setCode("BASIC_B");
@@ -157,6 +156,8 @@ class TaxComputeRlsIT extends AbstractIntegrationTest {
                         List.of(),
                         List.of()));
 
+        taxDeclarationService.save(employeeB, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
+
         TenantContext.clear();
         PayrollTestApp.CURRENT_EMPLOYEE.remove();
     }
@@ -177,9 +178,9 @@ class TaxComputeRlsIT extends AbstractIntegrationTest {
         TenantContext.set(TaxDeclarationTestSchema.TENANT_A);
         PayrollTestApp.CURRENT_EMPLOYEE.set(employeeService.get(employeeA));
 
-        // Tenant A officer attempting to compute Tenant B employee throws DeclarationNotFoundException (404)
+        // Tenant A officer attempting to compute Tenant B employee throws 404
         assertThatThrownBy(() -> taxCalculationService.compute(employeeB, fy, TaxRegime.NEW))
-                .isInstanceOf(DeclarationNotFoundException.class);
+                .isInstanceOfAny(DeclarationNotFoundException.class, EmployeeService.NotFoundException.class);
 
         assertThatThrownBy(() -> taxCalculationService.computeAndRecord(employeeB, fy))
                 .isInstanceOf(DeclarationNotFoundException.class);

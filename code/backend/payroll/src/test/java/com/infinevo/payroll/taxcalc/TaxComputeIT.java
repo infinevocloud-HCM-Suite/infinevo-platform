@@ -109,9 +109,6 @@ class TaxComputeIT extends AbstractIntegrationTest {
                 fy2025_2026.start(), fy2025_2026.end(), false, "NEW", true, true, false, false);
         windowService.upsert(currentFy, winReq);
 
-        // Header for NEW regime
-        taxDeclarationService.save(employeeId, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
-
         // Create taxable earning component BASIC
         Earning basic = new Earning(TaxDeclarationTestSchema.TENANT_A, "system");
         basic.setCode("BASIC");
@@ -133,6 +130,9 @@ class TaxComputeIT extends AbstractIntegrationTest {
                 List.of(),
                 List.of());
         salaryService.create(employeeId, salReq);
+
+        // Header for NEW regime (created after salary structure to test manual compute flow)
+        taxDeclarationService.save(employeeId, currentFy, new TaxDeclarationRequest("NEW", false, false, false));
     }
 
     @AfterEach

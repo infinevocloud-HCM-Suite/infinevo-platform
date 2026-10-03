@@ -108,6 +108,9 @@ public final class TaxDeclarationTestSchema {
             if (!tableExists(conn, "payroll", "employee_inv_tax_summary")) {
                 executeResource(conn, "db/migration/payroll/V081__employee_inv_tax_summary.sql");
             }
+            if (!tableExists(conn, "payroll", "tax_computation")) {
+                executeResource(conn, "db/migration/payroll/V104__tax_computation.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT USAGE ON SCHEMA core, payroll, reference TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
@@ -194,6 +197,9 @@ public final class TaxDeclarationTestSchema {
             }
             if (tableExists(conn, "payroll", "employee_inv_house_rent")) {
                 stmt.execute("DELETE FROM payroll.employee_inv_house_rent");
+            }
+            if (tableExists(conn, "payroll", "tax_computation")) {
+                stmt.execute("DELETE FROM payroll.tax_computation");
             }
             if (tableExists(conn, "payroll", "employee_investment_declaration")) {
                 stmt.execute("DELETE FROM payroll.employee_investment_declaration");

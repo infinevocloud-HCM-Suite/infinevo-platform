@@ -141,51 +141,53 @@ public class PayrollTestApp {
             DataSource dataSource, PlatformTransactionManager txManager) {
         TransactionTemplate tx = new TransactionTemplate(txManager);
         return new EmployeePersonalService() {
-            @Override
-            public Optional<EmployeePersonalResponse> find(UUID employeeId) {
-                try {
-                    return Optional.of(get(employeeId));
-                } catch (EmployeeDetailService.NotFoundException e) {
-                    return Optional.empty();
+            private EmployeePersonalResponse fetchPersonal(UUID employeeId) {
+                UUID tenantId = TenantContext.require();
+                Connection conn = DataSourceUtils.getConnection(dataSource);
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, is_eligible_for_full_tax_exemption, created_at, updated_at "
+                                + "FROM core.employee_personal WHERE employee_id = ? AND tenant_id = ?")) {
+                    ps.setObject(1, employeeId);
+                    ps.setObject(2, tenantId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            return null;
+                        }
+                        java.sql.Date dobSql = rs.getDate("date_of_birth");
+                        LocalDate dob = dobSql != null ? dobSql.toLocalDate() : null;
+                        return new EmployeePersonalResponse(
+                                (UUID) rs.getObject("id"),
+                                tenantId,
+                                employeeId,
+                                dob,
+                                rs.getString("marital_status"),
+                                rs.getString("nationality"),
+                                rs.getString("ethnicity"),
+                                rs.getString("father_name"),
+                                rs.getString("differently_abled_type"),
+                                rs.getBoolean("is_eligible_for_full_tax_exemption"),
+                                rs.getTimestamp("created_at").toInstant(),
+                                rs.getTimestamp("updated_at").toInstant());
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    DataSourceUtils.releaseConnection(conn, dataSource);
                 }
             }
 
             @Override
+            public Optional<EmployeePersonalResponse> find(UUID employeeId) {
+                return Optional.ofNullable(fetchPersonal(employeeId));
+            }
+
+            @Override
             public EmployeePersonalResponse get(UUID employeeId) {
-                return tx.execute(status -> {
-                    UUID tenantId = TenantContext.require();
-                    Connection conn = DataSourceUtils.getConnection(dataSource);
-                    try (PreparedStatement ps = conn.prepareStatement(
-                            "SELECT id, date_of_birth, marital_status, nationality, ethnicity, father_name, differently_abled_type, is_eligible_for_full_tax_exemption, created_at, updated_at "
-                                    + "FROM core.employee_personal WHERE employee_id = ? AND tenant_id = ?")) {
-                        ps.setObject(1, employeeId);
-                        ps.setObject(2, tenantId);
-                        try (ResultSet rs = ps.executeQuery()) {
-                            if (!rs.next()) {
-                                throw new EmployeeDetailService.NotFoundException("employee_personal", employeeId);
-                            }
-                            java.sql.Date dobSql = rs.getDate("date_of_birth");
-                            LocalDate dob = dobSql != null ? dobSql.toLocalDate() : null;
-                            return new EmployeePersonalResponse(
-                                    (UUID) rs.getObject("id"),
-                                    tenantId,
-                                    employeeId,
-                                    dob,
-                                    rs.getString("marital_status"),
-                                    rs.getString("nationality"),
-                                    rs.getString("ethnicity"),
-                                    rs.getString("father_name"),
-                                    rs.getString("differently_abled_type"),
-                                    rs.getBoolean("is_eligible_for_full_tax_exemption"),
-                                    rs.getTimestamp("created_at").toInstant(),
-                                    rs.getTimestamp("updated_at").toInstant());
-                        }
-                    } catch (SQLException e) {
-                        throw new RuntimeException(e);
-                    } finally {
-                        DataSourceUtils.releaseConnection(conn, dataSource);
-                    }
-                });
+                EmployeePersonalResponse resp = fetchPersonal(employeeId);
+                if (resp == null) {
+                    throw new EmployeeDetailService.NotFoundException("employee_personal", employeeId);
+                }
+                return resp;
             }
 
             @Override
