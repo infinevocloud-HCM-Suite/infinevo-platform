@@ -1,10 +1,30 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-03**, against `main` `8b7705c3`.
+> Last refreshed: **2026-10-04**, against `main` `6e19dd89`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-10-04 — nine tickets from `batch-2026-10-03` merged (`6e19dd89`)
+
+| Ticket | What |
+|---|---|
+| `W-34.2` rest | `ProofVerifiedEvent` published; end-to-end `tax_computation` test |
+| `W-38.2` | Imported TDS counts as already deducted |
+| `W-36.5` | Form 16 Part A ZIP upload (`V108` core, `V109`) |
+| `W-37` | Payroll dashboard endpoint |
+| `W-40.4`, `W-40.6` | Regularization (`V124`) and overtime request workflows — `W-40` complete |
+| `W-47.4`, `W-47.5` | Claims and deductions screens; payroll dashboard screen |
+| `W-65.3` | Admin console screens |
+
+- Built on one branch by Claude for five lanes (founder 2026-10-03), one squash. Gates 5/5 for all nine, CI green, one independent read per ticket. Backend 3,930 tests, frontend 656.
+- Fixed at review: `TaxRecalculationServiceImpl` passed unrounded figures to `employee_tds.record`, which rolled back the `tax_computation` write (found by `W-34.2`'s new test); ambiguous PAN skipped (`W-36.5`); racing duplicate regularization `409` (`W-40.4`); admin pages `403` during an act-as session (`W-65.3`); `W-34.1`'s race test read the proof the wrong way when reopen won.
+- **Founder decisions 2026-10-03:** `W-36.5` size-cap exception approved; `W-47.4` ships without receipt upload; `AppShell` keeps `/admin` routes mounted during an act-as session.
+- **Behaviour:** Spring multipart limit is 51 MB (was 11) so a 50 MB Part A ZIP reaches its endpoint; each endpoint still enforces its own cap.
+- **Outstanding:** receipt upload for claims needs a `core` grant ticket; the engine's "no active definition" refusal is matched on message text in `hrms` — a typed exception in `core` would fix that; an admin-cancelled `PENDING` overtime request makes the outcome handler retry forever (`W-40.5`/engine); Proof ITs cannot run alone (schema order); core `LeaveRequestServiceImplTest.cancelOnOrAfterStartDateRefused` fails locally between 00:00 and 05:30 IST (local date vs UTC).
+- **Newly unblocked:** `W-48.5` regularization and overtime screens (no spec yet). Stream D has no open ticket.
+- **Branches:** every developer resets to `main` (`dev-mohit`, `dev-krushna`/`krushna-tickets`, `dev-devashish`, `dev-biren4s`, `dev-karma`). `batch-2026-10-03` can be deleted.
 
 ## 2026-10-03 — `W-33.3`, `W-36.4` merged (`8b7705c3`)
 
