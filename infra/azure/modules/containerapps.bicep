@@ -732,9 +732,10 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
           ]
         }
       ]
+      // Keycloak standalone mode requires 1 replica to prevent session fragmentation across unclustered Infinispan in-memory caches.
       scale: {
-        minReplicas: minReplicas
-        maxReplicas: maxReplicas
+        minReplicas: 1
+        maxReplicas: 1
       }
     }
   }
