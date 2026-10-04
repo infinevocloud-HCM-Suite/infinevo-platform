@@ -1,10 +1,24 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-04**, against `main` `722d1689`.
+> Last refreshed: **2026-10-04**, against `main` `789b69a0`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-10-04 — `W-48.5`, `W-48.6` merged (`789b69a0`) — `W-48` complete
+
+| Ticket | What |
+|---|---|
+| `W-48.5` | Regularization and overtime request screens, forms, details, HR regularization log; `GET /{id}` for both, readable by owner, HR or an assigned approver; inbox "View Item" opens the request |
+| `W-48.6` | HRMS dashboard screen: seven cards from `W-44`'s one reply; `hrms.dashboard` menu item |
+
+- Built on `dev-claude` by Claude, one squash. Gates 5/5 for both, CI green (backend job re-run after a superseded push), one independent read per ticket. Backend 2,780 tests, frontend 753.
+- Core gained `OvertimeService.get(id)` and `ApprovalService.findInstanceBySubject` — hrms holds no overtime entity.
+- Fixed at review: the inbox navigated with no state, so the detail's "Back to approvals" never showed.
+- **Deferred:** the request forms' "not after today" check (browser date; the server refuses a future date).
+- **Outstanding:** HR's overtime list — no seeded role holds `core.overtime.read`; needs a `core` seed ticket. Menu labels still render their keys.
+- **Branches:** `dev-claude` reset to `main`.
 
 ## 2026-10-04 — `W-44`, `W-48.1`–`W-48.4` merged (`722d1689`)
 
