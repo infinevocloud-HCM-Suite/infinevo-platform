@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, DatePicker, Drawer, Space, Table, Tag } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCan } from '@shell/screens';
 import { requestService } from './requestService.js';
 import { OvertimeForm } from './OvertimeForm.jsx';
@@ -9,6 +9,7 @@ import { FMT, MAX_RANGE_DAYS, STATUS_COLOR, presets, spanDays } from './range.js
 /** The caller's overtime requests and a form to ask for one (W-48.5 §5). */
 export function MyOvertime() {
   const canRequest = useCan('hrms.overtime.request');
+  const canReadAll = useCan('core.overtime.read');
   const navigate = useNavigate();
   const [range, setRange] = useState(null);
   const [rows, setRows] = useState([]);
@@ -71,6 +72,7 @@ export function MyOvertime() {
           placeholder={['Pick a range', `at most ${MAX_RANGE_DAYS} days`]}
           presets={presets}
         />
+        {canReadAll && <Link to="/hrms/overtime-requests/all">Everyone&apos;s requests</Link>}
         {error && <Alert type="error" message={error} showIcon />}
         <Table
           rowKey="id"

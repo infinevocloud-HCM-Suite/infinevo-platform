@@ -2,6 +2,7 @@ import { apiClient } from '@shared/api/client';
 
 const REG = '/v1/hrms/attendance/regularizations';
 const OT = '/v1/hrms/overtime-requests';
+const CORE_OT = '/v1/overtime';
 
 /**
  * Overtime replies are snake_case (core's OvertimeResponse, @JsonProperty); map them to the camelCase shape
@@ -12,6 +13,7 @@ export function toOvertime(o) {
   return {
     id: o.id,
     employeeId: o.employee_id,
+    employeeName: o.employee_name,
     overtimeDate: o.overtime_date,
     hours: o.hours,
     amount: o.amount,
@@ -53,6 +55,14 @@ export const requestService = {
 
   async myOvertime(from, to) {
     const res = await apiClient.get(`${OT}/mine`, { params: { from, to } });
+    return list(res.data).map(toOvertime);
+  },
+
+  /** HR: everyone's overtime in a range, from core (W-68 �5). `employeeId` only when set. */
+  async allOvertime(from, to, employeeId) {
+    const params = { from, to };
+    if (employeeId) params.employeeId = employeeId;
+    const res = await apiClient.get(CORE_OT, { params });
     return list(res.data).map(toOvertime);
   },
 

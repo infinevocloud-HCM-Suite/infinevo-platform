@@ -1,6 +1,7 @@
 package com.infinevo.core.overtime;
 
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.payinput.PayInputCommand;
 import com.infinevo.core.payinput.PayInputKind;
 import com.infinevo.core.payinput.PayInputResponse;
@@ -33,22 +34,28 @@ public class OvertimeServiceImpl implements OvertimeService {
     private final OvertimeRequestRepository overtimeRequests;
     private final EmployeeRepository employees;
     private final PayInputService payInputService;
+    private final EmployeeService employeeService;
     private final Clock clock;
 
     @Autowired
     public OvertimeServiceImpl(
-            OvertimeRequestRepository overtimeRequests, EmployeeRepository employees, PayInputService payInputService) {
-        this(overtimeRequests, employees, payInputService, Clock.systemUTC());
+            OvertimeRequestRepository overtimeRequests,
+            EmployeeRepository employees,
+            PayInputService payInputService,
+            EmployeeService employeeService) {
+        this(overtimeRequests, employees, payInputService, employeeService, Clock.systemUTC());
     }
 
     OvertimeServiceImpl(
             OvertimeRequestRepository overtimeRequests,
             EmployeeRepository employees,
             PayInputService payInputService,
+            EmployeeService employeeService,
             Clock clock) {
         this.overtimeRequests = Objects.requireNonNull(overtimeRequests, "overtimeRequests must not be null");
         this.employees = Objects.requireNonNull(employees, "employees must not be null");
         this.payInputService = Objects.requireNonNull(payInputService, "payInputService must not be null");
+        this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -222,7 +229,16 @@ public class OvertimeServiceImpl implements OvertimeService {
                                 tenantId, employeeId, from, to)
                 : overtimeRequests.findByTenantIdAndOvertimeDateBetweenOrderByOvertimeDateDescEmployeeIdAsc(
                         tenantId, from, to);
-        return rows.stream().map(OvertimeResponse::from).toList();
+        // W-68 §4: one batch read for the names, not one per row.
+        Map<UUID, String> names = rows.isEmpty()
+                ? Map.of()
+                : employeeService.displayNames(rows.stream()
+                        .map(OvertimeRequest::getEmployeeId)
+                        .distinct()
+                        .toList());
+        return rows.stream()
+                .map(row -> OvertimeResponse.from(row, names.get(row.getEmployeeId())))
+                .toList();
     }
 
     private void validate(OvertimeEntry entry, UUID tenantId) {

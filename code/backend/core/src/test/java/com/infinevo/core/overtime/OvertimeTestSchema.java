@@ -60,7 +60,14 @@ final class OvertimeTestSchema {
                         "core/V032__pay_input_period_lock.sql",
                         "core/V060__pay_input_run_ref.sql",
                         "core/V041__overtime_request.sql",
-                        "core/V120__overtime_request_states.sql"
+                        "core/V120__overtime_request_states.sql",
+                        // W-68: the current core.seed_system_roles (V148) grants codes these add.
+                        "reference/V052__fbp_actions.sql",
+                        "reference/V097__reimbursement_claim_actions.sql",
+                        "reference/V100__employee_deduction_actions.sql",
+                        "core/V085__hrms_project_actions.sql",
+                        "reference/V122__hrms_request_actions.sql",
+                        "core/V148__overtime_read_seed_roles.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }
@@ -204,6 +211,13 @@ final class OvertimeTestSchema {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
+        }
+    }
+
+    /** Runs one migration script as the migration user - W-68's backfill is re-run by {@code OvertimeSeedRolesIT}. */
+    static void runMigration(String script) throws Exception {
+        try (Connection conn = migrationConnection()) {
+            executeResource(conn, "db/migration/" + script);
         }
     }
 

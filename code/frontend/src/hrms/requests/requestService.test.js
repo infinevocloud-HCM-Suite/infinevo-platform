@@ -43,7 +43,9 @@ describe('requestService (W-48.5 §7)', () => {
     const body = [{ id: 'r1' }];
     apiClient.get.mockResolvedValueOnce(bare(body));
     expect(await requestService.myRegularizations('2026-09-01', '2026-09-30')).toEqual(body);
-    expect(apiClient.get).toHaveBeenCalledWith(`${REG}/mine`, { params: { from: '2026-09-01', to: '2026-09-30' } });
+    expect(apiClient.get).toHaveBeenCalledWith(`${REG}/mine`, {
+      params: { from: '2026-09-01', to: '2026-09-30' },
+    });
   });
 
   it('allRegularizations sends status and employeeId only when set', async () => {
@@ -53,7 +55,9 @@ describe('requestService (W-48.5 §7)', () => {
       params: { from: 'a', to: 'b', status: 'PENDING', employeeId: 'e1' },
     });
     await requestService.allRegularizations('a', 'b');
-    expect(apiClient.get).toHaveBeenLastCalledWith(REG, { params: { from: 'a', to: 'b' } });
+    expect(apiClient.get).toHaveBeenLastCalledWith(REG, {
+      params: { from: 'a', to: 'b' },
+    });
   });
 
   it('regularization(id) and submitRegularization return the bare body', async () => {
@@ -62,14 +66,18 @@ describe('requestService (W-48.5 §7)', () => {
     expect(apiClient.get).toHaveBeenCalledWith(`${REG}/r1`);
     const body = { date: '2026-10-01', inAt: 'x', outAt: 'y', reason: 'z' };
     apiClient.post.mockResolvedValueOnce(bare({ id: 'r2' }));
-    expect(await requestService.submitRegularization(body)).toEqual({ id: 'r2' });
+    expect(await requestService.submitRegularization(body)).toEqual({
+      id: 'r2',
+    });
     expect(apiClient.post).toHaveBeenCalledWith(REG, body);
   });
 
   it('overtime replies are mapped to camelCase', async () => {
     apiClient.get.mockResolvedValueOnce(bare([wire]));
     expect(await requestService.myOvertime('a', 'b')).toEqual([mapped]);
-    expect(apiClient.get).toHaveBeenCalledWith(`${OT}/mine`, { params: { from: 'a', to: 'b' } });
+    expect(apiClient.get).toHaveBeenCalledWith(`${OT}/mine`, {
+      params: { from: 'a', to: 'b' },
+    });
 
     apiClient.get.mockResolvedValueOnce(bare(wire));
     expect(await requestService.overtime('o1')).toEqual(mapped);
@@ -79,5 +87,18 @@ describe('requestService (W-48.5 §7)', () => {
     apiClient.post.mockResolvedValueOnce(bare(wire));
     expect(await requestService.submitOvertime(body)).toEqual(mapped);
     expect(apiClient.post).toHaveBeenCalledWith(OT, body);
+  });
+
+  it('allOvertime hits /v1/overtime with its params and maps employee_name', async () => {
+    apiClient.get.mockResolvedValueOnce(bare([{ ...wire, employee_name: 'Asha Rao' }]));
+    expect(await requestService.allOvertime('a', 'b', 'e1')).toEqual([{ ...mapped, employeeName: 'Asha Rao' }]);
+    expect(apiClient.get).toHaveBeenLastCalledWith('/v1/overtime', {
+      params: { from: 'a', to: 'b', employeeId: 'e1' },
+    });
+    apiClient.get.mockResolvedValueOnce(bare([]));
+    expect(await requestService.allOvertime('a', 'b')).toEqual([]);
+    expect(apiClient.get).toHaveBeenLastCalledWith('/v1/overtime', {
+      params: { from: 'a', to: 'b' },
+    });
   });
 });

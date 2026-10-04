@@ -51,7 +51,12 @@ class OvertimeRequestStatesTest {
         overtimeRequests = mock(OvertimeRequestRepository.class);
         employees = mock(EmployeeRepository.class);
         payInputService = mock(PayInputService.class);
-        service = new OvertimeServiceImpl(overtimeRequests, employees, payInputService, CLOCK);
+        service = new OvertimeServiceImpl(
+                overtimeRequests,
+                employees,
+                payInputService,
+                mock(com.infinevo.core.employee.EmployeeService.class),
+                CLOCK);
         TenantContext.set(TENANT);
 
         employeeId = UUID.randomUUID();

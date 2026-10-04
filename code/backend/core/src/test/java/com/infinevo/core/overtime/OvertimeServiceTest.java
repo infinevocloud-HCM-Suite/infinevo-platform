@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.Employee;
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -18,6 +19,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -44,6 +47,7 @@ class OvertimeServiceTest {
     private OvertimeRequestRepository overtimeRequests;
     private EmployeeRepository employees;
     private com.infinevo.core.payinput.PayInputService payInputService;
+    private EmployeeService employeeService;
     private OvertimeServiceImpl service;
     private UUID employeeId;
 
@@ -52,7 +56,8 @@ class OvertimeServiceTest {
         overtimeRequests = mock(OvertimeRequestRepository.class);
         employees = mock(EmployeeRepository.class);
         payInputService = mock(com.infinevo.core.payinput.PayInputService.class);
-        service = new OvertimeServiceImpl(overtimeRequests, employees, payInputService, CLOCK);
+        employeeService = mock(EmployeeService.class);
+        service = new OvertimeServiceImpl(overtimeRequests, employees, payInputService, employeeService, CLOCK);
         TenantContext.set(TENANT);
 
         employeeId = UUID.randomUUID();
@@ -275,5 +280,37 @@ class OvertimeServiceTest {
                 .isInstanceOf(OvertimeService.ValidationException.class);
         assertThatThrownBy(() -> service.list(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 4, 10), null))
                 .isInstanceOf(OvertimeService.ValidationException.class);
+    }
+
+    @Test
+    @DisplayName("list fills employee_name from one displayNames batch for the distinct ids (W-68)")
+    void listFillsNamesInOneBatch() {
+        UUID other = UUID.randomUUID();
+        LocalDate from = LocalDate.of(2026, 4, 1);
+        LocalDate to = LocalDate.of(2026, 4, 30);
+        OvertimeRequest a = new OvertimeRequest(
+                TENANT, employeeId, LocalDate.of(2026, 4, 10), new BigDecimal("2.00"), null, null, null, "t");
+        OvertimeRequest b = new OvertimeRequest(
+                TENANT, employeeId, LocalDate.of(2026, 4, 9), new BigDecimal("1.00"), null, null, null, "t");
+        OvertimeRequest c = new OvertimeRequest(
+                TENANT, other, LocalDate.of(2026, 4, 8), new BigDecimal("1.00"), null, null, null, "t");
+        when(overtimeRequests.findByTenantIdAndOvertimeDateBetweenOrderByOvertimeDateDescEmployeeIdAsc(
+                        TENANT, from, to))
+                .thenReturn(List.of(a, b, c));
+        when(employeeService.displayNames(List.of(employeeId, other))).thenReturn(Map.of(employeeId, "Asha Rao"));
+
+        List<OvertimeResponse> rows = service.list(from, to, null);
+
+        assertThat(rows).extracting(OvertimeResponse::employeeName).containsExactly("Asha Rao", "Asha Rao", null);
+        verify(employeeService).displayNames(List.of(employeeId, other));
+    }
+
+    @Test
+    @DisplayName("list of nothing does not call displayNames")
+    void emptyListSkipsNameRead() {
+        List<OvertimeResponse> rows = service.list(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30), null);
+
+        assertThat(rows).isEmpty();
+        verify(employeeService, never()).displayNames(any());
     }
 }

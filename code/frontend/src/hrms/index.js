@@ -48,6 +48,9 @@ const RegularizationDetail = lazy(() =>
 const MyOvertime = lazy(() =>
   import('./requests/MyOvertime.jsx').then((m) => ({ default: m.MyOvertime }))
 );
+const OvertimeLog = lazy(() =>
+  import('./requests/OvertimeLog.jsx').then((m) => ({ default: m.OvertimeLog }))
+);
 const OvertimeDetail = lazy(() =>
   import('./requests/OvertimeDetail.jsx').then((m) => ({ default: m.OvertimeDetail }))
 );
@@ -76,6 +79,8 @@ export const routes = [
   { path: '/hrms/regularizations/all', element: React.createElement(RegularizationLog) },
   { path: '/hrms/regularizations/:id', element: React.createElement(RegularizationDetail) },
   { path: '/hrms/overtime-requests', element: React.createElement(MyOvertime) },
+  // W-68 §5: HR overtime list. `/all` before `/:id`.
+  { path: '/hrms/overtime-requests/all', element: React.createElement(OvertimeLog) },
   { path: '/hrms/overtime-requests/:id', element: React.createElement(OvertimeDetail) },
 ];
 
