@@ -13,6 +13,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class PayrollNavigation implements NavigationContributor {
 
+    /** The payroll dashboard — {@code PayrollDashboardController}'s {@code GET /api/v1/payroll/dashboard} (W-47.5 §4). Listed first. */
+    public static final ItemDefinition DASHBOARD = new ItemDefinition(
+            "payroll.dashboard",
+            "nav.payroll.dashboard",
+            "/payroll/dashboard",
+            "/api/v1/payroll/dashboard",
+            PlatformModule.PAYROLL,
+            "payroll.run.read");
+
     /** The pay run list — {@code PayRunController}'s {@code GET /api/v1/payroll/payruns}. */
     public static final ItemDefinition RUNS = new ItemDefinition(
             "payroll.runs",
@@ -31,8 +40,26 @@ public class PayrollNavigation implements NavigationContributor {
             PlatformModule.PAYROLL,
             "payroll.run.read");
 
+    /** Reimbursement claims — {@code ReimbursementClaimController}'s {@code GET /api/v1/payroll/reimbursement-claims} (W-47.4 §4). */
+    public static final ItemDefinition CLAIMS = new ItemDefinition(
+            "payroll.claims",
+            "nav.payroll.claims",
+            "/payroll/claims",
+            "/api/v1/payroll/reimbursement-claims",
+            PlatformModule.PAYROLL,
+            "payroll.reimbursement_claim.read");
+
+    /** Ad-hoc deductions — {@code EmployeeDeductionController}'s {@code GET /api/v1/payroll/employee-deductions} (W-47.4 §4). */
+    public static final ItemDefinition DEDUCTIONS = new ItemDefinition(
+            "payroll.deductions",
+            "nav.payroll.deductions",
+            "/payroll/deductions",
+            "/api/v1/payroll/employee-deductions",
+            PlatformModule.PAYROLL,
+            "payroll.employee_deduction.read");
+
     @Override
     public List<ItemDefinition> items() {
-        return List.of(RUNS, PRIOR_PAYROLL);
+        return List.of(DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS);
     }
 }

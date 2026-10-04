@@ -9,6 +9,7 @@ import java.util.UUID;
 public record EmployeeDeductionResponse(
         @JsonProperty("id") UUID id,
         @JsonProperty("employee_id") UUID employeeId,
+        @JsonProperty("employee_name") String employeeName,
         @JsonProperty("period") String period,
         @JsonProperty("deduction_type") DeductionType deductionType,
         @JsonProperty("amount") BigDecimal amount,
@@ -24,10 +25,12 @@ public record EmployeeDeductionResponse(
         @JsonProperty("created_at") Instant createdAt,
         @JsonProperty("created_by") String createdBy) {
 
-    static EmployeeDeductionResponse from(EmployeeDeduction d) {
+    /** {@code employeeName} comes from {@code EmployeeService.displayNames} (W-47.4 §4); null when unresolved. */
+    static EmployeeDeductionResponse from(EmployeeDeduction d, String employeeName) {
         return new EmployeeDeductionResponse(
                 d.getId(),
                 d.getEmployeeId(),
+                employeeName,
                 d.getPeriod().toString(),
                 d.getDeductionType(),
                 d.getAmount(),

@@ -1,0 +1,72 @@
+/** One fixture of the W-37 §4 shape (`PayrollDashboardResponse.java`), shared by the dashboard tests. */
+export function dashboardFixture(overrides = {}) {
+  return {
+    financial_year: { start: '2026-04-01', end: '2027-03-31' },
+    employees: {
+      active_today: 42,
+      as_at_run: {
+        payrun_id: 'run-9',
+        period: '2026-09',
+        included: 40,
+        skipped: 2,
+        skipped_by_reason: { NO_SALARY: 0, NO_BANK_DETAILS: 2 },
+      },
+    },
+    current_run: {
+      payrun_id: 'run-9',
+      period: '2026-09',
+      status: 'COMPUTED',
+      pay_date: '2026-09-30',
+      paid_on: null,
+      included: 40,
+      skipped: 2,
+      progress_done: null,
+      progress_total: null,
+      gross: 1238952.5,
+      deductions: 98000,
+      net_pay: 1140952.5,
+    },
+    recent_runs: [
+      {
+        payrun_id: 'run-9',
+        period: '2026-09',
+        status: 'COMPUTED',
+        pay_date: '2026-09-30',
+        paid_on: null,
+        included: 40,
+        skipped: 2,
+        progress_done: null,
+        progress_total: null,
+        gross: 1238952.5,
+        deductions: 98000,
+        net_pay: 1140952.5,
+      },
+      {
+        payrun_id: 'run-8',
+        period: '2026-08',
+        status: 'PAID',
+        pay_date: '2026-08-31',
+        paid_on: '2026-08-31',
+        included: 39,
+        skipped: 0,
+        progress_done: null,
+        progress_total: null,
+        gross: 1200000,
+        deductions: 95000,
+        net_pay: 1105000,
+      },
+    ],
+    months: [
+      { payrun_id: 'run-8', period: '2026-08', status: 'PAID', gross: 1200000, deductions: 95000, tax: 40000, net_pay: 1105000 },
+      { payrun_id: 'run-9', period: '2026-09', status: 'COMPUTED', gross: 1238952.5, deductions: 98000, tax: 41000, net_pay: 1140952.5 },
+    ],
+    year_totals: { gross: 1200000, deductions: 95000, tax: 40000, net_pay: 1105000, paid_runs: 1 },
+    statutory: {
+      epf: { employee: 36000, employer: 36000 },
+      esi: { employee: 0, employer: 0 },
+      professional_tax: { employee: 7800 },
+      tds: { employee: 40000 },
+    },
+    ...overrides,
+  };
+}

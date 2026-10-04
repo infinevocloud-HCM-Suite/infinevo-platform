@@ -2,6 +2,7 @@ import React, { lazy } from 'react';
 import employeeReducer from './employee/employeeSlice.js';
 import approvalReducer from './approvals/approvalSlice.js';
 import leaveReducer from './leave/leaveSlice.js';
+import impersonationReducer from './admin/impersonationSlice.js';
 
 const EmployeeList = lazy(() =>
   import('./employee/EmployeeList.jsx').then((m) => ({ default: m.EmployeeList }))
@@ -85,6 +86,16 @@ const LeaveImport = lazy(() =>
   import('./leave/LeaveImport.jsx').then((m) => ({ default: m.LeaveImport }))
 );
 
+const TenantList = lazy(() =>
+  import('./admin/TenantList.jsx').then((m) => ({ default: m.TenantList }))
+);
+const TenantCreate = lazy(() =>
+  import('./admin/TenantCreate.jsx').then((m) => ({ default: m.TenantCreate }))
+);
+const TenantDetail = lazy(() =>
+  import('./admin/TenantDetail.jsx').then((m) => ({ default: m.TenantDetail }))
+);
+
 // Employee, leave, holidays, organisation setup, approvals. Available to every tenant.
 // Screens and slices land here as their work items are built.
 export const routes = [
@@ -115,6 +126,10 @@ export const routes = [
   { path: '/leave/requests/:id', element: React.createElement(LeaveRequestDetail) },
   { path: '/leave/employees/:id', element: React.createElement(EmployeeLeave) },
   { path: '/leave/import', element: React.createElement(LeaveImport) },
+  // Platform staff only: mounted when the feed carries `core.tenants` (W-65.1 §4, W-65.3 §5).
+  { path: '/admin/tenants', element: React.createElement(TenantList) },
+  { path: '/admin/tenants/new', element: React.createElement(TenantCreate) },
+  { path: '/admin/tenants/:id', element: React.createElement(TenantDetail) },
 ];
 
 export const publicRoutes = [
@@ -125,6 +140,7 @@ export const reducers = {
   employee: employeeReducer,
   approvals: approvalReducer,
   leave: leaveReducer,
+  impersonation: impersonationReducer,
 };
 
 export * from './portal/index.js';

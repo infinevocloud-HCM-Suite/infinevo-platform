@@ -22,6 +22,11 @@ import { config } from '../config.js';
 let tokenProvider = null;
 let unauthorizedHandler = null;
 let tenantSuspendedHandler = null;
+let impersonationProvider = null;
+let impersonationInvalidHandler = null;
+
+/** The `X-Impersonation` header the backend reads (W-65.2, `TenantContextFilter`). */
+export const IMPERSONATION_HEADER = 'X-Impersonation';
 
 export function setTokenProvider(provider) {
   tokenProvider = provider;
@@ -33,6 +38,19 @@ export function setUnauthorizedHandler(handler) {
 
 export function setTenantSuspendedHandler(handler) {
   tenantSuspendedHandler = handler;
+}
+
+/**
+ * Supplies the live impersonation session id, or null (W-65.3 §5). shared cannot import the
+ * store, so the shell injects a reader of it - the same seam as the token provider.
+ */
+export function setImpersonationProvider(provider) {
+  impersonationProvider = provider;
+}
+
+/** Called once when the server answers `403 IMPERSONATION_INVALID` (W-65.3 §5). */
+export function setImpersonationInvalidHandler(handler) {
+  impersonationInvalidHandler = handler;
 }
 
 // Aliases matching spec conventions
@@ -57,7 +75,17 @@ apiClient.interceptors.request.use(async (reqConfig) => {
   if (token) {
     reqConfig.headers.Authorization = `Bearer ${token}`;
   }
-  // Nothing tenant-shaped is added here, on purpose. See the note above.
+  // The one exception to the note above: while platform staff act inside a customer tenant the
+  // session id goes out, and the server binds the session's tenant from it (W-65.2). The server
+  // checks the session is the caller's and live; the client only carries it. Calls to the
+  // platform's own endpoints (opening and closing a session) opt out with `skipImpersonation`.
+  const sessionId =
+    !reqConfig.skipImpersonation && typeof impersonationProvider === 'function'
+      ? impersonationProvider()
+      : null;
+  if (sessionId) {
+    reqConfig.headers[IMPERSONATION_HEADER] = sessionId;
+  }
   return reqConfig;
 });
 
@@ -69,6 +97,7 @@ apiClient.interceptors.response.use(
     const isUnauthorized =
       code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED' || error.response?.status === 401;
     const isTenantSuspended = code === 'TENANT_SUSPENDED';
+    const isImpersonationInvalid = code === 'IMPERSONATION_INVALID';
 
     if (isUnauthorized && typeof unauthorizedHandler === 'function') {
       try {
@@ -86,6 +115,14 @@ apiClient.interceptors.response.use(
       }
     }
 
+    if (isImpersonationInvalid && typeof impersonationInvalidHandler === 'function') {
+      try {
+        impersonationInvalidHandler();
+      } catch (err) {
+        console.error('impersonationInvalidHandler threw error', err);
+      }
+    }
+
     // Callers can discriminate on `err.code` or helper booleans
     return Promise.reject({
       code,
@@ -97,6 +134,7 @@ apiClient.interceptors.response.use(
       isTenantSuspended,
       isForbidden: code === 'FORBIDDEN',
       isUnauthorized,
+      isImpersonationInvalid,
     });
   },
 );

@@ -335,22 +335,29 @@ class ProofSubmissionIT extends ProofIntegrationTestBase {
                 TenantContext.clear();
             }
         };
+        List<String> outcome;
         try {
             Future<String> a = pool.submit(submit);
             Future<String> b = pool.submit(reopen);
             start.countDown();
 
-            assertThat(List.of(a.get(), b.get()))
-                    .isIn(List.of("SUBMITTED", "PROOF_IN_PROGRESS"), List.of("NOT_SUBMITTED", "REOPENED"));
+            outcome = List.of(a.get(), b.get());
+            assertThat(outcome).isIn(List.of("SUBMITTED", "PROOF_IN_PROGRESS"), List.of("NOT_SUBMITTED", "REOPENED"));
         } finally {
             pool.shutdownNow();
         }
-        ProofStatus proof = proofService.readOwn(fy).status();
+        // The officer's read, not readOwn: readOwn refuses a draft declaration with NOT_SUBMITTED, which is
+        // exactly the state the reopen-wins branch leaves, and it would sync items besides. The proof row
+        // exists either way (created by the readOwn above, before the race).
+        ProofStatus proof = proofService.read(employeeId, fy).status();
         DeclarationStatus declaration =
                 taxDeclarationService.read(employeeId, fy).status();
         assertThat(proof == ProofStatus.SUBMITTED && declaration == DeclarationStatus.DRAFT)
                 .as("a submitted proof on a draft declaration")
                 .isFalse();
+        boolean submitWon = outcome.get(0).equals("SUBMITTED");
+        assertThat(proof).isEqualTo(submitWon ? ProofStatus.SUBMITTED : ProofStatus.DRAFT);
+        assertThat(declaration).isEqualTo(submitWon ? DeclarationStatus.SUBMITTED : DeclarationStatus.DRAFT);
     }
 
     @Test

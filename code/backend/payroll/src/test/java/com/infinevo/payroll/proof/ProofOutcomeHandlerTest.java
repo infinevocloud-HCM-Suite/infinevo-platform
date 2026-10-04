@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +17,7 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.notification.NotificationEvent;
 import com.infinevo.core.notification.NotificationService;
+import com.infinevo.payroll.taxcalc.recalc.event.ProofVerifiedEvent;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -29,6 +31,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class ProofOutcomeHandlerTest {
@@ -38,6 +41,7 @@ class ProofOutcomeHandlerTest {
     private EmployeeProofItemRepository itemRepository;
     private EmployeeService employeeService;
     private NotificationService notificationService;
+    private ApplicationEventPublisher eventPublisher;
     private Clock clock;
     private ProofOutcomeHandler handler;
 
@@ -55,10 +59,17 @@ class ProofOutcomeHandlerTest {
         itemRepository = mock(EmployeeProofItemRepository.class);
         employeeService = mock(EmployeeService.class);
         notificationService = mock(NotificationService.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
         clock = Clock.fixed(now, ZoneId.of("UTC"));
 
         handler = new ProofOutcomeHandler(
-                instanceRepository, proofRepository, itemRepository, employeeService, notificationService, clock);
+                instanceRepository,
+                proofRepository,
+                itemRepository,
+                employeeService,
+                notificationService,
+                eventPublisher,
+                clock);
 
         EmployeeResponse mockEmp = mock(EmployeeResponse.class);
         when(mockEmp.firstName()).thenReturn("Alice");
@@ -132,6 +143,26 @@ class ProofOutcomeHandlerTest {
                                 "employee_name", "Alice Smith",
                                 "request_title", "Proof of Investment 2026-2027",
                                 "decision", "Approved")));
+
+        verify(eventPublisher, times(1))
+                .publishEvent(new ProofVerifiedEvent(tenantId, employeeId, declarationId, "2026-2027"));
+    }
+
+    @Test
+    @DisplayName("onApproved publishes ProofVerifiedEvent once; a repeated dispatch publishes nothing more")
+    void onApproved_publishesOnce_repeatedDispatchDoesNotRepublish() {
+        ApprovalInstance instance = createInstance();
+        when(instanceRepository.findById(instanceId)).thenReturn(Optional.of(instance));
+        EmployeeProofOfInvestment proof = createProof(ProofStatus.SUBMITTED, instanceId);
+        when(proofRepository.findByTenantIdAndId(tenantId, proofId)).thenReturn(Optional.of(proof));
+        when(itemRepository.findByTenantIdAndProofIdOrderByCreatedAtAscIdAsc(tenantId, proofId))
+                .thenReturn(List.of());
+
+        handler.onApproved(instanceId, List.of());
+        handler.onApproved(instanceId, List.of());
+
+        assertThat(proof.getStatus()).isEqualTo(ProofStatus.APPROVED);
+        verify(eventPublisher, times(1)).publishEvent(any(ProofVerifiedEvent.class));
     }
 
     @Test
@@ -204,6 +235,7 @@ class ProofOutcomeHandlerTest {
 
         verify(proofRepository, never()).save(any());
         verify(notificationService, never()).compose(any(), any(), any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -219,6 +251,7 @@ class ProofOutcomeHandlerTest {
 
         verify(proofRepository, never()).save(any());
         verify(notificationService, never()).compose(any(), any(), any());
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -265,6 +298,8 @@ class ProofOutcomeHandlerTest {
                                 "employee_name", "Alice Smith",
                                 "request_title", "Proof of Investment 2026-2027",
                                 "decision", "Returned")));
+
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -290,6 +325,7 @@ class ProofOutcomeHandlerTest {
         assertThat(proof.getStatus()).isEqualTo(ProofStatus.REJECTED);
         assertThat(proof.getReviewerNote()).isEqualTo("Global return reason");
         verify(proofRepository).save(proof);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test

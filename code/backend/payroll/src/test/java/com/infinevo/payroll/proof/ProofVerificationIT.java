@@ -12,6 +12,7 @@ import com.infinevo.core.approval.ApprovalInstanceRepository;
 import com.infinevo.core.approval.ApprovalStep;
 import com.infinevo.core.approval.ApprovalStepRepository;
 import com.infinevo.core.notification.NotificationEvent;
+import com.infinevo.payroll.taxcalc.recalc.event.ProofVerifiedEvent;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationTestSchema;
 import java.math.BigDecimal;
 import java.util.List;
@@ -115,6 +116,10 @@ class ProofVerificationIT extends ProofIntegrationTestBase {
                 new ProofItemDecisionRequest(
                         ProofItemDecisionAction.APPROVE, new BigDecimal("120000.00"), "Approved interest"));
 
+        assertThat(events.stream(ProofVerifiedEvent.class))
+                .as("no event before the final approval")
+                .isEmpty();
+
         // Final approve
         reviewService.decideFinal(
                 proofEntity.getId(), new ProofFinalDecisionRequest(ProofFinalDecisionAction.APPROVE, "All verified"));
@@ -138,6 +143,11 @@ class ProofVerificationIT extends ProofIntegrationTestBase {
 
         verify(notificationService, atLeastOnce())
                 .compose(eq(NotificationEvent.APPROVAL_DECIDED), eq(employeeId), anyMap());
+
+        // Exactly one ProofVerifiedEvent, carrying the proof's declaration and year (section 7)
+        assertThat(events.stream(ProofVerifiedEvent.class).toList())
+                .containsExactly(new ProofVerifiedEvent(
+                        TENANT_A, employeeId, finalProof.getDeclarationId(), finalProof.getFinancialYear()));
     }
 
     @Test
@@ -177,6 +187,9 @@ class ProofVerificationIT extends ProofIntegrationTestBase {
                 () -> itemRepository.findByTenantIdAndId(TENANT_A, rent.id()).orElseThrow());
         assertThat(rejectedItem.getStatus()).isEqualTo(ProofItemStatus.RETURNED);
         assertThat(rejectedItem.getReviewerNote()).isEqualTo("Rent receipt blurry");
+        assertThat(events.stream(ProofVerifiedEvent.class))
+                .as("a returned proof is not verified")
+                .isEmpty();
 
         // Employee reads own proof and sees RETURNED with reason
         ProofResponse readAfterReturn = proofService.readOwn(fy);

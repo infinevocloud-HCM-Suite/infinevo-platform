@@ -21,4 +21,11 @@ public interface ReimbursementClaimService {
             UUID employeeId, ClaimStatus status, LocalDate from, LocalDate to, Pageable pageable);
 
     ReimbursementClaimResponse get(UUID id);
+
+    /**
+     * The components the caller may claim against (W-47.4 §4): the bound tenant's active, undeleted
+     * {@code payroll.reimbursement} rows — the filter {@link #submit} validates against. A login linked to no
+     * employee is refused, as every other {@code /me} claim call is.
+     */
+    List<ClaimableComponentResponse> claimableComponents();
 }

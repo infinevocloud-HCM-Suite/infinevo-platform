@@ -247,6 +247,17 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "prior_payroll_import_log")) {
                 executeResource(conn, "db/migration/payroll/V140__prior_payroll.sql");
             }
+            // W-36.5: the PAN lookup reads core.employee_identification (V017); core.document must accept
+            // FORM16_PART_A (V108); payroll.form16_part_a (V109) references both.
+            if (!tableExists(conn, "core", "employee_identification")) {
+                executeResource(conn, "db/migration/core/V017__employee_identification.sql");
+            }
+            if (!documentKindAccepts(conn, "FORM16_PART_A")) {
+                executeResource(conn, "db/migration/core/V108__document_kind_form16.sql");
+            }
+            if (!tableExists(conn, "payroll", "form16_part_a")) {
+                executeResource(conn, "db/migration/payroll/V109__form16_part_a.sql");
+            }
             try (Statement st = conn.createStatement()) {
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO app_user");
                 st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA payroll TO app_user");
@@ -315,6 +326,10 @@ public final class PayrollTestSchema {
             if (tableExists(conn, "payroll", "prior_payroll_import_log")) {
                 st.execute("DELETE FROM payroll.prior_payroll_import_log");
             }
+            // W-36.5: before core.document and core.employee, which it references.
+            if (tableExists(conn, "payroll", "form16_part_a")) {
+                st.execute("DELETE FROM payroll.form16_part_a");
+            }
             if (tableExists(conn, "core", "document")) {
                 st.execute("DELETE FROM core.document");
             }
@@ -363,6 +378,9 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "core", "employee_bank")) {
                 st.execute("DELETE FROM core.employee_bank");
+            }
+            if (tableExists(conn, "core", "employee_identification")) {
+                st.execute("DELETE FROM core.employee_identification");
             }
             st.execute("DELETE FROM core.employee");
             if (tableExists(conn, "core", "work_location")) {
@@ -444,6 +462,16 @@ public final class PayrollTestSchema {
     public static void clearTenant(Connection conn) throws SQLException {
         try (PreparedStatement clear = conn.prepareStatement("SELECT set_config('app.current_tenant_id', '', false)")) {
             clear.execute();
+        }
+    }
+
+    /** True when {@code core.document}'s kind check already lists {@code kind} (V108 applied). */
+    public static boolean documentKindAccepts(Connection conn, String kind) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'document_kind_check'")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getString(1).contains(kind);
+            }
         }
     }
 

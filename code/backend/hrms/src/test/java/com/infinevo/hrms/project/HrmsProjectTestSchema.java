@@ -77,7 +77,8 @@ public final class HrmsProjectTestSchema {
                         "hrms/V121__attendance_preference.sql",
                         "core/V030__attendance.sql",
                         "core/V033__tenant_locale_columns.sql",
-                        "hrms/V123__clock_session.sql"
+                        "hrms/V123__clock_session.sql",
+                        "hrms/V124__attendance_regularization.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }
@@ -85,7 +86,25 @@ public final class HrmsProjectTestSchema {
                     for (String script : new String[] {
                         "core/V030__attendance.sql",
                         "core/V033__tenant_locale_columns.sql",
-                        "hrms/V123__clock_session.sql"
+                        "hrms/V123__clock_session.sql",
+                        "hrms/V124__attendance_regularization.sql"
+                    }) {
+                        executeResource(conn, "db/migration/" + script);
+                    }
+                } else if (!tableExists(conn, "hrms", "attendance_regularization")) {
+                    executeResource(conn, "db/migration/hrms/V124__attendance_regularization.sql");
+                }
+                if (!tableExists(conn, "core", "overtime_request")) {
+                    // W-40.6: core's overtime and pay input ledger, the hrms.overtime.request code, and the grant list
+                    // that gives it to employee (V139 supersedes V135's copy of core.seed_system_roles).
+                    for (String script : new String[] {
+                        "core/V031__pay_input.sql",
+                        "core/V032__pay_input_period_lock.sql",
+                        "core/V060__pay_input_run_ref.sql",
+                        "core/V041__overtime_request.sql",
+                        "core/V120__overtime_request_states.sql",
+                        "reference/V122__hrms_request_actions.sql",
+                        "core/V139__hrms_request_seed_roles.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }

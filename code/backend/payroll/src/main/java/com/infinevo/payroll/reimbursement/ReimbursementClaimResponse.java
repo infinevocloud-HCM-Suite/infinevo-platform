@@ -13,6 +13,7 @@ import java.util.UUID;
 public record ReimbursementClaimResponse(
         @JsonProperty("id") UUID id,
         @JsonProperty("employee_id") UUID employeeId,
+        @JsonProperty("employee_name") String employeeName,
         @JsonProperty("reimbursement_id") UUID reimbursementId,
         @JsonProperty("component_code") String componentCode,
         @JsonProperty("component_name") String componentName,
@@ -33,10 +34,15 @@ public record ReimbursementClaimResponse(
         @JsonProperty("updated_at") Instant updatedAt) {
 
     public static ReimbursementClaimResponse from(
-            ReimbursementClaim claim, String componentCode, String componentName, BigDecimal maxLimit) {
+            ReimbursementClaim claim,
+            String employeeName,
+            String componentCode,
+            String componentName,
+            BigDecimal maxLimit) {
         return new ReimbursementClaimResponse(
                 claim.getId(),
                 claim.getEmployeeId(),
+                employeeName,
                 claim.getReimbursementId(),
                 componentCode,
                 componentName,
@@ -57,10 +63,12 @@ public record ReimbursementClaimResponse(
                 claim.getUpdatedAt());
     }
 
-    public static ReimbursementClaimResponse from(ReimbursementClaim claim, Reimbursement component) {
+    /** {@code employeeName} comes from {@code EmployeeService.displayNames} (W-47.4 §4); null when unresolved. */
+    public static ReimbursementClaimResponse from(
+            ReimbursementClaim claim, Reimbursement component, String employeeName) {
         String code = component != null ? component.getCode() : null;
         String name = component != null ? component.getName() : null;
         BigDecimal maxLimit = component != null ? component.getMaxLimit() : null;
-        return from(claim, code, name, maxLimit);
+        return from(claim, employeeName, code, name, maxLimit);
     }
 }

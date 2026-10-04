@@ -5,9 +5,10 @@ import taxReducer from './tax/taxSlice.js';
 import salaryReducer from './salary/salarySlice.js';
 import settingsReducer from './settings/settingsSlice.js';
 
-describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2 §5, W-47.3 §5, W-47.6 §5)', () => {
-  it('registers the pay run, settings, officer tax declaration, salary component and prior payroll routes as elements', () => {
+describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2 §5, W-47.3 §5, W-47.4 §5, W-47.6 §5)', () => {
+  it('registers the dashboard, pay run, settings, officer tax declaration, salary component, prior payroll, claim and deduction routes as elements', () => {
     expect(routes.map((r) => r.path)).toEqual([
+      '/payroll/dashboard',
       '/payroll/runs',
       '/payroll/runs/new-off-cycle',
       '/payroll/runs/:id',
@@ -20,6 +21,9 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/employees/:employeeId/tax-declaration/:fy',
       '/payroll/components',
       '/payroll/prior-payroll',
+      '/payroll/claims',
+      '/payroll/claims/:id',
+      '/payroll/deductions',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
   });
@@ -33,11 +37,12 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
     });
   });
 
-  it('offers the taxDeclaration portal panel as a component', () => {
-    expect(portalPanels).toHaveLength(1);
-    expect(portalPanels[0].code).toBe('taxDeclaration');
-    expect(portalPanels[0].component).toBeTruthy();
-    expect(portalPanels[0]).not.toHaveProperty('element');
+  it('offers the taxDeclaration and claims portal panels as components', () => {
+    expect(portalPanels.map((p) => p.code)).toEqual(['taxDeclaration', 'claims']);
+    portalPanels.forEach((p) => {
+      expect(p.component).toBeTruthy();
+      expect(p).not.toHaveProperty('element');
+    });
   });
 
   it('exports employeeTabs for shell composition with Salary, FBP, and Tax declaration tabs', () => {

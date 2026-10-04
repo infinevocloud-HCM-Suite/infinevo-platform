@@ -257,6 +257,32 @@ class EmployeeDeductionIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("W-47.4: employee_name is on the batch rows, the list, the read, the reversal and the own list")
+    void rowsCarryEmployeeName() {
+        List<EmployeeDeductionResponse> batch = deductionService
+                .enter(List.of(line(alice, "OTHER", "100"), line(bob, "PENALTY", "50")))
+                .rows();
+        assertThat(batch)
+                .extracting(EmployeeDeductionResponse::employeeName)
+                .containsExactly("First Last", "First Last");
+        assertThat(batch).extracting(EmployeeDeductionResponse::employeeId).containsExactly(alice, bob);
+
+        assertThat(deductionService
+                        .list(null, null, null, null, PageRequest.of(0, 25))
+                        .getContent())
+                .hasSize(2)
+                .allSatisfy(r -> assertThat(r.employeeName()).isEqualTo("First Last"));
+        assertThat(deductionService.get(batch.get(0).id()).employeeName()).isEqualTo("First Last");
+        assertThat(deductionService.reverse(batch.get(1).id(), "mistake").employeeName())
+                .isEqualTo("First Last");
+
+        PayrollTestApp.CURRENT_EMPLOYEE.set(
+                PayrollTestSchema.createTestEmployee(alice, TENANT_A, "D-01", "Alice", "A", "alice@example.com"));
+        assertThat(deductionService.listOwn()).singleElement().satisfies(r -> assertThat(r.employeeName())
+                .isEqualTo("First Last"));
+    }
+
+    @Test
     @DisplayName("V101: RLS on, money and periods typed as the spec says, the three indexes present")
     void migrationShape() throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();

@@ -191,6 +191,7 @@ class EmployeeDeductionGuardIT {
         return new EmployeeDeductionResponse(
                 id,
                 UUID.randomUUID(),
+                "First Last",
                 "2026-10",
                 DeductionType.ADVANCE_RECOVERY,
                 new BigDecimal("1500.0000"),

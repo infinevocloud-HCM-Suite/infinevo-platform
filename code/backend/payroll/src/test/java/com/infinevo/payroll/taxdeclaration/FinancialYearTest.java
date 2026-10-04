@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -106,5 +107,33 @@ class FinancialYearTest {
 
         java.util.List<String> fys = FinancialYear.allFrom(effectiveFrom, today);
         assertThat(fys).containsExactly("2027-2028");
+    }
+
+    @Test
+    @DisplayName("W-37: of(2026) is April 2026 to March 2027")
+    void ofStartYear() {
+        FinancialYear fy = FinancialYear.of(2026);
+        assertThat(fy).isEqualTo(FinancialYear.of(2026, 2027));
+        assertThat(fy.start()).isEqualTo(LocalDate.of(2026, 4, 1));
+        assertThat(fy.end()).isEqualTo(LocalDate.of(2027, 3, 31));
+    }
+
+    @Test
+    @DisplayName("W-37: 31 March 2026 is FY 2025; 1 April 2026 is FY 2026")
+    void containingAppliesTheAprilRule() {
+        assertThat(FinancialYear.containing(LocalDate.of(2026, 3, 31)).startYear())
+                .isEqualTo(2025);
+        assertThat(FinancialYear.containing(LocalDate.of(2026, 4, 1)).startYear())
+                .isEqualTo(2026);
+    }
+
+    @Test
+    @DisplayName("W-37: months() is April to March, in order")
+    void monthsAprilToMarch() {
+        assertThat(FinancialYear.of(2026).months())
+                .hasSize(12)
+                .startsWith(YearMonth.of(2026, 4), YearMonth.of(2026, 5))
+                .endsWith(YearMonth.of(2027, 2), YearMonth.of(2027, 3))
+                .isSorted();
     }
 }

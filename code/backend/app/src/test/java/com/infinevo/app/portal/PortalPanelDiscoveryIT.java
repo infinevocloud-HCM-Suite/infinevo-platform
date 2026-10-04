@@ -89,13 +89,14 @@ class PortalPanelDiscoveryIT {
     private TimesheetService timesheetService;
 
     @Test
-    @DisplayName("PortalPanelService discovers all 6 providers including module providers from payroll and hrms")
-    void discoversAllSixProviders() {
-        assertThat(providers).hasSize(6);
+    @DisplayName("PortalPanelService discovers all 7 providers including module providers from payroll and hrms")
+    void discoversAllSevenProviders() {
+        assertThat(providers).hasSize(7);
 
         List<String> codes = providers.stream().map(PortalPanelProvider::code).toList();
         assertThat(codes)
-                .containsExactlyInAnyOrder("profile", "leave", "documents", "payslips", "taxDeclaration", "timesheet");
+                .containsExactlyInAnyOrder(
+                        "profile", "leave", "documents", "payslips", "taxDeclaration", "timesheet", "claims");
 
         assertThat(providers.stream().anyMatch(p -> p instanceof PayslipPanelProvider))
                 .isTrue();
@@ -142,7 +143,17 @@ class PortalPanelDiscoveryIT {
         List<PanelDescriptor> panels = portalPanelService.getPanels();
         List<String> panelCodes = panels.stream().map(PanelDescriptor::code).toList();
 
-        // Acme sees profile, leave, documents, payslips, taxDeclaration - but NOT timesheet
-        assertThat(panelCodes).containsExactly("profile", "leave", "documents", "payslips", "taxDeclaration");
+        // Acme sees profile, leave, documents, payslips, taxDeclaration, claims - but NOT timesheet
+        assertThat(panelCodes).containsExactly("profile", "leave", "documents", "payslips", "taxDeclaration", "claims");
+
+        // W-47.4: an HRMS-only tenant never sees the claims panel
+        when(entitlementService.holds(PlatformModule.PAYROLL)).thenReturn(false);
+        when(entitlementService.holds(PlatformModule.HRMS)).thenReturn(true);
+        List<String> hrmsOnly = portalPanelService.getPanels().stream()
+                .map(PanelDescriptor::code)
+                .toList();
+        assertThat(hrmsOnly)
+                .doesNotContain("claims", "payslips", "taxDeclaration")
+                .contains("timesheet");
     }
 }

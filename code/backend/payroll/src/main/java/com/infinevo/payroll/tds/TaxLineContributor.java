@@ -7,6 +7,7 @@ import com.infinevo.payroll.payrun.PayLine;
 import com.infinevo.payroll.payrun.PayLineContributor;
 import com.infinevo.payroll.payrun.PayRunEmployeeContext;
 import com.infinevo.payroll.payrun.PayRunType;
+import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
@@ -35,10 +36,13 @@ public class TaxLineContributor implements PayLineContributor {
 
     private final EmployeeTdsService tdsService;
     private final EmployeePayRunLineRepository lineRepository;
+    private final PriorPayrollTaxQuery priorTax;
 
-    public TaxLineContributor(EmployeeTdsService tdsService, EmployeePayRunLineRepository lineRepository) {
+    public TaxLineContributor(
+            EmployeeTdsService tdsService, EmployeePayRunLineRepository lineRepository, PriorPayrollTaxQuery priorTax) {
         this.tdsService = Objects.requireNonNull(tdsService, "tdsService must not be null");
         this.lineRepository = Objects.requireNonNull(lineRepository, "lineRepository must not be null");
+        this.priorTax = Objects.requireNonNull(priorTax, "priorTax must not be null");
     }
 
     @Override
@@ -64,8 +68,10 @@ public class TaxLineContributor implements PayLineContributor {
 
         String periodFrom = String.format("%04d-04", fy.startYear());
         String periodTo = ctx.period().toString();
-        BigDecimal ytd =
-                lineRepository.sumTaxLines(ctx.tenantId(), ctx.employee().id(), periodFrom, periodTo, ctx.payrunId());
+        // W-38.2: tax deducted in months imported through W-38.1 is tax already deducted this year.
+        BigDecimal ytd = lineRepository
+                .sumTaxLines(ctx.tenantId(), ctx.employee().id(), periodFrom, periodTo, ctx.payrunId())
+                .add(priorTax.total(ctx.tenantId(), ctx.employee().id(), fy));
 
         BigDecimal remaining = record.getAnnualTax().subtract(ytd);
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {

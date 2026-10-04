@@ -1,9 +1,21 @@
 package com.infinevo.payroll.reimbursement;
 
 import static com.infinevo.payroll.PayrollTestSchema.TENANT_A;
+import static com.infinevo.payroll.PayrollTestSchema.TENANT_B;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.infinevo.core.approval.ApprovalDecideRequest;
 import com.infinevo.core.approval.ApprovalDecision;
 import com.infinevo.core.approval.ApprovalInstance;
@@ -19,6 +31,10 @@ import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.PayrollTestSchema;
 import com.infinevo.payroll.component.Reimbursement;
 import com.infinevo.payroll.component.ReimbursementRepository;
+import com.infinevo.shared.authz.AuthzExceptionHandler;
+import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.PermissionService;
+import com.infinevo.shared.authz.RequiresActionAspect;
 import com.infinevo.shared.tenant.TenantContext;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.EnabledIfDockerAvailable;
@@ -36,8 +52,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
  * End-to-end integration tests for reimbursement claims lifecycle (W-35.1, spec section 7).
@@ -46,6 +67,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest(classes = PayrollTestApp.class)
 @EnabledIfDockerAvailable
 class ReimbursementClaimIT extends AbstractIntegrationTest {
+
+    private static final String SUBMIT_OWN = "payroll.reimbursement_claim.submit_own";
 
     @Autowired
     private ReimbursementClaimService claimService;
@@ -243,6 +266,111 @@ class ReimbursementClaimIT extends AbstractIntegrationTest {
         // Employee 2's own list should be empty
         List<ReimbursementClaimResponse> bobClaims = claimService.listOwn();
         assertThat(bobClaims).noneMatch(c -> c.id().equals(submitted.id()));
+    }
+
+    @Test
+    @DisplayName(
+            "GET /api/v1/me/reimbursement-claims/components: an employee gets 200 with the active, undeleted, own-tenant components only")
+    void componentsForEmployee() throws Exception {
+        Reimbursement retired = new Reimbursement(TENANT_A, "test");
+        retired.setCode("FUEL");
+        retired.setName("Fuel");
+        retired.setReimbursementType("FUEL");
+        retired.setActive(false);
+        reimbursementRepository.save(retired);
+        Reimbursement deleted = new Reimbursement(TENANT_A, "test");
+        deleted.setCode("PHONE");
+        deleted.setName("Phone");
+        deleted.setReimbursementType("PHONE");
+        deleted.setActive(true);
+        deleted.setDeleted(true);
+        reimbursementRepository.save(deleted);
+        TenantContext.set(TENANT_B);
+        Reimbursement theirs = new Reimbursement(TENANT_B, "test");
+        theirs.setCode("TRAVEL_B");
+        theirs.setName("Their travel");
+        theirs.setReimbursementType("TRAVEL");
+        theirs.setActive(true);
+        reimbursementRepository.save(theirs);
+        TenantContext.set(TENANT_A);
+
+        PayrollTestApp.CURRENT_EMPLOYEE.set(employee1);
+        guardedMvc(SUBMIT_OWN)
+                .perform(get("/api/v1/me/reimbursement-claims/components"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(reimbursementId.toString()))
+                .andExpect(jsonPath("$.data[0].code").value("TRAVEL"))
+                .andExpect(jsonPath("$.data[0].name").value("Travel Reimbursement"))
+                .andExpect(jsonPath("$.data[0].max_limit").value(5000.0));
+    }
+
+    @Test
+    @DisplayName("GET /components: a login linked to no employee gets 403; without submit_own it is 403 too")
+    void componentsRefusedForUnlinkedLogin() throws Exception {
+        PayrollTestApp.CURRENT_EMPLOYEE.remove();
+        guardedMvc(SUBMIT_OWN)
+                .perform(get("/api/v1/me/reimbursement-claims/components"))
+                .andExpect(status().isForbidden());
+
+        PayrollTestApp.CURRENT_EMPLOYEE.set(employee1);
+        guardedMvc("payroll.reimbursement_claim.read_own")
+                .perform(get("/api/v1/me/reimbursement-claims/components"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Claim rows carry employee_name on the officer list, the officer read, the own list and the own read")
+    void rowsCarryEmployeeName() throws Exception {
+        PayrollTestApp.CURRENT_EMPLOYEE.set(employee1);
+        ReimbursementClaimResponse alices = claimService.submit(new ReimbursementClaimRequest(
+                reimbursementId, new BigDecimal("120.00"), LocalDate.now(), "Taxi", null));
+        assertThat(alices.employeeName()).isEqualTo("Alice Smith");
+        PayrollTestApp.CURRENT_EMPLOYEE.set(employee2);
+        claimService.submit(
+                new ReimbursementClaimRequest(reimbursementId, new BigDecimal("80.00"), LocalDate.now(), "Bus", null));
+
+        List<ReimbursementClaimResponse> page =
+                claimService.list(null, null, null, null, PageRequest.of(0, 25)).getContent();
+        assertThat(page)
+                .extracting(ReimbursementClaimResponse::employeeName)
+                .containsExactlyInAnyOrder("Alice Smith", "Bob Jones");
+        assertThat(claimService.get(alices.id()).employeeName()).isEqualTo("Alice Smith");
+        assertThat(claimService.listOwn())
+                .extracting(ReimbursementClaimResponse::employeeName)
+                .containsExactly("Bob Jones");
+
+        PayrollTestApp.CURRENT_EMPLOYEE.set(employee1);
+        assertThat(claimService.getOwn(alices.id()).employeeName()).isEqualTo("Alice Smith");
+        guardedMvc("payroll.reimbursement_claim.read_own")
+                .perform(get("/api/v1/me/reimbursement-claims"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].employee_name").value("Alice Smith"));
+    }
+
+    /** The real controller and service behind the real {@link RequiresActionAspect}; {@code held} is the one action granted. */
+    private MockMvc guardedMvc(String held) {
+        PermissionService permissionService = mock(PermissionService.class);
+        given(permissionService.holds(anyString())).willAnswer(inv -> held.equals(inv.getArgument(0)));
+        doAnswer(invocation -> {
+                    String action = invocation.getArgument(0);
+                    if (!held.equals(action)) {
+                        throw new PermissionDeniedException(action);
+                    }
+                    return null;
+                })
+                .when(permissionService)
+                .require(any());
+        AspectJProxyFactory factory = new AspectJProxyFactory(new ReimbursementClaimController(claimService));
+        factory.setProxyTargetClass(true);
+        factory.addAspect(new RequiresActionAspect(permissionService));
+        return MockMvcBuilders.standaloneSetup((ReimbursementClaimController) factory.getProxy())
+                .setControllerAdvice(new AuthzExceptionHandler())
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(new ObjectMapper()
+                        .registerModule(new JavaTimeModule())
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)))
+                .build();
     }
 
     private static void seedEmployee(UUID tenantId, UUID employeeId, String code, String first, String last)

@@ -1,5 +1,6 @@
 package com.infinevo.payroll.priorpayroll;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,4 +40,30 @@ public interface PriorPayrollMonthRepository extends JpaRepository<PriorPayrollM
             @Param("toPeriod") String toPeriod);
 
     long deleteByIdAndTenantId(UUID id, UUID tenantId);
+
+    /** Imported TDS for one employee over a period range, one aggregate (W-38.2 §4, DEBT-019). */
+    @Query("SELECT COALESCE(SUM(m.tds), 0) FROM PriorPayrollMonth m WHERE m.tenantId = :tenantId "
+            + "AND m.employeeId = :employeeId AND m.period >= :fromPeriod AND m.period <= :toPeriod")
+    BigDecimal sumTds(
+            @Param("tenantId") UUID tenantId,
+            @Param("employeeId") UUID employeeId,
+            @Param("fromPeriod") String fromPeriod,
+            @Param("toPeriod") String toPeriod);
+
+    /** Imported TDS for one employee grouped by period, one aggregate (W-38.2 §4, DEBT-019). */
+    @Query("SELECT m.period AS period, COALESCE(SUM(m.tds), 0) AS tds FROM PriorPayrollMonth m "
+            + "WHERE m.tenantId = :tenantId AND m.employeeId = :employeeId "
+            + "AND m.period >= :fromPeriod AND m.period <= :toPeriod GROUP BY m.period ORDER BY m.period ASC")
+    List<PeriodTds> sumTdsByPeriod(
+            @Param("tenantId") UUID tenantId,
+            @Param("employeeId") UUID employeeId,
+            @Param("fromPeriod") String fromPeriod,
+            @Param("toPeriod") String toPeriod);
+
+    /** Projection for {@link #sumTdsByPeriod}. */
+    interface PeriodTds {
+        String getPeriod();
+
+        BigDecimal getTds();
+    }
 }

@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -139,7 +140,7 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
         claim.setApprovalInstanceId(instanceId);
         claim = claimRepository.save(claim);
 
-        return ReimbursementClaimResponse.from(claim, component);
+        return ReimbursementClaimResponse.from(claim, component, nameOf(claim.getEmployeeId()));
     }
 
     @Override
@@ -157,8 +158,10 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
         }
 
         Map<UUID, Reimbursement> componentMap = loadComponents(claims);
+        Map<UUID, String> names = loadNames(claims);
         return claims.stream()
-                .map(c -> ReimbursementClaimResponse.from(c, componentMap.get(c.getReimbursementId())))
+                .map(c -> ReimbursementClaimResponse.from(
+                        c, componentMap.get(c.getReimbursementId()), names.get(c.getEmployeeId())))
                 .toList();
     }
 
@@ -180,7 +183,7 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
 
         Reimbursement component =
                 reimbursementRepository.findById(claim.getReimbursementId()).orElse(null);
-        return ReimbursementClaimResponse.from(claim, component);
+        return ReimbursementClaimResponse.from(claim, component, nameOf(claim.getEmployeeId()));
     }
 
     @Override
@@ -209,7 +212,27 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
 
         Page<ReimbursementClaim> page = claimRepository.findAll(spec, pageable);
         Map<UUID, Reimbursement> componentMap = loadComponents(page.getContent());
-        return page.map(c -> ReimbursementClaimResponse.from(c, componentMap.get(c.getReimbursementId())));
+        Map<UUID, String> names = loadNames(page.getContent());
+        return page.map(c -> ReimbursementClaimResponse.from(
+                c, componentMap.get(c.getReimbursementId()), names.get(c.getEmployeeId())));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClaimableComponentResponse> claimableComponents() {
+        UUID tenantId = TenantContext.require();
+        employeeService
+                .currentEmployee()
+                .orElseThrow(() -> new AccessDeniedException("No employee profile linked to current user account"));
+
+        // The same filter submit applies (rule 4 above): the bound tenant, undeleted, active. The repository
+        // narrows already; the in-memory check keeps the contract if that finder ever widens.
+        return reimbursementRepository.findAllByTenantIdAndActiveAndDeletedFalse(tenantId, true).stream()
+                .filter(r -> tenantId.equals(r.getTenantId()) && r.isActive() && !r.isDeleted())
+                .sorted(Comparator.comparing(Reimbursement::getName, Comparator.nullsLast(String::compareTo))
+                        .thenComparing(Reimbursement::getCode, Comparator.nullsLast(String::compareTo)))
+                .map(ClaimableComponentResponse::from)
+                .toList();
     }
 
     @Override
@@ -222,7 +245,20 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
 
         Reimbursement component =
                 reimbursementRepository.findById(claim.getReimbursementId()).orElse(null);
-        return ReimbursementClaimResponse.from(claim, component);
+        return ReimbursementClaimResponse.from(claim, component, nameOf(claim.getEmployeeId()));
+    }
+
+    /** One {@code displayNames} call for the whole page or list (W-47.4 §4). */
+    private Map<UUID, String> loadNames(List<ReimbursementClaim> claims) {
+        Set<UUID> ids = claims.stream().map(ReimbursementClaim::getEmployeeId).collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return employeeService.displayNames(ids);
+    }
+
+    private String nameOf(UUID employeeId) {
+        return employeeService.displayNames(Set.of(employeeId)).get(employeeId);
     }
 
     private Map<UUID, Reimbursement> loadComponents(List<ReimbursementClaim> claims) {

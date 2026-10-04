@@ -9,6 +9,7 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.notification.NotificationEvent;
 import com.infinevo.core.notification.NotificationService;
+import com.infinevo.payroll.taxcalc.recalc.event.ProofVerifiedEvent;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +45,7 @@ public class ProofOutcomeHandler implements ApprovalOutcomeHandler {
     private final EmployeeProofItemRepository itemRepository;
     private final EmployeeService employeeService;
     private final NotificationService notificationService;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     /** For tests: a fixed clock. Spring uses the other constructor; there is no Clock bean. */
@@ -52,12 +55,14 @@ public class ProofOutcomeHandler implements ApprovalOutcomeHandler {
             EmployeeProofItemRepository itemRepository,
             EmployeeService employeeService,
             NotificationService notificationService,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.instanceRepository = Objects.requireNonNull(instanceRepository, "instanceRepository must not be null");
         this.proofRepository = Objects.requireNonNull(proofRepository, "proofRepository must not be null");
         this.itemRepository = Objects.requireNonNull(itemRepository, "itemRepository must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.notificationService = Objects.requireNonNull(notificationService, "notificationService must not be null");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -67,13 +72,15 @@ public class ProofOutcomeHandler implements ApprovalOutcomeHandler {
             EmployeeProofOfInvestmentRepository proofRepository,
             EmployeeProofItemRepository itemRepository,
             EmployeeService employeeService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            ApplicationEventPublisher eventPublisher) {
         this(
                 instanceRepository,
                 proofRepository,
                 itemRepository,
                 employeeService,
                 notificationService,
+                eventPublisher,
                 Clock.systemUTC());
     }
 
@@ -173,8 +180,10 @@ public class ProofOutcomeHandler implements ApprovalOutcomeHandler {
             proof.setUpdatedBy("system");
             proofRepository.save(proof);
 
-            // W-33.3: publish ProofVerifiedEvent(tenantId, proof.getEmployeeId(), proof.getDeclarationId(),
-            // proof.getFinancialYear());
+            // Published inside this transaction, as ProofSubmittedEvent is: the tax recalculation listens
+            // after commit, so it only ever sees an approval that was written.
+            eventPublisher.publishEvent(new ProofVerifiedEvent(
+                    tenantId, proof.getEmployeeId(), proof.getDeclarationId(), proof.getFinancialYear()));
 
             notifyDecided(proof, "Approved");
             log.info("Proof of investment {} marked APPROVED for instance {}", proof.getId(), instanceId);
