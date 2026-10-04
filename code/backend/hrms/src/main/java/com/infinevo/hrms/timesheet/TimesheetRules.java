@@ -22,7 +22,7 @@ import java.util.UUID;
  * <p>Pure: no clock, no repository, so every row of the spec's table is a unit test. Keys name the offending
  * field, for example {@code projects[0].tasks[1].days[2].hours}.
  */
-final class TimesheetRules {
+public final class TimesheetRules {
 
     static final BigDecimal MAX_HOURS = BigDecimal.valueOf(24);
     static final int MAX_DESCRIPTION = 500;
@@ -30,7 +30,7 @@ final class TimesheetRules {
     private TimesheetRules() {}
 
     /** The Monday of the week that contains {@code date}. */
-    static LocalDate mondayOf(LocalDate date) {
+    public static LocalDate mondayOf(LocalDate date) {
         return date.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     }
 

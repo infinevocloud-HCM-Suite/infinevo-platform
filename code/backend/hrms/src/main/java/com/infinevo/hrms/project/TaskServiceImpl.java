@@ -4,9 +4,13 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,7 +66,7 @@ public class TaskServiceImpl implements TaskService {
         task.setUpdatedBy(actor);
 
         Task saved = taskRepository.save(task);
-        return TaskResponse.from(saved);
+        return respond(tenantId, List.of(saved)).get(0);
     }
 
     @Override
@@ -75,7 +79,7 @@ public class TaskServiceImpl implements TaskService {
 
         List<Task> tasks = taskRepository.findByTenantIdAndProjectIdAndStatusIn(
                 tenantId, projectId, status != null ? EnumSet.of(status) : EnumSet.allOf(TaskStatus.class));
-        return tasks.stream().map(TaskResponse::from).toList();
+        return respond(tenantId, tasks);
     }
 
     @Override
@@ -91,7 +95,7 @@ public class TaskServiceImpl implements TaskService {
         List<Task> tasks =
                 taskRepository.findAllByTenantIdAndAssigneeEmployeeIdAndDeletedFalseOrderByDueDateAscCreatedAtAsc(
                         tenantId, employeeId);
-        return tasks.stream().map(TaskResponse::from).toList();
+        return respond(tenantId, tasks);
     }
 
     @Override
@@ -101,7 +105,7 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository
                 .findByIdAndTenantIdAndDeletedFalse(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("No task " + id + " found in this tenant"));
-        return TaskResponse.from(task);
+        return respond(tenantId, List.of(task)).get(0);
     }
 
     @Override
@@ -125,7 +129,7 @@ public class TaskServiceImpl implements TaskService {
         task.setUpdatedBy(ProjectActor.currentActor());
 
         Task saved = taskRepository.save(task);
-        return TaskResponse.from(saved);
+        return respond(tenantId, List.of(saved)).get(0);
     }
 
     @Override
@@ -142,7 +146,7 @@ public class TaskServiceImpl implements TaskService {
         task.setStatus(status);
         task.setUpdatedBy(ProjectActor.currentActor());
         Task saved = taskRepository.save(task);
-        return TaskResponse.from(saved);
+        return respond(tenantId, List.of(saved)).get(0);
     }
 
     @Override
@@ -185,5 +189,31 @@ public class TaskServiceImpl implements TaskService {
                         "assignee_employee_id", "Assignee employee is not assigned to this project team");
             }
         }
+    }
+
+    /**
+     * Builds responses for a page of tasks with one batch read of assignee names and one of project
+     * names (W-48.1 section 4); an id with no match gets a {@code null} name.
+     */
+    private List<TaskResponse> respond(UUID tenantId, List<Task> tasks) {
+        if (tasks.isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> assignees = new HashSet<>();
+        Set<UUID> projectIds = new HashSet<>();
+        for (Task t : tasks) {
+            if (t.getAssigneeEmployeeId() != null) {
+                assignees.add(t.getAssigneeEmployeeId());
+            }
+            projectIds.add(t.getProjectId());
+        }
+        Map<UUID, String> employeeNames = assignees.isEmpty() ? Map.of() : employeeService.displayNames(assignees);
+        Map<UUID, String> projectNames = new HashMap<>();
+        for (Project p : projectRepository.findAllByTenantIdAndIdInAndDeletedFalse(tenantId, projectIds)) {
+            projectNames.put(p.getId(), p.getName());
+        }
+        return tasks.stream()
+                .map(t -> TaskResponse.from(t, employeeNames, projectNames))
+                .toList();
     }
 }

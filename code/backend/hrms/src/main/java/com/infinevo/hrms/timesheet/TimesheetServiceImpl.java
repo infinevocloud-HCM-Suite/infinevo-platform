@@ -43,6 +43,7 @@ public class TimesheetServiceImpl implements TimesheetService {
     private final TimesheetValidator validator;
     private final TimesheetSubmitService submitService;
     private final EmployeeService employeeService;
+    private final TimesheetNames names;
     private final Clock clock;
 
     @Autowired
@@ -50,8 +51,9 @@ public class TimesheetServiceImpl implements TimesheetService {
             TimesheetRepository timesheetRepository,
             TimesheetValidator validator,
             TimesheetSubmitService submitService,
-            EmployeeService employeeService) {
-        this(timesheetRepository, validator, submitService, employeeService, Clock.systemDefaultZone());
+            EmployeeService employeeService,
+            TimesheetNames names) {
+        this(timesheetRepository, validator, submitService, employeeService, names, Clock.systemDefaultZone());
     }
 
     /** For tests: a fixed clock for "this week". Spring uses the other constructor, as there is no Clock bean. */
@@ -60,7 +62,9 @@ public class TimesheetServiceImpl implements TimesheetService {
             TimesheetValidator validator,
             TimesheetSubmitService submitService,
             EmployeeService employeeService,
+            TimesheetNames names,
             Clock clock) {
+        this.names = names;
         this.timesheetRepository = Objects.requireNonNull(timesheetRepository, "timesheetRepository must not be null");
         this.validator = Objects.requireNonNull(validator, "validator must not be null");
         this.submitService = Objects.requireNonNull(submitService, "submitService must not be null");
@@ -92,7 +96,7 @@ public class TimesheetServiceImpl implements TimesheetService {
             throw e;
         }
         log.info("Timesheet {} created as a draft for week {} in tenant {}", sheet.getId(), week, tenantId);
-        return TimesheetResponse.from(sheet);
+        return named(tenantId, sheet);
     }
 
     @Override
@@ -125,7 +129,7 @@ public class TimesheetServiceImpl implements TimesheetService {
         sheet.touch(actor);
         sheet = timesheetRepository.saveAndFlush(sheet);
         log.info("Timesheet {} replaced in tenant {}", sheet.getId(), tenantId);
-        return TimesheetResponse.from(sheet);
+        return named(tenantId, sheet);
     }
 
     @Override
@@ -144,7 +148,7 @@ public class TimesheetServiceImpl implements TimesheetService {
     public TimesheetResponse get(UUID id) {
         UUID tenantId = TenantContext.require();
         EmployeeResponse me = currentEmployee(ACTION_READ_OWN);
-        return TimesheetResponse.from(owned(tenantId, me.id(), id));
+        return named(tenantId, owned(tenantId, me.id(), id));
     }
 
     @Override
@@ -157,15 +161,16 @@ public class TimesheetServiceImpl implements TimesheetService {
         if (lower.isAfter(upper)) {
             throw new ValidationException("from", "from must not be after to");
         }
-        return timesheetRepository
+        List<Timesheet> sheets = timesheetRepository
                 .findByTenantIdAndEmployeeIdAndWeekStartDateBetweenOrderByWeekStartDateDesc(
                         tenantId, me.id(), lower, upper)
                 .stream()
                 .filter(t -> status == null || t.getStatus() == status)
                 .filter(t ->
                         projectId == null || t.getProjects().stream().anyMatch(p -> projectId.equals(p.getProjectId())))
-                .map(TimesheetResponse::from)
                 .toList();
+        TimesheetNames.Names n = names != null ? names.forSheets(tenantId, sheets) : TimesheetNames.Names.NONE;
+        return sheets.stream().map(t -> TimesheetResponse.from(t, n)).toList();
     }
 
     @Override
@@ -180,10 +185,17 @@ public class TimesheetServiceImpl implements TimesheetService {
         return timesheetRepository
                 .findByTenantIdAndEmployeeIdAndWeekStartDateAndStatusNot(
                         tenantId, me.id(), week, TimesheetStatus.CANCELLED)
-                .map(TimesheetResponse::from);
+                .map(sheet -> named(tenantId, sheet));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────────
+
+    /** One week with its names (W-48.3 §4); a test built without the name reader gets none. */
+    private TimesheetResponse named(UUID tenantId, Timesheet sheet) {
+        return names != null
+                ? TimesheetResponse.from(sheet, names.forSheets(tenantId, List.of(sheet)))
+                : TimesheetResponse.from(sheet);
+    }
 
     /**
      * The login's employee. A login with no employee record is the permission error, which is a 403: it must not be

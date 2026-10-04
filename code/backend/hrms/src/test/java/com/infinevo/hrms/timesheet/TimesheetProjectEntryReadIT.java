@@ -46,7 +46,11 @@ class TimesheetProjectEntryReadIT extends TimesheetApprovalSupport {
                 .andExpect(jsonPath("$.data.project_id").value(projectA.toString()))
                 .andExpect(jsonPath("$.data.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.data.tasks[0].task_id").value(taskA.toString()))
-                .andExpect(jsonPath("$.data.tasks[0].days[0].hours").value(4.0));
+                .andExpect(jsonPath("$.data.tasks[0].days[0].hours").value(4.0))
+                // W-48.3 §4: names read at reply time from core.employee and hrms's project and task.
+                .andExpect(jsonPath("$.data.employee_name").value("Test"))
+                .andExpect(jsonPath("$.data.project_name").value(org.hamcrest.Matchers.startsWith("Approval A ")))
+                .andExpect(jsonPath("$.data.tasks[0].task_title").value("Task A"));
     }
 
     @Test

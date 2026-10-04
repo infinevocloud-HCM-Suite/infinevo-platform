@@ -204,16 +204,22 @@ class ClockFlowIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.sessions.length()").value(2));
 
         // Verify GET /sessions/mine
+        // W-48.4 §4: the caller's own sessions carry no name.
         mvc.perform(authed(get("/api/v1/hrms/attendance/sessions/mine?from=2026-10-01&to=2026-10-10"), employeeUser))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].employeeName").doesNotExist())
+                .andExpect(jsonPath("$[1].employeeName").doesNotExist());
 
         // Verify GET /sessions as HR
         mvc.perform(authed(
                         get("/api/v1/hrms/attendance/sessions?from=2026-10-01&to=2026-10-10&employeeId=" + employeeId),
                         hrUser))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(2))
+                // W-48.4 §4: the HR log names each row's employee, from core.employee.
+                .andExpect(jsonPath("$[0].employeeName").value("Test"))
+                .andExpect(jsonPath("$[1].employeeName").value("Test"));
     }
 
     @Test

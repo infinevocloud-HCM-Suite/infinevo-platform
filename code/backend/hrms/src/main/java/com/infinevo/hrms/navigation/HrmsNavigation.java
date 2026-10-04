@@ -22,8 +22,63 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "hrms.timesheet.read_own");
 
+    /** Every project the caller manages or may read: {@code ProjectController}'s {@code GET /api/v1/hrms/projects}. */
+    public static final ItemDefinition PROJECTS = new ItemDefinition(
+            "hrms.projects",
+            "nav.hrms.projects",
+            "/hrms/projects",
+            "/api/v1/hrms/projects",
+            PlatformModule.HRMS,
+            "hrms.project.manage");
+
+    /** The caller's own projects and tasks: {@code ProjectController}'s {@code GET /api/v1/hrms/projects/mine}. */
+    public static final ItemDefinition MY_WORK = new ItemDefinition(
+            "hrms.my_work",
+            "nav.hrms.my_work",
+            "/hrms/my-work",
+            "/api/v1/hrms/projects/mine",
+            PlatformModule.HRMS,
+            "hrms.project.read_own");
+
+    /** Weeks on the caller's projects to approve (W-48.3): {@code TimesheetController}'s {@code GET /api/v1/hrms/timesheets/managed}. */
+    public static final ItemDefinition TIMESHEET_REVIEW = new ItemDefinition(
+            "hrms.timesheet_review",
+            "nav.hrms.timesheet_review",
+            "/hrms/timesheet-review",
+            "/api/v1/hrms/timesheets/managed",
+            PlatformModule.HRMS,
+            "hrms.timesheet.approve");
+
+    /** The caller's clock card (W-48.4): {@code ClockController}'s {@code GET /api/v1/hrms/attendance/today}. */
+    public static final ItemDefinition ATTENDANCE = new ItemDefinition(
+            "hrms.attendance",
+            "nav.hrms.attendance",
+            "/hrms/attendance",
+            "/api/v1/hrms/attendance/today",
+            PlatformModule.HRMS,
+            "hrms.attendance.mark");
+
+    /** Every clock session, for HR (W-48.4): {@code ClockController}'s {@code GET /api/v1/hrms/attendance/sessions}. */
+    public static final ItemDefinition ATTENDANCE_LOG = new ItemDefinition(
+            "hrms.attendance_log",
+            "nav.hrms.attendance_log",
+            "/hrms/attendance-log",
+            "/api/v1/hrms/attendance/sessions",
+            PlatformModule.HRMS,
+            "core.attendance.read");
+
+    /** The tenant's attendance settings (W-48.4): {@code AttendancePreferenceController}'s {@code GET /api/v1/hrms/attendance/preferences}. */
+    public static final ItemDefinition ATTENDANCE_SETTINGS = new ItemDefinition(
+            "hrms.attendance_settings",
+            "nav.hrms.attendance_settings",
+            "/hrms/attendance-settings",
+            "/api/v1/hrms/attendance/preferences",
+            PlatformModule.HRMS,
+            "core.attendance.manage");
+
     @Override
     public List<ItemDefinition> items() {
-        return List.of(TIMESHEETS);
+        return List.of(
+                TIMESHEETS, PROJECTS, MY_WORK, TIMESHEET_REVIEW, ATTENDANCE, ATTENDANCE_LOG, ATTENDANCE_SETTINGS);
     }
 }

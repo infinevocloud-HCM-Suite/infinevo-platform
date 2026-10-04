@@ -5,6 +5,7 @@ import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -41,9 +42,15 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .findByIdAndTenantIdAndDeletedFalse(projectId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("No project " + projectId + " found in this tenant"));
 
-        return assignmentRepository.findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, projectId).stream()
-                .map(AssignmentResponse::from)
-                .toList();
+        List<Assignment> assignments =
+                assignmentRepository.findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, projectId);
+        if (assignments.isEmpty()) {
+            return List.of();
+        }
+        // One batch name read for the whole page (W-48.1 section 4).
+        java.util.Map<UUID, String> names = employeeService.displayNames(
+                assignments.stream().map(Assignment::getEmployeeId).collect(java.util.stream.Collectors.toSet()));
+        return assignments.stream().map(a -> AssignmentResponse.from(a, names)).toList();
     }
 
     @Override
@@ -75,7 +82,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         Assignment assignment = new Assignment(tenantId, projectId, request.employeeId(), assignedOn, actor);
         try {
             Assignment saved = assignmentRepository.saveAndFlush(assignment);
-            return AssignmentResponse.from(saved);
+            return AssignmentResponse.from(saved, employeeService.displayNames(Set.of(saved.getEmployeeId())));
         } catch (DataIntegrityViolationException e) {
             if (namesIndex(e, INDEX_ASSIGNMENT_UNIQUE)) {
                 throw new DuplicateAssignmentException(

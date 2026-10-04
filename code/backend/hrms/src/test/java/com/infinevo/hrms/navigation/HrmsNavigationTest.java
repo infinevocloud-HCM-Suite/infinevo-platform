@@ -3,6 +3,9 @@ package com.infinevo.hrms.navigation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
+import com.infinevo.hrms.attendance.AttendancePreferenceController;
+import com.infinevo.hrms.attendance.ClockController;
+import com.infinevo.hrms.project.ProjectController;
 import com.infinevo.hrms.timesheet.TimesheetController;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.entitlement.PlatformModule;
@@ -16,8 +19,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 /**
- * W-42.1 §5 and §8: the {@code hrms.timesheets} menu item is backed by a real endpoint, with the module and action that
- * endpoint enforces.
+ * W-42.1 §5 and W-48.1 §4: HRMS's menu items are backed by real endpoints, with the module (and, where the endpoint
+ * takes one action, the action) that endpoint enforces.
  *
  * <p>The boot-time {@code NavigationCatalogueValidator} refuses to start the application when a leaf's endpoint has no
  * {@code GET} mapping, but it only runs inside the whole application. This asks the same question of the controller
@@ -28,41 +31,128 @@ class HrmsNavigationTest {
     private final List<ItemDefinition> items = new HrmsNavigation().items();
 
     @Test
-    @DisplayName("HRMS contributes exactly one item, hrms.timesheets, as the spec's table says")
-    void oneItem() {
-        assertThat(items).hasSize(1);
-        ItemDefinition item = items.get(0);
-
-        assertThat(item.key()).isEqualTo("hrms.timesheets");
-        assertThat(item.labelKey()).isEqualTo("nav.hrms.timesheets");
-        assertThat(item.path()).isEqualTo("/hrms/timesheets");
-        assertThat(item.targetEndpoint()).isEqualTo("/api/v1/hrms/timesheets/mine");
-        assertThat(item.requiredModule()).isEqualTo(PlatformModule.HRMS);
-        assertThat(item.requiredAction()).isEqualTo("hrms.timesheet.read_own");
+    @DisplayName("HRMS contributes exactly seven items, as the specs' tables say")
+    void sevenItems() {
+        assertThat(items).hasSize(7);
+        assertItem(
+                items.get(0),
+                "hrms.timesheets",
+                "nav.hrms.timesheets",
+                "/hrms/timesheets",
+                "/api/v1/hrms/timesheets/mine",
+                "hrms.timesheet.read_own");
+        assertItem(
+                items.get(1),
+                "hrms.projects",
+                "nav.hrms.projects",
+                "/hrms/projects",
+                "/api/v1/hrms/projects",
+                "hrms.project.manage");
+        assertItem(
+                items.get(2),
+                "hrms.my_work",
+                "nav.hrms.my_work",
+                "/hrms/my-work",
+                "/api/v1/hrms/projects/mine",
+                "hrms.project.read_own");
+        assertItem(
+                items.get(3),
+                "hrms.timesheet_review",
+                "nav.hrms.timesheet_review",
+                "/hrms/timesheet-review",
+                "/api/v1/hrms/timesheets/managed",
+                "hrms.timesheet.approve");
+        assertItem(
+                items.get(4),
+                "hrms.attendance",
+                "nav.hrms.attendance",
+                "/hrms/attendance",
+                "/api/v1/hrms/attendance/today",
+                "hrms.attendance.mark");
+        assertItem(
+                items.get(5),
+                "hrms.attendance_log",
+                "nav.hrms.attendance_log",
+                "/hrms/attendance-log",
+                "/api/v1/hrms/attendance/sessions",
+                "core.attendance.read");
+        assertItem(
+                items.get(6),
+                "hrms.attendance_settings",
+                "nav.hrms.attendance_settings",
+                "/hrms/attendance-settings",
+                "/api/v1/hrms/attendance/preferences",
+                "core.attendance.manage");
     }
 
     @Test
-    @DisplayName("Its endpoint is a GET mapping of TimesheetController, behind the same module and action")
-    void endpointIsRealAndGuardedAsTheItemSays() {
+    @DisplayName("W-48.3 / W-48.4: every new item's targetEndpoint is a GET of its controller under HRMS")
+    void newItemsEndpointsAreReal() {
+        assertThat(getMapping(TimesheetController.class, items.get(3).targetEndpoint()))
+                .isNotNull();
+        assertThat(getMapping(ClockController.class, items.get(4).targetEndpoint()))
+                .isNotNull();
+        assertThat(getMapping(ClockController.class, items.get(5).targetEndpoint()))
+                .isNotNull();
+        assertThat(getMapping(AttendancePreferenceController.class, items.get(6).targetEndpoint()))
+                .isNotNull();
+        for (ItemDefinition item : items) {
+            assertThat(item.requiredModule()).isEqualTo(PlatformModule.HRMS);
+        }
+    }
+
+    @Test
+    @DisplayName("Timesheets: a GET of TimesheetController, behind the same module and action")
+    void timesheetsEndpointIsRealAndGuardedAsTheItemSays() {
         ItemDefinition item = items.get(0);
-        String base =
-                TimesheetController.class.getAnnotation(RequestMapping.class).value()[0];
-
-        Method target = Arrays.stream(TimesheetController.class.getDeclaredMethods())
-                .filter(m -> m.isAnnotationPresent(GetMapping.class))
-                .filter(m -> {
-                    // A bare @GetMapping (HR's list, W-42.4) maps the base path itself.
-                    String[] paths = m.getAnnotation(GetMapping.class).value();
-                    return Arrays.stream(paths.length == 0 ? new String[] {""} : paths)
-                            .anyMatch(path -> (base + path).equals(item.targetEndpoint()));
-                })
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("no GET mapping serves " + item.targetEndpoint()));
-
+        Method target = getMapping(TimesheetController.class, item.targetEndpoint());
         assertThat(target.getAnnotation(RequiresAction.class).value())
                 .as("the action the endpoint enforces is the one the menu hides the item by")
                 .isEqualTo(item.requiredAction());
         assertThat(TimesheetController.class.getAnnotation(RequiresModule.class).value())
                 .isEqualTo(item.requiredModule());
+    }
+
+    @Test
+    @DisplayName("Projects: a GET of ProjectController under HRMS (menu action is manage, which hr and manager hold)")
+    void projectsEndpointIsReal() {
+        ItemDefinition item = items.get(1);
+        assertThat(getMapping(ProjectController.class, item.targetEndpoint())).isNotNull();
+        assertThat(ProjectController.class.getAnnotation(RequiresModule.class).value())
+                .isEqualTo(item.requiredModule());
+    }
+
+    @Test
+    @DisplayName("My work: a GET of ProjectController, behind the same module and action")
+    void myWorkEndpointIsRealAndGuardedAsTheItemSays() {
+        ItemDefinition item = items.get(2);
+        Method target = getMapping(ProjectController.class, item.targetEndpoint());
+        assertThat(target.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
+        assertThat(ProjectController.class.getAnnotation(RequiresModule.class).value())
+                .isEqualTo(item.requiredModule());
+    }
+
+    private static void assertItem(
+            ItemDefinition item, String key, String label, String path, String endpoint, String action) {
+        assertThat(item.key()).isEqualTo(key);
+        assertThat(item.labelKey()).isEqualTo(label);
+        assertThat(item.path()).isEqualTo(path);
+        assertThat(item.targetEndpoint()).isEqualTo(endpoint);
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.HRMS);
+        assertThat(item.requiredAction()).isEqualTo(action);
+    }
+
+    private static Method getMapping(Class<?> controller, String endpoint) {
+        String base = controller.getAnnotation(RequestMapping.class).value()[0];
+        return Arrays.stream(controller.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class))
+                .filter(m -> {
+                    // A bare @GetMapping maps the base path itself.
+                    String[] paths = m.getAnnotation(GetMapping.class).value();
+                    return Arrays.stream(paths.length == 0 ? new String[] {""} : paths)
+                            .anyMatch(p -> (base + p).equals(endpoint));
+                })
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no GET mapping serves " + endpoint));
     }
 }

@@ -24,12 +24,15 @@ public class TimesheetProjectEntryServiceImpl implements TimesheetProjectEntrySe
     private final ApprovalInstanceRepository instanceRepository;
     private final ApprovalStepRepository stepRepository;
     private final EmployeeService employeeService;
+    private final TimesheetNames names;
 
     public TimesheetProjectEntryServiceImpl(
             TimesheetProjectEntryRepository entryRepository,
             ApprovalInstanceRepository instanceRepository,
             ApprovalStepRepository stepRepository,
-            EmployeeService employeeService) {
+            EmployeeService employeeService,
+            TimesheetNames names) {
+        this.names = Objects.requireNonNull(names, "names must not be null");
         this.entryRepository = Objects.requireNonNull(entryRepository, "entryRepository must not be null");
         this.instanceRepository = Objects.requireNonNull(instanceRepository, "instanceRepository must not be null");
         this.stepRepository = Objects.requireNonNull(stepRepository, "stepRepository must not be null");
@@ -58,7 +61,8 @@ public class TimesheetProjectEntryServiceImpl implements TimesheetProjectEntrySe
         if (!assigned) {
             throw notFound(entryId);
         }
-        return TimesheetProjectEntryResponse.from(entry);
+        TimesheetNames.Names n = names.forEntry(tenantId, entry);
+        return TimesheetProjectEntryResponse.from(entry, n.employees(), n.projects(), n.tasks());
     }
 
     private static ResourceNotFoundException notFound(UUID entryId) {

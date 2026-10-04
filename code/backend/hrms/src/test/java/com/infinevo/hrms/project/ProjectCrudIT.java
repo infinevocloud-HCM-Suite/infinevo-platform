@@ -380,6 +380,36 @@ class ProjectCrudIT extends AbstractIntegrationTest {
                 .containsExactly("Done task");
     }
 
+    @Test
+    @DisplayName("W-48.1: list and get carry manager_name and team; assignments and tasks carry names")
+    void readsCarryNames() throws SQLException {
+        HrmsProjectTestSchema.update(
+                "UPDATE core.employee SET first_name = 'Mira', last_name = 'Sen' WHERE id = ?", managerId);
+        ProjectResponse created = create("Named Project", "names", ProjectStatus.STARTED);
+        assignmentService.assign(created.id(), new AssignmentRequest(employeeId, LocalDate.now()));
+        taskService.create(
+                created.id(),
+                new TaskRequest("Named task", null, employeeId, LocalDate.of(2026, 6, 30), Priority.LOW, null, 1));
+
+        ProjectResponse got = projectService.get(created.id());
+        assertThat(got.managerName()).isEqualTo("Mira Sen");
+        assertThat(got.teamMemberIds()).containsExactly(employeeId);
+        assertThat(got.team()).containsExactly(new ProjectResponse.TeamMember(employeeId, "Test"));
+
+        ProjectResponse listed = projectService.list(null, "Named Project", false).stream()
+                .filter(p -> p.id().equals(created.id()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(listed.managerName()).isEqualTo("Mira Sen");
+        assertThat(listed.team()).containsExactly(new ProjectResponse.TeamMember(employeeId, "Test"));
+
+        assertThat(assignmentService.listByProject(created.id()).get(0).employeeName())
+                .isEqualTo("Test");
+        TaskResponse task = taskService.listByProject(created.id(), null).get(0);
+        assertThat(task.assigneeName()).isEqualTo("Test");
+        assertThat(task.projectName()).isEqualTo("Named Project");
+    }
+
     private ProjectResponse create(String name, String description, ProjectStatus status) {
         return projectService.create(new ProjectRequest(
                 name,

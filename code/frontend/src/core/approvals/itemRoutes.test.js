@@ -8,7 +8,11 @@ describe('itemRoutes', () => {
     expect(getItemRoute('OVERTIME', 'ot-3')).toBeNull();
     expect(getItemRoute('PROOF_OF_INVESTMENT', 'poi-5')).toBeNull();
     expect(getItemRoute('PAY_RUN', 'run-6')).toBeNull();
-    expect(getItemRoute('TIMESHEET', 'ts-7')).toBeNull();
+  });
+
+  it('opens a timesheet project entry at /hrms/timesheet-review/entries/{id} (W-48.3 §5)', () => {
+    expect(getItemRoute('TIMESHEET', 'pe-7')).toBe('/hrms/timesheet-review/entries/pe-7');
+    expect(getItemRoute('TIMESHEET', null)).toBeNull();
   });
 
   it('opens a reimbursement claim at /payroll/claims/{id} (W-47.4 §5)', () => {

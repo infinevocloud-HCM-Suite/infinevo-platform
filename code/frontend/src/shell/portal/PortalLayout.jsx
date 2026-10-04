@@ -14,7 +14,7 @@ import { MyProfile } from './panels/MyProfile.jsx';
 import { MyLeave } from './panels/MyLeave.jsx';
 import { MyDocuments } from './panels/MyDocuments.jsx';
 import { MyPayslips } from './panels/MyPayslips.jsx';
-import { MyTimesheet } from './panels/MyTimesheet.jsx';
+import { portalPanels as hrmsPortalPanels } from '../../hrms/index.js';
 import { portalPanels as payrollPortalPanels } from '../../payroll/index.js';
 import { leaveActions, profileActions } from '../../core/portal/index.js';
 
@@ -34,10 +34,9 @@ const PANEL_COMPONENTS = {
   leave: MyLeave,
   documents: MyDocuments,
   payslips: MyPayslips,
-  timesheet: MyTimesheet,
 };
 
-const modulePanels = [...(payrollPortalPanels || [])];
+const modulePanels = [...(hrmsPortalPanels || []), ...(payrollPortalPanels || [])];
 const MODULE_PANEL_COMPONENTS = Object.fromEntries(
   modulePanels.map((p) => [p.code, p.component])
 );

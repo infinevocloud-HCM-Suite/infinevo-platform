@@ -61,6 +61,42 @@ class TimesheetReviewListIT extends TimesheetReviewSupport {
     }
 
     @Test
+    @DisplayName("W-48.3: managed rows carry employee_name, project_name and task_title, still trimmed to M1's project")
+    void managedRowsCarryNames() throws Exception {
+        asM1(BASE + "/managed")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[*].employee_name").value(everyItem(is("Test"))))
+                .andExpect(jsonPath("$.data.content[*].projects.length()").value(contains(1, 1, 1)))
+                .andExpect(jsonPath("$.data.content[*].projects[*].project_name")
+                        .value(everyItem(org.hamcrest.Matchers.startsWith("Review A "))))
+                .andExpect(jsonPath("$.data.content[*].projects[*].tasks[*].task_title")
+                        .value(everyItem(is("Task A"))));
+    }
+
+    @Test
+    @DisplayName("W-48.3: team, all and by-id replies carry employee_name, project_name and task_title")
+    void otherListsCarryNames() throws Exception {
+        asReporter(BASE + "/team")
+                .andExpect(jsonPath("$.data.content[*].employee_name").value(everyItem(is("Test"))))
+                .andExpect(jsonPath("$.data.content[0].projects[*].project_name")
+                        .value(containsInAnyOrder(
+                                org.hamcrest.Matchers.startsWith("Review A "),
+                                org.hamcrest.Matchers.startsWith("Review B "))))
+                .andExpect(jsonPath("$.data.content[0].projects[*].tasks[*].task_title")
+                        .value(containsInAnyOrder("Task A", "Task B")));
+        asHr(BASE)
+                .andExpect(jsonPath("$.data.content[*].employee_name").value(everyItem(is("Test"))))
+                .andExpect(jsonPath("$.data.content[*].projects[*].project_name")
+                        .value(everyItem(org.hamcrest.Matchers.startsWith("Review "))))
+                .andExpect(jsonPath("$.data.content[*].projects[*].tasks[*].task_title")
+                        .value(everyItem(org.hamcrest.Matchers.startsWith("Task "))));
+        asHr(BASE + "/" + sheetW1)
+                .andExpect(jsonPath("$.data.employee_name").value("Test"))
+                .andExpect(jsonPath("$.data.projects[*].tasks[*].task_title")
+                        .value(containsInAnyOrder("Task A", "Task B")));
+    }
+
+    @Test
     @DisplayName(
             "managed shows the week's own status as it is, beside the manager's line: W3 is REJECTED, A's line APPROVED")
     void managedShowsTheWeekStatusAsIs() throws Exception {

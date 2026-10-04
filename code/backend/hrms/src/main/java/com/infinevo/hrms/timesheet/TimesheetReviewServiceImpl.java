@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -42,11 +42,14 @@ public class TimesheetReviewServiceImpl implements TimesheetReviewService {
     private final TimesheetRepository timesheetRepository;
     private final TimesheetAccessResolver accessResolver;
     private final EmployeeService employeeService;
+    private final TimesheetNames names;
 
     public TimesheetReviewServiceImpl(
             TimesheetRepository timesheetRepository,
             TimesheetAccessResolver accessResolver,
-            EmployeeService employeeService) {
+            EmployeeService employeeService,
+            TimesheetNames names) {
+        this.names = Objects.requireNonNull(names, "names must not be null");
         this.timesheetRepository = Objects.requireNonNull(timesheetRepository, "timesheetRepository must not be null");
         this.accessResolver = Objects.requireNonNull(accessResolver, "accessResolver must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
@@ -73,7 +76,7 @@ public class TimesheetReviewServiceImpl implements TimesheetReviewService {
         Page<UUID> ids = timesheetRepository.pageOnProjects(tenantId, projects, f.statuses, f.from, f.to, f.pageable());
         // Trimmed to the manager's projects: a colleague's hours on other projects are not theirs to see.
         Set<UUID> visible = projects;
-        return render(tenantId, ids, sheet -> TimesheetResponse.from(sheet, visible));
+        return render(tenantId, ids, (sheet, n) -> TimesheetResponse.from(sheet, visible, n));
     }
 
     @Override
@@ -96,7 +99,7 @@ public class TimesheetReviewServiceImpl implements TimesheetReviewService {
         }
         Page<UUID> ids =
                 timesheetRepository.pageForEmployees(tenantId, employees, f.statuses, f.from, f.to, f.pageable());
-        return render(tenantId, ids, TimesheetResponse::from);
+        return render(tenantId, ids, (sheet, n) -> TimesheetResponse.from(sheet, n));
     }
 
     @Override
@@ -116,7 +119,7 @@ public class TimesheetReviewServiceImpl implements TimesheetReviewService {
                 projectId == null,
                 projectId != null ? projectId : UNUSED,
                 f.pageable());
-        return render(tenantId, ids, TimesheetResponse::from);
+        return render(tenantId, ids, (sheet, n) -> TimesheetResponse.from(sheet, n));
     }
 
     @Override
@@ -128,8 +131,9 @@ public class TimesheetReviewServiceImpl implements TimesheetReviewService {
                 .orElseThrow(() -> new ResourceNotFoundException("No timesheet " + id));
         TimesheetAccessResolver.Access access = accessResolver.resolve(tenantId, me, sheet);
         return switch (access.scope()) {
-            case FULL -> TimesheetResponse.from(sheet);
-            case PARTIAL -> TimesheetResponse.from(sheet, access.projectIds());
+            case FULL -> TimesheetResponse.from(sheet, names.forSheets(tenantId, List.of(sheet)));
+            case PARTIAL ->
+                TimesheetResponse.from(sheet, access.projectIds(), names.forSheets(tenantId, List.of(sheet)));
             // Not there and not yours answer alike, so a probe cannot tell which ids exist.
             case NONE -> throw new ResourceNotFoundException("No timesheet " + id);
         };
@@ -145,17 +149,19 @@ public class TimesheetReviewServiceImpl implements TimesheetReviewService {
                 .orElseThrow(() -> new PermissionDeniedException(action));
     }
 
-    /** Loads the weeks of a page of ids, in that page's order, and maps each. */
-    private TimesheetPage render(UUID tenantId, Page<UUID> ids, Function<Timesheet, TimesheetResponse> mapper) {
+    /** Loads the weeks of a page of ids, in that page's order, reads their names in one batch, and maps each. */
+    private TimesheetPage render(
+            UUID tenantId, Page<UUID> ids, BiFunction<Timesheet, TimesheetNames.Names, TimesheetResponse> mapper) {
         if (ids.isEmpty()) {
             return TimesheetPage.of(List.of(), ids);
         }
         Map<UUID, Timesheet> byId = new HashMap<>();
         timesheetRepository.findAllWithProjects(tenantId, ids.getContent()).forEach(t -> byId.put(t.getId(), t));
+        TimesheetNames.Names pageNames = names.forSheets(tenantId, byId.values());
         List<TimesheetResponse> content = ids.getContent().stream()
                 .map(byId::get)
                 .filter(Objects::nonNull)
-                .map(mapper)
+                .map(sheet -> mapper.apply(sheet, pageNames))
                 .collect(Collectors.toList());
         return TimesheetPage.of(content, ids);
     }

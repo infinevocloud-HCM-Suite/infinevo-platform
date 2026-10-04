@@ -52,6 +52,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.hrms.portal",
             "com.infinevo.hrms.navigation",
             "com.infinevo.hrms.overtime",
+            "com.infinevo.hrms.dashboard",
             "com.infinevo.core.approval",
             "com.infinevo.core.authz",
             "com.infinevo.core.overtime",
@@ -271,6 +272,21 @@ public class HrmsTestApp {
         return org.mockito.Mockito.mock(com.infinevo.core.employee.EmployeeRepository.class);
     }
 
+    /**
+     * Core's real employee search (W-48.1): the picker's tenant, status and text filters are core's query, so the
+     * test runs that query. The repository is built directly from the shared entity manager rather than registered
+     * as a bean, so the mocked {@code EmployeeRepository} above stays the one other tests stub.
+     */
+    @Bean
+    public com.infinevo.core.employee.EmployeeQueryService employeeQueryService(
+            jakarta.persistence.EntityManager entityManager,
+            com.infinevo.shared.authz.PermissionService permissionService) {
+        com.infinevo.core.employee.EmployeeRepository real =
+                new org.springframework.data.jpa.repository.support.JpaRepositoryFactory(entityManager)
+                        .getRepository(com.infinevo.core.employee.EmployeeRepository.class);
+        return new com.infinevo.core.employee.EmployeeQueryService(real, permissionService);
+    }
+
     @Bean
     public com.infinevo.core.org.ReportingLineService reportingLineService() {
         return org.mockito.Mockito.mock(com.infinevo.core.org.ReportingLineService.class);
@@ -359,6 +375,33 @@ public class HrmsTestApp {
             @Override
             public EmployeeResponse linkLogin(UUID id, UUID userAccountId) {
                 throw new UnsupportedOperationException();
+            }
+
+            /** Names straight from {@code core.employee}, as {@code EmployeeServiceImpl.displayNames} reads them. */
+            @Override
+            public Map<UUID, String> displayNames(java.util.Collection<UUID> ids) {
+                if (ids == null || ids.isEmpty()) {
+                    return Map.of();
+                }
+                UUID tenantId = TenantContext.require();
+                Map<UUID, String> names = new java.util.HashMap<>();
+                org.springframework.jdbc.core.JdbcTemplate jdbc =
+                        new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+                for (UUID id : ids) {
+                    jdbc.query(
+                            "SELECT first_name, last_name, employee_number FROM core.employee "
+                                    + "WHERE tenant_id = ? AND id = ?",
+                            rs -> {
+                                String name = java.util.stream.Stream.of(
+                                                rs.getString("first_name"), rs.getString("last_name"))
+                                        .filter(part -> part != null && !part.isBlank())
+                                        .collect(java.util.stream.Collectors.joining(" "));
+                                names.put(id, name.isBlank() ? rs.getString("employee_number") : name);
+                            },
+                            tenantId,
+                            id);
+                }
+                return names;
             }
 
             // W-29.1 added this to EmployeeService for the pay run; nothing in the project code reads it,

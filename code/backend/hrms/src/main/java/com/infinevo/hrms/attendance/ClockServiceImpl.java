@@ -158,7 +158,12 @@ public class ClockServiceImpl implements ClockService {
                 ? clockSessions.findByTenantIdAndEmployeeIdAndAttendanceDateBetweenOrderByClockInAtDesc(
                         tenantId, employeeId, from, to)
                 : clockSessions.findByTenantIdAndAttendanceDateBetweenOrderByClockInAtDesc(tenantId, from, to);
-        return list.stream().map(ClockSessionResponse::from).toList();
+        // One batch name read for the whole list (W-48.4 §4), never one per row.
+        java.util.Set<UUID> ids =
+                list.stream().map(ClockSession::getEmployeeId).collect(java.util.stream.Collectors.toSet());
+        java.util.Map<UUID, String> names = ids.isEmpty() ? java.util.Map.of() : employeeService.displayNames(ids);
+        java.util.Map<UUID, String> resolved = names != null ? names : java.util.Map.of();
+        return list.stream().map(s -> ClockSessionResponse.from(s, resolved)).toList();
     }
 
     private EmployeeResponse requireCurrentEmployee() {

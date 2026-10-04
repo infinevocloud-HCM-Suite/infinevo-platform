@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { PortalLayout } from './PortalLayout.jsx';
 import { portalService } from './portalService.js';
+import { timesheetService } from '../../hrms/timesheet/timesheetService.js';
 
 describe('PortalLayout component (W-25 §7)', () => {
   beforeEach(() => {
@@ -156,4 +157,26 @@ describe('PortalLayout component (W-25 §7)', () => {
       expect(screen.getByRole('tab', { name: /tax declaration/i })).toBeDefined();
     });
   });
+  it('mounts the hrms timesheet panel, not the placeholder (W-48.2 §7)', async () => {
+    vi.spyOn(portalService, 'getPanels').mockResolvedValue([
+      { code: 'timesheet', title: 'My Timesheet', displayOrder: 5, endpoint: '/api/v1/me/timesheet', requiredAction: 'hrms.timesheet.read_own' },
+    ]);
+    const week = vi.spyOn(timesheetService, 'week').mockResolvedValue(null);
+    vi.spyOn(timesheetService, 'myProjects').mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={['/me/timesheet']}>
+        <Routes>
+          <Route path="/me" element={<PortalLayout />} />
+          <Route path="/me/:panelId" element={<PortalLayout />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    // The panel is lazy: allow the import time under a loaded test run.
+    expect(await screen.findByText('Not started', {}, { timeout: 15000 })).toBeDefined();
+    expect(week).toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: /open week/i })).toBeDefined();
+    expect(screen.queryByText(/coming soon|in development/i)).toBeNull();
+  }, 30000);
 });

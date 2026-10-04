@@ -10,7 +10,8 @@ export const itemRoutes = {
   REIMBURSEMENT: (id) => (id ? `/payroll/claims/${id}` : null),
   PROOF_OF_INVESTMENT: null,
   PAY_RUN: null,
-  TIMESHEET: null,
+  // The approval subject is the project entry (W-48.3 §5, TimesheetSubmitService.java:16).
+  TIMESHEET: (itemId) => (itemId ? `/hrms/timesheet-review/entries/${itemId}` : null),
 };
 
 export function getItemRoute(flowType, itemId) {

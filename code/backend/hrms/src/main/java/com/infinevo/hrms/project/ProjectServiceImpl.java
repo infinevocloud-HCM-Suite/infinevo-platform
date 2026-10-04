@@ -63,7 +63,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.setUpdatedBy(actor);
 
         Project saved = projectRepository.save(project);
-        return ProjectResponse.from(saved, List.of());
+        return respond(tenantId, List.of(saved)).get(0);
     }
 
     @Override
@@ -89,17 +89,7 @@ public class ProjectServiceImpl implements ProjectService {
                 managerEmployeeId,
                 ProjectLikePattern.contains(search));
 
-        return projects.stream()
-                .map(p -> {
-                    List<UUID> teamIds =
-                            assignmentRepository
-                                    .findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, p.getId())
-                                    .stream()
-                                    .map(Assignment::getEmployeeId)
-                                    .toList();
-                    return ProjectResponse.from(p, teamIds);
-                })
-                .toList();
+        return respond(tenantId, projects);
     }
 
     @Override
@@ -121,17 +111,7 @@ public class ProjectServiceImpl implements ProjectService {
         }
 
         List<Project> projects = projectRepository.findAllByTenantIdAndIdInAndDeletedFalse(tenantId, projectIds);
-        return projects.stream()
-                .map(p -> {
-                    List<UUID> teamIds =
-                            assignmentRepository
-                                    .findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, p.getId())
-                                    .stream()
-                                    .map(Assignment::getEmployeeId)
-                                    .toList();
-                    return ProjectResponse.from(p, teamIds);
-                })
-                .toList();
+        return respond(tenantId, projects);
     }
 
     @Override
@@ -142,10 +122,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .findByIdAndTenantIdAndDeletedFalse(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("No project " + id + " found in this tenant"));
 
-        List<UUID> teamIds = assignmentRepository.findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, id).stream()
-                .map(Assignment::getEmployeeId)
-                .toList();
-        return ProjectResponse.from(project, teamIds);
+        return respond(tenantId, List.of(project)).get(0);
     }
 
     @Override
@@ -171,10 +148,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.setUpdatedBy(ProjectActor.currentActor());
 
         Project saved = projectRepository.save(project);
-        List<UUID> teamIds = assignmentRepository.findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, id).stream()
-                .map(Assignment::getEmployeeId)
-                .toList();
-        return ProjectResponse.from(saved, teamIds);
+        return respond(tenantId, List.of(saved)).get(0);
     }
 
     @Override
@@ -191,10 +165,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.setStatus(status);
         project.setUpdatedBy(ProjectActor.currentActor());
         Project saved = projectRepository.save(project);
-        List<UUID> teamIds = assignmentRepository.findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, id).stream()
-                .map(Assignment::getEmployeeId)
-                .toList();
-        return ProjectResponse.from(saved, teamIds);
+        return respond(tenantId, List.of(saved)).get(0);
     }
 
     @Override
@@ -211,10 +182,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.setProgress(progress);
         project.setUpdatedBy(ProjectActor.currentActor());
         Project saved = projectRepository.save(project);
-        List<UUID> teamIds = assignmentRepository.findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, id).stream()
-                .map(Assignment::getEmployeeId)
-                .toList();
-        return ProjectResponse.from(saved, teamIds);
+        return respond(tenantId, List.of(saved)).get(0);
     }
 
     @Override
@@ -284,5 +252,29 @@ public class ProjectServiceImpl implements ProjectService {
                 throw new ValidationException("manager_employee_id", "Manager employee not found in current tenant");
             }
         }
+    }
+
+    /**
+     * Builds responses for a page of projects with one batch name read for every manager and team
+     * member on the page (W-48.1 section 4); an id with no employee gets a {@code null} name.
+     */
+    private List<ProjectResponse> respond(UUID tenantId, List<Project> projects) {
+        java.util.Map<UUID, List<UUID>> teams = new java.util.LinkedHashMap<>();
+        Set<UUID> ids = new java.util.HashSet<>();
+        for (Project p : projects) {
+            List<UUID> teamIds =
+                    assignmentRepository.findAllByTenantIdAndProjectIdAndDeletedFalse(tenantId, p.getId()).stream()
+                            .map(Assignment::getEmployeeId)
+                            .toList();
+            teams.put(p.getId(), teamIds);
+            ids.addAll(teamIds);
+            if (p.getManagerEmployeeId() != null) {
+                ids.add(p.getManagerEmployeeId());
+            }
+        }
+        java.util.Map<UUID, String> names = ids.isEmpty() ? java.util.Map.of() : employeeService.displayNames(ids);
+        return projects.stream()
+                .map(p -> ProjectResponse.from(p, teams.get(p.getId()), names))
+                .toList();
     }
 }
