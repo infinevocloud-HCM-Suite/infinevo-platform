@@ -1,10 +1,26 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-04**, against `main` `6e19dd89`.
+> Last refreshed: **2026-10-04**, against `main` `722d1689`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-10-04 — `W-44`, `W-48.1`–`W-48.4` merged (`722d1689`)
+
+| Ticket | What |
+|---|---|
+| `W-44` | HRMS dashboard endpoint — one `GET`, blocks by action, figures plus at most five rows |
+| `W-48.1` | Project and task screens; names on replies; assignable-employee picker; `hrms.projects`, `hrms.my_work` |
+| `W-48.2` | Timesheet entry screens; the `/me` timesheet panel replaces the placeholder |
+| `W-48.3` | Timesheet review screens; names on timesheet replies; `TIMESHEET` inbox route; `hrms.timesheet_review` |
+| `W-48.4` | Attendance screens; `employeeName` on the HR log; three `hrms.attendance*` menu items |
+
+- Built on `dev-claude` by Claude (founder 2026-10-04), one squash. Gates 5/5 for all five, CI green, one independent read per ticket. Backend 2,562 tests, frontend 728.
+- Fixed at review: `hrms` and `payroll` both had a `DashboardQueryRepository` bean, so the app could not boot (`hrmsDashboardQueryRepository`); the HR attendance log sent a browser-derived default week — it now sends nothing until HR picks a range.
+- **Deferred:** `W-48.4` §5 "default this week" on the HR log (no HR-callable date endpoint). Menu labels render their keys, as every item does today — a label bundle is its own ticket.
+- **Newly Ready:** `W-48.6` HRMS dashboard screen (spec written); `W-48.5` regularization and overtime screens (spec written). HR's overtime list waits on a `core` seed grant of `core.overtime.read` — no ticket yet.
+- **Branches:** `dev-claude` reset to `main`.
 
 ## 2026-10-04 — nine tickets from `batch-2026-10-03` merged (`6e19dd89`)
 
