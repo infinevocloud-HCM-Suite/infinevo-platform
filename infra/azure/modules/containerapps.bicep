@@ -55,6 +55,12 @@ param postgresDatabase string = 'infinevo'
 @description('Blob service endpoint of the environment storage account, e.g. https://stinfinevodev.blob.core.windows.net/. The document store (W-21) reaches it with the container app managed identity - W-51 forbids account keys - and it resolves to the private endpoint through the privatelink zone. Empty leaves the store unconfigured: uploads answer 503.')
 param blobEndpoint string = ''
 
+@description('Azure Managed Redis host name. Empty leaves Redis unconfigured.')
+param redisHost string = ''
+
+@description('Azure Managed Redis port')
+param redisPort string = '10000'
+
 @description('Brevo SMTP login for Keycloak mail (W-10.1): the account login shown under Brevo > SMTP & API > SMTP, not an API key name. No default, so every parameter file must state it')
 param brevoSmtpLogin string
 
@@ -182,6 +188,25 @@ var keycloakTrafficBlock = empty(livePinKeycloak)
 var jdbcUrl = empty(postgresFqdn) ? '' : 'jdbc:postgresql://${postgresFqdn}:5432/${postgresDatabase}?sslmode=require'
 var keycloakJdbcUrl = empty(postgresFqdn) ? '' : 'jdbc:postgresql://${postgresFqdn}:5432/keycloak?sslmode=require'
 
+var redisEnv = empty(redisHost) ? [] : [
+  {
+    name: 'SPRING_DATA_REDIS_HOST'
+    value: redisHost
+  }
+  {
+    name: 'SPRING_DATA_REDIS_PORT'
+    value: redisPort
+  }
+  {
+    name: 'SPRING_DATA_REDIS_SSL_ENABLED'
+    value: 'true'
+  }
+  {
+    name: 'SPRING_DATA_REDIS_PASSWORD'
+    secretRef: 'redis-password'
+  }
+]
+
 // 1. Container App: app (Backend API)
 resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: 'ca-infinevo-${environment}-app'
@@ -244,6 +269,11 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-app-pw'
           identity: identities.app.id
         }
+        {
+          name: 'redis-password'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/redis-password'
+          identity: identities.app.id
+        }
         // W-21: the key that signs document links. The app refuses to start without it -
         // there is no default, because the legacy payslip link had one and every link it
         // signed was forgeable. Seeded by deploy.sh with the other platform secrets.
@@ -282,7 +312,7 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json(cpu)
             memory: memory
           }
-          env: [
+          env: concat([
             {
               name: 'DB_URL'
               value: jdbcUrl
@@ -334,7 +364,7 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'AZURE_CLIENT_ID'
               value: identities.app.clientId
             }
-          ]
+          ], redisEnv)
           probes: [
             {
               type: 'Liveness'
@@ -389,6 +419,11 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/psql-worker-pw'
           identity: identities.worker.id
         }
+        {
+          name: 'redis-password'
+          keyVaultUrl: 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets/redis-password'
+          identity: identities.worker.id
+        }
         // W-21: the worker builds the document link signer too - it scans com.infinevo - and
         // refuses to start without the key. It will sign the emailed links of W-23.2 and W-36.
         {
@@ -428,7 +463,7 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json(cpu)
             memory: memory
           }
-          env: [
+          env: concat([
             {
               name: 'DB_URL'
               value: jdbcUrl
@@ -476,7 +511,7 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'AZURE_CLIENT_ID'
               value: identities.worker.clientId
             }
-          ]
+          ], redisEnv)
         }
       ]
       scale: {

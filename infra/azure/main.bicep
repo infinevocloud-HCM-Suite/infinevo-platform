@@ -345,6 +345,7 @@ module containerApps 'modules/containerapps.bicep' = {
     frontDoorBackendPrefixes: frontDoorBackendPrefixes
     keyVaultName: keyVault.outputs.keyVaultName
     postgresFqdn: postgres.outputs.fullyQualifiedDomainName
+    redisHost: deployRedis ? (redis.?outputs.hostName ?? '') : ''
     // W-21: the document store's Blob endpoint, reached by managed identity (D5).
     blobEndpoint: storage.outputs.primaryBlobEndpoint
     // One tag across all four images (spec section 5 check 12), so the backend tag IS the
