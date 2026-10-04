@@ -1,10 +1,21 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-04**, against `main` `789b69a0`.
+> Last refreshed: **2026-10-04**, against `main` `42939851`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-10-04 — `W-68` merged (`42939851`)
+
+| Ticket | What |
+|---|---|
+| `W-68` | `core.overtime.read` seeded to `hr` and `payroll-officer` (`V148`, backfilled); `employee_name` on `GET /api/v1/overtime`; `/hrms/overtime-requests/all` HR screen |
+
+- Built on `dev-claude` by Claude, one squash. Gates 5/5, CI green, one independent read. Frontend 757 tests.
+- Fixed along the way: `V147` was taken by `reference/V147` (`W-33.3`) — Flyway versions are global across schema folders, so a new script checks every folder, not just its own.
+- **Outstanding:** `core.overtime.manage` ungranted (cancel-from-screen is its own ticket); menu labels render their keys.
+- **Branches:** `dev-claude` reset to `main`.
 
 ## 2026-10-04 — `W-48.5`, `W-48.6` merged (`789b69a0`) — `W-48` complete
 
