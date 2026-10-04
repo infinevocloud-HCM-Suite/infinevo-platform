@@ -34,7 +34,7 @@ resource postgresZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks
 }
 
 resource redisZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
-  name: 'privatelink.redisenterprise.cache.azure.net'
+  name: 'privatelink.redis.azure.net'
   location: zoneLocation
   tags: tags
 }

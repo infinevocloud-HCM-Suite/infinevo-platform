@@ -36,3 +36,6 @@ infra/docker/.env
 .agents/outputs/*-session-*.md
 .agents/outputs/.verify-cache/
 .agents/outputs/.merge-receipts/
+
+# Operator setup scripts
+infra/azure/seed_staff.py

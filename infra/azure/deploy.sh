@@ -186,6 +186,29 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# ── Seed canonical platform secrets (W-56) ──────────────────────────────────
+# The migration job and container apps need all canonical secrets seeded:
+# psql-app-pw, psql-worker-pw, psql-migration-pw, psql-readonly-pw, psql-keycloak-pw,
+# psql-retention-pw, keycloak-admin-pw, keycloak-client-secret, brevo-api-key, brevo-smtp-key, jwt-signing-secret,
+# document-link-secret (plus psql-admin-pw above) - thirteen in all.
+# Must be seeded BEFORE az deployment sub create so Container Apps (e.g. keycloak secretRef for brevo-smtp-key)
+# can resolve them during revision provisioning.
+seed_canonical_secrets() {
+  if az keyvault show --name "$VAULT_NAME" >/dev/null 2>&1; then
+    echo "Verifying / seeding canonical platform secrets in ${VAULT_NAME}..."
+    for SECRET_NAME in psql-app-pw psql-worker-pw psql-migration-pw psql-readonly-pw psql-keycloak-pw psql-retention-pw keycloak-admin-pw keycloak-client-secret brevo-api-key brevo-smtp-key jwt-signing-secret document-link-secret; do
+      EXISTING_PW=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>/dev/null || true)
+      if [[ -z "$EXISTING_PW" ]] || [[ "$EXISTING_PW" =~ ^local_.*_pw$ ]]; then
+        echo "Generating secure dynamic secret for ${SECRET_NAME}..."
+        NEW_PW=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9!#%*+=' | head -c 24)
+        NEW_PW="${NEW_PW}Aa1!"
+        az keyvault secret set --vault-name "$VAULT_NAME" --name "$SECRET_NAME" --value "$NEW_PW" >/dev/null
+      fi
+    done
+  fi
+}
+seed_canonical_secrets
+
 PARAM_FILE="${SCRIPT_DIR}/parameters/${ENV}.bicepparam"
 if [[ ! -f "$PARAM_FILE" ]]; then
   echo "ERROR: Parameter file $PARAM_FILE not found." >&2
@@ -207,6 +230,7 @@ APP_RG="rg-infinevo-${ENV}"
 CURRENT_IMAGES_JSON="{}"
 TRAFFIC_REVISIONS_JSON="{}"
 APP_TRAFFIC_PIN=""
+LIVE_BACKEND_TAG=""
 
 if [[ "$(az group exists --name "$APP_RG")" == "true" ]]; then
   echo "Reading the live Container Apps in ${APP_RG} so this deployment leaves them where they are..."
@@ -222,6 +246,9 @@ if [[ "$(az group exists --name "$APP_RG")" == "true" ]]; then
     fi
     IMG_PAIRS="${IMG_PAIRS:+${IMG_PAIRS},}\"${CA_ROLE}\":\"${LIVE_IMAGE}\""
     echo "  ${CA_NAME}: image ${LIVE_IMAGE}"
+    if [[ "$CA_ROLE" == "app" ]]; then
+      LIVE_BACKEND_TAG="${LIVE_IMAGE##*:}"
+    fi
 
     # The worker has no ingress and so no traffic block (W-50); nothing to pin.
     if [[ "$CA_ROLE" != "worker" ]]; then
@@ -269,7 +296,7 @@ az deployment sub create \
   --parameters postgresAdminUsername="$ADMIN_USER" \
   --parameters frontDoorBackendPrefixes="$FD_PREFIXES_JSON" \
   --parameters keyVaultAllowedIpRules="[{\"value\":\"${KV_IP_RULE}\"}]" \
-  --parameters backendImageTag="$IMAGE_TAG" \
+  --parameters backendImageTag="${IMAGE_TAG:-$LIVE_BACKEND_TAG}" \
   --parameters containerAppCurrentImages="$CURRENT_IMAGES_JSON" \
   --parameters containerAppTrafficRevisions="$TRAFFIC_REVISIONS_JSON" \
   --output table
@@ -380,16 +407,7 @@ fi
 # start without it, so it has to exist before the first revision that references it.
 # Seeded here inside the ipRule window, with the same generator and idempotency:
 # an existing non-placeholder value is left alone.
-echo "Verifying / seeding canonical platform secrets in ${VAULT_NAME}..."
-for SECRET_NAME in psql-app-pw psql-worker-pw psql-migration-pw psql-readonly-pw psql-keycloak-pw psql-retention-pw keycloak-admin-pw keycloak-client-secret brevo-api-key brevo-smtp-key jwt-signing-secret document-link-secret; do
-  EXISTING_PW=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>/dev/null || true)
-  if [[ -z "$EXISTING_PW" ]] || [[ "$EXISTING_PW" =~ ^local_.*_pw$ ]]; then
-    echo "Generating secure dynamic secret for ${SECRET_NAME}..."
-    NEW_PW=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9!#%*+=' | head -c 24)
-    NEW_PW="${NEW_PW}Aa1!"
-    az keyvault secret set --vault-name "$VAULT_NAME" --name "$SECRET_NAME" --value "$NEW_PW" >/dev/null
-  fi
-done
+seed_canonical_secrets
 
 # ── Build the migration runner image ─────────────────────────────────────────
 # `az acr build` rather than a local `docker build`: the runner has to exist in crinfinevo
@@ -403,7 +421,7 @@ done
 # here while the job had been declared at :git-<sha> would leave the job pointing at an
 # image this run never produced.
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-RUNNER_TAG="${IMAGE_TAG:-latest}"
+RUNNER_TAG="${IMAGE_TAG:-${LIVE_BACKEND_TAG:-latest}}"
 echo "Building migration-runner:${RUNNER_TAG} in ${ACR_NAME} from infra/docker/migration-runner.Dockerfile..."
 az acr build \
   --registry "$ACR_NAME" \
