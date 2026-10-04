@@ -189,7 +189,7 @@ export function Inbox() {
                 type="link"
                 size="small"
                 icon={<EyeOutlined />}
-                onClick={() => navigate(itemRoute)}
+                onClick={() => navigate(itemRoute, { state: { from: '/approvals' } })}
                 id={`btn-view-item-${record.id}`}
               >
                 View Item

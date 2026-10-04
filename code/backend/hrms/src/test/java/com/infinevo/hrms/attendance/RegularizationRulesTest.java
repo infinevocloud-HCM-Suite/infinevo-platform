@@ -100,6 +100,7 @@ class RegularizationRulesTest {
                 approvalService,
                 employeeService,
                 tenantClock,
+                mock(com.infinevo.shared.authz.PermissionService.class),
                 clock);
         TenantContext.set(TENANT);
     }

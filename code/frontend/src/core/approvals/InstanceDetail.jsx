@@ -213,7 +213,7 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
                     type="link"
                     id="btn-view-subject-item"
                     style={{ padding: 0, height: 'auto' }}
-                    onClick={() => navigate(getItemRoute(instance.flowType, instance.subjectId))}
+                    onClick={() => navigate(getItemRoute(instance.flowType, instance.subjectId), { state: { from: '/approvals' } })}
                   >
                     {instance.subjectTable} #{instance.subjectId}
                   </Button>

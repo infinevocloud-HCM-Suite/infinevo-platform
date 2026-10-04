@@ -70,6 +70,15 @@ public interface OvertimeService {
      */
     List<OvertimeResponse> list(LocalDate from, LocalDate to, UUID employeeId);
 
+    /**
+     * One entry in the bound tenant (W-48.5 §4). Exists so hrms can serve
+     * {@code GET /api/v1/hrms/overtime-requests/{id}} without holding an overtime entity; like
+     * {@link #list}, it checks no permission — the caller decides who may see the entry.
+     *
+     * @throws NotFoundException no such entry in the bound tenant
+     */
+    OvertimeResponse get(UUID id);
+
     /** No such overtime entry in the bound tenant. Maps to {@code 404}. */
     class NotFoundException extends RuntimeException {
         @Serial

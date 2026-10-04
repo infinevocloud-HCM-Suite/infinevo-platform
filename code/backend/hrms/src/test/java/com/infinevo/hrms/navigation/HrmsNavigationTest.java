@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
 import com.infinevo.hrms.attendance.AttendancePreferenceController;
 import com.infinevo.hrms.attendance.ClockController;
+import com.infinevo.hrms.attendance.RegularizationController;
+import com.infinevo.hrms.dashboard.HrmsDashboardController;
+import com.infinevo.hrms.overtime.OvertimeRequestController;
 import com.infinevo.hrms.project.ProjectController;
 import com.infinevo.hrms.timesheet.TimesheetController;
 import com.infinevo.shared.authz.RequiresAction;
@@ -31,9 +34,9 @@ class HrmsNavigationTest {
     private final List<ItemDefinition> items = new HrmsNavigation().items();
 
     @Test
-    @DisplayName("HRMS contributes exactly seven items, as the specs' tables say")
-    void sevenItems() {
-        assertThat(items).hasSize(7);
+    @DisplayName("HRMS contributes exactly ten items, as the specs' tables say")
+    void tenItems() {
+        assertThat(items).hasSize(10);
         assertItem(
                 items.get(0),
                 "hrms.timesheets",
@@ -83,6 +86,46 @@ class HrmsNavigationTest {
                 "/hrms/attendance-settings",
                 "/api/v1/hrms/attendance/preferences",
                 "core.attendance.manage");
+        assertItem(
+                items.get(7),
+                "hrms.dashboard",
+                "nav.hrms.dashboard",
+                "/hrms/dashboard",
+                "/api/v1/hrms/dashboard",
+                "hrms.project.read_own");
+        assertItem(
+                items.get(8),
+                "hrms.regularizations",
+                "nav.hrms.regularizations",
+                "/hrms/regularizations",
+                "/api/v1/hrms/attendance/regularizations/mine",
+                "core.attendance.read_own");
+        assertItem(
+                items.get(9),
+                "hrms.overtime_requests",
+                "nav.hrms.overtime_requests",
+                "/hrms/overtime-requests",
+                "/api/v1/hrms/overtime-requests/mine",
+                "hrms.overtime.request");
+    }
+
+    @Test
+    @DisplayName(
+            "W-48.5 / W-48.6: dashboard, regularizations and overtime requests are GETs guarded by the item's action")
+    void requestAndDashboardEndpointsAreReal() {
+        assertGuardedGet(HrmsDashboardController.class, items.get(7));
+        assertGuardedGet(RegularizationController.class, items.get(8));
+        assertGuardedGet(OvertimeRequestController.class, items.get(9));
+    }
+
+    private static void assertGuardedGet(Class<?> controller, ItemDefinition item) {
+        Method target = getMapping(controller, item.targetEndpoint());
+        RequiresAction action = target.getAnnotation(RequiresAction.class);
+        if (action == null) {
+            action = controller.getAnnotation(RequiresAction.class);
+        }
+        assertThat(action.value()).isEqualTo(item.requiredAction());
+        assertThat(controller.getAnnotation(RequiresModule.class).value()).isEqualTo(item.requiredModule());
     }
 
     @Test

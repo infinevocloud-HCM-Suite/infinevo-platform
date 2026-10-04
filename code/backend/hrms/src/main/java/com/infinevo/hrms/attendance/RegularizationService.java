@@ -31,6 +31,25 @@ public interface RegularizationService {
     /** The tenant's requests whose date is in the range, optionally by status and employee, newest first. */
     List<RegularizationResponse> all(LocalDate from, LocalDate to, RegularizationStatus status, UUID employeeId);
 
+    /**
+     * One request in the bound tenant, visible to its owner (with {@code core.attendance.read_own}), to a holder of
+     * {@code core.attendance.read}, or to a holder of {@code core.approval.decide} assigned to a step of its approval
+     * instance (W-48.5 §4).
+     *
+     * @throws NotFoundException no such request, or the caller may not see it
+     */
+    RegularizationResponse get(UUID id);
+
+    /** No such request visible to the caller (maps to {@code 404}, never {@code 403}). */
+    class NotFoundException extends RuntimeException {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        public NotFoundException(UUID id) {
+            super("No regularization " + id + " in this tenant");
+        }
+    }
+
     /** A submit or read refused as invalid input (maps to {@code 400 VALIDATION_FAILED}). */
     class ValidationException extends RuntimeException {
         @Serial

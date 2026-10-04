@@ -76,9 +76,45 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "core.attendance.manage");
 
+    /** The caller's HRMS dashboard (W-48.6): {@code HrmsDashboardController}'s {@code GET /api/v1/hrms/dashboard}. */
+    public static final ItemDefinition DASHBOARD = new ItemDefinition(
+            "hrms.dashboard",
+            "nav.hrms.dashboard",
+            "/hrms/dashboard",
+            "/api/v1/hrms/dashboard",
+            PlatformModule.HRMS,
+            "hrms.project.read_own");
+
+    /** The caller's regularizations (W-48.5): {@code RegularizationController}'s {@code GET .../regularizations/mine}. */
+    public static final ItemDefinition REGULARIZATIONS = new ItemDefinition(
+            "hrms.regularizations",
+            "nav.hrms.regularizations",
+            "/hrms/regularizations",
+            "/api/v1/hrms/attendance/regularizations/mine",
+            PlatformModule.HRMS,
+            "core.attendance.read_own");
+
+    /** The caller's overtime requests (W-48.5): {@code OvertimeRequestController}'s {@code GET .../overtime-requests/mine}. */
+    public static final ItemDefinition OVERTIME_REQUESTS = new ItemDefinition(
+            "hrms.overtime_requests",
+            "nav.hrms.overtime_requests",
+            "/hrms/overtime-requests",
+            "/api/v1/hrms/overtime-requests/mine",
+            PlatformModule.HRMS,
+            "hrms.overtime.request");
+
     @Override
     public List<ItemDefinition> items() {
         return List.of(
-                TIMESHEETS, PROJECTS, MY_WORK, TIMESHEET_REVIEW, ATTENDANCE, ATTENDANCE_LOG, ATTENDANCE_SETTINGS);
+                TIMESHEETS,
+                PROJECTS,
+                MY_WORK,
+                TIMESHEET_REVIEW,
+                ATTENDANCE,
+                ATTENDANCE_LOG,
+                ATTENDANCE_SETTINGS,
+                DASHBOARD,
+                REGULARIZATIONS,
+                OVERTIME_REQUESTS);
     }
 }

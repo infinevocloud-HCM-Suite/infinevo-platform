@@ -189,6 +189,56 @@ class OvertimeServiceTest {
     }
 
     @Test
+    @DisplayName("get returns the entry in the bound tenant (W-48.5)")
+    void getReturnsTheEntry() {
+        UUID id = UUID.randomUUID();
+        OvertimeRequest overtime = new OvertimeRequest(
+                TENANT,
+                employeeId,
+                LocalDate.of(2026, 4, 10),
+                new BigDecimal("2.50"),
+                null,
+                OvertimeSource.ADMIN,
+                null,
+                "admin");
+        when(overtimeRequests.findByIdAndTenantId(id, TENANT)).thenReturn(Optional.of(overtime));
+
+        OvertimeResponse found = service.get(id);
+
+        assertThat(found.employeeId()).isEqualTo(employeeId);
+        assertThat(found.hours()).isEqualByComparingTo("2.50");
+    }
+
+    @Test
+    @DisplayName("get on an unknown id throws NotFoundException")
+    void getUnknownIdThrows() {
+        UUID id = UUID.randomUUID();
+        when(overtimeRequests.findByIdAndTenantId(id, TENANT)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.get(id)).isInstanceOf(OvertimeService.NotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("get on another tenant's entry throws NotFoundException")
+    void getOtherTenantThrows() {
+        UUID id = UUID.randomUUID();
+        UUID otherTenant = UUID.randomUUID();
+        OvertimeRequest foreign = new OvertimeRequest(
+                otherTenant,
+                employeeId,
+                LocalDate.of(2026, 4, 10),
+                new BigDecimal("1.00"),
+                null,
+                OvertimeSource.ADMIN,
+                null,
+                "admin");
+        when(overtimeRequests.findByIdAndTenantId(id, otherTenant)).thenReturn(Optional.of(foreign));
+        when(overtimeRequests.findByIdAndTenantId(id, TENANT)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.get(id)).isInstanceOf(OvertimeService.NotFoundException.class);
+    }
+
+    @Test
     @DisplayName("cancel on an unknown id throws NotFoundException")
     void cancelUnknownIdThrows() {
         UUID id = UUID.randomUUID();

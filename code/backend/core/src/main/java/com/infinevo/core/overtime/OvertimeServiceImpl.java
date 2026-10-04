@@ -194,6 +194,17 @@ public class OvertimeServiceImpl implements OvertimeService {
 
     @Override
     @Transactional(readOnly = true)
+    public OvertimeResponse get(UUID id) {
+        Objects.requireNonNull(id, "id must not be null");
+        UUID tenantId = TenantContext.require();
+        return overtimeRequests
+                .findByIdAndTenantId(id, tenantId)
+                .map(OvertimeResponse::from)
+                .orElseThrow(() -> new NotFoundException(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<OvertimeResponse> list(LocalDate from, LocalDate to, UUID employeeId) {
         Objects.requireNonNull(from, "from must not be null");
         Objects.requireNonNull(to, "to must not be null");

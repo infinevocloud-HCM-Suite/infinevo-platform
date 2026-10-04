@@ -4,8 +4,9 @@
  */
 export const itemRoutes = {
   LEAVE: (itemId) => (itemId ? `/leave/requests/${itemId}` : null),
-  REGULARIZATION: null,
-  OVERTIME: null,
+  // W-48.5 §5: the subject id is the request id.
+  REGULARIZATION: (id) => (id ? `/hrms/regularizations/${id}` : null),
+  OVERTIME: (id) => (id ? `/hrms/overtime-requests/${id}` : null),
   // The inbox passes subjectId, which for a claim is the claim id (W-47.4 §5, W-35.1 §3).
   REIMBURSEMENT: (id) => (id ? `/payroll/claims/${id}` : null),
   PROOF_OF_INVESTMENT: null,

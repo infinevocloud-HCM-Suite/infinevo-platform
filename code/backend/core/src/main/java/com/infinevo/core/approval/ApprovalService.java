@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -408,7 +409,32 @@ public class ApprovalService {
         ApprovalInstance instance = instanceRepository
                 .findByTenantIdAndId(tenantId, instanceId)
                 .orElseThrow(() -> new NoSuchElementException("Approval instance not found: " + instanceId));
-        List<ApprovalStep> steps = stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instanceId);
+        return toDetail(tenantId, instance);
+    }
+
+    /**
+     * The approval instance for a subject in the bound tenant, with its steps (W-48.5 §4) — lets a
+     * module that holds no instance id (hrms reading an overtime request) show who must approve.
+     * The repository returns instances unordered; when a subject has more than one, the newest by
+     * {@code created_at} wins, ties broken by the higher id. No permission check: the caller decides
+     * visibility.
+     */
+    @Transactional(readOnly = true)
+    public Optional<ApprovalInstanceDetailResponse> findInstanceBySubject(SubjectRef subject) {
+        UUID tenantId = TenantContext.require();
+        Objects.requireNonNull(subject, "subject must not be null");
+        return instanceRepository
+                .findByTenantIdAndSubjectTableAndSubjectId(tenantId, subject.table(), subject.id())
+                .stream()
+                .max(Comparator.comparing(
+                                ApprovalInstance::getCreatedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(ApprovalInstance::getId))
+                .map(instance -> toDetail(tenantId, instance));
+    }
+
+    private ApprovalInstanceDetailResponse toDetail(UUID tenantId, ApprovalInstance instance) {
+        List<ApprovalStep> steps =
+                stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instance.getId());
         return ApprovalInstanceDetailResponse.from(instance, steps);
     }
 

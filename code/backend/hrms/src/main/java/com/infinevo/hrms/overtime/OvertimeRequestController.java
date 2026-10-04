@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -53,6 +54,20 @@ public class OvertimeRequestController {
             @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return ResponseEntity.ok(workflowService.mine(from, to));
+    }
+
+    @GetMapping("/{id}")
+    @RequiresAction(
+            value = "hrms.overtime.request",
+            anyOf = {"core.overtime.read", "core.approval.decide"})
+    public ResponseEntity<OvertimeResponse> get(@PathVariable("id") UUID id) {
+        return ResponseEntity.ok(workflowService.get(id));
+    }
+
+    @ExceptionHandler(OvertimeService.NotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotFound(OvertimeService.NotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiErrorResponse.of(ApiError.NOT_FOUND, e.getMessage(), traceId()));
     }
 
     @ExceptionHandler(OvertimeService.ValidationException.class)

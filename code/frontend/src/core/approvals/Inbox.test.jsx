@@ -15,6 +15,12 @@ vi.mock('./approvalService.js', () => ({
   },
 }));
 
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useNavigate: () => mockNavigate,
+}));
+
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn(),
   errorMsg: vi.fn(),
@@ -85,6 +91,19 @@ describe('Inbox component', () => {
 
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
     vi.spyOn(useCanModule, 'useHasModule').mockReturnValue(true);
+  });
+
+  it('"View Item" opens the subject with the inbox as its origin, so the item can link back (W-48.5 §5)', async () => {
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <Inbox />
+        </MemoryRouter>
+      </Provider>
+    );
+    await waitFor(() => expect(document.getElementById('btn-view-item-step-101')).toBeTruthy(), { timeout: 5000 });
+    fireEvent.click(document.getElementById('btn-view-item-step-101'));
+    expect(mockNavigate).toHaveBeenCalledWith('/leave/requests/item-leave-1', { state: { from: '/approvals' } });
   });
 
   it('renders rows across two flow types, names the subject from the response, displays steps and sets pendingCount', async () => {

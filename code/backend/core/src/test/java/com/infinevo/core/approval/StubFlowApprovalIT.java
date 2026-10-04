@@ -266,4 +266,33 @@ class StubFlowApprovalIT extends AbstractIntegrationTest {
     static void clearApprovalRows() throws Exception {
         ApprovalTestSchema.clearAll();
     }
+
+    @Test
+    @DisplayName("findInstanceBySubject returns the subject's instance with its steps (W-48.5)")
+    void findInstanceBySubjectFound() {
+        SubjectRef subject = new SubjectRef("core.overtime_request", UUID.randomUUID());
+        UUID instanceId = approvalService.start(ApprovalFlowType.REGULARIZATION, subject, requesterId);
+
+        Optional<ApprovalInstanceDetailResponse> found = approvalService.findInstanceBySubject(subject);
+
+        assertThat(found).isPresent();
+        assertThat(found.get()).isEqualTo(approvalService.getInstance(instanceId));
+    }
+
+    @Test
+    @DisplayName("findInstanceBySubject is empty when no instance exists for the subject")
+    void findInstanceBySubjectEmpty() {
+        assertThat(approvalService.findInstanceBySubject(new SubjectRef("core.overtime_request", UUID.randomUUID())))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("findInstanceBySubject is empty from another tenant")
+    void findInstanceBySubjectOtherTenantEmpty() {
+        SubjectRef subject = new SubjectRef("core.overtime_request", UUID.randomUUID());
+        approvalService.start(ApprovalFlowType.REGULARIZATION, subject, requesterId);
+
+        TenantContext.set(ApprovalTestSchema.TENANT_B);
+        assertThat(approvalService.findInstanceBySubject(subject)).isEmpty();
+    }
 }

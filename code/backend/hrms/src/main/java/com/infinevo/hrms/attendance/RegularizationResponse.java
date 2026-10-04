@@ -10,6 +10,7 @@ import java.util.UUID;
 public record RegularizationResponse(
         UUID id,
         UUID employeeId,
+        String employeeName,
         LocalDate date,
         Instant inAt,
         Instant outAt,
@@ -22,9 +23,15 @@ public record RegularizationResponse(
         Instant createdAt) {
 
     public static RegularizationResponse from(AttendanceRegularization r) {
+        return from(r, null);
+    }
+
+    /** With the employee's display name, as HR's list carries it (W-48.5 §4). */
+    public static RegularizationResponse from(AttendanceRegularization r, String employeeName) {
         return new RegularizationResponse(
                 r.getId(),
                 r.getEmployeeId(),
+                employeeName,
                 r.getAttendanceDate(),
                 r.getRequestedInAt(),
                 r.getRequestedOutAt(),

@@ -33,6 +33,24 @@ const ProjectList = lazy(() =>
 const ProjectPage = lazy(() =>
   import('./projects/ProjectPage.jsx').then((m) => ({ default: m.ProjectPage }))
 );
+const HrmsDashboardPage = lazy(() =>
+  import('./dashboard/HrmsDashboardPage.jsx').then((m) => ({ default: m.HrmsDashboardPage }))
+);
+const MyRegularizations = lazy(() =>
+  import('./requests/MyRegularizations.jsx').then((m) => ({ default: m.MyRegularizations }))
+);
+const RegularizationLog = lazy(() =>
+  import('./requests/RegularizationLog.jsx').then((m) => ({ default: m.RegularizationLog }))
+);
+const RegularizationDetail = lazy(() =>
+  import('./requests/RegularizationDetail.jsx').then((m) => ({ default: m.RegularizationDetail }))
+);
+const MyOvertime = lazy(() =>
+  import('./requests/MyOvertime.jsx').then((m) => ({ default: m.MyOvertime }))
+);
+const OvertimeDetail = lazy(() =>
+  import('./requests/OvertimeDetail.jsx').then((m) => ({ default: m.OvertimeDetail }))
+);
 const MyWork = lazy(() => import('./projects/MyWork.jsx').then((m) => ({ default: m.MyWork })));
 
 // HRMS module entry point (W-45 §5, W-48.2 §5). The week grid sits beneath `/hrms/timesheets`, the menu path
@@ -51,6 +69,14 @@ export const routes = [
   { path: '/hrms/projects', element: React.createElement(ProjectList) },
   { path: '/hrms/projects/:id', element: React.createElement(ProjectPage) },
   { path: '/hrms/my-work', element: React.createElement(MyWork) },
+  // W-48.6 §5: the dashboard (feed `hrms.dashboard`).
+  { path: '/hrms/dashboard', element: React.createElement(HrmsDashboardPage) },
+  // W-48.5 §5: requests (feed `hrms.regularizations`, `hrms.overtime_requests`). `/all` before `/:id`.
+  { path: '/hrms/regularizations', element: React.createElement(MyRegularizations) },
+  { path: '/hrms/regularizations/all', element: React.createElement(RegularizationLog) },
+  { path: '/hrms/regularizations/:id', element: React.createElement(RegularizationDetail) },
+  { path: '/hrms/overtime-requests', element: React.createElement(MyOvertime) },
+  { path: '/hrms/overtime-requests/:id', element: React.createElement(OvertimeDetail) },
 ];
 
 export const reducers = {};

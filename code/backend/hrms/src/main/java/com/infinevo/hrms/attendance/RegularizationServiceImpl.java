@@ -8,6 +8,7 @@ import com.infinevo.core.attendance.AttendanceSource;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.tenant.TenantClock;
+import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
 import java.time.Duration;
@@ -17,8 +18,11 @@ import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -53,6 +57,7 @@ public class RegularizationServiceImpl implements RegularizationService {
     private final ApprovalService approvalService;
     private final EmployeeService employeeService;
     private final TenantClock tenantClock;
+    private final PermissionService permissionService;
     private final Clock clock;
 
     @Autowired
@@ -64,6 +69,7 @@ public class RegularizationServiceImpl implements RegularizationService {
             ApprovalService approvalService,
             EmployeeService employeeService,
             TenantClock tenantClock,
+            PermissionService permissionService,
             ObjectProvider<Clock> clockProvider) {
         this(
                 regularizations,
@@ -73,6 +79,7 @@ public class RegularizationServiceImpl implements RegularizationService {
                 approvalService,
                 employeeService,
                 tenantClock,
+                permissionService,
                 clockProvider != null ? clockProvider.getIfAvailable(Clock::systemUTC) : Clock.systemUTC());
     }
 
@@ -84,6 +91,7 @@ public class RegularizationServiceImpl implements RegularizationService {
             ApprovalService approvalService,
             EmployeeService employeeService,
             TenantClock tenantClock,
+            PermissionService permissionService,
             Clock clock) {
         this.regularizations = Objects.requireNonNull(regularizations, "regularizations must not be null");
         this.clockSessions = Objects.requireNonNull(clockSessions, "clockSessions must not be null");
@@ -92,6 +100,7 @@ public class RegularizationServiceImpl implements RegularizationService {
         this.approvalService = Objects.requireNonNull(approvalService, "approvalService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.tenantClock = Objects.requireNonNull(tenantClock, "tenantClock must not be null");
+        this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -236,7 +245,54 @@ public class RegularizationServiceImpl implements RegularizationService {
             rows = regularizations.findByTenantIdAndAttendanceDateBetweenOrderByAttendanceDateDescCreatedAtDesc(
                     tenantId, from, to);
         }
-        return rows.stream().map(RegularizationResponse::from).toList();
+        // One batch name read for the whole list (W-48.5 §4), never one per row.
+        Set<UUID> ids =
+                rows.stream().map(AttendanceRegularization::getEmployeeId).collect(Collectors.toSet());
+        Map<UUID, String> names = ids.isEmpty() ? Map.of() : employeeService.displayNames(ids);
+        Map<UUID, String> resolved = names != null ? names : Map.of();
+        return rows.stream()
+                .map(r -> RegularizationResponse.from(r, resolved.get(r.getEmployeeId())))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RegularizationResponse get(UUID id) {
+        UUID tenantId = TenantContext.require();
+        if (id == null) {
+            throw new NotFoundException(null);
+        }
+        AttendanceRegularization row =
+                regularizations.findByTenantIdAndId(tenantId, id).orElseThrow(() -> new NotFoundException(id));
+        if (permissionService.holds("core.attendance.read")) {
+            return RegularizationResponse.from(row);
+        }
+        UUID caller =
+                employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
+        if (caller == null) {
+            throw new NotFoundException(id);
+        }
+        if (caller.equals(row.getEmployeeId()) && permissionService.holds("core.attendance.read_own")) {
+            return RegularizationResponse.from(row);
+        }
+        if (permissionService.holds("core.approval.decide") && isStepApprover(row.getApprovalInstanceId(), caller)) {
+            return RegularizationResponse.from(row);
+        }
+        // Never 403: a refusal would tell the caller the id exists (W-48.5 §4).
+        throw new NotFoundException(id);
+    }
+
+    /** Whether the employee is assigned to any step of the instance, pending or decided ({@code ApprovalService.getInstance}). */
+    private boolean isStepApprover(UUID instanceId, UUID employeeId) {
+        if (instanceId == null) {
+            return false;
+        }
+        try {
+            return approvalService.getInstance(instanceId).steps().stream()
+                    .anyMatch(step -> employeeId.equals(step.assigneeEmployeeId()));
+        } catch (java.util.NoSuchElementException e) {
+            return false;
+        }
     }
 
     private static ConflictException pendingExists(LocalDate date) {

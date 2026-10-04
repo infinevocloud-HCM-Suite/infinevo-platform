@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -61,6 +62,20 @@ public class RegularizationController {
             @RequestParam(value = "status", required = false) RegularizationStatus status,
             @RequestParam(value = "employeeId", required = false) UUID employeeId) {
         return ResponseEntity.ok(regularizationService.all(from, to, status, employeeId));
+    }
+
+    @GetMapping("/{id}")
+    @RequiresAction(
+            value = "core.attendance.read_own",
+            anyOf = {"core.attendance.read", "core.approval.decide"})
+    public ResponseEntity<RegularizationResponse> get(@PathVariable("id") UUID id) {
+        return ResponseEntity.ok(regularizationService.get(id));
+    }
+
+    @ExceptionHandler(RegularizationService.NotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotFound(RegularizationService.NotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiErrorResponse.of(ApiError.NOT_FOUND, e.getMessage(), traceId()));
     }
 
     @ExceptionHandler(RegularizationService.ConflictException.class)
