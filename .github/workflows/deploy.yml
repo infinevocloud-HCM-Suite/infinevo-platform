@@ -856,18 +856,23 @@ jobs:
               esac
 
               # healthState is None on a revision with no ingress probe - the worker has
-              # none at all. Running, a healthState that is not Unhealthy, AND a replica
-              # that was seen ready is the bar.
+              # none at all. Running (or RunningAtMaxScale when minReplicas == maxReplicas),
+              # a healthState that is not Unhealthy, AND a replica that was seen ready is the bar.
               #
               # Confirmed twice, 30 seconds apart. A crash-looping container passes
               # through Running on its way round the loop, and a single sample taken at
               # that moment would call a revision healthy that is about to restart.
-              if [ "$running" = "Running" ] && [ "$healthy" != "Unhealthy" ] && [ "$seen_ready" = "1" ]; then
+              is_running=0
+              case "$running" in
+                Running|RunningAtMaxScale) is_running=1 ;;
+              esac
+
+              if [ "$is_running" = "1" ] && [ "$healthy" != "Unhealthy" ] && [ "$seen_ready" = "1" ]; then
                 if [ "$confirming" = "1" ]; then
-                  echo "  OK - ${rev} runningState=Running healthState=${healthy:-None}, a replica started and stayed up over 30s"
+                  echo "  OK - ${rev} runningState=${running} healthState=${healthy:-None}, a replica started and stayed up over 30s"
                   break
                 fi
-                echo "  ${rev} is Running with a ready replica - confirming in 30s"
+                echo "  ${rev} is ${running} with a ready replica - confirming in 30s"
                 confirming=1
                 sleep 30
                 continue
