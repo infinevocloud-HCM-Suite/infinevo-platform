@@ -70,7 +70,7 @@ management:
 brevo:
   api-key: ${BREVO_API_KEY}
   url: ${BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
-  from-email: ${BREVO_FROM_EMAIL:notifications@infinevocloud.com}
+  from-email: ${BREVO_FROM_EMAIL:application@infinevocloud.com}
   from-name: ${BREVO_FROM_NAME:Infinevo}
 
 azure:

@@ -30,3 +30,4 @@ param enablePurgeProtection = false
 param alertEmail = 'kmohapatra@infinevocloud.com'
 // Founder step (W-10.1): Brevo SMTP login (Brevo > SMTP & API > SMTP).
 param brevoSmtpLogin = 'bc91dc001@smtp-brevo.com'
+param brevoSenderEmail = 'application@infinevocloud.com'

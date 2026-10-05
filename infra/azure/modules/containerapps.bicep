@@ -64,6 +64,9 @@ param redisPort string = '10000'
 @description('Brevo SMTP login for Keycloak mail (W-10.1): the account login shown under Brevo > SMTP & API > SMTP, not an API key name. No default, so every parameter file must state it')
 param brevoSmtpLogin string
 
+@description('Brevo validated sender email address for worker and Keycloak notifications')
+param brevoSenderEmail string = 'application@infinevocloud.com'
+
 // Origin protection (W-51 section 2.5). Front Door Standard has no Private Link origin and
 // Container Apps ingress has no header-matching rule, so ipSecurityRestrictions is the only
 // control the ingress schema offers. Anything not arriving from a Front Door backend address
@@ -364,6 +367,10 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'AZURE_CLIENT_ID'
               value: identities.app.clientId
             }
+            {
+              name: 'BREVO_FROM_EMAIL'
+              value: brevoSenderEmail
+            }
           ], redisEnv)
           probes: [
             {
@@ -510,6 +517,10 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'AZURE_CLIENT_ID'
               value: identities.worker.clientId
+            }
+            {
+              name: 'BREVO_FROM_EMAIL'
+              value: brevoSenderEmail
             }
           ], redisEnv)
         }
@@ -706,7 +717,7 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             }
             {
               name: 'KC_SMTP_FROM'
-              value: 'notifications@infinevocloud.com'
+              value: brevoSenderEmail
             }
             {
               name: 'KC_SMTP_PASSWORD'
