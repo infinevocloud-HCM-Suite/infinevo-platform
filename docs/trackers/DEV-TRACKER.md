@@ -22,7 +22,29 @@
 three org masters, the role and permission pair, and the catalogue correction. Payroll, HRMS and the frontend have
 not started.
 
+## QA Manual Test Execution (Live Azure Dev Ingress)
+
+> **Lead / QA Gatekeeper:** Mohit Birla (Dev 1)  
+> **Environment:** Azure Dev Front Door (`https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net`)  
+> **Master Test Plan:** [Infinevo_Manual_QA_Test_Plan.md](../qa/Infinevo_Manual_QA_Test_Plan.md)  
+> **Manager Sign-off:** Sanjib Banerjee
+
+| Stage | Module Scope | Lead Dev | Steps Tested | PASS | FAIL | Status | Key Verifications & Findings |
+|---|---|---|---|---|---|---|---|
+| **Pre-Flight** | Azure Ingress, ACA, Keycloak, Brevo SMTP | Mohit / Karmaveer | P-01..07 (7) | 7 | 0 | **DONE** | Azure Front Door ingress 200 OK, Keycloak realm healthy, Brevo SMTP active |
+| **Stage 0** | Platform Admin: Tenant Provisioning | Mohit Birla | S0-01..10 (10) | 10 | 0 | **DONE** | Provisioned 5 developer tenants (`QA-D1` to `QA-D5`); tenant admins accepted & active |
+| **Stage 1** | Tenant Setup: Org Masters & Locations | Krushna / Mohit | S1-01..09 (9) | 9 | 0 | **DONE** | Depts, Designations, Mumbai Office created; S1-07 statutory 409 conflict verified |
+| **Stage 2** | User Onboarding & Invitations | Krushna / Mohit | S2-01..10 (10) | 10 | 0 | **DONE** | Roles invited (`hr`, `manager`, `payroll`, `finance`); invite resend/revoke lifecycle verified |
+| **Stage 3** | Employee Lifecycle & Hierarchies | Krushna / Mohit | S3-01..12 (12) | 12 | 0 | **DONE** | EMP-01..03 onboarded; self-reporting 409 circular check passed; portal logins verified |
+| **Stage 9** | Tax Declaration Windows & Regimes | Devashish (Dev 3) | S9-01..10 (10) | 9 | 1 | **DONE** | Window open, Old regime switch, HRA/80C declare passed; S9-01 route suffix 404 diagnosed (D-24) |
+| **Stage 10** | Claims, Receipts & Ad-hoc Deductions | Devashish (Dev 3) | S10-01..08 (8) | 8 | 0 | **DONE** | Claim submission, Finance approval, advance deduction & reversal verified |
+| **Stage 11** | Security, RBAC & Negative Boundaries | Mohit Birla | S11-01..04 (4) | 4 | 0 | **IN PROGRESS** | S11-01..04 passed (direct URL 403 checks); role accumulation diagnosed on duplicate email |
+| **Stage 12** | Audit Trail & Real Mail Verification | Devashish / Mohit | S12-01..06 (6) | 6 | 0 | **DONE** | Audit stream verification & Brevo transactional dispatch verified |
+| **Stage 16** | Proof of Investment (POI) Receipts | Devashish (Dev 3) | S16-01..07 (7) | 0 | 0 | **DEFERRED** | Unmounted in frontend router; marked DEFER per test plan (D-26) |
+| **Stage 13** | Clean-Slate E2E Smoke Certification | Mohit Birla | S13-01..05 (5) | 0 | 0 | Scheduled | Final sign-off smoke on fresh tenant `QA-E2E` |
+
 ## Assignments
+
 
 One branch per developer, `dev-<name>`. Tickets run in the order listed; a developer
 claims the next one when the previous is on `main`. Migration numbers are reserved per
@@ -104,6 +126,144 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | **fixed** `5c07c45` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | **fixed on main `c79755c`** |
 | D-9 | `W-10` spec §8 login flow never run by hand; `W-14.1` §8 never independently re-run | at merge | sayeed runs the two §8 checks | assigned — sayeed |
+| D-10 | Work Locations table: "Name" column text is vertically clipped/misaligned across lines (`S1-05`) | 2026-10-06, manual QA | frontend CSS (`/org/work-locations`) | **open** |
+| D-11 | `/roles` page displays HTTP 404 "Sorry, the page you visited does not exist" (`S1-08`, `S17-01`) | 2026-10-06, manual QA | feature deployment (`/roles`) | **open (deferred)** |
+| D-12 | Invite User modal: Role select dropdown does not automatically close after an option is selected (`S2-01`) | 2026-10-06, manual QA | frontend select component (`/invitations/users`) | **open** |
+| D-13 | User Invitations: Revoked invitations display empty Actions column without delete/purge action (`S2-10`) | 2026-10-06, manual QA | frontend / core API (`/invitations/users`) | **open** |
+| D-14 | Finance role RBAC: User assigned `finance` only sees `Organisation`; Claims, Deductions, and Approvals are missing (`S2-06`) | 2026-10-06, manual QA | RBAC role_action & dynamic nav feed | **open (P1)** |
+| D-15 | Employee creation allows duplicate employee records with identical Work Email and Mobile Number (`S3-02`) | 2026-10-06, manual QA | `core.employee` uniqueness validation | **open (P1)** |
+| D-16 | Employee Reporting Line tab: "Set Manager" button not visible when logged in as HR (`S3-05`) | 2026-10-06, manual QA | `core.reporting_line.manage` restricted to `tenant-admin` | **open (P2)** |
+| D-17 | User Management: Missing "Edit Roles" action to modify or assign additional roles to active users (`S3-10`) | 2026-10-06, manual QA | frontend user management (`/users`) | **open (P2)** |
+| D-18 | Employee Invitations: Accepting email invitation link fails with HTTP 404 or "Try again later" error (`S3-11`, `S3-12`) | 2026-10-06, manual QA | token verification & AFD routing (`/invitations/accept`) | **open (P1)** |
+| D-19 | Employee Exit: Termination modal only prompts for Last Working Day; "Reason" and "Remarks" fields are missing (`S14-03`) | 2026-10-06, manual QA | frontend termination drawer (`/employees/:id`) | **open (P2)** |
+| D-20 | Payroll Officer sidebar: "Pay Runs" menu item (`/payroll/runs`) is not visible in navigation (`S14-05`) | 2026-10-06, manual QA | `nav.payroll.runs` navigation permissions | **open (P1)** |
+| D-21 | Employee Directory: Filtering by `TERMINATED` status displays Date of Joining but omits Last Working Day (`S14-07`) | 2026-10-06, manual QA | employee directory columns (`/employees`) | **open (P3)** |
+| D-22 | Employee Exit: Terminated employee profile lacks a "Reactivate Employee" button to retract exit (`S14-08`) | 2026-10-06, manual QA | frontend actions menu (`/employees/:id`) | **open (P1)** |
+| D-23 | Custom Roles: Cannot assign custom role `leave-auditor` in User Invitations because `/roles` is not deployed (`S17-04`) | 2026-10-06, manual QA | custom role engine (`/roles`) | **open (P2)** |
+| D-24 | Route Mismatch: `/payroll/settings/tax-declaration/2026` returns HTTP 404 in React Router; live route is `/payroll/settings/tax-declaration` (`S9-01`) | 2026-10-06, manual QA | frontend router (`src/core/routes.js`) | **open (P2)** |
+| D-25 | Tenant Provisioning Modal: Missing "Admin Email" input field specified in test plan; invitation decoupled to `/invitations/users` via Act-As (`S0-02`) | 2026-10-06, manual QA | admin console modal (`src/core/admin`) | **open (P3)** |
+| D-26 | Proof of Investment: Receipt upload dropzone and verification queue route `/payroll/tax-declarations/review` unmounted / missing (`S16-01`..`S16-07`) | 2026-10-06, manual QA | frontend declaration & POI review routes | **open (deferred)** |
+| D-27 | Statutory Compliance Defect: `PayRunServiceImpl.java:760` logs warning only and approves pay runs with deductions >50% and negative net pay, violating Code on Wages 2019 §18(3) | 2026-10-06, statutory audit | backend payroll validation (`payroll/PayRunServiceImpl.java`) | **open (P1)** |
+| D-28 | Tax Calculation Compliance: `Rebate87A.java:33-43` lacks marginal relief under New Tax Regime for AY 2026-27, causing cliff-edge tax penalties on ₹12,00,001 taxable income | 2026-10-06, tax audit | backend tax calculator (`payroll/Rebate87A.java`) | **open (P1)** |
+
+### Day 1 Manual QA Execution Summary — Dev 4: Krushna (HRMS Core Lead)
+
+> **Execution Date:** 2026-10-06  
+> **Target Tenant:** `QA-D4` (`qa-d4`)  
+> **Environment:** Azure Dev (`https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net`)  
+> **Assigned Stages:** Stage 1 (Org Masters), Stage 2 (Invitations), Stage 3 (Employee Lifecycle), Stage 14 (Termination), Stage 17 (Custom Roles)  
+> **Execution Progress:** 39 / 46 Steps Evaluated (85%)  
+> **Results:** **29 PASS** (63%) | **8 FAIL** (17%) | **2 DEFER** (4%) | **7 PENDING** (15%)  
+> **Linked Artifacts:** `d:\HCM Project\plan\krushna_dev4_qa_results_2026-10-06.json`, `d:\HCM Project\plan\Testing Day 1 Dev 4..txt`
+
+#### Detailed Defect Breakdown (D-10 through D-23)
+
+1. **D-10 (Step S1-05 — P3 Minor / UI Glitch): Work Locations Table Name Column Clipping**
+   * **Route:** `/org/work-locations`
+   * **Issue:** In the Work Locations table, the "Name" column text is vertically misaligned and clipped across lines (half visible on top, half on bottom).
+   * **Expected:** Name column text should be vertically centered with proper line-height and padding.
+
+2. **D-11 (Steps S1-08, S17-01 — P2 Major / Feature Deferred): `/roles` Page Returns HTTP 404**
+   * **Route:** `/roles`
+   * **Issue:** Navigating to `/roles` displays an HTTP 404 error: *"Sorry, the page you visited does not exist."*
+   * **Expected:** Role management matrix displaying seeded system roles. Marked as DEFER per test plan.
+
+3. **D-12 (Step S2-01 — P3 Minor / UX Glitch): Role Select Dropdown Does Not Auto-Close**
+   * **Route:** `/invitations/users` (Invite User modal)
+   * **Issue:** In the "Invite User" modal, after selecting a role from the dropdown, the dropdown menu remains open until the user manually clicks outside.
+   * **Expected:** Dropdown options list should automatically close immediately upon selecting an option.
+
+4. **D-13 (Step S2-10 — P3 Minor / UX Enhancement): Revoked Invitations Display Empty Actions Column**
+   * **Route:** `/invitations/users`
+   * **Issue:** When an invitation is revoked, its status changes to `REVOKED`, but the Actions column becomes completely blank with no option to delete or purge the record.
+   * **Expected:** Provide a "Delete" or "Dismiss" action, or render a clean placeholder (`—`).
+
+5. **D-14 (Step S2-06 — P1 Critical / RBAC Defect): Finance Role Missing Claims, Deductions, and Approvals**
+   * **Persona:** `qa-d4-finance@infinevocloud.com` (`finance` role)
+   * **Issue:** When logging in as Finance, the left sidebar displays only `nav.organisation`. The Claims, Deductions, and Approvals Inbox items are completely missing.
+   * **Expected:** Finance user must have read/approve access to Claims, Deductions, and Approvals Inbox; Organisation setup should be restricted.
+
+6. **D-15 (Step S3-02 — P1 Critical / Data Integrity): Duplicate Employee Email & Phone Allowed**
+   * **Route:** `/employees/new`
+   * **Issue:** Creating a new employee with the exact same Work Email and Mobile Number as an existing employee succeeds without returning a uniqueness validation error.
+   * **Expected:** Backend must reject duplicate work email/phone with HTTP 400/409 validation failure to prevent identity collisions in Keycloak and SSO.
+
+7. **D-16 (Step S3-05 — P2 Major / RBAC Permission Gap): "Set Manager" Button Hidden for HR Role**
+   * **Route:** `/employees/:id` (Reporting Line tab)
+   * **Issue:** When logged in as HR (`qa-d4-hr`), the "Set Manager" button is not rendered on the employee's Reporting Line tab because `core.reporting_line.manage` is granted strictly to `tenant-admin`.
+   * **Expected:** HR specialists managing employee records should have authority to configure reporting lines, or UI should clearly indicate admin-only configuration.
+
+8. **D-17 (Step S3-10 — P2 Major / Functional Gap): Missing "Edit Roles" Action in User Management**
+   * **Route:** `/users` & `/invitations/users`
+   * **Issue:** If a user is already created with the `hr` role, there is no action in the Actions column to edit their account or grant them the `tenant-admin` role later.
+   * **Expected:** Tenant Admin must be able to edit user roles or assign additional roles to active users without re-inviting them.
+
+9. **D-18 (Steps S3-11, S3-12 — P1 Critical / Blocker): Employee Invitation Accept Link Fails with 404 / Error**
+   * **Route:** `/invitations/employees` & `/invitations/accept`
+   * **Issue:** When an invited employee receives the portal invitation email and clicks the "Accept Invitation" link, the application throws an HTTP 404 error or displays: *"Invitation declined / invalid. Please try again after a few minutes."*
+   * **Expected:** Link resolves to token-acceptance page, accepts token, provisions Keycloak user, and redirects to password configuration. Blocks employee portal testing.
+
+10. **D-19 (Step S14-03 — P2 Major / Incomplete Form): Termination Modal Missing Reason and Remarks**
+    * **Route:** `/employees/:id` (Terminate / Initiate Exit modal)
+    * **Issue:** The termination modal only prompts for "Last Working Day". The "Exit Reason" dropdown and "Remarks" textarea specified in the test plan are missing from the form.
+    * **Expected:** Termination modal must capture Last Working Day, Exit Reason (Resignation, Performance, Contract End), and exit Remarks.
+
+11. **D-20 (Step S14-05 — P1 Critical / Navigation): Payroll Officer Sidebar Missing "Pay Runs"**
+    * **Persona:** `qa-d4-payroll@infinevocloud.com` (`payroll-officer` role)
+    * **Issue:** When logged in as Payroll Officer, the sidebar does not display the "Pay Runs" menu item (`/payroll/runs` or `/payroll/runs/new`).
+    * **Expected:** Payroll Officer must have the "Pay Runs" menu item visible in the sidebar to initiate and review monthly pay runs.
+
+12. **D-21 (Step S14-07 — P3 Minor / Table Display): Terminated Filter Omits Last Working Day Column**
+    * **Route:** `/employees` (Directory Filtered by `TERMINATED`)
+    * **Issue:** When filtering by `TERMINATED` status, the table displays Date of Joining, but omits the Last Working Day column.
+    * **Expected:** Terminated directory view should display the employee's Last Working Day.
+
+13. **D-22 (Step S14-08 — P1 Critical / Lifecycle Failure): Missing "Reactivate Employee" Button**
+    * **Route:** `/employees/:id` (Terminated profile)
+    * **Issue:** On a terminated employee's profile, there is no "Reactivate Employee" button in the Actions menu, preventing HR from retracting an exit.
+    * **Expected:** Terminated profiles must provide a "Reactivate Employee" action to restore the employee to ACTIVE status.
+
+14. **D-23 (Step S17-04 — P2 Major / Feature Dependency): Cannot Assign Custom Role `leave-auditor`**
+    * **Route:** `/invitations/users`
+    * **Issue:** Attempting to invite a user with custom role `leave-auditor` fails because custom roles cannot be defined due to `/roles` being 404.
+    * **Expected:** Custom roles created in the role matrix should appear in the role assignment dropdown.
+
+### Day 1 Manual QA Execution Summary — Dev 3: Devashish (Tax & Claims Lead)
+
+> **Execution Date:** 2026-10-06  
+> **Target Tenant:** `QA-D3` (`qa-d3`)  
+> **Environment:** Azure Dev (`https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net`)  
+> **Assigned Stages:** Stage 9 (Tax Declaration), Stage 10 (Claims & Deductions), Stage 12 (Audit & Mail), Stage 16 (Proof of Investment / POI)  
+> **Execution Progress:** 31 / 31 Steps Evaluated (100%)  
+> **Results:** **23 PASS** (74%) | **1 FAIL** (3%) | **7 DEFER** (23%) | **0 BLOCKED** (0%)  
+> **Linked Artifacts:** `DEV_3_TAX_AND_CLAIMS_QA_EXECUTION_GUIDE.md`, `DEV3_LIVE_TESTING_ISSUES_AND_GUIDANCE_LOG.md`, `HCM_BUSINESS_LOGIC_AND_SECURITY_GAPS.md`
+
+#### Detailed Defect Breakdown (D-24 through D-28)
+
+1. **D-24 (Step S9-01 — P2 Major / Route Mismatch): Route `/payroll/settings/tax-declaration/2026` Returns HTTP 404**
+   * **Route:** `/payroll/settings/tax-declaration/2026`
+   * **Issue:** When opening Tax Declaration settings with the year path suffix as documented in the manual test plan (`/payroll/settings/tax-declaration/2026`), React Router returns HTTP 404 "Page Not Found". The mounted route is strictly `/payroll/settings/tax-declaration`, which includes an in-screen FY selector dropdown.
+   * **Expected:** Either configure React Router with optional `:year` param redirect (`/payroll/settings/tax-declaration/:year?`), or update all navigation links and documentation to `/payroll/settings/tax-declaration`.
+
+2. **D-25 (Step S0-02 — P3 Minor / Documentation & Workflow Decoupling): Tenant Creation Modal Missing Admin Email Field**
+   * **Route:** `/admin/tenants/new`
+   * **Issue:** Test plan Step S0-02 specifies that the "New Tenant" modal contains an Admin Email field. The live UI form only accepts Name, Country, Timezone, Leave Year, and Modules because tenant provisioning is decoupled from admin account creation (which is handled via `Act-As` at `/invitations/users`).
+   * **Expected:** Align test plan documentation and modal UI hint explaining that Tenant Administrator invitation is triggered in Step S0-06 via `Act-As` session.
+
+3. **D-26 (Steps S16-01 to S16-07 — P1 Critical / Deferred Feature): POI Receipt Upload & Verification Queue Unmounted**
+   * **Route:** `/payroll/settings/poi-window/2026`, `/me/tax-declaration`, and `/payroll/tax-declarations/review`
+   * **Issue:** Stage 16 Proof of Investment (POI) workflow cannot be tested end-to-end on Azure Dev. The POI window settings page and officer review queue route (`/payroll/tax-declarations/review`) are not mounted in React Router. Furthermore, `DeclarationPage.jsx` lacks a document upload dropzone for attaching physical LIC/medical investment receipts.
+   * **Expected:** Mount the POI review route, add dropzone component in `DeclarationPage.jsx`, and integrate document storage upload permissions (`core.document.upload`). Marked as `DEFER` per test plan.
+
+4. **D-27 (Statutory Defect — P1 Critical / Legal Compliance): Missing Maximum Deduction Cap & Negative Pay Guard**
+   * **Source:** `com.infinevo.payroll.payrun.PayRunServiceImpl.java` (line 760) & Code on Wages, 2019 Section 18(3)
+   * **Issue:** When ad-hoc deductions and statutory recoveries exceed 50% of employee gross wages, the backend service merely logs a `WARN` log and allows the pay run to lock and transition to `APPROVED` / `PAID`. This permits negative net take-home pay, directly violating the statutory 50% deduction ceiling mandated by Indian Labour Law and causing NACH payment gateway batch rejects.
+   * **Expected:** Throw a blocking validation exception (`IllegalStateException` / HTTP 422 Unprocessable Entity) preventing approval and payout if total deductions exceed 50% of gross earnings or if net pay is negative.
+
+5. **D-28 (Tax Compliance Defect — P1 Critical / Statutory Tax Accuracy): Missing Marginal Relief under Section 87A for AY 2026-27**
+   * **Source:** `com.infinevo.payroll.tax.Rebate87A.java` (lines 33–43) & Income Tax Act Section 87A (New Tax Regime)
+   * **Issue:** Under the New Tax Regime for AY 2026-27, taxable income up to ₹12,00,000 enjoys full tax rebate under Section 87A. If taxable income reaches ₹12,00,001, the current implementation computes full slab tax (~₹60,000) with zero rebate because marginal relief is omitted. This penalizes the employee with an excessive tax burden that exceeds the incremental income earned above the threshold.
+   * **Expected:** Implement marginal relief formula limiting total tax payable to the incremental income earned above ₹12,00,000 (i.e. `taxPayable = min(computedTax, taxableIncome - 1200000)`).
 
 ---
 

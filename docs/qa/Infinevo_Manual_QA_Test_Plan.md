@@ -380,16 +380,16 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S9-01 | `/payroll/settings/tax-declaration/2026` | As Payroll Officer: Open Tax Declaration settings for FY 2026-27. *(DEFER if 404)*. | Settings page loads. Default regime: `NEW`. | [ ] PENDING |
-| 2 | S9-02 | `/payroll/settings/tax-declaration/2026` | Set Window: Start = `2026-10-01`, End = `2026-12-31`, Allow Regime Change = **YES**. Save. | Window marked `OPEN`. Banner shows active status. | [ ] PENDING |
-| 3 | S9-03 | `/me` | Log in as EMP-01. Navigate to `/me` → **Tax Declarations**. | FY 2026-27 declaration form opens in editable state. | [ ] PENDING |
-| 4 | S9-04 | `/me/tax-declaration` | Select Regime: **OLD REGIME**. | Form shows Old Regime deduction sections (80C, 80D, HRA). | [ ] PENDING |
-| 5 | S9-05 | `/me/tax-declaration` | In Housing / HRA Section: Monthly Rent = Rs 15,000, City Type = `Metro (Mumbai)`, Landlord PAN = `ABCD12345E`. Save. | Section saved successfully. | [ ] PENDING |
-| 6 | S9-06 | `/me/tax-declaration` | In Chapter VI-A / 80C Section: LIC Premium = Rs 50,000, PPF = Rs 50,000 (Total 80C = Rs 1,00,000). Save. | 80C total updates to Rs 1,00,000. | [ ] PENDING |
-| 7 | S9-07 | `/me/tax-declaration` | Open Summary Tab. Click **Submit Declaration**. | Status changes to `SUBMITTED`. Form fields lock to read-only. | [ ] PENDING |
-| 8 | S9-08 | `/me/tax-declaration` | Click **Reopen Declaration**. Change 80C LIC to Rs 75,000. Click Re-submit. | Declaration re-submitted with new value (Total 80C = Rs 1,25,000). | [ ] PENDING |
-| 9 | S9-09 | `/payroll/settings/tax-declaration/2026` | As Payroll Officer: Change End Date to `2026-10-05` (past date) to close the window. Save. | Window status updates to `CLOSED`. | [ ] PENDING |
-| 10 | S9-10 | `/me` | Log in as EMP-02. Open Tax Declarations. Attempt to submit. | Submission blocked: "Tax declaration window for FY 2026-27 is currently closed." | [ ] PENDING |
+| 1 | S9-01 | `/payroll/settings/tax-declaration/2026` | As Payroll Officer: Open Tax Declaration settings for FY 2026-27. *(DEFER if 404)*. | Settings page loads. Default regime: `NEW`. | [-] FAIL |
+| 2 | S9-02 | `/payroll/settings/tax-declaration/2026` | Set Window: Start = `2026-10-01`, End = `2026-12-31`, Allow Regime Change = **YES**. Save. | Window marked `OPEN`. Banner shows active status. | [x] PASS |
+| 3 | S9-03 | `/me` | Log in as EMP-01. Navigate to `/me` → **Tax Declarations**. | FY 2026-27 declaration form opens in editable state. | [x] PASS |
+| 4 | S9-04 | `/me/tax-declaration` | Select Regime: **OLD REGIME**. | Form shows Old Regime deduction sections (80C, 80D, HRA). | [x] PASS |
+| 5 | S9-05 | `/me/tax-declaration` | In Housing / HRA Section: Monthly Rent = Rs 15,000, City Type = `Metro (Mumbai)`, Landlord PAN = `ABCD12345E`. Save. | Section saved successfully. | [x] PASS |
+| 6 | S9-06 | `/me/tax-declaration` | In Chapter VI-A / 80C Section: LIC Premium = Rs 50,000, PPF = Rs 50,000 (Total 80C = Rs 1,00,000). Save. | 80C total updates to Rs 1,00,000. | [x] PASS |
+| 7 | S9-07 | `/me/tax-declaration` | Open Summary Tab. Click **Submit Declaration**. | Status changes to `SUBMITTED`. Form fields lock to read-only. | [x] PASS |
+| 8 | S9-08 | `/me/tax-declaration` | Click **Reopen Declaration**. Change 80C LIC to Rs 75,000. Click Re-submit. | Declaration re-submitted with new value (Total 80C = Rs 1,25,000). | [x] PASS |
+| 9 | S9-09 | `/payroll/settings/tax-declaration/2026` | As Payroll Officer: Change End Date to `2026-10-05` (past date) to close the window. Save. | Window status updates to `CLOSED`. | [x] PASS |
+| 10 | S9-10 | `/me` | Log in as EMP-02. Open Tax Declarations. Attempt to submit. | Submission blocked: "Tax declaration window for FY 2026-27 is currently closed." | [x] PASS |
 
 ---
 
@@ -402,14 +402,14 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S10-01 | `/payroll/claims` | Log in as EMP-02. Navigate to `nav.payroll.claims` (or portal claims). Click **New Claim**. | Claim creation drawer opens. | [ ] PENDING |
-| 2 | S10-02 | `/payroll/claims/new` | Component: `Medical Reimbursement`, Amount: `Rs 800`, Bill Date: `2026-10-18`, Remarks: `QA Medical Prescription`. Upload test receipt image. Submit. | Claim submitted with status `PENDING`. Document attached. | [ ] PENDING |
-| 3 | S10-03 | `/approvals` | Log in as Finance Officer. Check approvals inbox. | EMP-02's claim of Rs 800 appears with attached document preview link. | [ ] PENDING |
-| 4 | S10-04 | `/approvals` | Finance reviews receipt and clicks **Approve** (Approved Amount = Rs 800). | Status updates to `APPROVED`. Available for payroll disbursement. | [ ] PENDING |
-| 5 | S10-05 | `/payroll/deductions` | Log in as Payroll Officer. Navigate to `nav.payroll.deductions`. Click **Batch Entry**. | Ad-hoc deduction grid opens. | [ ] PENDING |
-| 6 | S10-06 | `/payroll/deductions` | Row 1: Employee = EMP-03, Kind = `Advance Salary Recovery`, Amount = `Rs 500`, Reason = `Festival Advance QA-01`. Save. | Deduction row saved with status `ACTIVE`. | [ ] PENDING |
-| 7 | S10-07 | `/me` | Log in as EMP-03. Open deductions panel. | Active deduction of Rs 500 visible with schedule and reference. | [ ] PENDING |
-| 8 | S10-08 | `/payroll/deductions` | As Payroll Officer: Select the EMP-03 deduction row → Click **Reverse Deduction**. Reason: `Waived by HR`. Confirm. | Status changes to `REVERSED`. Reversal entry logged in audit. | [ ] PENDING |
+| 1 | S10-01 | `/payroll/claims` | Log in as EMP-02. Navigate to `nav.payroll.claims` (or portal claims). Click **New Claim**. | Claim creation drawer opens. | [x] PASS |
+| 2 | S10-02 | `/payroll/claims/new` | Component: `Medical Reimbursement`, Amount: `Rs 800`, Bill Date: `2026-10-18`, Remarks: `QA Medical Prescription`. Upload test receipt image. Submit. | Claim submitted with status `PENDING`. Document attached. | [x] PASS |
+| 3 | S10-03 | `/approvals` | Log in as Finance Officer. Check approvals inbox. | EMP-02's claim of Rs 800 appears with attached document preview link. | [x] PASS |
+| 4 | S10-04 | `/approvals` | Finance reviews receipt and clicks **Approve** (Approved Amount = Rs 800). | Status updates to `APPROVED`. Available for payroll disbursement. | [x] PASS |
+| 5 | S10-05 | `/payroll/deductions` | Log in as Payroll Officer. Navigate to `nav.payroll.deductions`. Click **Batch Entry**. | Ad-hoc deduction grid opens. | [x] PASS |
+| 6 | S10-06 | `/payroll/deductions` | Row 1: Employee = EMP-03, Kind = `Advance Salary Recovery`, Amount = `Rs 500`, Reason = `Festival Advance QA-01`. Save. | Deduction row saved with status `ACTIVE`. | [x] PASS |
+| 7 | S10-07 | `/me` | Log in as EMP-03. Open deductions panel. | Active deduction of Rs 500 visible with schedule and reference. | [x] PASS |
+| 8 | S10-08 | `/payroll/deductions` | As Payroll Officer: Select the EMP-03 deduction row → Click **Reverse Deduction**. Reason: `Waived by HR`. Confirm. | Status changes to `REVERSED`. Reversal entry logged in audit. | [x] PASS |
 
 ---
 
@@ -444,12 +444,12 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S12-01 | `/audit` | Click `nav.audit` (`/audit`). | Audit log table opens displaying chronologically descending event stream. | [ ] PENDING |
-| 2 | S12-02 | `/audit` | Filter by Entity = `EMPLOYEE`. | Displays creation and modification events for EMP-01, EMP-02, EMP-03 with actor ID. | [ ] PENDING |
-| 3 | S12-03 | `/audit` | Filter by Entity = `LEAVE_REQUEST`. | Displays submit, approve, and on-behalf creation events with timestamps. | [ ] PENDING |
-| 4 | S12-04 | `/audit` | Filter by Entity = `PAY_RUN`. | Displays lifecycle events: `CREATED` → `COMPUTED` → `LOCKED` → `APPROVED` → `PAID`. | [ ] PENDING |
-| 5 | S12-05 | `/audit` | Filter by Entity = `ACT_AS_SESSION`. | Platform-admin impersonation sessions initiated in Stage 0 are audit-logged. | [ ] PENDING |
-| 6 | S12-06 | Brevo Inbox | Check all test mailboxes for dispatched emails: 1) User invitations, 2) Password resets, 3) Leave alerts, 4) Payslip notices. | All emails arrived in inboxes with correct tenant branding and no failed delivery notices. | [ ] PENDING |
+| 1 | S12-01 | `/audit` | Click `nav.audit` (`/audit`). | Audit log table opens displaying chronologically descending event stream. | [x] PASS |
+| 2 | S12-02 | `/audit` | Filter by Entity = `EMPLOYEE`. | Displays creation and modification events for EMP-01, EMP-02, EMP-03 with actor ID. | [x] PASS |
+| 3 | S12-03 | `/audit` | Filter by Entity = `LEAVE_REQUEST`. | Displays submit, approve, and on-behalf creation events with timestamps. | [x] PASS |
+| 4 | S12-04 | `/audit` | Filter by Entity = `PAY_RUN`. | Displays lifecycle events: `CREATED` → `COMPUTED` → `LOCKED` → `APPROVED` → `PAID`. | [x] PASS |
+| 5 | S12-05 | `/audit` | Filter by Entity = `ACT_AS_SESSION`. | Platform-admin impersonation sessions initiated in Stage 0 are audit-logged. | [x] PASS |
+| 6 | S12-06 | Brevo Inbox | Check all test mailboxes for dispatched emails: 1) User invitations, 2) Password resets, 3) Leave alerts, 4) Payslip notices. | All emails arrived in inboxes with correct tenant branding and no failed delivery notices. | [x] PASS |
 
 ---
 
@@ -522,13 +522,13 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S16-01 | `/payroll/settings/poi-window/2026` | As Payroll Officer: Open Proof of Investment window settings. *(DEFER if 404)*. | POI settings page opens. | [ ] PENDING |
-| 2 | S16-02 | Settings Form | Set Window: Start = `2026-10-15`, End = `2026-11-30`. Save. | POI Window marked `OPEN`. | [ ] PENDING |
-| 3 | S16-03 | `/me/tax-declaration` | Log in as EMP-01. Open Tax Declarations. | Under 80C LIC section, **Upload Proof** button is enabled. | [ ] PENDING |
-| 4 | S16-04 | Upload Drawer | Select Section: `80C - Life Insurance Premium`, Declared: Rs 75,000, Actual Paid: `Rs 75,000`. Upload PDF receipt. Submit. | Proof submitted with status `PENDING_VERIFICATION`. Document preview icon visible. | [ ] PENDING |
-| 5 | S16-05 | `/payroll/tax-declarations/review` | As Payroll Officer: Open POI Verification queue. | EMP-01's 80C proof appears in review table. | [ ] PENDING |
-| 6 | S16-06 | Verification Modal | Click View Document. Enter Verified Amount = `Rs 75,000`, Status = `VERIFIED`, Comment = `Receipt valid`. Save. | Proof status updates to `VERIFIED`. | [ ] PENDING |
-| 7 | S16-07 | Verification Modal | For testing rejection: Upload a dummy HRA receipt of Rs 20,000. Review as officer and click **Reject** (Reason: `Landlord PAN missing`). | Status updates to `REJECTED`. EMP-01 sees rejected badge and remarks on portal. | [ ] PENDING |
+| 1 | S16-01 | `/payroll/settings/poi-window/2026` | As Payroll Officer: Open Proof of Investment window settings. *(DEFER if 404)*. | POI settings page opens. | [-] DEFER |
+| 2 | S16-02 | Settings Form | Set Window: Start = `2026-10-15`, End = `2026-11-30`. Save. | POI Window marked `OPEN`. | [-] DEFER |
+| 3 | S16-03 | `/me/tax-declaration` | Log in as EMP-01. Open Tax Declarations. | Under 80C LIC section, **Upload Proof** button is enabled. | [-] DEFER |
+| 4 | S16-04 | Upload Drawer | Select Section: `80C - Life Insurance Premium`, Declared: Rs 75,000, Actual Paid: `Rs 75,000`. Upload PDF receipt. Submit. | Proof submitted with status `PENDING_VERIFICATION`. Document preview icon visible. | [-] DEFER |
+| 5 | S16-05 | `/payroll/tax-declarations/review` | As Payroll Officer: Open POI Verification queue. | EMP-01's 80C proof appears in review table. | [-] DEFER |
+| 6 | S16-06 | Verification Modal | Click View Document. Enter Verified Amount = `Rs 75,000`, Status = `VERIFIED`, Comment = `Receipt valid`. Save. | Proof status updates to `VERIFIED`. | [-] DEFER |
+| 7 | S16-07 | Verification Modal | For testing rejection: Upload a dummy HRA receipt of Rs 20,000. Review as officer and click **Reject** (Reason: `Landlord PAN missing`). | Status updates to `REJECTED`. EMP-01 sees rejected badge and remarks on portal. | [-] DEFER |
 
 ---
 
@@ -705,8 +705,8 @@ Each developer updates this table daily before standup:
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-10-06 | Mohit Birla (Dev 1) | `QA-D1` | Stage 0, Stage 11, Stage 12, Stage 13 | S0-01 to S0-10 | | | | | Provisioned all 5 tenants |
 | 2026-10-06 | Biren (Dev 2) | `QA-D2` | Stage 5, Stage 8, Stage 15, Stage 18 | | | | | | Payroll setup & Pay run |
-| 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 16, Stage 12 | | | | | | Tax & claims testing |
-| 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |
+| 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 12, Stage 16 | 31 / 31 | 23 | 1 | 0 | 7 | 5 Defects logged (D-24 to D-28 in DEV-TRACKER.md) |
+| 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | 39 / 46 | 29 | 8 | 0 | 2 | 14 Defects logged (D-10 to D-23 in DEV-TRACKER.md) |
 | 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4, Stage 6, Stage 7, Stage 19, Stage 20 | | | | | | Leave, time & attendance |
 
 ---
