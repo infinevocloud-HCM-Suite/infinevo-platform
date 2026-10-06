@@ -216,20 +216,20 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
                 request.gender() != null && !request.gender().isBlank()
                         ? request.gender().trim()
                         : null);
-        policy.setEffectiveFrom(request.effectiveFrom());
-
-        LocalDate effectiveDate =
-                request.effectiveFrom() != null ? request.effectiveFrom() : LocalDate.now(ZoneOffset.UTC);
-
         // Refuse a policy date before the current leave year (Spec § 6)
         int startMonth = LeaveDateUtils.getTenantLeaveYearStartMonth(jdbcTemplate, tenantId);
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate currentYearStart = LeaveDateUtils.getCurrentLeaveYearStartDate(today, startMonth);
+
+        LocalDate effectiveDate = request.effectiveFrom() != null ? request.effectiveFrom() : currentYearStart;
+
         if (effectiveDate.isBefore(currentYearStart)) {
             throw new IllegalArgumentException(
                     "Policy effectiveFrom date cannot be before the current leave year start date (" + currentYearStart
                             + "): " + effectiveDate);
         }
+
+        policy.setEffectiveFrom(effectiveDate);
 
         List<OverdrawnEmployee> overdrawn = List.of();
         if (leaveAllocationService != null && request.annualDays() != null) {

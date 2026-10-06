@@ -5,6 +5,7 @@ import {
   InputNumber,
   Select,
   Switch,
+  DatePicker,
   Button,
   Space,
   Row,
@@ -12,6 +13,7 @@ import {
   Divider,
   Typography,
 } from 'antd';
+import dayjs from 'dayjs';
 import { leaveTypeService } from './leaveTypeService.js';
 import { departmentService } from '../org/departmentService.js';
 import { designationService } from '../org/designationService.js';
@@ -56,6 +58,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
 
       form.setFieldsValue({
         annualDays: p.annualDays,
+        effectiveFrom: p.effectiveFrom ? dayjs(p.effectiveFrom) : dayjs().startOf('year'),
         accrualEnabled: p.accrualEnabled,
         accrualFrequency: p.accrualFrequency || 'MONTHLY',
         accrualUnits: p.accrualUnits,
@@ -75,6 +78,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
       setExceedMode('NO_LIMIT');
       form.setFieldsValue({
         annualDays: 12,
+        effectiveFrom: dayjs().startOf('year'),
         accrualEnabled: false,
         accrualFrequency: 'MONTHLY',
         resetEnabled: true,
@@ -101,6 +105,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
 
         const payload = {
           annualDays: values.annualDays,
+          effectiveFrom: values.effectiveFrom ? values.effectiveFrom.format('YYYY-MM-DD') : null,
           accrualEnabled: Boolean(values.accrualEnabled),
           accrualFrequency: values.accrualEnabled ? values.accrualFrequency : null,
           accrualUnits: values.accrualUnits || null,
@@ -139,7 +144,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
     >
       <Text strong>Entitlement & Accrual</Text>
       <Row gutter={16} style={{ marginTop: 8 }}>
-        <Col span={12}>
+        <Col span={8}>
           <Form.Item
             name="annualDays"
             label="Annual Days"
@@ -148,7 +153,16 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
             <InputNumber min={0} max={365} step={0.5} style={{ width: '100%' }} />
           </Form.Item>
         </Col>
-        <Col span={12}>
+        <Col span={8}>
+          <Form.Item
+            name="effectiveFrom"
+            label="Effective From"
+            rules={[{ required: true, message: 'Please select effective date' }]}
+          >
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="YYYY-MM-DD" />
+          </Form.Item>
+        </Col>
+        <Col span={8}>
           <Form.Item name="accrualEnabled" label="Accrual Enabled" valuePropName="checked">
             <Switch onChange={setAccrualOn} />
           </Form.Item>

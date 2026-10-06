@@ -98,10 +98,15 @@ export function Calendars() {
     }
   }, [location.pathname, params.id, calendars, form, canManage]);
 
+  const hasDefaultCalendar = useMemo(
+    () => calendars.some((c) => c.isDefault),
+    [calendars]
+  );
+
   const handleOpenCreate = () => {
     setEditingCalendar(null);
     form.resetFields();
-    form.setFieldsValue({ isDefault: false, workLocationIds: [] });
+    form.setFieldsValue({ isDefault: !hasDefaultCalendar, workLocationIds: [] });
     setDrawerOpen(true);
   };
 
@@ -128,9 +133,10 @@ export function Calendars() {
     try {
       const values = await form.validateFields();
       setSaving(true);
+      const shouldBeDefault = editingCalendar ? Boolean(values.isDefault) : (!hasDefaultCalendar);
       const payload = {
         name: values.name,
-        isDefault: Boolean(values.isDefault),
+        isDefault: shouldBeDefault,
         workLocationIds: values.workLocationIds || [],
       };
 
@@ -326,9 +332,16 @@ export function Calendars() {
             name="isDefault"
             label="Default Calendar"
             valuePropName="checked"
-            extra="If marked default, employees without an explicit location calendar will fall back to this calendar."
+            extra={
+              !editingCalendar && hasDefaultCalendar
+                ? "A default calendar already exists for this tenant. This new calendar will be created as location-specific (you can promote it to default later via Edit)."
+                : "If marked default, employees without an explicit location calendar will fall back to this calendar."
+            }
           >
-            <Switch id="switch-calendar-default" />
+            <Switch
+              id="switch-calendar-default"
+              disabled={!editingCalendar && hasDefaultCalendar}
+            />
           </Form.Item>
 
           <Form.Item
