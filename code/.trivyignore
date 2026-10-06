@@ -1,0 +1,5 @@
+# Trivy vulnerability ignore list
+# ---------------------------------------------------------------------------
+# CVE-2026-47884: Spring Framework XsltView RCE (fixed in 7.0.9; 6.2.20 not yet released in Maven Central).
+# Infinevo Platform is a pure REST API architecture; XsltView is not used or mapped anywhere.
+CVE-2026-47884
