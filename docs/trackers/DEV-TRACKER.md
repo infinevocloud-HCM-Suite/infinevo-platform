@@ -104,6 +104,116 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | **fixed** `5c07c45` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | **fixed on main `c79755c`** |
 | D-9 | `W-10` spec §8 login flow never run by hand; `W-14.1` §8 never independently re-run | at merge | sayeed runs the two §8 checks | assigned — sayeed |
+| D-10 | Work Locations table: "Name" column text is vertically clipped/misaligned across lines (`S1-05`) | 2026-10-06, manual QA | frontend CSS (`/org/work-locations`) | **open** |
+| D-11 | `/roles` page displays HTTP 404 "Sorry, the page you visited does not exist" (`S1-08`, `S17-01`) | 2026-10-06, manual QA | feature deployment (`/roles`) | **open (deferred)** |
+| D-12 | Invite User modal: Role select dropdown does not automatically close after an option is selected (`S2-01`) | 2026-10-06, manual QA | frontend select component (`/invitations/users`) | **open** |
+| D-13 | User Invitations: Revoked invitations display empty Actions column without delete/purge action (`S2-10`) | 2026-10-06, manual QA | frontend / core API (`/invitations/users`) | **open** |
+| D-14 | Finance role RBAC: User assigned `finance` only sees `Organisation`; Claims, Deductions, and Approvals are missing (`S2-06`) | 2026-10-06, manual QA | RBAC role_action & dynamic nav feed | **open (P1)** |
+| D-15 | Employee creation allows duplicate employee records with identical Work Email and Mobile Number (`S3-02`) | 2026-10-06, manual QA | `core.employee` uniqueness validation | **open (P1)** |
+| D-16 | Employee Reporting Line tab: "Set Manager" button not visible when logged in as HR (`S3-05`) | 2026-10-06, manual QA | `core.reporting_line.manage` restricted to `tenant-admin` | **open (P2)** |
+| D-17 | User Management: Missing "Edit Roles" action to modify or assign additional roles to active users (`S3-10`) | 2026-10-06, manual QA | frontend user management (`/users`) | **open (P2)** |
+| D-18 | Employee Invitations: Accepting email invitation link fails with HTTP 404 or "Try again later" error (`S3-11`, `S3-12`) | 2026-10-06, manual QA | token verification & AFD routing (`/invitations/accept`) | **open (P1)** |
+| D-19 | Employee Exit: Termination modal only prompts for Last Working Day; "Reason" and "Remarks" fields are missing (`S14-03`) | 2026-10-06, manual QA | frontend termination drawer (`/employees/:id`) | **open (P2)** |
+| D-20 | Payroll Officer sidebar: "Pay Runs" menu item (`/payroll/runs`) is not visible in navigation (`S14-05`) | 2026-10-06, manual QA | `nav.payroll.runs` navigation permissions | **open (P1)** |
+| D-21 | Employee Directory: Filtering by `TERMINATED` status displays Date of Joining but omits Last Working Day (`S14-07`) | 2026-10-06, manual QA | employee directory columns (`/employees`) | **open (P3)** |
+| D-22 | Employee Exit: Terminated employee profile lacks a "Reactivate Employee" button to retract exit (`S14-08`) | 2026-10-06, manual QA | frontend actions menu (`/employees/:id`) | **open (P1)** |
+| D-23 | Custom Roles: Cannot assign custom role `leave-auditor` in User Invitations because `/roles` is not deployed (`S17-04`) | 2026-10-06, manual QA | custom role engine (`/roles`) | **open (P2)** |
+
+### Day 1 Manual QA Execution Summary — Dev 4: Krushna (HRMS Core Lead)
+
+> **Execution Date:** 2026-10-06  
+> **Target Tenant:** `QA-D4` (`qa-d4`)  
+> **Environment:** Azure Dev (`https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net`)  
+> **Assigned Stages:** Stage 1 (Org Masters), Stage 2 (Invitations), Stage 3 (Employee Lifecycle), Stage 14 (Termination), Stage 17 (Custom Roles)  
+> **Execution Progress:** 39 / 46 Steps Evaluated (85%)  
+> **Results:** **29 PASS** (63%) \| **8 FAIL** (17%) \| **2 DEFER** (4%) \| **7 PENDING** (15%)  
+> **Linked Artifacts:** `d:\HCM Project\plan\krushna_dev4_qa_results_2026-10-06.json`, `d:\HCM Project\plan\Testing Day 1 Dev 4..txt`
+
+#### Detailed Defect Breakdown (D-10 through D-23)
+
+1. **D-10 (Step S1-05 — P3 Minor / UI Glitch): Work Locations Table Name Column Clipping**
+   * **Route:** `/org/work-locations`
+   * **Issue:** In the Work Locations table, the "Name" column text is vertically misaligned and clipped across lines (half visible on top, half on bottom).
+   * **Expected:** Name column text should be vertically centered with proper line-height and padding.
+
+2. **D-11 (Steps S1-08, S17-01 — P2 Major / Feature Deferred): `/roles` Page Returns HTTP 404**
+   * **Route:** `/roles`
+   * **Issue:** Navigating to `/roles` displays an HTTP 404 error: *"Sorry, the page you visited does not exist."*
+   * **Expected:** Role management matrix displaying seeded system roles. Marked as DEFER per test plan.
+
+3. **D-12 (Step S2-01 — P3 Minor / UX Glitch): Role Select Dropdown Does Not Auto-Close**
+   * **Route:** `/invitations/users` (Invite User modal)
+   * **Issue:** In the "Invite User" modal, after selecting a role from the dropdown, the dropdown menu remains open until the user manually clicks outside.
+   * **Expected:** Dropdown options list should automatically close immediately upon selecting an option.
+
+4. **D-13 (Step S2-10 — P3 Minor / UX Enhancement): Revoked Invitations Display Empty Actions Column**
+   * **Route:** `/invitations/users`
+   * **Issue:** When an invitation is revoked, its status changes to `REVOKED`, but the Actions column becomes completely blank with no option to delete or purge the record.
+   * **Expected:** Provide a "Delete" or "Dismiss" action, or render a clean placeholder (`—`).
+
+5. **D-14 (Step S2-06 — P1 Critical / RBAC Defect): Finance Role Missing Claims, Deductions, and Approvals**
+   * **Persona:** `qa-d4-finance@infinevocloud.com` (`finance` role)
+   * **Issue:** When logging in as Finance, the left sidebar displays only `nav.organisation`. The Claims, Deductions, and Approvals Inbox items are completely missing.
+   * **Expected:** Finance user must have read/approve access to Claims, Deductions, and Approvals Inbox; Organisation setup should be restricted.
+
+6. **D-15 (Step S3-02 — P1 Critical / Data Integrity): Duplicate Employee Email & Phone Allowed**
+   * **Route:** `/employees/new`
+   * **Issue:** Creating a new employee with the exact same Work Email and Mobile Number as an existing employee succeeds without returning a uniqueness validation error.
+   * **Expected:** Backend must reject duplicate work email/phone with HTTP 400/409 validation failure to prevent identity collisions in Keycloak and SSO.
+
+7. **D-16 (Step S3-05 — P2 Major / RBAC Permission Gap): "Set Manager" Button Hidden for HR Role**
+   * **Route:** `/employees/:id` (Reporting Line tab)
+   * **Issue:** When logged in as HR (`qa-d4-hr`), the "Set Manager" button is not rendered on the employee's Reporting Line tab because `core.reporting_line.manage` is granted strictly to `tenant-admin`.
+   * **Expected:** HR specialists managing employee records should have authority to configure reporting lines, or UI should clearly indicate admin-only configuration.
+
+8. **D-17 (Step S3-10 — P2 Major / Functional Gap): Missing "Edit Roles" Action in User Management**
+   * **Route:** `/users` & `/invitations/users`
+   * **Issue:** If a user is already created with the `hr` role, there is no action in the Actions column to edit their account or grant them the `tenant-admin` role later.
+   * **Expected:** Tenant Admin must be able to edit user roles or assign additional roles to active users without re-inviting them.
+
+9. **D-18 (Steps S3-11, S3-12 — P1 Critical / Blocker): Employee Invitation Accept Link Fails with 404 / Error**
+   * **Route:** `/invitations/employees` & `/invitations/accept`
+   * **Issue:** When an invited employee receives the portal invitation email and clicks the "Accept Invitation" link, the application throws an HTTP 404 error or displays: *"Invitation declined / invalid. Please try again after a few minutes."*
+   * **Expected:** Link resolves to token-acceptance page, accepts token, provisions Keycloak user, and redirects to password configuration. Blocks employee portal testing.
+
+10. **D-19 (Step S14-03 — P2 Major / Incomplete Form): Termination Modal Missing Reason and Remarks**
+    * **Route:** `/employees/:id` (Terminate / Initiate Exit modal)
+    * **Issue:** The termination modal only prompts for "Last Working Day". The "Exit Reason" dropdown and "Remarks" textarea specified in the test plan are missing from the form.
+    * **Expected:** Termination modal must capture Last Working Day, Exit Reason (Resignation, Performance, Contract End), and exit Remarks.
+
+11. **D-20 (Step S14-05 — P1 Critical / Navigation): Payroll Officer Sidebar Missing "Pay Runs"**
+    * **Persona:** `qa-d4-payroll@infinevocloud.com` (`payroll-officer` role)
+    * **Issue:** When logged in as Payroll Officer, the sidebar does not display the "Pay Runs" menu item (`/payroll/runs` or `/payroll/runs/new`).
+    * **Expected:** Payroll Officer must have the "Pay Runs" menu item visible in the sidebar to initiate and review monthly pay runs.
+
+12. **D-21 (Step S14-07 — P3 Minor / Table Display): Terminated Filter Omits Last Working Day Column**
+    * **Route:** `/employees` (Directory Filtered by `TERMINATED`)
+    * **Issue:** When filtering by `TERMINATED` status, the table displays Date of Joining, but omits the Last Working Day column.
+    * **Expected:** Terminated directory view should display the employee's Last Working Day.
+
+13. **D-22 (Step S14-08 — P1 Critical / Lifecycle Failure): Missing "Reactivate Employee" Button**
+    * **Route:** `/employees/:id` (Terminated profile)
+    * **Issue:** On a terminated employee's profile, there is no "Reactivate Employee" button in the Actions menu, preventing HR from retracting an exit.
+    * **Expected:** Terminated profiles must provide a "Reactivate Employee" action to restore the employee to ACTIVE status.
+
+14. **D-23 (Step S17-04 — P2 Major / Feature Dependency): Cannot Assign Custom Role `leave-auditor`**
+    * **Route:** `/invitations/users`
+    * **Issue:** Attempting to invite a user with custom role `leave-auditor` fails because custom roles cannot be defined due to `/roles` being 404.
+    * **Expected:** Custom roles created in the role matrix should appear in the role assignment dropdown.
+
+#### Blocked & Pending Test Steps Analysis (Root Cause & Dependencies)
+
+Out of the 7 pending test steps, **5 steps are strictly blocked due to missing pages / upstream functional defects**, and 2 steps are awaiting manual execution:
+
+| Step ID | Stage | Screen / Action | Execution Status | Root Cause & Dependency Reason (Professional Justification) |
+|---|---|---|---|---|
+| **`S17-02`** | Stage 17 | `/roles/new` (Role Metadata) | **BLOCKED** | **Parent Route Missing (HTTP 404):** The `/roles` management page is returning an HTTP 404 error ("Page does not exist"). Because the custom role creation route `/roles/new` is completely unreachable on Azure Dev, role metadata entry cannot be initiated. |
+| **`S17-03`** | Stage 17 | Action Checklist (Permissions) | **BLOCKED** | **Feature Dependency Blocked:** Dependent on `S17-02`. The granular permission matrix cannot be loaded or configured because the custom role creation wizard cannot be accessed. |
+| **`S17-05`** | Stage 17 | `/login` (Auditor Sidebar Check) | **BLOCKED** | **Prerequisite Account Unprovisionable:** Dependent on `S17-04`. The `test-auditor` test account cannot be provisioned because custom role `leave-auditor` does not exist in the Keycloak/system role catalog. |
+| **`S17-06`** | Stage 17 | Direct URL Access (Security Check) | **BLOCKED** | **Prerequisite User Missing:** Negative security testing for read-only URL enforcement requires an authenticated session with the `leave-auditor` role, which cannot be created. |
+| **`S14-09`** | Stage 14 | `/login` (Restored Login Check) | **BLOCKED** | **Upstream Defect Blocker:** Dependent on `S14-08`. Step `S14-08` failed because the "Reactivate Employee" action button is missing on terminated employee profiles. Since EMP-03 cannot be reactivated, verifying restored login access is blocked. |
+| **`S1-07`** | Stage 1 | `/org/work-locations` (Delete Conflict) | **PENDING** | **Awaiting Execution:** Prerequisite test data is ready; awaiting manual execution of location deletion to capture the HTTP 409 Conflict network payload. |
+| **`S14-04`** | Stage 14 | `/login` (Incognito Lockout Check) | **PENDING** | **Awaiting Execution:** EMP-03 is in `TERMINATED` status; awaiting execution of Incognito login attempt to verify the *"Your account has been deactivated"* error banner. |
 
 ---
 
