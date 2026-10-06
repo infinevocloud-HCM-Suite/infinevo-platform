@@ -148,13 +148,13 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Check ID | Verification Item | Command / URL | Target State | Status |
 |---|---|---|---|---|
-| **P-01** | Azure CLI Subscription | `az account show --query name` | Returns subscription `InvoiceLLM` | [ ] PENDING |
-| **P-02** | Azure Container Apps | `az containerapp list -g rg-infinevo-dev -o table` | All 4 (`app`, `worker`, `web`, `keycloak`) status `Running` | [ ] PENDING |
-| **P-03** | Front Door Ingress | `curl -k -I https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net` | HTTP `200 OK` or `302` to Keycloak | [ ] PENDING |
-| **P-04** | Keycloak Realm Reachability | `<BaseURL>/auth/admin` | Keycloak Master & Tenant realms accessible | [ ] PENDING |
-| **P-05** | Database Migrations | GitHub Actions log `caj-flyway-dev` | All Flyway scripts applied with zero pending | [ ] PENDING |
-| **P-06** | Platform Seed Account | Keycloak user `staff.infinevo` | Exists with role `platform-admin` | [ ] PENDING |
-| **P-07** | Brevo SMTP Dispatch | Key Vault `kv-infinevo-shared` | `BREVO-API-KEY` valid, sender verified | [ ] PENDING |
+| **P-01** | Azure CLI Subscription | `az account show --query name` | Returns subscription `InvoiceLLM` | [x] PASS |
+| **P-02** | Azure Container Apps | `az containerapp list -g rg-infinevo-dev -o table` | All 4 (`app`, `worker`, `web`, `keycloak`) status `Running` | [x] PASS |
+| **P-03** | Front Door Ingress | `curl -k -I https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net` | HTTP `200 OK` or `302` to Keycloak | [x] PASS |
+| **P-04** | Keycloak Realm Reachability | `<BaseURL>/auth/admin` | Keycloak Master & Tenant realms accessible | [x] PASS |
+| **P-05** | Database Migrations | GitHub Actions log `caj-flyway-dev` | All Flyway scripts applied with zero pending | [x] PASS |
+| **P-06** | Platform Seed Account | Keycloak user `staff.infinevo` | Exists with role `platform-admin` | [x] PASS |
+| **P-07** | Brevo SMTP Dispatch | Key Vault `kv-infinevo-shared` | `BREVO-API-KEY` valid, sender verified | [x] PASS |
 
 ---
 
@@ -174,16 +174,16 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S0-01 | `/login` | Access Base URL and log in with `staff.infinevo` credentials. | Logged in successfully. Left sidebar displays `nav.tenants` (`/admin/tenants`). | [ ] PENDING |
-| 2 | S0-02 | `/admin/tenants` | Click `nav.tenants`, then click **New Tenant** button. | Form modal opens with fields: Tenant Name, Key, Enabled Modules, Admin Email. | [ ] PENDING |
-| 3 | S0-03 | `/admin/tenants/new` | Fill: Name: `QA Tenant D1`, Key: `qa-d1`, Modules: Checked `PAYROLL` and `HRMS`. Click Save. | Tenant created. List shows status `ACTIVE`. Capture Tenant UUID. | [ ] PENDING |
-| 4 | S0-04 | `/admin/tenants/new` | Repeat S0-02 & S0-03 for `QA Tenant D2` (Biren), `QA Tenant D3` (Devashish), `QA Tenant D4` (Krushna), and `QA Tenant D5` (Sayeed). | All 5 tenants appear in active tenant table with unique UUIDs. | [ ] PENDING |
-| 5 | S0-05 | `/admin/tenants` | For Tenant `QA-D1`, click **Act-As (Impersonate)**. Banner displays "Acting as QA Tenant D1". | Active session changes to Tenant D1 context. Menu shows Tenant Admin options. | [ ] PENDING |
-| 6 | S0-06 | `/invitations/users` | Click `nav.userInvitations` → **Invite User**. Email: `qa-d1-admin@infinevocloud.com`, Role: `tenant-admin`. Submit. | Row appears with status `PENDING`. Brevo dispatches invitation email. | [ ] PENDING |
-| 7 | S0-07 | External Email | Open email inbox for `qa-d1-admin`. Click invite link (`/invitations/accept?token=...`). | Browser loads token acceptance page. No token leakage in URL bar after hydration. | [ ] PENDING |
-| 8 | S0-08 | `/invitations/accept` | Click **Accept Invitation**. | Banner: "Invitation accepted. Check email to set your password." | [ ] PENDING |
-| 9 | S0-09 | Keycloak Reset | Open password setup email, configure password `TestPassword@123`, log in at Base URL. | Successfully logged into `QA Tenant D1` as `tenant-admin`. | [ ] PENDING |
-| 10 | S0-10 | `/admin/tenants` | Mohit repeats S0-05 to S0-09 for Biren (D2), Devashish (D3), Krushna (D4), and Sayeed (D5). | All 5 developers possess active, authenticated `tenant-admin` accounts. | [ ] PENDING |
+| 1 | S0-01 | `/login` | Access Base URL and log in with `staff.infinevo` credentials. | Logged in successfully. Left sidebar displays `nav.tenants` (`/admin/tenants`). | [x] PASS |
+| 2 | S0-02 | `/admin/tenants` | Click `nav.tenants`, then click **New Tenant** button. | Form modal opens with fields: Tenant Name, Key, Enabled Modules, Admin Email. | [x] PASS |
+| 3 | S0-03 | `/admin/tenants/new` | Fill: Name: `QA Tenant D1`, Key: `qa-d1`, Modules: Checked `PAYROLL` and `HRMS`. Click Save. | Tenant created. List shows status `ACTIVE`. Capture Tenant UUID. | [x] PASS |
+| 4 | S0-04 | `/admin/tenants/new` | Repeat S0-02 & S0-03 for `QA Tenant D2` (Biren), `QA Tenant D3` (Devashish), `QA Tenant D4` (Krushna), and `QA Tenant D5` (Sayeed). | All 5 tenants appear in active tenant table with unique UUIDs. | [x] PASS |
+| 5 | S0-05 | `/admin/tenants` | For Tenant `QA-D1`, click **Act-As (Impersonate)**. Banner displays "Acting as QA Tenant D1". | Active session changes to Tenant D1 context. Menu shows Tenant Admin options. | [x] PASS |
+| 6 | S0-06 | `/invitations/users` | Click `nav.userInvitations` → **Invite User**. Email: `qa-d1-admin@infinevocloud.com`, Role: `tenant-admin`. Submit. | Row appears with status `PENDING`. Brevo dispatches invitation email. | [x] PASS |
+| 7 | S0-07 | External Email | Open email inbox for `qa-d1-admin`. Click invite link (`/invitations/accept?token=...`). | Browser loads token acceptance page. No token leakage in URL bar after hydration. | [x] PASS |
+| 8 | S0-08 | `/invitations/accept` | Click **Accept Invitation**. | Banner: "Invitation accepted. Check email to set your password." | [x] PASS |
+| 9 | S0-09 | Keycloak Reset | Open password setup email, configure password `TestPassword@123`, log in at Base URL. | Successfully logged into `QA Tenant D1` as `tenant-admin`. | [x] PASS |
+| 10 | S0-10 | `/admin/tenants` | Mohit repeats S0-05 to S0-09 for Biren (D2), Devashish (D3), Krushna (D4), and Sayeed (D5). | All 5 developers possess active, authenticated `tenant-admin` accounts. | [x] PASS |
 
 ---
 
@@ -196,15 +196,15 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S1-01 | `/org/departments` | Click `nav.organisation` → `nav.departments`. | Departments page opens; empty table with "+ Add Department" button. | [ ] PENDING |
-| 2 | S1-02 | `/org/departments` | Click Add Department. Fill: Name = `QA Engineering`, Code = `QA-ENG`. Save. | Record appears: `QA Engineering` / `QA-ENG` / Status `ACTIVE`. | [ ] PENDING |
-| 3 | S1-03 | `/org/departments` | Add second department: Name = `Human Resources`, Code = `HR-DEPT`. Save. | Second department saved successfully. | [ ] PENDING |
-| 4 | S1-04 | `/org/designations` | Click `nav.designations`. Add: 1) `Senior Engineer` (`SNR-ENG`), 2) `Junior Engineer` (`JNR-ENG`), 3) `Analyst` (`ANLST`). | All 3 designations appear in grid with active status. | [ ] PENDING |
-| 5 | S1-05 | `/org/work-locations` | Click `nav.locations` → Click **New Work Location**. | Modal opens with Address, State, City, PIN, and Statutory toggles. | [ ] PENDING |
-| 6 | S1-06 | `/org/work-locations` | Fill: Name = `QA Office Mumbai`, Code = `QA-MUM`, City = `Mumbai`, State = `Maharashtra`, State Code = `MH`, PIN = `400001`, Filing Address = **ON**. Save. | Location created with `FILING ADDRESS` badge. | [ ] PENDING |
-| 7 | S1-07 | `/org/work-locations` | Attempt to delete `QA Office Mumbai`. | Deletion refused with HTTP 409: "Cannot delete official filing address. Deactivate instead." | [ ] PENDING |
-| 8 | S1-08 | `/roles` | Navigate to `nav.roles` (`/roles`). | Verify default seeded roles exist: `tenant-admin, payroll-officer, hr, manager, finance, employee`. *(If 404, mark DEFER)*. | [ ] PENDING |
-| 9 | S1-09 | `/setup` | Navigate to `nav.setup` (`/setup`). | Setup checklist displays: Org Masters marked COMPLETE, Employees pending. | [ ] PENDING |
+| 1 | S1-01 | `/org/departments` | Click `nav.organisation` → `nav.departments`. | Departments page opens; empty table with "+ Add Department" button. | [x] PASS |
+| 2 | S1-02 | `/org/departments` | Click Add Department. Fill: Name = `QA Engineering`, Code = `QA-ENG`. Save. | Record appears: `QA Engineering` / `QA-ENG` / Status `ACTIVE`. | [x] PASS |
+| 3 | S1-03 | `/org/departments` | Add second department: Name = `Human Resources`, Code = `HR-DEPT`. Save. | Second department saved successfully. | [x] PASS |
+| 4 | S1-04 | `/org/designations` | Click `nav.designations`. Add: 1) `Senior Engineer` (`SNR-ENG`), 2) `Junior Engineer` (`JNR-ENG`), 3) `Analyst` (`ANLST`). | All 3 designations appear in grid with active status. | [x] PASS |
+| 5 | S1-05 | `/org/work-locations` | Click `nav.locations` → Click **New Work Location**. | Modal opens with Address, State, City, PIN, and Statutory toggles. | [x] PASS |
+| 6 | S1-06 | `/org/work-locations` | Fill: Name = `QA Office Mumbai`, Code = `QA-MUM`, City = `Mumbai`, State = `Maharashtra`, State Code = `MH`, PIN = `400001`, Filing Address = **ON**. Save. | Location created with `FILING ADDRESS` badge. | [x] PASS |
+| 7 | S1-07 | `/org/work-locations` | Attempt to delete `QA Office Mumbai`. | Deletion refused with HTTP 409: "Cannot delete official filing address. Deactivate instead." | [x] PASS |
+| 8 | S1-08 | `/roles` | Navigate to `nav.roles` (`/roles`). | Verify default seeded roles exist: `tenant-admin, payroll-officer, hr, manager, finance, employee`. *(If 404, mark DEFER)*. | [x] PASS |
+| 9 | S1-09 | `/setup` | Navigate to `nav.setup` (`/setup`). | Setup checklist displays: Org Masters marked COMPLETE, Employees pending. | [x] PASS |
 
 ---
 
@@ -217,16 +217,16 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S2-01 | `/invitations/users` | Click **Invite User**. Email: `qa-dX-payroll@infinevocloud.com`, Role: `payroll-officer`. Send. | Table row shows `PENDING`. Brevo email received. | [ ] PENDING |
-| 2 | S2-02 | Accept Flow | Accept invite, set password in Keycloak, log in as `payroll-officer`. | Logged in. Left menu shows ONLY payroll items (`nav.payroll.runs`, `claims`, `deductions`, `dashboard`). Log out. | [ ] PENDING |
-| 3 | S2-03 | `/invitations/users` | Log in as admin. Invite `qa-dX-hr@infinevocloud.com` with role `hr`. Send. | Row `PENDING`. Brevo email received. | [ ] PENDING |
-| 4 | S2-04 | Accept Flow | Accept invite, set password, log in as `hr`. | Logged in. Menu shows HRMS items (`employees`, `organisation`, `holidays`, `leave`). Log out. | [ ] PENDING |
-| 5 | S2-05 | `/invitations/users` | Invite `qa-dX-finance@infinevocloud.com` with role `finance`. Send. | Row `PENDING`. | [ ] PENDING |
-| 6 | S2-06 | Accept Flow | Accept invite, set password, log in as `finance`. | Logged in. Menu shows `nav.payroll.claims`, `nav.payroll.deductions`, and approvals inbox. Log out. | [ ] PENDING |
-| 7 | S2-07 | `/invitations/users` | Invite a test address `dummy-test@infinevocloud.com` with role `hr`. | Row appears as `PENDING`. | [ ] PENDING |
-| 8 | S2-08 | `/invitations/users` | Click **Resend Invitation** for `dummy-test`. | New invitation email dispatched. Old invitation token is rendered invalid. | [ ] PENDING |
-| 9 | S2-09 | `/invitations/accept` | Try opening the first (older) invite link in an incognito window. | Page displays error: "This invitation link has expired or was replaced by a newer invitation." | [ ] PENDING |
-| 10 | S2-10 | `/invitations/users` | Click **Revoke Invitation** on the `dummy-test` row. | Status transitions to `REVOKED`. Trying the link results in "Invitation revoked." | [ ] PENDING |
+| 1 | S2-01 | `/invitations/users` | Click **Invite User**. Email: `qa-dX-payroll@infinevocloud.com`, Role: `payroll-officer`. Send. | Table row shows `PENDING`. Brevo email received. | [x] PASS |
+| 2 | S2-02 | Accept Flow | Accept invite, set password in Keycloak, log in as `payroll-officer`. | Logged in. Left menu shows ONLY payroll items (`nav.payroll.runs`, `claims`, `deductions`, `dashboard`). Log out. | [x] PASS |
+| 3 | S2-03 | `/invitations/users` | Log in as admin. Invite `qa-dX-hr@infinevocloud.com` with role `hr`. Send. | Row `PENDING`. Brevo email received. | [x] PASS |
+| 4 | S2-04 | Accept Flow | Accept invite, set password, log in as `hr`. | Logged in. Menu shows HRMS items (`employees`, `organisation`, `holidays`, `leave`). Log out. | [x] PASS |
+| 5 | S2-05 | `/invitations/users` | Invite `qa-dX-finance@infinevocloud.com` with role `finance`. Send. | Row `PENDING`. | [x] PASS |
+| 6 | S2-06 | Accept Flow | Accept invite, set password, log in as `finance`. | Logged in. Menu shows `nav.payroll.claims`, `nav.payroll.deductions`, and approvals inbox. Log out. | [x] PASS |
+| 7 | S2-07 | `/invitations/users` | Invite a test address `dummy-test@infinevocloud.com` with role `hr`. | Row appears as `PENDING`. | [x] PASS |
+| 8 | S2-08 | `/invitations/users` | Click **Resend Invitation** for `dummy-test`. | New invitation email dispatched. Old invitation token is rendered invalid. | [x] PASS |
+| 9 | S2-09 | `/invitations/accept` | Try opening the first (older) invite link in an incognito window. | Page displays error: "This invitation link has expired or was replaced by a newer invitation." | [x] PASS |
+| 10 | S2-10 | `/invitations/users` | Click **Revoke Invitation** on the `dummy-test` row. | Status transitions to `REVOKED`. Trying the link results in "Invitation revoked." | [x] PASS |
 
 ---
 
@@ -239,18 +239,18 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S3-01 | `/employees` | Click `nav.employees` → Click **New Employee**. | Employee creation drawer/form opens with basic details. | [ ] PENDING |
-| 2 | S3-02 | `/employees/new` | Fill EMP-01: Name: `QA Test Employee One`, Joining: `2026-04-01`, Work Email: `qa-dX-emp1@infinevocloud.com`, Mobile: `9000000001`, Dept: `QA Engineering`, Desig: `Senior Engineer`, Location: `QA Office Mumbai`, Portal Enabled: **ON**. Save. | Employee created. Navigates to detail page `/employees/:id`. Record UUID. | [ ] PENDING |
-| 3 | S3-03 | `/employees/:id` | Open **Personal Tab**. Fill DOB: `1990-01-15`, Marital Status: `Single`, Father Name: `Senior Test`. Save. | Toast: "Personal details updated." Reload verifies persistence. | [ ] PENDING |
-| 4 | S3-04 | `/employees/:id` | Open **Identification Tab**. Enter PAN: `AAAPL1234C`. Save. | PAN field shows masked characters with reveal toggle icon. | [ ] PENDING |
-| 5 | S3-05 | `/employees/:id` | Open **Reporting Line Tab**. Attempt to set Reporting Manager to EMP-01 itself. | System rejects: 409 Conflict with message "Circular reporting chain detected." | [ ] PENDING |
-| 6 | S3-06 | `/employees/new` | Create EMP-02 (`Junior Engineer`, `qa-dX-emp2@infinevocloud.com`, Joining: `2026-05-01`). | Record created. | [ ] PENDING |
-| 7 | S3-07 | `/employees/new` | Create EMP-03 (`Analyst`, `qa-dX-emp3@infinevocloud.com`, Joining: `2026-06-01`). | Record created. | [ ] PENDING |
-| 8 | S3-08 | `/employees/:id` | On EMP-02 Reporting Line Tab: Set Manager = EMP-01, Type = `PRIMARY`, Effective = `2026-04-01`. Save. | Hierarchy tree shows EMP-01 as direct manager. | [ ] PENDING |
-| 9 | S3-09 | `/employees/:id` | On EMP-03 Reporting Line Tab: Set Manager = EMP-01, Type = `PRIMARY`. Save. | Manager hierarchy saved. | [ ] PENDING |
-| 10 | S3-10 | `/invitations/employees` | Navigate to `nav.employeeInvitations`. Select EMP-01. Click **Send Portal Invite**. | Invitation sent to `emp1` email address. Row shows `PENDING`. | [ ] PENDING |
-| 11 | S3-11 | Accept Flow | EMP-01 accepts invite, sets password. Also assign role `manager` in admin console. | EMP-01 can log into `/me` self-service AND sees `nav.approvals` in menu. | [ ] PENDING |
-| 12 | S3-12 | `/invitations/employees` | Send portal invites for EMP-02 and EMP-03 with role `employee`. Complete password setup. | Both EMP-02 and EMP-03 can successfully log into `/me`. | [ ] PENDING |
+| 1 | S3-01 | `/employees` | Click `nav.employees` → Click **New Employee**. | Employee creation drawer/form opens with basic details. | [x] PASS |
+| 2 | S3-02 | `/employees/new` | Fill EMP-01: Name: `QA Test Employee One`, Joining: `2026-04-01`, Work Email: `qa-dX-emp1@infinevocloud.com`, Mobile: `9000000001`, Dept: `QA Engineering`, Desig: `Senior Engineer`, Location: `QA Office Mumbai`, Portal Enabled: **ON**. Save. | Employee created. Navigates to detail page `/employees/:id`. Record UUID. | [x] PASS |
+| 3 | S3-03 | `/employees/:id` | Open **Personal Tab**. Fill DOB: `1990-01-15`, Marital Status: `Single`, Father Name: `Senior Test`. Save. | Toast: "Personal details updated." Reload verifies persistence. | [x] PASS |
+| 4 | S3-04 | `/employees/:id` | Open **Identification Tab**. Enter PAN: `AAAPL1234C`. Save. | PAN field shows masked characters with reveal toggle icon. | [x] PASS |
+| 5 | S3-05 | `/employees/:id` | Open **Reporting Line Tab**. Attempt to set Reporting Manager to EMP-01 itself. | System rejects: 409 Conflict with message "Circular reporting chain detected." | [x] PASS |
+| 6 | S3-06 | `/employees/new` | Create EMP-02 (`Junior Engineer`, `qa-dX-emp2@infinevocloud.com`, Joining: `2026-05-01`). | Record created. | [x] PASS |
+| 7 | S3-07 | `/employees/new` | Create EMP-03 (`Analyst`, `qa-dX-emp3@infinevocloud.com`, Joining: `2026-06-01`). | Record created. | [x] PASS |
+| 8 | S3-08 | `/employees/:id` | On EMP-02 Reporting Line Tab: Set Manager = EMP-01, Type = `PRIMARY`, Effective = `2026-04-01`. Save. | Hierarchy tree shows EMP-01 as direct manager. | [x] PASS |
+| 9 | S3-09 | `/employees/:id` | On EMP-03 Reporting Line Tab: Set Manager = EMP-01, Type = `PRIMARY`. Save. | Manager hierarchy saved. | [x] PASS |
+| 10 | S3-10 | `/invitations/employees` | Navigate to `nav.employeeInvitations`. Select EMP-01. Click **Send Portal Invite**. | Invitation sent to `emp1` email address. Row shows `PENDING`. | [x] PASS |
+| 11 | S3-11 | Accept Flow | EMP-01 accepts invite, sets password. Also assign role `manager` in admin console. | EMP-01 can log into `/me` self-service AND sees `nav.approvals` in menu. | [x] PASS |
+| 12 | S3-12 | `/invitations/employees` | Send portal invites for EMP-02 and EMP-03 with role `employee`. Complete password setup. | Both EMP-02 and EMP-03 can successfully log into `/me`. | [x] PASS |
 
 ---
 
@@ -422,10 +422,10 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Login Persona | Attempted Unauthorized Action | Expected System Behavior | Status |
 |---|---|---|---|---|---|
-| 1 | S11-01 | `employee` (EMP-02) | Type URL directly: `/admin/tenants`. | Denied: HTTP 403 Forbidden or redirected away. No tenant data visible. | [ ] PENDING |
-| 2 | S11-02 | `employee` (EMP-02) | Type URL directly: `/employees`. | Denied: 403 / 404 or redirected to `/me`. Cannot see staff list. | [ ] PENDING |
-| 3 | S11-03 | `employee` (EMP-02) | Direct API POST to `/api/v1/leave-requests` with EMP-01's employee UUID in payload. | Backend returns HTTP 403: "Cannot create leave request for another employee." | [ ] PENDING |
-| 4 | S11-04 | `manager` (EMP-01) | Type URL directly: `/payroll/runs`. | Denied: 403 Forbidden. Payroll runs are invisible to managers. | [ ] PENDING |
+| 1 | S11-01 | `employee` (EMP-02) | Type URL directly: `/admin/tenants`. | Denied: HTTP 403 Forbidden or redirected away. No tenant data visible. | [x] PASS |
+| 2 | S11-02 | `employee` (EMP-02) | Type URL directly: `/employees`. | Denied: 403 / 404 or redirected to `/me`. Cannot see staff list. | [x] PASS |
+| 3 | S11-03 | `employee` (EMP-02) | Direct API POST to `/api/v1/leave-requests` with EMP-01's employee UUID in payload. | Backend returns HTTP 403: "Cannot create leave request for another employee." | [x] PASS |
+| 4 | S11-04 | `manager` (EMP-01) | Type URL directly: `/payroll/runs`. | Denied: 403 Forbidden. Payroll runs are invisible to managers. | [x] PASS |
 | 5 | S11-05 | `hr` | Type URL directly: `/payroll/runs`. | Denied: 403 Forbidden. HR role cannot process payroll. | [ ] PENDING |
 | 6 | S11-06 | `finance` | Type URL directly: `/leave/types`. | Denied: 403 Forbidden. Finance cannot manage leave policy. | [ ] PENDING |
 | 7 | S11-07 | `payroll-officer` | Type URL directly: `/leave/types`. | Denied: 403 Forbidden. | [ ] PENDING |
@@ -703,7 +703,7 @@ Each developer updates this table daily before standup:
 
 | Date | Developer | Tenant | Assigned Stages | Steps Tested | PASS | FAIL | BLOCKED | DEFER | Notes / Defect IDs |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026-10-06 | Mohit Birla (Dev 1) | `QA-D1` | Stage 0, Stage 11, Stage 12, Stage 13 | S0-01 to S0-10 | | | | | Provisioned all 5 tenants |
+| 2026-10-06 | Mohit Birla (Dev 1) | `QA-D1` | Stage 0, Stage 1, Stage 2, Stage 3, Stage 11 | S0-01..10, S1-01..09, S2-01..10, S3-01..12, S11-01..04 | 45 | 0 | 0 | 0 | Completed Tenant Provisioning (5 tenants), Org Masters, Roles/Invites, Employee Lifecycle, S1-07 409 conflict, and RBAC negative boundary tests (S11-01..04). Role accumulation behavior diagnosed. Ready for Sanjib Banerjee review. |
 | 2026-10-06 | Biren (Dev 2) | `QA-D2` | Stage 5, Stage 8, Stage 15, Stage 18 | | | | | | Payroll setup & Pay run |
 | 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 16, Stage 12 | | | | | | Tax & claims testing |
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |

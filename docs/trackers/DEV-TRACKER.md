@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-10-03**, against `main` `8b7705c3` — mohit's `W-33.3`, `W-36.4` merged after 19 tickets from five lanes merged together on `integration-2026-10-03` (CI green, backend 15 min; the backend job limit raised to 30 min in the same push). Three lanes assigned 2026-09-25: **sayeed** (defects, then employee), **krushna** (tenant and onboarding), **devashis** (documents, notifications, reporting).
+> Last refreshed: **2026-10-06** — Live QA verification conducted on Azure Dev Front Door (`https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net`) on branch `qa-test-execution-mohit`. Stages 0 to 3 and Stage 11 (S11-01..04) verified and passed by Mohit Birla (Dev 1). Master QA Plan: [Infinevo_Manual_QA_Test_Plan.md](../qa/Infinevo_Manual_QA_Test_Plan.md).
 
 ## Summary
 
@@ -17,10 +17,24 @@
 | F — Frontend | 15 | 13 | 13 | **Building.** `W-47.1a`, `W-47.1b` (sayeed), `W-46.2`, `W-46.5` (biren), `W-47.6` (krushna) on `main` (`2780d098`), which makes `W-47.3`'s tax screens reachable; `W-47.3` on `main` (`7907a6c`); `W-45`, `W-46.1`, `W-46.3a`, `W-46.4` on `main` (`11ec157`) — shell, employee screens, organisation setup, approval screens; `W-46.3b`, `W-46.6`, `W-46.7` on `main` (`24bb261`) — holiday calendar, setup checklist, invitation screens; `W-47.4`, `W-47.5`, `W-65.3` on `main` (`6e19dd89`) |
 | G/H — product items | 3 | 1 | 1 | `W-55` merged `2ccd723`. `W-65.1`, `W-65.2` on `main` (`5fa04b1`); `W-65.3` on `main` (`6e19dd89`). `W-66` unassigned |
 
-**The core is being built.** The foundation is finished and eight Stream C tickets are on
-`main`: identity, the audit trail, the employee record and its five detail sections, the
-three org masters, the role and permission pair, and the catalogue correction. Payroll, HRMS and the frontend have
-not started.
+## QA Manual Test Execution (Live Azure Dev Ingress)
+
+> **Lead / QA Gatekeeper:** Mohit Birla (Dev 1)  
+> **Environment:** Azure Dev Front Door (`https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net`)  
+> **Tracking Branch:** `qa-test-execution-mohit`  
+> **Master Test Plan:** [Infinevo_Manual_QA_Test_Plan.md](../qa/Infinevo_Manual_QA_Test_Plan.md)  
+> **Manager Sign-off:** Sanjib Banerjee
+
+| Stage | Module Scope | Lead Dev | Steps Tested | PASS | FAIL | Status | Key Verifications & Findings |
+|---|---|---|---|---|---|---|---|
+| **Pre-Flight** | Azure Ingress, ACA, Keycloak, Brevo SMTP | Mohit / Karmaveer | P-01..07 (7) | 7 | 0 | **DONE** | Azure Front Door ingress 200 OK, Keycloak realm healthy, Brevo SMTP active |
+| **Stage 0** | Platform Admin: Tenant Provisioning | Mohit Birla | S0-01..10 (10) | 10 | 0 | **DONE** | Provisioned 5 developer tenants (`QA-D1` to `QA-D5`); tenant admins accepted & active |
+| **Stage 1** | Tenant Setup: Org Masters & Locations | Krushna / Mohit | S1-01..09 (9) | 9 | 0 | **DONE** | Depts, Designations, Mumbai Office created; S1-07 statutory 409 conflict verified |
+| **Stage 2** | User Onboarding & Invitations | Krushna / Mohit | S2-01..10 (10) | 10 | 0 | **DONE** | Roles invited (`hr`, `manager`, `payroll`, `finance`); invite resend/revoke lifecycle verified |
+| **Stage 3** | Employee Lifecycle & Hierarchies | Krushna / Mohit | S3-01..12 (12) | 12 | 0 | **DONE** | EMP-01..03 onboarded; self-reporting 409 circular check passed; portal logins verified |
+| **Stage 11** | Security, RBAC & Negative Boundaries | Mohit Birla | S11-01..04 (4) | 4 | 0 | **IN PROGRESS** | S11-01..04 passed (direct URL 403 checks); role accumulation diagnosed on duplicate email |
+| **Stage 12** | Audit Trail & Real Mail Verification | Devashish / Mohit | S12-01..06 (6) | 0 | 0 | Scheduled | Audit logging & Brevo email notifications verification |
+| **Stage 13** | Clean-Slate E2E Smoke Certification | Mohit Birla | S13-01..05 (5) | 0 | 0 | Scheduled | Final sign-off smoke on fresh tenant `QA-E2E` |
 
 ## Assignments
 
