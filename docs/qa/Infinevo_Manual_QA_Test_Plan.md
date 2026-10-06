@@ -263,17 +263,17 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S4-01 | `/holidays` | Click `nav.holidays` → Click **New Calendar**. | Calendar creation modal opens. | [ ] PENDING |
-| 2 | S4-02 | `/holidays/new` | Name: `Mumbai Holiday Calendar 2026`, Year: `2026`, Location: `QA Office Mumbai`. Save. | Calendar listed with assigned work location badge. | [ ] PENDING |
-| 3 | S4-03 | `/holidays/:id` | Open Calendar. Click Add Holiday. Name: `Diwali Test Holiday`, Date: `2026-10-15`, Restricted: **OFF**. Save. | Holiday added to October 2026 list. | [ ] PENDING |
-| 4 | S4-04 | `/holidays/:id` | Add Holiday: Name: `Special Restricted Holiday`, Date: `2026-11-05`, Restricted: **ON**. Save. | Holiday tagged with `RESTRICTED` badge. | [ ] PENDING |
-| 5 | S4-05 | `/leave/types` | Click `nav.leave` → `nav.leave.types`. | Empty leave types screen opens. | [ ] PENDING |
-| 6 | S4-06 | `/leave/types/new` | Create Leave Type: Name: `Earned Leave`, Code: `EL`, Paid: **YES**, Unit: `DAYS`, Allow Half-Day: **ON**, Carry Forward: **YES** (Max 15 days). Save. | EL leave type active. | [ ] PENDING |
-| 7 | S4-07 | `/leave/types/new` | Create Leave Type: Name: `Sick Leave`, Code: `SL`, Paid: **YES**, Unit: `DAYS`, Allow Half-Day: **ON**. Save. | SL leave type active. | [ ] PENDING |
-| 8 | S4-08 | `/leave/types/new` | Create Leave Type: Name: `Loss of Pay`, Code: `LOP`, Paid: **NO**, Unit: `DAYS`, Allow Half-Day: **OFF**. Save. | LOP type active (unpaid leave). | [ ] PENDING |
-| 9 | S4-09 | `/leave/allocations` | Click `nav.leave.allocations`. Filter Year: `2026`. Click Allocate Balance. | Allocation grid loads showing all active employees. | [ ] PENDING |
-| 10 | S4-10 | `/leave/allocations` | Allocate EL: EMP-01 = 12 days, EMP-02 = 10 days, EMP-03 = 8 days. Save. | Balance records saved. | [ ] PENDING |
-| 11 | S4-11 | `/leave/allocations` | Allocate SL: 6 days each for EMP-01, EMP-02, and EMP-03. Save. | Balance table reflects updated SL counts. | [ ] PENDING |
+| 1 | S4-01 | `/holidays` | Click `nav.holidays` → Click **New Calendar**. | Calendar creation modal opens. | [x] PASS |
+| 2 | S4-02 | `/holidays/new` | Name: `Mumbai Holiday Calendar 2026`, Year: `2026`, Location: `QA Office Mumbai`. Save. | Calendar listed with assigned work location badge. | [x] PASS |
+| 3 | S4-03 | `/holidays/:id` | Open Calendar. Click Add Holiday. Name: `Diwali Test Holiday`, Date: `2026-10-15`, Restricted: **OFF**. Save. | Holiday added to October 2026 list. | [x] PASS |
+| 4 | S4-04 | `/holidays/:id` | Add Holiday: Name: `Special Restricted Holiday`, Date: `2026-11-05`, Restricted: **ON**. Save. | Holiday tagged with `RESTRICTED` badge. | [x] PASS |
+| 5 | S4-05 | `/leave/types` | Click `nav.leave` → `nav.leave.types`. | Empty leave types screen opens. | [x] PASS |
+| 6 | S4-06 | `/leave/types/new` | Create Leave Type: Name: `Earned Leave`, Code: `EL`, Paid: **YES**, Unit: `DAYS`, Allow Half-Day: **ON**, Carry Forward: **YES** (Max 15 days). Save. | EL leave type active. | [x] PASS |
+| 7 | S4-07 | `/leave/types/new` | Create Leave Type: Name: `Sick Leave`, Code: `SL`, Paid: **YES**, Unit: `DAYS`, Allow Half-Day: **ON**. Save. | SL leave type active. | [x] PASS |
+| 8 | S4-08 | `/leave/types/new` | Create Leave Type: Name: `Loss of Pay`, Code: `LOP`, Paid: **NO**, Unit: `DAYS`, Allow Half-Day: **OFF**. Save. | LOP type active (unpaid leave). | [x] PASS |
+| 9 | S4-09 | `/leave/allocations` | Click `nav.leave.allocations`. Filter Year: `2026`. Click Allocate Balance. | Allocation grid loads showing all active employees. | [x] PASS |
+| 10 | S4-10 | `/leave/allocations` | Allocate EL: EMP-01 = 12 days, EMP-02 = 10 days, EMP-03 = 8 days. Save. | Balance records saved. | [x] PASS |
+| 11 | S4-11 | `/leave/allocations` | Allocate SL: 6 days each for EMP-01, EMP-02, and EMP-03. Save. | Balance table reflects updated SL counts. | [x] PASS |
 
 ---
 
@@ -707,7 +707,7 @@ Each developer updates this table daily before standup:
 | 2026-10-06 | Biren (Dev 2) | `QA-D2` | Stage 5, Stage 8, Stage 15, Stage 18 | | | | | | Payroll setup & Pay run |
 | 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 16, Stage 12 | | | | | | Tax & claims testing |
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |
-| 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4, Stage 6, Stage 7, Stage 19, Stage 20 | | | | | | Leave, time & attendance |
+| 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4 | S4-01 to S4-11 | 11 | 0 | 0 | 0 | Stage 4 leave & holiday setup 100% PASS |
 
 ---
 
