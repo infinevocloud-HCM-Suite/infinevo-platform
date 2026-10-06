@@ -286,19 +286,19 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S5-01 | `/payroll/components` | Navigate to salary components page. *(Mark DEFER if 404)*. | Screen displays tabs: Earnings, Deductions, Benefits, Reimbursements. | [ ] PENDING |
-| 2 | S5-02 | `/payroll/components` | Under Earnings, create `Basic Pay`: Type = `PERCENTAGE`, Taxable = YES, Consider for EPF = YES, ESI = YES. Save. | Component created. | [ ] PENDING |
-| 3 | S5-03 | `/payroll/components` | Create `House Rent Allowance (HRA)`: Type = `PERCENTAGE`, Taxable = PARTIAL, EPF = NO, ESI = NO. Save. | Component created. | [ ] PENDING |
-| 4 | S5-04 | `/payroll/components` | Create `Special Allowance`: Type = `BALANCING_FIGURE` / `FLAT`, Taxable = YES. Save. | Component created. | [ ] PENDING |
-| 5 | S5-05 | `/payroll/components` | Under Deductions, create `Professional Tax`: Type = `SLAB`. Save. | Deduction listed. | [ ] PENDING |
-| 6 | S5-06 | `/payroll/components` | Under Reimbursements, create `Medical Reimbursement`: Monthly Limit = Rs 1,250. Save. | Reimbursement listed. | [ ] PENDING |
-| 7 | S5-07 | `/employees/:EMP01/salary` | Open EMP-01 → **Salary Tab**. Click **Create Salary Structure**. Annual CTC: Rs 7,20,000, Effective From: `2026-04-01`. Save. | Backend returns breakdown. Total Monthly Gross matches Rs 60,000. Basic = 50% (Rs 30,000) *(confirm)*. | [ ] PENDING |
-| 8 | S5-08 | `/employees/:EMP02/salary` | Open EMP-02 → Salary Tab. CTC: Rs 3,60,000, Effective: `2026-05-01`. Save. | Monthly Gross = Rs 30,000. | [ ] PENDING |
-| 9 | S5-09 | `/employees/:EMP03/salary` | Open EMP-03 → Salary Tab. CTC: Rs 2,40,000, Effective: `2026-06-01`. Save. | Monthly Gross = Rs 20,000. ESI status automatically tags as `ELIGIBLE` (Gross <= Rs 21,000). | [ ] PENDING |
-| 10 | S5-10 | `/payroll/settings/pay-schedule` | Open Pay Schedule settings. Work Week: Mon-Fri, Pay Day: `Last working day of the month`, LOP Basis: `Calendar days (31 days for Oct)`. Save. | Pay schedule saved. Period preview for October 2026 shows Pay Date = 2026-10-31. | [ ] PENDING |
-| 11 | S5-11 | `/payroll/settings/epf` | Open EPF settings. Verify defaults: Employee Share = 12%, Employer EPF = 3.67%, Employer EPS = 8.33%, EDLI = 0.50%. Save. | EPF statutory profile active. | [ ] PENDING |
-| 12 | S5-12 | `/payroll/settings/esi` | Open ESI settings. Verify defaults: Employee = 0.75%, Employer = 3.25%, Wage Ceiling = Rs 21,000. Save. | ESI profile active. | [ ] PENDING |
-| 13 | S5-13 | `/payroll/settings/professional-tax` | Open PT settings. State: `Maharashtra`. Verify slabs: Up to Rs 7,500 = Nil, Rs 7,501 to Rs 10,000 = Rs 175, Above Rs 10,000 = Rs 200 (Feb Rs 300). | Slabs verified and saved. | [ ] PENDING |
+| 1 | S5-01 | `/payroll/components` | Navigate to salary components page. *(Mark DEFER if 404)*. | Screen displays tabs: Earnings, Deductions, Benefits, Reimbursements. | [-] DEFER |
+| 2 | S5-02 | `/payroll/components` | Under Earnings, create `Basic Pay`: Type = `PERCENTAGE`, Taxable = YES, Consider for EPF = YES, ESI = YES. Save. | Component created. | [!] BLOCKED |
+| 3 | S5-03 | `/payroll/components` | Create `House Rent Allowance (HRA)`: Type = `PERCENTAGE`, Taxable = PARTIAL, EPF = NO, ESI = NO. Save. | Component created. | [!] BLOCKED |
+| 4 | S5-04 | `/payroll/components` | Create `Special Allowance`: Type = `BALANCING_FIGURE` / `FLAT`, Taxable = YES. Save. | Component created. | [!] BLOCKED |
+| 5 | S5-05 | `/payroll/components` | Under Deductions, create `Professional Tax`: Type = `SLAB`. Save. | Deduction listed. | [!] BLOCKED |
+| 6 | S5-06 | `/payroll/components` | Under Reimbursements, create `Medical Reimbursement`: Monthly Limit = Rs 1,250. Save. | Reimbursement listed. | [!] BLOCKED |
+| 7 | S5-07 | `/employees/:EMP01/salary` | Open EMP-01 → **Salary Tab**. Click **Create Salary Structure**. Annual CTC: Rs 7,20,000, Effective From: `2026-04-01`. Save. | Backend returns breakdown. Total Monthly Gross matches Rs 60,000. Basic = 50% (Rs 30,000) *(confirm)*. | [!] BLOCKED |
+| 8 | S5-08 | `/employees/:EMP02/salary` | Open EMP-02 → Salary Tab. CTC: Rs 3,60,000, Effective: `2026-05-01`. Save. | Monthly Gross = Rs 30,000. | [!] BLOCKED |
+| 9 | S5-09 | `/employees/:EMP03/salary` | Open EMP-03 → Salary Tab. CTC: Rs 2,40,000, Effective: `2026-06-01`. Save. | Monthly Gross = Rs 20,000. ESI status automatically tags as `ELIGIBLE` (Gross <= Rs 21,000). | [!] BLOCKED |
+| 10 | S5-10 | `/payroll/settings/pay-schedule` | Open Pay Schedule settings. Work Week: Mon-Fri, Pay Day: `Last working day of the month`, LOP Basis: `Calendar days (31 days for Oct)`. Save. | Pay schedule saved. Period preview for October 2026 shows Pay Date = 2026-10-31. | [!] BLOCKED |
+| 11 | S5-11 | `/payroll/settings/epf` | Open EPF settings. Verify defaults: Employee Share = 12%, Employer EPF = 3.67%, Employer EPS = 8.33%, EDLI = 0.50%. Save. | EPF statutory profile active. | [!] BLOCKED |
+| 12 | S5-12 | `/payroll/settings/esi` | Open ESI settings. Verify defaults: Employee = 0.75%, Employer = 3.25%, Wage Ceiling = Rs 21,000. Save. | ESI profile active. | [!] BLOCKED |
+| 13 | S5-13 | `/payroll/settings/professional-tax` | Open PT settings. State: `Maharashtra`. Verify slabs: Up to Rs 7,500 = Nil, Rs 7,501 to Rs 10,000 = Rs 175, Above Rs 10,000 = Rs 200 (Feb Rs 300). | Slabs verified and saved. | [!] BLOCKED |
 
 ---
 
@@ -704,7 +704,7 @@ Each developer updates this table daily before standup:
 | Date | Developer | Tenant | Assigned Stages | Steps Tested | PASS | FAIL | BLOCKED | DEFER | Notes / Defect IDs |
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-10-06 | Mohit Birla (Dev 1) | `QA-D1` | Stage 0, Stage 11, Stage 12, Stage 13 | S0-01 to S0-10 | | | | | Provisioned all 5 tenants |
-| 2026-10-06 | Biren (Dev 2) | `QA-D2` | Stage 5, Stage 8, Stage 15, Stage 18 | | | | | | Payroll setup & Pay run |
+| 2026-10-06 | Biren (Dev 2) | `QA-D2` | Stage 5, Stage 8, Stage 15, Stage 18 | S5-01 to S5-13 | 0 | 0 | 12 | 1 | Stage 5 tested: 1 DEFER (S5-01), 12 BLOCKED (S5-02..06 components 404, S5-07..09 salary tab missing, S5-10..13 settings 404) |
 | 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 16, Stage 12 | | | | | | Tax & claims testing |
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |
 | 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4, Stage 6, Stage 7, Stage 19, Stage 20 | | | | | | Leave, time & attendance |
