@@ -31,6 +31,9 @@ param memory string = '0.5Gi'
 @description('Minimum replicas (0 for scale-to-zero in dev/uat, 2 for prod)')
 param minReplicas int = 0
 
+@description('Minimum replicas for worker app (defaults to minReplicas, set 0 in dev to save idle cost)')
+param workerMinReplicas int = minReplicas
+
 @description('Maximum replicas')
 param maxReplicas int = 3
 
@@ -526,7 +529,7 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
         }
       ]
       scale: {
-        minReplicas: minReplicas
+        minReplicas: workerMinReplicas
         maxReplicas: maxReplicas
       }
     }

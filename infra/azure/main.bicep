@@ -70,6 +70,9 @@ param containerAppMemory string = '0.5Gi'
 @description('Container App minimum replicas')
 param containerAppMinReplicas int = 0
 
+@description('Container App worker minimum replicas (defaults to containerAppMinReplicas, set 0 in dev to save idle cost)')
+param workerMinReplicas int = containerAppMinReplicas
+
 @description('Container App maximum replicas')
 param containerAppMaxReplicas int = 3
 
@@ -344,6 +347,7 @@ module containerApps 'modules/containerapps.bicep' = {
     memory: containerAppMemory
     minReplicas: containerAppMinReplicas
     maxReplicas: containerAppMaxReplicas
+    workerMinReplicas: workerMinReplicas
     identities: identityMap
     frontDoorBackendPrefixes: frontDoorBackendPrefixes
     keyVaultName: keyVault.outputs.keyVaultName

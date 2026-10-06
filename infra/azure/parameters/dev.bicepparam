@@ -16,10 +16,11 @@ param deployRedis = true
 
 param storageSkuName = 'Standard_LRS'
 
-param containerAppCpu = '0.25'
-param containerAppMemory = '0.5Gi'
-param containerAppMinReplicas = 0
+param containerAppCpu = '0.5'
+param containerAppMemory = '1.0Gi'
+param containerAppMinReplicas = 1
 param containerAppMaxReplicas = 3
+param workerMinReplicas = 0
 
 // Networking (W-51 section 2.1). 10.10.0.0/16; 10.10.2.0/24 is left unallocated.
 param vnetAddressPrefix = '10.10.0.0/16'
