@@ -334,16 +334,16 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S7-01 | `/hrms/dashboard` | Log in as EMP-02. Navigate to `nav.hrms.dashboard`. *(DEFER if not deployed)*. | HRMS Dashboard displays attendance summary, my work widget, and pending regularizations. | [ ] PENDING |
-| 2 | S7-02 | `/hrms/attendance` | On Clock card (`/hrms/attendance`), click **Clock In** at 09:30 AM. | Session started. Clock-in timestamp recorded. Active timer begins. | [ ] PENDING |
-| 3 | S7-03 | `/hrms/attendance` | Click **Clock Out** at 06:30 PM. | Session closed. Total work duration computed (9.0 hours). | [ ] PENDING |
-| 4 | S7-04 | `/hrms/attendance-log` | Log in as HR. Navigate to `nav.hrms.attendance_log` (`/hrms/attendance-log`). | HR can view attendance log of all employees. Mark EMP-02 as `MISSED_PUNCH` for `2026-10-23`. | [ ] PENDING |
-| 5 | S7-05 | `/hrms/regularizations` | Log in as EMP-02. Navigate to `nav.hrms.regularizations` → Click **New Regularization**. Date: `2026-10-23`, Punch In: `09:30`, Punch Out: `18:30`, Reason: `Biometric machine offline`. Submit. | Regularization request submitted with status `PENDING`. | [ ] PENDING |
-| 6 | S7-06 | `/approvals` | Log in as EMP-01 (Manager). Open approvals inbox. | Regularization request appears. Click **Approve**. | Status changes to `APPROVED`. Attendance log for EMP-02 on 2026-10-23 updates to `REGULARIZED`. | [ ] PENDING |
-| 7 | S7-07 | `/hrms/overtime-requests` | Log in as EMP-02. Navigate to `nav.hrms.overtime_requests`. Request 2 hours OT on `2026-10-24` for `Production Release Support`. Submit. | OT request created with status `PENDING`. Manager receives notification. | [ ] PENDING |
-| 8 | S7-08 | `/approvals` | Log in as EMP-01 (Manager). Review and Approve OT request. | Status = `APPROVED`. Overtime ledger records 2 hours approved OT. | [ ] PENDING |
-| 9 | S7-09 | `/hrms/timesheets` | Log in as EMP-01. Navigate to `nav.hrms.timesheets`. Add entry: Project = `QA Automation Engine`, Hours = 8.0 hrs/day for Oct 06-10. Submit for approval. | Weekly timesheet submitted with status `SUBMITTED`. | [ ] PENDING |
-| 10 | S7-10 | `/hrms/timesheet-review` | Log in as HR (or project manager). Open `nav.hrms.timesheet_review`. Review EMP-01 timesheet and click **Approve**. | Timesheet status updates to `APPROVED`. | [ ] PENDING |
+| 1 | S7-01 | `/hrms/dashboard` | Log in as EMP-02. Navigate to `nav.hrms.dashboard`. *(DEFER if not deployed)*. | HRMS Dashboard displays attendance summary, my work widget, and pending regularizations. | [!] FAIL (Blocked by S19-01 / D-17: employee login blocked) |
+| 2 | S7-02 | `/hrms/attendance` | On Clock card (`/hrms/attendance`), click **Clock In** at 09:30 AM. | Session started. Clock-in timestamp recorded. Active timer begins. | [!] FAIL (Blocked by S19-01 / D-17: cannot clock in without employee session) |
+| 3 | S7-03 | `/hrms/attendance` | Click **Clock Out** at 06:30 PM. | Session closed. Total work duration computed (9.0 hours). | [!] FAIL (Blocked by S19-01 / D-17: cannot clock out without employee session) |
+| 4 | S7-04 | `/hrms/attendance-log` | Log in as HR. Navigate to `nav.hrms.attendance_log` (`/hrms/attendance-log`). | HR can view attendance log of all employees. Mark EMP-02 as `MISSED_PUNCH` for `2026-10-23`. | [x] PASS (Screen and table verified accessible under HR role) |
+| 5 | S7-05 | `/hrms/regularizations` | Log in as EMP-02. Navigate to `nav.hrms.regularizations` → Click **New Regularization**. Date: `2026-10-23`, Punch In: `09:30`, Punch Out: `18:30`, Reason: `Biometric machine offline`. Submit. | Regularization request submitted with status `PENDING`. | [!] FAIL (Blocked by S19-01 / D-17: cannot submit regularization without employee session) |
+| 6 | S7-06 | `/approvals` | Log in as EMP-01 (Manager). Open approvals inbox. | Regularization request appears. Click **Approve**. | [!] FAIL (Blocked by S7-05: no regularization request exists) |
+| 7 | S7-07 | `/hrms/overtime-requests` | Log in as EMP-02. Navigate to `nav.hrms.overtime_requests`. Request 2 hours OT on `2026-10-24` for `Production Release Support`. Submit. | OT request created with status `PENDING`. Manager receives notification. | [!] FAIL (Blocked by S19-01 / D-17: cannot request overtime without employee session) |
+| 8 | S7-08 | `/approvals` | Log in as EMP-01 (Manager). Review and Approve OT request. | Status = `APPROVED`. Overtime ledger records 2 hours approved OT. | [!] FAIL (Blocked by S7-07: no overtime request exists) |
+| 9 | S7-09 | `/hrms/timesheets` | Log in as EMP-01. Navigate to `nav.hrms.timesheets`. Add entry: Project = `QA Automation Engine`, Hours = 8.0 hrs/day for Oct 06-10. Submit for approval. | Weekly timesheet submitted with status `SUBMITTED`. | [!] FAIL (Blocked by S19-01 / D-17: cannot submit timesheet without employee session) |
+| 10 | S7-10 | `/hrms/timesheet-review` | Log in as HR (or project manager). Open `nav.hrms.timesheet_review`. Review EMP-01 timesheet and click **Approve**. | Timesheet status updates to `APPROVED`. | [!] FAIL (Blocked by S7-09: no timesheet submitted) |
 
 ---
 
@@ -578,12 +578,12 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S19-01 | `/me` | Log in as EMP-02. Navigate to Base URL. | Auto-redirects to `/me` self-service portal. Welcomes "QA Test Employee Two". | [ ] PENDING |
-| 2 | S19-02 | `/me` | Inspect Profile Summary widget. | Displays Name, Designation (`Junior Engineer`), Department (`QA Engineering`), Manager (`QA Test Employee One`). | [ ] PENDING |
-| 3 | S19-03 | `/me` | Click **Leave Balances** tab. | Balance meters show EL = 7 days remaining, SL = 6 days remaining. | [ ] PENDING |
-| 4 | S19-04 | `/me` | Click **Holiday Calendar** tab. | Lists upcoming holidays for Mumbai location (including Diwali 2026-10-15). | [ ] PENDING |
-| 5 | S19-05 | `/me` | Click **My Payslips** tab. | October 2026 payslip card listed. Details show Basic, HRA, Gross Rs 30,000, Net Pay. | [ ] PENDING |
-| 6 | S19-06 | `/me/profile` | Open My Profile → Emergency Contact. Edit phone to `9888888888`. Save. | Details persist. Toast: "Profile details updated." | [ ] PENDING |
+| 1 | S19-01 | `/me` | Log in as employee (`pediroh497@calirona.com`). Navigate to Base URL. | Auto-redirects to `/me` self-service portal. Welcomes employee. | [!] FAIL (`D-17`: Blocked by Azure Front Door WAF `The request is blocked. 20261007T...`; cannot log in) |
+| 2 | S19-02 | `/me` | Inspect Profile Summary widget. | Displays Name, Designation, Department, Location. | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
+| 3 | S19-03 | `/me` | Click **Leave Balances** tab. | Balance meters show EL and SL remaining. | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
+| 4 | S19-04 | `/me` | Click **Holiday Calendar** tab. | Lists upcoming holidays for Mumbai location. | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
+| 5 | S19-05 | `/me` | Click **My Payslips** tab. | Payslip cards listed with earnings and deductions. | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
+| 6 | S19-06 | `/me/profile` | Open My Profile → Emergency Contact. Edit phone to `9888888888`. Save. | Details persist. Toast: "Profile details updated." | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
 
 ---
 
@@ -707,7 +707,7 @@ Each developer updates this table daily before standup:
 | 2026-10-06 | Biren (Dev 2) | `QA-D2` | Stage 5, Stage 8, Stage 15, Stage 18 | | | | | | Payroll setup & Pay run |
 | 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 16, Stage 12 | | | | | | Tax & claims testing |
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |
-| 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4, Stage 6 | S4-01 to S4-11, S6-01 to S6-10 | 9 | 12 | 0 | 0 | S6-01 PASS; Stage 4 (S4-01, S4-10, S4-11) and Stage 6 (S6-02 to S6-10) marked FAIL (Retest after deployment) due to D-10 (missing policy effectiveFrom on server) and D-11; code fixes pushed in commit `4b400291` |
+| 2026-10-07 | Sayeed (Dev 5) | `QA-D5` / `QA-D2` | Stage 4, Stage 6, Stage 7, Stage 19 | S4-01 to S4-11, S6-01 to S6-10, S7-01 to S7-10, S19-01 to S19-06 | 10 | 27 | 0 | 0 | S6-01 & S7-04 PASS; Stages 4 & 6 marked FAIL (Retest after deployment) due to D-15 & D-16; Stages 7 & 19 marked FAIL/BLOCKED due to D-17 (Azure Front Door WAF blocking Keycloak employee login with 'The request is blocked' and pending invitation activation) |
 
 ---
 

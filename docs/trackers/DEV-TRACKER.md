@@ -110,6 +110,7 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-14 | Keycloak branding on login and admin pages: realm heading used `kc-logo-text` (Keycloak's CSS shows its logo and hides the text); stock titles, favicons and logos | 2026-10-07, founder on Azure dev | claude: `infinevo` Keycloak theme as server default; class dropped from both realm files; Azure dev realms fixed by hand | **fixed on main `c470db64`** — built by claude; reaches Azure with the next Keycloak image |
 | D-15 | Leave Allocation fails with `VALIDATION_FAILED: No effective policy found` when `effectiveFrom` is null / unconfigured | 2026-10-06, manual QA Stage 4 (`S4-10`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`PolicyForm.jsx`, `LeaveTypeServiceImpl.java`) |
 | D-16 | Holiday Calendar creation with `isDefault: true` throws HTTP 409 Conflict if default calendar exists | 2026-10-06, manual QA Stage 4 (`S4-01`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`Calendars.jsx`) |
+| D-17 | Employee portal login blocked by Azure Front Door WAF rate-limiting rule (`The request is blocked. 20261007T...`) | 2026-10-07, manual QA Stage 19 (`S19-01`) | infra / WAF policy tuning (`frontdoor.bicep`) | open |
 
 ### QA & Manual Testing Defect Log (Dev 5 — Time & Operations)
 
@@ -124,6 +125,12 @@ One row per known defect in merged code. A row leaves this table only when its f
 - **Error:** `HTTP 409 CONFLICT: A default holiday calendar already exists for tenant`
 - **Root Cause:** Backend enforces one default calendar per tenant (W-17 spec); duplicate default creation is rejected with 409 (default switching requires `PUT`). UI allowed users to toggle default to true on create.
 - **Fix:** In `Calendars.jsx`, forced `isDefault: false` during creation if a default already exists, and disabled the default toggle in the create drawer with helper guidance. Fixed in `dev-sayeed` commit `4b400291`.
+
+#### D-17 (BUG-D5-003): Azure Front Door WAF Blocks Employee Portal Authentication
+- **Found:** 2026-10-07, Stage 19 (`S19-01`), Stage 7 (`S7-01` to `S7-10`), `/login` Keycloak authentication
+- **Error:** `The request is blocked. 20261007T101708Z-17848f5bf682zw4bhC1PNQutug0000000crg00000000ah9m`
+- **Root Cause:** Azure Front Door WAF custom rule `ratelimitperclientip` threshold (100 req/min in `frontdoor.bicep`) triggered during authentication redirects, issuing a 403 block on the client IP.
+- **Impact:** Employee unable to log in; blocks all Stage 19 employee self-service steps (`S19-01` to `S19-06`) and Stage 7 time tracking (`S7-01`, `S7-02`, `S7-03`, `S7-05`, `S7-07`, `S7-09`).
 
 ---
 
