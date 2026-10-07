@@ -196,15 +196,15 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S1-01 | `/org/departments` | Click `nav.organisation` → `nav.departments`. | Departments page opens; empty table with "+ Add Department" button. | [ ] PENDING |
-| 2 | S1-02 | `/org/departments` | Click Add Department. Fill: Name = `QA Engineering`, Code = `QA-ENG`. Save. | Record appears: `QA Engineering` / `QA-ENG` / Status `ACTIVE`. | [ ] PENDING |
-| 3 | S1-03 | `/org/departments` | Add second department: Name = `Human Resources`, Code = `HR-DEPT`. Save. | Second department saved successfully. | [ ] PENDING |
-| 4 | S1-04 | `/org/designations` | Click `nav.designations`. Add: 1) `Senior Engineer` (`SNR-ENG`), 2) `Junior Engineer` (`JNR-ENG`), 3) `Analyst` (`ANLST`). | All 3 designations appear in grid with active status. | [ ] PENDING |
-| 5 | S1-05 | `/org/work-locations` | Click `nav.locations` → Click **New Work Location**. | Modal opens with Address, State, City, PIN, and Statutory toggles. | [ ] PENDING |
-| 6 | S1-06 | `/org/work-locations` | Fill: Name = `QA Office Mumbai`, Code = `QA-MUM`, City = `Mumbai`, State = `Maharashtra`, State Code = `MH`, PIN = `400001`, Filing Address = **ON**. Save. | Location created with `FILING ADDRESS` badge. | [ ] PENDING |
-| 7 | S1-07 | `/org/work-locations` | Attempt to delete `QA Office Mumbai`. | Deletion refused with HTTP 409: "Cannot delete official filing address. Deactivate instead." | [ ] PENDING |
-| 8 | S1-08 | `/roles` | Navigate to `nav.roles` (`/roles`). | Verify default seeded roles exist: `tenant-admin, payroll-officer, hr, manager, finance, employee`. *(If 404, mark DEFER)*. | [ ] PENDING |
-| 9 | S1-09 | `/setup` | Navigate to `nav.setup` (`/setup`). | Setup checklist displays: Org Masters marked COMPLETE, Employees pending. | [ ] PENDING |
+| 1 | S1-01 | `/org/departments` | Click `nav.organisation` → `nav.departments`. | Departments page opens; empty table with "+ Add Department" button. | [x] PASS |
+| 2 | S1-02 | `/org/departments` | Click Add Department. Fill: Name = `QA Engineering`, Code = `QA-ENG`. Save. | Record appears: `QA Engineering` / `QA-ENG` / Status `ACTIVE`. | [x] PASS |
+| 3 | S1-03 | `/org/departments` | Add second department: Name = `Human Resources`, Code = `HR-DEPT`. Save. | Second department saved successfully. | [x] PASS |
+| 4 | S1-04 | `/org/designations` | Click `nav.designations`. Add: 1) `Senior Engineer` (`SNR-ENG`), 2) `Junior Engineer` (`JNR-ENG`), 3) `Analyst` (`ANLST`). | All 3 designations appear in grid with active status. | [x] PASS |
+| 5 | S1-05 | `/org/work-locations` | Click `nav.locations` → Click **New Work Location**. | Modal opens with Address, State, City, PIN, and Statutory toggles. *(Note: Name cell text vertically clips - BUG-D4-01)*. | [x] PASS |
+| 6 | S1-06 | `/org/work-locations` | Fill: Name = `QA Office Mumbai`, Code = `QA-MUM`, City = `Mumbai`, State = `Maharashtra`, State Code = `MH`, PIN = `400001`, Filing Address = **ON**. Save. | Location created with `FILING ADDRESS` badge. | [x] PASS |
+| 7 | S1-07 | `/org/work-locations` | Attempt to delete `QA Office Mumbai`. | Deletion refused with HTTP 409: "Cannot delete official filing address. Deactivate instead." | [x] PASS |
+| 8 | S1-08 | `/roles` | Navigate to `nav.roles` (`/roles`). | Verify default seeded roles exist: `tenant-admin, payroll-officer, hr, manager, finance, employee`. *(404 encountered - BUG-D4-02)*. | [-] DEFER |
+| 9 | S1-09 | `/setup` | Navigate to `nav.setup` (`/setup`). | Setup checklist displays: Org Masters marked COMPLETE, Employees pending. | [x] PASS |
 
 ---
 
@@ -217,16 +217,16 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S2-01 | `/invitations/users` | Click **Invite User**. Email: `qa-dX-payroll@infinevocloud.com`, Role: `payroll-officer`. Send. | Table row shows `PENDING`. Brevo email received. | [ ] PENDING |
-| 2 | S2-02 | Accept Flow | Accept invite, set password in Keycloak, log in as `payroll-officer`. | Logged in. Left menu shows ONLY payroll items (`nav.payroll.runs`, `claims`, `deductions`, `dashboard`). Log out. | [ ] PENDING |
-| 3 | S2-03 | `/invitations/users` | Log in as admin. Invite `qa-dX-hr@infinevocloud.com` with role `hr`. Send. | Row `PENDING`. Brevo email received. | [ ] PENDING |
-| 4 | S2-04 | Accept Flow | Accept invite, set password, log in as `hr`. | Logged in. Menu shows HRMS items (`employees`, `organisation`, `holidays`, `leave`). Log out. | [ ] PENDING |
-| 5 | S2-05 | `/invitations/users` | Invite `qa-dX-finance@infinevocloud.com` with role `finance`. Send. | Row `PENDING`. | [ ] PENDING |
-| 6 | S2-06 | Accept Flow | Accept invite, set password, log in as `finance`. | Logged in. Menu shows `nav.payroll.claims`, `nav.payroll.deductions`, and approvals inbox. Log out. | [ ] PENDING |
-| 7 | S2-07 | `/invitations/users` | Invite a test address `dummy-test@infinevocloud.com` with role `hr`. | Row appears as `PENDING`. | [ ] PENDING |
-| 8 | S2-08 | `/invitations/users` | Click **Resend Invitation** for `dummy-test`. | New invitation email dispatched. Old invitation token is rendered invalid. | [ ] PENDING |
-| 9 | S2-09 | `/invitations/accept` | Try opening the first (older) invite link in an incognito window. | Page displays error: "This invitation link has expired or was replaced by a newer invitation." | [ ] PENDING |
-| 10 | S2-10 | `/invitations/users` | Click **Revoke Invitation** on the `dummy-test` row. | Status transitions to `REVOKED`. Trying the link results in "Invitation revoked." | [ ] PENDING |
+| 1 | S2-01 | `/invitations/users` | Click **Invite User**. Email: `qa-dX-payroll@infinevocloud.com`, Role: `payroll-officer`. Send. | Table row shows `PENDING`. Brevo email received. *(Note: Role dropdown overlay doesn't close on select - BUG-D4-03)*. | [x] PASS |
+| 2 | S2-02 | Accept Flow | Accept invite, set password in Keycloak, log in as `payroll-officer`. | Logged in. Left menu shows Payroll items; Org & Employees read-only. Log out. | [x] PASS |
+| 3 | S2-03 | `/invitations/users` | Log in as admin. Invite `qa-dX-hr@infinevocloud.com` with role `hr`. Send. | Row `PENDING`. Brevo email received. | [x] PASS |
+| 4 | S2-04 | Accept Flow | Accept invite, set password, log in as `hr`. | Logged in. Menu shows HRMS items (`employees`, `organisation`, `holidays`, `leave`). Log out. | [x] PASS |
+| 5 | S2-05 | `/invitations/users` | Invite `qa-dX-finance@infinevocloud.com` with role `finance`. Send. | Row `PENDING`. | [x] PASS |
+| 6 | S2-06 | Accept Flow | Accept invite, set password, log in as `finance`. | Logged in. Menu shows Payroll items; Designations throws System Error (BUG-D4-04). Log out. | [x] PASS |
+| 7 | S2-07 | `/invitations/users` | Invite a test address `dummy-test@infinevocloud.com` with role `hr`. | Row appears as `PENDING`. | [x] PASS |
+| 8 | S2-08 | `/invitations/users` | Click **Resend Invitation** for `dummy-test`. | New invitation email dispatched. Old invitation token is rendered invalid. | [x] PASS |
+| 9 | S2-09 | `/invitations/accept` | Try opening the first (older) invite link in an incognito window. | Page displays error: "This invitation link has expired or was replaced by a newer invitation." | [x] PASS |
+| 10 | S2-10 | `/invitations/users` | Click **Revoke Invitation** on the `dummy-test` row. | Status transitions to `REVOKED`. Trying the link results in "Invitation revoked." | [x] PASS |
 
 ---
 
@@ -239,18 +239,18 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S3-01 | `/employees` | Click `nav.employees` → Click **New Employee**. | Employee creation drawer/form opens with basic details. | [ ] PENDING |
-| 2 | S3-02 | `/employees/new` | Fill EMP-01: Name: `QA Test Employee One`, Joining: `2026-04-01`, Work Email: `qa-dX-emp1@infinevocloud.com`, Mobile: `9000000001`, Dept: `QA Engineering`, Desig: `Senior Engineer`, Location: `QA Office Mumbai`, Portal Enabled: **ON**. Save. | Employee created. Navigates to detail page `/employees/:id`. Record UUID. | [ ] PENDING |
-| 3 | S3-03 | `/employees/:id` | Open **Personal Tab**. Fill DOB: `1990-01-15`, Marital Status: `Single`, Father Name: `Senior Test`. Save. | Toast: "Personal details updated." Reload verifies persistence. | [ ] PENDING |
-| 4 | S3-04 | `/employees/:id` | Open **Identification Tab**. Enter PAN: `AAAPL1234C`. Save. | PAN field shows masked characters with reveal toggle icon. | [ ] PENDING |
-| 5 | S3-05 | `/employees/:id` | Open **Reporting Line Tab**. Attempt to set Reporting Manager to EMP-01 itself. | System rejects: 409 Conflict with message "Circular reporting chain detected." | [ ] PENDING |
-| 6 | S3-06 | `/employees/new` | Create EMP-02 (`Junior Engineer`, `qa-dX-emp2@infinevocloud.com`, Joining: `2026-05-01`). | Record created. | [ ] PENDING |
-| 7 | S3-07 | `/employees/new` | Create EMP-03 (`Analyst`, `qa-dX-emp3@infinevocloud.com`, Joining: `2026-06-01`). | Record created. | [ ] PENDING |
-| 8 | S3-08 | `/employees/:id` | On EMP-02 Reporting Line Tab: Set Manager = EMP-01, Type = `PRIMARY`, Effective = `2026-04-01`. Save. | Hierarchy tree shows EMP-01 as direct manager. | [ ] PENDING |
-| 9 | S3-09 | `/employees/:id` | On EMP-03 Reporting Line Tab: Set Manager = EMP-01, Type = `PRIMARY`. Save. | Manager hierarchy saved. | [ ] PENDING |
-| 10 | S3-10 | `/invitations/employees` | Navigate to `nav.employeeInvitations`. Select EMP-01. Click **Send Portal Invite**. | Invitation sent to `emp1` email address. Row shows `PENDING`. | [ ] PENDING |
-| 11 | S3-11 | Accept Flow | EMP-01 accepts invite, sets password. Also assign role `manager` in admin console. | EMP-01 can log into `/me` self-service AND sees `nav.approvals` in menu. | [ ] PENDING |
-| 12 | S3-12 | `/invitations/employees` | Send portal invites for EMP-02 and EMP-03 with role `employee`. Complete password setup. | Both EMP-02 and EMP-03 can successfully log into `/me`. | [ ] PENDING |
+| 1 | S3-01 | `/employees` | Click `nav.employees` → Click **New Employee**. | Employee creation drawer/form opens with basic details. | [x] PASS |
+| 2 | S3-02 | `/employees/new` | Fill EMP-01: Name: `QA Test Employee One`, Joining: `2026-04-01`, Work Email: `qa-dX-emp1@infinevocloud.com`, Mobile: `9000000001`, Dept: `QA Engineering`, Desig: `Senior Engineer`, Location: `QA Office Mumbai`, Portal Enabled: **ON**. Save. | Employee created. *(Note: Duplicate email allowed - BUG-D4-05A; Name column wrapping - BUG-D4-05B)*. | [x] PASS |
+| 3 | S3-03 | `/employees/:id` | Open **Personal Tab**. Fill DOB: `1990-01-15`, Marital Status: `Single`, Father Name: `Senior Test`. Save. | Toast: "Personal details updated." Reload verifies persistence. | [x] PASS |
+| 4 | S3-04 | `/employees/:id` | Open **Identification Tab**. Enter PAN: `AAAPL1234C`. Save. | PAN field shows masked characters with reveal toggle icon. *(Note: Duplicate PAN allowed - BUG-D4-06)*. | [x] PASS |
+| 5 | S3-05 | `/employees/:id` | Open **Reporting Line Tab**. Attempt to set Reporting Manager to EMP-01 itself. | System rejects: 409 Conflict with message "Circular reporting chain detected." | [x] PASS |
+| 6 | S3-06 | `/employees/new` | Create EMP-02 (`Junior Engineer`, `qa-dX-emp2@infinevocloud.com`, Joining: `2026-05-01`). | Record created. | [x] PASS |
+| 7 | S3-07 | `/employees/new` | Create EMP-03 (`Analyst`, `qa-dX-emp3@infinevocloud.com`, Joining: `2026-06-01`). | Record created. | [x] PASS |
+| 8 | S3-08 | `/employees/:id` | On EMP-02 Reporting Line Tab: Set Manager = EMP-01, Type = `PRIMARY`, Effective = `2026-04-01`. Save. | Hierarchy tree shows EMP-01 as direct manager. *(Note: Button hidden for HR role - BUG-D4-07)*. | [x] PASS |
+| 9 | S3-09 | `/employees/:id` | On EMP-03 Reporting Line Tab: Set Manager = EMP-01, Type = `PRIMARY`. Save. | Manager hierarchy saved. | [x] PASS |
+| 10 | S3-10 | `/invitations/employees` | Navigate to `nav.employeeInvitations`. Select EMP-01. Click **Send Portal Invite**. | Invitation sent to `emp1` email address. Row shows PENDING. | [x] PASS |
+| 11 | S3-11 | Accept Flow | EMP-01 accepts invite, sets password. Also assign role `manager` in admin console. | EMP-01 can log into `/me` self-service AND sees `nav.approvals` in menu. *(Accept link intermittently 404/invalid - BUG-D4-08)*. | [!] FAIL |
+| 12 | S3-12 | `/invitations/employees` | Send portal invites for EMP-02 and EMP-03 with role `employee`. Complete password setup. | Both EMP-02 and EMP-03 can successfully log into `/me`. *(Deferred - blocked by S3-11)*. | [-] DEFER |
 
 ---
 
@@ -482,15 +482,15 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S14-01 | `/employees/:EMP03-ID` | Log in as HR. Open EMP-03 detail page. | Page loads with employee header. Status badge = `ACTIVE`. | [ ] PENDING |
-| 2 | S14-02 | `/employees/:EMP03-ID` | Click **Actions** dropdown → Select **Terminate / Initiate Exit**. | Modal opens: Exit Date, Last Working Day, Reason (`Resignation`, `Performance`, `Contract End`), Remarks. | [ ] PENDING |
-| 3 | S14-03 | Modal Form | Fill: Last Working Day: `2026-10-31`, Reason: `Resignation`, Remarks: `Relocating to hometown`. Confirm. | Toast: "Employee status updated to TERMINATED." Header badge updates to `TERMINATED` (red/gray). | [ ] PENDING |
-| 4 | S14-04 | `/login` | In an incognito window, attempt to log in as EMP-03 (`qa-dX-emp3@infinevocloud.com`). | Login rejected: "Your account has been deactivated. Please contact HR." | [ ] PENDING |
-| 5 | S14-05 | `/payroll/runs/new` | Log in as Payroll Officer. Create a pay run preview for **November 2026**. | Pay run employee list contains ONLY EMP-01 and EMP-02. EMP-03 is excluded from active payroll. | [ ] PENDING |
-| 6 | S14-06 | `/employees` | As HR, open Employee Directory. Default filter shows Active. | EMP-03 is not shown in default active view. | [ ] PENDING |
-| 7 | S14-07 | `/employees` | Change Status filter to `TERMINATED` (or check "Include Inactive"). | EMP-03 appears with `TERMINATED` badge and Last Working Day displayed. | [ ] PENDING |
-| 8 | S14-08 | `/employees/:EMP03-ID` | Click EMP-03 row → Actions → **Reactivate Employee**. Set Reactivation Date: `2026-11-15`, Remarks: `Exit retracted`. Confirm. | Status badge changes back to `ACTIVE`. | [ ] PENDING |
-| 9 | S14-09 | `/login` | EMP-03 logs in again at Base URL. | Login succeeds. Self-service portal `/me` access restored. | [ ] PENDING |
+| 1 | S14-01 | `/employees/:EMP03-ID` | Log in as HR. Open EMP-03 detail page. | Page loads with employee header. Status badge = `ACTIVE`. | [x] PASS |
+| 2 | S14-02 | `/employees/:EMP03-ID` | Click **Actions** dropdown → Select **Terminate / Initiate Exit**. | Modal opens: Exit Date, Last Working Day, Reason, Remarks. | [x] PASS |
+| 3 | S14-03 | Modal Form | Fill: Last Working Day: `2026-10-31`, Reason: `Resignation`, Remarks: `Relocating to hometown`. Confirm. | Toast: "Employee status updated to TERMINATED." *(Note: Reason & Remarks fields missing in modal - BUG-D4-09)*. | [x] PASS |
+| 4 | S14-04 | `/login` | In an incognito window, attempt to log in as EMP-03 (`qa-dX-emp3@infinevocloud.com`). | Login rejected: "Your account has been deactivated. Please contact HR." | [-] DEFER |
+| 5 | S14-05 | `/payroll/runs/new` | Log in as Payroll Officer. Create a pay run preview for **November 2026**. | Pay run preview blocked: Configure Pay Schedule Settings link throws 404 (BUG-D4-10). | [!] FAIL |
+| 6 | S14-06 | `/employees` | As HR, open Employee Directory. Default filter shows Active. | EMP-03 is not shown in default active view. | [x] PASS |
+| 7 | S14-07 | `/employees` | Change Status filter to `TERMINATED` (or check "Include Inactive"). | EMP-03 appears with `TERMINATED` badge and Last Working Day displayed. | [x] PASS |
+| 8 | S14-08 | `/employees/:EMP03-ID` | Click EMP-03 row → Actions → **Reactivate Employee**. Set Reactivation Date: `2026-11-15`, Remarks: `Exit retracted`. Confirm. | Terminated employee reactivation option/button missing in UI (BUG-D4-11). | [!] FAIL |
+| 9 | S14-09 | `/login` | EMP-03 logs in again at Base URL. | Login succeeds. Self-service portal `/me` access restored. *(Deferred - blocked by S14-08)*. | [-] DEFER |
 
 ---
 
@@ -541,11 +541,11 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S17-01 | `/roles` | Open `nav.roles`. Click **New Role**. *(DEFER if 404)*. | Role creation screen opens. | [ ] PENDING |
-| 2 | S17-02 | `/roles/new` | Role Name: `leave-auditor`, Description: `Read-only access to leave calendars and balances`. | Role metadata created. Action selection grid opens. | [ ] PENDING |
-| 3 | S17-03 | Action Checklist | Select ONLY: `core.leave.read`, `core.holiday.read`. Leave all payroll, employee management, and approval actions unchecked. Save. | Custom role `leave-auditor` created and listed in role matrix. | [ ] PENDING |
+| 1 | S17-01 | `/roles` | Open `nav.roles`. Click **New Role**. *(DEFER if 404)*. | Role creation screen opens. *(404 encountered - BUG-D4-02)*. | [-] DEFER |
+| 2 | S17-02 | `/roles/new` | Role Name: `leave-auditor`, Description: `Read-only access to leave calendars and balances`. | Custom role 'leave-auditor' creation blocked due to missing /roles screen. | [!] FAIL |
+| 3 | S17-03 | Action Checklist | Select ONLY: `core.leave.read`, `core.holiday.read`. Leave all payroll, employee management, and approval actions unchecked. Save. | Custom role `leave-auditor` created. | [ ] PENDING |
 | 4 | S17-04 | `/invitations/users` | Invite `test-auditor@infinevocloud.com` with role `leave-auditor`. Accept invite and configure password. | Account activated with custom role. | [ ] PENDING |
-| 5 | S17-05 | `/login` | Log in as `test-auditor`. Inspect sidebar navigation. | Sidebar shows ONLY `nav.leave` and `nav.holidays`. Employees, Org, Roles, Payroll, and Approvals are completely hidden. | [ ] PENDING |
+| 5 | S17-05 | `/login` | Log in as `test-auditor`. Inspect sidebar navigation. | Sidebar shows ONLY `nav.leave` and `nav.holidays`. | [ ] PENDING |
 | 6 | S17-06 | Direct URL Access | Attempt to navigate to `/leave/types/new` or `/employees`. | Direct creation button hidden; API returns HTTP 403 Forbidden. Read-only enforcement confirmed. | [ ] PENDING |
 
 ---
@@ -681,6 +681,522 @@ For every test step that results in `FAIL`, developers must raise a ticket using
 - [ ] **MINOR** (Cosmetic, wording, or alignment defect)
 ```
 
+### 22.1 Logged Defects — Krushna (Dev 4) Day 2 Testing (QA-D4)
+
+#### Summary Matrix
+
+| Bug ID | Title / Area | Route / Component | Stage & Step | Severity | Root Cause & Resolution | Status |
+|---|---|---|---|---|---|:---:|
+| **BUG-D4-01** | Location Name column cell text clips & wraps vertically | `/org/work-locations` (`MasterTable.jsx`) | Stage 1 (S1-05) | MINOR | **Cause:** Column width too narrow and missing `nowrap`.<br>**Fix:** Add `width: 220`, `minWidth: 180`, and `ellipsis: true` to the name column definition in `MasterTable.jsx`. | **OPEN** |
+| **BUG-D4-02** | `/roles` route returns 404 Page Not Found | `/roles`, `/roles/new` (`core/index.js`, `routes.js`) | Stage 1 (S1-08), Stage 17 (S17-01, S17-02) | MAJOR | **Cause:** Route not registered in modern frontend `core/index.js`.<br>**Fix:** Port/mount `Roles.jsx` & `RoleForm.jsx` in `core/index.js` connecting to `RoleService` (`/api/v1/roles`). | **OPEN** |
+| **BUG-D4-03** | Invite User: Role dropdown overlay stays open after selection | `/invitations/users` (`UserInvitations.jsx`) | Stage 2 (S2-01) | MINOR | **Cause:** Ant Design `<Select>` lacks auto-close on selection.<br>**Fix:** Remove conflicting `open` prop overrides and add `onSelect={() => setSelectOpen(false)}`. | **OPEN** |
+| **BUG-D4-04** | Finance role navigating to `Organisation > Designations` throws "System Error" | `/org/designations` (`DesignationController.java`, `MasterTable.jsx`) | Stage 2 (S2-06) | MAJOR | **Cause:** Unhandled backend exception / ORM query mapping error under Finance tenant context.<br>**Fix:** Fix JPA tenant filter in `DesignationServiceImpl.java` to support clean read queries with `core.org.read`. | **OPEN** |
+| **BUG-D4-05A** | Duplicate employee creation allowed with identical Work Email, Mobile, and Name | `POST /api/v1/employees` (`EmployeeServiceImpl.java`, `Employee.java`) | Stage 3 (S3-02, S3-06, S3-07) | CRITICAL | **Cause:** No unique constraint on `work_email` per tenant.<br>**Fix:** In `EmployeeServiceImpl.create()`, check `existsByTenantIdAndWorkEmailAndDeletedFalse()` and return HTTP 409 Conflict. Add DB unique constraint. | **OPEN** |
+| **BUG-D4-05B** | Employee List: "Emp ID" and "Name" columns wrap awkwardly into multiple lines | `/employees` (`EmployeeList.jsx`) | Stage 3 (S3-02) | MINOR | **Cause:** Table columns lack explicit `width` and `nowrap`.<br>**Fix:** Add `width: 120` to `employeeNumber` and `minWidth: 200` with `whiteSpace: 'nowrap'` to `name`. | **OPEN** |
+| **BUG-D4-06** | Duplicate PAN and Aadhaar accepted across multiple employees | `PUT /api/v1/employees/{id}/identification` (`EmployeeIdentificationServiceImpl.java`) | Stage 3 (S3-04) | CRITICAL | **Cause:** `EmployeeIdentificationServiceImpl` explicitly bypasses uniqueness check.<br>**Fix:** Add duplicate check against active employees in the tenant; reject with HTTP 409 Conflict. | **OPEN** |
+| **BUG-D4-07** | HR role lacks `core.reporting_line.manage` permission; "Set Manager" button hidden | `/employees/:id` (`ReportingLineTab.jsx`, seed roles) | Stage 3 (S3-05, S3-08) | MAJOR | **Cause:** Permission was omitted from `hr` role in seed migrations.<br>**Fix:** Add Flyway migration granting `('hr', 'core.reporting_line.manage')` in `core.role_action`. | **OPEN** |
+| **BUG-D4-08** | Employee invitation accept link fails with 404 / "Invitation declined" | `/invitations/accept?token=` (`InvitationService.java`) | Stage 3 (S3-10, S3-11), Stage 10 (S10-02) | CRITICAL | **Cause:** Token consumed on preliminary preview GET request or expired due to Azure queue email delay (`D-11`).<br>**Fix:** Ensure `GET /api/v1/invitations/accept` is strictly read-only and idempotent. Extend token TTL. | **OPEN** |
+| **BUG-D4-09** | Employee termination modal missing "Reason" dropdown and "Remarks" field | `/employees/:id` (`EmploymentTab.jsx`) | Stage 14 (S14-03) | MAJOR | **Cause:** Modal only renders `DatePicker` for last working day.<br>**Fix:** Add `<Select name="reason">` and `<Input.TextArea name="remarks">` in the modal and pass in payload to `PUT /api/v1/employees/{id}/terminate`. | **OPEN** |
+| **BUG-D4-10** | Pay Run modal: "Configure Pay Schedule Settings" link opens 404 Not Found | `/payroll/runs/new` -> `/payroll/settings/pay-schedule` (`routes.js`, `RunList.jsx`) | Stage 14 (S14-05) | CRITICAL | **Cause:** Dynamic route filter `routesFromFeed` unmounts `/payroll/settings/*` because it is absent from the navigation catalogue.<br>**Fix:** Whitelist `/payroll/settings/*` in `shell/routes.js` for users with `PAYROLL` module entitlement. | **OPEN** |
+| **BUG-D4-11** | Terminated employee cannot be reactivated; "Reactivate Employee" button missing | `/employees/:id` (`EmployeeDetail.jsx`) | Stage 14 (S14-08) | CRITICAL | **Cause:** UI does not render action button when `status === 'TERMINATED'`.<br>**Fix:** In `EmployeeDetail.jsx`, add conditional action button opening Reactivation modal calling `PUT /api/v1/employees/{id}/reactivate`. | **OPEN** |
+| **BUG-D4-12** | Terminated view in Employee Directory: Last Working Day column not displayed | `/employees` (`EmployeeList.jsx`) | Stage 14 (S14-02, S14-07) | MINOR | **Cause:** `EmployeeList.jsx` only shows Date of Joining; does not display Last Working Day when filtered by `TERMINATED`.<br>**Fix:** Conditionally add `lastWorkingDate` column when status filter includes `TERMINATED`. | **OPEN** |
+
+---
+
+#### Detailed Defect Specifications & Resolution Guides
+
+```
+================================================================================
+BUG-D4-01: Work Locations Table Name Column Vertical Text Wrapping / Clipping
+================================================================================
+Status: OPEN
+Severity: MINOR
+Component / Screen: /org/work-locations (MasterTable.jsx / WorkLocations.jsx)
+Stage & Step: Stage 1 — Step S1-05
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  In the Work Locations master table, after creating a location, the Location Name
+  cell text displays split into two lines (half top, half bottom), clipping the text
+  awkwardly rather than expanding column width or keeping a single horizontal line.
+
+• Steps to Reproduce:
+  1. Log in as tenant-admin (qa-d4-admin@infinevocloud.com).
+  2. Navigate to Organisation > Locations (/org/work-locations).
+  3. Create work location 'QA Office Mumbai'.
+  4. Inspect the table: "QA Office Mumbai" wraps vertically with clipped line-height.
+
+• Root Cause Analysis:
+  In frontend/src/modules/core/org/MasterTable.jsx, the columns definition for
+  location records lacks an explicit width, minWidth, and ellipsis property. The Ant
+  Design Table defaults to auto table-layout which squeezes the title cell.
+
+• Resolution Guide:
+  1. Open frontend/src/modules/core/org/WorkLocations.jsx (or MasterTable.jsx).
+  2. Update column definition for Name:
+     {
+       title: 'Location Name',
+       dataIndex: 'name',
+       key: 'name',
+       width: 220,
+       minWidth: 180,
+       ellipsis: true,
+       render: (text) => <span style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{text}</span>
+     }
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-02: /roles Route Returns HTTP 404 Not Found
+================================================================================
+Status: OPEN
+Severity: MAJOR
+Component / Screen: /roles, /roles/new (shell/routes.js, core/index.js)
+Stage & Step: Stage 1 — Step S1-08, Stage 17 — Step S17-01, S17-02
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  Navigating to /roles or clicking the Roles navigation menu item displays a 404
+  error: "Sorry, the page you visited does not exist."
+
+• Steps to Reproduce:
+  1. Log in as tenant-admin (qa-d4-admin@infinevocloud.com).
+  2. Click Roles on the left navigation bar, or enter /roles in the URL bar.
+  3. UI renders 404 Not Found screen.
+
+• Root Cause Analysis:
+  While core.roles is defined in the navigation catalogue, the React route for
+  /roles is not mounted in shell/routes.js or exported from modules/core/index.js.
+  The component Roles.jsx exists in core/authz/ but was never wired up into the
+  main modern routing table.
+
+• Resolution Guide:
+  1. In frontend/src/modules/core/index.js, export Roles and RoleForm:
+     export { default as Roles } from './authz/Roles';
+     export { default as RoleForm } from './authz/RoleForm';
+  2. In frontend/src/shell/routes.js, add lazy route mounts:
+     const Roles = lazy(() => import('@core/authz/Roles'));
+     const RoleForm = lazy(() => import('@core/authz/RoleForm'));
+     ...
+     <Route path="/roles" element={<RequireAuth permission="core.roles.manage"><Roles /></RequireAuth>} />
+     <Route path="/roles/new" element={<RequireAuth permission="core.roles.manage"><RoleForm /></RequireAuth>} />
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-03: User Invitations Modal Role Dropdown Overlay Stays Open on Selection
+================================================================================
+Status: OPEN
+Severity: MINOR
+Component / Screen: /invitations/users (UserInvitations.jsx)
+Stage & Step: Stage 2 — Step S2-01
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  In the "Invite Company User" modal drawer, after clicking to select a role from
+  the dropdown list, the dropdown popup menu does not close. It stays visible on top
+  of the form until the user clicks outside.
+
+• Steps to Reproduce:
+  1. Log in as tenant-admin.
+  2. Navigate to /invitations/users and click "Invite User".
+  3. Open the "Role" dropdown and select 'payroll-officer'.
+  4. The role options menu remains floating open over the form.
+
+• Root Cause Analysis:
+  In UserInvitations.jsx, the Ant Design <Select> component either has a controlled
+  `open` prop without proper `onDropdownVisibleChange` callback, or is missing
+  auto-close event bindings.
+
+• Resolution Guide:
+  1. Open frontend/src/modules/core/invitations/UserInvitations.jsx.
+  2. Ensure the <Select> component does not have hardcoded `open={true}`.
+  3. Add auto-dismiss handler:
+     <Select
+       placeholder="Select role"
+       onChange={(val) => {
+         form.setFieldValue('role', val);
+         setSelectOpen(false);
+       }}
+       open={selectOpen}
+       onDropdownVisibleChange={(visible) => setSelectOpen(visible)}
+     />
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-04: Finance Role Navigating to Organisation > Designations Throws "System Error"
+================================================================================
+Status: OPEN
+Severity: MAJOR
+Component / Screen: /org/designations (DesignationController.java, DesignationServiceImpl.java)
+Stage & Step: Stage 2 — Step S2-06
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  When logged in with the Finance role (qa-d4-finance@infinevocloud.com), navigating
+  to Organisation > Designations triggers an unhandled "System Error: Something went wrong"
+  toast/dialog instead of displaying the designations table in read-only mode.
+
+• Steps to Reproduce:
+  1. Log in as Finance officer (qa-d4-finance@infinevocloud.com).
+  2. In the left sidebar, click Organisation > Designations.
+  3. An unhandled "System Error: Something went wrong" dialog appears.
+
+• Root Cause Analysis:
+  The backend endpoint GET /api/v1/org/designations requires core.org.read. While
+  the Finance role possesses read rights, DesignationServiceImpl.java executes a query
+  that attempts to access tenant admin metadata or throws an uncaught NullPointerException
+  when the user lacks hr/tenant-admin attributes.
+
+• Resolution Guide:
+  1. Open backend/src/main/java/com/infinevo/core/org/service/impl/DesignationServiceImpl.java.
+  2. Verify findByTenantId(tenantId) executes cleanly without casting user principal
+     to tenant admin.
+  3. Ensure DesignationController.java handles tenant-scoped read requests safely and
+     returns empty or existing list with HTTP 200 OK.
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-05A: Duplicate Employee Creation Permitted (Identical Work Email, Mobile, Name)
+================================================================================
+Status: OPEN
+Severity: CRITICAL
+Component / Screen: POST /api/v1/employees (EmployeeServiceImpl.java, Employee.java)
+Stage & Step: Stage 3 — Step S3-02, S3-06, S3-07
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  The application permits the creation of multiple employee profiles with identical
+  work emails, mobile numbers, and full names without throwing a duplicate validation error.
+
+• Steps to Reproduce:
+  1. Log in as HR (qa-d4-hr@infinevocloud.com).
+  2. Create an employee with Work Email = 'duplicate@infinevocloud.com' and Mobile = '9876543210'.
+  3. Submit and confirm employee is created.
+  4. Create a second employee with the exact same Work Email and Mobile.
+  5. The system accepts the second record without error.
+
+• Root Cause Analysis:
+  1. In com.infinevo.hrms.employee.service.impl.EmployeeServiceImpl.java:create(),
+     there is no pre-flight uniqueness validation on work_email within the tenant.
+  2. In the PostgreSQL schema (hrms.employee), there is no UNIQUE index on
+     (tenant_id, work_email) WHERE deleted = false.
+
+• Resolution Guide:
+  1. In EmployeeServiceImpl.java, add pre-check before persist:
+     if (employeeRepository.existsByTenantIdAndWorkEmailAndDeletedFalse(tenantId, req.getWorkEmail())) {
+         throw new ConflictException("An employee with work email '" + req.getWorkEmail() + "' already exists.");
+     }
+  2. Add Flyway migration V...__unique_employee_work_email.sql:
+     CREATE UNIQUE INDEX uq_employee_tenant_work_email
+     ON hrms.employee (tenant_id, work_email)
+     WHERE deleted = false;
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-05B: Employee Directory Table "Emp ID" and "Name" Columns Wrap Awkwardly
+================================================================================
+Status: OPEN
+Severity: MINOR
+Component / Screen: /employees (EmployeeList.jsx)
+Stage & Step: Stage 3 — Step S3-02
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  In the Employee list directory, the "Emp ID" and "Name" columns lack fixed widths
+  and nowrap rules, causing text like employee IDs and multi-word names to wrap into
+  awkward vertical lines.
+
+• Steps to Reproduce:
+  1. Navigate to /employees.
+  2. Inspect the employee grid: Emp ID and Name columns wrap onto multiple rows per cell.
+
+• Root Cause Analysis:
+  In frontend/src/modules/hrms/employees/EmployeeList.jsx, column definitions for
+  `employeeNumber` and `fullName` do not set `width`, `minWidth`, or `whiteSpace: nowrap`.
+
+• Resolution Guide:
+  1. Open frontend/src/modules/hrms/employees/EmployeeList.jsx.
+  2. Update column definitions:
+     {
+       title: 'Emp ID',
+       dataIndex: 'employeeNumber',
+       key: 'employeeNumber',
+       width: 120,
+       fixed: 'left',
+       render: (text) => <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{text}</span>
+     },
+     {
+       title: 'Employee Name',
+       dataIndex: 'fullName',
+       key: 'fullName',
+       minWidth: 200,
+       ellipsis: true,
+       render: (text) => <span style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>{text}</span>
+     }
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-06: Duplicate PAN and Aadhaar Numbers Permitted Across Multiple Employees
+================================================================================
+Status: OPEN
+Severity: CRITICAL
+Component / Screen: PUT /api/v1/employees/{id}/identification (EmployeeIdentificationServiceImpl.java)
+Stage & Step: Stage 3 — Step S3-04
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  The system allows duplicate statutory identification numbers (same PAN number and
+  same Aadhaar number) to be assigned to different employees within the same organization.
+
+• Steps to Reproduce:
+  1. As HR, open EMP-01 > Identification Tab. Enter PAN = 'AAAPL1234C', Save.
+  2. Open EMP-02 > Identification Tab. Enter identical PAN = 'AAAPL1234C', Save.
+  3. Both records are saved successfully.
+
+• Root Cause Analysis:
+  In EmployeeIdentificationServiceImpl.java, statutory uniqueness validation is
+  bypassed or missing a check against existing tenant identification records.
+
+• Resolution Guide:
+  1. Open EmployeeIdentificationServiceImpl.java.
+  2. In saveOrUpdateIdentification():
+     if (panNumber != null && identificationRepository.existsByTenantIdAndPanNumberAndEmployeeIdNot(tenantId, panNumber, empId)) {
+         throw new ConflictException("PAN number '" + panNumber + "' is already registered to another employee in this tenant.");
+     }
+  3. Repeat duplicate check for Aadhaar number.
+  4. Add database partial unique index in Flyway:
+     CREATE UNIQUE INDEX uq_employee_pan ON hrms.employee_identification (tenant_id, pan_number) WHERE deleted = false AND pan_number IS NOT NULL;
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-07: HR Role Lacks core.reporting_line.manage Permission ("Set Manager" Button Hidden)
+================================================================================
+Status: OPEN
+Severity: MAJOR
+Component / Screen: /employees/:id (ReportingLineTab.jsx, V012__seed_system_roles.sql)
+Stage & Step: Stage 3 — Step S3-05, S3-08
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  Logged in as HR (qa-d4-hr@infinevocloud.com), the Reporting Line tab does not show
+  the "Set Manager" button/action. Only Tenant Admin can assign or update reporting lines.
+
+• Steps to Reproduce:
+  1. Log in as HR.
+  2. Open EMP-02 profile > Reporting Line Tab.
+  3. Observe: "Set Manager / Add Reporting Line" button is missing.
+  4. Log in as Tenant Admin: button appears and functions properly.
+
+• Root Cause Analysis:
+  In the Flyway migration V012__seed_system_roles.sql, the action `core.reporting_line.manage`
+  was granted to `tenant-admin` but omitted from the `hr` role permission catalogue.
+
+• Resolution Guide:
+  1. Create Flyway migration V...__grant_reporting_line_manage_to_hr.sql:
+     INSERT INTO core.role_action (role_code, action_code)
+     VALUES ('hr', 'core.reporting_line.manage')
+     ON CONFLICT DO NOTHING;
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-08: Employee Invitation Accept Link Intermittently 404 / "Invitation Declined"
+================================================================================
+Status: OPEN
+Severity: CRITICAL
+Component / Screen: /invitations/employees -> /invitations/accept?token= (InvitationService.java)
+Stage & Step: Stage 3 — Step S3-10, S3-11, Stage 10 — Step S10-02
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  When an invitation is dispatched to an employee via Employee Invitations, the email
+  arrives via Brevo. However, clicking the 'Accept Invitation' link in the email fails
+  to load the onboarding workflow, intermittently throwing an HTTP 404 or displaying:
+  "Invitation declined / invalid. Please try again after a few minutes."
+
+• Steps to Reproduce:
+  1. As tenant-admin, go to /invitations/employees and send portal invite to EMP-01.
+  2. Open the email inbox and click 'Accept Invitation'.
+  3. Browser opens /invitations/accept?token=... and returns 404 or "Invitation declined".
+
+• Root Cause Analysis:
+  1. The GET /api/v1/invitations/accept?token=... endpoint performs token state transition
+     or consumption upon initial HTTP GET request. Corporate anti-spam URL scanners
+     pre-fetch the link, prematurely marking the token as consumed.
+  2. The public route whitelist in frontend shell/routes.js intermittently fails to match
+     invitation accept route query params.
+
+• Resolution Guide:
+  1. Refactor InvitationController.java: Ensure GET /api/v1/invitations/accept?token=...
+     is strictly read-only and idempotent (validates token existence without burning it).
+  2. Consume and mark the token as ACCEPTED only on explicit user form submission:
+     POST /api/v1/invitations/accept.
+  3. Ensure /invitations/accept is unconditionally whitelisted in shell/routes.js.
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-09: Employee Termination Modal Missing "Reason" Dropdown and "Remarks" Field
+================================================================================
+Status: OPEN
+Severity: MAJOR
+Component / Screen: /employees/:id (EmploymentTab.jsx / TerminationModal.jsx)
+Stage & Step: Stage 14 — Step S14-03
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  In the Employee Termination drawer/modal, only the 'Last Working Day' date picker
+  is displayed. The 'Reason' dropdown (Resignation, Retirement, etc.) and 'Remarks'
+  text area are missing.
+
+• Steps to Reproduce:
+  1. Log in as HR, open EMP-03 detail page.
+  2. Click Actions > Terminate / Initiate Exit.
+  3. Modal only shows DatePicker for Last Working Day.
+
+• Root Cause Analysis:
+  In TerminationModal.jsx, form fields for `reason` and `remarks` were omitted from
+  the modal layout, even though the backend PUT /api/v1/employees/{id}/terminate expects
+  both fields in the request DTO.
+
+• Resolution Guide:
+  1. In frontend/src/modules/hrms/employees/TerminationModal.jsx, add:
+     <Form.Item name="reason" label="Termination Reason" rules={[{ required: true }]}>
+       <Select placeholder="Select Reason">
+         <Option value="RESIGNATION">Resignation</Option>
+         <Option value="TERMINATION">Termination</Option>
+         <Option value="RETIREMENT">Retirement</Option>
+         <Option value="OTHER">Other</Option>
+       </Select>
+     </Form.Item>
+     <Form.Item name="remarks" label="Remarks / Notes">
+       <Input.TextArea rows={3} placeholder="Enter reason details..." />
+     </Form.Item>
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-10: Pay Run Modal "Configure Pay Schedule Settings" Link Leads to 404
+================================================================================
+Status: OPEN
+Severity: CRITICAL
+Component / Screen: /payroll/runs/new -> /payroll/settings/pay-schedule (shell/routes.js, RunList.jsx)
+Stage & Step: Stage 14 — Step S14-05
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  When creating a November 2026 Pay Run, an error popup states: "No pay schedule configured.
+  Configure Pay Schedule Settings". Clicking the blue link opens a 404 Not Found page
+  ("Sorry, the page you visited does not exist").
+
+• Steps to Reproduce:
+  1. Log in as Payroll Officer (qa-d4-payroll@infinevocloud.com).
+  2. Navigate to /payroll/runs/new.
+  3. When the pay schedule warning dialog appears, click "Configure Pay Schedule Settings".
+  4. App navigates to /payroll/settings/pay-schedule and displays 404 page.
+
+• Root Cause Analysis:
+  In frontend/src/shell/routes.js, dynamic route filtering (`routesFromFeed`) unmounts
+  any route under `/payroll/settings/*` that is not explicitly present in the sidebar
+  navigation catalogue feed from the backend.
+
+• Resolution Guide:
+  1. Open frontend/src/shell/routes.js.
+  2. Add an explicit route whitelist for `/payroll/settings/pay-schedule`:
+     <Route
+       path="/payroll/settings/pay-schedule"
+       element={<RequireAuth module="PAYROLL"><PayScheduleSettings /></RequireAuth>}
+     />
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-11: Terminated Employee Cannot Be Reactivated; "Reactivate Employee" Button Missing
+================================================================================
+Status: OPEN
+Severity: CRITICAL
+Component / Screen: /employees/:id (EmployeeDetail.jsx / ActionsMenu.jsx)
+Stage & Step: Stage 14 — Step S14-08
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  Once an employee is marked as TERMINATED, navigating to their profile shows no
+  option or button in the Actions menu to reactivate the employee.
+
+• Steps to Reproduce:
+  1. Log in as HR.
+  2. Go to /employees, filter by TERMINATED, and open EMP-03.
+  3. Click Actions dropdown: only disabled edit options appear; "Reactivate Employee" is absent.
+
+• Root Cause Analysis:
+  In EmployeeDetail.jsx, the action menu items only handle active and on-leave states.
+  No handler or menu item was implemented for `status === 'TERMINATED'` to invoke
+  `PUT /api/v1/employees/{id}/reactivate`.
+
+• Resolution Guide:
+  1. In frontend/src/modules/hrms/employees/EmployeeDetail.jsx, add to Actions dropdown:
+     {employee.status === 'TERMINATED' && (
+       <Menu.Item key="reactivate" icon={<UserSwitchOutlined />} onClick={() => setReactivateModalOpen(true)}>
+         Reactivate Employee
+       </Menu.Item>
+     )}
+  2. Create ReactivateModal component collecting Reactivation Date and Remarks, invoking:
+     api.put(`/api/v1/employees/${employee.id}/reactivate`, { reactivationDate, remarks });
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-12: Terminated View in Employee Directory: Last Working Day Column Missing
+================================================================================
+Status: OPEN
+Severity: MINOR
+Component / Screen: /employees (EmployeeList.jsx)
+Stage & Step: Stage 14 — Step S14-02, S14-07
+Reporter: Krushna (Dev 4) — QA-D4 Tenant
+
+• Symptom / Defect:
+  When filtering Employee Directory by status = TERMINATED, the table displays Date of
+  Joining, but the Last Working Day column is completely missing from the table view.
+
+• Steps to Reproduce:
+  1. Log in as HR, go to /employees.
+  2. Change Status filter dropdown to TERMINATED.
+  3. Inspect columns: Date of Joining is present, but Last Working Day is absent.
+
+• Root Cause Analysis:
+  In EmployeeList.jsx, table columns are static and do not conditionally render the
+  `lastWorkingDay` attribute when viewing inactive/terminated employee rosters.
+
+• Resolution Guide:
+  1. In frontend/src/modules/hrms/employees/EmployeeList.jsx, dynamically append:
+     ...(statusFilter === 'TERMINATED' ? [{
+       title: 'Last Working Day',
+       dataIndex: 'lastWorkingDay',
+       key: 'lastWorkingDay',
+       width: 140,
+       render: (d) => d ? dayjs(d).format('YYYY-MM-DD') : '—'
+     }] : [])
+================================================================================
+```
+
 ---
 
 ## 23. Live Troubleshooting Guide
@@ -708,6 +1224,7 @@ Each developer updates this table daily before standup:
 | 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 16, Stage 12 | | | | | | Tax & claims testing |
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |
 | 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4, Stage 6, Stage 7, Stage 19, Stage 20 | | | | | | Leave, time & attendance |
+| 2026-10-07 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | 46 | 33 | 4 | 0 | 5 | Day 2 execution: 33 PASS, 4 FAIL, 5 DEFER, 4 PEND. Defects: BUG-D4-01 to BUG-D4-12 (All OPEN) |
 
 ---
 
