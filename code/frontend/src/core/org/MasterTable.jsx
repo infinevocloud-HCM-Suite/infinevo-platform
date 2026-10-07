@@ -53,7 +53,7 @@ export function MasterTable({ title, service }) {
       const data = await service.list(false);
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error(`Failed to load ${title}:`, err);
+      console.error('Failed to load org master records:', err);
       setItems([]);
       if (err?.status !== 403 && err?.code !== 'FORBIDDEN') {
         await errorMsg(err);
@@ -61,7 +61,7 @@ export function MasterTable({ title, service }) {
     } finally {
       setLoading(false);
     }
-  }, [service, title]);
+  }, [service]);
 
   useEffect(() => {
     loadData();
