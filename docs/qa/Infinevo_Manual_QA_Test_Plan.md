@@ -263,7 +263,7 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S4-01 | `/holidays` | Click `nav.holidays` → Click **New Calendar**. | Calendar creation modal opens. | [x] PASS |
+| 1 | S4-01 | `/holidays` | Click `nav.holidays` → Click **New Calendar**. | Calendar creation modal opens. | [!] FAIL — Retest after deployment (`D-11`: 409 Default Calendar Conflict) |
 | 2 | S4-02 | `/holidays/new` | Name: `Mumbai Holiday Calendar 2026`, Year: `2026`, Location: `QA Office Mumbai`. Save. | Calendar listed with assigned work location badge. | [x] PASS |
 | 3 | S4-03 | `/holidays/:id` | Open Calendar. Click Add Holiday. Name: `Diwali Test Holiday`, Date: `2026-10-15`, Restricted: **OFF**. Save. | Holiday added to October 2026 list. | [x] PASS |
 | 4 | S4-04 | `/holidays/:id` | Add Holiday: Name: `Special Restricted Holiday`, Date: `2026-11-05`, Restricted: **ON**. Save. | Holiday tagged with `RESTRICTED` badge. | [x] PASS |
@@ -272,8 +272,8 @@ All compensation arithmetic follows standard monthly conversion:
 | 7 | S4-07 | `/leave/types/new` | Create Leave Type: Name: `Sick Leave`, Code: `SL`, Paid: **YES**, Unit: `DAYS`, Allow Half-Day: **ON**. Save. | SL leave type active. | [x] PASS |
 | 8 | S4-08 | `/leave/types/new` | Create Leave Type: Name: `Loss of Pay`, Code: `LOP`, Paid: **NO**, Unit: `DAYS`, Allow Half-Day: **OFF**. Save. | LOP type active (unpaid leave). | [x] PASS |
 | 9 | S4-09 | `/leave/allocations` | Click `nav.leave.allocations`. Filter Year: `2026`. Click Allocate Balance. | Allocation grid loads showing all active employees. | [x] PASS |
-| 10 | S4-10 | `/leave/allocations` | Allocate EL: EMP-01 = 12 days, EMP-02 = 10 days, EMP-03 = 8 days. Save. | Balance records saved. | [x] PASS |
-| 11 | S4-11 | `/leave/allocations` | Allocate SL: 6 days each for EMP-01, EMP-02, and EMP-03. Save. | Balance table reflects updated SL counts. | [x] PASS |
+| 10 | S4-10 | `/leave/allocations` | Allocate EL: EMP-01 = 12 days, EMP-02 = 10 days, EMP-03 = 8 days. Save. | Balance records saved. | [!] FAIL — Retest after deployment (`D-10`: Missing policy effectiveFrom) |
+| 11 | S4-11 | `/leave/allocations` | Allocate SL: 6 days each for EMP-01, EMP-02, and EMP-03. Save. | Balance table reflects updated SL counts. | [!] FAIL — Retest after deployment (`D-10`: Missing policy effectiveFrom) |
 
 ---
 
@@ -311,16 +311,16 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S6-01 | `/approvals/definitions` | As Admin: Open `nav.approvals.definitions`. Create definition: Flow = `LEAVE`, Step 1 = `REPORTING_MANAGER`, Escalate After = 3 days. Save. | Approval flow active for leaves. | [ ] PENDING |
-| 2 | S6-02 | `/me` | Log in as EMP-02. Navigate to **My Leave** → Click **Apply Leave**. | Leave application form opens. Balance shown: EL = 10 days. | [ ] PENDING |
-| 3 | S6-03 | `/me/leave/apply` | Leave Type: `Earned Leave`, From: `2026-10-20`, To: `2026-10-22` (3 days), Reason: `Diwali Family Function`. Submit. | Request submitted. Status = `PENDING`. EMP-01 receives approval email alert. | [ ] PENDING |
-| 4 | S6-04 | `/approvals` | Log in as EMP-01 (Manager). Navigate to `nav.approvals` inbox. | EMP-02's leave request is listed with applicant name, dates (3 days), and reason. | [ ] PENDING |
-| 5 | S6-05 | `/approvals` | Click the request row. Click **Approve** with comment: `Approved, enjoy holidays!`. | Request status changes to `APPROVED`. | [ ] PENDING |
-| 6 | S6-06 | `/me` | Log in as EMP-02. Check leave balance. | EL balance reduced from 10 to **7 days**. | [ ] PENDING |
-| 7 | S6-07 | `/leave/requests` | Log in as HR. Click **New On-Behalf Request**. Employee = EMP-03, Type = Sick Leave, Date = `2026-10-10` (1 day), Reason = `Fever`. Submit. | Status directly created as `APPROVED` (no approval required for HR on-behalf per W-16.3). EMP-03 SL balance becomes 5. | [ ] PENDING |
-| 8 | S6-08 | `/approvals/delegations` | As EMP-01 (Manager): Click `nav.approvals.delegations` → Create delegation: Delegate To = `HR`, Flow = `LEAVE`, From = `2026-10-25`, To = `2026-10-28`. Save. | Delegation saved. | [ ] PENDING |
-| 9 | S6-09 | `/me` | As EMP-02: Apply leave for `2026-10-27` (1 day). | Request status = `PENDING`. | [ ] PENDING |
-| 10 | S6-10 | `/approvals` | Log in as HR. Check `nav.approvals` inbox. | Delegated leave request from EMP-02 appears in HR's inbox. HR can approve it. | [ ] PENDING |
+| 1 | S6-01 | `/approvals/definitions` | As Admin: Open `nav.approvals.definitions`. Create definition: Flow = `LEAVE`, Step 1 = `REPORTING_MANAGER`, Escalate After = 3 days. Save. | Approval flow active for leaves. | [x] PASS |
+| 2 | S6-02 | `/me` | Log in as EMP-02. Navigate to **My Leave** → Click **Apply Leave**. | Leave application form opens. Balance shown: EL = 10 days. | [!] FAIL — Retest after deployment (`D-10`: Policy `effectiveFrom` missing on server; `/me` requires employee account) |
+| 3 | S6-03 | `/me/leave/apply` | Leave Type: `Earned Leave`, From: `2026-10-20`, To: `2026-10-22` (3 days), Reason: `Diwali Family Function`. Submit. | Request submitted. Status = `PENDING`. EMP-01 receives approval email alert. | [!] FAIL — Retest after deployment (`D-10`: `/api/v1/leave-types/eligible` returns `[]`; "No data" in Leave Type dropdown) |
+| 4 | S6-04 | `/approvals` | Log in as EMP-01 (Manager). Navigate to `nav.approvals` inbox. | EMP-02's leave request is listed with applicant name, dates (3 days), and reason. | [!] FAIL — Retest after deployment (Blocked by S6-03: no pending leave request exists) |
+| 5 | S6-05 | `/approvals` | Click the request row. Click **Approve** with comment: `Approved, enjoy holidays!`. | Request status changes to `APPROVED`. | [!] FAIL — Retest after deployment (Blocked by S6-03: cannot approve uncreated request) |
+| 6 | S6-06 | `/me` | Log in as EMP-02. Check leave balance. | EL balance reduced from 10 to **7 days**. | [!] FAIL — Retest after deployment (Blocked by S6-03: no balance reduction) |
+| 7 | S6-07 | `/leave/requests` | Log in as HR. Click **New On-Behalf Request**. Employee = EMP-03, Type = Sick Leave, Date = `2026-10-10` (1 day), Reason = `Fever`. Submit. | Status directly created as `APPROVED` (no approval required for HR on-behalf per W-16.3). EMP-03 SL balance becomes 5. | [!] FAIL — Retest after deployment (`D-10`: `/leave/requests/new` shows "No data" in Leave Type dropdown because `/eligible` returns empty list) |
+| 8 | S6-08 | `/approvals/delegations` | As EMP-01 (Manager): Click `nav.approvals.delegations` → Create delegation: Delegate To = `HR`, Flow = `LEAVE`, From = `2026-10-25`, To = `2026-10-28`. Save. | Delegation saved. | [!] FAIL — Retest after deployment (Delegation API requires caller employee profile; EMP-01 Keycloak account not activated) |
+| 9 | S6-09 | `/me` | As EMP-02: Apply leave for `2026-10-27` (1 day). | Request status = `PENDING`. | [!] FAIL — Retest after deployment (Blocked by S6-03: leave apply disabled due to D-10) |
+| 10 | S6-10 | `/approvals` | Log in as HR. Check `nav.approvals` inbox. | Delegated leave request from EMP-02 appears in HR's inbox. HR can approve it. | [!] FAIL — Retest after deployment (Blocked by S6-08 and S6-09: no delegated request exists) |
 
 ---
 
@@ -707,7 +707,7 @@ Each developer updates this table daily before standup:
 | 2026-10-06 | Biren (Dev 2) | `QA-D2` | Stage 5, Stage 8, Stage 15, Stage 18 | | | | | | Payroll setup & Pay run |
 | 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 16, Stage 12 | | | | | | Tax & claims testing |
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |
-| 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4 | S4-01 to S4-11 | 11 | 0 | 0 | 0 | Stage 4 leave & holiday setup 100% PASS |
+| 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4, Stage 6 | S4-01 to S4-11, S6-01 to S6-10 | 9 | 12 | 0 | 0 | S6-01 PASS; Stage 4 (S4-01, S4-10, S4-11) and Stage 6 (S6-02 to S6-10) marked FAIL (Retest after deployment) due to D-10 (missing policy effectiveFrom on server) and D-11; code fixes pushed in commit `4b400291` |
 
 ---
 

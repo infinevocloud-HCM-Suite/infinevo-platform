@@ -104,6 +104,22 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | **fixed** `5c07c45` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | **fixed on main `c79755c`** |
 | D-9 | `W-10` spec §8 login flow never run by hand; `W-14.1` §8 never independently re-run | at merge | sayeed runs the two §8 checks | assigned — sayeed |
+| D-10 | Leave Allocation fails with `VALIDATION_FAILED: No effective policy found` when `effectiveFrom` is null / unconfigured | 2026-10-06, manual QA Stage 4 (`S4-10`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`PolicyForm.jsx`, `LeaveTypeServiceImpl.java`) |
+| D-11 | Holiday Calendar creation with `isDefault: true` throws HTTP 409 Conflict if default calendar exists | 2026-10-06, manual QA Stage 4 (`S4-01`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`Calendars.jsx`) |
+
+### QA & Manual Testing Defect Log (Dev 5 — Time & Operations)
+
+#### D-10 (BUG-D5-001): Leave Allocation & Application Missing Effective Policy
+- **Found:** 2026-10-06, Stage 4 (`S4-10`, `S4-11`) & Stage 6 (`S6-02` to `S6-10`), `POST /api/v1/leave/allocations`, `GET /api/v1/leave-types/eligible`
+- **Error:** `VALIDATION_FAILED: No effective policy found for leave type <UUID>` and empty eligible leave types list (`[]`), showing "No data" in UI Leave Type dropdowns.
+- **Root Cause:** Policy drawer (`PolicyForm.jsx`) lacked an `Effective From` date field, sending `null`. `LeaveAllocationServiceImpl` and `LeaveEligibilityServiceImpl` query `effective_from <= date`, which evaluates to false on `NULL` in PostgreSQL.
+- **Fix:** Added `DatePicker` for `Effective From` (defaulting to start of year) in `PolicyForm.jsx` and updated `LeaveTypeServiceImpl.java` to default null `effectiveFrom` to `currentYearStart`. Fixed in `dev-sayeed` commit `4b400291`.
+
+#### D-11 (BUG-D5-002): Holiday Calendar Default Conflict
+- **Found:** 2026-10-06, Stage 4 (`S4-01`), `POST /api/v1/holiday-calendars`
+- **Error:** `HTTP 409 CONFLICT: A default holiday calendar already exists for tenant`
+- **Root Cause:** Backend enforces one default calendar per tenant (W-17 spec); duplicate default creation is rejected with 409 (default switching requires `PUT`). UI allowed users to toggle default to true on create.
+- **Fix:** In `Calendars.jsx`, forced `isDefault: false` during creation if a default already exists, and disabled the default toggle in the create drawer with helper guidance. Fixed in `dev-sayeed` commit `4b400291`.
 
 ---
 
