@@ -1,5 +1,7 @@
 package com.infinevo.core.invitation;
 
+import com.infinevo.shared.audit.AuditIntegratorConfig;
+import com.infinevo.shared.audit.AuditWriter;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -35,7 +37,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
             "com.infinevo.core.tenant",
-            "com.infinevo.shared.identity"
+            "com.infinevo.shared.identity",
+            "com.infinevo.shared.audit"
         })
 @EnableJpaRepositories(
         basePackages = {
@@ -44,7 +47,11 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.employee",
             "com.infinevo.core.org",
             "com.infinevo.core.tenant",
-            "com.infinevo.shared.identity"
+            "com.infinevo.shared.identity",
+            "com.infinevo.shared.audit"
         })
-@Import(UserProfileSyncService.class)
+// The audit listener is part of this context on purpose: acceptance links an @Audited employee to its
+// account, and the audit row needs the tenant at commit. Without the listener the suite could not see
+// the 500 that Azure dev answered on every employee acceptance (2026-10-07).
+@Import({UserProfileSyncService.class, AuditWriter.class, AuditIntegratorConfig.class})
 public class InvitationTestApp {}
