@@ -91,6 +91,13 @@ document:
     endpoint: ${DOCUMENT_BLOB_ENDPOINT:}
     managed-identity-client-id: ${AZURE_CLIENT_ID:}
 
+azure:
+  storage:
+    queue:
+      connection-string: ${AZURE_STORAGE_QUEUE_CONNECTION_STRING:}
+      endpoint: ${AZURE_STORAGE_QUEUE_ENDPOINT:}
+      managed-identity-client-id: ${AZURE_CLIENT_ID:}
+
 server:
   port: 8080
   shutdown: graceful

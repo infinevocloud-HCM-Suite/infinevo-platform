@@ -58,6 +58,9 @@ param postgresDatabase string = 'infinevo'
 @description('Blob service endpoint of the environment storage account, e.g. https://stinfinevodev.blob.core.windows.net/. The document store (W-21) reaches it with the container app managed identity - W-51 forbids account keys - and it resolves to the private endpoint through the privatelink zone. Empty leaves the store unconfigured: uploads answer 503.')
 param blobEndpoint string = ''
 
+@description('Queue service endpoint of the environment storage account, e.g. https://stinfinevodev.queue.core.windows.net/. The queue client (W-52.2) reaches it with the container app managed identity - W-51 forbids account keys - and it resolves to the private endpoint through the privatelink zone. Empty leaves the queue unconfigured: delivery falls back to the sweep.')
+param queueEndpoint string = ''
+
 @description('Azure Managed Redis host name. Empty leaves Redis unconfigured.')
 param redisHost string = ''
 
@@ -366,6 +369,13 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'DOCUMENT_BLOB_ENDPOINT'
               value: blobEndpoint
             }
+            // W-52.2: the queue client reaches Storage Queue with this app's user-assigned
+            // identity, which holds Storage Queue Data Message Sender (rbac.bicep:113-118).
+            // AZURE_CLIENT_ID names which identity. No key and no connection string.
+            {
+              name: 'AZURE_STORAGE_QUEUE_ENDPOINT'
+              value: queueEndpoint
+            }
             {
               name: 'AZURE_CLIENT_ID'
               value: identities.app.clientId
@@ -516,6 +526,13 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'DOCUMENT_BLOB_ENDPOINT'
               value: blobEndpoint
+            }
+            // W-52.2: the worker reaches Storage Queue with its own user-assigned identity,
+            // which holds Storage Queue Data Message Processor (rbac.bicep:120-125).
+            // AZURE_CLIENT_ID names which identity. No key and no connection string.
+            {
+              name: 'AZURE_STORAGE_QUEUE_ENDPOINT'
+              value: queueEndpoint
             }
             {
               name: 'AZURE_CLIENT_ID'

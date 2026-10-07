@@ -44,6 +44,25 @@
         <groupId>com.azure</groupId>
         <artifactId>azure-storage-queue</artifactId>
       </dependency>
+      <!-- W-52.2: Managed identity authentication for Azure Storage Queue -->
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-identity</artifactId>
+        <exclusions>
+          <exclusion>
+            <groupId>com.microsoft.azure</groupId>
+            <artifactId>msal4j-persistence-extension</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna-platform</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
       <!-- W-60: Observability Primitives -->
       <dependency>
         <groupId>net.logstash.logback</groupId>
