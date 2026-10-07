@@ -2,6 +2,7 @@ import React from 'react';
 import { Layout, Menu, Skeleton, Typography, Button, Result, theme as antdTheme } from 'antd';
 import { Link, Routes, Route, useLocation } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
+import { navLabel } from './navigation/navLabels.js';
 import { routesFromFeed, portalRoutes } from './routes.js';
 import { Header } from './Header.jsx';
 import { useImpersonationSession } from './useImpersonationSession.js';
@@ -63,13 +64,17 @@ export function AppShell() {
             style={{
               height: headerHeight,
               display: 'flex',
-              alignItems: 'center',
+              flexDirection: 'column',
+              justifyContent: 'center',
               padding: `0 ${token.padding}px`,
               borderBottom: `1px solid ${token.colorBorderSecondary}`,
             }}
           >
-            <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeHeading4, letterSpacing: 1 }}>
-              Infinevo
+            <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeLG, lineHeight: 1.3 }}>
+              Infinevo HCM Suite
+            </Typography.Text>
+            <Typography.Text style={{ color: token.colorBgContainer, fontSize: token.fontSizeSM, opacity: 0.75, lineHeight: 1.3 }}>
+              Human Capital Management
             </Typography.Text>
           </div>
 
@@ -144,7 +149,7 @@ export function AppShell() {
 
 /**
  * Convert navigation items from the feed into Ant Design Menu item descriptors.
- * No icon keys are emitted — the feed carries only label keys and paths.
+ * No icon keys are emitted — the feed carries only label keys and paths; `navLabel` turns a key into words.
  */
 function buildMenuItems(items) {
   if (!items || items.length === 0) return [];
@@ -152,13 +157,13 @@ function buildMenuItems(items) {
     if (item.children && item.children.length > 0) {
       return {
         key: item.key,
-        label: item.labelKey,
+        label: navLabel(item.labelKey),
         children: buildMenuItems(item.children),
       };
     }
     return {
       key: item.key,
-      label: <Link to={item.path}>{item.labelKey}</Link>,
+      label: <Link to={item.path}>{navLabel(item.labelKey)}</Link>,
     };
   });
 }
