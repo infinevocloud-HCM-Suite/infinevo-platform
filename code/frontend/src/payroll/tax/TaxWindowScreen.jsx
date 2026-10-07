@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import { useParams } from 'react-router-dom';
 import {
   Card,
   Form,
@@ -18,7 +19,7 @@ import {
 } from 'antd';
 import { SaveOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { currentFy, fyOptions, formatFyDisplay } from './financialYear';
+import { currentFy, fyOptions, formatFyDisplay, normalizeFy } from './financialYear';
 import { taxSettingsService } from './taxSettingsService';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { readError } from './apiError';
@@ -26,12 +27,21 @@ import { readError } from './apiError';
 const { Title, Text } = Typography;
 
 export function TaxWindowScreen({ initialFy }) {
-  const [selectedFy, setSelectedFy] = useState(initialFy || currentFy());
+  const params = useParams();
+  const routeFy = params?.year ? normalizeFy(params.year) : null;
+  const [selectedFy, setSelectedFy] = useState(routeFy || initialFy || currentFy());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [settings, setSettings] = useState(null);
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (params?.year) {
+      const normalized = normalizeFy(params.year);
+      setSelectedFy((prev) => (prev !== normalized ? normalized : prev));
+    }
+  }, [params?.year]);
 
   const loadSettings = useCallback(async (fy) => {
     setLoading(true);
@@ -120,10 +130,12 @@ export function TaxWindowScreen({ initialFy }) {
                 <Select
                   value={selectedFy}
                   onChange={handleFyChange}
-                  options={fyOptions().map((opt) => ({
-                    value: opt.value,
-                    label: opt.label,
-                  }))}
+                  options={(() => {
+                    const baseOpts = fyOptions();
+                    return baseOpts.some((opt) => opt.value === selectedFy)
+                      ? baseOpts
+                      : [{ label: selectedFy, value: selectedFy }, ...baseOpts];
+                  })()}
                   style={{ width: 140 }}
                   data-testid="fy-select"
                 />

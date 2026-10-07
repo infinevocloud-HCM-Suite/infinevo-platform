@@ -29,6 +29,7 @@ import {
   AuditOutlined,
   DollarCircleOutlined,
   CalculatorOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { currentFy, fyOptions, formatFyDisplay } from './financialYear';
@@ -46,6 +47,7 @@ import { HousingSection } from './HousingSection';
 import { DeductionsSection } from './DeductionsSection';
 import { OtherIncomeSection } from './OtherIncomeSection';
 import { SummarySection } from './SummarySection';
+import { ProofUploadSection } from './ProofUploadSection';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -267,6 +269,21 @@ export function DeclarationPage({ initialFy, renderSection }) {
       ) : (
         <div data-testid="summary-tab-content">
           <SummarySection fy={selectedFy} />
+        </div>
+      ),
+    },
+    {
+      key: 'proof',
+      label: (
+        <span data-testid="panel-proof">
+          <UploadOutlined /> Proof of Investment (Receipts)
+        </span>
+      ),
+      children: renderSection ? (
+        renderSection('proof', sectionProps)
+      ) : (
+        <div data-testid="proof-tab-content">
+          <ProofUploadSection fy={selectedFy} onRefresh={refresh} />
         </div>
       ),
     },

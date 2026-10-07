@@ -232,6 +232,15 @@ class RoleCatalogueIT {
                 assertThat(holds(conn, tenant, "manager", "core.approval.decide"))
                         .as("W-40.2: core.approval.decide granted to manager")
                         .isTrue();
+                assertThat(holds(conn, tenant, "finance", "core.approval.decide"))
+                        .as("D-14: core.approval.decide granted to finance")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "finance", "core.approval.read"))
+                        .as("D-14: core.approval.read granted to finance")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "finance", "core.approval.delegate"))
+                        .as("D-14: core.approval.delegate granted to finance")
+                        .isTrue();
             }
         }
     }

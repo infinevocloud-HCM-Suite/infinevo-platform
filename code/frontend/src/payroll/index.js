@@ -46,6 +46,9 @@ const OfficerDeclarationView = lazy(() =>
 const DeclarationPage = lazy(() =>
   import('./tax/DeclarationPage.jsx').then((m) => ({ default: m.DeclarationPage }))
 );
+const ProofReviewQueue = lazy(() =>
+  import('./tax/ProofReviewQueue.jsx').then((m) => ({ default: m.ProofReviewQueue }))
+);
 const PriorPayrollPage = lazy(() =>
   import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
 );
@@ -105,6 +108,10 @@ export const routes = [
     element: React.createElement(SettingsLayout, null, React.createElement(TaxWindowScreen)),
   },
   {
+    path: '/payroll/settings/tax-declaration/:year',
+    element: React.createElement(SettingsLayout, null, React.createElement(TaxWindowScreen)),
+  },
+  {
     path: '/employees/:employeeId/tax-declaration/:fy',
     element: React.createElement(OfficerDeclarationView),
   },
@@ -113,6 +120,8 @@ export const routes = [
   { path: '/payroll/claims', element: React.createElement(ClaimList) },
   { path: '/payroll/claims/:id', element: React.createElement(ClaimDetail) },
   { path: '/payroll/deductions', element: React.createElement(DeductionList) },
+  { path: '/payroll/tax-declarations/review', element: React.createElement(ProofReviewQueue) },
+  { path: '/payroll/proof-of-investment', element: React.createElement(ProofReviewQueue) },
 ];
 
 export const reducers = {

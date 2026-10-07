@@ -705,7 +705,7 @@ Each developer updates this table daily before standup:
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-10-06 | Mohit Birla (Dev 1) | `QA-D1` | Stage 0, Stage 11, Stage 12, Stage 13 | S0-01 to S0-10 | | | | | Provisioned all 5 tenants |
 | 2026-10-06 | Biren (Dev 2) | `QA-D2` | Stage 5, Stage 8, Stage 15, Stage 18 | | | | | | Payroll setup & Pay run |
-| 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 12, Stage 16 | 31 / 31 | 23 | 1 | 0 | 7 | 5 Defects logged (D-24 to D-28 in DEV-TRACKER.md) |
+| 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 12, Stage 16 | 31 / 31 | 23 | 1 | 0 | 7 | 2 Functional defects logged (D-24, D-25 in DEV-TRACKER.md) |
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | 39 / 46 | 29 | 8 | 0 | 2 | 14 Defects logged (D-10 to D-23 in DEV-TRACKER.md) |
 | 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4, Stage 6, Stage 7, Stage 19, Stage 20 | | | | | | Leave, time & attendance |
 

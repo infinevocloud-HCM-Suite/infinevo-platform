@@ -53,6 +53,9 @@ const HolidayLookup = lazy(() =>
 const SetupChecklist = lazy(() =>
   import('./setup/SetupChecklist.jsx').then((m) => ({ default: m.SetupChecklist }))
 );
+const RoleMatrixScreen = lazy(() =>
+  import('./role/RoleMatrixScreen.jsx').then((m) => ({ default: m.RoleMatrixScreen }))
+);
 
 const UserInvitations = lazy(() =>
   import('./invitation/UserInvitations.jsx').then((m) => ({ default: m.UserInvitations }))
@@ -117,6 +120,7 @@ export const routes = [
   { path: '/holidays/:id/edit', element: React.createElement(Calendars) },
   { path: '/holidays/:id', element: React.createElement(CalendarHolidays) },
   { path: '/setup', element: React.createElement(SetupChecklist) },
+  { path: '/roles', element: React.createElement(RoleMatrixScreen) },
   { path: '/invitations/users', element: React.createElement(UserInvitations) },
   { path: '/invitations/employees', element: React.createElement(EmployeeInvitations) },
   { path: '/leave/types', element: React.createElement(LeaveTypes) },

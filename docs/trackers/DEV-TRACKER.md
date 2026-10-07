@@ -40,7 +40,7 @@ not started.
 | **Stage 10** | Claims, Receipts & Ad-hoc Deductions | Devashish (Dev 3) | S10-01..08 (8) | 8 | 0 | **DONE** | Claim submission, Finance approval, advance deduction & reversal verified |
 | **Stage 11** | Security, RBAC & Negative Boundaries | Mohit Birla | S11-01..04 (4) | 4 | 0 | **IN PROGRESS** | S11-01..04 passed (direct URL 403 checks); role accumulation diagnosed on duplicate email |
 | **Stage 12** | Audit Trail & Real Mail Verification | Devashish / Mohit | S12-01..06 (6) | 6 | 0 | **DONE** | Audit stream verification & Brevo transactional dispatch verified |
-| **Stage 16** | Proof of Investment (POI) Receipts | Devashish (Dev 3) | S16-01..07 (7) | 0 | 0 | **DEFERRED** | Unmounted in frontend router; marked DEFER per test plan (D-26) |
+| **Stage 16** | Proof of Investment (POI) Receipts | Devashish (Dev 3) | S16-01..07 (7) | 0 | 0 | **DEFERRED** | Unmounted in frontend router; marked DEFER per test plan (D-25) |
 | **Stage 13** | Clean-Slate E2E Smoke Certification | Mohit Birla | S13-01..05 (5) | 0 | 0 | Scheduled | Final sign-off smoke on fresh tenant `QA-E2E` |
 
 ## Assignments
@@ -142,10 +142,7 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-22 | Employee Exit: Terminated employee profile lacks a "Reactivate Employee" button to retract exit (`S14-08`) | 2026-10-06, manual QA | frontend actions menu (`/employees/:id`) | **open (P1)** |
 | D-23 | Custom Roles: Cannot assign custom role `leave-auditor` in User Invitations because `/roles` is not deployed (`S17-04`) | 2026-10-06, manual QA | custom role engine (`/roles`) | **open (P2)** |
 | D-24 | Route Mismatch: `/payroll/settings/tax-declaration/2026` returns HTTP 404 in React Router; live route is `/payroll/settings/tax-declaration` (`S9-01`) | 2026-10-06, manual QA | frontend router (`src/core/routes.js`) | **open (P2)** |
-| D-25 | Tenant Provisioning Modal: Missing "Admin Email" input field specified in test plan; invitation decoupled to `/invitations/users` via Act-As (`S0-02`) | 2026-10-06, manual QA | admin console modal (`src/core/admin`) | **open (P3)** |
-| D-26 | Proof of Investment: Receipt upload dropzone and verification queue route `/payroll/tax-declarations/review` unmounted / missing (`S16-01`..`S16-07`) | 2026-10-06, manual QA | frontend declaration & POI review routes | **open (deferred)** |
-| D-27 | Statutory Compliance Defect: `PayRunServiceImpl.java:760` logs warning only and approves pay runs with deductions >50% and negative net pay, violating Code on Wages 2019 §18(3) | 2026-10-06, statutory audit | backend payroll validation (`payroll/PayRunServiceImpl.java`) | **open (P1)** |
-| D-28 | Tax Calculation Compliance: `Rebate87A.java:33-43` lacks marginal relief under New Tax Regime for AY 2026-27, causing cliff-edge tax penalties on ₹12,00,001 taxable income | 2026-10-06, tax audit | backend tax calculator (`payroll/Rebate87A.java`) | **open (P1)** |
+| D-25 | Proof of Investment: Receipt upload dropzone and verification queue route `/payroll/tax-declarations/review` unmounted / missing (`S16-01`..`S16-07`) | 2026-10-06, manual QA | frontend declaration & POI review routes | **open (deferred)** |
 
 ### Day 1 Manual QA Execution Summary — Dev 4: Krushna (HRMS Core Lead)
 
@@ -237,34 +234,27 @@ One row per known defect in merged code. A row leaves this table only when its f
 > **Assigned Stages:** Stage 9 (Tax Declaration), Stage 10 (Claims & Deductions), Stage 12 (Audit & Mail), Stage 16 (Proof of Investment / POI)  
 > **Execution Progress:** 31 / 31 Steps Evaluated (100%)  
 > **Results:** **23 PASS** (74%) | **1 FAIL** (3%) | **7 DEFER** (23%) | **0 BLOCKED** (0%)  
-> **Linked Artifacts:** `DEV_3_TAX_AND_CLAIMS_QA_EXECUTION_GUIDE.md`, `DEV3_LIVE_TESTING_ISSUES_AND_GUIDANCE_LOG.md`, `HCM_BUSINESS_LOGIC_AND_SECURITY_GAPS.md`
+> **Linked Artifacts:** `DEV_3_TAX_AND_CLAIMS_QA_EXECUTION_GUIDE.md`, `DEV3_LIVE_TESTING_ISSUES_AND_GUIDANCE_LOG.md`
 
-#### Detailed Defect Breakdown (D-24 through D-28)
+#### Detailed Defect Breakdown (Functional Gaps Found in Manual QA)
 
 1. **D-24 (Step S9-01 — P2 Major / Route Mismatch): Route `/payroll/settings/tax-declaration/2026` Returns HTTP 404**
    * **Route:** `/payroll/settings/tax-declaration/2026`
    * **Issue:** When opening Tax Declaration settings with the year path suffix as documented in the manual test plan (`/payroll/settings/tax-declaration/2026`), React Router returns HTTP 404 "Page Not Found". The mounted route is strictly `/payroll/settings/tax-declaration`, which includes an in-screen FY selector dropdown.
    * **Expected:** Either configure React Router with optional `:year` param redirect (`/payroll/settings/tax-declaration/:year?`), or update all navigation links and documentation to `/payroll/settings/tax-declaration`.
 
-2. **D-25 (Step S0-02 — P3 Minor / Documentation & Workflow Decoupling): Tenant Creation Modal Missing Admin Email Field**
-   * **Route:** `/admin/tenants/new`
-   * **Issue:** Test plan Step S0-02 specifies that the "New Tenant" modal contains an Admin Email field. The live UI form only accepts Name, Country, Timezone, Leave Year, and Modules because tenant provisioning is decoupled from admin account creation (which is handled via `Act-As` at `/invitations/users`).
-   * **Expected:** Align test plan documentation and modal UI hint explaining that Tenant Administrator invitation is triggered in Step S0-06 via `Act-As` session.
-
-3. **D-26 (Steps S16-01 to S16-07 — P1 Critical / Deferred Feature): POI Receipt Upload & Verification Queue Unmounted**
+2. **D-25 (Steps S16-01 to S16-07 — P1 Critical / Deferred Feature): POI Receipt Upload & Verification Queue Unmounted**
    * **Route:** `/payroll/settings/poi-window/2026`, `/me/tax-declaration`, and `/payroll/tax-declarations/review`
    * **Issue:** Stage 16 Proof of Investment (POI) workflow cannot be tested end-to-end on Azure Dev. The POI window settings page and officer review queue route (`/payroll/tax-declarations/review`) are not mounted in React Router. Furthermore, `DeclarationPage.jsx` lacks a document upload dropzone for attaching physical LIC/medical investment receipts.
    * **Expected:** Mount the POI review route, add dropzone component in `DeclarationPage.jsx`, and integrate document storage upload permissions (`core.document.upload`). Marked as `DEFER` per test plan.
 
-4. **D-27 (Statutory Defect — P1 Critical / Legal Compliance): Missing Maximum Deduction Cap & Negative Pay Guard**
-   * **Source:** `com.infinevo.payroll.payrun.PayRunServiceImpl.java` (line 760) & Code on Wages, 2019 Section 18(3)
-   * **Issue:** When ad-hoc deductions and statutory recoveries exceed 50% of employee gross wages, the backend service merely logs a `WARN` log and allows the pay run to lock and transition to `APPROVED` / `PAID`. This permits negative net take-home pay, directly violating the statutory 50% deduction ceiling mandated by Indian Labour Law and causing NACH payment gateway batch rejects.
-   * **Expected:** Throw a blocking validation exception (`IllegalStateException` / HTTP 422 Unprocessable Entity) preventing approval and payout if total deductions exceed 50% of gross earnings or if net pay is negative.
-
-5. **D-28 (Tax Compliance Defect — P1 Critical / Statutory Tax Accuracy): Missing Marginal Relief under Section 87A for AY 2026-27**
-   * **Source:** `com.infinevo.payroll.tax.Rebate87A.java` (lines 33–43) & Income Tax Act Section 87A (New Tax Regime)
-   * **Issue:** Under the New Tax Regime for AY 2026-27, taxable income up to ₹12,00,000 enjoys full tax rebate under Section 87A. If taxable income reaches ₹12,00,001, the current implementation computes full slab tax (~₹60,000) with zero rebate because marginal relief is omitted. This penalizes the employee with an excessive tax burden that exceeds the incremental income earned above the threshold.
-   * **Expected:** Implement marginal relief formula limiting total tax payable to the incremental income earned above ₹12,00,000 (i.e. `taxPayable = min(computedTax, taxableIncome - 1200000)`).
+#### Cross-Module Functional Blockers Affecting Tax & Claims Testing
+* **D-14 (Step S2-06 — P1 Critical / RBAC Defect): Finance Role Missing Claims, Deductions, and Approvals:**
+  * When logged in as Finance (`qa-d3-finance@infinevocloud.com`), the left menu only displays `Organisation`. Claims, Deductions, and the Approvals Inbox are missing, blocking Finance from reviewing and approving reimbursement claims submitted by employees.
+* **D-18 (Steps S3-11, S3-12 — P1 Critical / Blocker): Employee Invitation Accept Link Fails:**
+  * Invited employees clicking the email link receive 404 or "Invitation invalid", blocking employees from self-service portal login without manual password override.
+* **D-11 (Steps S1-08, S17-01 — P2 Major): Role Management Page Unmounted (`/roles` 404):**
+  * Custom role creation and permission inspection cannot be tested from the frontend.
 
 ---
 

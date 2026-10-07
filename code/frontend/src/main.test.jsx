@@ -53,6 +53,14 @@ describe('main.jsx bootstrap', () => {
     expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();
   });
 
+  it('at /invitations/accept/ (with trailing slash), initAuth is NOT called and the public page renders', async () => {
+    await bootstrap(container, '/invitations/accept/');
+
+    expect(keycloakAuth.initAuth).not.toHaveBeenCalled();
+    expect(apiClientModule.setTokenProvider).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();
+  });
+
   it('at /, initAuth IS called and the application shell renders', async () => {
     keycloakAuth.initAuth.mockResolvedValueOnce(true);
 

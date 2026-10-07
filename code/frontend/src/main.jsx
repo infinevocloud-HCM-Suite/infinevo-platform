@@ -27,8 +27,18 @@ export function bootstrap(
 ) {
   if (!rootElement) return null;
 
+  const cleanPath = (pathname || '/')
+    .split(/[?#]/)[0]
+    .toLowerCase()
+    .replace(/\/+$/, '') || '/';
+
   const publicRoute = Array.isArray(publicRoutes)
-    ? publicRoutes.find((r) => r.path === pathname)
+    ? publicRoutes.find((r) => {
+        const routePath = (r.path || '')
+          .toLowerCase()
+          .replace(/\/+$/, '') || '/';
+        return routePath === cleanPath;
+      })
     : null;
 
   if (publicRoute) {
