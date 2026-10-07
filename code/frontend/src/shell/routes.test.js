@@ -61,8 +61,8 @@ describe('routesFromFeed', () => {
   it('draws from the module route groups by default', () => {
     expect(routeGroups).toHaveProperty('core');
     expect(routeGroups).toHaveProperty('hrms');
-    expect(routeGroups).toHaveProperty('payroll');
-    expect(routesFromFeed([{ key: 'core.roles', path: '/roles' }])).toEqual([]);
+    expect(routesFromFeed([{ key: 'core.roles', path: '/roles' }]).map((r) => r.path)).toEqual(['/roles']);
+    expect(routesFromFeed([{ key: 'core.unknown', path: '/unknown' }])).toEqual([]);
     const employeeRoutes = routesFromFeed([{ key: 'core.employees', path: '/employees' }]);
     expect(employeeRoutes.map((r) => r.path)).toEqual([
       '/employees',

@@ -13,7 +13,7 @@ vi.mock('./roleService', () => ({
   },
 }));
 
-vi.mock('@shell/authz/useCan', () => ({
+vi.mock('@shell/screens', () => ({
   useCan: vi.fn().mockReturnValue(true),
 }));
 

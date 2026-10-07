@@ -18,12 +18,15 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/settings/professional-tax',
       '/payroll/settings/fbp',
       '/payroll/settings/tax-declaration',
+      '/payroll/settings/tax-declaration/:year',
       '/employees/:employeeId/tax-declaration/:fy',
       '/payroll/components',
       '/payroll/prior-payroll',
       '/payroll/claims',
       '/payroll/claims/:id',
       '/payroll/deductions',
+      '/payroll/tax-declarations/review',
+      '/payroll/proof-of-investment',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
   });
