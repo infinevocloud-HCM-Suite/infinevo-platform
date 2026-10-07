@@ -104,6 +104,7 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | **fixed** `5c07c45` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | **fixed on main `c79755c`** |
 | D-9 | `W-10` spec §8 login flow never run by hand; `W-14.1` §8 never independently re-run | at merge | sayeed runs the two §8 checks | assigned — sayeed |
+| D-10 | Every role's side menu shows raw keys (`nav.setup`, `nav.employees`): `AppShell.jsx` rendered `labelKey` as it came, and no translation step existed (`W-45` §2 deferred it) | 2026-10-07, founder on Azure dev | claude: `shell/navigation/navLabels.js` maps all 36 backend keys to English, an unknown key falls back to words; `navLabels.test.js` fails the build when a backend catalogue adds a key with no label; CI now runs the frontend job when a backend `navigation/` file changes | Ready to merge — dev-claude |
 
 ---
 

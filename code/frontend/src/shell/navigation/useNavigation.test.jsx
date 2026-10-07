@@ -75,11 +75,11 @@ describe('AppShell over the navigation feed', () => {
     apiClient.get.mockResolvedValueOnce({ data: ACME_FEED });
     const { container } = renderShell();
 
-    await screen.findByText('nav.roles');
+    await screen.findByText('Roles');
 
     expect(apiClient.get).toHaveBeenCalledTimes(1);
     expect(apiClient.get).toHaveBeenCalledWith('/v1/navigation');
-    expect(renderedMenuLabels(container)).toEqual(['nav.organisation', 'nav.roles']);
+    expect(renderedMenuLabels(container)).toEqual(['Organisation', 'Roles']);
     expect(container.querySelector('.ant-skeleton')).toBeNull();
   });
 
@@ -92,7 +92,7 @@ describe('AppShell over the navigation feed', () => {
     expect(renderedMenuLabels(container)).toEqual([]);
 
     await act(async () => resolve({ data: ACME_FEED }));
-    await screen.findByText('nav.roles');
+    await screen.findByText('Roles');
     expect(container.querySelector('.ant-skeleton')).toBeNull();
   });
 
@@ -129,7 +129,7 @@ describe('AppShell over the navigation feed', () => {
     expect(seen.some((text) => text.includes('404'))).toBe(false);
 
     await act(async () => resolve({ data: ACME_FEED }));
-    await screen.findByText('nav.roles');
+    await screen.findByText('Roles');
   });
 
   it('renders an empty shell for an empty feed, not a default menu', async () => {
@@ -154,21 +154,21 @@ describe('AppShell over the navigation feed', () => {
   it('refetches when a token for a different tenant arrives, and drops the old menu', async () => {
     apiClient.get.mockResolvedValueOnce({ data: ACME_FEED }).mockResolvedValueOnce({ data: GLOBEX_FEED });
     const { container } = renderShell();
-    await screen.findByText('nav.roles');
+    await screen.findByText('Roles');
     expect(listenerCount()).toBeGreaterThan(0);
 
     await act(async () => fireTenantChange('globex'));
 
-    await screen.findByText('nav.audit');
+    await screen.findByText('Audit log');
     expect(apiClient.get).toHaveBeenCalledTimes(2);
-    expect(renderedMenuLabels(container)).toEqual(['nav.audit']);
-    expect(screen.queryByText('nav.roles')).toBeNull();
+    expect(renderedMenuLabels(container)).toEqual(['Audit log']);
+    expect(screen.queryByText('Roles')).toBeNull();
   });
 
   it('stops listening for tenant changes when unmounted', async () => {
     apiClient.get.mockResolvedValueOnce({ data: ACME_FEED });
     const { unmount } = renderShell();
-    await screen.findByText('nav.roles');
+    await screen.findByText('Roles');
     const before = listenerCount();
 
     unmount();
