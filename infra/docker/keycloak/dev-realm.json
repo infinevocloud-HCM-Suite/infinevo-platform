@@ -1,7 +1,8 @@
 {
   "realm": "infinevo",
   "enabled": true,
-  "displayName": "Infinevo (local development)",
+  "displayName": "Infinevo HCM Suite (local development)",
+  "displayNameHtml": "<div class=\"kc-logo-text\"><span>Infinevo HCM Suite (local development)</span></div><div style=\"font-size:14px;font-weight:normal\">Human Capital Management</div>",
   "sslRequired": "none",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,

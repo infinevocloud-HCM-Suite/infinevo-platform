@@ -64,13 +64,17 @@ export function AppShell() {
             style={{
               height: headerHeight,
               display: 'flex',
-              alignItems: 'center',
+              flexDirection: 'column',
+              justifyContent: 'center',
               padding: `0 ${token.padding}px`,
               borderBottom: `1px solid ${token.colorBorderSecondary}`,
             }}
           >
-            <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeHeading4, letterSpacing: 1 }}>
-              Infinevo
+            <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeLG, lineHeight: 1.3 }}>
+              Infinevo HCM Suite
+            </Typography.Text>
+            <Typography.Text style={{ color: token.colorBgContainer, fontSize: token.fontSizeSM, opacity: 0.75, lineHeight: 1.3 }}>
+              Human Capital Management
             </Typography.Text>
           </div>
 

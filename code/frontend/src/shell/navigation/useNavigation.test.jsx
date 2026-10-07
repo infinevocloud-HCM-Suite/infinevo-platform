@@ -139,7 +139,7 @@ describe('AppShell over the navigation feed', () => {
     await waitFor(() => expect(container.querySelector('.ant-skeleton')).toBeNull());
 
     expect(renderedMenuLabels(container)).toEqual([]);
-    expect(screen.getByText('Infinevo')).toBeTruthy();
+    expect(screen.getByText('Infinevo HCM Suite')).toBeTruthy();
   });
 
   it('renders an empty shell when the call fails', async () => {
