@@ -31,7 +31,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
  */
 class HrmsNavigationTest {
 
-    private final List<ItemDefinition> items = new HrmsNavigation().items();
+    private final List<ItemDefinition> items = HrmsNavigation.LEAVES;
+
+    @Test
+    @DisplayName("D-34: HRMS contributes one group holding every screen, under the HRMS module and no action")
+    void oneGroupHoldsEveryScreen() {
+        List<ItemDefinition> contributed = new HrmsNavigation().items();
+        assertThat(contributed).containsExactly(HrmsNavigation.GROUP);
+        ItemDefinition group = contributed.get(0);
+        assertThat(group.key()).isEqualTo("hrms");
+        assertThat(group.labelKey()).isEqualTo("nav.hrms");
+        assertThat(group.requiredModule()).isEqualTo(PlatformModule.HRMS);
+        assertThat(group.requiredAction()).isNull();
+        assertThat(group.children()).containsExactlyElementsOf(items);
+        assertThat(group.path()).isEqualTo(items.get(0).path());
+    }
 
     @Test
     @DisplayName("HRMS contributes exactly ten items, as the specs' tables say")

@@ -615,7 +615,7 @@ jobs:
 
             # 8b - file CONTENTS. docker history never shows what a COPY brought in.
             HITS=$(docker run --rm --entrypoint sh "$img" -c \
-              'grep -rIl -E "local_dev_pw|BEGIN [A-Z ]*PRIVATE KEY" \
+              'grep -rIl -E "Local_dev_pw1!|BEGIN [A-Z ]*PRIVATE KEY" \
                  /app /opt/keycloak/data /usr/share/nginx/html 2>/dev/null' || true)
             if [ -n "$HITS" ]; then
               echo "::error::credential found in $img file contents: $HITS"

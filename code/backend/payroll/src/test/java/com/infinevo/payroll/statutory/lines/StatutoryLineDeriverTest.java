@@ -33,7 +33,8 @@ class StatutoryLineDeriverTest {
         epf.setAdminChargeRate(new BigDecimal("0.5000"));
         epf.setEpsSeniorAge((short) 58);
         epf.setIncludeEmployerInCtc(true);
-        epf.setIncludeEdliAdminInCtc(true);
+        epf.setIncludeEdliInCtc(true);
+        epf.setIncludeAdminInCtc(true);
         return epf;
     }
 
@@ -326,5 +327,84 @@ class StatutoryLineDeriverTest {
         assertThat(erPf).isNotNull();
         assertThat(erPf.rate()).isEqualByComparingTo(new BigDecimal("3.6700"));
         assertThat(erPf.monthlyAmount().raw()).isEqualByComparingTo(new BigDecimal("550.5000"));
+    }
+
+    @Test
+    @DisplayName("D-39: EDLI in CTC and admin charges out of CTC are honoured separately")
+    void edliInCtc_adminOutOfCtc() {
+        EpfSetting epf = createDefaultEpfSetting();
+        epf.setIncludeEdliInCtc(true);
+        epf.setIncludeAdminInCtc(false);
+
+        Map<StatutoryComponentCode, DerivedStatutoryLine> map = deriveEpfOnly(epf);
+
+        assertThat(map.get(StatutoryComponentCode.EDLI).includedInCtc()).isTrue();
+        assertThat(map.get(StatutoryComponentCode.EPF_ADMIN).includedInCtc()).isFalse();
+        assertThat(map.get(StatutoryComponentCode.EPF_EMPLOYER).includedInCtc()).isTrue();
+        assertThat(employerAnnualInCtc(map)).isEqualByComparingTo(new BigDecimal("22500.0000"));
+    }
+
+    @Test
+    @DisplayName("D-39: admin charges in CTC and EDLI out of CTC are honoured separately")
+    void adminInCtc_edliOutOfCtc() {
+        EpfSetting epf = createDefaultEpfSetting();
+        epf.setIncludeEdliInCtc(false);
+        epf.setIncludeAdminInCtc(true);
+
+        Map<StatutoryComponentCode, DerivedStatutoryLine> map = deriveEpfOnly(epf);
+
+        assertThat(map.get(StatutoryComponentCode.EDLI).includedInCtc()).isFalse();
+        assertThat(map.get(StatutoryComponentCode.EPF_ADMIN).includedInCtc()).isTrue();
+        assertThat(employerAnnualInCtc(map)).isEqualByComparingTo(new BigDecimal("22500.0000"));
+    }
+
+    @Test
+    @DisplayName("D-39: both EDLI and admin out of CTC leaves only employer PF and EPS in the employer total")
+    void edliAndAdminOutOfCtc() {
+        EpfSetting epf = createDefaultEpfSetting();
+        epf.setIncludeEdliInCtc(false);
+        epf.setIncludeAdminInCtc(false);
+
+        Map<StatutoryComponentCode, DerivedStatutoryLine> map = deriveEpfOnly(epf);
+
+        assertThat(map.get(StatutoryComponentCode.EDLI).includedInCtc()).isFalse();
+        assertThat(map.get(StatutoryComponentCode.EPF_ADMIN).includedInCtc()).isFalse();
+        // EPS 14,994 + employer PF 6,606 = 21,600 a year.
+        assertThat(employerAnnualInCtc(map)).isEqualByComparingTo(new BigDecimal("21600.0000"));
+    }
+
+    @Test
+    @DisplayName("D-39: the structure switches do not change which lines count in CTC")
+    void structureSwitchesDoNotAffectCtc() {
+        EpfSetting epf = createDefaultEpfSetting();
+        epf.setIncludeEdliInCtc(false);
+        epf.setIncludeAdminInCtc(false);
+        epf.setIncludeEdliInStructure(true);
+        epf.setIncludeAdminInStructure(true);
+
+        Map<StatutoryComponentCode, DerivedStatutoryLine> map = deriveEpfOnly(epf);
+
+        assertThat(map.get(StatutoryComponentCode.EDLI).includedInCtc()).isFalse();
+        assertThat(map.get(StatutoryComponentCode.EPF_ADMIN).includedInCtc()).isFalse();
+    }
+
+    /** Basic 25,000, restricted ceiling 15,000: EDLI and admin are 900 a year each. */
+    private Map<StatutoryComponentCode, DerivedStatutoryLine> deriveEpfOnly(EpfSetting epf) {
+        List<DerivedStatutoryLine> lines = StatutoryLineDeriver.derive(
+                Money.of(new BigDecimal("25000.0000")),
+                Money.of(new BigDecimal("45000.0000")),
+                createProfile(true, true, false),
+                epf,
+                null,
+                LocalDate.of(1996, 1, 1),
+                LocalDate.of(2026, 1, 1));
+        return lines.stream().collect(Collectors.toMap(DerivedStatutoryLine::code, l -> l));
+    }
+
+    private static BigDecimal employerAnnualInCtc(Map<StatutoryComponentCode, DerivedStatutoryLine> map) {
+        return map.values().stream()
+                .filter(l -> l.share() == ContributionShare.EMPLOYER && l.includedInCtc())
+                .map(l -> l.annualAmount().raw())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

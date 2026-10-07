@@ -1,5 +1,9 @@
 package com.infinevo.core.employee;
 
+import com.infinevo.core.employee.detail.EmployeeEmploymentRequest;
+import com.infinevo.core.employee.detail.EmployeeEmploymentResponse;
+import com.infinevo.core.employee.detail.EmployeeEmploymentService;
+import com.infinevo.core.employee.detail.EmploymentTerms;
 import com.infinevo.core.org.Department;
 import com.infinevo.core.org.DepartmentRepository;
 import com.infinevo.core.org.Designation;
@@ -70,6 +74,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final WorkLocationRepository workLocationRepository;
     private final UserAccountRepository userAccountRepository;
     private final UserProfileSyncService userProfileSyncService;
+    private final EmployeeEmploymentService employmentService;
 
     public EmployeeServiceImpl(
             EmployeeRepository employeeRepository,
@@ -77,7 +82,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             DesignationRepository designationRepository,
             WorkLocationRepository workLocationRepository,
             UserAccountRepository userAccountRepository,
-            UserProfileSyncService userProfileSyncService) {
+            UserProfileSyncService userProfileSyncService,
+            EmployeeEmploymentService employmentService) {
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
         this.departmentRepository =
                 Objects.requireNonNull(departmentRepository, "departmentRepository must not be null");
@@ -89,6 +95,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 Objects.requireNonNull(userAccountRepository, "userAccountRepository must not be null");
         this.userProfileSyncService =
                 Objects.requireNonNull(userProfileSyncService, "userProfileSyncService must not be null");
+        this.employmentService = Objects.requireNonNull(employmentService, "employmentService must not be null");
     }
 
     @Override
@@ -104,7 +111,61 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = new Employee(tenantId, currentActor());
         fields.applyTo(employee, currentActor());
         assign(employee, request, tenantId);
-        return EmployeeResponse.from(save(employee, fields.employeeNumber()));
+        Employee saved = save(employee, fields.employeeNumber());
+        writeEmploymentTerms(saved.getId(), request);
+        return EmployeeResponse.from(saved);
+    }
+
+    /**
+     * D-40: the Add Employee form's employment type, probation end and notice period go to the
+     * Employment section, in this transaction — so a create that fails there leaves no employee
+     * behind, and one that succeeds has its section from the start.
+     *
+     * <p>Nothing is written when all three are absent. A section row of nothing but nulls would turn
+     * the section's "not filled yet" {@code 404} into an empty {@code 200} for every employee created
+     * without them, which is every employee every other caller creates.
+     */
+    private void writeEmploymentTerms(UUID employeeId, EmployeeRequest request) {
+        if (request.employmentType() == null
+                && request.probationEndDate() == null
+                && request.noticePeriodDays() == null) {
+            return;
+        }
+        employmentService.put(
+                employeeId,
+                new EmployeeEmploymentRequest(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        request.employmentType(),
+                        request.probationEndDate(),
+                        request.noticePeriodDays()));
+    }
+
+    /**
+     * D-40: moving the joining date later must not leave the probation ending before it. The section
+     * is read only when the date moves later — earlier can never break the rule, and most updates do
+     * not move it at all.
+     */
+    private void checkProbationStillFollowsJoining(Employee employee, LocalDate newDateOfJoining) {
+        if (newDateOfJoining == null
+                || employee.getDateOfJoining() == null
+                || !newDateOfJoining.isAfter(employee.getDateOfJoining())) {
+            return;
+        }
+        LocalDate probationEnd = employmentService
+                .find(employee.getId())
+                .map(EmployeeEmploymentResponse::probationEndDate)
+                .orElse(null);
+        if (probationEnd != null && probationEnd.isBefore(newDateOfJoining)) {
+            throw new ValidationException(Map.of(
+                    "dateOfJoining",
+                    "dateOfJoining cannot be after the probation end date " + probationEnd
+                            + "; change the probation end on the Employment section first"));
+        }
     }
 
     @Override
@@ -118,6 +179,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     public EmployeeResponse update(UUID id, EmployeeRequest request) {
         Employee employee = require(id);
         Fields fields = validate(request, employee.getStatus());
+        checkProbationStillFollowsJoining(employee, fields.dateOfJoining());
 
         if (employeeRepository.existsByTenantIdAndEmployeeNumberAndIdNot(
                 employee.getTenantId(), fields.employeeNumber(), employee.getId())) {
@@ -411,6 +473,14 @@ public class EmployeeServiceImpl implements EmployeeService {
         String middleName = optional(errors, "middleName", request.middleName(), MAX_NAME);
         String lastName = optional(errors, "lastName", request.lastName(), MAX_NAME);
         String gender = optional(errors, "gender", request.gender(), MAX_GENDER);
+        if (gender != null) {
+            Optional<Gender> parsed = Gender.parse(gender);
+            if (parsed.isPresent()) {
+                gender = parsed.get().name();
+            } else {
+                errors.put("gender", "gender must be one of MALE, FEMALE, OTHER, UNDISCLOSED");
+            }
+        }
         String workEmail = optional(errors, "workEmail", request.workEmail(), MAX_WORK_EMAIL);
         String mobile = optional(errors, "mobile", request.mobile(), MAX_MOBILE);
 
@@ -443,6 +513,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         if (terminationDate != null && dateOfJoining != null && terminationDate.isBefore(dateOfJoining)) {
             errors.put("terminationDate", "terminationDate cannot precede dateOfJoining");
+        }
+
+        // D-40. Create only: on update the three are ignored (EmployeeRequest), so refusing a value
+        // that would not be written would be an error about nothing.
+        if (currentStatus == null) {
+            EmploymentTerms.check(errors, dateOfJoining, request.probationEndDate(), request.noticePeriodDays());
         }
 
         if (!errors.isEmpty()) {

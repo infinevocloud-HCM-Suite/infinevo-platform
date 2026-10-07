@@ -218,6 +218,62 @@ class SetupChecklistServiceTest {
     private static final SetupStepCatalogue.StepDefinition LATER_STEP =
             new SetupStepCatalogue.StepDefinition("LATER_CORE_STEP", "Added in a later release", null, 10);
 
+    // ── D-35: isComplete, the read the navigation feed's home path asks
+
+    @Test
+    @DisplayName("isComplete: a tenant with an unresolved step is not complete, and asking writes nothing")
+    void isCompleteFalseWhileAStepIsOpenAndWritesNothing() {
+        UUID tenantId = UUID.randomUUID();
+        when(entitlementSource.modulesOf(tenantId)).thenReturn(Set.of(PlatformModule.HRMS));
+
+        assertThat(service.isComplete(tenantId)).isFalse();
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never()).save(any(TenantSetupStep.class));
+    }
+
+    @Test
+    @DisplayName("isComplete: every applicable step done or skipped is complete; another module's steps do not count")
+    void isCompleteWhenEveryStepIsDoneOrSkipped() {
+        UUID tenantId = UUID.randomUUID();
+        when(entitlementSource.modulesOf(tenantId)).thenReturn(Set.of(PlatformModule.HRMS));
+        SetupChecklistService done = new SetupChecklistService(
+                repository,
+                entitlementSource,
+                List.of(createChecker("WORK_LOCATION", null, true), createChecker("EMPLOYEE", null, true)));
+        assertThat(done.isComplete(tenantId))
+                .as("both core checkers complete, no rows yet")
+                .isTrue();
+
+        SetupChecklistService halfDone = new SetupChecklistService(
+                repository,
+                entitlementSource,
+                List.of(createChecker("WORK_LOCATION", null, true), createChecker("EMPLOYEE", null, false)));
+        assertThat(halfDone.isComplete(tenantId)).isFalse();
+        halfDone.skipStep(tenantId, "EMPLOYEE", "Employees come later");
+        assertThat(halfDone.isComplete(tenantId))
+                .as("a skipped step is resolved")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("isComplete: a step added by a later release does not send a finished tenant back to setup")
+    void isCompleteIgnoresAStepAddedLater() {
+        UUID tenantId = UUID.randomUUID();
+        when(entitlementSource.modulesOf(tenantId)).thenReturn(Set.of(PlatformModule.HRMS));
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-01T00:00:00Z"));
+        List<SetupStepChecker> checkers = List.of(
+                createChecker("WORK_LOCATION", null, true),
+                createChecker("EMPLOYEE", null, true),
+                createChecker(LATER_STEP.code(), null, false));
+        new SetupChecklistService(repository, entitlementSource, checkers, coreSteps(), clock).getChecklist(tenantId);
+
+        clock.advance(Duration.ofDays(1));
+        SetupChecklistService released =
+                new SetupChecklistService(repository, entitlementSource, checkers, coreStepsPlusLater(), clock);
+        released.getChecklist(tenantId);
+
+        assertThat(released.isComplete(tenantId)).isTrue();
+    }
+
     private static List<SetupStepCatalogue.StepDefinition> coreSteps() {
         return SetupStepCatalogue.DEFAULT_STEPS.stream()
                 .filter(d -> d.module() == null)

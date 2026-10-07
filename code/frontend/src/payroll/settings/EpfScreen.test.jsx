@@ -148,4 +148,68 @@ describe('EpfScreen (W-47.1b §7)', () => {
 
     expect(statutoryService.save).not.toHaveBeenCalled();
   });
+
+  it('shows EDLI and admin charges as four separate switches (D-39)', async () => {
+    statutoryService.get.mockResolvedValue({
+      source: 'DATABASE',
+      is_enabled: false,
+      eps_senior_age: 58,
+    });
+
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('save-epf-button')).toBeDefined();
+    });
+
+    expect(screen.getByText('Include EDLI contribution in CTC')).toBeDefined();
+    expect(screen.getByText('Include EPF admin charges in CTC')).toBeDefined();
+    expect(screen.getByText('Include EDLI contribution in salary structure')).toBeDefined();
+    expect(screen.getByText('Include EPF admin charges in salary structure')).toBeDefined();
+    expect(screen.queryByText(/EDLI & Admin/)).toBeNull();
+  });
+
+  it('loads and saves the EDLI and admin switches independently (D-39)', async () => {
+    statutoryService.get.mockResolvedValue({
+      source: 'DATABASE',
+      is_enabled: false,
+      employee_rate: '12.0000',
+      employer_rate: '12.0000',
+      eps_rate: STATUTORY_EPS_RATE,
+      edli_rate: '0.5000',
+      admin_charge_rate: '0.5000',
+      wage_ceiling: STATUTORY_CEILING,
+      eps_senior_age: 58,
+      include_edli_in_ctc: true,
+      include_admin_in_ctc: false,
+      include_edli_in_structure: false,
+      include_admin_in_structure: true,
+    });
+    statutoryService.save.mockResolvedValue({ source: 'DATABASE' });
+
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('epf-include-edli-in-ctc').getAttribute('aria-checked')).toBe('true');
+    });
+    expect(screen.getByTestId('epf-include-admin-in-ctc').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('epf-include-edli-in-structure').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('epf-include-admin-in-structure').getAttribute('aria-checked')).toBe('true');
+
+    // Turn admin charges on in CTC without touching EDLI.
+    fireEvent.click(screen.getByTestId('epf-include-admin-in-ctc'));
+    fireEvent.click(screen.getByTestId('save-epf-button'));
+
+    await waitFor(() => {
+      expect(statutoryService.save).toHaveBeenCalledTimes(1);
+    });
+
+    const [, payload] = statutoryService.save.mock.calls[0];
+    expect(payload.include_edli_in_ctc).toBe(true);
+    expect(payload.include_admin_in_ctc).toBe(true);
+    expect(payload.include_edli_in_structure).toBe(false);
+    expect(payload.include_admin_in_structure).toBe(true);
+    expect(payload).not.toHaveProperty('include_edli_admin_in_ctc');
+    expect(payload).not.toHaveProperty('include_edli_admin_in_structure');
+  });
 });

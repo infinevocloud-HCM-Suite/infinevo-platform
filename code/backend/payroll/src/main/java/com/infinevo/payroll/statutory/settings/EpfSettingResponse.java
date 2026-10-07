@@ -26,9 +26,11 @@ public record EpfSettingResponse(
         boolean considerEarnedWage,
         int epsSeniorAge,
         boolean includeEmployerInCtc,
-        boolean includeEdliAdminInCtc,
+        boolean includeEdliInCtc,
+        boolean includeAdminInCtc,
         boolean includeEmployerInStructure,
-        boolean includeEdliAdminInStructure,
+        boolean includeEdliInStructure,
+        boolean includeAdminInStructure,
         boolean abryScheme,
         SettingSource source) {
 
@@ -52,9 +54,11 @@ public record EpfSettingResponse(
                 entity.isConsiderEarnedWage(),
                 entity.getEpsSeniorAge(),
                 entity.isIncludeEmployerInCtc(),
-                entity.isIncludeEdliAdminInCtc(),
+                entity.isIncludeEdliInCtc(),
+                entity.isIncludeAdminInCtc(),
                 entity.isIncludeEmployerInStructure(),
-                entity.isIncludeEdliAdminInStructure(),
+                entity.isIncludeEdliInStructure(),
+                entity.isIncludeAdminInStructure(),
                 entity.isAbryScheme(),
                 SettingSource.PERSISTED);
     }
@@ -78,6 +82,8 @@ public record EpfSettingResponse(
                 false,
                 true,
                 58,
+                false,
+                false,
                 false,
                 false,
                 false,

@@ -6,8 +6,11 @@ import { createService } from '@shared/api/createService.js';
  *
  * Every reply here is a bare DTO, not the `{status, message, data}` envelope:
  *   - list, get: `TenantOverview` (snake_case: tenant_id, name, country_code, timezone, status,
- *     modules, created_at, current_period_end, user_count) - core TenantController
- *   - create: `TenantResponse` (camelCase: tenantId, name, ...) - core TenantController
+ *     modules, created_at, current_period_end, user_count, admin_invitation: { email, status }
+ *     with status PENDING | ACCEPTED | NONE) - core TenantController
+ *   - create: body `TenantRequest` (snake_case: name, country_code, timezone,
+ *     leave_year_start_month, modules, optional admin_email); reply `TenantResponse`
+ *     (camelCase: tenantId, name, ..., adminInvitationId) - core TenantController
  *   - subscription, setModules, setStatus: `SubscriptionResponse` - core SubscriptionController
  *
  * list, get, create and the two PUTs are platform-tenant endpoints (`core.tenant.provision`), so

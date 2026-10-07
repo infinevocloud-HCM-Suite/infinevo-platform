@@ -132,7 +132,7 @@ class LopPolicySeedIT extends AbstractIntegrationTest {
         TenantService tenantService = new TenantServiceImpl(jdbcTemplate);
         String uniqueName = "Provisioned Tenant " + UUID.randomUUID();
         TenantResponse provisioned = tenantService.provisionTenant(
-                new TenantRequest(uniqueName, "IN", "Asia/Kolkata", (short) 4, Set.of(PlatformModule.PAYROLL)));
+                new TenantRequest(uniqueName, "IN", "Asia/Kolkata", (short) 4, Set.of(PlatformModule.PAYROLL), null));
 
         UUID newTenantId = provisioned.tenantId();
 

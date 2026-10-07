@@ -30,16 +30,24 @@ const IMPERSONATION_ADMIN_PATH = '/admin/tenants';
  * array anywhere here. An empty feed → empty sidebar and NoModules placeholder.
  */
 export function AppShell() {
-  const { items, tenantName, loading, error, refetch } = useNavigation();
+  const { items, tenantName, homePath: feedHomePath, loading, error, refetch } = useNavigation();
   const location = useLocation();
   const { token } = antdTheme.useToken();
   const session = useImpersonationSession();
 
   const menuItems = buildMenuItems(items);
   const selectedKey = findSelectedKey(items, location.pathname);
+  // Groups start collapsed; the one holding the current screen opens (D-34). The user may open
+  // others, and moving to a screen in another group opens that group instead.
+  const selectedGroups = parentKeys(items, selectedKey) || [];
+  const selectedGroupsId = selectedGroups.join('|');
+  const [openKeys, setOpenKeys] = React.useState(selectedGroups);
+  React.useEffect(() => {
+    setOpenKeys(selectedGroupsId ? selectedGroupsId.split('|') : []);
+  }, [selectedGroupsId]);
   // `/` is where Keycloak returns the user after login. It is not a menu path, so it opens the
-  // first screen the feed names rather than falling through to NotFound.
-  const homePath = firstPath(items);
+  // caller's home page - the server names it by role (D-35) - or else the first screen the feed names.
+  const homePath = feedHomePath || firstPath(items);
   // Only register routes whose path is in the navigation feed — a route not in the
   // feed is not registered at all (W-12.3 §5). An empty feed → empty route tree.
   // The one exception: a live impersonation session keeps the tenant admin routes mounted.
@@ -98,6 +106,8 @@ export function AppShell() {
               theme="dark"
               mode="inline"
               selectedKeys={selectedKey ? [selectedKey] : []}
+              openKeys={openKeys}
+              onOpenChange={setOpenKeys}
               items={menuItems}
               style={{ borderRight: 0, marginTop: token.sizeUnit * 2 }}
             />
@@ -129,7 +139,12 @@ export function AppShell() {
             ) : (!items || items.length === 0) &&
               !location.pathname.startsWith('/me') &&
               !onSessionAdminPath ? (
-              <NoModules />
+              // An employee whose feed is empty still has the portal: the server's home sends them there.
+              location.pathname === '/' && feedHomePath && feedHomePath.startsWith('/me') ? (
+                <Navigate to={feedHomePath} replace />
+              ) : (
+                <NoModules />
+              )
             ) : (
               <React.Suspense fallback={<Skeleton active />}>
                 <Routes>
@@ -182,6 +197,21 @@ function firstPath(items) {
       if (child) return child;
     } else if (item.path) {
       return item.path;
+    }
+  }
+  return null;
+}
+
+/**
+ * The keys of the groups enclosing `key`, outermost first; null when `key` is not in the tree.
+ */
+function parentKeys(items, key, trail = []) {
+  if (!key) return null;
+  for (const item of items || []) {
+    if (item.key === key) return trail;
+    if (item.children && item.children.length > 0) {
+      const found = parentKeys(item.children, key, [...trail, item.key]);
+      if (found) return found;
     }
   }
   return null;

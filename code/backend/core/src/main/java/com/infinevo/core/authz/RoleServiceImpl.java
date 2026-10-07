@@ -400,6 +400,7 @@ public class RoleServiceImpl implements RoleService {
      */
     private void requireNoPlatformOnlyActions(UUID tenantId, Set<String> actionCodes) {
         if (platformTenant.isPlatformTenant(tenantId)) {
+            requirePlatformScope(actionCodes);
             return;
         }
         Set<String> platformOnly = new TreeSet<>(actionCodes);
@@ -410,6 +411,31 @@ public class RoleServiceImpl implements RoleService {
                     "Platform-only action codes cannot be granted in a customer tenant: "
                             + String.join(", ", platformOnly)));
         }
+    }
+
+    /**
+     * Refuses, in the platform tenant, every action outside the platform's own scope (D-33): the
+     * {@code core.tenant.*} actions, {@code core.audit.read} and {@code core.user.manage}. The platform tenant runs
+     * no HR or payroll of its own, so a customer action there only shows platform staff customer screens. The
+     * database refuses them too (V158); this is the answer the caller can read.
+     */
+    private static void requirePlatformScope(Set<String> actionCodes) {
+        Set<String> outside = actionCodes.stream()
+                .filter(code -> !isPlatformScope(code))
+                .collect(Collectors.toCollection(TreeSet::new));
+        if (!outside.isEmpty()) {
+            throw new ValidationException(Map.of(
+                    "actionCodes",
+                    "Only core.tenant.*, core.audit.read and core.user.manage can be granted in the platform tenant: "
+                            + String.join(", ", outside)));
+        }
+    }
+
+    /** The actions a role in the platform tenant may hold (V158). */
+    static boolean isPlatformScope(String actionCode) {
+        return actionCode.startsWith("core.tenant.")
+                || "core.audit.read".equals(actionCode)
+                || "core.user.manage".equals(actionCode);
     }
 
     /** Trims, drops duplicates, keeps order. Null list and blank entries are errors. */

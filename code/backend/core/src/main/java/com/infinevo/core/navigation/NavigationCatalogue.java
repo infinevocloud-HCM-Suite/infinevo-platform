@@ -47,16 +47,50 @@ public final class NavigationCatalogue {
         }
     }
 
+    /**
+     * The core menu, in groups (D-34): People, Organisation, Approvals, Leave, Settings, then the platform's
+     * Tenants. A group's {@code path} and {@code targetEndpoint} are its first child's; the feed rewrites the path
+     * to the first child the caller can see. People, Organisation and Settings require no action of their own, so
+     * the service shows each exactly when one of its children is visible. Leaf keys, label keys, paths, endpoints
+     * and actions are the ones the flat menu had, so the frontend's routes and labels still match.
+     */
     public static final List<ItemDefinition> DEFAULT_ITEMS = List.of(
             new ItemDefinition(
-                    "core.employee", "nav.employees", "/employees", "/api/v1/employees", null, "core.employee.read"),
+                    "core.people",
+                    "nav.people",
+                    "/employees",
+                    "/api/v1/employees",
+                    null,
+                    null,
+                    List.of(
+                            new ItemDefinition(
+                                    "core.employee",
+                                    "nav.employees",
+                                    "/employees",
+                                    "/api/v1/employees",
+                                    null,
+                                    "core.employee.read"),
+                            new ItemDefinition(
+                                    "core.invitations.users",
+                                    "nav.userInvitations",
+                                    "/invitations/users",
+                                    "/api/v1/user-invitations",
+                                    null,
+                                    "core.user.manage"),
+                            new ItemDefinition(
+                                    "core.invitations.employees",
+                                    "nav.employeeInvitations",
+                                    "/invitations/employees",
+                                    "/api/v1/employee-invitations",
+                                    null,
+                                    "core.employee.create"))),
             new ItemDefinition(
                     "core.org",
                     "nav.organisation",
                     "/org/departments",
                     "/api/v1/departments",
                     null,
-                    "core.org.read",
+                    null,
                     List.of(
                             new ItemDefinition(
                                     "core.org.departments",
@@ -78,18 +112,16 @@ public final class NavigationCatalogue {
                                     "/org/work-locations",
                                     "/api/v1/work-locations",
                                     null,
-                                    "core.org.read"))),
-            new ItemDefinition("core.roles", "nav.roles", "/roles", "/api/v1/roles", null, "core.role.read"),
-            new ItemDefinition("core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"),
-            new ItemDefinition(
-                    "core.holiday",
-                    "nav.holidays",
-                    "/holidays",
-                    "/api/v1/holiday-calendars",
-                    null,
-                    "core.holiday.read"),
-            new ItemDefinition(
-                    "core.setup", "nav.setup", "/setup", "/api/v1/setup-checklist", null, "core.tenant.read"),
+                                    "core.org.read"),
+                            new ItemDefinition(
+                                    "core.holiday",
+                                    "nav.holidays",
+                                    "/holidays",
+                                    "/api/v1/holiday-calendars",
+                                    null,
+                                    "core.holiday.read"),
+                            new ItemDefinition(
+                                    "core.roles", "nav.roles", "/roles", "/api/v1/roles", null, "core.role.read"))),
             new ItemDefinition(
                     "core.approvals",
                     "nav.approvals",
@@ -119,22 +151,6 @@ public final class NavigationCatalogue {
                                     "/api/v1/approval-definitions",
                                     null,
                                     "core.approval_definition.manage"))),
-            new ItemDefinition(
-                    "core.invitations.users",
-                    "nav.userInvitations",
-                    "/invitations/users",
-                    "/api/v1/user-invitations",
-                    null,
-                    "core.user.manage"),
-            new ItemDefinition(
-                    "core.invitations.employees",
-                    "nav.employeeInvitations",
-                    "/invitations/employees",
-                    "/api/v1/employee-invitations",
-                    null,
-                    "core.employee.create"),
-            new ItemDefinition(
-                    "core.tenants", "nav.tenants", "/admin/tenants", "/api/v1/tenants", null, "core.tenant.provision"),
             new ItemDefinition(
                     "core.leave",
                     "nav.leave",
@@ -170,7 +186,26 @@ public final class NavigationCatalogue {
                                     "/leave/import",
                                     "/api/v1/leave-imports",
                                     null,
-                                    "core.leave_balance.manage"))));
+                                    "core.leave_balance.manage"))),
+            new ItemDefinition(
+                    "core.settings",
+                    "nav.settings",
+                    "/setup",
+                    "/api/v1/setup-checklist",
+                    null,
+                    null,
+                    List.of(
+                            new ItemDefinition(
+                                    "core.setup",
+                                    "nav.setup",
+                                    "/setup",
+                                    "/api/v1/setup-checklist",
+                                    null,
+                                    "core.tenant.read"),
+                            new ItemDefinition(
+                                    "core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"))),
+            new ItemDefinition(
+                    "core.tenants", "nav.tenants", "/admin/tenants", "/api/v1/tenants", null, "core.tenant.provision"));
 
     /** The core items followed by every module's contributed items, in contributor order. */
     public static List<ItemDefinition> withContributed(List<NavigationContributor> contributors) {

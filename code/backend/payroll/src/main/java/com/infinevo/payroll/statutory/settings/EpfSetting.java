@@ -87,14 +87,20 @@ public class EpfSetting {
     @Column(name = "include_employer_in_ctc", nullable = false)
     private boolean includeEmployerInCtc = false;
 
-    @Column(name = "include_edli_admin_in_ctc", nullable = false)
-    private boolean includeEdliAdminInCtc = false;
+    @Column(name = "include_edli_in_ctc", nullable = false)
+    private boolean includeEdliInCtc = false;
+
+    @Column(name = "include_admin_in_ctc", nullable = false)
+    private boolean includeAdminInCtc = false;
 
     @Column(name = "include_employer_in_structure", nullable = false)
     private boolean includeEmployerInStructure = false;
 
-    @Column(name = "include_edli_admin_in_structure", nullable = false)
-    private boolean includeEdliAdminInStructure = false;
+    @Column(name = "include_edli_in_structure", nullable = false)
+    private boolean includeEdliInStructure = false;
+
+    @Column(name = "include_admin_in_structure", nullable = false)
+    private boolean includeAdminInStructure = false;
 
     @Column(name = "abry_scheme", nullable = false)
     private boolean abryScheme = false;
@@ -281,12 +287,20 @@ public class EpfSetting {
         this.includeEmployerInCtc = includeEmployerInCtc;
     }
 
-    public boolean isIncludeEdliAdminInCtc() {
-        return includeEdliAdminInCtc;
+    public boolean isIncludeEdliInCtc() {
+        return includeEdliInCtc;
     }
 
-    public void setIncludeEdliAdminInCtc(boolean includeEdliAdminInCtc) {
-        this.includeEdliAdminInCtc = includeEdliAdminInCtc;
+    public void setIncludeEdliInCtc(boolean includeEdliInCtc) {
+        this.includeEdliInCtc = includeEdliInCtc;
+    }
+
+    public boolean isIncludeAdminInCtc() {
+        return includeAdminInCtc;
+    }
+
+    public void setIncludeAdminInCtc(boolean includeAdminInCtc) {
+        this.includeAdminInCtc = includeAdminInCtc;
     }
 
     public boolean isIncludeEmployerInStructure() {
@@ -297,12 +311,20 @@ public class EpfSetting {
         this.includeEmployerInStructure = includeEmployerInStructure;
     }
 
-    public boolean isIncludeEdliAdminInStructure() {
-        return includeEdliAdminInStructure;
+    public boolean isIncludeEdliInStructure() {
+        return includeEdliInStructure;
     }
 
-    public void setIncludeEdliAdminInStructure(boolean includeEdliAdminInStructure) {
-        this.includeEdliAdminInStructure = includeEdliAdminInStructure;
+    public void setIncludeEdliInStructure(boolean includeEdliInStructure) {
+        this.includeEdliInStructure = includeEdliInStructure;
+    }
+
+    public boolean isIncludeAdminInStructure() {
+        return includeAdminInStructure;
+    }
+
+    public void setIncludeAdminInStructure(boolean includeAdminInStructure) {
+        this.includeAdminInStructure = includeAdminInStructure;
     }
 
     public boolean isAbryScheme() {

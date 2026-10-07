@@ -108,6 +108,8 @@ class StatutoryLineContributorTest {
                 58,
                 true,
                 true,
+                true,
+                false,
                 false,
                 false,
                 false,

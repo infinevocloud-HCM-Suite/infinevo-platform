@@ -6,7 +6,9 @@ import { onTenantChange } from '../auth/keycloak.js';
 /**
  * The navigation feed (W-12.3 §5): what the server says this caller may see, and nothing else.
  *
- *   GET /api/v1/navigation -> { items: [...ordered...], actions: [...caller's codes...] }
+ *   GET /api/v1/navigation -> { items: [...ordered...], actions: [...caller's codes...], homePath }
+ *
+ * `homePath` (D-35) is where the server says this caller lands after login; null when absent.
  *
  * One store for the whole shell. It is fetched once after login and again whenever the
  * signed-in tenant changes - the signal for that is the Keycloak adapter's token callbacks
@@ -17,7 +19,16 @@ import { onTenantChange } from '../auth/keycloak.js';
 
 export const NavigationContext = createContext(null);
 
-const EMPTY = Object.freeze({ items: [], actions: [], modules: [], tenantName: null, loading: false, loaded: false, error: null });
+const EMPTY = Object.freeze({
+  items: [],
+  actions: [],
+  modules: [],
+  tenantName: null,
+  homePath: null,
+  loading: false,
+  loaded: false,
+  error: null,
+});
 
 let state = EMPTY;
 const subscribers = new Set();
@@ -57,13 +68,23 @@ export async function fetchNavigationFeed() {
       actions: Array.isArray(data.actions) ? data.actions : [],
       modules: Array.isArray(data.modules) ? data.modules : [],
       tenantName: typeof data.tenantName === 'string' ? data.tenantName : null,
+      homePath: typeof data.homePath === 'string' && data.homePath.startsWith('/') ? data.homePath : null,
       loading: false,
       loaded: true,
       error: null,
     });
     return state;
   } catch (err) {
-    publish({ items: [], actions: [], modules: [], tenantName: null, loading: false, loaded: true, error: err });
+    publish({
+      items: [],
+      actions: [],
+      modules: [],
+      tenantName: null,
+      homePath: null,
+      loading: false,
+      loaded: true,
+      error: err,
+    });
     throw err;
   }
 }
@@ -83,13 +104,15 @@ NavigationProvider.propTypes = {
     actions: PropTypes.oneOfType([PropTypes.array, PropTypes.instanceOf(Set)]),
     modules: PropTypes.array,
     tenantName: PropTypes.string,
+    homePath: PropTypes.string,
     loading: PropTypes.bool,
     error: PropTypes.object,
   }).isRequired,
 };
 
 /**
- * The feed as the shell sees it: `items`, `actions`, `modules`, `tenantName`, `loading`, `error`, and `refetch`.
+ * The feed as the shell sees it: `items`, `actions`, `modules`, `tenantName`, `homePath`, `loading`, `error`,
+ * and `refetch`.
  *
  * `loading` is true from the first render until the first fetch settles - not only while a
  * request is in flight - so the shell never reads "not asked yet" as "the feed is empty".
@@ -125,6 +148,7 @@ export function useNavigation() {
     actions: active.actions || [],
     modules: active.modules || [],
     tenantName: active.tenantName || null,
+    homePath: active.homePath || null,
     loading: !!active.loading || (!provided && !active.loaded),
     error: active.error || null,
     refetch: fetchNavigationFeed,

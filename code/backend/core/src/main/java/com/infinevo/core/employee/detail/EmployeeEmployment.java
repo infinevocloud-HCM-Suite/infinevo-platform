@@ -4,8 +4,11 @@ import com.infinevo.core.employee.Employee;
 import com.infinevo.shared.audit.Audited;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -34,6 +37,13 @@ import java.util.UUID;
  * {@code TIME} columns.</strong> {@code Work.java:35-36} types both as {@code String}, so nothing can
  * order or compare them and {@code "09:00"} and {@code "9:00 AM"} are both valid rows. This is the
  * same correction W-13.1 made to {@code dateOfJoining}, for the same reason.
+ *
+ * <p><strong>D-40 added {@code employmentType}, {@code probationEndDate} and
+ * {@code noticePeriodDays}</strong> ({@code V154__employee_profile_columns.sql}). They are terms of
+ * employment and this is the Employment section, so they live here and not on {@code core.employee};
+ * the Add Employee form writes them through this section in the create transaction
+ * ({@code EmployeeServiceImpl.create}). All three are nullable — the rows written before D-40 have
+ * none.
  *
  * <p><strong>{@link Audited}</strong> for the reason {@link EmployeePersonal} gives: W-22.1 shipped
  * the capture mechanism and no production class carried the annotation, so it had captured nothing.
@@ -69,6 +79,16 @@ public class EmployeeEmployment extends EmployeeDetail {
     @Column(name = "note", length = 1000)
     private String note;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "employment_type", length = 32)
+    private EmploymentType employmentType;
+
+    @Column(name = "probation_end_date")
+    private LocalDate probationEndDate;
+
+    @Column(name = "notice_period_days")
+    private Integer noticePeriodDays;
+
     protected EmployeeEmployment() {}
 
     EmployeeEmployment(UUID tenantId, Employee employee, String actor) {
@@ -99,6 +119,18 @@ public class EmployeeEmployment extends EmployeeDetail {
         return note;
     }
 
+    public EmploymentType getEmploymentType() {
+        return employmentType;
+    }
+
+    public LocalDate getProbationEndDate() {
+        return probationEndDate;
+    }
+
+    public Integer getNoticePeriodDays() {
+        return noticePeriodDays;
+    }
+
     /**
      * Copies the mutable fields in and stamps the row.
      *
@@ -112,6 +144,9 @@ public class EmployeeEmployment extends EmployeeDetail {
             LocalTime shiftStartTime,
             LocalTime shiftEndTime,
             String note,
+            EmploymentType employmentType,
+            LocalDate probationEndDate,
+            Integer noticePeriodDays,
             String actor) {
         this.payGrade = payGrade;
         this.workstationId = workstationId;
@@ -119,6 +154,9 @@ public class EmployeeEmployment extends EmployeeDetail {
         this.shiftStartTime = shiftStartTime;
         this.shiftEndTime = shiftEndTime;
         this.note = note;
+        this.employmentType = employmentType;
+        this.probationEndDate = probationEndDate;
+        this.noticePeriodDays = noticePeriodDays;
         stamp(actor);
     }
 }

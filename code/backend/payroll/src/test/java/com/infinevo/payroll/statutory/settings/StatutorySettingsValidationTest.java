@@ -104,6 +104,8 @@ class StatutorySettingsValidationTest {
                 false,
                 false,
                 false,
+                false,
+                false,
                 false);
 
         assertThatThrownBy(() -> service.saveEpf(invalidRate))
@@ -133,6 +135,8 @@ class StatutorySettingsValidationTest {
                 false,
                 true,
                 58,
+                false,
+                false,
                 false,
                 false,
                 false,
@@ -170,6 +174,8 @@ class StatutorySettingsValidationTest {
                 false,
                 false,
                 false,
+                false,
+                false,
                 false);
 
         assertThatThrownBy(() -> service.saveEpf(enabledBlankReg))
@@ -199,6 +205,8 @@ class StatutorySettingsValidationTest {
                 false,
                 true,
                 45, // invalid senior age < 50
+                false,
+                false,
                 false,
                 false,
                 false,

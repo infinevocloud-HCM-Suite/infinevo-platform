@@ -1,5 +1,7 @@
 package com.infinevo.core.employee;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.infinevo.core.employee.detail.EmploymentType;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -29,6 +31,15 @@ import java.util.UUID;
  *     id is not. See {@code EmployeeServiceImpl.resolve}.
  * @param designationId the designation to assign, same rules
  * @param workLocationId the work location to assign, same rules
+ * @param gender one of {@link Gender} — D-40. {@code "Female"} and {@code "F"} are read as
+ *     {@code FEMALE} and stored as the name; anything outside the vocabulary is a field error
+ * @param employmentType D-40, <strong>create only</strong>. With the next two it is written to the
+ *     Employment section ({@code core.employee_employment}) in the create transaction. On update all
+ *     three are ignored: after creation they are the section's, edited through
+ *     {@code PUT /api/v1/employees/{id}/employment}, so a client that replaces the root record without
+ *     knowing them cannot clear them
+ * @param probationEndDate D-40, create only; not before {@code dateOfJoining}
+ * @param noticePeriodDays D-40, create only; 0 to 365
  */
 public record EmployeeRequest(
         String employeeNumber,
@@ -44,4 +55,52 @@ public record EmployeeRequest(
         Boolean portalEnabled,
         UUID departmentId,
         UUID designationId,
-        UUID workLocationId) {}
+        UUID workLocationId,
+        EmploymentType employmentType,
+        LocalDate probationEndDate,
+        Integer noticePeriodDays) {
+
+    /** The canonical constructor is the one Jackson binds — named, so the shorter one below cannot be picked. */
+    @JsonCreator
+    public EmployeeRequest {}
+
+    /**
+     * The request as it was before D-40, without the three employment terms. Kept so the callers
+     * written against the fourteen-field shape — tests across {@code core}, {@code hrms} and
+     * {@code payroll} — still compile unchanged.
+     */
+    public EmployeeRequest(
+            String employeeNumber,
+            String firstName,
+            String middleName,
+            String lastName,
+            String gender,
+            LocalDate dateOfJoining,
+            LocalDate terminationDate,
+            EmploymentStatus status,
+            String workEmail,
+            String mobile,
+            Boolean portalEnabled,
+            UUID departmentId,
+            UUID designationId,
+            UUID workLocationId) {
+        this(
+                employeeNumber,
+                firstName,
+                middleName,
+                lastName,
+                gender,
+                dateOfJoining,
+                terminationDate,
+                status,
+                workEmail,
+                mobile,
+                portalEnabled,
+                departmentId,
+                designationId,
+                workLocationId,
+                null,
+                null,
+                null);
+    }
+}

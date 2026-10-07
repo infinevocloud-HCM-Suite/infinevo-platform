@@ -175,6 +175,22 @@ class RoleServiceTest {
         assertThat(created.actionCodes()).containsExactlyInAnyOrder("core.tenant.provision", "core.tenant.impersonate");
     }
 
+    @Test
+    @DisplayName("D-33: the platform tenant's roles cannot hold a customer action")
+    void customerActionRefusedInThePlatformTenant() {
+        TenantContext.set(PLATFORM);
+
+        RoleService.ValidationException refused = catchThrowableOfType(
+                () -> service.create(new RoleCreateRequest(
+                        null, "Support reader", List.of("core.tenant.impersonate", "core.org.read"))),
+                RoleService.ValidationException.class);
+
+        assertThat(refused.fieldErrors().get("actionCodes"))
+                .contains("core.org.read")
+                .doesNotContain("core.tenant.impersonate");
+        verify(roleRepository, never()).saveAndFlush(any());
+    }
+
     // ── system roles cannot be edited or deleted
 
     @Test

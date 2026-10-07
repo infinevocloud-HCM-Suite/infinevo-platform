@@ -90,7 +90,7 @@ class TenantProvisionGuardIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("User without core.tenant.provision gets 403 on POST /tenants, even with realm role platform-admin")
     void postTenants_withoutProvisionAction_forbiddenEvenWithRealmRole() throws Exception {
-        TenantRequest req = new TenantRequest("Denied Tenant", null, null, null, Set.of());
+        TenantRequest req = new TenantRequest("Denied Tenant", null, null, null, Set.of(), null);
 
         // tenant-admin gets 403
         mvc.perform(asWithRealmRole(tenantAdminSub, "platform-admin", post("/api/v1/tenants"))
@@ -139,7 +139,7 @@ class TenantProvisionGuardIT extends AbstractIntegrationTest {
         // passed 403 guard!
 
         // POST /tenants is 403
-        TenantRequest req = new TenantRequest("Denied Corp", null, null, null, Set.of());
+        TenantRequest req = new TenantRequest("Denied Corp", null, null, null, Set.of(), null);
         mvc.perform(as(readerSub, post("/api/v1/tenants")).content(json.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
 
@@ -153,8 +153,8 @@ class TenantProvisionGuardIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("User with core.tenant.provision can create tenants and update subscription")
     void provisioner_canCreateTenant() throws Exception {
-        TenantRequest req =
-                new TenantRequest("Allowed Corp", "IN", "Asia/Kolkata", (short) 4, Set.of(PlatformModule.PAYROLL));
+        TenantRequest req = new TenantRequest(
+                "Allowed Corp", "IN", "Asia/Kolkata", (short) 4, Set.of(PlatformModule.PAYROLL), null);
 
         mvc.perform(as(provisionerSub, post("/api/v1/tenants")).content(json.writeValueAsString(req)))
                 .andExpect(status().isCreated())

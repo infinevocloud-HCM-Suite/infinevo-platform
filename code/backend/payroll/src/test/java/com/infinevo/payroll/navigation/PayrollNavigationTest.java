@@ -55,15 +55,21 @@ class PayrollNavigationTest {
         List<ItemDefinition> all = NavigationCatalogue.withContributed(List.of(new PayrollNavigation()));
 
         assertThat(all).startsWith(NavigationCatalogue.DEFAULT_ITEMS.toArray(ItemDefinition[]::new));
-        assertThat(all)
-                .contains(
+        assertThat(all).last().isEqualTo(PayrollNavigation.GROUP);
+        // D-34: one group under the PAYROLL module, no action of its own, the dashboard first inside it.
+        ItemDefinition group = PayrollNavigation.GROUP;
+        assertThat(group.key()).isEqualTo("payroll");
+        assertThat(group.labelKey()).isEqualTo("nav.payroll");
+        assertThat(group.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        assertThat(group.requiredAction()).isNull();
+        assertThat(group.children())
+                .containsExactly(
                         PayrollNavigation.DASHBOARD,
                         PayrollNavigation.RUNS,
                         PayrollNavigation.PRIOR_PAYROLL,
                         PayrollNavigation.CLAIMS,
                         PayrollNavigation.DEDUCTIONS);
-        assertThat(all).last().isEqualTo(PayrollNavigation.DEDUCTIONS);
-        assertThat(new PayrollNavigation().items()).first().isEqualTo(PayrollNavigation.DASHBOARD);
+        assertThat(group.path()).isEqualTo(PayrollNavigation.DASHBOARD.path());
     }
 
     @Test

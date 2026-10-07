@@ -120,7 +120,7 @@ public final class StatutoryLineDeriver {
                     edliRate,
                     edliMonthly,
                     edliAnnual,
-                    epf.isIncludeEdliAdminInCtc()));
+                    epf.isIncludeEdliInCtc()));
 
             // Admin Charge
             Money adminWageBase = epf.isRestrictEmployerToCeiling() ? min(basic, wageCeiling) : basic;
@@ -134,7 +134,7 @@ public final class StatutoryLineDeriver {
                     adminRate,
                     adminMonthly,
                     adminAnnual,
-                    epf.isIncludeEdliAdminInCtc()));
+                    epf.isIncludeAdminInCtc()));
         }
 
         // 2. State Insurance (ESI)

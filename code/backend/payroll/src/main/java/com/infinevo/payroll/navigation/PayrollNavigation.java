@@ -58,8 +58,24 @@ public class PayrollNavigation implements NavigationContributor {
             PlatformModule.PAYROLL,
             "payroll.employee_deduction.read");
 
+    /** The module's screens, in menu order. */
+    public static final List<ItemDefinition> LEAVES = List.of(DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS);
+
+    /**
+     * The one Payroll menu group (D-34). No action of its own: the feed hides it when every screen inside
+     * is hidden, and gives it the first visible screen's path.
+     */
+    public static final ItemDefinition GROUP = new ItemDefinition(
+            "payroll",
+            "nav.payroll",
+            DASHBOARD.path(),
+            DASHBOARD.targetEndpoint(),
+            PlatformModule.PAYROLL,
+            null,
+            LEAVES);
+
     @Override
     public List<ItemDefinition> items() {
-        return List.of(DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS);
+        return List.of(GROUP);
     }
 }

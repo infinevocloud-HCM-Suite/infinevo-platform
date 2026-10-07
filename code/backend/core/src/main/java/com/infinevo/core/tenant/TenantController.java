@@ -12,6 +12,9 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,7 +46,8 @@ public class TenantController {
         if (request == null) {
             throw new IllegalArgumentException("Request body must not be null");
         }
-        TenantResponse response = tenantService.provisionTenant(request);
+        // D-42: the provisioning user is recorded as the inviter of the tenant administrator.
+        TenantResponse response = tenantService.provisionTenant(request, currentActorUserId());
         return ResponseEntity.created(URI.create("/api/v1/tenants/" + response.tenantId()))
                 .body(response);
     }
@@ -58,6 +62,22 @@ public class TenantController {
     @RequiresAction("core.tenant.provision")
     public ResponseEntity<TenantOverview> getTenant(@PathVariable("id") UUID id) {
         return ResponseEntity.ok(tenantQueryService.getOverview(id));
+    }
+
+    /** The Keycloak subject of the caller, as {@code UserInvitationController} resolves it; null if none. */
+    private static UUID currentActorUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
+            String subject = jwt.getSubject();
+            if (subject != null && !subject.isBlank()) {
+                try {
+                    return UUID.fromString(subject);
+                } catch (IllegalArgumentException ignored) {
+                    // not a UUID subject: no inviter can be recorded
+                }
+            }
+        }
+        return null;
     }
 
     @ExceptionHandler(TenantNotFoundException.class)

@@ -91,7 +91,7 @@ class SalaryCtcReconciliationIT extends AbstractIntegrationTest {
             "With include_employer_in_ctc=true, earnings alone equal to annual_ctc is refused with employer PF difference")
     void includeEmployerInCtcTrue_refusedWithEmployerDifference() throws SQLException {
         // Employer PF is included in CTC (12% of 10,000 = 1,200/mo = 14,400/yr). EDLI & Admin not in CTC.
-        seedEpfSetting(TENANT_A, true, false);
+        seedEpfSetting(TENANT_A, true, false, false);
 
         TenantContext.set(TENANT_A);
         SalaryComponentItemRequest basicItem = new SalaryComponentItemRequest(
@@ -117,7 +117,7 @@ class SalaryCtcReconciliationIT extends AbstractIntegrationTest {
     @DisplayName("With include_employer_in_ctc=false, earnings alone equal to annual_ctc is accepted")
     void includeEmployerInCtcFalse_accepted() throws SQLException {
         // Employer PF not in CTC
-        seedEpfSetting(TENANT_A, false, false);
+        seedEpfSetting(TENANT_A, false, false, false);
 
         TenantContext.set(TENANT_A);
         SalaryComponentItemRequest basicItem = new SalaryComponentItemRequest(
@@ -144,6 +144,66 @@ class SalaryCtcReconciliationIT extends AbstractIntegrationTest {
             assertThat(line.componentCode()).isEqualTo("EPS_EMPLOYER");
             assertThat(line.includedInCtc()).isFalse();
         });
+    }
+
+    @Test
+    @DisplayName("D-39: EDLI in CTC alone adds only EDLI (600 a year) to the CTC sum")
+    void edliInCtcAlone_refusedWithEdliDifference() throws SQLException {
+        // Basic 10,000: EDLI 0.5% = 50/mo = 600/yr; admin 0.5% = 600/yr but not in CTC.
+        seedEpfSetting(TENANT_A, false, true, false);
+
+        TenantContext.set(TENANT_A);
+        SalaryVersionRequest req = basicOnlyRequest(new BigDecimal("120000.0000"));
+
+        assertThatThrownBy(() -> salaryService.create(employeeId, req))
+                .isInstanceOf(SalaryValidationException.class)
+                .hasMessageContaining(
+                        "The annual sum of components included in CTC (120600.00) does not equal annual CTC (120000.00). Difference: 600.00");
+    }
+
+    @Test
+    @DisplayName("D-39: EDLI in CTC and admin out of CTC is accepted at earnings plus EDLI, flags set per line")
+    void edliInCtc_adminOut_accepted() throws SQLException {
+        seedEpfSetting(TENANT_A, false, true, false);
+
+        TenantContext.set(TENANT_A);
+        SalaryVersionResponse response =
+                salaryService.create(employeeId, basicOnlyRequest(new BigDecimal("120600.0000")));
+
+        assertThat(response.statutory()).anySatisfy(line -> {
+            assertThat(line.componentCode()).isEqualTo("EDLI");
+            assertThat(line.includedInCtc()).isTrue();
+        });
+        assertThat(response.statutory()).anySatisfy(line -> {
+            assertThat(line.componentCode()).isEqualTo("EPF_ADMIN");
+            assertThat(line.includedInCtc()).isFalse();
+        });
+    }
+
+    @Test
+    @DisplayName("D-39: admin in CTC and EDLI out of CTC is accepted at earnings plus admin, flags set per line")
+    void adminInCtc_edliOut_accepted() throws SQLException {
+        seedEpfSetting(TENANT_A, false, false, true);
+
+        TenantContext.set(TENANT_A);
+        SalaryVersionResponse response =
+                salaryService.create(employeeId, basicOnlyRequest(new BigDecimal("120600.0000")));
+
+        assertThat(response.statutory()).anySatisfy(line -> {
+            assertThat(line.componentCode()).isEqualTo("EDLI");
+            assertThat(line.includedInCtc()).isFalse();
+        });
+        assertThat(response.statutory()).anySatisfy(line -> {
+            assertThat(line.componentCode()).isEqualTo("EPF_ADMIN");
+            assertThat(line.includedInCtc()).isTrue();
+        });
+    }
+
+    private SalaryVersionRequest basicOnlyRequest(BigDecimal annualCtc) {
+        SalaryComponentItemRequest basicItem = new SalaryComponentItemRequest(
+                basicEarningId, CalculationType.FLAT, new BigDecimal("10000.0000"), null, true, "MONTHLY", null);
+        return new SalaryVersionRequest(
+                annualCtc, LocalDate.of(2026, 1, 1), "Offer", List.of(basicItem), List.of(), List.of());
     }
 
     private static void seedEmployee(UUID tenantId, UUID employeeId, String code, String first, String last)
@@ -185,15 +245,17 @@ class SalaryCtcReconciliationIT extends AbstractIntegrationTest {
         }
     }
 
-    private static void seedEpfSetting(UUID tenantId, boolean includeEmployerInCtc, boolean includeEdliAdminInCtc)
+    private static void seedEpfSetting(
+            UUID tenantId, boolean includeEmployerInCtc, boolean includeEdliInCtc, boolean includeAdminInCtc)
             throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO payroll.epf_setting (id, tenant_id, is_enabled, wage_ceiling, restrict_employee_to_ceiling, restrict_employer_to_ceiling, employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, eps_senior_age, include_employer_in_ctc, include_edli_admin_in_ctc) "
-                                + "VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, 12.0000, 12.0000, 8.3300, 0.5000, 0.5000, 58, ?, ?) ON CONFLICT DO NOTHING")) {
+                        "INSERT INTO payroll.epf_setting (id, tenant_id, is_enabled, wage_ceiling, restrict_employee_to_ceiling, restrict_employer_to_ceiling, employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, eps_senior_age, include_employer_in_ctc, include_edli_in_ctc, include_admin_in_ctc) "
+                                + "VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, 12.0000, 12.0000, 8.3300, 0.5000, 0.5000, 58, ?, ?, ?) ON CONFLICT DO NOTHING")) {
             ps.setObject(1, tenantId);
             ps.setBoolean(2, includeEmployerInCtc);
-            ps.setBoolean(3, includeEdliAdminInCtc);
+            ps.setBoolean(3, includeEdliInCtc);
+            ps.setBoolean(4, includeAdminInCtc);
             ps.executeUpdate();
         }
     }

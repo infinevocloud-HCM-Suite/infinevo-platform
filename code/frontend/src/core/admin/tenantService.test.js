@@ -38,9 +38,9 @@ describe('tenantService', () => {
   });
 
   it('create POSTs /v1/tenants with the body, without the impersonation header', async () => {
-    const body = { name: 'Initech', country_code: 'IN' };
-    apiClient.post.mockResolvedValueOnce({ data: { tenantId: 't-9' } });
-    expect(await tenantService.create(body)).toEqual({ tenantId: 't-9' });
+    const body = { name: 'Initech', country_code: 'IN', admin_email: 'boss@initech.example' };
+    apiClient.post.mockResolvedValueOnce({ data: { tenantId: 't-9', adminInvitationId: 'inv-1' } });
+    expect(await tenantService.create(body)).toEqual({ tenantId: 't-9', adminInvitationId: 'inv-1' });
     expect(apiClient.post).toHaveBeenCalledWith('/v1/tenants', body, { skipImpersonation: true });
   });
 

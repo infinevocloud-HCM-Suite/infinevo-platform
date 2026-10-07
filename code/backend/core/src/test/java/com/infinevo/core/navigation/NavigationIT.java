@@ -104,7 +104,7 @@ class NavigationIT extends AbstractIntegrationTest {
         // Each caller's feed names their own tenant, read under that tenant's RLS binding.
         assertThat(admin.tenantName()).startsWith("Acme Navigation ");
         assertThat(employee.tenantName()).startsWith("Globex Navigation ");
-        assertThat(keysOf(employee))
+        assertThat(allKeysOf(employee))
                 .doesNotContain(
                         "core.roles",
                         "core.audit",
@@ -138,8 +138,32 @@ class NavigationIT extends AbstractIntegrationTest {
         return json.readValue(result.getResponse().getContentAsString(), NavigationResponse.class);
     }
 
+    @Test
+    @DisplayName("D-35: the feed names a home path - setup for a new tenant's admin, the portal for an employee")
+    void feedNamesAHomePath() throws Exception {
+        assertThat(feedFor(acmeTenant, acmeAdminSub).homePath())
+                .as("a fresh tenant has no work location and no employee, so its admin starts on setup")
+                .isEqualTo("/setup");
+        assertThat(feedFor(globexTenant, globexEmployeeSub).homePath()).isEqualTo("/me");
+    }
+
     private static List<String> keysOf(NavigationResponse response) {
         return response.items().stream().map(NavigationItemResponse::key).toList();
+    }
+
+    private static List<String> allKeysOf(NavigationResponse response) {
+        List<String> keys = new java.util.ArrayList<>();
+        collectKeys(response.items(), keys);
+        return keys;
+    }
+
+    private static void collectKeys(List<NavigationItemResponse> items, List<String> into) {
+        for (NavigationItemResponse item : items) {
+            into.add(item.key());
+            if (item.children() != null) {
+                collectKeys(item.children(), into);
+            }
+        }
     }
 
     private void provisionSubscription(UUID tenantId, String status, String... modules) throws SQLException {

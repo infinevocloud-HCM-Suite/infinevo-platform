@@ -19,7 +19,7 @@ dependencies. After that it is seconds.
 | Queue UI | http://localhost:15672 · `infinevo` / `local_queue_pw` |
 | Postgres | `localhost:5432` · database `infinevo` |
 
-Sign in as `admin.acme`, `admin.globex` or `employee.globex`, password `local_dev_pw`.
+Sign in as `admin.acme`, `admin.globex` or `employee.globex`, password `Local_dev_pw1!`.
 
 ---
 

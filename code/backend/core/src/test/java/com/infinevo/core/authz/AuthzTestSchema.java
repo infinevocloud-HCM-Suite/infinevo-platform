@@ -155,6 +155,9 @@ public final class AuthzTestSchema {
                     // W-24.2: user and employee invitations
                     executeResource(conn, "db/migration/core/V117__user_invitation.sql");
                     executeResource(conn, "db/migration/core/V118__employee_invitation.sql");
+                    // D-42: list_tenants() and get_tenant_overview() report the administrator
+                    // invitation, reading the V117 tables; TenantQueryService maps the new columns.
+                    executeResource(conn, "db/migration/core/V159__list_tenants_admin_invitation.sql");
                     // W-18.1: loss-of-pay policy
                     executeResource(conn, "db/migration/core/V116__lop_policy.sql");
                     if (!tableExists(conn, "core", "document")) {
@@ -179,6 +182,11 @@ public final class AuthzTestSchema {
                     }
                     if (!tableExists(conn, "core", "leave_import_log")) {
                         executeResource(conn, "db/migration/core/V134__leave_import_log.sql");
+                    }
+                    // D-33: the platform tenant's roles keep platform actions only. Last, as in Flyway: it
+                    // rewrites core.seed_system_roles (V148's body) and refuses any other platform grant.
+                    if (!functionExists(conn, "core", "restrict_platform_tenant_grant")) {
+                        executeResource(conn, "db/migration/core/V158__platform_tenant_role_scope.sql");
                     }
                 }
 

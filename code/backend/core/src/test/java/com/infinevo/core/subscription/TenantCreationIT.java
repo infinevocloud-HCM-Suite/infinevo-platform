@@ -61,7 +61,8 @@ class TenantCreationIT extends AbstractIntegrationTest {
     @DisplayName(
             "Creating tenant with [PAYROLL] yields exactly one module row, EntitlementReadService omits HRMS, and defaults are applied")
     void createTenant_withPayroll_yieldsOneModuleAndOmitsHrms() throws SQLException {
-        TenantRequest request = new TenantRequest("Acme Branch", null, null, null, Set.of(PlatformModule.PAYROLL));
+        TenantRequest request =
+                new TenantRequest("Acme Branch", null, null, null, Set.of(PlatformModule.PAYROLL), null);
         TenantResponse response = tenantService.provisionTenant(request);
 
         assertThat(response).isNotNull();
@@ -114,7 +115,12 @@ class TenantCreationIT extends AbstractIntegrationTest {
             "Creating tenant with custom country_code, timezone, and leave_year_start_month preserves given values")
     void createTenant_withCustomLocale_preservesGivenValues() throws SQLException {
         TenantRequest request = new TenantRequest(
-                "Globex Europe", "GB", "Europe/London", (short) 1, Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL));
+                "Globex Europe",
+                "GB",
+                "Europe/London",
+                (short) 1,
+                Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL),
+                null);
         TenantResponse response = tenantService.provisionTenant(request);
 
         UUID tenantId = response.tenantId();
@@ -149,7 +155,7 @@ class TenantCreationIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("Invalid timezone 'Mars/Olympus' fails with 400 VALIDATION_FAILED")
     void invalidTimezone_failsValidation() throws Exception {
-        TenantRequest request = new TenantRequest("Alien Corp", "IN", "Mars/Olympus", (short) 4, Set.of());
+        TenantRequest request = new TenantRequest("Alien Corp", "IN", "Mars/Olympus", (short) 4, Set.of(), null);
 
         assertThatThrownBy(() -> tenantService.provisionTenant(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -166,7 +172,7 @@ class TenantCreationIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("Invalid leave_year_start_month '13' fails with 400 VALIDATION_FAILED")
     void invalidLeaveYearStartMonth_failsValidation() throws Exception {
-        TenantRequest request = new TenantRequest("Year Corp", "IN", "Asia/Kolkata", (short) 13, Set.of());
+        TenantRequest request = new TenantRequest("Year Corp", "IN", "Asia/Kolkata", (short) 13, Set.of(), null);
 
         assertThatThrownBy(() -> tenantService.provisionTenant(request))
                 .isInstanceOf(IllegalArgumentException.class)
