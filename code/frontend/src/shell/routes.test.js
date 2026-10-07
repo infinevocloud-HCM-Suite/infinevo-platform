@@ -62,7 +62,8 @@ describe('routesFromFeed', () => {
     expect(routeGroups).toHaveProperty('core');
     expect(routeGroups).toHaveProperty('hrms');
     expect(routeGroups).toHaveProperty('payroll');
-    expect(routesFromFeed([{ key: 'core.roles', path: '/roles' }])).toEqual([]);
+    const roleRoutes = routesFromFeed([{ key: 'core.roles', path: '/roles' }]);
+    expect(roleRoutes.map((r) => r.path)).toEqual(['/roles', '/roles/new', '/roles/:id']);
     const employeeRoutes = routesFromFeed([{ key: 'core.employees', path: '/employees' }]);
     expect(employeeRoutes.map((r) => r.path)).toEqual([
       '/employees',
@@ -70,5 +71,10 @@ describe('routesFromFeed', () => {
       '/employees/:id',
       '/employees/:employeeId/tax-declaration/:fy',
     ]);
+  });
+
+  it('mounts payroll settings routes when payroll is in feed', () => {
+    const payrollRoutes = routesFromFeed([{ key: 'payroll.runs', path: '/payroll/runs' }]);
+    expect(payrollRoutes.some((r) => r.path === '/payroll/settings/pay-schedule')).toBe(true);
   });
 });

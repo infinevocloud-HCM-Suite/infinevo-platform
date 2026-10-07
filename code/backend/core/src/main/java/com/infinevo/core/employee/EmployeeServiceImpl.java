@@ -58,6 +58,8 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private static final String USER_ACCOUNT_INDEX = "uk_employee_tenant_user_account";
 
+    private static final String WORK_EMAIL_INDEX = "uq_employee_tenant_work_email";
+
     private static final int MAX_EMPLOYEE_NUMBER = 64;
     private static final int MAX_NAME = 100;
     private static final int MAX_GENDER = 32;
@@ -100,6 +102,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employeeRepository.existsByTenantIdAndEmployeeNumber(tenantId, fields.employeeNumber())) {
             throw new DuplicateEmployeeNumberException(fields.employeeNumber());
         }
+        if (fields.workEmail() != null && !fields.workEmail().isBlank()
+                && employeeRepository.existsByTenantIdAndWorkEmailIgnoreCaseAndDeletedFalse(
+                        tenantId, fields.workEmail().trim())) {
+            throw new DuplicateWorkEmailException(fields.workEmail().trim());
+        }
 
         Employee employee = new Employee(tenantId, currentActor());
         fields.applyTo(employee, currentActor());
@@ -122,6 +129,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employeeRepository.existsByTenantIdAndEmployeeNumberAndIdNot(
                 employee.getTenantId(), fields.employeeNumber(), employee.getId())) {
             throw new DuplicateEmployeeNumberException(fields.employeeNumber());
+        }
+        if (fields.workEmail() != null && !fields.workEmail().isBlank()
+                && employeeRepository.existsByTenantIdAndWorkEmailIgnoreCaseAndIdNotAndDeletedFalse(
+                        employee.getTenantId(), fields.workEmail().trim(), employee.getId())) {
+            throw new DuplicateWorkEmailException(fields.workEmail().trim());
         }
 
         fields.applyTo(employee, currentActor());
@@ -342,6 +354,9 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (namesUserAccountIndex(e)) {
                 throw new DuplicateUserAccountLinkException(employee.getUserAccountId());
             }
+            if (namesWorkEmailIndex(e)) {
+                throw new DuplicateWorkEmailException(employee.getWorkEmail());
+            }
             throw e;
         }
     }
@@ -365,6 +380,20 @@ public class EmployeeServiceImpl implements EmployeeService {
         for (Throwable t = e; t != null; t = t.getCause()) {
             String message = t.getMessage();
             if (message != null && message.contains(USER_ACCOUNT_INDEX)) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    /** The unique index from {@code V150__unique_employee_work_email.sql}, by name, anywhere in the cause chain. */
+    private static boolean namesWorkEmailIndex(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            String message = t.getMessage();
+            if (message != null && (message.contains(WORK_EMAIL_INDEX) || message.toLowerCase().contains("uq_employee_tenant_work_email"))) {
                 return true;
             }
             if (t.getCause() == t) {

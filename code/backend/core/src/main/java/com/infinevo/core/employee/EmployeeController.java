@@ -141,6 +141,13 @@ public class EmployeeController {
                 .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
     }
 
+    @ExceptionHandler(EmployeeService.DuplicateWorkEmailException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateWorkEmail(
+            EmployeeService.DuplicateWorkEmailException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

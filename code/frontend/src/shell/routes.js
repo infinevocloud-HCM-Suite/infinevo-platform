@@ -50,6 +50,9 @@ export const routeGroups = {
  */
 export function routesFromFeed(feedItems = [], groups = routeGroups) {
   const feedPaths = collectPaths(feedItems);
+  const hasPayroll = Array.from(feedPaths).some(
+    (prefix) => prefix && prefix !== '/' && (prefix === '/payroll' || prefix.startsWith('/payroll/')),
+  );
   return Object.values(groups)
     .flat()
     .filter((route) => {
@@ -58,6 +61,9 @@ export function routesFromFeed(feedItems = [], groups = routeGroups) {
         if (prefix && prefix !== '/' && route.path.startsWith(`${prefix}/`)) {
           return true;
         }
+      }
+      if (hasPayroll && route.path.startsWith('/payroll/settings')) {
+        return true;
       }
       return false;
     });

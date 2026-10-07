@@ -119,7 +119,10 @@ export function WorkLocations() {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      render: (name) => <Text strong>{name}</Text>,
+      width: 220,
+      minWidth: 180,
+      ellipsis: true,
+      render: (name) => <Text strong style={{ whiteSpace: 'nowrap' }}>{name}</Text>,
     },
     {
       title: 'City',

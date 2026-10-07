@@ -65,6 +65,29 @@ public class EmployeeIdentificationServiceImpl
         this.identifications = repository;
     }
 
+    @Override
+    @Transactional
+    public EmployeeIdentificationResponse put(UUID employeeId, EmployeeIdentificationRequest request) {
+        UUID tenantId = TenantContext.require();
+        if (request != null) {
+            if (request.panNumber() != null && !request.panNumber().isBlank()) {
+                String normalizedPan = request.panNumber().trim().toUpperCase(Locale.ROOT);
+                if (identifications.existsByTenantIdAndPanNumberAndEmployeeIdNot(tenantId, normalizedPan, employeeId)) {
+                    throw new DuplicateIdentificationException(
+                            "PAN number '" + normalizedPan + "' is already assigned to another employee in this organization.");
+                }
+            }
+            if (request.aadhaarNumber() != null && !request.aadhaarNumber().isBlank()) {
+                String normalizedAadhaar = request.aadhaarNumber().trim();
+                if (identifications.existsByTenantIdAndAadhaarNumberAndEmployeeIdNot(tenantId, normalizedAadhaar, employeeId)) {
+                    throw new DuplicateIdentificationException(
+                            "Aadhaar number is already assigned to another employee in this organization.");
+                }
+            }
+        }
+        return super.put(employeeId, request);
+    }
+
     /**
      * {@inheritDoc}
      *

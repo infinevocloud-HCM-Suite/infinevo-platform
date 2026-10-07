@@ -53,11 +53,15 @@ export function MasterTable({ title, service }) {
       const data = await service.list(false);
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
-      await errorMsg(err);
+      console.error(`Failed to load ${title}:`, err);
+      setItems([]);
+      if (err?.status !== 403 && err?.code !== 'FORBIDDEN') {
+        await errorMsg(err);
+      }
     } finally {
       setLoading(false);
     }
-  }, [service]);
+  }, [service, title]);
 
   useEffect(() => {
     loadData();
@@ -198,6 +202,9 @@ export function MasterTable({ title, service }) {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
+      width: 220,
+      minWidth: 180,
+      ellipsis: true,
       render: (text, record) => {
         if (editingId === record.id) {
           return (
@@ -208,7 +215,7 @@ export function MasterTable({ title, service }) {
             />
           );
         }
-        return <Text strong>{text}</Text>;
+        return <Text strong style={{ whiteSpace: 'nowrap' }}>{text}</Text>;
       },
     },
     {

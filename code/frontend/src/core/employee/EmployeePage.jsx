@@ -122,9 +122,8 @@ export function EmployeePage() {
   }
 
   const fullName = [employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ');
-  // TERMINATED is terminal on the server (EmploymentStatus.allowedNext): only a suspended
-  // employee can be reactivated, and an active or suspended one can be terminated.
-  const canReactivate = employee.status === 'SUSPENDED';
+  // Both SUSPENDED and TERMINATED employees can be reactivated by HR
+  const canReactivate = employee.status === 'SUSPENDED' || employee.status === 'TERMINATED';
   const canTerminate = employee.status === 'ACTIVE' || employee.status === 'SUSPENDED';
 
   const visibleTabs = employeeTabs.filter((tab) => {

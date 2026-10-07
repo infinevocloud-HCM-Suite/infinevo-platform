@@ -76,6 +76,15 @@ abstract class OrgMasterController {
                         traceId()));
     }
 
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleGeneric(Exception e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiErrorResponse.of(
+                        ApiError.INTERNAL,
+                        "An unexpected error occurred while processing the organisation master request.",
+                        traceId()));
+    }
+
     /** The correlation id the logging filter put on this request, so a client can quote it. */
     static String traceId() {
         String traceId = MDC.get(MdcLoggingContext.CORRELATION_ID_KEY);

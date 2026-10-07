@@ -183,6 +183,13 @@ public class EmployeeDetailController {
                 .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
     }
 
+    @ExceptionHandler(EmployeeDetailService.DuplicateIdentificationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateIdentification(
+            EmployeeDetailService.DuplicateIdentificationException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+    }
+
     /**
      * A body Jackson could not read at all — malformed JSON, a date or time in the wrong form, or a
      * {@code paymentMode} or {@code bankAccountType} outside its vocabulary, all of which fail during

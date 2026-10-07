@@ -131,4 +131,17 @@ public interface EmployeeDetailService<Q, R> {
                     + " was created by another request at the same moment. Read it and try again.");
         }
     }
+
+    /**
+     * A unique identity document (such as PAN or Aadhaar) is already assigned to another employee.
+     * Maps to {@code 409}.
+     */
+    class DuplicateIdentificationException extends RuntimeException {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        public DuplicateIdentificationException(String message) {
+            super(message);
+        }
+    }
 }

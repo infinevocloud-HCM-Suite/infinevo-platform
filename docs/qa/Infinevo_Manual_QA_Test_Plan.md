@@ -687,19 +687,19 @@ For every test step that results in `FAIL`, developers must raise a ticket using
 
 | Bug ID | Title / Area | Route / Component | Stage & Step | Severity | Root Cause & Resolution | Status |
 |---|---|---|---|---|---|:---:|
-| **BUG-D4-01** | Location Name column cell text clips & wraps vertically | `/org/work-locations` (`MasterTable.jsx`) | Stage 1 (S1-05) | MINOR | **Cause:** Column width too narrow and missing `nowrap`.<br>**Fix:** Add `width: 220`, `minWidth: 180`, and `ellipsis: true` to the name column definition in `MasterTable.jsx`. | **OPEN** |
-| **BUG-D4-02** | `/roles` route returns 404 Page Not Found | `/roles`, `/roles/new` (`core/index.js`, `routes.js`) | Stage 1 (S1-08), Stage 17 (S17-01, S17-02) | MAJOR | **Cause:** Route not registered in modern frontend `core/index.js`.<br>**Fix:** Port/mount `Roles.jsx` & `RoleForm.jsx` in `core/index.js` connecting to `RoleService` (`/api/v1/roles`). | **OPEN** |
-| **BUG-D4-03** | Invite User: Role dropdown overlay stays open after selection | `/invitations/users` (`UserInvitations.jsx`) | Stage 2 (S2-01) | MINOR | **Cause:** Ant Design `<Select>` lacks auto-close on selection.<br>**Fix:** Remove conflicting `open` prop overrides and add `onSelect={() => setSelectOpen(false)}`. | **OPEN** |
-| **BUG-D4-04** | Finance role navigating to `Organisation > Designations` throws "System Error" | `/org/designations` (`DesignationController.java`, `MasterTable.jsx`) | Stage 2 (S2-06) | MAJOR | **Cause:** Unhandled backend exception / ORM query mapping error under Finance tenant context.<br>**Fix:** Fix JPA tenant filter in `DesignationServiceImpl.java` to support clean read queries with `core.org.read`. | **OPEN** |
-| **BUG-D4-05A** | Duplicate employee creation allowed with identical Work Email, Mobile, and Name | `POST /api/v1/employees` (`EmployeeServiceImpl.java`, `Employee.java`) | Stage 3 (S3-02, S3-06, S3-07) | CRITICAL | **Cause:** No unique constraint on `work_email` per tenant.<br>**Fix:** In `EmployeeServiceImpl.create()`, check `existsByTenantIdAndWorkEmailAndDeletedFalse()` and return HTTP 409 Conflict. Add DB unique constraint. | **OPEN** |
-| **BUG-D4-05B** | Employee List: "Emp ID" and "Name" columns wrap awkwardly into multiple lines | `/employees` (`EmployeeList.jsx`) | Stage 3 (S3-02) | MINOR | **Cause:** Table columns lack explicit `width` and `nowrap`.<br>**Fix:** Add `width: 120` to `employeeNumber` and `minWidth: 200` with `whiteSpace: 'nowrap'` to `name`. | **OPEN** |
-| **BUG-D4-06** | Duplicate PAN and Aadhaar accepted across multiple employees | `PUT /api/v1/employees/{id}/identification` (`EmployeeIdentificationServiceImpl.java`) | Stage 3 (S3-04) | CRITICAL | **Cause:** `EmployeeIdentificationServiceImpl` explicitly bypasses uniqueness check.<br>**Fix:** Add duplicate check against active employees in the tenant; reject with HTTP 409 Conflict. | **OPEN** |
-| **BUG-D4-07** | HR role lacks `core.reporting_line.manage` permission; "Set Manager" button hidden | `/employees/:id` (`ReportingLineTab.jsx`, seed roles) | Stage 3 (S3-05, S3-08) | MAJOR | **Cause:** Permission was omitted from `hr` role in seed migrations.<br>**Fix:** Add Flyway migration granting `('hr', 'core.reporting_line.manage')` in `core.role_action`. | **OPEN** |
-| **BUG-D4-08** | Employee invitation accept link fails with 404 / "Invitation declined" | `/invitations/accept?token=` (`InvitationService.java`) | Stage 3 (S3-10, S3-11), Stage 10 (S10-02) | CRITICAL | **Cause:** Token consumed on preliminary preview GET request or expired due to Azure queue email delay (`D-11`).<br>**Fix:** Ensure `GET /api/v1/invitations/accept` is strictly read-only and idempotent. Extend token TTL. | **OPEN** |
-| **BUG-D4-09** | Employee termination modal missing "Reason" dropdown and "Remarks" field | `/employees/:id` (`EmploymentTab.jsx`) | Stage 14 (S14-03) | MAJOR | **Cause:** Modal only renders `DatePicker` for last working day.<br>**Fix:** Add `<Select name="reason">` and `<Input.TextArea name="remarks">` in the modal and pass in payload to `PUT /api/v1/employees/{id}/terminate`. | **OPEN** |
-| **BUG-D4-10** | Pay Run modal: "Configure Pay Schedule Settings" link opens 404 Not Found | `/payroll/runs/new` -> `/payroll/settings/pay-schedule` (`routes.js`, `RunList.jsx`) | Stage 14 (S14-05) | CRITICAL | **Cause:** Dynamic route filter `routesFromFeed` unmounts `/payroll/settings/*` because it is absent from the navigation catalogue.<br>**Fix:** Whitelist `/payroll/settings/*` in `shell/routes.js` for users with `PAYROLL` module entitlement. | **OPEN** |
-| **BUG-D4-11** | Terminated employee cannot be reactivated; "Reactivate Employee" button missing | `/employees/:id` (`EmployeeDetail.jsx`) | Stage 14 (S14-08) | CRITICAL | **Cause:** UI does not render action button when `status === 'TERMINATED'`.<br>**Fix:** In `EmployeeDetail.jsx`, add conditional action button opening Reactivation modal calling `PUT /api/v1/employees/{id}/reactivate`. | **OPEN** |
-| **BUG-D4-12** | Terminated view in Employee Directory: Last Working Day column not displayed | `/employees` (`EmployeeList.jsx`) | Stage 14 (S14-02, S14-07) | MINOR | **Cause:** `EmployeeList.jsx` only shows Date of Joining; does not display Last Working Day when filtered by `TERMINATED`.<br>**Fix:** Conditionally add `lastWorkingDate` column when status filter includes `TERMINATED`. | **OPEN** |
+| **BUG-D4-01** | Location Name column cell text clips & wraps vertically | `/org/work-locations` (`MasterTable.jsx`) | Stage 1 (S1-05) | MINOR | **Cause:** Column width too narrow and missing `nowrap`.<br>**Fix:** Add `width: 220`, `minWidth: 180`, and `ellipsis: true` to the name column definition in `MasterTable.jsx`. | **RESOLVED** |
+| **BUG-D4-02** | `/roles` route returns 404 Page Not Found | `/roles`, `/roles/new` (`core/index.js`, `routes.js`) | Stage 1 (S1-08), Stage 17 (S17-01, S17-02) | MAJOR | **Cause:** Route not registered in modern frontend `core/index.js`.<br>**Fix:** Port/mount `Roles.jsx` & `RoleForm.jsx` in `core/index.js` connecting to `RoleService` (`/api/v1/roles`). | **RESOLVED** |
+| **BUG-D4-03** | Invite User: Role dropdown overlay stays open after selection | `/invitations/users` (`UserInvitations.jsx`) | Stage 2 (S2-01) | MINOR | **Cause:** Ant Design `<Select>` lacks auto-close on selection.<br>**Fix:** Remove conflicting `open` prop overrides and add `onSelect={() => setSelectOpen(false)}`. | **RESOLVED** |
+| **BUG-D4-04** | Finance role navigating to `Organisation > Designations` throws "System Error" | `/org/designations` (`DesignationController.java`, `MasterTable.jsx`) | Stage 2 (S2-06) | MAJOR | **Cause:** Unhandled backend exception / ORM query mapping error under Finance tenant context.<br>**Fix:** Fix JPA tenant filter in `DesignationServiceImpl.java` to support clean read queries with `core.org.read`. | **RESOLVED** |
+| **BUG-D4-05A** | Duplicate employee creation allowed with identical Work Email, Mobile, and Name | `POST /api/v1/employees` (`EmployeeServiceImpl.java`, `Employee.java`) | Stage 3 (S3-02, S3-06, S3-07) | CRITICAL | **Cause:** No unique constraint on `work_email` per tenant.<br>**Fix:** In `EmployeeServiceImpl.create()`, check `existsByTenantIdAndWorkEmailAndDeletedFalse()` and return HTTP 409 Conflict. Add DB unique constraint. | **RESOLVED** |
+| **BUG-D4-05B** | Employee List: "Emp ID" and "Name" columns wrap awkwardly into multiple lines | `/employees` (`EmployeeList.jsx`) | Stage 3 (S3-02) | MINOR | **Cause:** Table columns lack explicit `width` and `nowrap`.<br>**Fix:** Add `width: 120` to `employeeNumber` and `minWidth: 200` with `whiteSpace: 'nowrap'` to `name`. | **RESOLVED** |
+| **BUG-D4-06** | Duplicate PAN and Aadhaar accepted across multiple employees | `PUT /api/v1/employees/{id}/identification` (`EmployeeIdentificationServiceImpl.java`) | Stage 3 (S3-04) | CRITICAL | **Cause:** `EmployeeIdentificationServiceImpl` explicitly bypasses uniqueness check.<br>**Fix:** Add duplicate check against active employees in the tenant; reject with HTTP 409 Conflict. | **RESOLVED** |
+| **BUG-D4-07** | HR role lacks `core.reporting_line.manage` permission; "Set Manager" button hidden | `/employees/:id` (`ReportingLineTab.jsx`, seed roles) | Stage 3 (S3-05, S3-08) | MAJOR | **Cause:** Permission was omitted from `hr` role in seed migrations.<br>**Fix:** Add Flyway migration granting `('hr', 'core.reporting_line.manage')` in `core.role_action`. | **RESOLVED** |
+| **BUG-D4-08** | Employee invitation accept link fails with 404 / "Invitation declined" | `/invitations/accept?token=` (`InvitationService.java`) | Stage 3 (S3-10, S3-11), Stage 10 (S10-02) | CRITICAL | **Cause:** Token consumed on preliminary preview GET request or expired due to Azure queue email delay (`D-11`).<br>**Fix:** Ensure `GET /api/v1/invitations/accept` is strictly read-only and idempotent. Extend token TTL. | **RESOLVED** |
+| **BUG-D4-09** | Employee termination modal missing "Reason" dropdown and "Remarks" field | `/employees/:id` (`EmploymentTab.jsx`) | Stage 14 (S14-03) | MAJOR | **Cause:** Modal only renders `DatePicker` for last working day.<br>**Fix:** Add `<Select name="reason">` and `<Input.TextArea name="remarks">` in the modal and pass in payload to `PUT /api/v1/employees/{id}/terminate`. | **RESOLVED** |
+| **BUG-D4-10** | Pay Run modal: "Configure Pay Schedule Settings" link opens 404 Not Found | `/payroll/runs/new` -> `/payroll/settings/pay-schedule` (`routes.js`, `RunList.jsx`) | Stage 14 (S14-05) | CRITICAL | **Cause:** Dynamic route filter `routesFromFeed` unmounts `/payroll/settings/*` because it is absent from the navigation catalogue.<br>**Fix:** Whitelist `/payroll/settings/*` in `shell/routes.js` for users with `PAYROLL` module entitlement. | **RESOLVED** |
+| **BUG-D4-11** | Terminated employee cannot be reactivated; "Reactivate Employee" button missing | `/employees/:id` (`EmployeeDetail.jsx`) | Stage 14 (S14-08) | CRITICAL | **Cause:** UI does not render action button when `status === 'TERMINATED'`.<br>**Fix:** In `EmployeeDetail.jsx`, add conditional action button opening Reactivation modal calling `PUT /api/v1/employees/{id}/reactivate`. | **RESOLVED** |
+| **BUG-D4-12** | Terminated view in Employee Directory: Last Working Day column not displayed | `/employees` (`EmployeeList.jsx`) | Stage 14 (S14-02, S14-07) | MINOR | **Cause:** `EmployeeList.jsx` only shows Date of Joining; does not display Last Working Day when filtered by `TERMINATED`.<br>**Fix:** Conditionally add `lastWorkingDate` column when status filter includes `TERMINATED`. | **RESOLVED** |
 
 ---
 
@@ -709,7 +709,7 @@ For every test step that results in `FAIL`, developers must raise a ticket using
 ================================================================================
 BUG-D4-01: Work Locations Table Name Column Vertical Text Wrapping / Clipping
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: MINOR
 Component / Screen: /org/work-locations (MasterTable.jsx / WorkLocations.jsx)
 Stage & Step: Stage 1 — Step S1-05
@@ -750,7 +750,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-02: /roles Route Returns HTTP 404 Not Found
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: MAJOR
 Component / Screen: /roles, /roles/new (shell/routes.js, core/index.js)
 Stage & Step: Stage 1 — Step S1-08, Stage 17 — Step S17-01, S17-02
@@ -788,7 +788,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-03: User Invitations Modal Role Dropdown Overlay Stays Open on Selection
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: MINOR
 Component / Screen: /invitations/users (UserInvitations.jsx)
 Stage & Step: Stage 2 — Step S2-01
@@ -830,7 +830,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-04: Finance Role Navigating to Organisation > Designations Throws "System Error"
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: MAJOR
 Component / Screen: /org/designations (DesignationController.java, DesignationServiceImpl.java)
 Stage & Step: Stage 2 — Step S2-06
@@ -865,7 +865,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-05A: Duplicate Employee Creation Permitted (Identical Work Email, Mobile, Name)
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: CRITICAL
 Component / Screen: POST /api/v1/employees (EmployeeServiceImpl.java, Employee.java)
 Stage & Step: Stage 3 — Step S3-02, S3-06, S3-07
@@ -904,7 +904,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-05B: Employee Directory Table "Emp ID" and "Name" Columns Wrap Awkwardly
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: MINOR
 Component / Screen: /employees (EmployeeList.jsx)
 Stage & Step: Stage 3 — Step S3-02
@@ -933,7 +933,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
        width: 120,
        fixed: 'left',
        render: (text) => <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{text}</span>
-     },
+     }
      {
        title: 'Employee Name',
        dataIndex: 'fullName',
@@ -949,7 +949,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-06: Duplicate PAN and Aadhaar Numbers Permitted Across Multiple Employees
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: CRITICAL
 Component / Screen: PUT /api/v1/employees/{id}/identification (EmployeeIdentificationServiceImpl.java)
 Stage & Step: Stage 3 — Step S3-04
@@ -984,7 +984,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-07: HR Role Lacks core.reporting_line.manage Permission ("Set Manager" Button Hidden)
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: MAJOR
 Component / Screen: /employees/:id (ReportingLineTab.jsx, V012__seed_system_roles.sql)
 Stage & Step: Stage 3 — Step S3-05, S3-08
@@ -1016,7 +1016,32 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-08: Employee Invitation Accept Link Intermittently 404 / "Invitation Declined"
 ================================================================================
-Status: OPEN
+Status: RESOLVEDas HR (qa-d4-hr@infinevocloud.com), the Reporting Line tab does not show
+  the "Set Manager" button/action. Only Tenant Admin can assign or update reporting lines.
+
+• Steps to Reproduce:
+  1. Log in as HR.
+  2. Open EMP-02 profile > Reporting Line Tab.
+  3. Observe: "Set Manager / Add Reporting Line" button is missing.
+  4. Log in as Tenant Admin: button appears and functions properly.
+
+• Root Cause Analysis:
+  In the Flyway migration V012__seed_system_roles.sql, the action `core.reporting_line.manage`
+  was granted to `tenant-admin` but omitted from the `hr` role permission catalogue.
+
+• Resolution Guide:
+  1. Create Flyway migration V...__grant_reporting_line_manage_to_hr.sql:
+     INSERT INTO core.role_action (role_code, action_code)
+     VALUES ('hr', 'core.reporting_line.manage')
+     ON CONFLICT DO NOTHING;
+================================================================================
+```
+
+```
+================================================================================
+BUG-D4-08: Employee Invitation Accept Link Intermittently 404 / "Invitation Declined"
+================================================================================
+Status: RESOLVED
 Severity: CRITICAL
 Component / Screen: /invitations/employees -> /invitations/accept?token= (InvitationService.java)
 Stage & Step: Stage 3 — Step S3-10, S3-11, Stage 10 — Step S10-02
@@ -1053,7 +1078,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-09: Employee Termination Modal Missing "Reason" Dropdown and "Remarks" Field
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: MAJOR
 Component / Screen: /employees/:id (EmploymentTab.jsx / TerminationModal.jsx)
 Stage & Step: Stage 14 — Step S14-03
@@ -1094,7 +1119,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-10: Pay Run Modal "Configure Pay Schedule Settings" Link Leads to 404
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: CRITICAL
 Component / Screen: /payroll/runs/new -> /payroll/settings/pay-schedule (shell/routes.js, RunList.jsx)
 Stage & Step: Stage 14 — Step S14-05
@@ -1130,7 +1155,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-11: Terminated Employee Cannot Be Reactivated; "Reactivate Employee" Button Missing
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: CRITICAL
 Component / Screen: /employees/:id (EmployeeDetail.jsx / ActionsMenu.jsx)
 Stage & Step: Stage 14 — Step S14-08
@@ -1166,7 +1191,7 @@ Reporter: Krushna (Dev 4) — QA-D4 Tenant
 ================================================================================
 BUG-D4-12: Terminated View in Employee Directory: Last Working Day Column Missing
 ================================================================================
-Status: OPEN
+Status: RESOLVED
 Severity: MINOR
 Component / Screen: /employees (EmployeeList.jsx)
 Stage & Step: Stage 14 — Step S14-02, S14-07
@@ -1224,7 +1249,7 @@ Each developer updates this table daily before standup:
 | 2026-10-06 | Devashish (Dev 3) | `QA-D3` | Stage 9, Stage 10, Stage 16, Stage 12 | | | | | | Tax & claims testing |
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |
 | 2026-10-06 | Sayeed (Dev 5) | `QA-D5` | Stage 4, Stage 6, Stage 7, Stage 19, Stage 20 | | | | | | Leave, time & attendance |
-| 2026-10-07 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | 46 | 33 | 4 | 0 | 5 | Day 2 execution: 33 PASS, 4 FAIL, 5 DEFER, 4 PEND. Defects: BUG-D4-01 to BUG-D4-12 (All OPEN) |
+| 2026-10-07 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | 46 | 33 | 4 | 0 | 5 | Day 2 execution: 33 PASS, 4 FAIL, 5 DEFER, 4 PEND. Defects: BUG-D4-01 to BUG-D4-12 (All RESOLVED on branch testing-bug-fix) |
 
 ---
 

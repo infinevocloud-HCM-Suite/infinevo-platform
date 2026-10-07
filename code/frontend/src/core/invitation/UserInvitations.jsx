@@ -34,6 +34,7 @@ export function UserInvitations() {
   const [roles, setRoles] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [rolesError, setRolesError] = useState(null);
+  const [roleSelectOpen, setRoleSelectOpen] = useState(false);
 
   // Action loading states
   const [resendingId, setResendingId] = useState(null);
@@ -259,6 +260,9 @@ export function UserInvitations() {
               id="select-invite-roles"
               placeholder="Select assigned roles"
               loading={rolesLoading}
+              open={roleSelectOpen}
+              onDropdownVisibleChange={(visible) => setRoleSelectOpen(visible)}
+              onSelect={() => setRoleSelectOpen(false)}
               options={roles.map((r) => ({
                 value: r.id,
                 label: r.name || r.code || r.id,

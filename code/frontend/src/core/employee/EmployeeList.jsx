@@ -79,17 +79,24 @@ export function EmployeeList() {
       title: 'Emp ID',
       dataIndex: 'employeeNumber',
       key: 'employeeNumber',
-      render: (num) => <Text strong>{num}</Text>,
+      width: 130,
+      render: (num) => (
+        <span style={{ fontFamily: 'monospace', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {num}
+        </span>
+      ),
     },
     {
       title: 'Name',
       key: 'name',
+      minWidth: 200,
+      ellipsis: true,
       render: (_, r) => {
         const fullName = [r.firstName, r.middleName, r.lastName].filter(Boolean).join(' ');
         return (
-          <Space size="small">
+          <Space size="small" style={{ whiteSpace: 'nowrap' }}>
             <UserOutlined style={{ color: token.colorPrimary }} />
-            <Text>{fullName}</Text>
+            <Text strong>{fullName}</Text>
           </Space>
         );
       },
@@ -135,6 +142,17 @@ export function EmployeeList() {
       key: 'dateOfJoining',
       render: (date) => date || '—',
     },
+    ...(statusFilter === 'TERMINATED'
+      ? [
+          {
+            title: 'Last Working Day',
+            dataIndex: 'terminationDate',
+            key: 'terminationDate',
+            width: 150,
+            render: (date) => (date ? <span style={{ whiteSpace: 'nowrap' }}>{date}</span> : '—'),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -218,6 +236,7 @@ export function EmployeeList() {
         columns={columns}
         dataSource={data}
         loading={loading}
+        scroll={{ x: 'max-content' }}
         pagination={{
           current: page,
           pageSize,

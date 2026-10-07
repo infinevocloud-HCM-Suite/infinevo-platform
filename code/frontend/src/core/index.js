@@ -64,6 +64,13 @@ const AcceptInvitation = lazy(() =>
   import('./invitation/AcceptInvitation.jsx').then((m) => ({ default: m.AcceptInvitation }))
 );
 
+const Roles = lazy(() =>
+  import('./authz/Roles.jsx').then((m) => ({ default: m.Roles }))
+);
+const RoleForm = lazy(() =>
+  import('./authz/RoleForm.jsx').then((m) => ({ default: m.RoleForm }))
+);
+
 const LeaveTypes = lazy(() =>
   import('./leave/LeaveTypes.jsx').then((m) => ({ default: m.LeaveTypes }))
 );
@@ -130,6 +137,10 @@ export const routes = [
   { path: '/admin/tenants', element: React.createElement(TenantList) },
   { path: '/admin/tenants/new', element: React.createElement(TenantCreate) },
   { path: '/admin/tenants/:id', element: React.createElement(TenantDetail) },
+  // Roles & permissions (W-11.1 §5, BUG-D4-02).
+  { path: '/roles', element: React.createElement(Roles) },
+  { path: '/roles/new', element: React.createElement(RoleForm) },
+  { path: '/roles/:id', element: React.createElement(RoleForm) },
 ];
 
 export const publicRoutes = [
@@ -144,3 +155,4 @@ export const reducers = {
 };
 
 export * from './portal/index.js';
+export { Roles, RoleForm };

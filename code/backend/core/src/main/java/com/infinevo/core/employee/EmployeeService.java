@@ -122,4 +122,14 @@ public interface EmployeeService {
             super("User account " + userAccountId + " is already linked to another employee in this tenant");
         }
     }
+
+    /** This tenant already uses this work email for an active employee. Maps to {@code 409}. */
+    class DuplicateWorkEmailException extends RuntimeException {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        public DuplicateWorkEmailException(String workEmail) {
+            super("An active employee with work email '" + workEmail + "' already exists in this tenant");
+        }
+    }
 }

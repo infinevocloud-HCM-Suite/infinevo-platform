@@ -66,6 +66,12 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     /** The same check for an update, ignoring the row being updated. */
     boolean existsByTenantIdAndEmployeeNumberAndIdNot(UUID tenantId, String employeeNumber, UUID id);
 
+    /** True when this tenant already holds this work email for an active employee. */
+    boolean existsByTenantIdAndWorkEmailIgnoreCaseAndDeletedFalse(UUID tenantId, String workEmail);
+
+    /** The same check for an update, ignoring the row being updated. */
+    boolean existsByTenantIdAndWorkEmailIgnoreCaseAndIdNotAndDeletedFalse(UUID tenantId, String workEmail, UUID id);
+
     /** The one live employee with this employee number in this tenant, if there is one (W-16.4b). */
     Optional<Employee> findByTenantIdAndEmployeeNumberAndDeletedFalse(UUID tenantId, String employeeNumber);
 
