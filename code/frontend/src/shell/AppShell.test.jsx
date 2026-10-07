@@ -49,6 +49,42 @@ describe('AppShell component', () => {
     expect(screen.getByText('404')).toBeDefined();
   });
 
+  it('opens the first feed path at the root instead of NotFound', async () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [
+        { key: 'org', labelKey: 'nav.organisation', children: [{ key: 'emp', labelKey: 'Employees', path: '/employees' }] },
+      ],
+      loading: false,
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/']}>
+          <AppShell />
+        </MemoryRouter>
+      </Provider>,
+    );
+
+    expect(screen.queryByText('404')).toBeNull();
+    expect(await screen.findByRole('heading', { name: /Employees/i }, { timeout: 5000 })).toBeDefined();
+  });
+
+  it('shows the tenant name from the feed in the header', () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [{ key: 'core', labelKey: 'Core', path: '/core' }],
+      tenantName: 'Acme Ltd',
+      loading: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/core']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('tenant-display').textContent).toContain('Acme Ltd');
+  });
+
   it('mounts a route from module index when the feed names its path', async () => {
     vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
       items: [{ key: 'employees', labelKey: 'Employees', path: '/employees' }],

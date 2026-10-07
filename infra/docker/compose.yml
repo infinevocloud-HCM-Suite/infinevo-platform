@@ -114,6 +114,8 @@ services:
       # and is silently ignored by 25, leaving no admin user and a 401 at the console.
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: local_keycloak_pw
+      # Same branding default as the production image (keycloak.Dockerfile).
+      KC_SPI_THEME_DEFAULT: infinevo
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak_user
@@ -136,6 +138,7 @@ services:
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./keycloak/dev-realm.json:/opt/keycloak/data/import/dev-realm.json:ro
+      - ../keycloak/themes/infinevo:/opt/keycloak/themes/infinevo:ro
     ports: ["${KEYCLOAK_PORT:-8081}:8081"]
     depends_on:
       postgres: { condition: service_healthy }

@@ -17,7 +17,7 @@ import { onTenantChange } from '../auth/keycloak.js';
 
 export const NavigationContext = createContext(null);
 
-const EMPTY = Object.freeze({ items: [], actions: [], modules: [], loading: false, loaded: false, error: null });
+const EMPTY = Object.freeze({ items: [], actions: [], modules: [], tenantName: null, loading: false, loaded: false, error: null });
 
 let state = EMPTY;
 const subscribers = new Set();
@@ -56,13 +56,14 @@ export async function fetchNavigationFeed() {
       items: Array.isArray(data.items) ? data.items : [],
       actions: Array.isArray(data.actions) ? data.actions : [],
       modules: Array.isArray(data.modules) ? data.modules : [],
+      tenantName: typeof data.tenantName === 'string' ? data.tenantName : null,
       loading: false,
       loaded: true,
       error: null,
     });
     return state;
   } catch (err) {
-    publish({ items: [], actions: [], modules: [], loading: false, loaded: true, error: err });
+    publish({ items: [], actions: [], modules: [], tenantName: null, loading: false, loaded: true, error: err });
     throw err;
   }
 }
@@ -81,13 +82,14 @@ NavigationProvider.propTypes = {
     items: PropTypes.array,
     actions: PropTypes.oneOfType([PropTypes.array, PropTypes.instanceOf(Set)]),
     modules: PropTypes.array,
+    tenantName: PropTypes.string,
     loading: PropTypes.bool,
     error: PropTypes.object,
   }).isRequired,
 };
 
 /**
- * The feed as the shell sees it: `items`, `actions`, `modules`, `loading`, `error`, and `refetch`.
+ * The feed as the shell sees it: `items`, `actions`, `modules`, `tenantName`, `loading`, `error`, and `refetch`.
  *
  * `loading` is true from the first render until the first fetch settles - not only while a
  * request is in flight - so the shell never reads "not asked yet" as "the feed is empty".
@@ -122,6 +124,7 @@ export function useNavigation() {
     items: active.items || [],
     actions: active.actions || [],
     modules: active.modules || [],
+    tenantName: active.tenantName || null,
     loading: !!active.loading || (!provided && !active.loaded),
     error: active.error || null,
     refetch: fetchNavigationFeed,

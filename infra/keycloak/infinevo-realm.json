@@ -2,7 +2,7 @@
   "realm": "infinevo",
   "enabled": true,
   "displayName": "Infinevo HCM Suite",
-  "displayNameHtml": "<div class=\"kc-logo-text\"><span>Infinevo HCM Suite</span></div><div style=\"font-size:14px;font-weight:normal\">Human Capital Management</div>",
+  "displayNameHtml": "<div>Infinevo HCM Suite</div><div style=\"font-size:14px;font-weight:normal\">Human Capital Management</div>",
   "sslRequired": "external",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,

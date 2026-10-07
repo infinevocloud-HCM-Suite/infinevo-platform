@@ -11,6 +11,7 @@ import java.util.Set;
  * @param actions caller's action codes in the bound tenant, for client-side button gating
  * @param modules the modules the bound tenant holds - a fact about the tenant, not filtered by the
  *     caller's permissions, so a screen shared by both modules can tell which half applies
+ * @param tenantName the bound tenant's name, for the shell to show; null when it cannot be read
  */
 public record NavigationResponse(
-        List<NavigationItemResponse> items, Set<String> actions, Set<PlatformModule> modules) {}
+        List<NavigationItemResponse> items, Set<String> actions, Set<PlatformModule> modules, String tenantName) {}

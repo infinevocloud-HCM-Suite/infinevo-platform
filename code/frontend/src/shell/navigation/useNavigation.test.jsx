@@ -58,8 +58,9 @@ function renderedMenuLabels(container) {
 }
 
 function renderShell() {
+  // Not `/`: the root redirects to the feed's first screen, and these tests watch the shell alone.
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/shell-only']}>
       <AppShell />
     </MemoryRouter>,
   );

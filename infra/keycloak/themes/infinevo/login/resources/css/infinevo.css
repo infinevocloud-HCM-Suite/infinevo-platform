@@ -1,0 +1,14 @@
+/*
+ * The stock login.css turns any `kc-logo-text` element into the Keycloak logo image and hides
+ * its text. A realm imported before that class was dropped from displayNameHtml keeps it -
+ * import skips an existing realm - so undo it here: show the text, never the logo.
+ */
+div.kc-logo-text {
+    background-image: none;
+    width: auto;
+    height: auto;
+}
+
+div.kc-logo-text span {
+    display: inline;
+}
