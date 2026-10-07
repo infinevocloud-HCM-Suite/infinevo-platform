@@ -111,6 +111,7 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-15 | Leave Allocation fails with `VALIDATION_FAILED: No effective policy found` when `effectiveFrom` is null / unconfigured | 2026-10-06, manual QA Stage 4 (`S4-10`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`PolicyForm.jsx`, `LeaveTypeServiceImpl.java`) |
 | D-16 | Holiday Calendar creation with `isDefault: true` throws HTTP 409 Conflict if default calendar exists | 2026-10-06, manual QA Stage 4 (`S4-01`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`Calendars.jsx`) |
 | D-17 | Employee portal login blocked by Azure Front Door WAF rate-limiting rule (`The request is blocked. 20261007T...`) | 2026-10-07, manual QA Stage 19 (`S19-01`) | infra / WAF policy tuning (`frontdoor.bicep`) | open |
+| D-18 | Employee invitation acceptance throws HTTP 500 (`An unexpected error occurred while processing the invitation`); compensation deletes Keycloak user after password email sent | 2026-10-07, manual QA employee invitation accept (`POST /api/v1/invitations/accept`) | backend (`InvitationServiceImpl`, `InvitationAcceptanceController`) | open |
 
 ### QA & Manual Testing Defect Log (Dev 5 — Time & Operations)
 
@@ -131,6 +132,12 @@ One row per known defect in merged code. A row leaves this table only when its f
 - **Error:** `The request is blocked. 20261007T101708Z-17848f5bf682zw4bhC1PNQutug0000000crg00000000ah9m`
 - **Root Cause:** Azure Front Door WAF custom rule `ratelimitperclientip` threshold (100 req/min in `frontdoor.bicep`) triggered during authentication redirects, issuing a 403 block on the client IP.
 - **Impact:** Employee unable to log in; blocks all Stage 19 employee self-service steps (`S19-01` to `S19-06`) and Stage 7 time tracking (`S7-01`, `S7-02`, `S7-03`, `S7-05`, `S7-07`, `S7-09`).
+
+#### D-18 (BUG-D5-004): Employee Invitation Acceptance Throws 500 & Compensation Deletes Keycloak User
+- **Found:** 2026-10-07, Employee Invitation Acceptance (`POST /api/v1/invitations/accept`)
+- **Error:** `HTTP 500 Internal Server Error`, `code: "INTERNAL"`, `message: "An unexpected error occurred while processing the invitation."`, traceId: `9d3cc447-c553-4f97-a545-a9104e91ffa4`.
+- **Root Cause:** In `InvitationServiceImpl.acceptEmployeeInvitation()`, Keycloak user creation and password reset email dispatch succeed in step 1. During subsequent steps (local `core.user_account` sync, `core.user_tenant` insert, or `roleService.replaceUserRoles()` for seeded `employee` role), an unhandled `RuntimeException` is thrown. The controller's `@ExceptionHandler(Exception.class)` catches it and returns 500 `INTERNAL`. Crucially, the service's `catch (RuntimeException e)` invokes `compensate(provisioning)` which deletes the newly created Keycloak user, leaving the invitation stuck in `PENDING` and invalidating the password update email.
+- **Impact:** Employees cannot complete invitation onboarding; password update email points to an already-deleted Keycloak account.
 
 ---
 
