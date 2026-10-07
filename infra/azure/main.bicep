@@ -355,6 +355,8 @@ module containerApps 'modules/containerapps.bicep' = {
     redisHost: deployRedis ? (redis.?outputs.hostName ?? '') : ''
     // W-21: the document store's Blob endpoint, reached by managed identity (D5).
     blobEndpoint: storage.outputs.primaryBlobEndpoint
+    // W-52.2: the queue endpoint, reached by managed identity.
+    queueEndpoint: storage.outputs.primaryQueueEndpoint
     // One tag across all four images (spec section 5 check 12), so the backend tag IS the
     // release tag. Empty for an infrastructure-only deploy, in which case each app keeps
     // the image currentImages says it is already running.

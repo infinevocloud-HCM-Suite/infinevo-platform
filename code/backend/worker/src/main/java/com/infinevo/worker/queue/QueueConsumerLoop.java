@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.job.service.JobService;
+import com.infinevo.shared.queue.QueueConfiguredCondition;
 import com.infinevo.shared.queue.QueueConsumer;
 import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.tenant.TenantContext;
@@ -22,12 +23,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "azure.storage.queue.connection-string")
+@Conditional(QueueConfiguredCondition.class)
 public class QueueConsumerLoop implements SmartLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(QueueConsumerLoop.class);
