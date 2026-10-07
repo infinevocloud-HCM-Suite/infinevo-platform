@@ -19,7 +19,7 @@ import {
 import { SaveOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { sectionFields } from '../sectionFields.js';
-import { defaultTimeZone, timeZoneOptions, parseHHmm, formatHHmm } from '../timeFields.js';
+import { timeZoneOptions, parseHHmm, formatHHmm } from '../timeFields.js';
 import { employeeService } from '../employeeService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
@@ -66,22 +66,8 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
     };
   }, [employeeId, sectionName]);
 
-  // D-41: a blank time zone starts on the default zone, so saving the section records one. Only
-  // for someone who can save: a read-only viewer must see what is stored, not a suggestion.
-  useEffect(() => {
-    if (loading || !canUpdate) return;
-    const zoneFields = config.fields.filter((f) => f.type === 'timezone');
-    if (zoneFields.length === 0) return;
-    setValues((prev) => {
-      const missing = zoneFields.filter((f) => !prev[f.name]);
-      if (missing.length === 0) return prev;
-      const next = { ...prev };
-      missing.forEach((f) => {
-        next[f.name] = defaultTimeZone();
-      });
-      return next;
-    });
-  }, [loading, canUpdate, config.fields]);
+  // D-41: a blank time zone stays blank until someone picks one. Nothing the frontend loads carries
+  // the tenant's zone, and the browser's would be recorded silently on any other Employment save.
 
   const handleChange = (name, val) => {
     setValues((prev) => ({ ...prev, [name]: val }));

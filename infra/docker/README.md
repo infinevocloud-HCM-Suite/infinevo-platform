@@ -21,6 +21,11 @@ dependencies. After that it is seconds.
 
 Sign in as `admin.acme`, `admin.globex` or `employee.globex`, password `Local_dev_pw1!`.
 
+The password changed with D-36 (it was `local_dev_pw`). Keycloak keeps its data in the `pgdata`
+volume and skips importing a realm that already exists, so a stack started before that change
+keeps the old password and the old policy: run `docker compose -f infra/docker/compose.yml down -v`
+once, then `up -d` again.
+
 ---
 
 ## Commands

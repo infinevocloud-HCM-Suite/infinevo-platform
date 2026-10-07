@@ -14,6 +14,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class NavigationService {
+
+    private static final Logger log = LoggerFactory.getLogger(NavigationService.class);
 
     private final EntitlementService entitlementService;
     private final PermissionService permissionService;
@@ -167,12 +171,30 @@ public class NavigationService {
         if (actions.contains("core.employee.read") && visible.contains(EMPLOYEES_HOME)) {
             return EMPLOYEES_HOME;
         }
+        if (readsOthers) {
+            // A manager with no dashboard in the feed (the seeded manager holds no hrms.project.read_own)
+            // still has a working screen - the approvals inbox - which beats the portal.
+            return firstLeafPath(items).orElse(PORTAL_HOME);
+        }
         return PORTAL_HOME;
     }
 
-    /** True when the checklist has an open step. No checklist service (a unit test) is read as "finished". */
+    /**
+     * True when the checklist has an open step. No checklist service (a unit test) is read as "finished",
+     * and so is a checklist that cannot be read: a broken checker must not take the whole menu down.
+     */
     private boolean setupUnfinished(UUID tenantId) {
-        return setupChecklist != null && !setupChecklist.isComplete(tenantId);
+        if (setupChecklist == null) {
+            return false;
+        }
+        try {
+            return !setupChecklist.isComplete(tenantId);
+        } catch (RuntimeException e) {
+            log.warn(
+                    "Setup checklist could not be read for the home path: {}",
+                    e.getClass().getSimpleName());
+            return false;
+        }
     }
 
     private static void collectPaths(List<NavigationItemResponse> items, Set<String> into) {

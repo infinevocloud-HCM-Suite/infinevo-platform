@@ -55,11 +55,12 @@ class EpfEdliAdminSplitMigrationIT extends AbstractIntegrationTest {
 
                 assertSwitches(conn, TENANT_A, true, true, false, false);
                 assertSwitches(conn, TENANT_B, false, false, true, true);
+                // The merged columns stay for the previous release during roll-out; a later migration drops them.
                 assertThat(PayrollTestSchema.columnExists(conn, "payroll", "epf_setting", "include_edli_admin_in_ctc"))
-                        .isFalse();
+                        .isTrue();
                 assertThat(PayrollTestSchema.columnExists(
                                 conn, "payroll", "epf_setting", "include_edli_admin_in_structure"))
-                        .isFalse();
+                        .isTrue();
             } finally {
                 conn.rollback();
             }
@@ -75,9 +76,14 @@ class EpfEdliAdminSplitMigrationIT extends AbstractIntegrationTest {
                         DROP COLUMN include_edli_in_ctc,
                         DROP COLUMN include_admin_in_ctc,
                         DROP COLUMN include_edli_in_structure,
-                        DROP COLUMN include_admin_in_structure,
-                        ADD COLUMN include_edli_admin_in_ctc BOOLEAN NOT NULL DEFAULT false,
-                        ADD COLUMN include_edli_admin_in_structure BOOLEAN NOT NULL DEFAULT false
+                        DROP COLUMN include_admin_in_structure
+                    """);
+            // V153 keeps the merged columns during roll-out, so they are already there after it ran.
+            st.execute(
+                    """
+                    ALTER TABLE payroll.epf_setting
+                        ADD COLUMN IF NOT EXISTS include_edli_admin_in_ctc BOOLEAN NOT NULL DEFAULT false,
+                        ADD COLUMN IF NOT EXISTS include_edli_admin_in_structure BOOLEAN NOT NULL DEFAULT false
                     """);
         }
     }

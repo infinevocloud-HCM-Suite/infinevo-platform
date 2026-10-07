@@ -156,6 +156,11 @@ public class TenantServiceImpl implements TenantService {
                 throw new IllegalStateException(
                         "User invitations are not available to invite the tenant administrator");
             }
+            if (!invitations.canSendInvitationEmail()) {
+                throw new IllegalArgumentException(
+                        "admin_email cannot be used: invitation emails are not configured on this server"
+                                + " (INVITATION_LINK_BASE_URL)");
+            }
         } else {
             invitations = null;
         }

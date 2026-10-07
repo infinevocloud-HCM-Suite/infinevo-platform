@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.invitation.InvitationService;
@@ -94,6 +95,20 @@ class TenantRequestTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("inviter");
         verifyNoInteractions(jdbc, invitations);
+    }
+
+    @Test
+    @DisplayName("provisioning refuses an admin email when invitation emails are not configured")
+    void service_refusesEmailWhenNoEmailCanBeSent_beforeWriting() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        InvitationService invitations = mock(InvitationService.class);
+        when(invitations.canSendInvitationEmail()).thenReturn(false);
+        TenantServiceImpl service = new TenantServiceImpl(jdbc, (SetupChecklistService) null, invitations);
+
+        assertThatThrownBy(() -> service.provisionTenant(withEmail("boss@acme.example"), UUID.randomUUID()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("INVITATION_LINK_BASE_URL");
+        verifyNoInteractions(jdbc);
     }
 
     @Test

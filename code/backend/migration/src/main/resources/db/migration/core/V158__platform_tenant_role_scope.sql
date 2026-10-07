@@ -12,6 +12,8 @@
 -- with a 400). The seed function is rewritten below so that its backfill pattern
 -- (SELECT core.seed_system_roles(t.tenant_id) FROM core.tenant t) still succeeds for the platform tenant.
 -- A later rewrite of core.seed_system_roles must keep the platform-tenant filter, or its backfill fails here.
+-- The same goes for a direct INSERT that grants a new action to a role in every tenant (the V135 / V139
+-- style): it must exclude the platform tenant, or the trigger below refuses the whole script.
 
 -- 1. Remove every grant this script forbids. Additive-safe: it removes only rows in the platform tenant.
 DELETE FROM core.role_action ra

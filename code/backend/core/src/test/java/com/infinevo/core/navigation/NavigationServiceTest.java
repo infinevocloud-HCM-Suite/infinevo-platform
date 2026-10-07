@@ -461,7 +461,59 @@ class NavigationServiceTest {
     void managerLandsOnTheHrmsDashboard() {
         assertThat(homeFor(MANAGER, BOTH, UUID.randomUUID(), false)).isEqualTo("/hrms/dashboard");
         assertThat(homeFor(MANAGER, Set.of(PlatformModule.PAYROLL), UUID.randomUUID(), false))
+                .as("nothing else is visible to this fixture, so the portal")
                 .isEqualTo("/me");
+    }
+
+    @Test
+    @DisplayName("D-35: the seeded manager (no hrms.project.read_own) lands on the first screen it can see")
+    void seededManagerWithoutTheDashboardLandsOnItsFirstScreen() {
+        // V158's manager: reads the team, approves, holds no hrms.project.read_own, so no HRMS dashboard.
+        Set<String> seededManager = Set.of(
+                "core.employee.read_team",
+                "core.org.read",
+                "core.leave.read_team",
+                "core.leave.approve",
+                "core.approval.decide",
+                "hrms.project.manage");
+        ItemDefinition approvals = new ItemDefinition(
+                "core.approvals",
+                "nav.approvals",
+                "/approvals",
+                "/api/v1/approvals/pending",
+                null,
+                "core.approval.decide");
+        List<ItemDefinition> catalogue = List.of(HOME_PEOPLE, approvals, HOME_HRMS_DASHBOARD);
+        for (PlatformModule module : PlatformModule.values()) {
+            when(entitlementService.holds(module)).thenReturn(true);
+        }
+        when(permissionService.currentActions()).thenReturn(seededManager);
+        TenantContext.set(UUID.randomUUID());
+
+        String home = new NavigationService(
+                        entitlementService, permissionService, catalogue, null, null, new PlatformTenant())
+                .navigation()
+                .homePath();
+
+        assertThat(home).isEqualTo("/approvals");
+    }
+
+    @Test
+    @DisplayName("D-35: a checklist that cannot be read does not take the feed down; the admin skips setup")
+    void brokenChecklistDoesNotBreakTheFeed() {
+        TenantContext.set(UUID.randomUUID());
+        for (PlatformModule module : PlatformModule.values()) {
+            when(entitlementService.holds(module)).thenReturn(true);
+        }
+        when(permissionService.currentActions()).thenReturn(TENANT_ADMIN);
+        SetupChecklistService broken = mock(SetupChecklistService.class);
+        when(broken.isComplete(org.mockito.ArgumentMatchers.any())).thenThrow(new IllegalStateException("db"));
+
+        NavigationResponse response = new NavigationService(
+                        entitlementService, permissionService, HOME_CATALOGUE, null, broken, new PlatformTenant())
+                .navigation();
+
+        assertThat(response.homePath()).isEqualTo("/payroll/dashboard");
     }
 
     @Test

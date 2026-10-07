@@ -126,9 +126,8 @@ describe('SectionTab component', () => {
     expect(screen.getByText('••••••••••••')).toBeDefined();
   });
   describe('Employment section (D-40, D-41)', () => {
-    it('renders time zone as a searchable select defaulting to the browser zone when blank', async () => {
+    it('renders time zone as a searchable select that stays blank until picked', async () => {
       vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
-      const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       employeeService.section.mockResolvedValueOnce({ payGrade: 'L5' });
       employeeService.saveSection.mockResolvedValueOnce({});
 
@@ -140,16 +139,12 @@ describe('SectionTab component', () => {
       expect(zoneInput.getAttribute('role')).toBe('combobox');
       // A Select, not a text box: the typed text is a search, not the value.
       expect(zoneInput.closest('.ant-select-show-search')).toBeTruthy();
-      await waitFor(() => expect(screen.getByTitle(browserZone)).toBeDefined());
 
       fireEvent.click(screen.getByRole('button', { name: /save employment details/i }));
-      await waitFor(() =>
-        expect(employeeService.saveSection).toHaveBeenCalledWith(
-          'emp-1',
-          'employment',
-          expect.objectContaining({ timeZone: browserZone })
-        )
-      );
+      await waitFor(() => expect(employeeService.saveSection).toHaveBeenCalled());
+      const saved = employeeService.saveSection.mock.calls[0][2];
+      // No zone was picked, so none is recorded: the browser's zone is not a fact about the employee.
+      expect(saved.timeZone ?? null).toBeNull();
     });
 
     it('shows a stored zone and lets the user search and pick another', async () => {

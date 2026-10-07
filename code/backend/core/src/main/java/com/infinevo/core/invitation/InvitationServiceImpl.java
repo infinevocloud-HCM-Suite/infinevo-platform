@@ -687,6 +687,11 @@ public class InvitationServiceImpl implements InvitationService {
         return linkBaseUrl + (linkBaseUrl.contains("?") ? "&" : "?") + "token=" + token;
     }
 
+    @Override
+    public boolean canSendInvitationEmail() {
+        return notificationService != null && !linkBaseUrl.isEmpty();
+    }
+
     private void sendUserInvitationNotification(String email, UUID tenantId, String token) {
         if (notificationService == null) {
             return;
