@@ -13,11 +13,11 @@ import {
   Input,
   Checkbox,
   Drawer,
-  Spin,
   Alert,
   Popconfirm,
   Badge,
   Collapse,
+  Divider,
 } from 'antd';
 import {
   SafetyOutlined,
@@ -29,9 +29,8 @@ import {
   CheckCircleOutlined,
 } from '@ant-design/icons';
 import { roleService } from './roleService';
-import { useCan } from '@shell/authz/useCan';
+import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
-import { readError } from '../../payroll/tax/apiError';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -63,7 +62,7 @@ export function RoleMatrixScreen() {
       setRoles(rolesList || []);
       setAllActions(actionsList || []);
     } catch (err) {
-      setError(readError(err, 'Failed to load roles and permissions').message);
+      setError(err?.response?.data?.message || err?.message || 'Failed to load roles and permissions');
     } finally {
       setLoading(false);
     }
@@ -87,7 +86,7 @@ export function RoleMatrixScreen() {
       form.resetFields();
       loadData();
     } catch (err) {
-      errorMsg(readError(err, 'Failed to create role'));
+      errorMsg(err);
     } finally {
       setCreating(false);
     }
@@ -99,7 +98,7 @@ export function RoleMatrixScreen() {
       successMsg('Role Deleted', `Role "${role.name}" was deleted`);
       loadData();
     } catch (err) {
-      errorMsg(readError(err, 'Failed to delete role'));
+      errorMsg(err);
     }
   };
 

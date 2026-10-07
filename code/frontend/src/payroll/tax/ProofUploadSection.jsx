@@ -14,7 +14,6 @@ import {
   Row,
   Col,
   Card,
-  Modal,
 } from 'antd';
 import {
   UploadOutlined,
@@ -24,14 +23,12 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   CloseCircleOutlined,
-  PaperClipOutlined,
 } from '@ant-design/icons';
 import { proofService } from './proofService';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { readError } from './apiError';
-import { formatFyDisplay } from './financialYear';
 
-const { Text, Title, Paragraph } = Typography;
+const { Text } = Typography;
 
 export function ProofUploadSection({ fy, onRefresh }) {
   const [loading, setLoading] = useState(false);

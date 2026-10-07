@@ -166,11 +166,9 @@ class ActionCatalogueIT extends AbstractIntegrationTest {
         assertThat(held.get("hr")).contains("core.approval.decide").doesNotContain("hrms.overtime.request");
         assertThat(held.get("manager")).contains("core.approval.decide").doesNotContain("hrms.overtime.request");
 
-        // payroll-officer holds neither
+        // payroll-officer and finance hold neither
         assertThat(held.get("payroll-officer")).doesNotContain("hrms.overtime.request", "core.approval.decide");
-
-        // finance holds core.approval.decide (D-14), but not hrms.overtime.request
-        assertThat(held.get("finance")).contains("core.approval.decide").doesNotContain("hrms.overtime.request");
+        assertThat(held.get("finance")).doesNotContain("hrms.overtime.request", "core.approval.decide");
     }
 
     @Test
