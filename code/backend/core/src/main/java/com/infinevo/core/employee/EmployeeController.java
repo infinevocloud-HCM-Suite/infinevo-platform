@@ -142,8 +142,7 @@ public class EmployeeController {
     }
 
     @ExceptionHandler(EmployeeService.DuplicateWorkEmailException.class)
-    public ResponseEntity<ApiErrorResponse> handleDuplicateWorkEmail(
-            EmployeeService.DuplicateWorkEmailException e) {
+    public ResponseEntity<ApiErrorResponse> handleDuplicateWorkEmail(EmployeeService.DuplicateWorkEmailException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
     }

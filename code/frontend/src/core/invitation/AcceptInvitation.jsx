@@ -14,18 +14,13 @@ export function AcceptInvitation() {
     if (typeof window === 'undefined') return '';
     try {
       const params = new URLSearchParams(window.location.search);
-      const urlToken = params.get('token');
-      if (urlToken) {
-        sessionStorage.setItem('invitation_token', urlToken);
-        return urlToken;
-      }
-      return sessionStorage.getItem('invitation_token') || '';
+      return params.get('token') || '';
     } catch {
       return '';
     }
   });
 
-  // Remove token from address bar on mount (retained safely in sessionStorage)
+  // Remove token from address bar on mount
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.search) {
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -62,7 +57,6 @@ export function AcceptInvitation() {
     setErrorMessage(null);
     try {
       await publicInvitationService.accept(token);
-      try { sessionStorage.removeItem('invitation_token'); } catch {}
       setStatus('accepted');
     } catch (err) {
       setStatus('error');
@@ -94,7 +88,6 @@ export function AcceptInvitation() {
     setErrorMessage(null);
     try {
       await publicInvitationService.decline(token, trimmed);
-      try { sessionStorage.removeItem('invitation_token'); } catch {}
       setStatus('declined');
     } catch (err) {
       setStatus('error');

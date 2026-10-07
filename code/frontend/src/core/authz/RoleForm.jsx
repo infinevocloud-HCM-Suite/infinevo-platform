@@ -65,10 +65,6 @@ export function RoleForm() {
     }
   }, [id, isNew, canManage, form]);
 
-  if (!canManage) {
-    return <NotEntitled action="core.role.manage" />;
-  }
-
   // Group actions by module
   const actionsByModule = useMemo(() => {
     const groups = {};
@@ -81,6 +77,10 @@ export function RoleForm() {
     }
     return groups;
   }, [actions]);
+
+  if (!canManage) {
+    return <NotEntitled action="core.role.manage" />;
+  }
 
   const handleToggleAction = (actionCode) => {
     setSelectedActions((prev) =>

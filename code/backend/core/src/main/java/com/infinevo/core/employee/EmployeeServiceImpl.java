@@ -102,7 +102,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employeeRepository.existsByTenantIdAndEmployeeNumber(tenantId, fields.employeeNumber())) {
             throw new DuplicateEmployeeNumberException(fields.employeeNumber());
         }
-        if (fields.workEmail() != null && !fields.workEmail().isBlank()
+        if (fields.workEmail() != null
+                && !fields.workEmail().isBlank()
                 && employeeRepository.existsByTenantIdAndWorkEmailIgnoreCaseAndDeletedFalse(
                         tenantId, fields.workEmail().trim())) {
             throw new DuplicateWorkEmailException(fields.workEmail().trim());
@@ -130,7 +131,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 employee.getTenantId(), fields.employeeNumber(), employee.getId())) {
             throw new DuplicateEmployeeNumberException(fields.employeeNumber());
         }
-        if (fields.workEmail() != null && !fields.workEmail().isBlank()
+        if (fields.workEmail() != null
+                && !fields.workEmail().isBlank()
                 && employeeRepository.existsByTenantIdAndWorkEmailIgnoreCaseAndIdNotAndDeletedFalse(
                         employee.getTenantId(), fields.workEmail().trim(), employee.getId())) {
             throw new DuplicateWorkEmailException(fields.workEmail().trim());
@@ -393,7 +395,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static boolean namesWorkEmailIndex(Throwable e) {
         for (Throwable t = e; t != null; t = t.getCause()) {
             String message = t.getMessage();
-            if (message != null && (message.contains(WORK_EMAIL_INDEX) || message.toLowerCase().contains("uq_employee_tenant_work_email"))) {
+            if (message != null
+                    && (message.contains(WORK_EMAIL_INDEX)
+                            || message.toLowerCase().contains("uq_employee_tenant_work_email"))) {
                 return true;
             }
             if (t.getCause() == t) {

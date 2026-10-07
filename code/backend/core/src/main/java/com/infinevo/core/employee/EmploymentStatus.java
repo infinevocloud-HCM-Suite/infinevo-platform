@@ -40,7 +40,7 @@ public enum EmploymentStatus {
         return switch (this) {
             case ACTIVE -> Set.of(ACTIVE, SUSPENDED, TERMINATED);
             case SUSPENDED -> Set.of(SUSPENDED, ACTIVE, TERMINATED);
-            case TERMINATED -> Set.of(TERMINATED, ACTIVE);
+            case TERMINATED -> Set.of(TERMINATED);
         };
     }
 
