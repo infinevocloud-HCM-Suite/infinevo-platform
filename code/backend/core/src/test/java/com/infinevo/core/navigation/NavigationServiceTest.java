@@ -1,6 +1,8 @@
 package com.infinevo.core.navigation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -8,11 +10,15 @@ import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
 import com.infinevo.shared.entitlement.PlatformModule;
+import com.infinevo.shared.tenant.TenantContext;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Unit tests for {@link NavigationService} (W-12.3, spec section 7).
@@ -198,6 +204,36 @@ class NavigationServiceTest {
                 .containsExactlyElementsOf(NavigationCatalogue.DEFAULT_ITEMS.stream()
                         .map(ItemDefinition::key)
                         .toList());
+    }
+
+    @AfterEach
+    void clearTenant() {
+        TenantContext.clear();
+    }
+
+    @Test
+    @DisplayName("the reply names the bound tenant")
+    void replyNamesTheBoundTenant() {
+        UUID tenantId = UUID.randomUUID();
+        TenantContext.set(tenantId);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.queryForList(anyString(), eq(String.class), eq(tenantId))).thenReturn(List.of("Acme Ltd"));
+        when(permissionService.currentActions()).thenReturn(Set.of());
+
+        NavigationService withName = new NavigationService(entitlementService, permissionService, CATALOGUE, jdbc);
+
+        assertThat(withName.navigation().tenantName()).isEqualTo("Acme Ltd");
+    }
+
+    @Test
+    @DisplayName("no bound tenant, no name")
+    void noBoundTenantNoName() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(permissionService.currentActions()).thenReturn(Set.of());
+
+        NavigationService withName = new NavigationService(entitlementService, permissionService, CATALOGUE, jdbc);
+
+        assertThat(withName.navigation().tenantName()).isNull();
     }
 
     private static List<String> keysOf(NavigationResponse response) {

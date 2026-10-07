@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { ReactReduxContext } from 'react-redux';
 import { Layout, Button, Space, Typography, Alert, theme } from 'antd';
-import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { BankOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { keycloak, logout } from './auth/keycloak.js';
 import { fetchNavigationFeed } from './navigation/useNavigation.js';
 import { setImpersonationProvider, setImpersonationInvalidHandler } from '../shared/api/client.js';
@@ -25,7 +25,8 @@ function formatExpiry(expiresAt) {
 
 /**
  * Shell header (W-45 §5).
- * Shows the authenticated user's name (falling back to username) and a working logout button.
+ * Shows the signed-in tenant's name, the authenticated user's name (falling back to username)
+ * and a working logout button.
  *
  * While platform staff act inside a customer tenant (W-65.3) it also:
  *   - shows the banner "Acting as {userLabel} in {tenantName} until {expiresAt}" with Stop
@@ -34,7 +35,7 @@ function formatExpiry(expiresAt) {
  *   - refetches the navigation feed whenever a session starts or stops, since the feed is the
  *     target's while acting and the staff member's otherwise
  */
-export function Header({ style }) {
+export function Header({ style, tenantName }) {
   const { token } = theme.useToken();
   const store = useContext(ReactReduxContext)?.store ?? null;
   const session = useImpersonationSession(store);
@@ -98,6 +99,12 @@ export function Header({ style }) {
         }}
       >
         <Space size="middle">
+          {tenantName && (
+            <Space size="small" data-testid="tenant-display">
+              <BankOutlined style={{ color: token.colorTextSecondary }} />
+              <Text>{tenantName}</Text>
+            </Space>
+          )}
           {displayName && (
             <Space size="small" data-testid="user-display">
               <UserOutlined style={{ color: token.colorTextSecondary }} />
@@ -134,4 +141,5 @@ export function Header({ style }) {
 
 Header.propTypes = {
   style: PropTypes.object,
+  tenantName: PropTypes.string,
 };

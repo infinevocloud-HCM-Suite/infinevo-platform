@@ -105,18 +105,21 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | **fixed on main `c79755c`** |
 | D-10 | Every role's side menu shows raw keys (`nav.setup`, `nav.employees`): `AppShell.jsx` rendered `labelKey` as it came, and no translation step existed (`W-45` §2 deferred it) | 2026-10-07, founder on Azure dev | claude: `shell/navigation/navLabels.js` maps all 36 backend keys to English, an unknown key falls back to words; `navLabels.test.js` fails the build when a backend catalogue adds a key with no label; CI now runs the frontend job when a backend `navigation/` file changes | **fixed on main `6ba5a1da`** — built by claude |
 | D-11 | The Storage Queue was never connected on Azure, so every email waits 2–3 minutes for the delivery sweep. `W-52` asked for managed identity (`W-52-queue-worker.md:64`) but only the connection-string path was built (`StorageQueueConfig.java:16-18`); `W-52.1` carried it forward "unchanged" (`W-52-1-worker-fix.md:76`); `W-51` forbids the account key a connection string needs; no ticket passed the queue endpoint to the containers | 2026-10-07, founder on Azure dev (invitation emails late) | `W-52.2` | assigned — karma |
-| D-12 | Leave Allocation fails with `VALIDATION_FAILED: No effective policy found` when `effectiveFrom` is null / unconfigured | 2026-10-06, manual QA Stage 4 (`S4-10`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`PolicyForm.jsx`, `LeaveTypeServiceImpl.java`) |
-| D-13 | Holiday Calendar creation with `isDefault: true` throws HTTP 409 Conflict if default calendar exists | 2026-10-06, manual QA Stage 4 (`S4-01`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`Calendars.jsx`) |
+| D-12 | Every user saw a 404 right after login: Keycloak returns to `/`, and no route matched `/` (`AppShell.jsx` mounted only feed paths) | 2026-10-07, founder on Azure dev | claude: `/` redirects to the first path in the navigation feed | **fixed on main `c470db64`** — built by claude |
+| D-13 | The signed-in tenant's name appeared nowhere in the app: `GET /api/v1/navigation` carried no tenant name | 2026-10-07, founder on Azure dev | claude: `tenantName` on the navigation reply, read under RLS (the target tenant's while acting as); shown in the header | **fixed on main `c470db64`** — built by claude |
+| D-14 | Keycloak branding on login and admin pages: realm heading used `kc-logo-text` (Keycloak's CSS shows its logo and hides the text); stock titles, favicons and logos | 2026-10-07, founder on Azure dev | claude: `infinevo` Keycloak theme as server default; class dropped from both realm files; Azure dev realms fixed by hand | **fixed on main `c470db64`** — built by claude; reaches Azure with the next Keycloak image |
+| D-15 | Leave Allocation fails with `VALIDATION_FAILED: No effective policy found` when `effectiveFrom` is null / unconfigured | 2026-10-06, manual QA Stage 4 (`S4-10`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`PolicyForm.jsx`, `LeaveTypeServiceImpl.java`) |
+| D-16 | Holiday Calendar creation with `isDefault: true` throws HTTP 409 Conflict if default calendar exists | 2026-10-06, manual QA Stage 4 (`S4-01`) | sayeed (`dev-sayeed` `4b400291`) | **fixed** (`Calendars.jsx`) |
 
 ### QA & Manual Testing Defect Log (Dev 5 — Time & Operations)
 
-#### D-12 (BUG-D5-001): Leave Allocation & Application Missing Effective Policy
+#### D-15 (BUG-D5-001): Leave Allocation & Application Missing Effective Policy
 - **Found:** 2026-10-06, Stage 4 (`S4-10`, `S4-11`) & Stage 6 (`S6-02` to `S6-10`), `POST /api/v1/leave/allocations`, `GET /api/v1/leave-types/eligible`
 - **Error:** `VALIDATION_FAILED: No effective policy found for leave type <UUID>` and empty eligible leave types list (`[]`), showing "No data" in UI Leave Type dropdowns.
 - **Root Cause:** Policy drawer (`PolicyForm.jsx`) lacked an `Effective From` date field, sending `null`. `LeaveAllocationServiceImpl` and `LeaveEligibilityServiceImpl` query `effective_from <= date`, which evaluates to false on `NULL` in PostgreSQL.
 - **Fix:** Added `DatePicker` for `Effective From` (defaulting to start of year) in `PolicyForm.jsx` and updated `LeaveTypeServiceImpl.java` to default null `effectiveFrom` to `currentYearStart`. Fixed in `dev-sayeed` commit `4b400291`.
 
-#### D-13 (BUG-D5-002): Holiday Calendar Default Conflict
+#### D-16 (BUG-D5-002): Holiday Calendar Default Conflict
 - **Found:** 2026-10-06, Stage 4 (`S4-01`), `POST /api/v1/holiday-calendars`
 - **Error:** `HTTP 409 CONFLICT: A default holiday calendar already exists for tenant`
 - **Root Cause:** Backend enforces one default calendar per tenant (W-17 spec); duplicate default creation is rejected with 409 (default switching requires `PUT`). UI allowed users to toggle default to true on create.

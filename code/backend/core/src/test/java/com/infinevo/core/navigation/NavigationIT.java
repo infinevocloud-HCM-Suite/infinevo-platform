@@ -101,6 +101,9 @@ class NavigationIT extends AbstractIntegrationTest {
         assertThat(keysOf(admin)).containsExactlyElementsOf(catalogueKeys);
         assertThat(keysOf(admin)).doesNotContain("core.tenants");
         assertThat(keysOf(employee)).isNotEqualTo(keysOf(admin));
+        // Each caller's feed names their own tenant, read under that tenant's RLS binding.
+        assertThat(admin.tenantName()).startsWith("Acme Navigation ");
+        assertThat(employee.tenantName()).startsWith("Globex Navigation ");
         assertThat(keysOf(employee))
                 .doesNotContain(
                         "core.roles",

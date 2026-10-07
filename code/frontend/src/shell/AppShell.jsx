@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout, Menu, Skeleton, Typography, Button, Result, theme as antdTheme } from 'antd';
-import { Link, Routes, Route, useLocation } from 'react-router-dom';
+import { Link, Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
 import { navLabel } from './navigation/navLabels.js';
 import { routesFromFeed, portalRoutes } from './routes.js';
@@ -30,13 +30,16 @@ const IMPERSONATION_ADMIN_PATH = '/admin/tenants';
  * array anywhere here. An empty feed → empty sidebar and NoModules placeholder.
  */
 export function AppShell() {
-  const { items, loading, error, refetch } = useNavigation();
+  const { items, tenantName, loading, error, refetch } = useNavigation();
   const location = useLocation();
   const { token } = antdTheme.useToken();
   const session = useImpersonationSession();
 
   const menuItems = buildMenuItems(items);
   const selectedKey = findSelectedKey(items, location.pathname);
+  // `/` is where Keycloak returns the user after login. It is not a menu path, so it opens the
+  // first screen the feed names rather than falling through to NotFound.
+  const homePath = firstPath(items);
   // Only register routes whose path is in the navigation feed — a route not in the
   // feed is not registered at all (W-12.3 §5). An empty feed → empty route tree.
   // The one exception: a live impersonation session keeps the tenant admin routes mounted.
@@ -102,7 +105,7 @@ export function AppShell() {
         </Sider>
 
         <Layout style={{ marginLeft: siderWidth }}>
-          <Header />
+          <Header tenantName={tenantName} />
           <Content style={{ padding: token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
             {!loading && error ? (
               <Result
@@ -130,6 +133,7 @@ export function AppShell() {
             ) : (
               <React.Suspense fallback={<Skeleton active />}>
                 <Routes>
+                  {homePath && <Route path="/" element={<Navigate to={homePath} replace />} />}
                   {portalRoutes.map((route) => (
                     <Route key={route.path} path={route.path} element={route.element} />
                   ))}
@@ -166,6 +170,21 @@ function buildMenuItems(items) {
       label: <Link to={item.path}>{navLabel(item.labelKey)}</Link>,
     };
   });
+}
+
+/**
+ * The first navigable path in the feed, depth first - the menu's first entry.
+ */
+function firstPath(items) {
+  for (const item of items || []) {
+    if (item.children && item.children.length > 0) {
+      const child = firstPath(item.children);
+      if (child) return child;
+    } else if (item.path) {
+      return item.path;
+    }
+  }
+  return null;
 }
 
 /**
