@@ -69,6 +69,12 @@ FROM quay.io/keycloak/keycloak:25.0 AS runtime
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 COPY infra/keycloak/infinevo-realm.json /opt/keycloak/data/import/
 
+# The "Infinevo Cloud" branding - titles, favicons, console logos (infra/keycloak/themes/infinevo/README.md).
+# It is the server default rather than a realm setting, so it reaches realms that already exist
+# without a re-import, and master's admin console with them.
+COPY --chown=1000:0 infra/keycloak/themes/infinevo /opt/keycloak/themes/infinevo
+ENV KC_SPI_THEME_DEFAULT=infinevo
+
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 ENV KC_HTTP_ENABLED=true
