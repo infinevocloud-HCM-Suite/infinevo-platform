@@ -123,8 +123,10 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-40 | Add Employee asks for six fields only — number, names, work email, mobile (`EmployeeCreate.jsx:143-241`) — and no section holds gender, date of joining, job title, employment type, probation end or notice period (`sectionFields.js`); legacy HRMS captures gender on the same form (`AddEmployee.jsx:1007-1012`) | 2026-10-07, legacy cross-check | Add Employee: **Required** (names, work email, date of joining, department, designation, location) and a collapsed **More** group (gender, employment type, probation end, notice period, mobile); the same fields on the Employment section; `core.employee` gains the missing columns by migration | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `V154` on `employee_employment` (gender and joining date already existed; designation is the job title). Department, designation and location optional on Add Employee (founder 2026-10-07) |
 | D-41 | Time zone and shift times are free text (`sectionFields.js:84-86`): any string saves | 2026-10-07, legacy cross-check | time zone: a searchable select of IANA zones, default the tenant's; shift start and end: time pickers, `HH:mm` validated on the backend | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; time zone stays blank until picked; nothing carries the tenant's zone yet |
 | D-42 | Create Tenant has no administrator email (`TenantCreate.jsx:70-109`, `TenantRequest.java:9`): after creating a tenant the platform staff must act-as into it and invite the admin by hand | 2026-10-07, founder on Azure dev | `TenantRequest` gains `adminEmail`; provisioning creates a `tenant-admin` user invitation in the new tenant and sends it; the tenant list shows "admin invited / accepted" | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `V159`; `admin_email` refused when `INVITATION_LINK_BASE_URL` is unset |
+| D-43 | Project Manager & Team Member pickers require typing >= 2 chars and do not load initial dropdown options on open; Timesheet weekly entry lacks structured task details section (only 240px note popover) | 2026-10-08, manual QA Timesheet flow (`S7-09`) | sayeed (`dev-sayeed`) | **open** |
+| D-44 | Approvals Inbox has no "Decided / History" view (approved/rejected steps vanish immediately); Timesheet Review screen inaccessible to Tenant Admin due to hard requirement for employee profile on default tab | 2026-10-08, manual QA Timesheet flow (`S7-10`) | sayeed (`dev-sayeed`) | **open** |
 
-Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40 are M. Each is one branch, one commit, no spec. Anything larger from the same 2026-10-07 review is a `W-73` child spec (§6).
+Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D-44 are M. Each is one branch, one commit, no spec. Anything larger from the same 2026-10-07 review is a `W-73` child spec (§6).
 
 ### QA & Manual Testing Defect Log (Dev 5 — Time & Operations)
 
@@ -151,6 +153,29 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40 are M. E
 - **Error:** `HTTP 500 Internal Server Error`, `code: "INTERNAL"`, `message: "An unexpected error occurred while processing the invitation."`, traceId: `9d3cc447-c553-4f97-a545-a9104e91ffa4`.
 - **Root Cause:** In `InvitationServiceImpl.acceptEmployeeInvitation()`, `TenantContext.clear()` was called in `finally` before the outer `@Transactional` commit. During transaction commit, Hibernate flushed the dirty `@Audited` `Employee` entity, which triggered `AuditWriter` requiring `TenantContext`. With the context cleared, it threw `IllegalStateException`, wrapped in `TransactionSystemException` by Spring, answering HTTP 500.
 - **Fix:** Shipped on main `b6a798f1`: `TenantContext` is now kept bound through transaction commit using Spring `TransactionSynchronization.afterCompletion()`.
+
+#### D-43 (BUG-D5-005): Timesheet & Project Flow — Empty Dropdown in Employee Pickers & Lack of Structured Task Details Section
+- **Found:** 2026-10-08, Timesheet & Project Flow Testing (`/hrms/projects`, `/hrms/projects/:id`, `/hrms/timesheets/week/:weekStart`, Step `S7-09`)
+- **Symptoms:**
+  1. **Project Manager Picker (`ProjectForm.jsx`)**: When opening the Manager field, no options or dropdown list appear. Users see an empty box giving the impression of manual text input; names only appear if typing >= 2 characters.
+  2. **Team Member Picker (`TeamTab.jsx`)**: When assigning employees to the project team, clicking the employee selector shows no dropdown choices unless typing >= 2 characters.
+  3. **Timesheet Task Entry Details (`TimesheetWeek.jsx`)**: In the weekly timesheet grid, task hours entry only offers a small popup note popover (`NoteCell`, 240px wide textarea) without a structured task execution / work details section.
+- **Root Cause:**
+  1 & 2: `AssignableEmployeeController.java` rejects queries `< MIN_QUERY_LENGTH` (2 chars) answering `[]`, and `EmployeePicker.jsx` aborts searches under 2 chars without prefetching on open/focus.
+  3: Timesheet grid UI models daily work description solely via a cell note popover rather than an expandable task details log or structured activity breakdown.
+- **Impact:** Degraded user experience during project setup and team assignment, confusion over whether employees exist, and limited ability to record comprehensive work descriptions during timesheet submission.
+- **Status:** Open.
+
+#### D-44 (BUG-D5-006): Approvals Inbox Missing History/Decided View & Timesheet Review Inaccessible to Tenant Admin
+- **Found:** 2026-10-08, Timesheet Approval Verification (`/approvals`, `/hrms/timesheet-review`, Step `S7-10`)
+- **Symptoms:**
+  1. **Vanishing Approvals (`/approvals`)**: After approving or rejecting an item (e.g. timesheet), the record immediately disappears from `/approvals`. There is no "History", "Approved", or "Decided" tab, leaving the user with no visible audit or confirmation in the UI of what was decided.
+  2. **Timesheet Review Inaccessible (`/hrms/timesheet-review`)**: Tenant Administrator (`tenant-admin`) viewing Timesheet Review sees a persistent red error: `"Could not load timesheets."` on the default "My projects" tab.
+- **Root Cause:**
+  1. `Inbox.jsx` only queries `approvalService.pending()`. No UI tab exists to query `ApprovalHistoryResponse` (`GET /api/v1/approvals/{instanceId}/history`) or filtered past decisions.
+  2. `TimesheetReviewServiceImpl.managed()` calls `caller()` which forces `employeeService.currentEmployee()`. A Tenant Admin account has no employee record, answering `403 FORBIDDEN: Not permitted: requires action 'hrms.timesheet.approve'`. Furthermore, the "All" tab requires `hrms.timesheet.read`, which is only seeded on the `hr` role, not `tenant-admin`.
+- **Impact:** Approvers cannot track previously approved items; Tenant Admins cannot audit tenant timesheets from `/hrms/timesheet-review`.
+- **Status:** Open.
 
 ---
 
