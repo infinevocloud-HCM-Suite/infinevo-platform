@@ -154,11 +154,15 @@ public class EmployeeIdentificationServiceImpl
     @Override
     protected void validateAgainst(
             EmployeeIdentificationRequest request, Employee employee, Map<String, String> errors) {
-        if (request != null && request.panNumber() != null && !request.panNumber().isBlank()) {
+        if (request != null
+                && request.panNumber() != null
+                && !request.panNumber().isBlank()) {
             String pan = request.panNumber().trim();
             if (identifications.existsByTenantIdAndPanNumberAndEmployeeIdNot(
                     employee.getTenantId(), pan, employee.getId())) {
-                errors.put("panNumber", "PAN number " + pan + " is already registered with another employee in this organization");
+                errors.put(
+                        "panNumber",
+                        "PAN number " + pan + " is already registered with another employee in this organization");
             }
         }
     }

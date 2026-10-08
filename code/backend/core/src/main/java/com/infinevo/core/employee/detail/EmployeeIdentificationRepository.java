@@ -39,9 +39,7 @@ public interface EmployeeIdentificationRepository extends EmployeeDetailReposito
             + " WHERE i.tenantId = :tenantId AND e.tenantId = :tenantId"
             + " AND e.deleted = false AND i.panNumber = :pan AND e.id <> :employeeId")
     boolean existsByTenantIdAndPanNumberAndEmployeeIdNot(
-            @Param("tenantId") UUID tenantId,
-            @Param("pan") String pan,
-            @Param("employeeId") UUID employeeId);
+            @Param("tenantId") UUID tenantId, @Param("pan") String pan, @Param("employeeId") UUID employeeId);
 
     /** One row of {@link #findByTenantIdAndPanNumberIn}. */
     interface PanHolder {

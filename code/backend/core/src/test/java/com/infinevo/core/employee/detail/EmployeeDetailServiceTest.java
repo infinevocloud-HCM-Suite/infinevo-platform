@@ -161,6 +161,7 @@ class EmployeeDetailServiceTest {
     private static Employee employee(UUID id) {
         Employee employee = mock(Employee.class);
         when(employee.getId()).thenReturn(id);
+        when(employee.getTenantId()).thenReturn(EMPLOYEE_B.equals(id) ? TENANT_B : TENANT_A);
         return employee;
     }
 
@@ -382,8 +383,9 @@ class EmployeeDetailServiceTest {
             identificationService.put(EMPLOYEE_A, identificationRequest("ABCDE1234F", null));
 
             UUID secondEmployee = UUID.randomUUID();
+            Employee otherEmployee = employee(secondEmployee);
             when(employees.findByIdAndTenantIdAndDeletedFalse(secondEmployee, TENANT_A))
-                    .thenReturn(Optional.of(employee(secondEmployee)));
+                    .thenReturn(Optional.of(otherEmployee));
 
             assertThat(fieldErrors(
                             () -> identificationService.put(secondEmployee, identificationRequest("ABCDE1234F", null))))

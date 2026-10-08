@@ -99,7 +99,8 @@ class ReportingLineGuardIT extends AbstractIntegrationTest {
         mvc.perform(put("/api/v1/employees/" + emp1Id + "/reporting-line")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body))
-                        .with(jwt().jwt(b -> b.subject(employeeSub.toString()).claim("tenant_id", tenantId.toString()))))
+                        .with(jwt().jwt(b ->
+                                b.subject(employeeSub.toString()).claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isForbidden());
     }
 
