@@ -5,6 +5,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -28,4 +31,36 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
      * synced row is simply absent.
      */
     List<UserAccount> findByTenantIdAndKeycloakUserIdIn(UUID tenantId, Collection<UUID> keycloakUserIds);
+
+    /**
+     * Whether the user dismissed the welcome page (W-73.8); null when there is no such row.
+     *
+     * <p>{@code welcome_seen_at} ({@code V165}) is read and written here by native SQL and is deliberately
+     * not a field of {@link UserAccount}: the sync filter loads that entity on every authenticated request, so
+     * mapping the column would make every integration-test schema that applies {@code V009} alone fail.
+     * Only {@code GET} and {@code PUT /api/v1/me} need it.
+     */
+    @Query(
+            value =
+                    "SELECT welcome_seen_at IS NOT NULL FROM core.user_account WHERE tenant_id = :tenantId AND id = :id",
+            nativeQuery = true)
+    Boolean findWelcomeSeen(@Param("tenantId") UUID tenantId, @Param("id") UUID userAccountId);
+
+    /**
+     * Stamps {@code welcome_seen_at} the first time only; a second call changes nothing (W-73.8).
+     *
+     * @return rows written: 1 the first time, 0 afterwards or when the row is not in the tenant
+     */
+    @Modifying
+    @Transactional
+    @Query(
+            value =
+                    """
+                    UPDATE core.user_account
+                       SET welcome_seen_at = now(), updated_at = now(), updated_by = :actor
+                     WHERE tenant_id = :tenantId AND id = :id AND welcome_seen_at IS NULL
+                    """,
+            nativeQuery = true)
+    int markWelcomeSeen(
+            @Param("tenantId") UUID tenantId, @Param("id") UUID userAccountId, @Param("actor") String actor);
 }

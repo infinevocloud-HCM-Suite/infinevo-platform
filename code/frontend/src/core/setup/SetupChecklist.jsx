@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Card,
   Progress,
@@ -68,6 +68,7 @@ function renderStepDetails(step) {
 
 export function SetupChecklist() {
   const navigate = useNavigate();
+  const location = useLocation();
   const canRead = useCan('core.tenant.read');
   const canManageTenant = useCan('core.tenant.manage');
   const canReadOrg = useCan('core.org.read');
@@ -110,6 +111,14 @@ export function SetupChecklist() {
   useEffect(() => {
     fetchChecklist();
   }, [fetchChecklist]);
+
+  // `/setup#setup-step-row-<code>` (the welcome page's links, W-73.8): the row exists only once the
+  // steps have loaded, and the router does not scroll to a hash by itself.
+  useEffect(() => {
+    if (!checklistData || !location.hash) return;
+    const row = document.getElementById(location.hash.slice(1));
+    if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'start' });
+  }, [checklistData, location.hash]);
 
   const groups = useMemo(() => {
     if (!checklistData?.steps) return [];

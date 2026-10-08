@@ -1,6 +1,7 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Layout, Menu, Skeleton, Typography, Button, Result, theme as antdTheme } from 'antd';
-import { Link, Navigate, Routes, Route, useLocation } from 'react-router-dom';
+import { Link, Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
 import { navLabel } from './navigation/navLabels.js';
 import { routesFromFeed, portalRoutes } from './routes.js';
@@ -8,6 +9,8 @@ import { Header } from './Header.jsx';
 import { useImpersonationSession } from './useImpersonationSession.js';
 import { ShellBoundary } from './ShellBoundary.jsx';
 import { NotFound, NoModules } from './screens/index.js';
+import { Welcome } from './screens/Welcome.jsx';
+import { useMe } from './auth/useMe.js';
 import { theme } from '../shared/theme.js';
 
 const { Sider, Content } = Layout;
@@ -19,6 +22,23 @@ const { Sider, Content } = Layout;
  * menu still follows the feed, and every endpoint behind them refuses on its own (W-12.2).
  */
 const IMPERSONATION_ADMIN_PATH = '/admin/tenants';
+
+/** The first-sign-in page (W-73.8). Mounted for every signed-in user, like the portal. */
+const WELCOME_PATH = '/welcome';
+
+/**
+ * Where `/` goes: the welcome page until the user dismisses it (W-73.8), the home path after.
+ * It waits for `/me` - deciding before it answers would send everyone home and skip the page.
+ */
+function RootRedirect({ homePath, me }) {
+  if (me.loading) return <Skeleton active />;
+  return <Navigate to={me.welcomeSeen ? homePath : WELCOME_PATH} replace />;
+}
+
+RootRedirect.propTypes = {
+  homePath: PropTypes.string.isRequired,
+  me: PropTypes.shape({ loading: PropTypes.bool, welcomeSeen: PropTypes.bool }).isRequired,
+};
 
 /**
  * Layout and navigation shell (W-12.3 §5, W-45 §5).
@@ -35,6 +55,8 @@ export function AppShell() {
   const location = useLocation();
   const { token } = antdTheme.useToken();
   const session = useImpersonationSession();
+  const me = useMe();
+  const navigate = useNavigate();
 
   const menuItems = buildMenuItems(items);
   const selectedKey = findSelectedKey(items, location.pathname);
@@ -116,7 +138,12 @@ export function AppShell() {
         </Sider>
 
         <Layout style={{ marginLeft: siderWidth }}>
-          <Header tenantName={tenantName} tenantLogoUrl={tenantLogoUrl} tagline={tagline} />
+          <Header
+            tenantName={tenantName}
+            tenantLogoUrl={tenantLogoUrl}
+            tagline={tagline}
+            onGettingStarted={() => navigate(WELCOME_PATH)}
+          />
           <Content style={{ padding: token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
             {!loading && error ? (
               <Result
@@ -140,16 +167,21 @@ export function AppShell() {
             ) : (!items || items.length === 0) &&
               !location.pathname.startsWith('/me') &&
               !onSessionAdminPath ? (
-              // An employee whose feed is empty still has the portal: the server's home sends them there.
-              location.pathname === '/' && feedHomePath && feedHomePath.startsWith('/me') ? (
-                <Navigate to={feedHomePath} replace />
+              // An employee whose feed is empty still has the portal: the server's home sends them there,
+              // through the welcome page on the first sign-in. Anyone else with no feed sees NoModules,
+              // which wins over the welcome page (W-73.8 §9).
+              feedHomePath && feedHomePath.startsWith('/me') && location.pathname === '/' ? (
+                <RootRedirect homePath={feedHomePath} me={me} />
+              ) : feedHomePath && feedHomePath.startsWith('/me') && location.pathname === WELCOME_PATH ? (
+                <Welcome homePath={feedHomePath} />
               ) : (
                 <NoModules />
               )
             ) : (
               <React.Suspense fallback={<Skeleton active />}>
                 <Routes>
-                  {homePath && <Route path="/" element={<Navigate to={homePath} replace />} />}
+                  {homePath && <Route path="/" element={<RootRedirect homePath={homePath} me={me} />} />}
+                  <Route path={WELCOME_PATH} element={<Welcome homePath={homePath} />} />
                   {portalRoutes.map((route) => (
                     <Route key={route.path} path={route.path} element={route.element} />
                   ))}

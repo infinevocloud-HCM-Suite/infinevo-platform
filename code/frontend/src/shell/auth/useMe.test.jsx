@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { useMe, fetchMe, resetMe } from './useMe.js';
+import { useMe, fetchMe, resetMe, markWelcomeSeen } from './useMe.js';
 import { apiClient } from '../../shared/api/client.js';
 
 vi.mock('../../shared/api/client.js', () => ({
-  apiClient: { get: vi.fn() },
+  apiClient: { get: vi.fn(), put: vi.fn() },
 }));
 
 vi.mock('./keycloak.js', () => ({
@@ -67,5 +67,37 @@ describe('useMe (W-73.1)', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.displayName).toBe('');
     expect(result.current.roles).toEqual([]);
+  });
+
+  it('W-73.8: welcomeSeen is false only when the server says false', async () => {
+    apiClient.get.mockResolvedValueOnce({ data: { displayName: 'New', roles: [], welcomeSeen: false } });
+    const { result } = renderHook(() => useMe());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.welcomeSeen).toBe(false);
+
+    apiClient.get.mockResolvedValueOnce({ data: { displayName: 'Old', roles: [] } });
+    await act(async () => {
+      await fetchMe();
+    });
+    expect(result.current.welcomeSeen).toBe(true);
+
+    apiClient.get.mockRejectedValueOnce({ status: 500 });
+    await act(async () => {
+      await fetchMe().catch(() => {});
+    });
+    expect(result.current.welcomeSeen).toBe(true);
+  });
+
+  it('W-73.8: markWelcomeSeen() PUTs and every hook sees welcomeSeen at once', async () => {
+    apiClient.get.mockResolvedValueOnce({ data: { displayName: 'New', roles: [], welcomeSeen: false } });
+    apiClient.put.mockResolvedValueOnce({ status: 204 });
+    const { result } = renderHook(() => useMe());
+    await waitFor(() => expect(result.current.welcomeSeen).toBe(false));
+
+    await act(async () => {
+      await markWelcomeSeen();
+    });
+    expect(apiClient.put).toHaveBeenCalledWith('/v1/me/welcome-seen');
+    expect(result.current.welcomeSeen).toBe(true);
   });
 });

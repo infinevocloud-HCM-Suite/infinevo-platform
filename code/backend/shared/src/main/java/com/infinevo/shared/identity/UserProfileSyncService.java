@@ -91,4 +91,21 @@ public class UserProfileSyncService {
     public Optional<UserAccount> findById(UUID tenantId, UUID userAccountId) {
         return repository.findById(userAccountId).filter(a -> tenantId.equals(a.getTenantId()));
     }
+
+    /** Whether the user dismissed the welcome page (W-73.8). False when the row is not in the tenant. */
+    @Transactional(readOnly = true)
+    public boolean welcomeSeen(UUID tenantId, UUID userAccountId) {
+        return Boolean.TRUE.equals(repository.findWelcomeSeen(tenantId, userAccountId));
+    }
+
+    /**
+     * Records that the user dismissed the welcome page (W-73.8). Idempotent: the first call stamps the time,
+     * later calls write nothing.
+     *
+     * @return true when this call wrote the timestamp
+     */
+    @Transactional
+    public boolean markWelcomeSeen(UUID tenantId, UUID userAccountId, String actor) {
+        return repository.markWelcomeSeen(tenantId, userAccountId, actor) > 0;
+    }
 }

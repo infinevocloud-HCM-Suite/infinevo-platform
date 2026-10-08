@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { ReactReduxContext } from 'react-redux';
 import { Layout, Button, Space, Typography, Alert, Avatar, Dropdown, Tag, theme } from 'antd';
-import { DownOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { CompassOutlined, DownOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { keycloak, logout } from './auth/keycloak.js';
 import { useMe, fetchMe } from './auth/useMe.js';
 import { roleLabel } from './auth/roleLabels.js';
@@ -42,7 +42,8 @@ export function initialsOf(name) {
  *
  * Left: the company's logo - or a circle with its initials, never an empty box - its name and,
  * when one is set, its tagline. Right: the signed-in user's name (from `/me`, falling back to the
- * token's), one chip per role, and a user menu with Sign out.
+ * token's), one chip per role, and a user menu with Getting started (W-73.8, when the shell passes
+ * `onGettingStarted`) and Sign out.
  *
  * While platform staff act inside a customer tenant (W-65.3) it also:
  *   - shows the banner "Acting as {userLabel} in {tenantName} until {expiresAt}" with Stop
@@ -51,7 +52,7 @@ export function initialsOf(name) {
  *   - refetches the navigation feed and `/me` whenever a session starts or stops, since both are
  *     the target's while acting and the staff member's otherwise
  */
-export function Header({ style, tenantName, tenantLogoUrl, tagline }) {
+export function Header({ style, tenantName, tenantLogoUrl, tagline, onGettingStarted }) {
   const { token } = theme.useToken();
   const store = useContext(ReactReduxContext)?.store ?? null;
   const session = useImpersonationSession(store);
@@ -123,8 +124,12 @@ export function Header({ style, tenantName, tenantLogoUrl, tagline }) {
   const showLogo = !!tenantLogoUrl && !logoFailed;
 
   const userMenu = {
-    items: [{ key: 'signout', label: 'Sign out', icon: <LogoutOutlined /> }],
+    items: [
+      ...(onGettingStarted ? [{ key: 'welcome', label: 'Getting started', icon: <CompassOutlined /> }] : []),
+      { key: 'signout', label: 'Sign out', icon: <LogoutOutlined /> },
+    ],
     onClick: ({ key }) => {
+      if (key === 'welcome') onGettingStarted();
       if (key === 'signout') logout();
     },
   };
@@ -223,4 +228,5 @@ Header.propTypes = {
   tenantName: PropTypes.string,
   tenantLogoUrl: PropTypes.string,
   tagline: PropTypes.string,
+  onGettingStarted: PropTypes.func,
 };

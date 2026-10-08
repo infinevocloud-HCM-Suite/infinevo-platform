@@ -13,15 +13,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * {@code GET /api/v1/me} — who the bearer token belongs to, in which tenant, and as what (W-10, spec
  * section 4; roles and display name from W-73.1).
+ *
+ * <p>W-73.8 adds {@code welcomeSeen} and {@code PUT /api/v1/me/welcome-seen}: the first-sign-in page is
+ * shown until the user dismisses it, once per (user, tenant) row.
  *
  * <p>W-10 adds no other endpoint. Login is a browser redirect to Keycloak and the backend only
  * validates; this one exists so that a login can be proved end to end without waiting for
@@ -71,6 +77,8 @@ public class MeController {
      *
      * @param displayName first and last name, or the email when the profile has neither (W-73.1)
      * @param roles the codes of the roles held in the bound tenant, sorted; empty when none (W-73.1)
+     * @param welcomeSeen whether the user dismissed the welcome page (W-73.8); always true while platform
+     *     staff act inside the tenant, so staff are never sent to the customer's welcome page
      */
     public record MeView(
             UUID userId,
@@ -79,7 +87,8 @@ public class MeController {
             String lastName,
             UUID tenantId,
             String displayName,
-            List<String> roles) {
+            List<String> roles,
+            boolean welcomeSeen) {
 
         public MeView {
             roles = roles == null ? List.of() : List.copyOf(roles);
@@ -99,7 +108,28 @@ public class MeController {
                 .orElseThrow(() -> new IllegalStateException("No core.user_account row for user " + userId
                         + " in tenant " + tenantId + ". The request reached the controller without passing "
                         + "UserProfileSyncFilter, which should be impossible — check the filter order."));
-        return view(account, rolesOf(tenantId, account.getId()));
+        return view(account, rolesOf(tenantId, account.getId()), welcomeSeenOf(tenantId, account.getId()));
+    }
+
+    /**
+     * Dismisses the welcome page for the caller (W-73.8). Idempotent: the first call stamps the time, later
+     * calls write nothing and still answer 204. While platform staff act inside a tenant it writes nothing —
+     * the customer has not seen their page.
+     */
+    @PutMapping("/welcome-seen")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void markWelcomeSeen(@AuthenticationPrincipal Jwt jwt) {
+        UUID tenantId = TenantContext.require();
+        if (ActingAs.current().isPresent()) {
+            return;
+        }
+        UUID userId = UUID.fromString(jwt.getSubject());
+        UserAccount account = syncService
+                .find(tenantId, userId)
+                .orElseThrow(() -> new IllegalStateException("No core.user_account row for user " + userId
+                        + " in tenant " + tenantId + ". The request reached the controller without passing "
+                        + "UserProfileSyncFilter, which should be impossible — check the filter order."));
+        syncService.markWelcomeSeen(tenantId, account.getId(), userId.toString());
     }
 
     private MeView actingView(ActingAs.Impersonation session, Jwt jwt, UUID tenantId) {
@@ -114,17 +144,18 @@ public class MeController {
                     lastName,
                     tenantId,
                     displayName(firstName, lastName, email),
-                    List.of(BOOTSTRAP_ROLE));
+                    List.of(BOOTSTRAP_ROLE),
+                    true);
         }
         UserAccount account = syncService
                 .findById(tenantId, session.targetUserAccountId())
                 .orElseThrow(() -> new IllegalStateException("Impersonation session " + session.sessionId()
                         + " names user account " + session.targetUserAccountId() + ", which is not in tenant "
                         + tenantId + ". The session check should have refused it."));
-        return view(account, rolesOf(tenantId, session.targetUserAccountId()));
+        return view(account, rolesOf(tenantId, session.targetUserAccountId()), true);
     }
 
-    private static MeView view(UserAccount account, List<String> roles) {
+    private static MeView view(UserAccount account, List<String> roles, boolean welcomeSeen) {
         return new MeView(
                 account.getKeycloakUserId(),
                 account.getEmail(),
@@ -132,7 +163,8 @@ public class MeController {
                 account.getLastName(),
                 account.getTenantId(),
                 displayName(account.getFirstName(), account.getLastName(), account.getEmail()),
-                roles);
+                roles,
+                welcomeSeen);
     }
 
     /** First and last name, whichever are present; the email when neither is. */
@@ -163,5 +195,10 @@ public class MeController {
                     e.toString());
             return List.of();
         }
+    }
+
+    /** False for an unsaved row (unit tests): the page is shown rather than hidden by mistake. */
+    private boolean welcomeSeenOf(UUID tenantId, UUID userAccountId) {
+        return userAccountId != null && syncService.welcomeSeen(tenantId, userAccountId);
     }
 }

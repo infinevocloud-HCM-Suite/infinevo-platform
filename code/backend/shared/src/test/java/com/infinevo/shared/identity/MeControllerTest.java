@@ -2,8 +2,11 @@ package com.infinevo.shared.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.shared.authz.RoleSource;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /** {@code GET /api/v1/me} for a plain login and while platform staff act inside a tenant (W-65.2). */
 class MeControllerTest {
@@ -145,5 +149,65 @@ class MeControllerTest {
         assertThat(view.roles())
                 .as("a bootstrap session stands in for the tenant admin")
                 .containsExactly("tenant-admin");
+    }
+
+    private static Jwt tokenFor(UUID sub) {
+        return Jwt.withTokenValue("t")
+                .header("alg", "none")
+                .subject(sub.toString())
+                .build();
+    }
+
+    /** A profile row as it comes back from the database: with its id. */
+    private static UserAccount savedAccount(UUID keycloakUserId, UUID accountId) {
+        UserAccount account = new UserAccount(TENANT, keycloakUserId, "me@acme.local", "Me", "Acme", Instant.now());
+        ReflectionTestUtils.setField(account, "id", accountId);
+        return account;
+    }
+
+    @Test
+    @DisplayName("W-73.8: welcomeSeen is what the service holds for the caller's row")
+    void welcomeSeenFromTheService() {
+        UUID me = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        when(syncService.find(TENANT, me)).thenReturn(Optional.of(savedAccount(me, accountId)));
+
+        when(syncService.welcomeSeen(TENANT, accountId)).thenReturn(false);
+        assertThat(controller.me(tokenFor(me)).welcomeSeen()).isFalse();
+
+        when(syncService.welcomeSeen(TENANT, accountId)).thenReturn(true);
+        assertThat(controller.me(tokenFor(me)).welcomeSeen()).isTrue();
+    }
+
+    @Test
+    @DisplayName("W-73.8: PUT /welcome-seen marks the caller's own row, with the caller as the actor")
+    void markWelcomeSeenWritesTheCallersRow() {
+        UUID me = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        when(syncService.find(TENANT, me)).thenReturn(Optional.of(savedAccount(me, accountId)));
+
+        controller.markWelcomeSeen(tokenFor(me));
+
+        verify(syncService).markWelcomeSeen(TENANT, accountId, me.toString());
+    }
+
+    @Test
+    @DisplayName("W-73.8: staff acting in a tenant never see the welcome page and never dismiss the customer's")
+    void actingStaffSkipTheWelcomePage() {
+        UUID targetAccountId = UUID.randomUUID();
+        when(syncService.findById(TENANT, targetAccountId))
+                .thenReturn(Optional.of(savedAccount(UUID.randomUUID(), targetAccountId)));
+        ActingAs.set(
+                new ActingAs.Impersonation(STAFF, targetAccountId, UUID.randomUUID(), "emp@globex.local", Set.of()));
+
+        assertThat(controller.me(staffToken()).welcomeSeen()).isTrue();
+        controller.markWelcomeSeen(staffToken());
+        verify(syncService, never()).markWelcomeSeen(any(), any(), anyString());
+        verify(syncService, never()).welcomeSeen(any(), any());
+
+        ActingAs.set(new ActingAs.Impersonation(STAFF, null, UUID.randomUUID(), null, Set.of()));
+        assertThat(controller.me(staffToken()).welcomeSeen())
+                .as("bootstrap session")
+                .isTrue();
     }
 }

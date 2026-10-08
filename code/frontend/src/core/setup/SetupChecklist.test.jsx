@@ -120,6 +120,24 @@ describe('SetupChecklist component', () => {
     expect(screen.queryByText('Pay schedule')).toBeNull();
   });
 
+  it('scrolls to the row the URL hash names once the steps have loaded (W-73.8 welcome links)', async () => {
+    const scrolled = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function scrollIntoView() {
+      scrolled.push(this.id);
+    };
+    try {
+      render(
+        <MemoryRouter initialEntries={['/setup#setup-step-row-pay-schedule']}>
+          <SetupChecklist />
+        </MemoryRouter>
+      );
+      await waitFor(() => expect(scrolled).toEqual(['setup-step-row-pay-schedule']));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   it('renders each of the four tags: Done, Skipped, New, and To do', async () => {
     render(
       <MemoryRouter>

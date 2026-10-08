@@ -113,3 +113,22 @@ later   --> user menu "Getting started" --> /welcome (no write)
 ## 10. Rollback
 
 Set the redirect back to the home path; the column can stay.
+
+## 11. Amendments while building (2026-10-08)
+
+| Spec said | Built | Why |
+|---|---|---|
+| Entity `core/.../identity/UserAccount` gains `welcomeSeenAt` | Column read and written by native SQL in `UserAccountRepository`; not a field of `UserAccount` | The entity is in `shared`, and the sync filter loads it on every authenticated request; about 20 IT schemas apply `V009` alone, so mapping the column would break every one of them |
+| Links to Personal and Contact in `/me` | One link to `/me/profile`, plus `/me/leave/apply`, and `/me/payslips` only when `GET /api/v1/me/panels` lists `payslips` | `/me` has panels, not Personal and Contact tabs; without Payroll the payslips panel is not available |
+| "Each a link into `/setup`'s step" | `/setup#setup-step-row-<code>`; `SetupChecklist` scrolls to that row once the steps load | `/setup` has no per-step URL; each row carries that id, and the router does not scroll to a hash |
+| — | Staff acting in a tenant always get `welcomeSeen: true`, and their `PUT` writes nothing | The customer has not seen their own page |
+| — | A user whose roles match no card (platform staff, custom roles) is marked seen and sent home | An empty welcome page tells them nothing |
+| — | `/` waits for `/me` before it redirects | Deciding first would send everyone home and skip the page |
+
+Evidence:
+- `code/backend/shared/src/main/java/com/infinevo/shared/identity/UserAccount.java:50`
+- `code/backend/shared/src/main/java/com/infinevo/shared/identity/UserProfileSyncService.java:66`
+- `code/backend/core/src/test/java/com/infinevo/core/authz/AuthzTestSchema.java:76`
+- `code/backend/core/src/main/java/com/infinevo/core/portal/ProfilePanelProvider.java:25`
+- `code/frontend/src/shell/portal/PortalLayout.jsx:118`
+- `code/frontend/src/core/setup/SetupChecklist.jsx:261`
