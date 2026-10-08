@@ -1,12 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
+import { Modal } from 'antd';
 import { EmployeeList } from './EmployeeList.jsx';
 import employeeReducer from './employeeSlice.js';
 import { employeeService } from './employeeService.js';
 import { orgMasterService } from './orgMasterService.js';
+import { employeeImportService } from './employeeImportService.js';
+import { successMsg } from '@shared/ui/msgHelper.js';
 import * as useCanModule from '@shell/screens';
 
 const mockNavigate = vi.fn();
@@ -22,6 +25,18 @@ vi.mock('./employeeService.js', () => ({
   employeeService: {
     list: vi.fn(),
   },
+}));
+
+vi.mock('./employeeImportService.js', () => ({
+  employeeImportService: {
+    inviteAllCount: vi.fn(),
+    inviteAll: vi.fn(),
+  },
+}));
+
+vi.mock('@shared/ui/msgHelper.js', () => ({
+  successMsg: vi.fn(),
+  errorMsg: vi.fn(),
 }));
 
 vi.mock('./orgMasterService.js', () => ({
@@ -43,6 +58,10 @@ function renderWithStore(ui, { initialState } = {}) {
 }
 
 describe('EmployeeList component', () => {
+  afterEach(() => {
+    Modal.destroyAll();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     orgMasterService.all.mockResolvedValue({
@@ -157,5 +176,50 @@ describe('EmployeeList component', () => {
       expect(employeeService.list).toHaveBeenCalledTimes(2);
       expect(screen.queryByText('Employees could not be loaded')).toBeNull();
     });
+  });
+
+  it('W-73.7: Invite all confirms with the count, queues one job and opens the import page', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    employeeImportService.inviteAllCount.mockResolvedValue(3);
+    employeeImportService.inviteAll.mockResolvedValue('job-1');
+
+    renderWithStore(<EmployeeList />);
+    await waitFor(() => expect(document.getElementById('btn-invite-all')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-invite-all'));
+
+    expect(await screen.findByText(/Send a portal invitation to 3 employees/)).toBeDefined();
+    fireEvent.click(screen.getByText('Invite 3'));
+
+    await waitFor(() => {
+      expect(employeeImportService.inviteAll).toHaveBeenCalledTimes(1);
+      expect(mockNavigate).toHaveBeenCalledWith('/employees/import');
+    });
+  });
+
+  it('W-73.7: Invite all with nobody to invite says so and queues nothing', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    employeeImportService.inviteAllCount.mockResolvedValue(0);
+
+    renderWithStore(<EmployeeList />);
+    await waitFor(() => expect(document.getElementById('btn-invite-all')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-invite-all'));
+
+    await waitFor(() => expect(successMsg).toHaveBeenCalledWith('Nobody to invite', expect.any(String)));
+    expect(employeeImportService.inviteAll).not.toHaveBeenCalled();
+  });
+
+  it('W-73.7: Import opens the import page; neither button shows without core.employee.create', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    const { unmount } = renderWithStore(<EmployeeList />);
+    await waitFor(() => expect(document.getElementById('btn-import-employees')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-import-employees'));
+    expect(mockNavigate).toHaveBeenCalledWith('/employees/import');
+    unmount();
+
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(false);
+    renderWithStore(<EmployeeList />);
+    await waitFor(() => expect(employeeService.list).toHaveBeenCalled());
+    expect(document.getElementById('btn-invite-all')).toBeNull();
+    expect(document.getElementById('btn-import-employees')).toBeNull();
   });
 });

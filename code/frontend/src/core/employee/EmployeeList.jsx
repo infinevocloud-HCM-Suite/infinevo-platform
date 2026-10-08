@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, theme } from 'antd';
-import { PlusOutlined, UserOutlined } from '@ant-design/icons';
+import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, Modal, theme } from 'antd';
+import { PlusOutlined, UserOutlined, UploadOutlined, MailOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
+import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { employeeService } from './employeeService.js';
+import { employeeImportService } from './employeeImportService.js';
 import { orgMasterService } from './orgMasterService.js';
 import { setMasters } from './employeeSlice.js';
 
@@ -74,6 +76,36 @@ export function EmployeeList() {
     fetchEmployees();
   }, [fetchEmployees]);
 
+  // W-73.7: one job inviting every active employee with a work email and no account or live invitation,
+  // with the employee role only. The count comes first so the confirm says how many will get an email.
+  const handleInviteAll = async () => {
+    let count;
+    try {
+      count = await employeeImportService.inviteAllCount();
+    } catch (err) {
+      await errorMsg(err);
+      return;
+    }
+    if (!count) {
+      await successMsg('Nobody to invite', 'Every employee with a work email already has access or an invitation.');
+      return;
+    }
+    Modal.confirm({
+      title: 'Invite all without access',
+      content: `Send a portal invitation to ${count} employee${count === 1 ? '' : 's'} with a work email and no access yet? They get the Employee role only.`,
+      okText: `Invite ${count}`,
+      onOk: async () => {
+        try {
+          await employeeImportService.inviteAll();
+          await successMsg('Invitations queued', 'Progress and the result file are on the Import page.');
+          navigate('/employees/import');
+        } catch (err) {
+          await errorMsg(err);
+        }
+      },
+    });
+  };
+
   const columns = [
     {
       title: 'Emp ID',
@@ -142,14 +174,22 @@ export function EmployeeList() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: token.marginLG }}>
         <Title level={4} style={{ margin: 0 }}>Employees</Title>
         {canCreate && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => navigate('/employees/new')}
-            id="btn-new-employee"
-          >
-            New Employee
-          </Button>
+          <Space wrap>
+            <Button icon={<MailOutlined />} onClick={handleInviteAll} id="btn-invite-all">
+              Invite all without access
+            </Button>
+            <Button icon={<UploadOutlined />} onClick={() => navigate('/employees/import')} id="btn-import-employees">
+              Import
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => navigate('/employees/new')}
+              id="btn-new-employee"
+            >
+              New Employee
+            </Button>
+          </Space>
         )}
       </div>
 

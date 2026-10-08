@@ -144,4 +144,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
 
     /** True if at least one active (non-deleted) employee exists in this tenant (W-24.1 setup checker). */
     boolean existsByTenantIdAndDeletedFalse(UUID tenantId);
+
+    /**
+     * Every employee number in this tenant, <strong>deleted rows included</strong> — the unique index is
+     * over every row, as {@link #existsByTenantIdAndEmployeeNumber} explains. For checking a whole import
+     * file in one read (W-73.7).
+     */
+    @Query("SELECT e.employeeNumber FROM Employee e WHERE e.tenantId = :tenantId")
+    List<String> findEmployeeNumbers(@Param("tenantId") UUID tenantId);
+
+    /** The work emails of the live employees in this tenant, lower-cased (W-73.7 duplicate check). */
+    @Query("SELECT LOWER(e.workEmail) FROM Employee e WHERE e.tenantId = :tenantId AND e.deleted = false"
+            + " AND e.workEmail IS NOT NULL")
+    List<String> findLiveWorkEmails(@Param("tenantId") UUID tenantId);
 }

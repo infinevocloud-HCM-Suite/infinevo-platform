@@ -10,6 +10,9 @@ const EmployeeList = lazy(() =>
 const EmployeeCreate = lazy(() =>
   import('./employee/EmployeeCreate.jsx').then((m) => ({ default: m.EmployeeCreate }))
 );
+const EmployeeImport = lazy(() =>
+  import('./employee/EmployeeImport.jsx').then((m) => ({ default: m.EmployeeImport }))
+);
 const EmployeePage = lazy(() =>
   import('./employee/EmployeePage.jsx').then((m) => ({ default: m.EmployeePage }))
 );
@@ -108,6 +111,8 @@ const TenantDetail = lazy(() =>
 export const routes = [
   { path: '/employees', element: React.createElement(EmployeeList) },
   { path: '/employees/new', element: React.createElement(EmployeeCreate) },
+  // W-73.7: beneath the Employees item, no menu entry of its own; the screen checks core.employee.create.
+  { path: '/employees/import', element: React.createElement(EmployeeImport) },
   { path: '/employees/:id', element: React.createElement(EmployeePage) },
   { path: '/org/departments', element: React.createElement(Departments) },
   { path: '/org/designations', element: React.createElement(Designations) },

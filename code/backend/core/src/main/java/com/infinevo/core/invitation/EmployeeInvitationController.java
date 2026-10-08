@@ -35,8 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/employee-invitations")
 public class EmployeeInvitationController {
 
-    /** Granting roles through an invitation needs the same action as granting them directly. */
-    static final String ROLE_ASSIGN_ACTION = "core.role.assign";
+    /**
+     * Granting roles through an invitation needs the same action as granting them directly. Public so the
+     * bulk invite (W-73.7) applies the very same rule.
+     */
+    public static final String ROLE_ASSIGN_ACTION = "core.role.assign";
 
     private final InvitationService invitationService;
     private final PermissionService permissionService;
@@ -51,7 +54,8 @@ public class EmployeeInvitationController {
      * without {@code core.role.assign} — otherwise HR could hand a new hire {@code tenant-admin} and bypass
      * the guard on {@code PUT /users/{id}/roles}. Checked here, before any transaction opens.
      *
-     * <p>W-73.7 bulk invite must apply the same rule to every row that carries roles.
+     * <p>W-73.7 bulk invite applies the same rule to a file in which any row carries roles
+     * ({@code EmployeeImportController}).
      */
     @PostMapping
     @RequiresAction("core.employee.create")

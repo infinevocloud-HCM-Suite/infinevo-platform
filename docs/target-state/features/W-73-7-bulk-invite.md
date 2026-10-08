@@ -5,9 +5,9 @@
 | **Feature ID** | `W-73.7` · from `W-73` |
 | **Promoted to** | `docs/target-state/features/W-73-7-bulk-invite.md` |
 | **Owner** | claude (founder) |
-| **Apps touched** | `code/backend/core` (employee, invitation), `code/backend/worker` (job), `code/frontend/src/core/employee` |
+| **Apps touched** | `code/backend/core` (employeeimport, invitation, job), `code/backend/worker` (listener), `code/frontend/src/core/employee` |
 | **Related gaps** | — |
-| **Status** | Draft |
+| **Status** | Built on `dev-claude-W-73-7` |
 | **Written by** | claude for the founder, 2026-10-07 |
 | **Blocked by** | `W-73.3` (`roleIds` on employee invitations) |
 
@@ -49,8 +49,8 @@
 
 ```
 hr --> /employees/import --> upload CSV --> POST /api/v1/employees/import/dry-run --> [row results]
-                        --> Import --> POST /api/v1/employees/import --> 202 {jobId} --> queue "employee-import"
-worker --> EmployeeImportConsumer --> for each row: create employee -> (if Y) create invitation {roleIds}
+                        --> Import --> POST /api/v1/employees/import --> 202 {jobId} --> queue "import"
+worker --> EmployeeImportListener --> for each row: create employee -> (if Y) create invitation {roleIds}
        --> result CSV -> document store --> job DONE {createdCount, invitedCount, failedCount, resultDocumentId}
 hr --> history --> download result
 ```
@@ -72,8 +72,12 @@ hr --> history --> download result
 | GET | `/api/v1/employees/import/template` | — | CSV | `core.employee.create` |
 | POST | `/api/v1/employees/import/dry-run` | multipart file | `[ImportRowResult]` | `core.employee.create` |
 | POST | `/api/v1/employees/import` | multipart file | `202 {jobId}` | `core.employee.create` |
-| GET | `/api/v1/employees/import/jobs` | — | `[{jobId, status, counts, resultDocumentId, startedAt}]` | `core.employee.create` |
+| GET | `/api/v1/employees/import/jobs` | — | `[{jobId, kind, status, progressPercentage, totalCount, createdCount, invitedCount, failedCount, resultDocumentId, errorMessage, startedAt}]` | `core.employee.create` |
+| GET | `/api/v1/employees/import/jobs/{jobId}/result` | — | CSV | `core.employee.create` |
 | POST | `/api/v1/employee-invitations/invite-all` | — | `202 {jobId}` | `core.employee.create` |
+| GET | `/api/v1/employee-invitations/invite-all/count` | — | `{count}` | `core.employee.create` |
+
+A dry run or import of a file in which any row names a role other than `employee` also needs `core.role.assign` — `W-73.3`'s rule (`EmployeeInvitationController.ROLE_ASSIGN_ACTION`); `403` otherwise.
 
 ## 5. Frontend changes
 
@@ -116,6 +120,21 @@ None. Job rows in the existing job table; result file in the document store.
 | Email burst hits the Brevo rate | medium | invitations queued through the notification outbox; the worker paces them |
 | Half-imported file on a crash | low | per-row transactions; the result file says exactly which rows landed |
 
-## 10. Rollback
+## 10. As built — changes from the draft (2026-10-08)
+
+| Draft said | Built | Why |
+|---|---|---|
+| Classes under `core/.../employee/` | `core/.../employeeimport/` | 16 test contexts scan `com.infinevo.core.employee` without job, document or invitation beans (e.g. `CoreFeatureTestApp.java:36`); a bean there needing them breaks those contexts |
+| Queue `employee-import` | Queue `import` | Already provisioned and unused (`infra/azure/modules/storage.bicep:109`); no infra change |
+| File carried on the queue | File held in the job row (`core.job_status.result_payload`); the message carries only the kind | Queue messages are capped at 48 KB (`QueueMessage.java:17`); 1,000 rows exceed it |
+| Same CSV reader as the leave import | Own RFC 4180 reader (`EmployeeImportParser`) | The leave reader is a private `split(",")` (`LeaveImportServiceImpl.java:293`) that breaks on a quoted comma |
+| Poll `GET /jobs/{id}` | Poll `GET /employees/import/jobs` | `/jobs/{id}` needs `core.job.read` (`JobStatusController.java:29`), which HR may not hold |
+| — | `GET /import/jobs/{jobId}/result`, `GET /employee-invitations/invite-all/count` | Result download under `core.employee.create`; the count the confirm dialog shows (§5) |
+| Invite all: every employee with a work email and no account | Active employees only, and none with a live pending invitation | A terminated employee must not get a portal invitation; the pending check makes a second click invite nobody |
+| `InvitationService.inviteAllWithoutAccess()` | `InvitationService.employeesWithoutAccess()` lists them; `EmployeeImportServiceImpl` invites each through `createEmployeeInvitation` | `InvitationServiceImpl` is `@Transactional` at class level, so a loop inside it would be one transaction, not one per invitation |
+| — | No retry on a failed job | Rows commit one by one; a redelivery would report landed rows as duplicates |
+| — | Roles with `give_access` N is a row error | Roles are granted on acceptance of the invitation |
+
+## 11. Rollback
 
 Delete the created employees from the result file's ids (soft delete, `W-13.4`); revoke their invitations.

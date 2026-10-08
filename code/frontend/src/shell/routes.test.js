@@ -67,6 +67,7 @@ describe('routesFromFeed', () => {
     expect(employeeRoutes.map((r) => r.path)).toEqual([
       '/employees',
       '/employees/new',
+      '/employees/import',
       '/employees/:id',
       '/employees/:employeeId/tax-declaration/:fy',
     ]);

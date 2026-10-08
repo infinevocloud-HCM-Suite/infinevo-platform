@@ -39,6 +39,13 @@ public interface InvitationService {
      */
     EmployeeAccessResponse employeeAccess(UUID employeeId);
 
+    /**
+     * The live, active employees of the bound tenant who have a work email, no linked account and no live
+     * pending invitation — whom "Invite all without access" invites (W-73.7). Ordered by employee number.
+     * Each is then invited through {@link #createEmployeeInvitation}, one transaction each.
+     */
+    List<UUID> employeesWithoutAccess();
+
     void acceptInvitation(String token);
 
     void declineInvitation(String token, String reason);

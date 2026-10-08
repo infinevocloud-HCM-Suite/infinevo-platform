@@ -421,6 +421,12 @@ public class InvitationServiceImpl implements InvitationService {
         return new EmployeeAccessResponse(EmployeeAccessResponse.State.NONE, null, null, List.of());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> employeesWithoutAccess() {
+        return employeeInvitationRepository.findEmployeeIdsWithoutAccess(requireCurrentTenant(), Instant.now());
+    }
+
     /** The tenant's roles among {@code roleIds}, sorted by code; ids not in the tenant are dropped. */
     private List<EmployeeAccessResponse.RoleRef> roleRefs(UUID tenantId, Collection<UUID> roleIds) {
         if (roleIds.isEmpty()) {
