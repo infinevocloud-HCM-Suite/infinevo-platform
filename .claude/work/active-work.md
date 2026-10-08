@@ -1,10 +1,22 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-08**, against `main` `a63ce18e`.
+> Last refreshed: **2026-10-08**, against `main` `9dfce81b`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-10-08 — `W-73.1`, `W-73.3` merged (`8af6192a`, `9dfce81b`)
+
+| Ticket | What |
+|---|---|
+| `W-73.1` | Header shows company name, logo (initials fallback), tagline, user name and role chips; Company profile under Settings (`V160`) |
+| `W-73.3` | "Give portal access" on Add Employee with extra roles; one save creates and invites (`V163`); granting roles needs `core.role.assign` |
+
+- Built by Claude in parallel worktrees (`dev-claude-W-73-n`), one squash each. Gates 5/5, CI green, one independent read each.
+- **Outstanding:** `W-73.7` bulk invite must apply the same `core.role.assign` rule as `W-73.3`.
+- **Newly unblocked:** `W-73.8` (needed `W-73.1`); wave 2 (`W-73.2`, `.4`, `.7`, `.8`) starts from this `main`.
+- **Next on main:** `W-73.5` (rebase first, conflicts with `.1`/`.3`), then `W-73.6` — both gates 5/5 on their branches.
 
 ## 2026-10-07 — `D-33`–`D-42` fixed on `main` (`f996cd1c`, `a6b3dca3`; CI green at `a63ce18e`)
 
