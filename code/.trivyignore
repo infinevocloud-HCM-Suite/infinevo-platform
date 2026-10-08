@@ -3,3 +3,9 @@
 # CVE-2026-47884: Spring Framework XsltView RCE (fixed in 7.0.9; 6.2.20 not yet released in Maven Central).
 # Infinevo Platform is a pure REST API architecture; XsltView is not used or mapped anywhere.
 CVE-2026-47884
+
+# CVE-2026-47890: Spring MVC/WebFlux SSE stream corruption when rendering view fragments
+# (fixed in 7.0.9; 6.2.20 is enterprise-only). Needs SSE + server-rendered view fragments +
+# attacker text streamed to other users. Infinevo has no SseEmitter/event-stream and no server
+# views — pure JSON REST, React renders. Remove on the Spring 7 upgrade; do not add SSE before then.
+CVE-2026-47890
