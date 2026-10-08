@@ -92,10 +92,10 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
         Set<String> visible = visibleKeys(acmeTenant, acmeAdminSub);
 
         List<String> customerLeaves = leafKeys(NavigationCatalogue.DEFAULT_ITEMS).stream()
-                .filter(k -> !k.equals("core.tenants"))
+                .filter(k -> !k.equals("core.tenants") && !k.equals("core.admin.home"))
                 .toList();
         assertThat(visible).containsAll(customerLeaves);
-        assertThat(visible).doesNotContain("core.tenants");
+        assertThat(visible).doesNotContain("core.tenants", "core.admin.home");
         walk(acmeTenant, acmeAdminSub, visible);
     }
 
@@ -106,7 +106,7 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
 
         // The seeded employee role reads the org masters but neither roles nor the audit trail,
         // so this caller exercises both branches of the walk.
-        assertThat(visible).doesNotContain("core.roles", "core.audit", "core.tenants");
+        assertThat(visible).doesNotContain("core.roles", "core.audit", "core.tenants", "core.admin.home");
         assertThat(visible).isNotEmpty();
         walk(globexTenant, globexEmployeeSub, visible);
     }

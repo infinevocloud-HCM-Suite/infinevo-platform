@@ -96,10 +96,10 @@ class NavigationIT extends AbstractIntegrationTest {
 
         List<String> catalogueKeys = NavigationCatalogue.DEFAULT_ITEMS.stream()
                 .map(ItemDefinition::key)
-                .filter(k -> !k.equals("core.tenants"))
+                .filter(k -> !k.equals("core.tenants") && !k.equals("core.admin.home"))
                 .toList();
         assertThat(keysOf(admin)).containsExactlyElementsOf(catalogueKeys);
-        assertThat(keysOf(admin)).doesNotContain("core.tenants");
+        assertThat(keysOf(admin)).doesNotContain("core.tenants", "core.admin.home");
         assertThat(keysOf(employee)).isNotEqualTo(keysOf(admin));
         // Each caller's feed names their own tenant, read under that tenant's RLS binding.
         assertThat(admin.tenantName()).startsWith("Acme Navigation ");

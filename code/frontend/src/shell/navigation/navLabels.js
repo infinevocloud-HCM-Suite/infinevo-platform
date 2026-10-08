@@ -6,6 +6,7 @@
  * backend catalogues name a key that is missing here.
  */
 export const NAV_LABELS = {
+  'nav.admin.home': 'Dashboard',
   'nav.approvals': 'Approvals',
   'nav.approvals.definitions': 'Approval workflows',
   'nav.approvals.delegations': 'Delegations',

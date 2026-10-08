@@ -119,7 +119,7 @@ class PlatformTenantRoleScopeIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("platform staff's feed has Tenants and no customer screen, and lands on /admin/tenants")
+    @DisplayName("platform staff's feed has Dashboard, Tenants and no customer screen, and lands on /admin (W-73.2)")
     void platformStaffFeedHasNoCustomerScreen() throws Exception {
         UUID sub = UUID.randomUUID();
         UUID account = AuthzTestSchema.insertMember(PLATFORM, sub, "staff-" + sub + "@infinevo.test");
@@ -137,7 +137,7 @@ class PlatformTenantRoleScopeIT extends AbstractIntegrationTest {
         List<String> keys = new ArrayList<>();
         collectKeys(feed.path("items"), keys);
 
-        assertThat(keys).contains("core.tenants", "core.audit");
+        assertThat(keys).contains("core.admin.home", "core.tenants", "core.audit");
         assertThat(keys)
                 .doesNotContain(
                         "core.employee",
@@ -150,8 +150,10 @@ class PlatformTenantRoleScopeIT extends AbstractIntegrationTest {
                         "core.setup",
                         "core.invitations.users",
                         "core.people");
-        assertThat(keys).as("Settings holds Audit only").containsExactly("core.settings", "core.audit", "core.tenants");
-        assertThat(feed.path("homePath").asText()).isEqualTo("/admin/tenants");
+        assertThat(keys)
+                .as("Settings holds Audit only")
+                .containsExactly("core.admin.home", "core.settings", "core.audit", "core.tenants");
+        assertThat(feed.path("homePath").asText()).isEqualTo("/admin");
     }
 
     private static void collectKeys(JsonNode items, List<String> into) {

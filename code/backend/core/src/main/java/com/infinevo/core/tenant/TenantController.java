@@ -86,6 +86,24 @@ public class TenantController {
         return ResponseEntity.ok(tenantQueryService.list());
     }
 
+    /** The platform dashboard (W-73.2): counts by status, recent tenants, administrators still to accept. */
+    @GetMapping("/summary")
+    @RequiresAction("core.tenant.provision")
+    public ResponseEntity<TenantSummaryResponse> summary() {
+        return ResponseEntity.ok(tenantQueryService.summary());
+    }
+
+    /**
+     * Sends a tenant's waiting administrator invitation again (W-73.2). {@code 404} for an unknown tenant,
+     * {@code 409} when no administrator invitation is pending or expired.
+     */
+    @PostMapping("/{id}/admin-invitation/resend")
+    @RequiresAction("core.tenant.provision")
+    public ResponseEntity<Void> resendAdminInvitation(@PathVariable("id") UUID id) {
+        tenantService.resendAdminInvitation(id, currentActorUserId());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}")
     @RequiresAction("core.tenant.provision")
     public ResponseEntity<TenantOverview> getTenant(@PathVariable("id") UUID id) {
@@ -112,6 +130,23 @@ public class TenantController {
     public ResponseEntity<ApiErrorResponse> handleTenantNotFound(TenantNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiErrorResponse.of(ApiError.TENANT_NOT_FOUND, e.getMessage(), traceId()));
+    }
+
+    @ExceptionHandler(AdminInvitationNotWaitingException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotWaiting(AdminInvitationNotWaitingException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+    }
+
+    /**
+     * The resend refused by the invitation service (W-73.2): a pending invitation to the same address already
+     * exists, or the invitation expired between the read and the resend ({@code InvitationExpiredException} is an
+     * {@code IllegalStateException}).
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiErrorResponse> handleIllegalState(IllegalStateException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

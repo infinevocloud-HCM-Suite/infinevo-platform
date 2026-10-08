@@ -160,6 +160,8 @@ public final class AuthzTestSchema {
                     // D-42: list_tenants() and get_tenant_overview() report the administrator
                     // invitation, reading the V117 tables; TenantQueryService maps the new columns.
                     executeResource(conn, "db/migration/core/V159__list_tenants_admin_invitation.sql");
+                    // W-73.2: the platform dashboard's waiting administrator invitations, read across RLS.
+                    executeResource(conn, "db/migration/core/V168__list_waiting_admin_invitations.sql");
                     // W-18.1: loss-of-pay policy
                     executeResource(conn, "db/migration/core/V116__lop_policy.sql");
                     if (!tableExists(conn, "core", "document")) {

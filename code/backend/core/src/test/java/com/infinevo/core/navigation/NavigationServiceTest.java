@@ -268,7 +268,13 @@ class NavigationServiceTest {
         assertThat(NavigationCatalogue.DEFAULT_ITEMS)
                 .extracting(ItemDefinition::key)
                 .containsExactly(
-                        "core.people", "core.org", "core.approvals", "core.leave", "core.settings", "core.tenants");
+                        "core.admin.home",
+                        "core.people",
+                        "core.org",
+                        "core.approvals",
+                        "core.leave",
+                        "core.settings",
+                        "core.tenants");
         assertThat(childKeys("core.people"))
                 .containsExactly("core.employee", "core.invitations.users", "core.invitations.employees");
         assertThat(childKeys("core.org"))
@@ -383,7 +389,33 @@ class NavigationServiceTest {
     private static final Set<PlatformModule> BOTH = Set.of(PlatformModule.HRMS, PlatformModule.PAYROLL);
 
     @Test
-    @DisplayName("D-35: platform staff land on the tenants screen")
+    @DisplayName("W-73.2: platform staff land on the platform dashboard when the feed carries it")
+    void platformStaffLandOnDashboard() {
+        Set<String> staff = Set.of("core.tenant.read", "core.tenant.provision", "core.audit.read");
+        ItemDefinition dashboard = new ItemDefinition(
+                "core.admin.home",
+                "nav.admin.home",
+                "/admin",
+                "/api/v1/tenants/summary",
+                null,
+                "core.tenant.provision");
+        List<ItemDefinition> catalogue = List.of(dashboard, HOME_PEOPLE, HOME_SETTINGS, HOME_TENANTS);
+        for (PlatformModule module : PlatformModule.values()) {
+            when(entitlementService.holds(module)).thenReturn(false);
+        }
+        when(permissionService.currentActions()).thenReturn(staff);
+        TenantContext.set(PlatformTenant.DEFAULT_PLATFORM_TENANT_ID);
+
+        NavigationResponse feed = new NavigationService(
+                        entitlementService, permissionService, catalogue, null, null, new PlatformTenant())
+                .navigation();
+
+        assertThat(feed.homePath()).isEqualTo("/admin");
+        assertThat(keysOf(feed).get(0)).isEqualTo("core.admin.home");
+    }
+
+    @Test
+    @DisplayName("D-35, W-73.2 rollback: with no dashboard item, platform staff land on the tenants screen")
     void platformStaffLandOnTenants() {
         Set<String> staff = Set.of("core.tenant.read", "core.tenant.provision", "core.audit.read");
         assertThat(homeFor(staff, Set.of(), PlatformTenant.DEFAULT_PLATFORM_TENANT_ID, false))

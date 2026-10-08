@@ -153,7 +153,10 @@ public class NavigationService {
     /** The portal's own page: mounted for every signed-in user whatever the feed says, so always a safe home. */
     static final String PORTAL_HOME = "/me";
 
-    static final String PLATFORM_HOME = "/admin/tenants";
+    static final String PLATFORM_HOME = "/admin";
+    /** The platform home before W-73.2's dashboard, still the fallback when the dashboard item is withdrawn. */
+    static final String PLATFORM_TENANTS = "/admin/tenants";
+
     static final String SETUP_HOME = "/setup";
     static final String PAYROLL_HOME = "/payroll/dashboard";
     static final String HRMS_HOME = "/hrms/dashboard";
@@ -164,7 +167,7 @@ public class NavigationService {
      * caller's actions, never from a role name, and only ever a path the visible feed names (or the portal):
      *
      * <ol>
-     *   <li>the platform tenant: the tenants screen;
+     *   <li>the platform tenant: the platform dashboard (W-73.2), else the tenants screen;
      *   <li>a tenant admin ({@code core.tenant.manage}) whose setup is unfinished: the setup checklist;
      *   <li>a payroll reader ({@code payroll.run.read}, which gates the payroll dashboard): the payroll dashboard;
      *   <li>someone who reads other people ({@code core.employee.read} or {@code core.employee.read_team}) and
@@ -173,7 +176,7 @@ public class NavigationService {
      *   <li>everyone else: the portal.
      * </ol>
      *
-     * <p>The platform tenant falls back to the first visible path when its tenants screen is hidden.
+     * <p>The platform tenant falls back to the first visible path when both its screens are hidden.
      */
     private String homePath(List<NavigationItemResponse> items, Set<String> actions) {
         Set<String> visible = new LinkedHashSet<>();
@@ -183,6 +186,9 @@ public class NavigationService {
         if (tenantId.isPresent() && platformTenant.isPlatformTenant(tenantId.get())) {
             if (visible.contains(PLATFORM_HOME)) {
                 return PLATFORM_HOME;
+            }
+            if (visible.contains(PLATFORM_TENANTS)) {
+                return PLATFORM_TENANTS;
             }
             return firstLeafPath(items).orElse(PORTAL_HOME);
         }

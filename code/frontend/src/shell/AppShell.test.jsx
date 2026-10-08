@@ -140,6 +140,36 @@ describe('AppShell component', () => {
     expect(titles).toEqual(['People', 'Settings']);
   });
 
+  it('selects the menu item with the longest matching path, not the first prefix (W-73.2)', () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [
+        { key: 'core.admin.home', labelKey: 'nav.admin.home', path: '/zz-admin' },
+        { key: 'core.tenants', labelKey: 'nav.tenants', path: '/zz-admin/tenants' },
+        { key: 'core.other', labelKey: 'nav.roles', path: '/zz-admin-other' },
+      ],
+      loading: false,
+    });
+
+    const { container, unmount } = render(
+      <MemoryRouter initialEntries={['/zz-admin/tenants/abc']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+    const selected = () =>
+      Array.from(container.querySelectorAll('.ant-menu-item-selected')).map((el) => el.textContent.trim());
+    expect(selected()).toEqual(['Tenants']);
+    unmount();
+
+    const second = render(
+      <MemoryRouter initialEntries={['/zz-admin']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+    expect(
+      Array.from(second.container.querySelectorAll('.ant-menu-item-selected')).map((el) => el.textContent.trim()),
+    ).toEqual(['Dashboard']);
+  });
+
   it('shows the tenant name from the feed in the header', () => {
     vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
       items: [{ key: 'core', labelKey: 'Core', path: '/core' }],

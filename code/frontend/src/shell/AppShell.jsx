@@ -221,15 +221,26 @@ function parentKeys(items, key, trail = []) {
 /**
  * Walk the item tree to find which key matches the current URL prefix.
  */
+// The leaf whose path is the longest one the URL sits at or under, so `/admin/tenants/x` selects
+// Tenants rather than the `/admin` dashboard (W-73.2).
 function findSelectedKey(items, pathname) {
-  if (!items) return null;
-  for (const item of items) {
-    if (item.children && item.children.length > 0) {
-      const child = findSelectedKey(item.children, pathname);
-      if (child) return child;
-    } else if (item.path && pathname.startsWith(item.path)) {
-      return item.key;
+  let best = null;
+  let bestLength = -1;
+  const visit = (list) => {
+    for (const item of list || []) {
+      if (item.children && item.children.length > 0) {
+        visit(item.children);
+      } else if (item.path && pathMatches(item.path, pathname) && item.path.length > bestLength) {
+        best = item.key;
+        bestLength = item.path.length;
+      }
     }
-  }
-  return null;
+  };
+  visit(items);
+  return best;
+}
+
+function pathMatches(path, pathname) {
+  if (path === '/') return pathname === '/';
+  return pathname === path || pathname.startsWith(path.endsWith('/') ? path : `${path}/`);
 }

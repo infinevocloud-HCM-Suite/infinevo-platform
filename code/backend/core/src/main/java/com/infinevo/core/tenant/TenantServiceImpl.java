@@ -5,6 +5,7 @@ import com.infinevo.core.invitation.UserInvitationRequest;
 import com.infinevo.core.invitation.UserInvitationResponse;
 import com.infinevo.core.setup.SetupChecklistService;
 import com.infinevo.shared.entitlement.PlatformModule;
+import com.infinevo.shared.tenant.PlatformTenant;
 import com.infinevo.shared.tenant.TenantContext;
 import java.sql.Array;
 import java.sql.Connection;
@@ -51,6 +52,7 @@ public class TenantServiceImpl implements TenantService {
     private final JdbcTemplate jdbcTemplate;
     private final SetupChecklistService setupChecklistService;
     private final Supplier<InvitationService> invitationService;
+    private final PlatformTenant platformTenant;
 
     public TenantServiceImpl(JdbcTemplate jdbcTemplate) {
         this(jdbcTemplate, (SetupChecklistService) null);
@@ -64,12 +66,15 @@ public class TenantServiceImpl implements TenantService {
     public TenantServiceImpl(
             JdbcTemplate jdbcTemplate,
             ObjectProvider<SetupChecklistService> setupChecklistServiceProvider,
-            ObjectProvider<InvitationService> invitationServiceProvider) {
+            ObjectProvider<InvitationService> invitationServiceProvider,
+            ObjectProvider<PlatformTenant> platformTenantProvider) {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.setupChecklistService =
                 setupChecklistServiceProvider != null ? setupChecklistServiceProvider.getIfAvailable() : null;
         this.invitationService =
                 invitationServiceProvider != null ? invitationServiceProvider::getIfAvailable : () -> null;
+        PlatformTenant configured = platformTenantProvider != null ? platformTenantProvider.getIfAvailable() : null;
+        this.platformTenant = configured != null ? configured : new PlatformTenant();
     }
 
     public TenantServiceImpl(JdbcTemplate jdbcTemplate, SetupChecklistService setupChecklistService) {
@@ -83,6 +88,7 @@ public class TenantServiceImpl implements TenantService {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.setupChecklistService = setupChecklistService;
         this.invitationService = () -> invitationService;
+        this.platformTenant = new PlatformTenant();
     }
 
     // Declared here, not as an interface default, so a call through the Spring proxy opens the
@@ -200,6 +206,59 @@ public class TenantServiceImpl implements TenantService {
 
         return new TenantResponse(
                 tenantId, tenantId, name, finalCountryCode, finalTimezone, finalMonth, modules, adminInvitationId);
+    }
+
+    @Override
+    @Transactional
+    public void resendAdminInvitation(UUID tenantId, UUID actorUserId) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        platformTenant.requirePlatformTenant();
+        if (actorUserId == null) {
+            throw new IllegalStateException(
+                    "No authenticated user could be resolved to record as the inviter of the tenant administrator");
+        }
+        InvitationService invitations = invitationService.get();
+        if (invitations == null) {
+            throw new IllegalStateException("User invitations are not available to invite the tenant administrator");
+        }
+
+        // Both reads cross row-level security through SECURITY DEFINER functions (V159, V168), before the
+        // transaction is rebound to the target tenant.
+        Integer found = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM core.get_tenant_overview(?)", Integer.class, tenantId);
+        if (found == null || found == 0) {
+            throw new TenantNotFoundException(tenantId);
+        }
+        List<WaitingAdminInvitation> waiting = platformTenant.isPlatformTenant(tenantId)
+                ? List.of()
+                : jdbcTemplate.query(
+                        WaitingAdminInvitation.SELECT_FOR_TENANT, WaitingAdminInvitation.ROW_MAPPER, tenantId);
+        if (waiting.isEmpty()) {
+            throw new AdminInvitationNotWaitingException(tenantId);
+        }
+        if (!invitations.canSendInvitationEmail()) {
+            throw new IllegalArgumentException("The invitation cannot be resent: invitation emails are not configured"
+                    + " on this server (INVITATION_LINK_BASE_URL)");
+        }
+
+        WaitingAdminInvitation invitation = waiting.get(0);
+        UUID sent = runAsTenant(tenantId, () -> {
+            if (WaitingAdminInvitation.PENDING.equals(invitation.status())) {
+                // The W-24.2 resend: a new token and expiry, the old row revoked and superseded.
+                return invitations
+                        .resendUserInvitation(invitation.invitationId(), actorUserId)
+                        .id();
+            }
+            // The resend refuses an expired invitation (InvitationServiceImpl#resendUserInvitation), so an
+            // expired one is replaced by a fresh tenant-admin invitation to the same address.
+            return inviteAdministrator(invitations, tenantId, invitation.email(), actorUserId);
+        });
+        log.info(
+                "Resent the administrator invitation of tenant {} ({} invitation {} -> {})",
+                tenantId,
+                invitation.status(),
+                invitation.invitationId(),
+                sent);
     }
 
     // The checklist rows and the administrator invitation belong to the new tenant, but the open

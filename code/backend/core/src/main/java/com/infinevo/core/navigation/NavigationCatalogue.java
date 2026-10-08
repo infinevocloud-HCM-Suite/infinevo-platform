@@ -48,13 +48,22 @@ public final class NavigationCatalogue {
     }
 
     /**
-     * The core menu, in groups (D-34): People, Organisation, Approvals, Leave, Settings, then the platform's
-     * Tenants. A group's {@code path} and {@code targetEndpoint} are its first child's; the feed rewrites the path
+     * The core menu, in groups (D-34): the platform's Dashboard (W-73.2), People, Organisation, Approvals, Leave,
+     * Settings, then the platform's Tenants. Dashboard and Tenants need {@code core.tenant.provision}, which only
+     * the platform tenant's roles hold (V158), so a customer never sees either. A group's {@code path} and {@code targetEndpoint} are its first child's; the feed rewrites the path
      * to the first child the caller can see. People, Organisation and Settings require no action of their own, so
      * the service shows each exactly when one of its children is visible. Leaf keys, label keys, paths, endpoints
      * and actions are the ones the flat menu had, so the frontend's routes and labels still match.
      */
     public static final List<ItemDefinition> DEFAULT_ITEMS = List.of(
+            // W-73.2: the platform staff's home page, first in their menu.
+            new ItemDefinition(
+                    "core.admin.home",
+                    "nav.admin.home",
+                    "/admin",
+                    "/api/v1/tenants/summary",
+                    null,
+                    "core.tenant.provision"),
             new ItemDefinition(
                     "core.people",
                     "nav.people",

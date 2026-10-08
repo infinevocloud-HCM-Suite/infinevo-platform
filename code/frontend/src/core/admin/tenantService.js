@@ -12,6 +12,10 @@ import { createService } from '@shared/api/createService.js';
  *     leave_year_start_month, modules, optional admin_email); reply `TenantResponse`
  *     (camelCase: tenantId, name, ..., adminInvitationId) - core TenantController
  *   - subscription, setModules, setStatus: `SubscriptionResponse` - core SubscriptionController
+ *   - getSummary: `TenantSummaryResponse` (camelCase: total, byStatus, createdLast30Days,
+ *     recent[{ id, name, createdAt, status }], waitingForAdmin[{ id, name, adminEmail,
+ *     invitationStatus PENDING | EXPIRED, expiresAt }]) - core TenantController (W-73.2)
+ *   - resendAdminInvitation: no body, `204` - core TenantController (W-73.2)
  *
  * list, get, create and the two PUTs are platform-tenant endpoints (`core.tenant.provision`), so
  * they never carry `X-Impersonation`: with it the server binds the customer tenant and checks the
@@ -40,6 +44,17 @@ export const tenantService = {
   async create(body) {
     const res = await apiClient.post(base.basePath, body, PLATFORM_ONLY);
     return res?.data !== undefined ? res.data : res;
+  },
+
+  /** `GET /v1/tenants/summary` - the platform dashboard's figures, platform staff only (W-73.2). */
+  async getSummary() {
+    const res = await apiClient.get(`${base.basePath}/summary`, PLATFORM_ONLY);
+    return res?.data !== undefined ? res.data : res;
+  },
+
+  /** `POST /v1/tenants/{id}/admin-invitation/resend` - send the tenant's administrator invitation again. */
+  async resendAdminInvitation(id) {
+    await apiClient.post(`${base.basePath}/${id}/admin-invitation/resend`, null, PLATFORM_ONLY);
   },
 
   /** `GET /v1/tenants/{id}/subscription` - answers only for the bound tenant, i.e. while acting in it. */

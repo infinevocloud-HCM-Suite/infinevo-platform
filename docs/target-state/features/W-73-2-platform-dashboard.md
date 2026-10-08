@@ -16,7 +16,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `core` | 1 |
-| Flyway migration | none | 1 |
+| Flyway migration | `V168` (one function, no table) — see §11 | 1 |
 | Externally testable behaviour | platform staff land on one page that says how many tenants exist, which are waiting for their admin, and lets them create one | 1 |
 | Frontend area | `core/admin` | 1 |
 
@@ -82,7 +82,7 @@ platform-admin signs in --> / --> /admin (homePath from D-35)
 
 ## 6. Database changes
 
-None. Reads existing `core.tenant` and `core.user_invitation`; the summary query runs with the platform tenant's cross-tenant read that `W-65.1` established for the list.
+`core/V168__list_waiting_admin_invitations.sql`: one `SECURITY DEFINER` function, `core.list_waiting_admin_invitations()`, no table (see §11). Counts and recent tenants come from the existing `core.list_tenants()`.
 
 ## 7. Tests
 
@@ -108,3 +108,14 @@ None. Reads existing `core.tenant` and `core.user_invitation`; the summary query
 ## 10. Rollback
 
 Remove the menu item; `D-35` then falls back to `/admin/tenants`.
+
+## 11. Amendments while building (2026-10-08)
+
+| Spec said | Code says | Built |
+|---|---|---|
+| §6 "None" — the list's cross-tenant read already covers pending / expired | `core.list_tenants()` reports only `ACCEPTED`, `PENDING` (live) or `NONE`; an expired invitation reads `NONE` and no `expires_at` is returned (`core/V159__list_tenants_admin_invitation.sql:10-13,66-80`). `core.user_invitation` is behind RLS (`core/V117__user_invitation.sql`), so the platform tenant cannot read it directly | `V168` adds `core.list_waiting_admin_invitations()`: per tenant with no accepted `tenant-admin` invitation, its latest non-superseded one when `PENDING` or `EXPIRED`, with id, email and `expires_at` |
+| §4 "one query over `core.tenant` grouped by status" | `core.tenant` and `core.subscription` are tenant-scoped; the only cross-tenant read is `core.list_tenants()` (`TenantQueryService.java:87`) | `summary()` aggregates `core.list_tenants()` in Java. The platform tenant itself is left out of every count and table: it is not a customer |
+| §4 resend "reuses the user-invitation resend" | `resendUserInvitation` refuses an expired invitation (`InvitationServiceImpl.java:180-184`) | `PENDING`: the existing resend, bound to the target tenant as `D-42` provisioning is (`TenantServiceImpl.java:213`). `EXPIRED`: a fresh `tenant-admin` invitation to the same email. No waiting invitation: `409 CONFLICT` |
+| §2 "created in the last 30 days" not in the §4 contract | — | Reply carries `createdLast30Days` |
+| §5 changes only `core/admin` and `navLabels.js` | `AppShell.findSelectedKey` picks the first item whose path prefixes the URL (`AppShell.jsx:224-235`), so `/admin` would claim `/admin/tenants` | `findSelectedKey` picks the longest matching path, on a segment boundary |
+| §2 menu: first item | `D-35` home is `/admin/tenants` (`NavigationService.java:156`) | `core.admin.home` is the first catalogue item; platform home is `/admin`, falling back to `/admin/tenants` then the first leaf |

@@ -18,4 +18,16 @@ public interface TenantService {
      *     {@code admin_email}
      */
     TenantResponse provisionTenant(TenantRequest request, UUID actorUserId);
+
+    /**
+     * Sends the tenant's administrator invitation again (W-73.2): a live one through the user-invitation
+     * resend, an expired one as a fresh {@code tenant-admin} invitation to the same address. Platform tenant
+     * only.
+     *
+     * @param actorUserId the platform user resending, recorded as the inviter
+     * @throws TenantNotFoundException when no such tenant exists
+     * @throws AdminInvitationNotWaitingException when the tenant has no pending or expired administrator
+     *     invitation
+     */
+    void resendAdminInvitation(UUID tenantId, UUID actorUserId);
 }
