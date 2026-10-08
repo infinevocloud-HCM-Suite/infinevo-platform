@@ -1,22 +1,26 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-08**, against `main` `9dfce81b`.
+> Last refreshed: **2026-10-08**, against `main` `7fa1b73a`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
-## 2026-10-08 — `W-73.1`, `W-73.3` merged (`8af6192a`, `9dfce81b`)
+## 2026-10-08 — `W-73.1`, `.2`, `.3`, `.5`, `.6`, `.7` merged
 
-| Ticket | What |
-|---|---|
-| `W-73.1` | Header shows company name, logo (initials fallback), tagline, user name and role chips; Company profile under Settings (`V160`) |
-| `W-73.3` | "Give portal access" on Add Employee with extra roles; one save creates and invites (`V163`); granting roles needs `core.role.assign` |
+| Ticket | Commit | What |
+|---|---|---|
+| `W-73.1` | `8af6192a` | Header shows company name, logo (initials fallback), tagline, user name and role chips; Company profile under Settings (`V160`) |
+| `W-73.3` | `9dfce81b` | "Give portal access" on Add Employee with extra roles; one save creates and invites (`V163`); granting roles needs `core.role.assign` |
+| `W-73.5` | `087b5e92` | Documents tab on the employee page and `/me`; label in `core.document.label` (`V166`) |
+| `W-73.6` | `04e1964c` | Scheduled earnings paid in monthly instalments by the pay run (`V161`) |
+| `W-73.2` | `0c165413` | `/admin` platform dashboard; waiting admin invitations with Resend (`V168`) |
+| `W-73.7` | `7fa1b73a` | Bulk invite from CSV on the worker; "Invite all without access"; same `core.role.assign` rule |
 
 - Built by Claude in parallel worktrees (`dev-claude-W-73-n`), one squash each. Gates 5/5, CI green, one independent read each.
-- **Outstanding:** `W-73.7` bulk invite must apply the same `core.role.assign` rule as `W-73.3`.
-- **Newly unblocked:** `W-73.8` (needed `W-73.1`); wave 2 (`W-73.2`, `.4`, `.7`, `.8`) starts from this `main`.
-- **Next on main:** `W-73.5` (rebase first, conflicts with `.1`/`.3`), then `W-73.6` — both gates 5/5 on their branches.
+- `CVE-2026-47890` (Spring SSE fragment rendering, fix only in 7.0.9) ignored in `.trivyignore` on `f1de6c7d`, founder-approved: no SSE or server views in the platform. Remove on the Spring 7 upgrade.
+- **Outstanding:** `W-73.6` payslip shows a generic always-taxed "One-time payout" line and has no Refresh button; nothing sweeps a job left RUNNING after a worker crash (W-52 debt); V159 tenant functions have no platform check of their own.
+- **Still in flight:** `W-73.4` (review fixes), `W-73.8` (review fixes). **Next:** `W-73.9` alone.
 
 ## 2026-10-07 — `D-33`–`D-42` fixed on `main` (`f996cd1c`, `a6b3dca3`; CI green at `a63ce18e`)
 
