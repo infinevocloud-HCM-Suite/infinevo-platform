@@ -38,6 +38,7 @@ export function EmployeePage() {
   const canReadBank = useCan('core.employee_bank.read');
   const canReadOrg = useCan('core.org.read');
   const canInvite = useCan('core.employee.create');
+  const canReadDocuments = useCan('core.document.read');
 
   const mastersLoadedAt = useSelector((state) => state.employee?.loadedAt);
 
@@ -171,6 +172,7 @@ export function EmployeePage() {
     if (tab.key === 'identification' && !canReadIdentification) return false;
     if (tab.key === 'bank' && !canReadBank) return false;
     if (tab.key === 'reporting-line' && !canReadOrg) return false;
+    if (tab.key === 'documents' && !canReadDocuments) return false;
     return true;
   });
 

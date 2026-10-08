@@ -1,32 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, Table, Tag, Skeleton, Result, Button, Space, Typography, theme } from 'antd';
-import { FileTextOutlined } from '@ant-design/icons';
-import { portalService } from '../portalService.js';
+import { FileTextOutlined, DownloadOutlined } from '@ant-design/icons';
+import { portalService } from '@shell/portal/portalService.js';
+import { documentService, labelText } from '../document/documentService.js';
+import { errorMsg } from '@shared/ui/msgHelper.js';
 
 const { Text } = Typography;
 
-export function MyDocuments() {
+/**
+ * The employee's own documents on /me (W-73.5 §2): list over /me/documents, download only.
+ */
+export function MyDocumentsPanel() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { token } = theme.useToken();
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await portalService.getDocuments();
       setDocuments(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err?.response?.data?.message || err.message || 'Failed to load documents');
+      setError(err?.message || 'Failed to load documents');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDocuments();
-  }, []);
+  }, [fetchDocuments]);
+
+  const handleDownload = async (id) => {
+    try {
+      const { url } = await documentService.link(id);
+      window.open(url, '_blank', 'noopener');
+    } catch (err) {
+      errorMsg(err);
+    }
+  };
 
   if (loading) {
     return (
@@ -55,7 +69,7 @@ export function MyDocuments() {
 
   const columns = [
     {
-      title: 'Document Name',
+      title: 'Document',
       dataIndex: 'fileName',
       key: 'fileName',
       render: (text) => (
@@ -66,16 +80,36 @@ export function MyDocuments() {
       ),
     },
     {
-      title: 'Category / Kind',
-      dataIndex: 'kind',
-      key: 'kind',
-      render: (kind) => (kind ? <Tag color="blue">{kind}</Tag> : '—'),
+      title: 'Label',
+      dataIndex: 'label',
+      key: 'label',
+      render: (label) => (label ? <Tag color="blue">{labelText(label)}</Tag> : '—'),
     },
     {
-      title: 'Uploaded At',
+      title: 'Kind',
+      dataIndex: 'kind',
+      key: 'kind',
+      render: (kind) => (kind ? <Tag>{kind}</Tag> : '—'),
+    },
+    {
+      title: 'Uploaded',
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date) => (date ? new Date(date).toLocaleDateString() : '—'),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, doc) => (
+        <Button
+          type="text"
+          icon={<DownloadOutlined />}
+          onClick={() => handleDownload(doc.id)}
+          id={`btn-download-${doc.id}`}
+        >
+          Download
+        </Button>
+      ),
     },
   ];
 
@@ -93,12 +127,12 @@ export function MyDocuments() {
       <Table
         dataSource={documents}
         columns={columns}
-        rowKey={(d, index) => d.id || index}
-        pagination={{ pageSize: 10 }}
-        locale={{ emptyText: 'No personal documents uploaded yet.' }}
+        rowKey="id"
+        pagination={{ pageSize: 10, hideOnSinglePage: true }}
+        locale={{ emptyText: 'No documents yet.' }}
       />
     </Card>
   );
 }
 
-export default MyDocuments;
+export default MyDocumentsPanel;

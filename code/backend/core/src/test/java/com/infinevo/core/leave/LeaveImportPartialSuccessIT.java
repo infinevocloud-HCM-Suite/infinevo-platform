@@ -185,6 +185,7 @@ class LeaveImportPartialSuccessIT extends AbstractIntegrationTest {
                 docId,
                 null,
                 DocumentKind.EXPORT,
+                null,
                 "opening_balances.csv",
                 "text/csv",
                 csv.length(),

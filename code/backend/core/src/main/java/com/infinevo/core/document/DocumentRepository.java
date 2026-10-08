@@ -23,4 +23,11 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
     /** All live documents for an employee in this tenant. */
     java.util.List<Document> findByTenantIdAndEmployeeIdAndDeletedFalse(UUID tenantId, UUID employeeId);
+
+    /**
+     * Live documents of one kind for an employee in this tenant, newest first — the employee page's
+     * Documents tab (W-73.5). Matches {@code idx_document_tenant_employee_kind}.
+     */
+    java.util.List<Document> findByTenantIdAndEmployeeIdAndKindAndDeletedFalseOrderByCreatedAtDesc(
+            UUID tenantId, UUID employeeId, DocumentKind kind);
 }

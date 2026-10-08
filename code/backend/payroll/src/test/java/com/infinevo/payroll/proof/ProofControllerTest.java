@@ -209,6 +209,7 @@ class ProofControllerTest {
                 documentId,
                 employeeId,
                 DocumentKind.INVESTMENT_PROOF,
+                null,
                 "rent receipt.pdf",
                 "application/pdf",
                 5,

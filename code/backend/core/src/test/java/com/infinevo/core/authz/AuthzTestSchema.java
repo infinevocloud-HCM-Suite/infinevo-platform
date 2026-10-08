@@ -164,6 +164,7 @@ public final class AuthzTestSchema {
                     executeResource(conn, "db/migration/core/V116__lop_policy.sql");
                     if (!tableExists(conn, "core", "document")) {
                         executeResource(conn, "db/migration/core/V037__document.sql");
+                        executeResource(conn, "db/migration/core/V166__document_label.sql");
                     }
                     // W-73.1: logo and tagline on core.tenant, and the TENANT_LOGO document kind.
                     if (!columnExists(conn, "core", "tenant", "logo_document_id")) {

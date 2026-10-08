@@ -68,6 +68,14 @@ public class Document implements Persistable<UUID> {
     @Column(name = "kind", nullable = false, length = 32, updatable = false)
     private DocumentKind kind;
 
+    /**
+     * What an employee document is (W-73.5) — {@code V166}. Null for every other kind, and for an
+     * employee document uploaded without one.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "label", length = 32, updatable = false)
+    private DocumentLabel label;
+
     @Column(name = "file_name", nullable = false, length = 255, updatable = false)
     private String fileName;
 
@@ -112,6 +120,7 @@ public class Document implements Persistable<UUID> {
             UUID tenantId,
             UUID employeeId,
             DocumentKind kind,
+            DocumentLabel label,
             String fileName,
             String contentType,
             long sizeBytes,
@@ -123,6 +132,7 @@ public class Document implements Persistable<UUID> {
         this.tenantId = tenantId;
         this.employeeId = employeeId;
         this.kind = kind;
+        this.label = label;
         this.fileName = fileName;
         this.contentType = contentType;
         this.sizeBytes = sizeBytes;
@@ -173,6 +183,10 @@ public class Document implements Persistable<UUID> {
 
     public DocumentKind getKind() {
         return kind;
+    }
+
+    public DocumentLabel getLabel() {
+        return label;
     }
 
     public String getFileName() {

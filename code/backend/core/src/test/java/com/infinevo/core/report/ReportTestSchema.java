@@ -69,6 +69,7 @@ final class ReportTestSchema {
                         "core/V025__catalogue_correction.sql",
                         "core/V026__employee_user_account.sql",
                         "core/V037__document.sql",
+                        "core/V166__document_label.sql",
                         "core/V040__report_definition.sql",
                         "core/V095__report_schedule.sql"
                     }) {

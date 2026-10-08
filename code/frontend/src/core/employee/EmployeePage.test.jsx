@@ -32,6 +32,10 @@ vi.mock('./orgMasterService.js', () => ({
   },
 }));
 
+vi.mock('./tabs/DocumentsTab.jsx', () => ({
+  DocumentsTab: vi.fn(() => <div data-testid="documents-tab">DocumentsTab</div>),
+}));
+
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn(),
   errorMsg: vi.fn(),

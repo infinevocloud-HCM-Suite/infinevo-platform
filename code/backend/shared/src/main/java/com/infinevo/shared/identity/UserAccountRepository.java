@@ -1,5 +1,7 @@
 package com.infinevo.shared.identity;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,4 +21,11 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
 
     /** The one profile row for this user in this tenant, if it has been synced yet. */
     Optional<UserAccount> findByTenantIdAndKeycloakUserId(UUID tenantId, UUID keycloakUserId);
+
+    /**
+     * The profile rows for these users in this tenant, in one statement — for a list that names who
+     * did something by subject, such as the uploader of each document (W-73.5). A subject with no
+     * synced row is simply absent.
+     */
+    List<UserAccount> findByTenantIdAndKeycloakUserIdIn(UUID tenantId, Collection<UUID> keycloakUserIds);
 }

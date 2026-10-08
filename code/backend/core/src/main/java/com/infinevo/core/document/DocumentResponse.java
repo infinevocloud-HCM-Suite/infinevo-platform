@@ -8,12 +8,14 @@ import java.util.UUID;
  *
  * <p>The container and path are absent: they are storage internals, and the only way to the bytes
  * is a signed link from {@code GET /api/v1/documents/{id}/link}. {@code isDeleted} is absent because
- * a deleted document is never returned at all.
+ * a deleted document is never returned at all. {@code label} is what an employee document is
+ * (W-73.5) — null for every other kind.
  */
 public record DocumentResponse(
         UUID id,
         UUID employeeId,
         DocumentKind kind,
+        DocumentLabel label,
         String fileName,
         String contentType,
         long sizeBytes,
@@ -26,6 +28,7 @@ public record DocumentResponse(
                 document.getId(),
                 document.getEmployeeId(),
                 document.getKind(),
+                document.getLabel(),
                 document.getFileName(),
                 document.getContentType(),
                 document.getSizeBytes(),

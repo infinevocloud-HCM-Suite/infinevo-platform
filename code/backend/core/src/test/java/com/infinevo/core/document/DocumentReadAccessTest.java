@@ -121,6 +121,7 @@ class DocumentReadAccessTest {
                         id,
                         employeeId,
                         DocumentKind.EMPLOYEE_DOCUMENT,
+                        null,
                         "offer.pdf",
                         "application/pdf",
                         3,

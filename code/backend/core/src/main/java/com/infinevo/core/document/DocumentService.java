@@ -35,6 +35,25 @@ public interface DocumentService {
     UUID store(DocumentKind kind, UUID employeeId, String fileName, InputStream content);
 
     /**
+     * As {@link #store(DocumentKind, UUID, String, InputStream)}, with what an employee document is
+     * (W-73.5). A label is only valid on {@link DocumentKind#EMPLOYEE_DOCUMENT} — on any other kind it is
+     * a {@link ValidationException} on {@code label} — and is never required.
+     *
+     * <p>A default, so the in-memory {@code DocumentService} fakes in other modules' tests, which
+     * implement only the four-argument form, keep compiling: with no label it is that form, and a fake
+     * asked to keep a label refuses rather than drop it. {@link DocumentServiceImpl} overrides both, and
+     * there the four-argument form is this one with a null label.
+     *
+     * @param label what the document is, or {@code null}
+     */
+    default UUID store(DocumentKind kind, UUID employeeId, DocumentLabel label, String fileName, InputStream content) {
+        if (label == null) {
+            return store(kind, employeeId, fileName, content);
+        }
+        throw new UnsupportedOperationException("This DocumentService does not keep labels");
+    }
+
+    /**
      * Stores a file already on disk, streamed to storage rather than read into memory — for output
      * the platform generates, such as an export ({@code W-23.1}) or a payslip ({@code W-36}). The same
      * rules as {@link #store}; the file is not deleted here, the caller owns it.
@@ -59,6 +78,24 @@ public interface DocumentService {
     /** Returns metadata of all live documents for the given employee in the bound tenant. */
     default java.util.List<DocumentResponse> findByEmployee(UUID employeeId) {
         return java.util.List.of();
+    }
+
+    /**
+     * Live documents of one kind for the given employee in the bound tenant, newest first — the
+     * employee page's Documents tab lists {@link DocumentKind#EMPLOYEE_DOCUMENT} only (W-73.5, spec
+     * section 4, {@code listForEmployee}). An empty list for a null employee.
+     *
+     * <p>A default over {@link #findByEmployee} for the same reason as the five-argument {@code store};
+     * {@link DocumentServiceImpl} overrides it with one indexed query.
+     */
+    default java.util.List<DocumentResponse> findByEmployeeAndKind(UUID employeeId, DocumentKind kind) {
+        return findByEmployee(employeeId).stream()
+                .filter(document -> document.kind() == kind)
+                .sorted(java.util.Comparator.comparing(
+                                DocumentResponse::createdAt,
+                                java.util.Comparator.nullsFirst(java.util.Comparator.<java.time.Instant>naturalOrder()))
+                        .reversed())
+                .toList();
     }
 
     /** No such live document in the bound tenant. Maps to {@code 404}. */

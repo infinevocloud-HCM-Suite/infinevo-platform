@@ -80,6 +80,7 @@ final class DocumentTestSchema {
                     executeResource(conn, "db/migration/core/V037__document.sql");
                     // W-73.1: TENANT_LOGO joins the kind check (and core.tenant gains the logo columns).
                     executeResource(conn, "db/migration/core/V160__tenant_branding.sql");
+                    executeResource(conn, "db/migration/core/V166__document_label.sql");
                 }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
@@ -159,6 +160,22 @@ final class DocumentTestSchema {
         }
     }
 
+    /** Gives a member's {@code core.user_account} row a name, as the profile sync would (W-73.5). */
+    static void nameMember(UUID tenantId, UUID keycloakUserId, String firstName, String lastName) throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps =
+                        conn.prepareStatement("UPDATE core.user_account SET first_name = ?, last_name = ?"
+                                + " WHERE tenant_id = ? AND keycloak_user_id = ?")) {
+            ps.setString(1, firstName);
+            ps.setString(2, lastName);
+            ps.setObject(3, tenantId);
+            ps.setObject(4, keycloakUserId);
+            if (ps.executeUpdate() != 1) {
+                throw new IllegalStateException("no account " + keycloakUserId + " in tenant " + tenantId);
+            }
+        }
+    }
+
     static UUID insertEmployee(UUID tenantId, String number) throws SQLException {
         try (Connection conn = migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
@@ -172,6 +189,30 @@ final class DocumentTestSchema {
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getObject(1, UUID.class);
+            }
+        }
+    }
+
+    /**
+     * Links a member's login to an employee — {@code V026}'s {@code core.employee.user_account_id}, which
+     * {@code EmployeeServiceImpl.currentEmployee()} follows from the JWT subject through
+     * {@code core.user_account} (tenant and {@code keycloak_user_id}) to the employee. The member must
+     * already exist ({@link #insertMember}).
+     */
+    static void linkLogin(UUID tenantId, UUID keycloakUserId, UUID employeeId) throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        UPDATE core.employee
+                           SET user_account_id = (SELECT id FROM core.user_account
+                                                   WHERE tenant_id = ? AND keycloak_user_id = ?)
+                         WHERE id = ?
+                        """)) {
+            ps.setObject(1, tenantId);
+            ps.setObject(2, keycloakUserId);
+            ps.setObject(3, employeeId);
+            if (ps.executeUpdate() != 1) {
+                throw new IllegalStateException("no employee " + employeeId + " to link");
             }
         }
     }
