@@ -94,7 +94,7 @@ The Infinevo platform runs on a **Zero-Trust, Private-by-Default Architecture** 
    - **Response Stamping**: Custom ruleset `rsorigintag` appends response header `X-Infinevo-Origin: web|app|keycloak` for auditability and routing verification.
    - **WAF Security Policy (`wafinfinevoshared`)**:
      - Operating Mode: `Prevention`
-     - Rate-Limit Rule: Enforces a ceiling of 100 requests per minute per client IP.
+     - Rate-Limit Rule: Enforces a ceiling of 1000 requests per minute per client IP.
      - Canary Rule: Immediately returns `403 Forbidden` on requests matching `?wafcanary=block`.
 
 2. **`crinfinevo` (Azure Container Registry)**:
