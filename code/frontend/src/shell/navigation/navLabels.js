@@ -43,6 +43,7 @@ export const NAV_LABELS = {
   'nav.people': 'People',
   'nav.roles': 'Roles',
   'nav.settings': 'Settings',
+  'nav.settings.company': 'Company profile',
   'nav.setup': 'Setup',
   'nav.tenants': 'Tenants',
   'nav.userInvitations': 'User invitations',

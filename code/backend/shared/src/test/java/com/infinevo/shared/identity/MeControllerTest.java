@@ -1,9 +1,12 @@
 package com.infinevo.shared.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.infinevo.shared.authz.RoleSource;
 import com.infinevo.shared.impersonation.ActingAs;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Instant;
@@ -23,12 +26,14 @@ class MeControllerTest {
     private static final UUID STAFF = UUID.randomUUID();
 
     private UserProfileSyncService syncService;
+    private RoleSource roleSource;
     private MeController controller;
 
     @BeforeEach
     void setUp() {
         syncService = mock(UserProfileSyncService.class);
-        controller = new MeController(syncService);
+        roleSource = mock(RoleSource.class);
+        controller = new MeController(syncService, () -> roleSource);
         TenantContext.set(TENANT);
     }
 
@@ -64,6 +69,42 @@ class MeControllerTest {
         assertThat(view.userId()).isEqualTo(me);
         assertThat(view.email()).isEqualTo("me@acme.local");
         assertThat(view.tenantId()).isEqualTo(TENANT);
+        assertThat(view.displayName()).isEqualTo("Me Acme");
+    }
+
+    @Test
+    @DisplayName("W-73.1: roles are the codes the role source holds for the profile row, sorted")
+    void rolesFromTheRoleSource() {
+        UUID me = UUID.randomUUID();
+        UserAccount account = new UserAccount(TENANT, me, "me@acme.local", "Me", "Acme", Instant.now());
+        when(syncService.find(TENANT, me)).thenReturn(Optional.of(account));
+        // A UserAccount built here has no id yet (it is assigned on persist), so the stub matches any.
+        when(roleSource.roleCodesOf(eq(TENANT), any())).thenReturn(Set.of("payroll-officer", "hr"));
+        Jwt jwt = Jwt.withTokenValue("t")
+                .header("alg", "none")
+                .subject(me.toString())
+                .build();
+
+        assertThat(controller.me(jwt).roles()).containsExactly("hr", "payroll-officer");
+    }
+
+    @Test
+    @DisplayName("W-73.1: no role source, or one that fails, means no roles - never a 500")
+    void rolesFailClosedToEmpty() {
+        UUID me = UUID.randomUUID();
+        UserAccount account = new UserAccount(TENANT, me, "me@acme.local", null, null, Instant.now());
+        when(syncService.find(TENANT, me)).thenReturn(Optional.of(account));
+        when(roleSource.roleCodesOf(eq(TENANT), any())).thenThrow(new IllegalStateException("no tenant"));
+        Jwt jwt = Jwt.withTokenValue("t")
+                .header("alg", "none")
+                .subject(me.toString())
+                .build();
+
+        MeController.MeView failing = controller.me(jwt);
+        assertThat(failing.roles()).isEmpty();
+        assertThat(failing.displayName()).as("no names: the email stands in").isEqualTo("me@acme.local");
+
+        assertThat(new MeController(syncService).me(jwt).roles()).isEmpty();
     }
 
     @Test
@@ -77,11 +118,16 @@ class MeControllerTest {
         ActingAs.set(
                 new ActingAs.Impersonation(STAFF, targetAccountId, UUID.randomUUID(), "emp@globex.local", Set.of()));
 
+        when(roleSource.roleCodesOf(TENANT, targetAccountId)).thenReturn(Set.of("employee"));
+
         MeController.MeView view = controller.me(staffToken());
 
         assertThat(view.userId()).isEqualTo(targetKeycloakId);
         assertThat(view.email()).isEqualTo("emp@globex.local");
         assertThat(view.tenantId()).isEqualTo(TENANT);
+        assertThat(view.roles())
+                .as("the target user's roles, not the staff member's")
+                .containsExactly("employee");
     }
 
     @Test
@@ -95,5 +141,9 @@ class MeControllerTest {
         assertThat(view.email()).isEqualTo("staff@infinevo.local");
         assertThat(view.firstName()).isEqualTo("Staff");
         assertThat(view.tenantId()).isEqualTo(TENANT);
+        assertThat(view.displayName()).isEqualTo("Staff Infinevo");
+        assertThat(view.roles())
+                .as("a bootstrap session stands in for the tenant admin")
+                .containsExactly("tenant-admin");
     }
 }

@@ -86,6 +86,10 @@ const LeaveImport = lazy(() =>
   import('./leave/LeaveImport.jsx').then((m) => ({ default: m.LeaveImport }))
 );
 
+const CompanyProfile = lazy(() =>
+  import('./settings/CompanyProfile.jsx').then((m) => ({ default: m.CompanyProfile }))
+);
+
 const TenantList = lazy(() =>
   import('./admin/TenantList.jsx').then((m) => ({ default: m.TenantList }))
 );
@@ -126,6 +130,8 @@ export const routes = [
   { path: '/leave/requests/:id', element: React.createElement(LeaveRequestDetail) },
   { path: '/leave/employees/:id', element: React.createElement(EmployeeLeave) },
   { path: '/leave/import', element: React.createElement(LeaveImport) },
+  // W-73.1: mounted when the feed carries `core.settings.company`.
+  { path: '/settings/company', element: React.createElement(CompanyProfile) },
   // Platform staff only: mounted when the feed carries `core.tenants` (W-65.1 §4, W-65.3 §5).
   { path: '/admin/tenants', element: React.createElement(TenantList) },
   { path: '/admin/tenants/new', element: React.createElement(TenantCreate) },

@@ -1,9 +1,11 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { ReactReduxContext } from 'react-redux';
-import { Layout, Button, Space, Typography, Alert, theme } from 'antd';
-import { BankOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { Layout, Button, Space, Typography, Alert, Avatar, Dropdown, Tag, theme } from 'antd';
+import { DownOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { keycloak, logout } from './auth/keycloak.js';
+import { useMe, fetchMe } from './auth/useMe.js';
+import { roleLabel } from './auth/roleLabels.js';
 import { fetchNavigationFeed } from './navigation/useNavigation.js';
 import { setImpersonationProvider, setImpersonationInvalidHandler } from '../shared/api/client.js';
 import { errorMsg } from '../shared/ui/msgHelper.js';
@@ -23,22 +25,37 @@ function formatExpiry(expiresAt) {
     : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/** "Acme Ltd" → "AL", "Infinevo" → "I": the first letter of up to two words (W-73.1 §5). */
+export function initialsOf(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join('');
+}
+
 /**
- * Shell header (W-45 §5).
- * Shows the signed-in tenant's name, the authenticated user's name (falling back to username)
- * and a working logout button.
+ * Shell header (W-45 §5, W-73.1 §5).
+ *
+ * Left: the company's logo - or a circle with its initials, never an empty box - its name and,
+ * when one is set, its tagline. Right: the signed-in user's name (from `/me`, falling back to the
+ * token's), one chip per role, and a user menu with Sign out.
  *
  * While platform staff act inside a customer tenant (W-65.3) it also:
  *   - shows the banner "Acting as {userLabel} in {tenantName} until {expiresAt}" with Stop
  *   - wires the API client to the store: `X-Impersonation` from the session, and a
  *     `403 IMPERSONATION_INVALID` clears it
- *   - refetches the navigation feed whenever a session starts or stops, since the feed is the
- *     target's while acting and the staff member's otherwise
+ *   - refetches the navigation feed and `/me` whenever a session starts or stops, since both are
+ *     the target's while acting and the staff member's otherwise
  */
-export function Header({ style, tenantName }) {
+export function Header({ style, tenantName, tenantLogoUrl, tagline }) {
   const { token } = theme.useToken();
   const store = useContext(ReactReduxContext)?.store ?? null;
   const session = useImpersonationSession(store);
+  const me = useMe();
   const [stopping, setStopping] = useState(false);
 
   useEffect(() => {
@@ -61,7 +78,27 @@ export function Header({ style, tenantName }) {
     if (previousSessionId.current === sessionId) return;
     previousSessionId.current = sessionId;
     fetchNavigationFeed().catch(() => {});
+    fetchMe().catch(() => {});
   }, [sessionId]);
+
+  // A signed logo link that stops working (it lives a day; the page may be open longer) asks the
+  // feed for a fresh one - once per tenant and act-as session, not once per link. Every refetch
+  // signs a new link, so keying the retry on the link would refetch forever while the logo itself
+  // is broken (a missing blob, storage down). After the one retry a failing logo shows the
+  // initials (spec §9).
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoRetriedFor = useRef(null);
+  const brandingKey = `${tenantName ?? ''}|${sessionId ?? ''}`;
+  useEffect(() => {
+    setLogoFailed(false);
+  }, [tenantLogoUrl]);
+  const onLogoError = () => {
+    setLogoFailed(true);
+    if (logoRetriedFor.current !== brandingKey) {
+      logoRetriedFor.current = brandingKey;
+      fetchNavigationFeed().catch(() => {});
+    }
+  };
 
   const stop = async () => {
     setStopping(true);
@@ -77,9 +114,20 @@ export function Header({ style, tenantName }) {
   };
 
   const displayName =
+    me.displayName ||
     keycloak?.tokenParsed?.name ||
     keycloak?.tokenParsed?.preferred_username ||
     '';
+  const roles = Array.isArray(me.roles) ? me.roles : [];
+  const initials = initialsOf(tenantName);
+  const showLogo = !!tenantLogoUrl && !logoFailed;
+
+  const userMenu = {
+    items: [{ key: 'signout', label: 'Sign out', icon: <LogoutOutlined /> }],
+    onClick: ({ key }) => {
+      if (key === 'signout') logout();
+    },
+  };
 
   return (
     <>
@@ -92,33 +140,64 @@ export function Header({ style, tenantName }) {
           padding: `0 ${token.paddingLG}px`,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
           boxShadow: token.boxShadowSecondary,
           ...style,
         }}
       >
-        <Space size="middle">
-          {tenantName && (
-            <Space size="small" data-testid="tenant-display">
-              <BankOutlined style={{ color: token.colorTextSecondary }} />
-              <Text>{tenantName}</Text>
+        {tenantName ? (
+          <Space size="middle" data-testid="tenant-display" align="center">
+            {showLogo ? (
+              <img
+                src={tenantLogoUrl}
+                alt={`${tenantName} logo`}
+                data-testid="tenant-logo"
+                onError={onLogoError}
+                style={{ height: token.controlHeightLG, maxWidth: 160, objectFit: 'contain', display: 'block' }}
+              />
+            ) : (
+              <Avatar
+                size="large"
+                data-testid="tenant-initials"
+                style={{ background: token.colorPrimary, color: token.colorBgContainer, fontWeight: 600 }}
+              >
+                {initials}
+              </Avatar>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
+              <Text strong style={{ fontSize: token.fontSizeLG }}>
+                {tenantName}
+              </Text>
+              {tagline ? (
+                <Text type="secondary" data-testid="tenant-tagline" style={{ fontSize: token.fontSizeSM }}>
+                  {tagline}
+                </Text>
+              ) : null}
+            </div>
+          </Space>
+        ) : (
+          <span />
+        )}
+        <Space size="middle" align="center">
+          {roles.length > 0 && (
+            <Space size={4} wrap data-testid="role-chips">
+              {roles.map((code) => (
+                <Tag key={code} color="blue" style={{ marginInlineEnd: 0 }}>
+                  {roleLabel(code)}
+                </Tag>
+              ))}
             </Space>
           )}
-          {displayName && (
-            <Space size="small" data-testid="user-display">
-              <UserOutlined style={{ color: token.colorTextSecondary }} />
-              <Text strong>{displayName}</Text>
-            </Space>
-          )}
-          <Button
-            type="text"
-            icon={<LogoutOutlined />}
-            onClick={() => logout()}
-            aria-label="Logout"
-          >
-            Logout
-          </Button>
+          <Dropdown menu={userMenu} trigger={['click']} placement="bottomRight">
+            <Button type="text" aria-label="User menu" data-testid="user-display">
+              <Space size="small">
+                <UserOutlined style={{ color: token.colorTextSecondary }} />
+                {displayName && <Text strong>{displayName}</Text>}
+                <DownOutlined style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }} />
+              </Space>
+            </Button>
+          </Dropdown>
         </Space>
       </AntHeader>
       {session && (
@@ -142,4 +221,6 @@ export function Header({ style, tenantName }) {
 Header.propTypes = {
   style: PropTypes.object,
   tenantName: PropTypes.string,
+  tenantLogoUrl: PropTypes.string,
+  tagline: PropTypes.string,
 };

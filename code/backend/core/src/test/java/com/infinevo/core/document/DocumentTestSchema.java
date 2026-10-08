@@ -78,6 +78,8 @@ final class DocumentTestSchema {
                     // W-13.4: the employee entity maps user_account_id.
                     executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
                     executeResource(conn, "db/migration/core/V037__document.sql");
+                    // W-73.1: TENANT_LOGO joins the kind check (and core.tenant gains the logo columns).
+                    executeResource(conn, "db/migration/core/V160__tenant_branding.sql");
                 }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);

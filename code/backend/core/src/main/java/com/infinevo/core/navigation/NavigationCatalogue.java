@@ -202,6 +202,14 @@ public final class NavigationCatalogue {
                                     "/api/v1/setup-checklist",
                                     null,
                                     "core.tenant.read"),
+                            // W-73.1: the company profile - name, logo, tagline - for whoever reads the tenant
+                            new ItemDefinition(
+                                    "core.settings.company",
+                                    "nav.settings.company",
+                                    "/settings/company",
+                                    "/api/v1/tenants/current/profile",
+                                    null,
+                                    "core.tenant.read"),
                             new ItemDefinition(
                                     "core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read"))),
             new ItemDefinition(

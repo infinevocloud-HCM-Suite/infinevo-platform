@@ -150,7 +150,8 @@ public class DocumentController {
                 HttpStatus.BAD_REQUEST,
                 ApiError.VALIDATION_FAILED,
                 "The request could not be read. Send multipart/form-data with a 'file' part and a 'kind' of"
-                        + " EMPLOYEE_DOCUMENT, LEAVE_ATTACHMENT, REIMBURSEMENT_RECEIPT or INVESTMENT_PROOF.");
+                        + " EMPLOYEE_DOCUMENT, LEAVE_ATTACHMENT, REIMBURSEMENT_RECEIPT, INVESTMENT_PROOF or"
+                        + " TENANT_LOGO.");
     }
 
     private static ResponseEntity<ApiErrorResponse> error(HttpStatus status, ApiError code, String message) {

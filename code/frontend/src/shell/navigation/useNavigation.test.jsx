@@ -15,6 +15,13 @@ vi.mock('../../shared/api/client.js', () => ({
   setTenantSuspendedHandler: vi.fn(),
 }));
 
+// The header reads /me through the same client (W-73.1); it is stubbed so the call counts and the
+// tenant-change listener count below are the feed's alone.
+vi.mock('../auth/useMe.js', () => ({
+  useMe: () => ({ displayName: '', roles: [], email: null, loading: false, error: null, refetch: vi.fn() }),
+  fetchMe: vi.fn().mockResolvedValue({}),
+}));
+
 vi.mock('../auth/keycloak.js', () => {
   const listeners = new Set();
   return {

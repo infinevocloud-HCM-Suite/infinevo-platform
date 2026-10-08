@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * {@link DocumentKind} — which kinds a client may upload, and that the Java vocabulary and the
- * {@code document_kind_check} constraint agree (W-21, widened by W-36.5).
+ * {@code document_kind_check} constraint agree (W-21, widened by W-36.5 and W-73.1).
  */
 class DocumentKindTest {
 
@@ -23,12 +23,18 @@ class DocumentKindTest {
     }
 
     @Test
-    @DisplayName("Every kind the enum holds is named in V108's widened document_kind_check")
+    @DisplayName("A tenant logo is uploaded by the tenant, so it is uploadable")
+    void tenantLogoIsUploadable() {
+        assertThat(DocumentKind.TENANT_LOGO.isUploadable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Every kind the enum holds is named in V160's widened document_kind_check")
     void everyKindIsInTheCheckConstraint() throws Exception {
         String sql;
         try (InputStream in =
-                getClass().getClassLoader().getResourceAsStream("db/migration/core/V108__document_kind_form16.sql")) {
-            assertThat(in).as("V108 must be on the test classpath").isNotNull();
+                getClass().getClassLoader().getResourceAsStream("db/migration/core/V160__tenant_branding.sql")) {
+            assertThat(in).as("V160 must be on the test classpath").isNotNull();
             sql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
         Arrays.stream(DocumentKind.values()).forEach(kind -> assertThat(sql).contains("'" + kind.name() + "'"));

@@ -33,6 +33,7 @@ class TenantControllerTest {
     private MockMvc mvc;
     private TenantService tenantService;
     private TenantQueryService tenantQueryService;
+    private TenantProfileService tenantProfileService;
     private ObjectMapper objectMapper;
 
     private static final UUID TENANT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -42,8 +43,9 @@ class TenantControllerTest {
     void setUp() {
         tenantService = mock(TenantService.class);
         tenantQueryService = mock(TenantQueryService.class);
+        tenantProfileService = mock(TenantProfileService.class);
 
-        TenantController controller = new TenantController(tenantService, tenantQueryService);
+        TenantController controller = new TenantController(tenantService, tenantQueryService, tenantProfileService);
 
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 

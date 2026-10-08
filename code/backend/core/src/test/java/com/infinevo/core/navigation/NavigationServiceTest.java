@@ -8,12 +8,15 @@ import static org.mockito.Mockito.when;
 
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
 import com.infinevo.core.setup.SetupChecklistService;
+import com.infinevo.core.tenant.TenantBranding;
+import com.infinevo.core.tenant.TenantProfileService;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.PlatformTenant;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -228,6 +231,25 @@ class NavigationServiceTest {
     }
 
     @Test
+    @DisplayName("W-73.1: with a profile service the reply carries the tenant's tagline and logo link too")
+    void replyCarriesBranding() {
+        UUID tenantId = UUID.randomUUID();
+        TenantContext.set(tenantId);
+        TenantProfileService profiles = mock(TenantProfileService.class);
+        when(profiles.branding())
+                .thenReturn(Optional.of(new TenantBranding("Acme Ltd", "People first", UUID.randomUUID(), "/d?t=x")));
+        when(permissionService.currentActions()).thenReturn(Set.of());
+
+        NavigationService branded = new NavigationService(
+                entitlementService, permissionService, CATALOGUE, null, null, new PlatformTenant(), profiles);
+        NavigationResponse reply = branded.navigation();
+
+        assertThat(reply.tenantName()).isEqualTo("Acme Ltd");
+        assertThat(reply.tagline()).isEqualTo("People first");
+        assertThat(reply.tenantLogoUrl()).isEqualTo("/d?t=x");
+    }
+
+    @Test
     @DisplayName("no bound tenant, no name")
     void noBoundTenantNoName() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
@@ -256,7 +278,7 @@ class NavigationServiceTest {
                         "core.org.locations",
                         "core.holiday",
                         "core.roles");
-        assertThat(childKeys("core.settings")).containsExactly("core.setup", "core.audit");
+        assertThat(childKeys("core.settings")).containsExactly("core.setup", "core.settings.company", "core.audit");
         for (String group : List.of("core.people", "core.org", "core.settings")) {
             ItemDefinition def = group(group);
             assertThat(def.requiredAction())
@@ -370,8 +392,8 @@ class NavigationServiceTest {
     }
 
     @Test
-    @DisplayName(
-            "D-33: the platform tenant's menu hides Setup and User invitations even though staff hold their actions")
+    @DisplayName("D-33, W-73.1: the platform tenant's menu hides Setup, User invitations and Company profile even"
+            + " though staff hold their actions")
     void platformTenantHidesCustomerOnlyScreens() {
         Set<String> staff = Set.of("core.tenant.read", "core.tenant.provision", "core.audit.read", "core.user.manage");
         ItemDefinition people = new ItemDefinition(
@@ -388,7 +410,31 @@ class NavigationServiceTest {
                         "/api/v1/user-invitations",
                         null,
                         "core.user.manage")));
-        List<ItemDefinition> catalogue = List.of(people, HOME_SETTINGS, HOME_TENANTS);
+        ItemDefinition settings = new ItemDefinition(
+                "core.settings",
+                "nav.settings",
+                "/setup",
+                "/api/v1/setup-checklist",
+                null,
+                null,
+                List.of(
+                        new ItemDefinition(
+                                "core.setup",
+                                "nav.setup",
+                                "/setup",
+                                "/api/v1/setup-checklist",
+                                null,
+                                "core.tenant.read"),
+                        new ItemDefinition(
+                                "core.settings.company",
+                                "nav.settings.company",
+                                "/settings/company",
+                                "/api/v1/tenants/current/profile",
+                                null,
+                                "core.tenant.read"),
+                        new ItemDefinition(
+                                "core.audit", "nav.audit", "/audit", "/api/v1/audit", null, "core.audit.read")));
+        List<ItemDefinition> catalogue = List.of(people, settings, HOME_TENANTS);
         for (PlatformModule module : PlatformModule.values()) {
             when(entitlementService.holds(module)).thenReturn(false);
         }
@@ -406,6 +452,9 @@ class NavigationServiceTest {
                         entitlementService, permissionService, catalogue, null, null, new PlatformTenant())
                 .navigation();
         assertThat(keysOf(customer)).as("a customer tenant keeps them").contains("core.people", "core.settings");
+        assertThat(customer.items().get(1).children())
+                .extracting("key")
+                .containsExactly("core.setup", "core.settings.company", "core.audit");
     }
 
     @Test

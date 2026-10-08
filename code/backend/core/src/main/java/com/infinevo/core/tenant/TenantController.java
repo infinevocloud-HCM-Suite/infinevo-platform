@@ -19,14 +19,19 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controller for tenant provisioning and overview queries (W-12.1, W-65.1).
+ * Controller for tenant provisioning and overview queries (W-12.1, W-65.1), and the bound tenant's own
+ * profile (W-73.1).
  *
- * <p>Restricted to platform administrators holding {@code core.tenant.provision}.
+ * <p>Provisioning and the overviews are restricted to platform administrators holding
+ * {@code core.tenant.provision}. {@code /current/profile} is the signed-in tenant's: {@code core.tenant.read}
+ * to see it, {@code core.tenant.manage} - the catalogue's "change the tenant's own settings" code
+ * ({@code reference/V020__action.sql:46}) - to change it.
  */
 @RestController
 @RequestMapping("/api/v1/tenants")
@@ -34,10 +39,33 @@ public class TenantController {
 
     private final TenantService tenantService;
     private final TenantQueryService tenantQueryService;
+    private final TenantProfileService tenantProfileService;
 
-    public TenantController(TenantService tenantService, TenantQueryService tenantQueryService) {
+    public TenantController(
+            TenantService tenantService,
+            TenantQueryService tenantQueryService,
+            TenantProfileService tenantProfileService) {
         this.tenantService = Objects.requireNonNull(tenantService, "tenantService must not be null");
         this.tenantQueryService = Objects.requireNonNull(tenantQueryService, "tenantQueryService must not be null");
+        this.tenantProfileService =
+                Objects.requireNonNull(tenantProfileService, "tenantProfileService must not be null");
+    }
+
+    /** The bound tenant's name, tagline and logo (W-73.1). */
+    @GetMapping("/current/profile")
+    @RequiresAction("core.tenant.read")
+    public ResponseEntity<TenantProfileResponse> currentProfile() {
+        return ResponseEntity.ok(tenantProfileService.current());
+    }
+
+    /** Sets the bound tenant's tagline and logo (W-73.1). {@code 400} names the field that was refused. */
+    @PutMapping("/current/profile")
+    @RequiresAction("core.tenant.manage")
+    public ResponseEntity<TenantProfileResponse> updateCurrentProfile(@RequestBody TenantProfileRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body must not be null");
+        }
+        return ResponseEntity.ok(tenantProfileService.update(request));
     }
 
     @PostMapping

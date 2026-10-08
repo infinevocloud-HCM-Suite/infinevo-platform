@@ -103,6 +103,7 @@ class NavigationCatalogueValidatorTest {
                 "/api/v1/user-invitations",
                 "/api/v1/employee-invitations",
                 "/api/v1/tenants",
+                "/api/v1/tenants/current/profile",
                 "/api/v1/leave-types",
                 "/api/v1/leave-requests",
                 "/api/v1/leave-imports");

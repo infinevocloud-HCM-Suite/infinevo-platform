@@ -12,7 +12,9 @@ import java.util.Set;
  * <p>The first four replace the seven legacy tables that each held a Cloudinary URL. {@link
  * #PAYSLIP} is for {@code W-36} and {@link #EXPORT} for {@code W-23.1} — contracts section 1 and
  * section 5 row 16. {@link #FORM16_PART_A} is the TRACES certificate of tax deposited, filed per
- * employee from the officer's ZIP upload ({@code W-36.5}).
+ * employee from the officer's ZIP upload ({@code W-36.5}). {@link #TENANT_LOGO} is the company logo the
+ * header shows ({@code W-73.1}, widened by {@code V160__tenant_branding.sql}): tenant-scoped, never filed
+ * against an employee, and uploadable by whoever may update the tenant's profile.
  */
 public enum DocumentKind {
     EMPLOYEE_DOCUMENT,
@@ -21,7 +23,8 @@ public enum DocumentKind {
     INVESTMENT_PROOF,
     PAYSLIP,
     EXPORT,
-    FORM16_PART_A;
+    FORM16_PART_A,
+    TENANT_LOGO;
 
     /**
      * Kinds the platform writes itself and a client may never upload.

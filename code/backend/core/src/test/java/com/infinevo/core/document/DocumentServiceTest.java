@@ -421,7 +421,8 @@ class DocumentServiceTest {
                         DocumentKind.EMPLOYEE_DOCUMENT,
                         DocumentKind.LEAVE_ATTACHMENT,
                         DocumentKind.REIMBURSEMENT_RECEIPT,
-                        DocumentKind.INVESTMENT_PROOF);
+                        DocumentKind.INVESTMENT_PROOF,
+                        DocumentKind.TENANT_LOGO);
     }
 
     // ── helpers

@@ -163,6 +163,10 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "document")) {
                         executeResource(conn, "db/migration/core/V037__document.sql");
                     }
+                    // W-73.1: logo and tagline on core.tenant, and the TENANT_LOGO document kind.
+                    if (!columnExists(conn, "core", "tenant", "logo_document_id")) {
+                        executeResource(conn, "db/migration/core/V160__tenant_branding.sql");
+                    }
                     if (!tableExists(conn, "core", "leave_type")) {
                         executeResource(conn, "db/migration/core/V126__leave_type.sql");
                         executeResource(conn, "db/migration/core/V127__leave_policy.sql");
@@ -383,6 +387,45 @@ public final class AuthzTestSchema {
                 }
             }
             return out;
+        }
+    }
+
+    /**
+     * A document row written directly as the owner, with no blob — for W-73.1's logo reference. {@code kind}
+     * and {@code contentType} are taken as given so a test can hand the profile endpoint the wrong kind.
+     */
+    public static UUID insertDocumentRow(UUID tenantId, String kind, String contentType, long sizeBytes)
+            throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.document (id, tenant_id, employee_id, kind, file_name, content_type,
+                                                   size_bytes, blob_container, blob_path, checksum_sha256)
+                        VALUES (?, ?, NULL, ?, 'logo.png', ?, ?, 'documents', ?, ?)
+                        """)) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.setString(3, kind);
+            ps.setString(4, contentType);
+            ps.setLong(5, sizeBytes);
+            ps.setString(6, tenantId + "/tenant/" + kind + "/" + id);
+            ps.setString(7, "0".repeat(64));
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    private static boolean columnExists(Connection conn, String schema, String table, String column)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
+            ps.setString(3, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 

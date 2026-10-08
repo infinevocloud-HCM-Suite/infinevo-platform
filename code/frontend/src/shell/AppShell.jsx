@@ -30,7 +30,8 @@ const IMPERSONATION_ADMIN_PATH = '/admin/tenants';
  * array anywhere here. An empty feed → empty sidebar and NoModules placeholder.
  */
 export function AppShell() {
-  const { items, tenantName, homePath: feedHomePath, loading, error, refetch } = useNavigation();
+  const { items, tenantName, tenantLogoUrl, tagline, homePath: feedHomePath, loading, error, refetch } =
+    useNavigation();
   const location = useLocation();
   const { token } = antdTheme.useToken();
   const session = useImpersonationSession();
@@ -115,7 +116,7 @@ export function AppShell() {
         </Sider>
 
         <Layout style={{ marginLeft: siderWidth }}>
-          <Header tenantName={tenantName} />
+          <Header tenantName={tenantName} tenantLogoUrl={tenantLogoUrl} tagline={tagline} />
           <Content style={{ padding: token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
             {!loading && error ? (
               <Result
