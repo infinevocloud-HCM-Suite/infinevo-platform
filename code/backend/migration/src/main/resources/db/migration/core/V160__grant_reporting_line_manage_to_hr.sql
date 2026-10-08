@@ -1,4 +1,4 @@
--- Migration: V161__grant_reporting_line_manage_to_hr.sql
+-- Migration: V160__grant_reporting_line_manage_to_hr.sql
 -- Description: Grant core.reporting_line.manage to HR role for existing tenants and update seed function
 
 -- 1. Backfill core.reporting_line.manage to hr role for existing customer tenants

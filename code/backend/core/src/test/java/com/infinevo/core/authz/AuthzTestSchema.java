@@ -188,7 +188,7 @@ public final class AuthzTestSchema {
                     if (!functionExists(conn, "core", "restrict_platform_tenant_grant")) {
                         executeResource(conn, "db/migration/core/V158__platform_tenant_role_scope.sql");
                     }
-                    executeResource(conn, "db/migration/core/V161__grant_reporting_line_manage_to_hr.sql");
+                    executeResource(conn, "db/migration/core/V160__grant_reporting_line_manage_to_hr.sql");
                 }
 
             } catch (Exception e) {
