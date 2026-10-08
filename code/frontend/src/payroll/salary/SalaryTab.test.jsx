@@ -27,6 +27,16 @@ vi.mock('./statutoryProfileService.js', () => ({
   },
 }));
 
+vi.mock('./scheduledEarningService.js', () => ({
+  scheduledEarningService: {
+    list: vi.fn().mockResolvedValue([]),
+    create: vi.fn(),
+    pause: vi.fn(),
+    resume: vi.fn(),
+    cancel: vi.fn(),
+  },
+}));
+
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn().mockResolvedValue(true),
   errorMsg: vi.fn().mockResolvedValue(true),

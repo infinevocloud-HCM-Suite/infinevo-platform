@@ -23,6 +23,7 @@ public record EarningRequest(
         Boolean taxable,
         Boolean variable,
         Boolean oneTime,
+        Boolean scheduledEarning,
         Boolean fbpComponent,
         Boolean includedInEpf,
         String epfInclusionType,

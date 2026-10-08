@@ -26,6 +26,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -76,6 +78,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final UserProfileSyncService userProfileSyncService;
     private final EmployeeEmploymentService employmentService;
 
+    /** W-73.6: carries {@link EmployeeTerminatedEvent}; {@code null} only in a unit test built by hand. */
+    private final ApplicationEventPublisher publisher;
+
     public EmployeeServiceImpl(
             EmployeeRepository employeeRepository,
             DepartmentRepository departmentRepository,
@@ -84,6 +89,27 @@ public class EmployeeServiceImpl implements EmployeeService {
             UserAccountRepository userAccountRepository,
             UserProfileSyncService userProfileSyncService,
             EmployeeEmploymentService employmentService) {
+        this(
+                employeeRepository,
+                departmentRepository,
+                designationRepository,
+                workLocationRepository,
+                userAccountRepository,
+                userProfileSyncService,
+                employmentService,
+                null);
+    }
+
+    @Autowired
+    public EmployeeServiceImpl(
+            EmployeeRepository employeeRepository,
+            DepartmentRepository departmentRepository,
+            DesignationRepository designationRepository,
+            WorkLocationRepository workLocationRepository,
+            UserAccountRepository userAccountRepository,
+            UserProfileSyncService userProfileSyncService,
+            EmployeeEmploymentService employmentService,
+            @Autowired(required = false) ApplicationEventPublisher publisher) {
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
         this.departmentRepository =
                 Objects.requireNonNull(departmentRepository, "departmentRepository must not be null");
@@ -96,6 +122,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         this.userProfileSyncService =
                 Objects.requireNonNull(userProfileSyncService, "userProfileSyncService must not be null");
         this.employmentService = Objects.requireNonNull(employmentService, "employmentService must not be null");
+        this.publisher = publisher;
     }
 
     @Override
@@ -186,9 +213,16 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new DuplicateEmployeeNumberException(fields.employeeNumber());
         }
 
+        boolean becomesTerminated =
+                fields.status() == EmploymentStatus.TERMINATED && employee.getStatus() != EmploymentStatus.TERMINATED;
         fields.applyTo(employee, currentActor());
         assign(employee, request, employee.getTenantId());
-        return EmployeeResponse.from(save(employee, fields.employeeNumber()));
+        EmployeeResponse saved = EmployeeResponse.from(save(employee, fields.employeeNumber()));
+        if (becomesTerminated && publisher != null) {
+            // W-73.6: in this transaction, so a listener's write commits or rolls back with the termination.
+            publisher.publishEvent(new EmployeeTerminatedEvent(saved.tenantId(), saved.id(), saved.terminationDate()));
+        }
+        return saved;
     }
 
     @Override

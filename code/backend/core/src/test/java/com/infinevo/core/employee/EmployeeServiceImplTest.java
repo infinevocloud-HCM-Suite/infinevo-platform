@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -406,6 +408,36 @@ class EmployeeServiceImplTest {
         assertThatThrownBy(() -> service.update(id, withStatus(EmploymentStatus.ACTIVE, null)))
                 .isInstanceOf(EmployeeService.ValidationException.class)
                 .hasMessageContaining("TERMINATED");
+    }
+
+    @Test
+    @DisplayName(
+            "W-73.6: the transition into TERMINATED publishes EmployeeTerminatedEvent once, with the tenant and date")
+    void terminationPublishesOneEvent() {
+        ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        service = new EmployeeServiceImpl(
+                repository,
+                departmentRepository,
+                designationRepository,
+                workLocationRepository,
+                userAccountRepository,
+                userProfileSyncService,
+                employmentService,
+                publisher);
+        UUID id = service.create(request("E-1")).id();
+        service.update(id, withStatus(EmploymentStatus.SUSPENDED, null));
+        verify(publisher, never()).publishEvent(any(EmployeeTerminatedEvent.class));
+
+        LocalDate left = JOINED.plusYears(1);
+        service.update(id, withStatus(EmploymentStatus.TERMINATED, left));
+        // A later update of a leaver that keeps TERMINATED is not a second transition.
+        service.update(id, withStatus(EmploymentStatus.TERMINATED, left));
+
+        ArgumentCaptor<EmployeeTerminatedEvent> event = ArgumentCaptor.forClass(EmployeeTerminatedEvent.class);
+        verify(publisher, times(1)).publishEvent(event.capture());
+        assertThat(event.getValue().tenantId()).isEqualTo(TENANT_A);
+        assertThat(event.getValue().employeeId()).isEqualTo(id);
+        assertThat(event.getValue().terminationDate()).isEqualTo(left);
     }
 
     @Test

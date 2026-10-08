@@ -20,6 +20,7 @@ import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { salaryService } from './salaryService.js';
 import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
+import { ScheduledEarningsPanel } from './ScheduledEarningsPanel.jsx';
 import { SalaryVersionForm } from './SalaryVersionForm.jsx';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
@@ -371,6 +372,9 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
 
         {/* Statutory Profile Section */}
         {employeeId && <StatutoryProfileCard employeeId={employeeId} />}
+
+        {/* Scheduled earnings (W-73.6) */}
+        {employeeId && <ScheduledEarningsPanel employeeId={employeeId} />}
 
         <Divider style={{ margin: '32px 0' }} />
 

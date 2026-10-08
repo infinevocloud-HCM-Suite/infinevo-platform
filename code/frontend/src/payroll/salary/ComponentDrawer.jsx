@@ -14,6 +14,7 @@ import {
   Row,
   Col,
   Divider,
+  Tooltip,
 } from 'antd';
 import { Formik } from 'formik';
 import {
@@ -389,6 +390,14 @@ export function ComponentDrawer({
                             One-time payment
                           </Checkbox>
                         )}
+                        <Tooltip title="Can be planned for a future month on the employee's Salary tab">
+                          <Checkbox
+                            checked={values.scheduledEarning}
+                            onChange={(e) => setFieldValue('scheduledEarning', e.target.checked)}
+                          >
+                            Scheduled
+                          </Checkbox>
+                        </Tooltip>
                       </Space>
                     </Col>
                     {values.variable && (

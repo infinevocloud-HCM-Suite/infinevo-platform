@@ -78,6 +78,10 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "earning")) {
                 executeResource(conn, "db/migration/payroll/V042__earning.sql");
             }
+            // W-73.6: V161 adds the Scheduled flag the Earning entity maps, and the scheduled_earning table.
+            if (!columnExists(conn, "payroll", "earning", "is_scheduled_earning")) {
+                executeResource(conn, "db/migration/payroll/V161__scheduled_earning.sql");
+            }
             if (!tableExists(conn, "payroll", "deduction")) {
                 executeResource(conn, "db/migration/payroll/V043__deduction.sql");
             }

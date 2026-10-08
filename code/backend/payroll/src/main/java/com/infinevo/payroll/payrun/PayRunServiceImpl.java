@@ -16,6 +16,7 @@ import com.infinevo.payroll.priorpayroll.PriorPayrollExistsException;
 import com.infinevo.payroll.priorpayroll.PriorPayrollService;
 import com.infinevo.payroll.schedule.PayPeriodResponse;
 import com.infinevo.payroll.schedule.PayPeriodService;
+import com.infinevo.payroll.scheduled.ScheduledEarningService;
 import com.infinevo.shared.money.Money;
 import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.queue.QueueProducer;
@@ -106,6 +107,13 @@ public class PayRunServiceImpl implements PayRunService {
     private final Clock clock;
     private final TransactionTemplate writeTransaction;
     private final TransactionTemplate readTransaction;
+
+    /**
+     * W-73.6: the scheduled earnings due in the period become pay inputs when the regular run is
+     * created, before its first compute. Setter-injected and optional so the hand-built unit tests
+     * and the four constructors above it stay as they are; {@code null} means "no schedules".
+     */
+    private ScheduledEarningService scheduledEarningService;
 
     public PayRunServiceImpl(
             PayRunRepository payRuns,
@@ -244,6 +252,11 @@ public class PayRunServiceImpl implements PayRunService {
         this.readTransaction.setReadOnly(true);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setScheduledEarningService(ScheduledEarningService scheduledEarningService) {
+        this.scheduledEarningService = scheduledEarningService;
+    }
+
     @Override
     public PayRunResponse create(YearMonth period) {
         Objects.requireNonNull(period, "period must not be null");
@@ -262,6 +275,22 @@ public class PayRunServiceImpl implements PayRunService {
         }
 
         PayPeriodResponse dates = payPeriodService.periodFor(period);
+
+        // W-73.6: the month's scheduled instalments land on the ledger before the run exists, in
+        // their own transaction, so the first compute reads them like any other pay input.
+        if (scheduledEarningService != null) {
+            try {
+                scheduledEarningService.materialise(period);
+            } catch (RuntimeException e) {
+                // W-73.6 F-3: a schedule problem must not stop the month's run; the nightly job retries.
+                log.error(
+                        "Scheduled earnings for {} in tenant {} not materialised; creating the run anyway",
+                        period,
+                        tenantId,
+                        e);
+            }
+        }
+
         List<EmployeeResponse> employees = employeeService.listEmployedBetween(dates.start(), dates.end());
         List<InclusionDecision> decisions = inclusionService.decide(tenantId, employees, dates.start(), dates.end());
         int included = (int) decisions.stream()
