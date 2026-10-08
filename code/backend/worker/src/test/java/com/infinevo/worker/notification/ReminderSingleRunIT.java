@@ -88,7 +88,10 @@ class ReminderSingleRunIT extends AbstractIntegrationTest {
             throw new RuntimeException(e);
         }
         SchedulerLock lockAnnotation = method.getAnnotation(SchedulerLock.class);
-        String lockName = lockAnnotation.name();
+        // Not the annotation's own name: the live ReminderEvaluator in this context is @Scheduled on it, and
+        // when its run holds the lock both replicas here are denied and the count is 0 (CI, 2026-10-07).
+        // The first test proves the job carries that name; this one proves one replica wins the lock.
+        String lockName = lockAnnotation.name() + "-replica-it";
 
         AtomicInteger executionCount = new AtomicInteger(0);
         int threadCount = 2;
