@@ -38,4 +38,12 @@ export const employeeService = {
     const res = await apiClient.put(`/v1/employees/${id}/${name}`, body);
     return res.data;
   },
+
+  /**
+   * Portal access of one employee (W-73.3): {state: NONE|INVITED|ACTIVE, invitationId, expiresAt, roles}.
+   */
+  async getAccess(id) {
+    const res = await apiClient.get(`/v1/employees/${id}/access`);
+    return res.data;
+  },
 };

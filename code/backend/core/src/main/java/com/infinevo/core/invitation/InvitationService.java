@@ -30,6 +30,15 @@ public interface InvitationService {
 
     void revokeEmployeeInvitation(UUID invitationId, UUID actorUserId);
 
+    /**
+     * The employee's portal access (W-73.3 §4): {@code ACTIVE} when linked to an account, with its roles;
+     * {@code INVITED} when a live pending invitation exists, with the roles acceptance will grant;
+     * otherwise {@code NONE}.
+     *
+     * @throws IllegalArgumentException when the employee does not exist in the current tenant
+     */
+    EmployeeAccessResponse employeeAccess(UUID employeeId);
+
     void acceptInvitation(String token);
 
     void declineInvitation(String token, String reason);

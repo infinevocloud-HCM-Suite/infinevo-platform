@@ -58,4 +58,14 @@ describe('employeeService', () => {
     expect(apiClient.put).toHaveBeenCalledWith('/v1/employees/emp-123/contact', payload);
     expect(res).toEqual(payload);
   });
+
+  it('calls getAccess GET on the access path', async () => {
+    const access = { state: 'NONE', invitationId: null, expiresAt: null, roles: [] };
+    apiClient.get.mockResolvedValueOnce({ data: access });
+
+    const res = await employeeService.getAccess('emp-123');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/employees/emp-123/access');
+    expect(res).toEqual(access);
+  });
 });

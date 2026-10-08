@@ -1,5 +1,6 @@
 package com.infinevo.core.invitation;
 
+import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
@@ -27,21 +28,37 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Controller for employee invitations ({@code /api/v1/employee-invitations}) (W-24.2, spec section 4).
  *
- * <p>Guarded by {@code core.employee.create}.
+ * <p>Guarded by {@code core.employee.create}. An invitation that carries extra roles (W-73.3) also needs
+ * {@code core.role.assign}, the action that guards {@code PUT /api/v1/users/{id}/roles}.
  */
 @RestController
 @RequestMapping("/api/v1/employee-invitations")
 public class EmployeeInvitationController {
 
-    private final InvitationService invitationService;
+    /** Granting roles through an invitation needs the same action as granting them directly. */
+    static final String ROLE_ASSIGN_ACTION = "core.role.assign";
 
-    public EmployeeInvitationController(InvitationService invitationService) {
+    private final InvitationService invitationService;
+    private final PermissionService permissionService;
+
+    public EmployeeInvitationController(InvitationService invitationService, PermissionService permissionService) {
         this.invitationService = Objects.requireNonNull(invitationService, "invitationService must not be null");
+        this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
     }
 
+    /**
+     * {@code 201}; {@code 403} without {@code core.employee.create}, or with non-empty {@code roleIds} and
+     * without {@code core.role.assign} — otherwise HR could hand a new hire {@code tenant-admin} and bypass
+     * the guard on {@code PUT /users/{id}/roles}. Checked here, before any transaction opens.
+     *
+     * <p>W-73.7 bulk invite must apply the same rule to every row that carries roles.
+     */
     @PostMapping
     @RequiresAction("core.employee.create")
     public ResponseEntity<EmployeeInvitationResponse> create(@RequestBody EmployeeInvitationRequest request) {
+        if (request != null && request.roleIds() != null && !request.roleIds().isEmpty()) {
+            permissionService.require(ROLE_ASSIGN_ACTION);
+        }
         EmployeeInvitationResponse response = invitationService.createEmployeeInvitation(request, currentActorUserId());
         return ResponseEntity.created(URI.create("/api/v1/employee-invitations/" + response.id()))
                 .body(response);

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import dayjs from 'dayjs';
 import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, theme } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -14,6 +15,7 @@ import { orgMasterService } from './orgMasterService.js';
 import { setMasters } from './employeeSlice.js';
 import { employeeTabs } from './employeeTabs.jsx';
 import { TerminateModal } from './TerminateModal.jsx';
+import { employeeInvitationService } from '../invitation/employeeInvitationService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 const { Title, Text } = Typography;
@@ -35,12 +37,14 @@ export function EmployeePage() {
   const canReadIdentification = useCan('core.employee_identification.read');
   const canReadBank = useCan('core.employee_bank.read');
   const canReadOrg = useCan('core.org.read');
+  const canInvite = useCan('core.employee.create');
 
   const mastersLoadedAt = useSelector((state) => state.employee?.loadedAt);
 
   const [loading, setLoading] = useState(true);
   const [employee, setEmployee] = useState(null);
   const [terminateModalOpen, setTerminateModalOpen] = useState(false);
+  const [access, setAccess] = useState(null);
 
   const loadEmployee = useCallback(async () => {
     setLoading(true);
@@ -57,6 +61,42 @@ export function EmployeePage() {
   useEffect(() => {
     loadEmployee();
   }, [loadEmployee]);
+
+  const employeeId = employee?.id;
+
+  /** Portal access badge (W-73.3). A failure only hides the badge. */
+  const loadAccess = useCallback(async () => {
+    if (!employeeId) return;
+    try {
+      setAccess(await employeeService.getAccess(employeeId));
+    } catch {
+      setAccess(null);
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+    loadAccess();
+  }, [loadAccess]);
+
+  const handleInvite = async () => {
+    try {
+      await employeeInvitationService.create({ employeeId: employee.id, roleIds: [] });
+      await successMsg('Invitation Sent', 'An email went to the work email.');
+      await loadAccess();
+    } catch (err) {
+      await errorMsg(err);
+    }
+  };
+
+  const handleResend = async () => {
+    try {
+      await employeeInvitationService.resend(access.invitationId);
+      await successMsg('Invitation Sent', 'An email went to the work email.');
+      await loadAccess();
+    } catch (err) {
+      await errorMsg(err);
+    }
+  };
 
   useEffect(() => {
     if (!mastersLoadedAt) {
@@ -155,6 +195,36 @@ export function EmployeePage() {
               <Space align="center" size="small">
                 <Title level={4} style={{ margin: 0 }}>{fullName}</Title>
                 <Tag color={statusColorMap[employee.status] || 'default'}>{employee.status}</Tag>
+                {access?.state === 'NONE' && (
+                  <>
+                    <Tag id="tag-access">No access</Tag>
+                    {canInvite && (
+                      <Button size="small" id="btn-invite-employee" onClick={handleInvite}>
+                        Invite
+                      </Button>
+                    )}
+                  </>
+                )}
+                {access?.state === 'INVITED' && (
+                  <>
+                    <Tag color="processing" id="tag-access">
+                      {`Invited, expires ${dayjs(access.expiresAt).format('DD MMM YYYY')}`}
+                    </Tag>
+                    {canInvite && (
+                      <Button size="small" id="btn-resend-invitation" onClick={handleResend}>
+                        Resend
+                      </Button>
+                    )}
+                  </>
+                )}
+                {access?.state === 'ACTIVE' && (
+                  <>
+                    <Tag color="success" id="tag-access">Active</Tag>
+                    {(access.roles || []).map((r) => (
+                      <Tag key={r.id}>{r.code}</Tag>
+                    ))}
+                  </>
+                )}
               </Space>
               <Text type="secondary" style={{ display: 'block', marginTop: 2 }}>
                 Emp ID: {employee.employeeNumber} {employee.workEmail ? `• ${employee.workEmail}` : ''}

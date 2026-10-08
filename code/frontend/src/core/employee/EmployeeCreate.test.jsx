@@ -3,10 +3,19 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import { EmployeeCreate, employeeSchema, toCreatePayload } from './EmployeeCreate.jsx';
+import {
+  EmployeeCreate,
+  employeeSchema,
+  toCreatePayload,
+  roleOptions,
+  toInvitationPayload,
+} from './EmployeeCreate.jsx';
 import employeeReducer from './employeeSlice.js';
 import { employeeService } from './employeeService.js';
 import { orgMasterService } from './orgMasterService.js';
+import { roleService } from '../approvals/roleService.js';
+import { employeeInvitationService } from '../invitation/employeeInvitationService.js';
+import * as useCanModule from '@shell/screens';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -29,10 +38,29 @@ vi.mock('./orgMasterService.js', () => ({
   },
 }));
 
+vi.mock('../approvals/roleService.js', () => ({
+  roleService: {
+    list: vi.fn(),
+  },
+}));
+
+vi.mock('../invitation/employeeInvitationService.js', () => ({
+  employeeInvitationService: {
+    create: vi.fn(),
+  },
+}));
+
 vi.mock('../../shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn().mockResolvedValue(true),
   errorMsg: vi.fn().mockResolvedValue(true),
 }));
+
+const ROLES = [
+  { id: 'role-hr', code: 'hr', name: 'HR', system: true },
+  { id: 'role-employee', code: 'employee', name: 'Employee', system: true },
+  { id: 'role-manager', code: 'manager', name: 'Manager', system: true },
+  { id: 'role-platform-admin', code: 'platform-admin', name: 'Platform Admin', system: true },
+];
 
 const MASTERS = {
   departments: { 'dep-1': 'Engineering' },
@@ -75,6 +103,22 @@ function typeDate(input, value) {
   fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
 }
 
+/** Fills every required field, as the submit test does. */
+function fillRequired() {
+  fireEvent.change(screen.getByPlaceholderText('e.g. EMP001'), { target: { value: 'EMP001' } });
+  fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Asha' } });
+  fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Rao' } });
+  fireEvent.change(screen.getByPlaceholderText('email@company.com'), {
+    target: { value: 'asha@acme.test' },
+  });
+  typeDate(screen.getByPlaceholderText('Select date'), '2026-04-01');
+}
+
+async function tickAccess() {
+  fireEvent.click(document.getElementById('check-giveAccess'));
+  await waitFor(() => expect(document.getElementById('select-roles')).toBeTruthy());
+}
+
 const VALID = {
   employeeNumber: 'EMP001',
   firstName: 'Asha',
@@ -98,6 +142,8 @@ describe('EmployeeCreate component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     orgMasterService.all.mockResolvedValue(MASTERS);
+    roleService.list.mockResolvedValue(ROLES);
+    vi.spyOn(useCanModule, 'useCan').mockImplementation((code) => code === 'core.role.assign');
   });
 
   it('shows the Required group open and the More group collapsed', async () => {
@@ -251,6 +297,183 @@ describe('EmployeeCreate component', () => {
 
     await waitFor(() => expect(screen.getByText('Employee number is required')).toBeDefined());
     expect(document.querySelector('.ant-collapse-item-active')).toBeNull();
+  });
+
+  it('hides the roles select until Give portal access is ticked, then shows it with employee locked', async () => {
+    renderWithStore(<EmployeeCreate />);
+    await waitFor(() => expect(roleService.list).toHaveBeenCalled());
+
+    expect(document.getElementById('select-roles')).toBeNull();
+    expect(document.getElementById('text-access-note')).toBeNull();
+
+    await tickAccess();
+
+    expect(screen.getByText('An email goes to the work email.')).toBeDefined();
+    const selected = await waitFor(() => {
+      const items = Array.from(document.querySelectorAll('.ant-select-selection-item'));
+      const found = items.find((el) => el.textContent === 'Employee');
+      if (!found) throw new Error('Employee not selected yet');
+      return found;
+    });
+    // Locked: a disabled option renders no remove icon on its tag.
+    expect(selected.querySelector('.ant-select-selection-item-remove')).toBeNull();
+
+    fireEvent.mouseDown(document.getElementById('select-roles'));
+    await waitFor(() => {
+      const titles = Array.from(document.querySelectorAll('.ant-select-item-option')).map((el) =>
+        el.getAttribute('title')
+      );
+      expect(titles).toEqual(['Employee', 'HR', 'Manager']);
+    });
+    expect(
+      Array.from(document.querySelectorAll('.ant-select-item-option')).some(
+        (el) => el.getAttribute('title') === 'Platform Admin'
+      )
+    ).toBe(false);
+  });
+
+  it('creates the employee then the invitation with the chosen extra roles', async () => {
+    employeeService.create.mockResolvedValueOnce({ id: 'new-emp-101', employeeNumber: 'EMP001' });
+    employeeInvitationService.create.mockResolvedValueOnce({ id: 'inv-1' });
+
+    renderWithStore(<EmployeeCreate />);
+    await waitFor(() => expect(roleService.list).toHaveBeenCalled());
+    fillRequired();
+    await tickAccess();
+    await pick('select-roles', 'HR');
+
+    fireEvent.click(screen.getByRole('button', { name: /create employee/i }));
+
+    await waitFor(() => {
+      expect(employeeService.create).toHaveBeenCalledTimes(1);
+      expect(employeeInvitationService.create).toHaveBeenCalledWith({
+        employeeId: 'new-emp-101',
+        roleIds: ['role-hr'],
+      });
+      expect(mockNavigate).toHaveBeenCalledWith('/employees/new-emp-101');
+    });
+    // The create request does not carry the access fields.
+    const createBody = employeeService.create.mock.calls[0][0];
+    expect(createBody).not.toHaveProperty('giveAccess');
+    expect(createBody).not.toHaveProperty('roleIds');
+  });
+
+  it('does not invite when Give portal access is left unticked', async () => {
+    employeeService.create.mockResolvedValueOnce({ id: 'new-emp-102', employeeNumber: 'EMP001' });
+
+    renderWithStore(<EmployeeCreate />);
+    fillRequired();
+    fireEvent.click(screen.getByRole('button', { name: /create employee/i }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/employees/new-emp-102'));
+    expect(employeeInvitationService.create).not.toHaveBeenCalled();
+  });
+
+  it('shows the partial-failure message when the invitation fails after the employee is saved', async () => {
+    employeeService.create.mockResolvedValueOnce({ id: 'new-emp-101', employeeNumber: 'EMP001' });
+    employeeInvitationService.create.mockRejectedValueOnce(new Error('no work email'));
+
+    renderWithStore(<EmployeeCreate />);
+    await waitFor(() => expect(roleService.list).toHaveBeenCalled());
+    fillRequired();
+    await tickAccess();
+
+    fireEvent.click(screen.getByRole('button', { name: /create employee/i }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Saved. Invitation failed: no work email — invite from the employee page')
+      ).toBeDefined()
+    );
+    expect(document.getElementById('alert-invitation-failed')).toBeTruthy();
+    expect(mockNavigate).not.toHaveBeenCalledWith('/employees/new-emp-101');
+    expect(screen.getByRole('button', { name: /create employee/i }).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: /open employee page/i }));
+    expect(mockNavigate).toHaveBeenCalledWith('/employees/new-emp-101');
+  });
+
+  it('without core.role.assign offers portal access with the employee role only and sends no roles', async () => {
+    useCanModule.useCan.mockImplementation(() => false);
+    employeeService.create.mockResolvedValueOnce({ id: 'new-emp-103', employeeNumber: 'EMP001' });
+    employeeInvitationService.create.mockResolvedValueOnce({ id: 'inv-3' });
+
+    renderWithStore(<EmployeeCreate />);
+    fillRequired();
+    fireEvent.click(document.getElementById('check-giveAccess'));
+
+    await waitFor(() => expect(document.getElementById('text-locked-role')).toBeTruthy());
+    expect(document.getElementById('text-locked-role').textContent).toBe('Employee');
+    expect(document.getElementById('select-roles')).toBeNull();
+    expect(screen.getByText('An email goes to the work email.')).toBeDefined();
+    expect(roleService.list).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /create employee/i }));
+
+    await waitFor(() => {
+      expect(employeeInvitationService.create).toHaveBeenCalledWith({
+        employeeId: 'new-emp-103',
+        roleIds: [],
+      });
+      expect(mockNavigate).toHaveBeenCalledWith('/employees/new-emp-103');
+    });
+  });
+
+  it('with core.role.assign shows the roles picker, not the locked employee line', async () => {
+    renderWithStore(<EmployeeCreate />);
+    await waitFor(() => expect(roleService.list).toHaveBeenCalled());
+    await tickAccess();
+
+    expect(document.getElementById('text-locked-role')).toBeNull();
+  });
+
+  it('requires the work email when access is ticked', async () => {
+    renderWithStore(<EmployeeCreate />);
+    await tickAccess();
+
+    fireEvent.click(screen.getByRole('button', { name: /create employee/i }));
+
+    await waitFor(() => expect(screen.getByText('Work email is required')).toBeDefined());
+    expect(employeeService.create).not.toHaveBeenCalled();
+    expect(employeeInvitationService.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('roleOptions', () => {
+  it('drops platform-admin, puts employee first and locks it', () => {
+    expect(roleOptions(ROLES)).toEqual([
+      { value: 'role-employee', label: 'Employee', disabled: true },
+      { value: 'role-hr', label: 'HR', disabled: false },
+      { value: 'role-manager', label: 'Manager', disabled: false },
+    ]);
+  });
+
+  it('falls back to the code when a role has no name', () => {
+    expect(roleOptions([{ id: 'r-x', code: 'payroll-admin' }])).toEqual([
+      { value: 'r-x', label: 'payroll-admin', disabled: false },
+    ]);
+  });
+});
+
+describe('toInvitationPayload', () => {
+  it('sends the extra roles only, with the employee role stripped', () => {
+    expect(
+      toInvitationPayload('emp-1', { roleIds: ['role-employee', 'role-hr'] }, ROLES)
+    ).toEqual({ employeeId: 'emp-1', roleIds: ['role-hr'] });
+  });
+
+  it('sends no roles at all without core.role.assign', () => {
+    expect(toInvitationPayload('emp-1', { roleIds: ['role-hr'] }, ROLES, false)).toEqual({
+      employeeId: 'emp-1',
+      roleIds: [],
+    });
+  });
+
+  it('sends an empty list when no extra role was chosen', () => {
+    expect(toInvitationPayload('emp-1', { roleIds: [] }, ROLES)).toEqual({
+      employeeId: 'emp-1',
+      roleIds: [],
+    });
   });
 });
 

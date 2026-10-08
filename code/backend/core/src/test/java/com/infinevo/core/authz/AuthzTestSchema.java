@@ -155,6 +155,8 @@ public final class AuthzTestSchema {
                     // W-24.2: user and employee invitations
                     executeResource(conn, "db/migration/core/V117__user_invitation.sql");
                     executeResource(conn, "db/migration/core/V118__employee_invitation.sql");
+                    // W-73.3: role_ids on employee_invitation; the token lookup function returns it
+                    executeResource(conn, "db/migration/core/V163__employee_invitation_roles.sql");
                     // D-42: list_tenants() and get_tenant_overview() report the administrator
                     // invitation, reading the V117 tables; TenantQueryService maps the new columns.
                     executeResource(conn, "db/migration/core/V159__list_tenants_admin_invitation.sql");

@@ -1,6 +1,7 @@
 package com.infinevo.core.invitation;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -18,7 +19,8 @@ public record EmployeeInvitationResponse(
         Instant declinedAt,
         String declineReason,
         Instant revokedAt,
-        UUID supersededById) {
+        UUID supersededById,
+        List<UUID> roleIds) {
 
     public static EmployeeInvitationResponse from(EmployeeInvitation inv) {
         return new EmployeeInvitationResponse(
@@ -33,6 +35,7 @@ public record EmployeeInvitationResponse(
                 inv.getDeclinedAt(),
                 inv.getDeclineReason(),
                 inv.getRevokedAt(),
-                inv.getSupersededById());
+                inv.getSupersededById(),
+                inv.getRoleIds());
     }
 }

@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { EmployeePage } from './EmployeePage.jsx';
 import { employeeService } from './employeeService.js';
+import { employeeInvitationService } from '../invitation/employeeInvitationService.js';
 import employeeReducer from './employeeSlice.js';
 import * as useCanModule from '@shell/screens';
 
@@ -14,6 +15,14 @@ vi.mock('./employeeService.js', () => ({
     update: vi.fn(),
     remove: vi.fn(),
     section: vi.fn().mockResolvedValue({}),
+    getAccess: vi.fn(),
+  },
+}));
+
+vi.mock('../invitation/employeeInvitationService.js', () => ({
+  employeeInvitationService: {
+    create: vi.fn(),
+    resend: vi.fn(),
   },
 }));
 
@@ -40,6 +49,12 @@ describe('EmployeePage component', () => {
     });
 
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    employeeService.getAccess.mockResolvedValue({
+      state: 'NONE',
+      invitationId: null,
+      expiresAt: null,
+      roles: [],
+    });
   });
 
   function renderPage(employeeId) {
@@ -164,5 +179,78 @@ describe('EmployeePage component', () => {
       expect(screen.queryByText('Bank')).toBeNull();
       expect(screen.queryByText('Reporting Line')).toBeNull();
     });
+  });
+
+  const ACTIVE_EMPLOYEE = {
+    id: 'emp-acc-1',
+    employeeNumber: 'EMP-200',
+    firstName: 'Asha',
+    lastName: 'Rao',
+    status: 'ACTIVE',
+  };
+
+  it('shows No access with an Invite button that invites with no extra roles', async () => {
+    employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+    employeeInvitationService.create.mockResolvedValueOnce({ id: 'inv-9' });
+
+    renderPage('emp-acc-1');
+
+    await waitFor(() => expect(screen.getByText('No access')).toBeDefined());
+    expect(employeeService.getAccess).toHaveBeenCalledWith('emp-acc-1');
+    const invite = document.getElementById('btn-invite-employee');
+    expect(invite).not.toBeNull();
+
+    fireEvent.click(invite);
+
+    await waitFor(() =>
+      expect(employeeInvitationService.create).toHaveBeenCalledWith({
+        employeeId: 'emp-acc-1',
+        roleIds: [],
+      })
+    );
+    await waitFor(() => expect(employeeService.getAccess).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows Invited with the expiry date and a Resend button', async () => {
+    employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+    employeeService.getAccess.mockResolvedValue({
+      state: 'INVITED',
+      invitationId: 'inv-1',
+      expiresAt: '2026-10-15T10:00:00Z',
+      roles: [{ id: 'role-employee', code: 'employee', name: 'Employee' }],
+    });
+    employeeInvitationService.resend.mockResolvedValueOnce({ id: 'inv-2' });
+
+    renderPage('emp-acc-1');
+
+    await waitFor(() => expect(screen.getByText('Invited, expires 15 Oct 2026')).toBeDefined());
+    expect(document.getElementById('btn-invite-employee')).toBeNull();
+    const resend = document.getElementById('btn-resend-invitation');
+    expect(resend).not.toBeNull();
+
+    fireEvent.click(resend);
+
+    await waitFor(() => expect(employeeInvitationService.resend).toHaveBeenCalledWith('inv-1'));
+  });
+
+  it('shows Active with the account roles and no invite action', async () => {
+    employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+    employeeService.getAccess.mockResolvedValue({
+      state: 'ACTIVE',
+      invitationId: null,
+      expiresAt: null,
+      roles: [
+        { id: 'role-employee', code: 'employee', name: 'Employee' },
+        { id: 'role-hr', code: 'hr', name: 'HR' },
+      ],
+    });
+
+    renderPage('emp-acc-1');
+
+    await waitFor(() => expect(document.getElementById('tag-access')?.textContent).toBe('Active'));
+    expect(screen.getByText('employee')).toBeDefined();
+    expect(screen.getByText('hr')).toBeDefined();
+    expect(document.getElementById('btn-invite-employee')).toBeNull();
+    expect(document.getElementById('btn-resend-invitation')).toBeNull();
   });
 });

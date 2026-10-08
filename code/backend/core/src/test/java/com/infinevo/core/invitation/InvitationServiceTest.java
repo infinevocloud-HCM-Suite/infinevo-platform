@@ -251,6 +251,24 @@ class InvitationServiceTest {
     }
 
     @Test
+    @DisplayName("createEmployeeInvitation: a role not in the tenant is refused and nothing is saved (W-73.3)")
+    void createEmployeeInvitationUnknownRoleRefused() {
+        UUID empId = UUID.randomUUID();
+        UUID unknownRole = UUID.randomUUID();
+        Employee emp = mock(Employee.class);
+        when(emp.getWorkEmail()).thenReturn("jane@example.com");
+        when(employeeRepository.findByIdAndTenantIdAndDeletedFalse(empId, tenantId))
+                .thenReturn(Optional.of(emp));
+        when(roleRepository.findByIdAndTenantId(unknownRole, tenantId)).thenReturn(Optional.empty());
+
+        EmployeeInvitationRequest request = new EmployeeInvitationRequest(empId, Set.of(unknownRole));
+        assertThatThrownBy(() -> invitationService.createEmployeeInvitation(request, actorUserId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Role not found in tenant");
+        verify(employeeInvitationRepository, never()).save(any(EmployeeInvitation.class));
+    }
+
+    @Test
     @DisplayName("resendUserInvitation: revokes previous invitation, links superseded_by, issues new token")
     void resendUserInvitationSuccess() {
         UUID oldId = UUID.randomUUID();

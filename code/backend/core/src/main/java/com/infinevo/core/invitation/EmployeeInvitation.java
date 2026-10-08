@@ -9,8 +9,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * An invitation for an existing employee record to receive login access (W-24.2).
@@ -61,6 +66,11 @@ public class EmployeeInvitation {
     @Column(name = "invited_by_user_id", nullable = false, updatable = false)
     private UUID invitedByUserId;
 
+    /** The roles granted alongside the seeded {@code employee} role on acceptance (W-73.3). */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "role_ids", nullable = false, columnDefinition = "uuid[]")
+    private UUID[] roleIds = new UUID[0];
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -83,6 +93,19 @@ public class EmployeeInvitation {
             Instant expiresAt,
             UUID invitedByUserId,
             String creator) {
+        this(tenantId, employeeId, email, tokenHash, expiresAt, invitedByUserId, creator, null);
+    }
+
+    /** As the seven-argument form, carrying {@code roleIds} (null means none; duplicates dropped). */
+    public EmployeeInvitation(
+            UUID tenantId,
+            UUID employeeId,
+            String email,
+            String tokenHash,
+            Instant expiresAt,
+            UUID invitedByUserId,
+            String creator,
+            Collection<UUID> roleIds) {
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId");
         this.employeeId = Objects.requireNonNull(employeeId, "employeeId");
         this.email = Objects.requireNonNull(email, "email").toLowerCase().trim();
@@ -94,6 +117,7 @@ public class EmployeeInvitation {
         this.updatedBy = this.createdBy;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
+        setRoleIds(roleIds);
     }
 
     public void setId(UUID id) {
@@ -178,6 +202,20 @@ public class EmployeeInvitation {
 
     public UUID getInvitedByUserId() {
         return invitedByUserId;
+    }
+
+    /** The extra roles this invitation grants; never null. */
+    public List<UUID> getRoleIds() {
+        return roleIds == null ? List.of() : List.of(roleIds);
+    }
+
+    /** Replaces the extra roles; null means none, and nulls and duplicates are dropped. */
+    public void setRoleIds(Collection<UUID> roleIds) {
+        LinkedHashSet<UUID> distinct = new LinkedHashSet<>();
+        if (roleIds != null) {
+            roleIds.stream().filter(Objects::nonNull).forEach(distinct::add);
+        }
+        this.roleIds = distinct.toArray(new UUID[0]);
     }
 
     public Instant getCreatedAt() {
