@@ -10,6 +10,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.infinevo.core.employee.detail.EmployeeEmploymentRequest;
+import com.infinevo.core.employee.detail.EmployeeEmploymentResponse;
+import com.infinevo.core.employee.detail.EmployeeEmploymentService;
+import com.infinevo.core.employee.detail.EmploymentType;
 import com.infinevo.core.org.DepartmentRepository;
 import com.infinevo.core.org.DesignationRepository;
 import com.infinevo.core.org.WorkLocationRepository;
@@ -26,6 +30,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -54,6 +59,7 @@ class EmployeeServiceImplTest {
     private WorkLocationRepository workLocationRepository;
     private UserAccountRepository userAccountRepository;
     private UserProfileSyncService userProfileSyncService;
+    private EmployeeEmploymentService employmentService;
     private EmployeeServiceImpl service;
 
     @BeforeEach
@@ -65,13 +71,16 @@ class EmployeeServiceImplTest {
         workLocationRepository = mock(WorkLocationRepository.class);
         userAccountRepository = mock(UserAccountRepository.class);
         userProfileSyncService = mock(UserProfileSyncService.class);
+        employmentService = mock(EmployeeEmploymentService.class);
+        when(employmentService.find(any(UUID.class))).thenReturn(Optional.empty());
         service = new EmployeeServiceImpl(
                 repository,
                 departmentRepository,
                 designationRepository,
                 workLocationRepository,
                 userAccountRepository,
-                userProfileSyncService);
+                userProfileSyncService,
+                employmentService);
 
         when(repository.saveAndFlush(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
         when(repository.save(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
@@ -462,6 +471,153 @@ class EmployeeServiceImplTest {
                 .thenReturn(Optional.empty());
         UUID rehire = service.create(request("E-2")).id();
         assertThat(service.linkLogin(rehire, userAccountId).userAccountId()).isEqualTo(userAccountId);
+    }
+
+    // --- D-40: gender vocabulary and the employment terms on create ------------------------------
+
+    @Test
+    @DisplayName("D-40: gender is stored as one of the four names, whatever unambiguous spelling arrives")
+    void genderIsNormalised() {
+        assertThat(service.create(withGender("E-1", "F")).gender()).isEqualTo("FEMALE");
+        assertThat(service.create(withGender("E-2", "male")).gender()).isEqualTo("MALE");
+        assertThat(service.create(withGender("E-3", "Other")).gender()).isEqualTo("OTHER");
+        assertThat(service.create(withGender("E-4", "UNDISCLOSED")).gender()).isEqualTo("UNDISCLOSED");
+        assertThat(service.create(withGender("E-5", null)).gender()).isNull();
+    }
+
+    @Test
+    @DisplayName("D-40: a gender outside the vocabulary is a field error")
+    void unknownGenderIsRefused() {
+        assertThat(fieldErrors(() -> service.create(withGender("E-1", "Martian"))))
+                .containsEntry("gender", "gender must be one of MALE, FEMALE, OTHER, UNDISCLOSED");
+    }
+
+    @Test
+    @DisplayName("D-40: the notice period is 0 to 365 days, both ends included")
+    void noticePeriodBounds() {
+        assertThat(fieldErrors(() -> service.create(withTerms("E-1", null, null, -1))))
+                .containsKey("noticePeriodDays");
+        assertThat(fieldErrors(() -> service.create(withTerms("E-1", null, null, 366))))
+                .containsKey("noticePeriodDays");
+
+        assertThat(service.create(withTerms("E-1", null, null, 0)).id()).isNotNull();
+        assertThat(service.create(withTerms("E-2", null, null, 365)).id()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("D-40: probation cannot end before the joining date; ending on it is allowed")
+    void probationCannotPrecedeJoining() {
+        assertThat(fieldErrors(() -> service.create(withTerms("E-1", null, JOINED.minusDays(1), null))))
+                .containsEntry("probationEndDate", "probationEndDate cannot precede dateOfJoining");
+        verify(employmentService, never()).put(any(UUID.class), any(EmployeeEmploymentRequest.class));
+
+        assertThat(service.create(withTerms("E-1", null, JOINED, null)).id()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("D-40: create writes the three terms to the Employment section, and only those")
+    void createWritesTheEmploymentSection() {
+        UUID id = service.create(withTerms("E-1", EmploymentType.CONTRACT, JOINED.plusMonths(6), 30))
+                .id();
+
+        ArgumentCaptor<EmployeeEmploymentRequest> sent = ArgumentCaptor.forClass(EmployeeEmploymentRequest.class);
+        verify(employmentService).put(eq(id), sent.capture());
+        assertThat(sent.getValue().employmentType()).isEqualTo(EmploymentType.CONTRACT);
+        assertThat(sent.getValue().probationEndDate()).isEqualTo(JOINED.plusMonths(6));
+        assertThat(sent.getValue().noticePeriodDays()).isEqualTo(30);
+        assertThat(sent.getValue().timeZone()).isNull();
+        assertThat(sent.getValue().shiftStartTime()).isNull();
+    }
+
+    @Test
+    @DisplayName("D-40: a create without any term writes no Employment section")
+    void createWithoutTermsWritesNoSection() {
+        service.create(request("E-1"));
+
+        verify(employmentService, never()).put(any(UUID.class), any(EmployeeEmploymentRequest.class));
+    }
+
+    @Test
+    @DisplayName("D-40: moving the joining date past the probation end is refused")
+    void joiningCannotMovePastProbationEnd() {
+        UUID id = service.create(request("E-1")).id();
+        when(employmentService.find(id)).thenReturn(Optional.of(employmentWithProbationEnd(id, JOINED.plusDays(10))));
+
+        assertThat(fieldErrors(() -> service.update(id, withJoining(JOINED.plusDays(11)))))
+                .containsKey("dateOfJoining");
+        assertThat(service.update(id, withJoining(JOINED.plusDays(10))).dateOfJoining())
+                .isEqualTo(JOINED.plusDays(10));
+    }
+
+    @Test
+    @DisplayName("D-40: the terms are ignored on update, so a root replace cannot clear the section")
+    void termsAreIgnoredOnUpdate() {
+        UUID id = service.create(request("E-1")).id();
+
+        service.update(id, withTerms("E-1", EmploymentType.INTERN, JOINED.minusDays(5), 999));
+
+        verify(employmentService, never()).put(any(UUID.class), any(EmployeeEmploymentRequest.class));
+    }
+
+    private static Map<String, String> fieldErrors(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+        try {
+            call.call();
+        } catch (EmployeeService.ValidationException e) {
+            return e.fieldErrors();
+        } catch (Throwable t) {
+            throw new AssertionError("expected a ValidationException, got " + t, t);
+        }
+        throw new AssertionError("expected a ValidationException, got none");
+    }
+
+    private static EmployeeRequest withGender(String employeeNumber, String gender) {
+        return new EmployeeRequest(
+                employeeNumber, "Asha", null, "Rao", gender, JOINED, null, null, null, null, null, null, null, null);
+    }
+
+    private static EmployeeRequest withTerms(
+            String employeeNumber, EmploymentType type, LocalDate probationEnd, Integer noticePeriodDays) {
+        return new EmployeeRequest(
+                employeeNumber,
+                "Asha",
+                null,
+                "Rao",
+                "F",
+                JOINED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                type,
+                probationEnd,
+                noticePeriodDays);
+    }
+
+    private static EmployeeRequest withJoining(LocalDate dateOfJoining) {
+        return new EmployeeRequest(
+                "E-1", "Asha", null, "Rao", "F", dateOfJoining, null, null, null, null, null, null, null, null);
+    }
+
+    private static EmployeeEmploymentResponse employmentWithProbationEnd(UUID employeeId, LocalDate probationEnd) {
+        return new EmployeeEmploymentResponse(
+                UUID.randomUUID(),
+                TENANT_A,
+                employeeId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                probationEnd,
+                null,
+                null,
+                null);
     }
 
     private static EmployeeRequest withStatus(EmploymentStatus status, LocalDate terminationDate) {

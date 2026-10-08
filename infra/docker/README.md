@@ -19,7 +19,12 @@ dependencies. After that it is seconds.
 | Queue UI | http://localhost:15672 · `infinevo` / `local_queue_pw` |
 | Postgres | `localhost:5432` · database `infinevo` |
 
-Sign in as `admin.acme`, `admin.globex` or `employee.globex`, password `local_dev_pw`.
+Sign in as `admin.acme`, `admin.globex` or `employee.globex`, password `Local_dev_pw1!`.
+
+The password changed with D-36 (it was `local_dev_pw`). Keycloak keeps its data in the `pgdata`
+volume and skips importing a realm that already exists, so a stack started before that change
+keeps the old password and the old policy: run `docker compose -f infra/docker/compose.yml down -v`
+once, then `up -d` again.
 
 ---
 

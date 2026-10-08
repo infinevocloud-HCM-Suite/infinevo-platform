@@ -125,9 +125,16 @@ class ImpersonationIT extends ImpersonationItSupport {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        JsonNode items = json.readTree(response).path("items");
         List<String> keys = new ArrayList<>();
-        items.forEach(item -> keys.add(item.path("key").asText()));
+        collectKeys(json.readTree(response).path("items"), keys);
         return keys;
+    }
+
+    /** Every key in the feed, group and child alike (D-34 put roles and audit inside groups). */
+    private static void collectKeys(JsonNode items, List<String> into) {
+        items.forEach(item -> {
+            into.add(item.path("key").asText());
+            collectKeys(item.path("children"), into);
+        });
     }
 }

@@ -41,7 +41,7 @@ export function setup() {
     grant_type: 'password',
     client_id: __ENV.KEYCLOAK_CLIENT_ID || 'infinevo-web',
     username: __ENV.TEST_USERNAME || 'admin.acme',
-    password: __ENV.TEST_PASSWORD || 'local_dev_pw',
+    password: __ENV.TEST_PASSWORD || 'Local_dev_pw1!',
   };
 
   const res = http.post(tokenUrl, payload, { timeout: '10s' });

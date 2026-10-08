@@ -101,7 +101,8 @@ class TenantQueryServiceTest {
                 List.of("PAYROLL"),
                 Instant.now(),
                 LocalDate.now().plusMonths(1),
-                5L);
+                5L,
+                TenantOverview.AdminInvitation.NONE);
 
         when(jdbcTemplate.query(eq("SELECT * FROM core.list_tenants()"), any(RowMapper.class)))
                 .thenReturn(List.of(overview));
@@ -126,7 +127,8 @@ class TenantQueryServiceTest {
                 List.of("PAYROLL"),
                 Instant.now(),
                 LocalDate.now().plusMonths(1),
-                5L);
+                5L,
+                TenantOverview.AdminInvitation.NONE);
 
         when(jdbcTemplate.query(
                         eq("SELECT * FROM core.get_tenant_overview(?)"), any(RowMapper.class), eq(CUSTOMER_TENANT)))

@@ -3,6 +3,7 @@ package com.infinevo.core.employee.detail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -420,6 +421,99 @@ class EmployeeDetailServiceTest {
                             .put(EMPLOYEE_A, new EmployeePersonalRequest(null, "   ", null, null, null, null, null))
                             .maritalStatus())
                     .isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("D-40 and D-41 on the employment section")
+    class EmploymentRules {
+
+        @Test
+        @DisplayName("D-41: a time zone ZoneId.of does not know is refused; an IANA zone is kept")
+        void unknownZoneIsRefused() {
+            assertThat(fieldErrors(() -> employmentService.put(EMPLOYEE_A, withZone("India Standard Time"))))
+                    .containsEntry("timeZone", "timeZone must be an IANA time zone such as Asia/Kolkata");
+            assertThat(fieldErrors(() -> employmentService.put(EMPLOYEE_A, withZone("Mars/Olympus_Mons"))))
+                    .containsKey("timeZone");
+
+            assertThat(employmentService
+                            .put(EMPLOYEE_A, withZone("Europe/London"))
+                            .timeZone())
+                    .isEqualTo("Europe/London");
+        }
+
+        @Test
+        @DisplayName("D-41: shift times are HH:mm — seconds or a fraction are refused")
+        void shiftTimesAreWholeMinutes() {
+            assertThat(fieldErrors(() -> employmentService.put(
+                            EMPLOYEE_A, employmentRequest(LocalTime.of(9, 0, 30), LocalTime.of(18, 0)))))
+                    .containsEntry("shiftStartTime", "shiftStartTime must be HH:mm");
+            assertThat(fieldErrors(() -> employmentService.put(
+                            EMPLOYEE_A, employmentRequest(LocalTime.of(9, 0), LocalTime.of(18, 0, 0, 5)))))
+                    .containsEntry("shiftEndTime", "shiftEndTime must be HH:mm");
+
+            EmployeeEmploymentResponse saved =
+                    employmentService.put(EMPLOYEE_A, employmentRequest(LocalTime.of(9, 30), LocalTime.of(18, 15)));
+            assertThat(saved.shiftStartTime()).isEqualTo(LocalTime.of(9, 30));
+            assertThat(saved.shiftEndTime()).isEqualTo(LocalTime.of(18, 15));
+        }
+
+        @Test
+        @DisplayName("D-40: the notice period is 0 to 365 days, both ends included")
+        void noticePeriodBounds() {
+            assertThat(fieldErrors(() -> employmentService.put(EMPLOYEE_A, withTerms(null, null, -1))))
+                    .containsKey("noticePeriodDays");
+            assertThat(fieldErrors(() -> employmentService.put(EMPLOYEE_A, withTerms(null, null, 366))))
+                    .containsKey("noticePeriodDays");
+
+            assertThat(employmentService
+                            .put(EMPLOYEE_A, withTerms(null, null, 0))
+                            .noticePeriodDays())
+                    .isZero();
+            assertThat(employmentService
+                            .put(EMPLOYEE_A, withTerms(null, null, 365))
+                            .noticePeriodDays())
+                    .isEqualTo(365);
+        }
+
+        @Test
+        @DisplayName("D-40: probation cannot end before the employee's joining date")
+        void probationCannotPrecedeJoining() {
+            LocalDate joined = LocalDate.of(2026, 4, 1);
+            Employee withJoining = employee(EMPLOYEE_A);
+            when(withJoining.getDateOfJoining()).thenReturn(joined);
+            // doReturn, not when(...): when() would run the setUp answer, which stubs a mock of its own
+            // in the middle of this stubbing.
+            doReturn(Optional.of(withJoining)).when(employees).findByIdAndTenantIdAndDeletedFalse(EMPLOYEE_A, TENANT_A);
+
+            assertThat(fieldErrors(() -> employmentService.put(EMPLOYEE_A, withTerms(null, joined.minusDays(1), null))))
+                    .containsEntry("probationEndDate", "probationEndDate cannot precede dateOfJoining");
+
+            EmployeeEmploymentResponse saved =
+                    employmentService.put(EMPLOYEE_A, withTerms(EmploymentType.PERMANENT, joined.plusMonths(6), 60));
+            assertThat(saved.employmentType()).isEqualTo(EmploymentType.PERMANENT);
+            assertThat(saved.probationEndDate()).isEqualTo(joined.plusMonths(6));
+            assertThat(saved.noticePeriodDays()).isEqualTo(60);
+        }
+
+        @Test
+        @DisplayName("D-40: the six-field request still compiles and clears the three terms — PUT replaces")
+        void legacyShapeClearsTheTerms() {
+            employmentService.put(EMPLOYEE_A, withTerms(EmploymentType.CONTRACT, null, 30));
+
+            EmployeeEmploymentResponse replaced =
+                    employmentService.put(EMPLOYEE_A, employmentRequest(LocalTime.of(9, 0), LocalTime.of(18, 0)));
+
+            assertThat(replaced.employmentType()).isNull();
+            assertThat(replaced.noticePeriodDays()).isNull();
+        }
+
+        private EmployeeEmploymentRequest withZone(String zone) {
+            return new EmployeeEmploymentRequest(null, null, zone, null, null, null);
+        }
+
+        private EmployeeEmploymentRequest withTerms(EmploymentType type, LocalDate probationEnd, Integer notice) {
+            return new EmployeeEmploymentRequest(null, null, null, null, null, null, type, probationEnd, notice);
         }
     }
 

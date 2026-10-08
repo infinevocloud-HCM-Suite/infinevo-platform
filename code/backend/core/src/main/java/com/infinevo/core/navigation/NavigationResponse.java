@@ -12,6 +12,11 @@ import java.util.Set;
  * @param modules the modules the bound tenant holds - a fact about the tenant, not filtered by the
  *     caller's permissions, so a screen shared by both modules can tell which half applies
  * @param tenantName the bound tenant's name, for the shell to show; null when it cannot be read
+ * @param homePath where the shell lands this caller after login (D-35): a path the feed names, or {@code /me}
  */
 public record NavigationResponse(
-        List<NavigationItemResponse> items, Set<String> actions, Set<PlatformModule> modules, String tenantName) {}
+        List<NavigationItemResponse> items,
+        Set<String> actions,
+        Set<PlatformModule> modules,
+        String tenantName,
+        String homePath) {}

@@ -96,9 +96,11 @@ class StatutorySettingsIT extends AbstractIntegrationTest {
                 true,
                 58,
                 true,
-                true,
+                true, // include EDLI in CTC
+                false, // admin charges kept out of CTC (D-39)
                 false,
-                false,
+                false, // EDLI kept out of structure
+                true, // admin charges in structure (D-39)
                 false);
 
         EpfSettingResponse created = settingsService.saveEpf(createReq);
@@ -107,6 +109,10 @@ class StatutorySettingsIT extends AbstractIntegrationTest {
         assertThat(created.isEnabled()).isTrue();
         assertThat(created.registrationNumber()).isEqualTo("EPF-REG-12345");
         assertThat(created.employeeRate()).isEqualByComparingTo(new BigDecimal("12.0000"));
+        assertThat(created.includeEdliInCtc()).isTrue();
+        assertThat(created.includeAdminInCtc()).isFalse();
+        assertThat(created.includeEdliInStructure()).isFalse();
+        assertThat(created.includeAdminInStructure()).isTrue();
 
         // Table now has exactly 1 row
         assertThat(rawRowCount("epf_setting")).isEqualTo(1);
@@ -129,9 +135,11 @@ class StatutorySettingsIT extends AbstractIntegrationTest {
                 true,
                 60, // updated senior age
                 true,
-                true,
+                false, // EDLI now out of CTC
+                true, // admin charges now in CTC
                 false,
-                false,
+                true, // EDLI now in structure
+                false, // admin charges now out of structure
                 false);
 
         EpfSettingResponse updated = settingsService.saveEpf(updateReq);
@@ -150,6 +158,12 @@ class StatutorySettingsIT extends AbstractIntegrationTest {
         assertThat(fetched.id()).isEqualTo(created.id());
         assertThat(fetched.employeeRate()).isEqualByComparingTo(new BigDecimal("10.0000"));
         assertThat(fetched.wageCeiling()).isEqualByComparingTo(new BigDecimal("18000.0000"));
+
+        // D-39: the four EDLI/admin switches round-trip independently through the split columns.
+        assertThat(fetched.includeEdliInCtc()).isFalse();
+        assertThat(fetched.includeAdminInCtc()).isTrue();
+        assertThat(fetched.includeEdliInStructure()).isTrue();
+        assertThat(fetched.includeAdminInStructure()).isFalse();
     }
 
     @Test

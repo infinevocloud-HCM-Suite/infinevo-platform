@@ -197,6 +197,56 @@ public class SetupChecklistService {
     }
 
     /**
+     * Whether the tenant has nothing left to do in setup, read without writing anything (D-35).
+     *
+     * <p>The navigation feed asks this to choose a tenant admin's home page, inside its read-only transaction, so
+     * unlike {@link #getChecklist} it neither assembles rows nor refreshes the completion cache. A step counts as
+     * resolved when it is skipped or its checker says it is complete now; a step that is new since the tenant last
+     * touched setup does not hold the tenant back, the same rule as {@code progressPercentage}. A step with no row
+     * yet is unresolved unless its checker says otherwise.
+     */
+    @Transactional(readOnly = true)
+    public boolean isComplete(UUID tenantId) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+
+        Set<PlatformModule> activeModules = entitlementSource.modulesOf(tenantId);
+        List<TenantSetupStep> steps = repository.findByTenantIdOrderByDisplayOrderAsc(tenantId);
+        Map<String, TenantSetupStep> byCode = new HashMap<>();
+        Map<PlatformModule, Instant> groupBaseline = new HashMap<>();
+        Instant lastTouch = null;
+        for (TenantSetupStep step : steps) {
+            byCode.putIfAbsent(step.getStepCode().toUpperCase(), step);
+            if (step.getFirstSeenAt() != null) {
+                groupBaseline.merge(step.getModule(), step.getFirstSeenAt(), (a, b) -> a.isBefore(b) ? a : b);
+            }
+            lastTouch = later(lastTouch, step.getCompletedAt());
+            if (step.isSkipped()) {
+                lastTouch = later(lastTouch, step.getUpdatedAt());
+            }
+        }
+
+        for (SetupStepCatalogue.StepDefinition def : catalogue) {
+            if (!isApplicable(def, activeModules)) {
+                continue;
+            }
+            String code = def.code().toUpperCase();
+            TenantSetupStep step = byCode.get(code);
+            if (step != null && step.isSkipped()) {
+                continue;
+            }
+            SetupStepChecker checker = checkersByCode.get(code);
+            if (checker != null && checker.isComplete(tenantId)) {
+                continue;
+            }
+            if (step != null && isNewStep(step, groupBaseline.get(step.getModule()), lastTouch)) {
+                continue;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Marks a step as skipped with the given reason.
      */
     @Transactional

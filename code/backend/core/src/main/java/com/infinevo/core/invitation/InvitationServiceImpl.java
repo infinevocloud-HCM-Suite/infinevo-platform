@@ -32,6 +32,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Implementation of {@link InvitationService} (W-24.2).
@@ -403,7 +405,7 @@ public class InvitationServiceImpl implements InvitationService {
 
     private void acceptUserInvitation(UserInvitation rawInv) {
         UUID tenantId = rawInv.getTenantId();
-        TenantContext.set(tenantId);
+        boolean unbindAtCommit = bindTenantUntilTransactionEnds(tenantId);
         try {
             UserInvitation inv = userInvitationRepository
                     .findByIdForUpdate(rawInv.getId(), tenantId)
@@ -453,13 +455,15 @@ public class InvitationServiceImpl implements InvitationService {
                 throw e;
             }
         } finally {
-            TenantContext.clear();
+            if (!unbindAtCommit) {
+                TenantContext.clear();
+            }
         }
     }
 
     private void acceptEmployeeInvitation(EmployeeInvitation rawInv) {
         UUID tenantId = rawInv.getTenantId();
-        TenantContext.set(tenantId);
+        boolean unbindAtCommit = bindTenantUntilTransactionEnds(tenantId);
         try {
             EmployeeInvitation inv = employeeInvitationRepository
                     .findByIdForUpdate(rawInv.getId(), tenantId)
@@ -520,7 +524,9 @@ public class InvitationServiceImpl implements InvitationService {
                 throw e;
             }
         } finally {
-            TenantContext.clear();
+            if (!unbindAtCommit) {
+                TenantContext.clear();
+            }
         }
     }
 
@@ -600,7 +606,7 @@ public class InvitationServiceImpl implements InvitationService {
         Optional<UserInvitation> userInvOpt = userInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (userInvOpt.isPresent()) {
             UserInvitation rawInv = userInvOpt.get();
-            TenantContext.set(rawInv.getTenantId());
+            boolean unbindAtCommit = bindTenantUntilTransactionEnds(rawInv.getTenantId());
             try {
                 UserInvitation inv = userInvitationRepository
                         .findByIdForUpdate(rawInv.getId(), rawInv.getTenantId())
@@ -619,14 +625,16 @@ public class InvitationServiceImpl implements InvitationService {
                 userInvitationRepository.save(inv);
                 return;
             } finally {
-                TenantContext.clear();
+                if (!unbindAtCommit) {
+                    TenantContext.clear();
+                }
             }
         }
 
         Optional<EmployeeInvitation> empInvOpt = employeeInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (empInvOpt.isPresent()) {
             EmployeeInvitation rawInv = empInvOpt.get();
-            TenantContext.set(rawInv.getTenantId());
+            boolean unbindAtCommit = bindTenantUntilTransactionEnds(rawInv.getTenantId());
             try {
                 EmployeeInvitation inv = employeeInvitationRepository
                         .findByIdForUpdate(rawInv.getId(), rawInv.getTenantId())
@@ -645,11 +653,39 @@ public class InvitationServiceImpl implements InvitationService {
                 employeeInvitationRepository.save(inv);
                 return;
             } finally {
-                TenantContext.clear();
+                if (!unbindAtCommit) {
+                    TenantContext.clear();
+                }
             }
         }
 
         throw new IllegalArgumentException("Invalid invitation token");
+    }
+
+    /**
+     * Binds {@code tenantId} for the rest of the current transaction and unbinds it only once that
+     * transaction has completed. Returns {@code true} when the unbind is deferred that way, {@code false}
+     * when no transaction is active and the caller must clear the context itself.
+     *
+     * <p>Clearing in a {@code finally} block, as before, unbound the tenant before the commit. The flush
+     * at commit then fired the audit listener on the employee update ({@code Employee} is
+     * {@code @Audited}, and acceptance links it to its account), which needs the tenant for the row
+     * and for the RLS-bound insert after commit. It threw "No tenant bound to this thread", the commit
+     * failed, and the acceptance answered {@code 500} after the Keycloak user already existed —
+     * outside the compensation block, so that user survived and every retry failed the same way.
+     */
+    private static boolean bindTenantUntilTransactionEnds(UUID tenantId) {
+        TenantContext.set(tenantId);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return false;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                TenantContext.clear();
+            }
+        });
+        return true;
     }
 
     private UUID requireCurrentTenant() {
@@ -685,6 +721,11 @@ public class InvitationServiceImpl implements InvitationService {
             return null;
         }
         return linkBaseUrl + (linkBaseUrl.contains("?") ? "&" : "?") + "token=" + token;
+    }
+
+    @Override
+    public boolean canSendInvitationEmail() {
+        return notificationService != null && !linkBaseUrl.isEmpty();
     }
 
     private void sendUserInvitationNotification(String email, UUID tenantId, String token) {

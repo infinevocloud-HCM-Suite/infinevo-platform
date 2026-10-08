@@ -115,6 +115,10 @@ public final class PayrollTestSchema {
                     st.execute("ALTER TABLE payroll.epf_setting NO FORCE ROW LEVEL SECURITY");
                 }
             }
+            // D-39: V153 splits the merged EDLI/admin switches into four.
+            if (!columnExists(conn, "payroll", "epf_setting", "include_edli_in_ctc")) {
+                executeResource(conn, "db/migration/payroll/V153__epf_edli_admin_split.sql");
+            }
             if (!tableExists(conn, "payroll", "esi_setting")) {
                 executeResource(conn, "db/migration/payroll/V063__esi_setting.sql");
             } else {

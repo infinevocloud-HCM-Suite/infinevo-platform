@@ -41,8 +41,15 @@ describe('navLabels', () => {
     expect(navLabel('nav.payGroups')).toBe('Pay groups');
   });
 
-  it('turns a key that names only a module into a word', () => {
-    expect(navLabel('nav.hrms')).toBe('Hrms');
+  it('turns an unknown key that names only a module into a word', () => {
+    expect(navLabel('nav.crm')).toBe('Crm');
+  });
+
+  it('D-34: the module groups have their own labels', () => {
+    expect(navLabel('nav.hrms')).toBe('HRMS');
+    expect(navLabel('nav.payroll')).toBe('Payroll');
+    expect(navLabel('nav.people')).toBe('People');
+    expect(navLabel('nav.settings')).toBe('Settings');
   });
 
   it('returns a value with no dot unchanged', () => {

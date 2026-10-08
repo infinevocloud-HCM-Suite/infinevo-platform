@@ -31,10 +31,10 @@ JSON has no comment syntax, so explanation lives here instead.
 
 | User | Password | Tenant | Role |
 |---|---|---|---|
-| `admin.acme` | `local_dev_pw` | `acme-payroll` — **Payroll only** | `tenant-admin` |
-| `admin.globex` | `local_dev_pw` | `globex-full` — **HRMS + Payroll** | `tenant-admin` |
-| `employee.acme` | `local_dev_pw` | `acme-payroll` | `employee` |
-| `employee.globex` | `local_dev_pw` | `globex-full` | `employee` |
+| `admin.acme` | `Local_dev_pw1!` | `acme-payroll` — **Payroll only** | `tenant-admin` |
+| `admin.globex` | `Local_dev_pw1!` | `globex-full` — **HRMS + Payroll** | `tenant-admin` |
+| `employee.acme` | `Local_dev_pw1!` | `acme-payroll` | `employee` |
+| `employee.globex` | `Local_dev_pw1!` | `globex-full` | `employee` |
 
 Two administrators, because the two seeded tenants hold **different module sets**. Once
 entitlement lands (`W-11`), `admin.acme` should see no HRMS screens and `admin.globex`

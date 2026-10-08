@@ -31,7 +31,7 @@ vi.mock('../auth/keycloak.js', () => {
 import { apiClient } from '../../shared/api/client.js';
 import { fireTenantChange, listenerCount } from '../auth/keycloak.js';
 import { AppShell } from '../AppShell.jsx';
-import { resetNavigationFeed } from './useNavigation.js';
+import { resetNavigationFeed, fetchNavigationFeed } from './useNavigation.js';
 
 const ACME_FEED = {
   items: [
@@ -164,6 +164,17 @@ describe('AppShell over the navigation feed', () => {
     expect(apiClient.get).toHaveBeenCalledTimes(2);
     expect(renderedMenuLabels(container)).toEqual(['Audit log']);
     expect(screen.queryByText('Roles')).toBeNull();
+  });
+
+  it('publishes the home path the feed names, and drops one that is not a path (D-35)', async () => {
+    apiClient.get.mockResolvedValueOnce({ data: { ...ACME_FEED, homePath: '/setup' } });
+    expect((await fetchNavigationFeed()).homePath).toBe('/setup');
+
+    apiClient.get.mockResolvedValueOnce({ data: { ...ACME_FEED, homePath: 'https://elsewhere.test' } });
+    expect((await fetchNavigationFeed()).homePath).toBeNull();
+
+    apiClient.get.mockResolvedValueOnce({ data: ACME_FEED });
+    expect((await fetchNavigationFeed()).homePath).toBeNull();
   });
 
   it('stops listening for tenant changes when unmounted', async () => {

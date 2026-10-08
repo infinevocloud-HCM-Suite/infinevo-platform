@@ -48,8 +48,24 @@ public class TenantQueryService {
 
         long userCount = rs.getLong("user_count");
 
+        // D-42: V159 adds the administrator invitation's email and status.
+        TenantOverview.AdminInvitationStatus adminStatus =
+                TenantOverview.AdminInvitationStatus.of(rs.getString("admin_invitation_status"));
+        TenantOverview.AdminInvitation adminInvitation = adminStatus == TenantOverview.AdminInvitationStatus.NONE
+                ? TenantOverview.AdminInvitation.NONE
+                : new TenantOverview.AdminInvitation(rs.getString("admin_invitation_email"), adminStatus);
+
         return new TenantOverview(
-                tenantId, name, countryCode, timezone, status, modules, createdAt, currentPeriodEnd, userCount);
+                tenantId,
+                name,
+                countryCode,
+                timezone,
+                status,
+                modules,
+                createdAt,
+                currentPeriodEnd,
+                userCount,
+                adminInvitation);
     };
 
     private final JdbcTemplate jdbcTemplate;

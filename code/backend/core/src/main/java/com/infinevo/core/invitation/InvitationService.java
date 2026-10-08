@@ -10,6 +10,12 @@ public interface InvitationService {
 
     UserInvitationResponse createUserInvitation(UserInvitationRequest request, UUID actorUserId);
 
+    /**
+     * True when an invitation email can be composed: {@code invitation.link.base-url} is set. Without it an
+     * invitation row is written but no email ever leaves, so callers that promise an email check this first.
+     */
+    boolean canSendInvitationEmail();
+
     List<UserInvitationResponse> listUserInvitations(InvitationStatus status);
 
     UserInvitationResponse resendUserInvitation(UUID invitationId, UUID actorUserId);

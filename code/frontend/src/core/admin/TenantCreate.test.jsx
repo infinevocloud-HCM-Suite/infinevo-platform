@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { TenantCreate, isTimeZone } from './TenantCreate.jsx';
 import { tenantService } from './tenantService.js';
+import { successMsg } from '@shared/ui/msgHelper.js';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -35,6 +36,45 @@ describe('TenantCreate', () => {
       }),
     );
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/admin/tenants'));
+    expect(successMsg).toHaveBeenCalledWith('Tenant created', 'Initech is ready.');
+  });
+
+  it('sends a given administrator email as admin_email and says the admin was invited', async () => {
+    tenantService.create.mockResolvedValue({ tenantId: 't-9', adminInvitationId: 'inv-1' });
+    render(<MemoryRouter><TenantCreate /></MemoryRouter>);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Initech' } });
+    fireEvent.change(screen.getByLabelText('Administrator email'), {
+      target: { value: '  boss@initech.example  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create tenant/i }));
+
+    await waitFor(() =>
+      expect(tenantService.create).toHaveBeenCalledWith({
+        name: 'Initech',
+        country_code: 'IN',
+        timezone: 'Asia/Kolkata',
+        leave_year_start_month: 4,
+        modules: [],
+        admin_email: 'boss@initech.example',
+      }),
+    );
+    await waitFor(() =>
+      expect(successMsg).toHaveBeenCalledWith(
+        'Tenant created',
+        'Initech is ready. An invitation was sent to boss@initech.example.',
+      ),
+    );
+  });
+
+  it('refuses a malformed administrator email before calling the server', async () => {
+    render(<MemoryRouter><TenantCreate /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Initech' } });
+    fireEvent.change(screen.getByLabelText('Administrator email'), { target: { value: 'not-an-email' } });
+    fireEvent.click(screen.getByRole('button', { name: /create tenant/i }));
+
+    expect(await screen.findByText('Enter a valid email address')).toBeDefined();
+    expect(tenantService.create).not.toHaveBeenCalled();
   });
 
   it('refuses a blank name, a three-letter country and an unknown timezone before calling the server', async () => {

@@ -405,10 +405,10 @@ public class TaxInputAssembler {
                                     earning.map(Earning::getEarningType).orElse("");
                             BigDecimal amt = item.monthlyAmount();
                             if (amt != null && taxable) {
-                                if ("BASIC".equalsIgnoreCase(code) || "BASIC".equalsIgnoreCase(earningType)) {
+                                if (EarningKinds.isBasic(code, earningType)) {
                                     basic = basic.add(Money.of(amt));
                                 }
-                                if ("HRA".equalsIgnoreCase(code) || "HRA".equalsIgnoreCase(earningType)) {
+                                if (EarningKinds.isHra(code, earningType)) {
                                     hra = hra.add(Money.of(amt));
                                 }
                             }

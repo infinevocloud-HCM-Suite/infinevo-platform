@@ -1,5 +1,8 @@
 package com.infinevo.core.tenant;
 
+import com.infinevo.core.invitation.InvitationService;
+import com.infinevo.core.invitation.UserInvitationRequest;
+import com.infinevo.core.invitation.UserInvitationResponse;
 import com.infinevo.core.setup.SetupChecklistService;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.TenantContext;
@@ -9,11 +12,14 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.DateTimeException;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,6 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Provisions a new tenant through the PostgreSQL {@code SECURITY DEFINER} function
  * {@code core.provision_tenant}, which atomically writes the tenant, subscription, and module records.
+ *
+ * <p>With an {@code admin_email} on the request, the same transaction invites that address as the new
+ * tenant's {@code tenant-admin} through {@link InvitationService} (D-42), so platform staff no longer
+ * act as the tenant to invite its first administrator.
  */
 @Service
 public class TenantServiceImpl implements TenantService {
@@ -35,8 +45,12 @@ public class TenantServiceImpl implements TenantService {
     private static final String DEFAULT_TIMEZONE = "Asia/Kolkata";
     private static final short DEFAULT_LEAVE_YEAR_START_MONTH = 4;
 
+    /** The system role {@code core.seed_system_roles} gives every tenant its administrators through. */
+    static final String TENANT_ADMIN_ROLE = "tenant-admin";
+
     private final JdbcTemplate jdbcTemplate;
     private final SetupChecklistService setupChecklistService;
+    private final Supplier<InvitationService> invitationService;
 
     public TenantServiceImpl(JdbcTemplate jdbcTemplate) {
         this(jdbcTemplate, (SetupChecklistService) null);
@@ -44,24 +58,44 @@ public class TenantServiceImpl implements TenantService {
 
     // The constructor Spring uses. With more than one constructor Spring needs one marked,
     // or it falls back to a no-arg constructor that does not exist. ObjectProvider keeps
-    // contexts that do not scan SetupChecklistService (the guard test slices) starting.
+    // contexts that do not scan SetupChecklistService or InvitationService (the guard test
+    // slices) starting; the invitation service is looked up only when an admin is invited.
     @Autowired
     public TenantServiceImpl(
             JdbcTemplate jdbcTemplate,
-            org.springframework.beans.factory.ObjectProvider<SetupChecklistService> setupChecklistServiceProvider) {
+            ObjectProvider<SetupChecklistService> setupChecklistServiceProvider,
+            ObjectProvider<InvitationService> invitationServiceProvider) {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.setupChecklistService =
                 setupChecklistServiceProvider != null ? setupChecklistServiceProvider.getIfAvailable() : null;
+        this.invitationService =
+                invitationServiceProvider != null ? invitationServiceProvider::getIfAvailable : () -> null;
     }
 
     public TenantServiceImpl(JdbcTemplate jdbcTemplate, SetupChecklistService setupChecklistService) {
+        this(jdbcTemplate, setupChecklistService, null);
+    }
+
+    public TenantServiceImpl(
+            JdbcTemplate jdbcTemplate,
+            SetupChecklistService setupChecklistService,
+            InvitationService invitationService) {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.setupChecklistService = setupChecklistService;
+        this.invitationService = () -> invitationService;
+    }
+
+    // Declared here, not as an interface default, so a call through the Spring proxy opens the
+    // transaction: a default method would reach the two-argument one by self-invocation, untransacted.
+    @Override
+    @Transactional
+    public TenantResponse provisionTenant(TenantRequest request) {
+        return provisionTenant(request, null);
     }
 
     @Override
     @Transactional
-    public TenantResponse provisionTenant(TenantRequest request) {
+    public TenantResponse provisionTenant(TenantRequest request, UUID actorUserId) {
         Objects.requireNonNull(request, "request must not be null");
 
         // 1. Validate name
@@ -108,6 +142,29 @@ public class TenantServiceImpl implements TenantService {
         Set<PlatformModule> modules = request.modules() != null ? request.modules() : Set.of();
         String[] moduleNames = modules.stream().map(Enum::name).toArray(String[]::new);
 
+        // 6. Administrator email (D-42). Checked before anything is written, so a bad address or a
+        //    missing inviter provisions nothing.
+        final String adminEmail = request.validatedAdminEmail();
+        final InvitationService invitations;
+        if (adminEmail != null) {
+            if (actorUserId == null) {
+                throw new IllegalStateException(
+                        "No authenticated user could be resolved to record as the inviter of the tenant administrator");
+            }
+            invitations = invitationService.get();
+            if (invitations == null) {
+                throw new IllegalStateException(
+                        "User invitations are not available to invite the tenant administrator");
+            }
+            if (!invitations.canSendInvitationEmail()) {
+                throw new IllegalArgumentException(
+                        "admin_email cannot be used: invitation emails are not configured on this server"
+                                + " (INVITATION_LINK_BASE_URL)");
+            }
+        } else {
+            invitations = null;
+        }
+
         final String finalCountryCode = countryCode;
         final String finalTimezone = timezone;
         final short finalMonth = leaveYearStartMonth;
@@ -131,19 +188,29 @@ public class TenantServiceImpl implements TenantService {
 
         log.info("Provisioned tenant {} ({}) with modules {}", tenantId, name, modules);
 
-        if (setupChecklistService != null) {
-            assembleChecklistAs(tenantId);
+        UUID adminInvitationId = null;
+        if (setupChecklistService != null || adminEmail != null) {
+            adminInvitationId = runAsTenant(tenantId, () -> {
+                if (setupChecklistService != null) {
+                    setupChecklistService.assemble(tenantId);
+                }
+                return adminEmail != null ? inviteAdministrator(invitations, tenantId, adminEmail, actorUserId) : null;
+            });
         }
 
-        return new TenantResponse(tenantId, tenantId, name, finalCountryCode, finalTimezone, finalMonth, modules);
+        return new TenantResponse(
+                tenantId, tenantId, name, finalCountryCode, finalTimezone, finalMonth, modules, adminInvitationId);
     }
 
-    // The checklist rows belong to the new tenant, but the open transaction's connection is
-    // bound to the provisioner's tenant by the first statement above, and row-level security
-    // on core.tenant_setup_step refuses a row for any other tenant. Rebind the thread and the
-    // transaction to the new tenant; the binding lasts until this transaction ends, and
-    // nothing else runs in it after the checklist.
-    private void assembleChecklistAs(UUID tenantId) {
+    // The checklist rows and the administrator invitation belong to the new tenant, but the open
+    // transaction's connection is bound to the provisioner's tenant by the first statement above,
+    // and row-level security on core.tenant_setup_step, core.user_invitation,
+    // core.user_invitation_role and core.notification refuses a row for any other tenant. Rebind
+    // the thread and the transaction to the new tenant. The thread binding is restored on the way
+    // out; the connection binding is not, and must not be: JPA writes its inserts at flush, which
+    // may be the commit, and they must reach the database under the new tenant. Nothing else runs
+    // in this transaction afterwards.
+    private <T> T runAsTenant(UUID tenantId, Supplier<T> work) {
         UUID previousTenant = TenantContext.current().orElse(null);
         try {
             TenantContext.set(tenantId);
@@ -151,7 +218,7 @@ public class TenantServiceImpl implements TenantService {
                 TenantContext.setForConnection(conn);
                 return null;
             });
-            setupChecklistService.assemble(tenantId);
+            return work.get();
         } finally {
             if (previousTenant != null) {
                 TenantContext.set(previousTenant);
@@ -159,5 +226,29 @@ public class TenantServiceImpl implements TenantService {
                 TenantContext.clear();
             }
         }
+    }
+
+    /**
+     * Invites {@code email} as the administrator of {@code tenantId}, with the tenant's {@code tenant-admin}
+     * role, through the same service and email as {@code POST /api/v1/user-invitations} (W-24.2). Runs with
+     * the new tenant bound.
+     *
+     * @return the invitation's id
+     */
+    private UUID inviteAdministrator(InvitationService invitations, UUID tenantId, String email, UUID actorUserId) {
+        // The role is seeded by the core.tenant insert trigger (V022 tenant_seed_system_roles).
+        List<UUID> roleIds = jdbcTemplate.query(
+                "SELECT id FROM core.role WHERE tenant_id = ? AND code = ?",
+                (rs, rowNum) -> rs.getObject("id", UUID.class),
+                tenantId,
+                TENANT_ADMIN_ROLE);
+        if (roleIds.isEmpty()) {
+            throw new IllegalStateException("Tenant " + tenantId + " has no " + TENANT_ADMIN_ROLE + " role");
+        }
+        UserInvitationResponse invitation =
+                invitations.createUserInvitation(new UserInvitationRequest(email, Set.of(roleIds.get(0))), actorUserId);
+        // The id only: the address is personal data.
+        log.info("Invited the administrator of tenant {} (user invitation {})", tenantId, invitation.id());
+        return invitation.id();
     }
 }

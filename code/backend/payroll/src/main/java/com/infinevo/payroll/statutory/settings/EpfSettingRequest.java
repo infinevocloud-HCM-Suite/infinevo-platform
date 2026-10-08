@@ -24,7 +24,9 @@ public record EpfSettingRequest(
         @JsonAlias({"consider_earned_wage"}) Boolean considerEarnedWage,
         @JsonAlias({"eps_senior_age"}) Integer epsSeniorAge,
         @JsonAlias({"include_employer_in_ctc"}) Boolean includeEmployerInCtc,
-        @JsonAlias({"include_edli_admin_in_ctc"}) Boolean includeEdliAdminInCtc,
+        @JsonAlias({"include_edli_in_ctc"}) Boolean includeEdliInCtc,
+        @JsonAlias({"include_admin_in_ctc"}) Boolean includeAdminInCtc,
         @JsonAlias({"include_employer_in_structure"}) Boolean includeEmployerInStructure,
-        @JsonAlias({"include_edli_admin_in_structure"}) Boolean includeEdliAdminInStructure,
+        @JsonAlias({"include_edli_in_structure"}) Boolean includeEdliInStructure,
+        @JsonAlias({"include_admin_in_structure"}) Boolean includeAdminInStructure,
         @JsonAlias({"abry_scheme"}) Boolean abryScheme) {}

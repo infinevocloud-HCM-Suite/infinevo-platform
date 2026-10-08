@@ -1,10 +1,29 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-04**, against `main` `42939851`.
+> Last refreshed: **2026-10-08**, against `main` `a63ce18e`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-10-07 — `D-33`–`D-42` fixed on `main` (`f996cd1c`, `a6b3dca3`; CI green at `a63ce18e`)
+
+| Defect | What |
+|---|---|
+| `D-33` | `V158`: platform tenant's roles hold `core.tenant.*`, `core.audit.read`, `core.user.manage` only; refusing trigger; Setup and User invitations hidden from its menu |
+| `D-34` | Menu grouped: People · Organisation · Approvals · Leave · Settings · Tenants · Payroll · HRMS |
+| `D-35` | Navigation feed returns `homePath` by role; the shell uses it at `/` |
+| `D-36` | Strong password policy and brute-force lockout in both realms; seeded dev password now `Local_dev_pw1!` |
+| `D-37`, `D-38` | Named earning types, Variable checkbox, Statutory & tax group in the component drawer |
+| `D-39` | `V153` splits EDLI and admin switches; statutory settings screens now load (key casing fix) |
+| `D-40`, `D-41` | `V154`: employment type, probation end, notice period; IANA zone select, `HH:mm` shift pickers |
+| `D-42` | `V159`; `admin_email` on Create Tenant invites the tenant admin; list shows invited / accepted |
+
+- Built on `dev-claude` by Claude, two commits (fix + merge-review fixes), pushed to `main` by the founder with `b6a798f1`. Backend verify 3,159 tests green locally; frontend 821, lint clean. CI on `b6a798f1` failed on a pre-existing race in `ReminderSingleRunIT` (it locked the live scheduler's ShedLock name); fixed in `a63ce18e`, CI green, fast-forwarded to `main`. Gates 5/5.
+- **Founder steps:** apply the password policy and brute-force settings to the Azure dev realm by hand; `docker compose down -v` once on any local stack started before the password change; five specs under `docs/` still show `local_dev_pw` in curl examples.
+- **Deferred:** `include_*_in_structure` switches are stored but nothing calculates from them (pre-existing); EMI type and tax-exempt section are free text; `get_tenant_overview` filters `list_tenants()` after the fact (F-7). Nothing carries the tenant's time zone to the frontend, so the Employment zone starts blank.
+- **Newly unblocked:** `W-73.2` (needs `D-33`, `D-35`, `D-42`), `W-73.3` (`D-40`), `W-73.6` (`D-37`, `D-38`), `W-73.9` (`D-42`), `W-73.8` (`D-35`, still needs `W-73.1`).
+- **Branches:** `dev-claude` reset to `main`. `D-9` remains open with sayeed.
 
 ## 2026-10-04 — `W-68` merged (`42939851`)
 

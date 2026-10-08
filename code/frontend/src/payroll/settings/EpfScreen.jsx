@@ -98,9 +98,11 @@ export function EpfScreen() {
           consider_earned_wage: data.consider_earned_wage ?? true,
           eps_senior_age: data.eps_senior_age != null ? Number(data.eps_senior_age) : 58,
           include_employer_in_ctc: !!data.include_employer_in_ctc,
-          include_edli_admin_in_ctc: !!data.include_edli_admin_in_ctc,
+          include_edli_in_ctc: !!data.include_edli_in_ctc,
+          include_admin_in_ctc: !!data.include_admin_in_ctc,
           include_employer_in_structure: !!data.include_employer_in_structure,
-          include_edli_admin_in_structure: !!data.include_edli_admin_in_structure,
+          include_edli_in_structure: !!data.include_edli_in_structure,
+          include_admin_in_structure: !!data.include_admin_in_structure,
           abry_scheme: !!data.abry_scheme,
         });
       }
@@ -137,9 +139,11 @@ export function EpfScreen() {
         consider_earned_wage: !!values.consider_earned_wage,
         eps_senior_age: Number(values.eps_senior_age),
         include_employer_in_ctc: !!values.include_employer_in_ctc,
-        include_edli_admin_in_ctc: !!values.include_edli_admin_in_ctc,
+        include_edli_in_ctc: !!values.include_edli_in_ctc,
+        include_admin_in_ctc: !!values.include_admin_in_ctc,
         include_employer_in_structure: !!values.include_employer_in_structure,
-        include_edli_admin_in_structure: !!values.include_edli_admin_in_structure,
+        include_edli_in_structure: !!values.include_edli_in_structure,
+        include_admin_in_structure: !!values.include_admin_in_structure,
         abry_scheme: !!values.abry_scheme,
       };
 
@@ -404,11 +408,21 @@ export function EpfScreen() {
 
           <Col xs={24} md={12}>
             <Form.Item
-              name="include_edli_admin_in_ctc"
-              label="Include EDLI & Admin Charges in CTC"
+              name="include_edli_in_ctc"
+              label="Include EDLI contribution in CTC"
               valuePropName="checked"
             >
-              <Switch />
+              <Switch data-testid="epf-include-edli-in-ctc" />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="include_admin_in_ctc"
+              label="Include EPF admin charges in CTC"
+              valuePropName="checked"
+            >
+              <Switch data-testid="epf-include-admin-in-ctc" />
             </Form.Item>
           </Col>
 
@@ -424,11 +438,21 @@ export function EpfScreen() {
 
           <Col xs={24} md={12}>
             <Form.Item
-              name="include_edli_admin_in_structure"
-              label="Include EDLI & Admin Charges in Salary Structure"
+              name="include_edli_in_structure"
+              label="Include EDLI contribution in salary structure"
               valuePropName="checked"
             >
-              <Switch />
+              <Switch data-testid="epf-include-edli-in-structure" />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="include_admin_in_structure"
+              label="Include EPF admin charges in salary structure"
+              valuePropName="checked"
+            >
+              <Switch data-testid="epf-include-admin-in-structure" />
             </Form.Item>
           </Col>
 

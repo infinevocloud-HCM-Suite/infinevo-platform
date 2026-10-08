@@ -1,10 +1,25 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import dayjs from 'dayjs';
-import { Row, Col, Input, Select, Switch, Button, DatePicker, Typography, Spin, Card, theme } from 'antd';
+import {
+  Row,
+  Col,
+  Input,
+  InputNumber,
+  Select,
+  Switch,
+  Button,
+  DatePicker,
+  TimePicker,
+  Typography,
+  Spin,
+  Card,
+  theme,
+} from 'antd';
 import { SaveOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { sectionFields } from '../sectionFields.js';
+import { timeZoneOptions, parseHHmm, formatHHmm } from '../timeFields.js';
 import { employeeService } from '../employeeService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
@@ -51,6 +66,9 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
     };
   }, [employeeId, sectionName]);
 
+  // D-41: a blank time zone stays blank until someone picks one. Nothing the frontend loads carries
+  // the tenant's zone, and the browser's would be recorded silently on any other Employment save.
+
   const handleChange = (name, val) => {
     setValues((prev) => ({ ...prev, [name]: val }));
   };
@@ -93,6 +111,46 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
                 allowClear
                 onChange={(v) => handleChange(field.name, v)}
                 options={field.options}
+              />
+            );
+          } else if (field.type === 'timezone') {
+            control = (
+              <Select
+                id={`field-${field.name}`}
+                style={{ width: '100%' }}
+                disabled={!canUpdate}
+                showSearch
+                optionFilterProp="label"
+                value={val || undefined}
+                placeholder="Select time zone"
+                onChange={(v) => handleChange(field.name, v || null)}
+                options={timeZoneOptions(val)}
+              />
+            );
+          } else if (field.type === 'time') {
+            control = (
+              <TimePicker
+                id={`field-${field.name}`}
+                style={{ width: '100%' }}
+                disabled={!canUpdate}
+                format="HH:mm"
+                needConfirm={false}
+                value={parseHHmm(val)}
+                placeholder="HH:mm"
+                onChange={(t) => handleChange(field.name, formatHHmm(t))}
+              />
+            );
+          } else if (field.type === 'number') {
+            control = (
+              <InputNumber
+                id={`field-${field.name}`}
+                style={{ width: '100%' }}
+                disabled={!canUpdate}
+                min={field.min}
+                max={field.max}
+                precision={0}
+                value={val ?? null}
+                onChange={(v) => handleChange(field.name, v ?? null)}
               />
             );
           } else if (field.type === 'date') {

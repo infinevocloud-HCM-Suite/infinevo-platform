@@ -42,4 +42,4 @@ still be talking about the same tenant after a restart. They are the same two th
 migration module's `TenantIsolationIT` uses.
 
 Their administrators already exist in Keycloak — `admin.acme` and `admin.globex`, both
-with password `local_dev_pw`. See `../keycloak/dev-realm.json`.
+with password `Local_dev_pw1!`. See `../keycloak/dev-realm.json`.

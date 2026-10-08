@@ -1,7 +1,33 @@
 /**
  * Field metadata definitions for the 5 detail sections:
  * personal, contact, identification, employment, bank.
+ *
+ * Field types SectionTab renders: text, email, textarea, select, date, boolean, and
+ * (D-40, D-41) number, time (HH:mm) and timezone (searchable IANA zone select).
  */
+
+/** core.employee.gender — the backend's Gender enum (D-40). */
+export const GENDER_OPTIONS = [
+  { value: 'MALE', label: 'Male' },
+  { value: 'FEMALE', label: 'Female' },
+  { value: 'OTHER', label: 'Other' },
+  { value: 'UNDISCLOSED', label: 'Prefer not to say' },
+];
+
+/** core.employee_employment.employment_type — the backend's EmploymentType enum (D-40). */
+export const EMPLOYMENT_TYPE_OPTIONS = [
+  { value: 'PERMANENT', label: 'Permanent' },
+  { value: 'CONTRACT', label: 'Contract' },
+  { value: 'PART_TIME', label: 'Part-time' },
+  { value: 'INTERN', label: 'Intern' },
+  { value: 'PROBATION', label: 'Probation' },
+  { value: 'CONSULTANT', label: 'Consultant' },
+];
+
+/** Inclusive bounds the backend enforces on noticePeriodDays (EmploymentTerms). */
+export const NOTICE_PERIOD_MIN = 0;
+export const NOTICE_PERIOD_MAX = 365;
+
 export const sectionFields = {
   personal: {
     title: 'Personal Details',
@@ -79,11 +105,25 @@ export const sectionFields = {
     title: 'Employment Details',
     permission: 'core.employee.update',
     fields: [
+      {
+        name: 'employmentType',
+        label: 'Employment Type',
+        type: 'select',
+        options: EMPLOYMENT_TYPE_OPTIONS,
+      },
+      { name: 'probationEndDate', label: 'Probation End Date', type: 'date' },
+      {
+        name: 'noticePeriodDays',
+        label: 'Notice Period (days)',
+        type: 'number',
+        min: NOTICE_PERIOD_MIN,
+        max: NOTICE_PERIOD_MAX,
+      },
       { name: 'payGrade', label: 'Pay Grade', type: 'text' },
       { name: 'workstationId', label: 'Workstation ID', type: 'text' },
-      { name: 'timeZone', label: 'Time Zone', type: 'text' },
-      { name: 'shiftStartTime', label: 'Shift Start Time (HH:mm)', type: 'text' },
-      { name: 'shiftEndTime', label: 'Shift End Time (HH:mm)', type: 'text' },
+      { name: 'timeZone', label: 'Time Zone', type: 'timezone' },
+      { name: 'shiftStartTime', label: 'Shift Start Time', type: 'time' },
+      { name: 'shiftEndTime', label: 'Shift End Time', type: 'time' },
       { name: 'note', label: 'Reporting Manager Notes', type: 'textarea' },
     ],
   },

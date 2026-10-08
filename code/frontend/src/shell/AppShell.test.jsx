@@ -69,6 +69,77 @@ describe('AppShell component', () => {
     expect(await screen.findByRole('heading', { name: /Employees/i }, { timeout: 5000 })).toBeDefined();
   });
 
+  it('opens the home path the feed names at the root, not the first menu entry (D-35)', async () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [
+        { key: 'core.org', labelKey: 'nav.organisation', children: [{ key: 'core.roles', labelKey: 'nav.roles', path: '/roles' }] },
+        { key: 'core.people', labelKey: 'nav.people', children: [{ key: 'core.employee', labelKey: 'nav.employees', path: '/employees' }] },
+      ],
+      homePath: '/employees',
+      loading: false,
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/']}>
+          <AppShell />
+        </MemoryRouter>
+      </Provider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: /Employees/i }, { timeout: 5000 })).toBeDefined();
+  });
+
+  it('sends an employee with an empty menu from the root to the portal home the feed names (D-35)', () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [],
+      homePath: '/me',
+      loading: false,
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/']}>
+          <AppShell />
+        </MemoryRouter>
+      </Provider>,
+    );
+
+    expect(screen.queryByText('No Modules Available')).toBeNull();
+  });
+
+  it('keeps menu groups collapsed except the one holding the current screen (D-34)', () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [
+        {
+          key: 'core.people',
+          labelKey: 'nav.people',
+          path: '/core-people',
+          children: [{ key: 'core.employee', labelKey: 'nav.employees', path: '/core-people' }],
+        },
+        {
+          key: 'core.settings',
+          labelKey: 'nav.settings',
+          path: '/core-audit',
+          children: [{ key: 'core.audit', labelKey: 'nav.audit', path: '/core-audit' }],
+        },
+      ],
+      loading: false,
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/core-audit']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    const labels = Array.from(container.querySelectorAll('.ant-menu-item')).map((el) => el.textContent.trim());
+    expect(labels).toContain('Audit log');
+    expect(labels).not.toContain('Employees');
+    const titles = Array.from(container.querySelectorAll('.ant-menu-submenu-title')).map((el) => el.textContent.trim());
+    expect(titles).toEqual(['People', 'Settings']);
+  });
+
   it('shows the tenant name from the feed in the header', () => {
     vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
       items: [{ key: 'core', labelKey: 'Core', path: '/core' }],

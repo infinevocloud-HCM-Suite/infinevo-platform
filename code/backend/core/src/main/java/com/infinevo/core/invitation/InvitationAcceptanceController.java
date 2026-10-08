@@ -7,6 +7,8 @@ import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
 import java.util.Objects;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/invitations")
 public class InvitationAcceptanceController {
+
+    private static final Logger log = LoggerFactory.getLogger(InvitationAcceptanceController.class);
 
     private final InvitationService invitationService;
 
@@ -65,6 +69,8 @@ public class InvitationAcceptanceController {
 
     @ExceptionHandler(KeycloakProvisioningException.class)
     public ResponseEntity<ApiErrorResponse> handleKeycloakProvisioning(KeycloakProvisioningException e) {
+        // The reply is deliberately generic; the log carries the reason so the failure can be diagnosed.
+        log.warn("Invitation request failed at Keycloak (traceId {}): {}", traceId(), e.getMessage(), e);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiErrorResponse.of(
                         ApiError.INTERNAL,
@@ -105,6 +111,8 @@ public class InvitationAcceptanceController {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneralException(Exception e) {
+        // The reply is deliberately generic; the log carries the reason so the failure can be diagnosed.
+        log.error("Invitation request failed (traceId {})", traceId(), e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiErrorResponse.of(
                         ApiError.INTERNAL, "An unexpected error occurred while processing the invitation.", traceId()));

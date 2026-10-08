@@ -1,5 +1,6 @@
 package com.infinevo.core.tenant;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -21,6 +22,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,6 +36,7 @@ class TenantControllerTest {
     private ObjectMapper objectMapper;
 
     private static final UUID TENANT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID INVITATION_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @BeforeEach
     void setUp() {
@@ -61,7 +64,8 @@ class TenantControllerTest {
                 List.of("PAYROLL"),
                 Instant.parse("2026-01-01T00:00:00Z"),
                 LocalDate.of(2026, 12, 31),
-                10L);
+                10L,
+                new TenantOverview.AdminInvitation("admin@acme.test", TenantOverview.AdminInvitationStatus.PENDING));
 
         when(tenantQueryService.list()).thenReturn(List.of(overview));
 
@@ -73,7 +77,9 @@ class TenantControllerTest {
                 .andExpect(jsonPath("$[0].timezone").value("Asia/Kolkata"))
                 .andExpect(jsonPath("$[0].status").value("active"))
                 .andExpect(jsonPath("$[0].modules[0]").value("PAYROLL"))
-                .andExpect(jsonPath("$[0].user_count").value(10));
+                .andExpect(jsonPath("$[0].user_count").value(10))
+                .andExpect(jsonPath("$[0].admin_invitation.email").value("admin@acme.test"))
+                .andExpect(jsonPath("$[0].admin_invitation.status").value("PENDING"));
 
         verify(tenantQueryService).list();
     }
@@ -90,7 +96,8 @@ class TenantControllerTest {
                 List.of("PAYROLL"),
                 Instant.parse("2026-01-01T00:00:00Z"),
                 LocalDate.of(2026, 12, 31),
-                10L);
+                10L,
+                new TenantOverview.AdminInvitation("admin@acme.test", TenantOverview.AdminInvitationStatus.PENDING));
 
         when(tenantQueryService.getOverview(TENANT_ID)).thenReturn(overview);
 
@@ -117,12 +124,19 @@ class TenantControllerTest {
     @Test
     @DisplayName("POST /api/v1/tenants returns 201 with created tenant")
     void createTenant_returns201() throws Exception {
-        TenantRequest request =
-                new TenantRequest("New Tenant", "IN", "Asia/Kolkata", (short) 4, Set.of(PlatformModule.PAYROLL));
+        TenantRequest request = new TenantRequest(
+                "New Tenant", "IN", "Asia/Kolkata", (short) 4, Set.of(PlatformModule.PAYROLL), "Admin@Acme.test");
         TenantResponse response = new TenantResponse(
-                TENANT_ID, TENANT_ID, "New Tenant", "IN", "Asia/Kolkata", (short) 4, Set.of(PlatformModule.PAYROLL));
+                TENANT_ID,
+                TENANT_ID,
+                "New Tenant",
+                "IN",
+                "Asia/Kolkata",
+                (short) 4,
+                Set.of(PlatformModule.PAYROLL),
+                INVITATION_ID);
 
-        when(tenantService.provisionTenant(any(TenantRequest.class))).thenReturn(response);
+        when(tenantService.provisionTenant(any(TenantRequest.class), any())).thenReturn(response);
 
         mvc.perform(post("/api/v1/tenants")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,6 +144,12 @@ class TenantControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/api/v1/tenants/" + TENANT_ID))
                 .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
-                .andExpect(jsonPath("$.name").value("New Tenant"));
+                .andExpect(jsonPath("$.name").value("New Tenant"))
+                .andExpect(jsonPath("$.adminInvitationId").value(INVITATION_ID.toString()));
+
+        // D-42: the body's admin_email reaches the service under its snake_case name.
+        ArgumentCaptor<TenantRequest> sent = ArgumentCaptor.forClass(TenantRequest.class);
+        verify(tenantService).provisionTenant(sent.capture(), any());
+        assertThat(sent.getValue().adminEmail()).isEqualTo("Admin@Acme.test");
     }
 }

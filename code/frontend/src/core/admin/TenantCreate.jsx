@@ -26,6 +26,10 @@ export function isTimeZone(value) {
  * Field rules mirror `W-12-1` §4 and `TenantServiceImpl.provisionTenant`: name required;
  * country an ISO 3166-1 alpha-2 code; timezone an IANA zone name, at most 64 characters;
  * leave year start month 1-12; modules any of HRMS and PAYROLL.
+ *
+ * Administrator email is optional (D-42). When given, the server invites that address into the
+ * new tenant as its `tenant-admin`, so nobody has to act as the tenant to invite its first admin.
+ * Sent as `admin_email`, snake_case like the other `TenantRequest` fields.
  */
 export function TenantCreate() {
   const navigate = useNavigate();
@@ -34,15 +38,23 @@ export function TenantCreate() {
 
   const onFinish = async (values) => {
     setSaving(true);
+    const adminEmail = (values.admin_email || '').trim();
+    const body = {
+      name: values.name.trim(),
+      country_code: values.country_code.trim().toUpperCase(),
+      timezone: values.timezone.trim(),
+      leave_year_start_month: values.leave_year_start_month,
+      modules: values.modules || [],
+    };
+    if (adminEmail) body.admin_email = adminEmail;
     try {
-      await tenantService.create({
-        name: values.name.trim(),
-        country_code: values.country_code.trim().toUpperCase(),
-        timezone: values.timezone.trim(),
-        leave_year_start_month: values.leave_year_start_month,
-        modules: values.modules || [],
-      });
-      await successMsg('Tenant created', `${values.name.trim()} is ready.`);
+      await tenantService.create(body);
+      await successMsg(
+        'Tenant created',
+        adminEmail
+          ? `${body.name} is ready. An invitation was sent to ${adminEmail}.`
+          : `${body.name} is ready.`,
+      );
       navigate('/admin/tenants');
     } catch (err) {
       errorMsg(err);
@@ -105,6 +117,17 @@ export function TenantCreate() {
           rules={[{ required: true, message: 'Pick a month' }]}
         >
           <Select options={MONTHS.map((label, i) => ({ value: i + 1, label }))} />
+        </Form.Item>
+        <Form.Item
+          label="Administrator email"
+          name="admin_email"
+          extra="Optional. This person is invited as the tenant's administrator."
+          rules={[
+            { type: 'email', transform: (v) => (v || '').trim(), message: 'Enter a valid email address' },
+            { max: 255, message: 'At most 255 characters' },
+          ]}
+        >
+          <Input type="email" autoComplete="off" />
         </Form.Item>
         <Form.Item label="Modules" name="modules">
           <Checkbox.Group options={MODULES.map((m) => ({ value: m, label: m }))} />

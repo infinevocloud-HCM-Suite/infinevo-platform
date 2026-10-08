@@ -435,8 +435,8 @@ class SalaryStatutoryLinesIT extends AbstractIntegrationTest {
             throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO payroll.epf_setting (id, tenant_id, is_enabled, wage_ceiling, restrict_employee_to_ceiling, restrict_employer_to_ceiling, employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, eps_senior_age, include_employer_in_ctc, include_edli_admin_in_ctc) "
-                                + "VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, ?, 12.0000, 8.3300, ?, 0.5000, 58, true, true) ON CONFLICT DO NOTHING")) {
+                        "INSERT INTO payroll.epf_setting (id, tenant_id, is_enabled, wage_ceiling, restrict_employee_to_ceiling, restrict_employer_to_ceiling, employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, eps_senior_age, include_employer_in_ctc, include_edli_in_ctc, include_admin_in_ctc) "
+                                + "VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, ?, 12.0000, 8.3300, ?, 0.5000, 58, true, true, true) ON CONFLICT DO NOTHING")) {
             ps.setObject(1, tenantId);
             ps.setBigDecimal(2, employeeRate);
             ps.setBigDecimal(3, edliRate);

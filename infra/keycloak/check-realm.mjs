@@ -54,6 +54,21 @@ if (realm.resetPasswordAllowed !== true) {
   errors.push(`'resetPasswordAllowed' must be true, got '${realm.resetPasswordAllowed}'.`);
 }
 
+// 2b. Password policy and brute-force lockout (D-36). Every rule the tracker names must be present.
+const REQUIRED_POLICY = ['length(10)', 'upperCase(1)', 'lowerCase(1)', 'digits(1)', 'specialChars(1)', 'notUsername', 'notEmail', 'passwordHistory(5)'];
+const policy = typeof realm.passwordPolicy === 'string' ? realm.passwordPolicy : '';
+for (const rule of REQUIRED_POLICY) {
+  if (!policy.split(' and ').map((r) => r.trim()).includes(rule)) {
+    errors.push(`'passwordPolicy' must include '${rule}', got '${policy}'.`);
+  }
+}
+if (realm.bruteForceProtected !== true) {
+  errors.push(`'bruteForceProtected' must be true, got '${realm.bruteForceProtected}'.`);
+}
+if (!(Number.isInteger(realm.failureFactor) && realm.failureFactor >= 3 && realm.failureFactor <= 10)) {
+  errors.push(`'failureFactor' must be an integer between 3 and 10, got '${realm.failureFactor}'.`);
+}
+
 if (realm.realm !== 'infinevo') {
   errors.push(`'realm' must be 'infinevo', got '${realm.realm}'.`);
 }

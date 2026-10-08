@@ -60,7 +60,7 @@ class LoginFlowIT extends AbstractIntegrationTest {
     private static final String REALM = "infinevo";
     private static final String CLIENT_ID = "infinevo-web";
     private static final String USERNAME = "admin.globex";
-    private static final String PASSWORD = "local_dev_pw";
+    private static final String PASSWORD = "Local_dev_pw1!";
 
     @Autowired
     private MockMvc mockMvc;

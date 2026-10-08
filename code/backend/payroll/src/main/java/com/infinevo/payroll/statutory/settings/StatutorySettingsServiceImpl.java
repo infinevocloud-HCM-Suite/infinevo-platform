@@ -81,9 +81,11 @@ public class StatutorySettingsServiceImpl implements StatutorySettingsService {
                 request.considerEarnedWage() == null || Boolean.TRUE.equals(request.considerEarnedWage()));
         entity.setEpsSeniorAge((short) (request.epsSeniorAge() != null ? request.epsSeniorAge() : 58));
         entity.setIncludeEmployerInCtc(Boolean.TRUE.equals(request.includeEmployerInCtc()));
-        entity.setIncludeEdliAdminInCtc(Boolean.TRUE.equals(request.includeEdliAdminInCtc()));
+        entity.setIncludeEdliInCtc(Boolean.TRUE.equals(request.includeEdliInCtc()));
+        entity.setIncludeAdminInCtc(Boolean.TRUE.equals(request.includeAdminInCtc()));
         entity.setIncludeEmployerInStructure(Boolean.TRUE.equals(request.includeEmployerInStructure()));
-        entity.setIncludeEdliAdminInStructure(Boolean.TRUE.equals(request.includeEdliAdminInStructure()));
+        entity.setIncludeEdliInStructure(Boolean.TRUE.equals(request.includeEdliInStructure()));
+        entity.setIncludeAdminInStructure(Boolean.TRUE.equals(request.includeAdminInStructure()));
         entity.setAbryScheme(Boolean.TRUE.equals(request.abryScheme()));
 
         EpfSetting saved = epfSettingRepository.save(entity);

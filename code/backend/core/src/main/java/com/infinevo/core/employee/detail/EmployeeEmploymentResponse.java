@@ -1,6 +1,7 @@
 package com.infinevo.core.employee.detail;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -20,6 +21,9 @@ public record EmployeeEmploymentResponse(
         LocalTime shiftStartTime,
         LocalTime shiftEndTime,
         String note,
+        EmploymentType employmentType,
+        LocalDate probationEndDate,
+        Integer noticePeriodDays,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -35,6 +39,9 @@ public record EmployeeEmploymentResponse(
                 employment.getShiftStartTime(),
                 employment.getShiftEndTime(),
                 employment.getNote(),
+                employment.getEmploymentType(),
+                employment.getProbationEndDate(),
+                employment.getNoticePeriodDays(),
                 employment.getCreatedAt(),
                 employment.getUpdatedAt());
     }

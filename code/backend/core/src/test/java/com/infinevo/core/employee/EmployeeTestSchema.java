@@ -308,7 +308,7 @@ public final class EmployeeTestSchema {
         }
     }
 
-    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
+    public static boolean columnExists(Connection conn, String table, String column) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 """
                 SELECT 1 FROM information_schema.columns

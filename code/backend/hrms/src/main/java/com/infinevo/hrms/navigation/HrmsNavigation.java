@@ -103,18 +103,28 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "hrms.overtime.request");
 
+    /** The module's screens, in menu order. */
+    public static final List<ItemDefinition> LEAVES = List.of(
+            TIMESHEETS,
+            PROJECTS,
+            MY_WORK,
+            TIMESHEET_REVIEW,
+            ATTENDANCE,
+            ATTENDANCE_LOG,
+            ATTENDANCE_SETTINGS,
+            DASHBOARD,
+            REGULARIZATIONS,
+            OVERTIME_REQUESTS);
+
+    /**
+     * The one HRMS menu group (D-34). No action of its own: the feed hides it when every screen inside
+     * is hidden, and gives it the first visible screen's path.
+     */
+    public static final ItemDefinition GROUP = new ItemDefinition(
+            "hrms", "nav.hrms", TIMESHEETS.path(), TIMESHEETS.targetEndpoint(), PlatformModule.HRMS, null, LEAVES);
+
     @Override
     public List<ItemDefinition> items() {
-        return List.of(
-                TIMESHEETS,
-                PROJECTS,
-                MY_WORK,
-                TIMESHEET_REVIEW,
-                ATTENDANCE,
-                ATTENDANCE_LOG,
-                ATTENDANCE_SETTINGS,
-                DASHBOARD,
-                REGULARIZATIONS,
-                OVERTIME_REQUESTS);
+        return List.of(GROUP);
     }
 }

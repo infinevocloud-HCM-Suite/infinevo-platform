@@ -89,6 +89,14 @@ abstract class AbstractEmployeeDetailServiceImpl<E extends EmployeeDetail, Q, R>
     /** Checks this section's fields. Adds to {@code errors}; throws nothing. */
     protected abstract void validate(Q request, Map<String, String> errors);
 
+    /**
+     * Checks the rules that need the employee as well as the request — D-40's "probation ends on or
+     * after joining" reads {@code core.employee.date_of_joining}. Adds to {@code errors}; throws
+     * nothing. Runs after {@link #validate}, on the employee already read in the bound tenant. Most
+     * sections have no such rule, so the default does nothing.
+     */
+    protected void validateAgainst(Q request, Employee employee, Map<String, String> errors) {}
+
     /** Copies the validated request onto the entity and stamps it. Called only after {@link #validate}. */
     protected abstract void applyTo(E entity, Q request, String actor);
 
@@ -120,7 +128,7 @@ abstract class AbstractEmployeeDetailServiceImpl<E extends EmployeeDetail, Q, R>
     public R put(UUID employeeId, Q request) {
         UUID tenantId = TenantContext.require();
         Employee employee = requireEmployee(employeeId, tenantId);
-        check(request);
+        check(request, employee);
 
         String actor = currentActor();
         // Read first, then create only if there is nothing. This is what makes PUT create-or-replace
@@ -167,13 +175,17 @@ abstract class AbstractEmployeeDetailServiceImpl<E extends EmployeeDetail, Q, R>
         }
     }
 
-    /** Runs {@link #validate} and turns anything it found into one {@link ValidationException}. */
-    private void check(Q request) {
+    /**
+     * Runs {@link #validate} and {@link #validateAgainst} and turns anything they found into one
+     * {@link ValidationException}.
+     */
+    private void check(Q request, Employee employee) {
         if (request == null) {
             throw new ValidationException(Map.of("request", "A request body is required"));
         }
         Map<String, String> errors = new LinkedHashMap<>();
         validate(request, errors);
+        validateAgainst(request, employee, errors);
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
         }

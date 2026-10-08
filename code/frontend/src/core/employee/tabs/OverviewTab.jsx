@@ -6,6 +6,7 @@ import { Descriptions, Tag, Button, Typography, Row, Col, Input, Select, Switch,
 import { EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { employeeService } from '../employeeService.js';
+import { GENDER_OPTIONS } from '../sectionFields.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 const { Text } = Typography;
@@ -174,11 +175,7 @@ export function OverviewTab({ employee, onUpdate }) {
               placeholder="Select gender"
               value={formData.gender}
               onChange={(val) => setFormData({ ...formData, gender: val || null })}
-              options={[
-                { value: 'MALE', label: 'Male' },
-                { value: 'FEMALE', label: 'Female' },
-                { value: 'OTHER', label: 'Other' },
-              ]}
+              options={GENDER_OPTIONS}
             />
           </Col>
           <Col xs={24} sm={12} md={8}>
@@ -307,7 +304,9 @@ export function OverviewTab({ employee, onUpdate }) {
         </Descriptions.Item>
         <Descriptions.Item label="Work Email">{employee.workEmail || '—'}</Descriptions.Item>
         <Descriptions.Item label="Mobile">{employee.mobile || '—'}</Descriptions.Item>
-        <Descriptions.Item label="Gender">{employee.gender || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Gender">
+          {GENDER_OPTIONS.find((o) => o.value === employee.gender)?.label || employee.gender || '—'}
+        </Descriptions.Item>
         <Descriptions.Item label="Date of Joining">{employee.dateOfJoining || '—'}</Descriptions.Item>
         <Descriptions.Item label="Department">{departmentName}</Descriptions.Item>
         <Descriptions.Item label="Designation">{designationName}</Descriptions.Item>

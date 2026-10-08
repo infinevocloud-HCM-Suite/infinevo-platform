@@ -85,6 +85,8 @@ class StatutorySettingsControllerTest {
                 false,
                 false,
                 false,
+                false,
+                false,
                 SettingSource.PERSISTED);
 
         when(settingsService.saveEpf(any())).thenReturn(response);
