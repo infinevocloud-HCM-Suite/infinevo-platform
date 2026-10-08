@@ -85,6 +85,7 @@ from `D-35`. The children add screens and fields, not a second navigation system
 | `V163` | `W-73.3` | `core.employee_invitation.role_ids` |
 | `V164` | `W-73.4` | `core.user_account.enabled`, only if missing |
 | `V165` | `W-73.8` | `core.user_account.welcome_seen_at` |
+| `V166` | `W-73.5` | `core.document.label` (spec amended 2026-10-08) |
 
 Confirm against the tracker's migration column before use — the number on the branch is the
 number, not the number here.
