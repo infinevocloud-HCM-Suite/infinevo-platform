@@ -61,6 +61,7 @@ public final class EmployeeDetailTestSchema {
             }
             if (!EmployeeTestSchema.tableExists(conn, "employee_identification")) {
                 EmployeeTestSchema.executeResource(conn, "db/migration/core/V017__employee_identification.sql");
+                EmployeeTestSchema.executeResource(conn, "db/migration/core/V160__unique_employee_pan.sql");
             }
             if (!EmployeeTestSchema.tableExists(conn, "employee_employment")) {
                 EmployeeTestSchema.executeResource(conn, "db/migration/core/V018__employee_employment.sql");

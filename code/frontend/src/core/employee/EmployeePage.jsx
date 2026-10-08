@@ -66,8 +66,15 @@ export function EmployeePage() {
     }
   }, [dispatch, mastersLoadedAt]);
 
+  useEffect(() => {
+    return () => {
+      Modal.destroyAll();
+    };
+  }, []);
+
   const handleDelete = () => {
-    Modal.confirm({
+    let modalInstance = null;
+    modalInstance = Modal.confirm({
       title: 'Delete Employee',
       content: `Are you sure you want to soft-delete employee ${employee.employeeNumber}? They will no longer appear in default searches.`,
       okText: 'Delete',
@@ -75,9 +82,15 @@ export function EmployeePage() {
       onOk: async () => {
         try {
           await employeeService.remove(employee.id);
+          if (modalInstance) {
+            modalInstance.destroy();
+          }
           await successMsg('Employee Deleted', `Employee ${employee.employeeNumber} soft-deleted.`);
           navigate('/employees');
         } catch (err) {
+          if (modalInstance) {
+            modalInstance.destroy();
+          }
           await errorMsg(err);
         }
       },
@@ -85,7 +98,8 @@ export function EmployeePage() {
   };
 
   const handleReactivate = () => {
-    Modal.confirm({
+    let modalInstance = null;
+    modalInstance = Modal.confirm({
       title: 'Reactivate Employee',
       content: `Are you sure you want to reactivate employee ${employee.employeeNumber}? Their status will be set back to ACTIVE.`,
       okText: 'Reactivate',
@@ -96,9 +110,15 @@ export function EmployeePage() {
             status: 'ACTIVE',
             terminationDate: null,
           });
+          if (modalInstance) {
+            modalInstance.destroy();
+          }
           await successMsg('Employee Reactivated', `Employee ${employee.employeeNumber} reactivated successfully.`);
           setEmployee(updated);
         } catch (err) {
+          if (modalInstance) {
+            modalInstance.destroy();
+          }
           await errorMsg(err);
         }
       },

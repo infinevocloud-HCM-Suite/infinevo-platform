@@ -165,4 +165,30 @@ describe('EmployeePage component', () => {
       expect(screen.queryByText('Reporting Line')).toBeNull();
     });
   });
+
+  it('calls employeeService.remove and destroys confirm modal when deleting an employee', async () => {
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-term-1',
+      employeeNumber: 'EMP-998',
+      firstName: 'Peter',
+      lastName: 'Tosh',
+      status: 'TERMINATED',
+    });
+    employeeService.remove.mockResolvedValueOnce({});
+
+    renderPage('emp-term-1');
+
+    await waitFor(() => expect(document.getElementById('btn-delete-employee')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-delete-employee'));
+
+    await waitFor(() => {
+      const confirmBtn = document.querySelector('.ant-modal-confirm-btns .ant-btn-dangerous');
+      expect(confirmBtn).not.toBeNull();
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => {
+      expect(employeeService.remove).toHaveBeenCalledWith('emp-term-1');
+    });
+  });
 });

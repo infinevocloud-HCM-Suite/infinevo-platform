@@ -232,6 +232,9 @@ class RoleCatalogueIT {
                 assertThat(holds(conn, tenant, "manager", "core.approval.decide"))
                         .as("W-40.2: core.approval.decide granted to manager")
                         .isTrue();
+                assertThat(holds(conn, tenant, "hr", "core.reporting_line.manage"))
+                        .as("core.reporting_line.manage granted to hr")
+                        .isTrue();
             }
         }
     }

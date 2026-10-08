@@ -139,6 +139,21 @@ class EmployeeDetailServiceTest {
                             .filter(row -> employeeId.equals(row.getEmployee().getId()))
                             .findFirst();
                 });
+        if (type.equals(EmployeeIdentificationRepository.class)) {
+            EmployeeIdentificationRepository idRepo = (EmployeeIdentificationRepository) repository;
+            when(idRepo.existsByTenantIdAndPanNumberAndEmployeeIdNot(any(UUID.class), any(), any(UUID.class)))
+                    .thenAnswer(inv -> {
+                        UUID tenantId = inv.getArgument(0);
+                        String pan = inv.getArgument(1);
+                        UUID employeeId = inv.getArgument(2);
+                        return rows.stream()
+                                .map(r -> (EmployeeIdentification) r)
+                                .anyMatch(row -> tenantId.equals(row.getTenantId())
+                                        && pan != null
+                                        && pan.equalsIgnoreCase(row.getPanNumber())
+                                        && !employeeId.equals(row.getEmployee().getId()));
+                    });
+        }
         return repository;
     }
 
@@ -355,6 +370,26 @@ class EmployeeDetailServiceTest {
             assertThat(fieldErrors(
                             () -> identificationService.put(EMPLOYEE_A, identificationRequest("ABCD1234F", null))))
                     .containsKey("panNumber");
+            assertThat(identificationService
+                            .put(EMPLOYEE_A, identificationRequest("ABCDE1234F", null))
+                            .panNumber())
+                    .isEqualTo("ABCDE1234F");
+        }
+
+        @Test
+        @DisplayName("A duplicate PAN for another employee in the same tenant is refused")
+        void duplicatePanIsRefused() {
+            identificationService.put(EMPLOYEE_A, identificationRequest("ABCDE1234F", null));
+
+            UUID secondEmployee = UUID.randomUUID();
+            when(employees.findByIdAndTenantIdAndDeletedFalse(secondEmployee, TENANT_A))
+                    .thenReturn(Optional.of(employee(secondEmployee)));
+
+            assertThat(fieldErrors(
+                            () -> identificationService.put(secondEmployee, identificationRequest("ABCDE1234F", null))))
+                    .containsKey("panNumber");
+
+            // Updating the same employee's own record with the same PAN succeeds
             assertThat(identificationService
                             .put(EMPLOYEE_A, identificationRequest("ABCDE1234F", null))
                             .panNumber())

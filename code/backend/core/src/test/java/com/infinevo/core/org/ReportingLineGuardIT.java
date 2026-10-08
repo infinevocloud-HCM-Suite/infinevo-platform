@@ -52,6 +52,7 @@ class ReportingLineGuardIT extends AbstractIntegrationTest {
     private UUID tenantId;
     private UUID hrSub;
     private UUID adminSub;
+    private UUID employeeSub;
     private UUID emp1Id;
     private UUID emp2Id;
 
@@ -71,6 +72,10 @@ class ReportingLineGuardIT extends AbstractIntegrationTest {
         adminSub = UUID.randomUUID();
         UUID adminAccount = AuthzTestSchema.insertMember(tenantId, adminSub, "admin@lineguard.test");
         AuthzTestSchema.grant(tenantId, adminAccount, AuthzTestSchema.roleId(tenantId, "tenant-admin"));
+
+        employeeSub = UUID.randomUUID();
+        UUID empAccount = AuthzTestSchema.insertMember(tenantId, employeeSub, "emp@lineguard.test");
+        AuthzTestSchema.grant(tenantId, empAccount, AuthzTestSchema.roleId(tenantId, "employee"));
     }
 
     @AfterEach
@@ -94,8 +99,20 @@ class ReportingLineGuardIT extends AbstractIntegrationTest {
         mvc.perform(put("/api/v1/employees/" + emp1Id + "/reporting-line")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body))
-                        .with(jwt().jwt(b -> b.subject(hrSub.toString()).claim("tenant_id", tenantId.toString()))))
+                        .with(jwt().jwt(b -> b.subject(employeeSub.toString()).claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("PUT with hr role (core.reporting_line.manage) gets 200")
+    void putWithHrRoleGets200() throws Exception {
+        ReportingLineRequest body = new ReportingLineRequest(emp2Id, ReportingLineKind.PRIMARY, LocalDate.now(), null);
+
+        mvc.perform(put("/api/v1/employees/" + emp1Id + "/reporting-line")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body))
+                        .with(jwt().jwt(b -> b.subject(hrSub.toString()).claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isOk());
     }
 
     @Test
