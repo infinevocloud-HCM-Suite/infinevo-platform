@@ -470,6 +470,32 @@ class InvitationServiceTest {
 
     @Test
     @DisplayName(
+            "D-88: a password Keycloak refuses leaves the invitation PENDING, writes nothing and compensates nothing")
+    void refusedPasswordLeavesInvitationPending() {
+        String token = InvitationTokenUtils.generateToken();
+        String hash = InvitationTokenUtils.hashToken(token);
+
+        UserInvitation inv = new UserInvitation(
+                tenantId, "newuser@example.com", hash, Instant.now().plus(2, ChronoUnit.DAYS), actorUserId, "system");
+        setId(inv, UUID.randomUUID());
+
+        when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(eq("newuser@example.com"), any(), any(), eq("short")))
+                .thenThrow(new PasswordPolicyException("Invalid password: minimum length 10."));
+
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token, "short"))
+                .isInstanceOf(PasswordPolicyException.class)
+                .hasMessage("Invalid password: minimum length 10.");
+
+        assertThat(inv.getStatus()).isEqualTo(InvitationStatus.PENDING);
+        assertThat(inv.getAcceptedAt()).isNull();
+        verify(userInvitationRepository, never()).save(any());
+        verify(userProfileSyncService, never()).sync(any(), any(), any(), any(), any());
+        verify(keycloakProvisioningService, never()).deleteKeycloakUser(any());
+    }
+
+    @Test
+    @DisplayName(
             "acceptInvitation: triggers compensating deletion of Keycloak user if subsequent DB operation fails and user was newly created")
     void acceptInvitationCompensatesKeycloakUserWhenDbFailsForNewUser() {
         String token = InvitationTokenUtils.generateToken();

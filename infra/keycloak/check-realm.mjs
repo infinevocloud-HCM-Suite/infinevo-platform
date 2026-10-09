@@ -124,6 +124,9 @@ const argValue = (name) => {
   return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
 };
 const liveBase = argValue('--live');
+if (args.includes('--live') && !liveBase) {
+  errors.push("'--live' needs the Keycloak base URL after it, e.g. --live https://host/auth --app https://host/");
+}
 if (liveBase) {
   const appRoot = argValue('--app') ?? '';
   const base = liveBase.replace(/\/$/, '');

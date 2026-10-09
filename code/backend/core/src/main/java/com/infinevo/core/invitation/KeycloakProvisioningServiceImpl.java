@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -171,7 +172,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
                 return new ProvisioningResult(existing, false, AcceptOutcome.EXISTING_ACCOUNT);
             }
             // Never set a password: an earlier acceptance that did not finish. This one's password is used.
-            setPassword(target, adminToken, existing, password);
+            setPassword(target, adminToken, existing, password, otherRequiredActions(existingUser));
             return new ProvisioningResult(existing, false, AcceptOutcome.PASSWORD_SET);
         }
 
@@ -205,7 +206,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
             if (location != null) {
                 UUID created = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
                 try {
-                    setPassword(target, adminToken, created, password);
+                    setPassword(target, adminToken, created, password, List.of());
                 } catch (RuntimeException | IOException | InterruptedException e) {
                     // A refused password must not leave a user nobody can sign in as. Delete, then rethrow.
                     deleteQuietly(target, adminToken, created);
@@ -224,7 +225,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
                 if (!awaitsPassword(raced)) {
                     return new ProvisioningResult(racedId, false, AcceptOutcome.EXISTING_ACCOUNT);
                 }
-                setPassword(target, adminToken, racedId, password);
+                setPassword(target, adminToken, racedId, password, otherRequiredActions(raced));
                 return new ProvisioningResult(racedId, false, AcceptOutcome.PASSWORD_SET);
             }
         }
@@ -235,25 +236,38 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
 
     /** True while the user still has to choose a password. */
     private static boolean awaitsPassword(JsonNode user) {
+        return requiredActions(user).contains(UPDATE_PASSWORD);
+    }
+
+    /** The user's required actions other than {@code UPDATE_PASSWORD} — kept when the password is set. */
+    private static List<String> otherRequiredActions(JsonNode user) {
+        return requiredActions(user).stream()
+                .filter(a -> !UPDATE_PASSWORD.equals(a))
+                .toList();
+    }
+
+    private static List<String> requiredActions(JsonNode user) {
         JsonNode actions = user.get("requiredActions");
         if (actions == null || !actions.isArray()) {
-            return false;
+            return List.of();
         }
+        List<String> out = new ArrayList<>();
         for (JsonNode action : actions) {
-            if (UPDATE_PASSWORD.equals(action.asText())) {
-                return true;
-            }
+            out.add(action.asText());
         }
-        return false;
+        return out;
     }
 
     /**
-     * Sets {@code password} as the user's permanent password and clears {@code UPDATE_PASSWORD}, so the user
+     * Sets {@code password} as the user's permanent password and removes {@code UPDATE_PASSWORD}, so the user
      * signs in at once (D-88). Keycloak applies the realm's password policy here; its {@code 400} carries the
      * rule in {@code error_description} ("Invalid password: minimum length 10."), which becomes the
      * {@link PasswordPolicyException} message the accept page shows. The password is never logged.
+     * {@code remainingActions} are the user's other required actions (VERIFY_EMAIL, CONFIGURE_TOTP, …), written
+     * back so that only {@code UPDATE_PASSWORD} goes.
      */
-    private void setPassword(Target target, String adminToken, UUID userId, String password)
+    private void setPassword(
+            Target target, String adminToken, UUID userId, String password, List<String> remainingActions)
             throws IOException, InterruptedException {
         HttpRequest resetReq = HttpRequest.newBuilder()
                 .uri(URI.create(target.usersUrl() + "/" + userId + "/reset-password"))
@@ -278,7 +292,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
                 .header("Content-Type", "application/json")
                 .timeout(TIMEOUT)
                 .PUT(HttpRequest.BodyPublishers.ofString(
-                        objectMapper.writeValueAsString(Map.of("requiredActions", List.of()))))
+                        objectMapper.writeValueAsString(Map.of("requiredActions", remainingActions))))
                 .build();
         HttpResponse<String> clearResp = httpClient.send(clearReq, HttpResponse.BodyHandlers.ofString());
         if (clearResp.statusCode() / 100 != 2) {
@@ -319,7 +333,13 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
                     .timeout(TIMEOUT)
                     .DELETE()
                     .build();
-            httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> resp = httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() / 100 != 2) {
+                log.warn(
+                        "Could not delete Keycloak user {} after its password was refused: HTTP {}",
+                        userId,
+                        resp.statusCode());
+            }
         } catch (IOException e) {
             log.warn(
                     "Could not delete Keycloak user {} after its password was refused: {}",

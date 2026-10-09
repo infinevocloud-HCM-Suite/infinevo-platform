@@ -186,10 +186,11 @@ class KeycloakProvisioningServiceTest {
     }
 
     @Test
-    @DisplayName("D-88: an existing user who never set a password is given this one")
+    @DisplayName("D-88: an existing user who never set a password is given this one; their other required actions stay")
     void existingUserAwaitingPasswordGetsThisOne() {
         UUID existing = UUID.randomUUID();
-        searchBody = "[{\"id\":\"" + existing + "\",\"requiredActions\":[\"UPDATE_PASSWORD\"]}]";
+        searchBody = "[{\"id\":\"" + existing
+                + "\",\"requiredActions\":[\"VERIFY_EMAIL\",\"UPDATE_PASSWORD\",\"CONFIGURE_TOTP\"]}]";
 
         KeycloakProvisioningService.ProvisioningResult result =
                 service().getOrCreateKeycloakUser(EMAIL, null, null, PASSWORD);
@@ -204,6 +205,7 @@ class KeycloakProvisioningServiceTest {
                         Tuple.tuple("GET", USERS),
                         Tuple.tuple("PUT", USERS + "/" + existing + "/reset-password"),
                         Tuple.tuple("PUT", USERS + "/" + existing));
+        assertThat(calls.get(3).body()).isEqualTo("{\"requiredActions\":[\"VERIFY_EMAIL\",\"CONFIGURE_TOTP\"]}");
     }
 
     @Test

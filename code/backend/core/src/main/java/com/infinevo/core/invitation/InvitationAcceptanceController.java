@@ -36,13 +36,13 @@ public class InvitationAcceptanceController {
         this.invitationService = Objects.requireNonNull(invitationService, "invitationService must not be null");
     }
 
+    /** Longer than any sane password; a bound so the body cannot carry arbitrary bulk to Keycloak. */
+    static final int MAX_PASSWORD_LENGTH = 128;
+
     /**
      * The one answer for every token that cannot be used — unknown, accepted, declined, revoked or expired.
      * A distinct message per state would let a caller probe which tokens exist (spec §9).
      */
-    /** Longer than any sane password; a bound so the body cannot carry arbitrary bulk to Keycloak. */
-    static final int MAX_PASSWORD_LENGTH = 128;
-
     static final String GENERIC_FAILURE =
             "This invitation cannot be used. It may have expired, been used or been withdrawn. Ask for a new invitation.";
 
