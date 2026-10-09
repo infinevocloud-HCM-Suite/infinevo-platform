@@ -46,8 +46,13 @@ public interface InvitationService {
      */
     List<UUID> employeesWithoutAccess();
 
-    /** Accepts and returns what the invitee does next — the accept page words its message from it (D-62). */
-    AcceptOutcome acceptInvitation(String token);
+    /**
+     * Accepts, sets the password the invitee chose (D-88) and returns what they do next — the accept page
+     * words its message from it (D-62).
+     *
+     * @throws PasswordPolicyException if Keycloak refuses the password; the invitation stays {@code PENDING}
+     */
+    AcceptOutcome acceptInvitation(String token, String password);
 
     void declineInvitation(String token, String reason);
 }

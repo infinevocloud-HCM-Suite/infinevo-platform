@@ -16,7 +16,6 @@ import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -28,15 +27,14 @@ import org.springframework.stereotype.Service;
  * browser reaches — and need not be reachable from this process. {@code keycloak.admin.url}
  * ({@code KEYCLOAK_ADMIN_URL}) is where admin calls go; unset, the issuer's scheme and authority are used.
  *
- * <p><strong>A created user can log in.</strong> It is created with the {@code UPDATE_PASSWORD} required
- * action, and Keycloak is asked to email the set-password link. That email failing is logged and does not
- * fail the acceptance: the account exists, and the result says so, so the accept page can point the invitee
- * at "Forgot password?" (D-62). An existing user still waiting on {@code UPDATE_PASSWORD} — an earlier
- * acceptance whose mail was lost — is sent the link again.
- *
- * <p><strong>The mail leads back to the app (D-62).</strong> The set-password link carries the web client
- * ({@code keycloak.invitation.client-id}) and the app's root, taken from the invitation link's origin, so
- * Keycloak ends on the sign-in page rather than a dead end. Without an invitation link it is sent bare.
+ * <p><strong>The password is set here, not by a mail (D-88).</strong> A created user starts with the
+ * {@code UPDATE_PASSWORD} required action, is given the password the invitee chose on the accept page through
+ * {@code reset-password}, and has the action cleared; it signs in at once. Keycloak applies the realm's password
+ * policy at {@code reset-password} and names the rule that failed; that refusal is a {@link PasswordPolicyException}
+ * and the user this call created is deleted, so a retry starts clean. An existing user still waiting on
+ * {@code UPDATE_PASSWORD} — an earlier acceptance that did not finish — is given this password instead. An
+ * existing user who already has a password keeps it: the invitation proves the address, not the right to
+ * replace a password.
  *
  * <p>The invitee's email address is never written to a log line or an exception message.
  */
@@ -55,58 +53,34 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
     private final String adminUrl;
     private final String adminUsername;
     private final String adminPassword;
-    private final String webClientId;
-    private final String appRootUrl;
 
-    public KeycloakProvisioningServiceImpl(
-            String issuerUri, String adminUrl, String adminUsername, String adminPassword) {
-        this(issuerUri, adminUrl, adminUsername, adminPassword, "", "");
-    }
-
-    @Autowired
     public KeycloakProvisioningServiceImpl(
             @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String issuerUri,
             @Value("${keycloak.admin.url:}") String adminUrl,
             @Value("${keycloak.admin.username:admin}") String adminUsername,
-            @Value("${keycloak.admin.password:}") String adminPassword,
-            @Value("${keycloak.invitation.client-id:infinevo-web}") String webClientId,
-            @Value("${invitation.link.base-url:}") String invitationLinkBaseUrl) {
+            @Value("${keycloak.admin.password:}") String adminPassword) {
         this.httpClient =
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
         this.issuerUri = issuerUri == null ? "" : issuerUri.trim();
         this.adminUrl = adminUrl == null ? "" : adminUrl.trim();
         this.adminUsername = adminUsername == null || adminUsername.isBlank() ? "admin" : adminUsername.trim();
         this.adminPassword = adminPassword == null ? "" : adminPassword;
-        this.webClientId = webClientId == null ? "" : webClientId.trim();
-        this.appRootUrl = appRoot(invitationLinkBaseUrl);
-    }
-
-    /** {@code https://host/invitations/accept} becomes {@code https://host/}; empty when it cannot be read. */
-    static String appRoot(String invitationLinkBaseUrl) {
-        if (invitationLinkBaseUrl == null || invitationLinkBaseUrl.isBlank()) {
-            return "";
-        }
-        try {
-            URI link = URI.create(invitationLinkBaseUrl.trim());
-            if (link.getScheme() == null || link.getRawAuthority() == null) {
-                return "";
-            }
-            return link.getScheme() + "://" + link.getRawAuthority() + "/";
-        } catch (IllegalArgumentException e) {
-            return "";
-        }
     }
 
     @Override
-    public ProvisioningResult getOrCreateKeycloakUser(String email, String firstName, String lastName) {
+    public ProvisioningResult getOrCreateKeycloakUser(
+            String email, String firstName, String lastName, String password) {
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("email must not be blank");
+        }
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("password must not be blank");
         }
         String cleanEmail = email.toLowerCase().trim();
         Target target = target();
         try {
             String adminToken = fetchAdminToken(target);
-            return provision(target, adminToken, cleanEmail, firstName, lastName);
+            return provision(target, adminToken, cleanEmail, firstName, lastName, password);
         } catch (IOException e) {
             throw new KeycloakProvisioningException(
                     "Keycloak could not be reached: " + e.getClass().getSimpleName(), e);
@@ -179,7 +153,7 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
     }
 
     private ProvisioningResult provision(
-            Target target, String adminToken, String email, String firstName, String lastName)
+            Target target, String adminToken, String email, String firstName, String lastName, String password)
             throws IOException, InterruptedException {
         // 1. Reuse an existing user (§13 decision 2)
         HttpRequest searchReq = HttpRequest.newBuilder()
@@ -196,12 +170,13 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
             if (!awaitsPassword(existingUser)) {
                 return new ProvisioningResult(existing, false, AcceptOutcome.EXISTING_ACCOUNT);
             }
-            // Never set a password: an earlier acceptance whose mail was lost. Send the link again.
-            boolean sent = sendSetPasswordEmail(target, adminToken, existing);
-            return new ProvisioningResult(existing, false, mailOutcome(sent));
+            // Never set a password: an earlier acceptance that did not finish. This one's password is used.
+            setPassword(target, adminToken, existing, password);
+            return new ProvisioningResult(existing, false, AcceptOutcome.PASSWORD_SET);
         }
 
-        // 2. Create a user that must choose a password before it can sign in
+        // 2. Create the user, then set the chosen password. UPDATE_PASSWORD is on the created user only so
+        //    that a crash between the two calls leaves a user the next acceptance recognises and finishes.
         Map<String, Object> payload = Map.of(
                 "username",
                 email,
@@ -229,8 +204,14 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
             String location = createResp.headers().firstValue("Location").orElse(null);
             if (location != null) {
                 UUID created = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
-                boolean sent = sendSetPasswordEmail(target, adminToken, created);
-                return new ProvisioningResult(created, true, mailOutcome(sent));
+                try {
+                    setPassword(target, adminToken, created, password);
+                } catch (RuntimeException | IOException | InterruptedException e) {
+                    // A refused password must not leave a user nobody can sign in as. Delete, then rethrow.
+                    deleteQuietly(target, adminToken, created);
+                    throw e;
+                }
+                return new ProvisioningResult(created, true, AcceptOutcome.PASSWORD_SET);
             }
         }
 
@@ -238,23 +219,18 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
         if (createResp.statusCode() == 409) {
             JsonNode raced = firstUser(httpClient.send(searchReq, HttpResponse.BodyHandlers.ofString()));
             if (raced != null) {
-                // A concurrent acceptance created it. Its mail may have failed, so while the user still
-                // awaits a password this one sends the link too and reports what actually happened.
+                // A concurrent acceptance created it. While it still awaits a password this one sets it.
                 UUID racedId = UUID.fromString(raced.get("id").asText());
                 if (!awaitsPassword(raced)) {
                     return new ProvisioningResult(racedId, false, AcceptOutcome.EXISTING_ACCOUNT);
                 }
-                boolean sent = sendSetPasswordEmail(target, adminToken, racedId);
-                return new ProvisioningResult(racedId, false, mailOutcome(sent));
+                setPassword(target, adminToken, racedId, password);
+                return new ProvisioningResult(racedId, false, AcceptOutcome.PASSWORD_SET);
             }
         }
 
         // The body is not quoted: Keycloak echoes the submitted user, email included.
         throw new KeycloakProvisioningException("Keycloak refused to create the user: HTTP " + createResp.statusCode());
-    }
-
-    private static AcceptOutcome mailOutcome(boolean sent) {
-        return sent ? AcceptOutcome.SET_PASSWORD_EMAIL_SENT : AcceptOutcome.SET_PASSWORD_EMAIL_FAILED;
     }
 
     /** True while the user still has to choose a password. */
@@ -272,49 +248,86 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
     }
 
     /**
-     * The execute-actions-email URL. With the web client and the app's root, Keycloak's mail ends on the
-     * app's sign-in page once the password is set (D-62); the root is within the client's redirect URIs
-     * ({@code ${KC_WEB_ORIGIN}/*}, {@code infra/keycloak/infinevo-realm.json}).
+     * Sets {@code password} as the user's permanent password and clears {@code UPDATE_PASSWORD}, so the user
+     * signs in at once (D-88). Keycloak applies the realm's password policy here; its {@code 400} carries the
+     * rule in {@code error_description} ("Invalid password: minimum length 10."), which becomes the
+     * {@link PasswordPolicyException} message the accept page shows. The password is never logged.
      */
-    String executeActionsEmailUrl(Target target, UUID userId) {
-        String url = target.usersUrl() + "/" + userId + "/execute-actions-email";
-        if (webClientId.isEmpty() || appRootUrl.isEmpty()) {
-            return url;
+    private void setPassword(Target target, String adminToken, UUID userId, String password)
+            throws IOException, InterruptedException {
+        HttpRequest resetReq = HttpRequest.newBuilder()
+                .uri(URI.create(target.usersUrl() + "/" + userId + "/reset-password"))
+                .header("Authorization", "Bearer " + adminToken)
+                .header("Content-Type", "application/json")
+                .timeout(TIMEOUT)
+                .PUT(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(
+                        Map.of("type", "password", "value", password, "temporary", false))))
+                .build();
+        HttpResponse<String> resetResp = httpClient.send(resetReq, HttpResponse.BodyHandlers.ofString());
+        if (resetResp.statusCode() == 400) {
+            throw new PasswordPolicyException(policyMessage(resetResp.body()));
         }
-        return url + "?client_id=" + URLEncoder.encode(webClientId, StandardCharsets.UTF_8) + "&redirect_uri="
-                + URLEncoder.encode(appRootUrl, StandardCharsets.UTF_8);
+        if (resetResp.statusCode() / 100 != 2) {
+            throw new KeycloakProvisioningException(
+                    "Keycloak refused to set the password on user " + userId + ": HTTP " + resetResp.statusCode());
+        }
+
+        HttpRequest clearReq = HttpRequest.newBuilder()
+                .uri(URI.create(target.usersUrl() + "/" + userId))
+                .header("Authorization", "Bearer " + adminToken)
+                .header("Content-Type", "application/json")
+                .timeout(TIMEOUT)
+                .PUT(HttpRequest.BodyPublishers.ofString(
+                        objectMapper.writeValueAsString(Map.of("requiredActions", List.of()))))
+                .build();
+        HttpResponse<String> clearResp = httpClient.send(clearReq, HttpResponse.BodyHandlers.ofString());
+        if (clearResp.statusCode() / 100 != 2) {
+            throw new KeycloakProvisioningException("Keycloak refused to clear " + UPDATE_PASSWORD + " on user "
+                    + userId + ": HTTP " + clearResp.statusCode());
+        }
     }
 
     /**
-     * Asks Keycloak to email the set-password link. Never throws: the user exists either way. Returns
-     * whether Keycloak accepted the request, so the accept page can say what to do next.
+     * The wording for a refused password, from Keycloak's reply: {@code error_description} is the realm's
+     * message for the failed rule; {@code errorMessage} is what older paths send. Neither echoes the password.
      */
-    private boolean sendSetPasswordEmail(Target target, String adminToken, UUID userId) {
+    String policyMessage(String body) {
+        String fallback = "Password does not meet the password policy";
+        if (body == null || body.isBlank()) {
+            return fallback;
+        }
         try {
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(executeActionsEmailUrl(target, userId)))
-                    .header("Authorization", "Bearer " + adminToken)
-                    .header("Content-Type", "application/json")
-                    .timeout(TIMEOUT)
-                    .PUT(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(List.of(UPDATE_PASSWORD))))
-                    .build();
-            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() / 100 != 2) {
-                log.warn(
-                        "Keycloak did not send the set-password email for user {}: HTTP {}", userId, resp.statusCode());
-                return false;
+            JsonNode node = objectMapper.readTree(body);
+            for (String field : List.of("error_description", "errorMessage")) {
+                JsonNode value = node.get(field);
+                if (value != null && !value.asText().isBlank()) {
+                    return value.asText();
+                }
             }
-            return true;
+        } catch (IOException e) {
+            // not JSON: fall through
+        }
+        return fallback;
+    }
+
+    /** Best-effort deletion of a user this call created and could not finish; the first failure is what matters. */
+    private void deleteQuietly(Target target, String adminToken, UUID userId) {
+        try {
+            HttpRequest deleteReq = HttpRequest.newBuilder()
+                    .uri(URI.create(target.usersUrl() + "/" + userId))
+                    .header("Authorization", "Bearer " + adminToken)
+                    .timeout(TIMEOUT)
+                    .DELETE()
+                    .build();
+            httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
         } catch (IOException e) {
             log.warn(
-                    "Keycloak did not send the set-password email for user {}: {}",
+                    "Could not delete Keycloak user {} after its password was refused: {}",
                     userId,
                     e.getClass().getSimpleName());
-            return false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.warn("Interrupted asking Keycloak to send the set-password email for user {}", userId);
-            return false;
+            log.warn("Interrupted deleting Keycloak user {} after its password was refused", userId);
         }
     }
 

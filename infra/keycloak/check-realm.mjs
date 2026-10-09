@@ -8,6 +8,11 @@
  * - No `localhost` string anywhere in the file
  * - `sslRequired` must be "external"
  * - `resetPasswordAllowed` must be true
+ *
+ * Live mode (D-88): `--live <keycloak-base-url> --app <app-root-url>` also asks the deployed realm's
+ * sign-in page for its "Forgot password?" link. Keycloak imports the realm file only once, so a realm
+ * that existed before a setting was added never picks it up from the file; the page is the proof.
+ * No secret is needed: the sign-in page is public. `infra/azure/verify-live.sh` runs this.
  */
 
 import { readFileSync } from 'node:fs';
@@ -111,13 +116,49 @@ if (!webClient) {
   }
 }
 
+// 5. Live realm (D-88): the deployed sign-in page must offer "Forgot password?". Without it, an invitee
+// who loses their password has no way back: nothing in the app resets a password.
+const args = process.argv.slice(2);
+const argValue = (name) => {
+  const i = args.indexOf(name);
+  return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
+};
+const liveBase = argValue('--live');
+if (liveBase) {
+  const appRoot = argValue('--app') ?? '';
+  const base = liveBase.replace(/\/$/, '');
+  const query = new URLSearchParams({
+    client_id: 'infinevo-web',
+    response_type: 'code',
+    scope: 'openid',
+    redirect_uri: appRoot,
+  });
+  const loginUrl = `${base}/realms/${realm.realm}/protocol/openid-connect/auth?${query}`;
+  try {
+    const response = await fetch(loginUrl, { redirect: 'follow' });
+    const html = await response.text();
+    if (response.status !== 200) {
+      errors.push(`Live sign-in page ${loginUrl} answered HTTP ${response.status}; expected 200.`);
+    } else if (!/login-actions\/reset-credentials/.test(html)) {
+      errors.push(
+        `Live realm has no "Forgot password?" link on its sign-in page (${base}): set resetPasswordAllowed=true on the deployed realm (infra/keycloak/README.md §2).`,
+      );
+    } else {
+      console.log(`PASS: live realm at ${base} offers "Forgot password?" on its sign-in page`);
+    }
+  } catch (err) {
+    errors.push(`Live sign-in page ${loginUrl} could not be fetched: ${err.message}`);
+  }
+}
+
 if (errors.length > 0) {
   console.error(`::error::check-realm.mjs failed with ${errors.length} error(s):`);
   for (const err of errors) {
     console.error(`  - ${err}`);
   }
-  process.exit(1);
+  // Not process.exit(): after a fetch, Node on Windows aborts in libuv teardown (UV_HANDLE_CLOSING) and the
+  // exit code is lost. Setting exitCode lets the loop drain and still fails the run.
+  process.exitCode = 1;
+} else {
+  console.log('OK - infra/keycloak/infinevo-realm.json passed all security and configuration checks.');
 }
-
-console.log('OK - infra/keycloak/infinevo-realm.json passed all security and configuration checks.');
-process.exit(0);

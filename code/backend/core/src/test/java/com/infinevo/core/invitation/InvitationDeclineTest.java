@@ -97,10 +97,10 @@ class InvitationDeclineTest {
         assertThat(inv.getDeclineReason()).isEqualTo("No longer interested in this position");
 
         // Attempting to accept a declined token is refused, and nothing is provisioned
-        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("declined");
-        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(any(), any(), any());
+        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(any(), any(), any(), any());
 
         // Nor can it be declined a second time
         assertThatThrownBy(() -> invitationService.declineInvitation(token, "Changed my mind"))

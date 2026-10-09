@@ -307,9 +307,9 @@ class InvitationServiceTest {
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(
-                        keycloakUserId, true, AcceptOutcome.SET_PASSWORD_EMAIL_FAILED));
+                        keycloakUserId, true, AcceptOutcome.PASSWORD_SET));
 
         UserAccount userAccount = mock(UserAccount.class);
         when(userAccount.getId()).thenReturn(UUID.randomUUID());
@@ -319,12 +319,13 @@ class InvitationServiceTest {
                 .thenReturn(List.of());
 
         // First acceptance succeeds and passes the provisioning outcome to the accept page (D-62)
-        assertThat(invitationService.acceptInvitation(token)).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_FAILED);
+        assertThat(invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
+                .isEqualTo(AcceptOutcome.PASSWORD_SET);
         assertThat(inv.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
         assertThat(inv.getAcceptedAt()).isNotNull();
 
         // Second acceptance throws IllegalStateException
-        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already been accepted");
     }
@@ -340,7 +341,7 @@ class InvitationServiceTest {
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, false));
         UUID accountId = UUID.randomUUID();
         UserAccount account = mock(UserAccount.class);
@@ -358,7 +359,7 @@ class InvitationServiceTest {
         when(userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantId, inv.getId()))
                 .thenReturn(List.of(invited));
 
-        invitationService.acceptInvitation(token);
+        invitationService.acceptInvitation(token, "Str0ng-Passw0rd!");
 
         ArgumentCaptor<UserRolesRequest> request = ArgumentCaptor.forClass(UserRolesRequest.class);
         verify(roleService).replaceUserRoles(eq(accountId), request.capture());
@@ -388,7 +389,7 @@ class InvitationServiceTest {
                 .thenReturn(Optional.of(employee));
 
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
         UUID accountId = UUID.randomUUID();
         UserAccount account = mock(UserAccount.class);
@@ -399,7 +400,7 @@ class InvitationServiceTest {
         when(employeeRole.getId()).thenReturn(UUID.randomUUID());
         when(roleRepository.findByTenantIdAndCode(tenantId, "employee")).thenReturn(Optional.of(employeeRole));
 
-        invitationService.acceptInvitation(token);
+        invitationService.acceptInvitation(token, "Str0ng-Passw0rd!");
 
         assertThat(employee.getUserAccountId()).isEqualTo(accountId);
         verify(employeeRepository).save(employee);
@@ -418,13 +419,13 @@ class InvitationServiceTest {
 
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
-        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
                 .isInstanceOf(InvitationExpiredException.class)
                 .hasMessageContaining("expired");
 
         assertThat(inv.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
         verify(userInvitationRepository).saveAndFlush(inv);
-        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any());
+        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any(), anyString());
     }
 
     @Test
@@ -439,11 +440,11 @@ class InvitationServiceTest {
 
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
-        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("revoked");
 
-        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any());
+        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any(), anyString());
     }
 
     @Test
@@ -481,14 +482,14 @@ class InvitationServiceTest {
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(eq("newuser@example.com"), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(eq("newuser@example.com"), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         org.mockito.Mockito.doThrow(new RuntimeException("Simulated DB connection failure"))
                 .when(userProfileSyncService)
                 .sync(any(), any(), any(), any(), any());
 
-        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Simulated DB connection failure");
 
@@ -509,14 +510,14 @@ class InvitationServiceTest {
         when(userInvitationRepository.findByTokenHashSecurityDefiner(hash)).thenReturn(Optional.of(inv));
 
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(eq("existing@example.com"), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(eq("existing@example.com"), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, false));
 
         org.mockito.Mockito.doThrow(new RuntimeException("Simulated DB connection failure"))
                 .when(userProfileSyncService)
                 .sync(any(), any(), any(), any(), any());
 
-        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Simulated DB connection failure");
 

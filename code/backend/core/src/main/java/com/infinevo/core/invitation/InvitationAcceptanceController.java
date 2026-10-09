@@ -40,6 +40,9 @@ public class InvitationAcceptanceController {
      * The one answer for every token that cannot be used — unknown, accepted, declined, revoked or expired.
      * A distinct message per state would let a caller probe which tokens exist (spec §9).
      */
+    /** Longer than any sane password; a bound so the body cannot carry arbitrary bulk to Keycloak. */
+    static final int MAX_PASSWORD_LENGTH = 128;
+
     static final String GENERIC_FAILURE =
             "This invitation cannot be used. It may have expired, been used or been withdrawn. Ask for a new invitation.";
 
@@ -48,8 +51,23 @@ public class InvitationAcceptanceController {
         if (request == null || request.token() == null || request.token().isBlank()) {
             return badRequest("token must not be blank");
         }
-        AcceptOutcome outcome = invitationService.acceptInvitation(request.token());
+        if (request.password() == null || request.password().isBlank()) {
+            return badRequest("password must not be blank");
+        }
+        if (request.password().length() > MAX_PASSWORD_LENGTH) {
+            return badRequest("password cannot exceed " + MAX_PASSWORD_LENGTH + " characters");
+        }
+        AcceptOutcome outcome = invitationService.acceptInvitation(request.token(), request.password());
         return ResponseEntity.ok(new AcceptInvitationResponse("Invitation accepted successfully", outcome));
+    }
+
+    /**
+     * Keycloak refused the password (D-88): a {@code 400} with the realm's own wording of the rule, so the accept
+     * page can show it beside the field. The invitation is still PENDING and the invitee tries again.
+     */
+    @ExceptionHandler(PasswordPolicyException.class)
+    public ResponseEntity<ApiErrorResponse> handlePasswordPolicy(PasswordPolicyException e) {
+        return badRequest(e.getMessage());
     }
 
     @PostMapping("/decline")

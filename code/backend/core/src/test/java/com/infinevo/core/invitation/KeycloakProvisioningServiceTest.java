@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,7 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 /**
- * {@link KeycloakProvisioningServiceImpl} against a stub Keycloak admin API on a local port (W-24.2, B-2/B-3).
+ * {@link KeycloakProvisioningServiceImpl} against a stub Keycloak admin API on a local port (W-24.2, B-2/B-3;
+ * D-88 for the password).
  *
  * <p>The issuer points at a port nothing listens on, so any call that went to the issuer's host instead of
  * {@code keycloak.admin.url} would fail the test.
@@ -30,6 +32,9 @@ class KeycloakProvisioningServiceTest {
 
     private static final String UNREACHABLE_ISSUER = "http://127.0.0.1:1/realms/infinevo";
     private static final String EMAIL = "new.person@example.com";
+    private static final String PASSWORD = "Str0ng-Passw0rd!";
+    private static final String USERS = "/admin/realms/infinevo/users";
+    private static final String TOKEN = "/realms/master/protocol/openid-connect/token";
 
     record Call(String method, String path, String query, String body) {}
 
@@ -38,7 +43,8 @@ class KeycloakProvisioningServiceTest {
     private final UUID createdId = UUID.randomUUID();
     private volatile String searchBody = "[]";
     private volatile int createStatus = 201;
-    private volatile int actionsEmailStatus = 204;
+    private volatile int resetStatus = 204;
+    private volatile String resetBody = "";
 
     private ListAppender<ILoggingEvent> logs;
     private Logger logger;
@@ -67,18 +73,19 @@ class KeycloakProvisioningServiceTest {
         String path = exchange.getRequestURI().getPath();
         calls.add(new Call(method, path, exchange.getRequestURI().getRawQuery(), body));
 
-        String users = "/admin/realms/infinevo/users";
-        if (path.equals("/realms/master/protocol/openid-connect/token")) {
+        if (path.equals(TOKEN)) {
             respond(exchange, 200, "{\"access_token\":\"admin-token\"}");
-        } else if (path.equals(users) && method.equals("GET")) {
+        } else if (path.equals(USERS) && method.equals("GET")) {
             respond(exchange, 200, searchBody);
-        } else if (path.equals(users) && method.equals("POST")) {
+        } else if (path.equals(USERS) && method.equals("POST")) {
             if (createStatus == 201) {
-                exchange.getResponseHeaders().add("Location", adminUrl() + users + "/" + createdId);
+                exchange.getResponseHeaders().add("Location", adminUrl() + USERS + "/" + createdId);
             }
             respond(exchange, createStatus, createStatus == 201 ? "" : "{\"error\":\"bad " + EMAIL + "\"}");
-        } else if (path.startsWith(users + "/") && path.endsWith("/execute-actions-email") && method.equals("PUT")) {
-            respond(exchange, actionsEmailStatus, "");
+        } else if (path.startsWith(USERS + "/") && path.endsWith("/reset-password") && method.equals("PUT")) {
+            respond(exchange, resetStatus, resetBody);
+        } else if (path.startsWith(USERS + "/") && (method.equals("PUT") || method.equals("DELETE"))) {
+            respond(exchange, 204, "");
         } else {
             respond(exchange, 404, "");
         }
@@ -102,49 +109,75 @@ class KeycloakProvisioningServiceTest {
     }
 
     @Test
-    @DisplayName("search, create with UPDATE_PASSWORD, then execute-actions-email — all on the admin URL")
-    void createsUserThatMustSetAPassword() {
+    @DisplayName(
+            "D-88: search, create with UPDATE_PASSWORD, set the password, clear the action — no mail, all on the admin URL")
+    void createsUserAndSetsItsPassword() {
         KeycloakProvisioningService.ProvisioningResult result =
-                service().getOrCreateKeycloakUser(EMAIL, "New", "Person");
+                service().getOrCreateKeycloakUser(EMAIL, "New", "Person", PASSWORD);
 
         assertThat(result.keycloakUserId()).isEqualTo(createdId);
         assertThat(result.newlyCreated()).isTrue();
-        assertThat(result.outcome()).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_SENT);
+        assertThat(result.outcome()).isEqualTo(AcceptOutcome.PASSWORD_SET);
         assertThat(calls)
                 .extracting(Call::method, Call::path)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("POST", "/realms/master/protocol/openid-connect/token"),
-                        org.assertj.core.groups.Tuple.tuple("GET", "/admin/realms/infinevo/users"),
-                        org.assertj.core.groups.Tuple.tuple("POST", "/admin/realms/infinevo/users"),
-                        org.assertj.core.groups.Tuple.tuple(
-                                "PUT", "/admin/realms/infinevo/users/" + createdId + "/execute-actions-email"));
+                        Tuple.tuple("POST", TOKEN),
+                        Tuple.tuple("GET", USERS),
+                        Tuple.tuple("POST", USERS),
+                        Tuple.tuple("PUT", USERS + "/" + createdId + "/reset-password"),
+                        Tuple.tuple("PUT", USERS + "/" + createdId));
         assertThat(calls.get(1).query()).contains("exact=true");
         assertThat(calls.get(2).body()).contains("\"requiredActions\":[\"UPDATE_PASSWORD\"]");
-        assertThat(calls.get(3).body()).isEqualTo("[\"UPDATE_PASSWORD\"]");
+        assertThat(calls.get(3).body())
+                .contains("\"type\":\"password\"")
+                .contains("\"value\":\"" + PASSWORD + "\"")
+                .contains("\"temporary\":false");
+        assertThat(calls.get(4).body()).isEqualTo("{\"requiredActions\":[]}");
+        assertThat(calls).extracting(Call::path).noneMatch(p -> p.endsWith("/execute-actions-email"));
     }
 
     @Test
-    @DisplayName("the set-password email failing is logged without the address and does not fail provisioning")
-    void actionsEmailFailureIsOnlyAWarning() {
-        actionsEmailStatus = 500;
+    @DisplayName(
+            "D-88: a password Keycloak refuses is a PasswordPolicyException with the realm's wording, and the created user is deleted")
+    void refusedPasswordDeletesTheCreatedUser() {
+        resetStatus = 400;
+        resetBody = "{\"error\":\"invalidPasswordMinLengthMessage\","
+                + "\"error_description\":\"Invalid password: minimum length 10.\"}";
 
-        KeycloakProvisioningService.ProvisioningResult result = service().getOrCreateKeycloakUser(EMAIL, null, null);
+        assertThatThrownBy(() -> service().getOrCreateKeycloakUser(EMAIL, null, null, "short"))
+                .isInstanceOf(PasswordPolicyException.class)
+                .hasMessage("Invalid password: minimum length 10.");
 
-        assertThat(result.newlyCreated()).isTrue();
-        assertThat(result.outcome()).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_FAILED);
+        assertThat(calls)
+                .extracting(Call::method, Call::path)
+                .containsExactly(
+                        Tuple.tuple("POST", TOKEN),
+                        Tuple.tuple("GET", USERS),
+                        Tuple.tuple("POST", USERS),
+                        Tuple.tuple("PUT", USERS + "/" + createdId + "/reset-password"),
+                        Tuple.tuple("DELETE", USERS + "/" + createdId));
         assertThat(logs.list)
-                .anySatisfy(event -> assertThat(event.getFormattedMessage()).contains("set-password email"));
-        assertThat(logs.list)
-                .noneSatisfy(event -> assertThat(event.getFormattedMessage()).contains(EMAIL));
+                .noneSatisfy(event -> assertThat(event.getFormattedMessage()).contains("short"));
     }
 
     @Test
-    @DisplayName("an existing user is reused: no create, no email, not marked as created")
-    void existingUserIsReused() {
+    @DisplayName("D-88: a refusal with no readable reason still gets a plain message, never the password")
+    void refusalWithoutReasonGetsAPlainMessage() {
+        KeycloakProvisioningServiceImpl service = service();
+        assertThat(service.policyMessage("")).isEqualTo("Password does not meet the password policy");
+        assertThat(service.policyMessage("not json")).isEqualTo("Password does not meet the password policy");
+        assertThat(service.policyMessage("{\"errorMessage\":\"Password policy not met\"}"))
+                .isEqualTo("Password policy not met");
+    }
+
+    @Test
+    @DisplayName("an existing user with a password is reused: no create, no reset, not marked as created")
+    void existingUserKeepsItsPassword() {
         UUID existing = UUID.randomUUID();
         searchBody = "[{\"id\":\"" + existing + "\"}]";
 
-        KeycloakProvisioningService.ProvisioningResult result = service().getOrCreateKeycloakUser(EMAIL, null, null);
+        KeycloakProvisioningService.ProvisioningResult result =
+                service().getOrCreateKeycloakUser(EMAIL, null, null, PASSWORD);
 
         assertThat(result.keycloakUserId()).isEqualTo(existing);
         assertThat(result.newlyCreated()).isFalse();
@@ -153,36 +186,36 @@ class KeycloakProvisioningServiceTest {
     }
 
     @Test
-    @DisplayName("D-62: an existing user who never set a password is sent the set-password mail again")
-    void existingUserAwaitingPasswordGetsTheMailAgain() {
+    @DisplayName("D-88: an existing user who never set a password is given this one")
+    void existingUserAwaitingPasswordGetsThisOne() {
         UUID existing = UUID.randomUUID();
         searchBody = "[{\"id\":\"" + existing + "\",\"requiredActions\":[\"UPDATE_PASSWORD\"]}]";
 
-        KeycloakProvisioningService.ProvisioningResult result = service().getOrCreateKeycloakUser(EMAIL, null, null);
+        KeycloakProvisioningService.ProvisioningResult result =
+                service().getOrCreateKeycloakUser(EMAIL, null, null, PASSWORD);
 
         assertThat(result.keycloakUserId()).isEqualTo(existing);
         assertThat(result.newlyCreated()).isFalse();
-        assertThat(result.outcome()).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_SENT);
+        assertThat(result.outcome()).isEqualTo(AcceptOutcome.PASSWORD_SET);
         assertThat(calls)
                 .extracting(Call::method, Call::path)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("POST", "/realms/master/protocol/openid-connect/token"),
-                        org.assertj.core.groups.Tuple.tuple("GET", "/admin/realms/infinevo/users"),
-                        org.assertj.core.groups.Tuple.tuple(
-                                "PUT", "/admin/realms/infinevo/users/" + existing + "/execute-actions-email"));
+                        Tuple.tuple("POST", TOKEN),
+                        Tuple.tuple("GET", USERS),
+                        Tuple.tuple("PUT", USERS + "/" + existing + "/reset-password"),
+                        Tuple.tuple("PUT", USERS + "/" + existing));
     }
 
     @Test
-    @DisplayName("D-62: a create that races another acceptance (409) reuses the user and sends the mail itself")
-    void raceOnCreateSendsTheMail() {
+    @DisplayName("D-88: a create that races another acceptance (409) reuses the user and sets the password itself")
+    void raceOnCreateSetsThePassword() {
         UUID raced = UUID.randomUUID();
         createStatus = 409;
         // The first search finds nothing; the search after the 409 finds the raced user, still awaiting a password.
         server.removeContext("/");
         server.createContext("/", exchange -> {
             String path = exchange.getRequestURI().getPath();
-            if (path.equals("/admin/realms/infinevo/users")
-                    && exchange.getRequestMethod().equals("GET")) {
+            if (path.equals(USERS) && exchange.getRequestMethod().equals("GET")) {
                 long searches =
                         calls.stream().filter(c -> c.method().equals("GET")).count();
                 searchBody =
@@ -191,42 +224,13 @@ class KeycloakProvisioningServiceTest {
             handle(exchange);
         });
 
-        KeycloakProvisioningService.ProvisioningResult result = service().getOrCreateKeycloakUser(EMAIL, null, null);
+        KeycloakProvisioningService.ProvisioningResult result =
+                service().getOrCreateKeycloakUser(EMAIL, null, null, PASSWORD);
 
         assertThat(result.keycloakUserId()).isEqualTo(raced);
         assertThat(result.newlyCreated()).isFalse();
-        assertThat(result.outcome()).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_SENT);
-        assertThat(calls)
-                .extracting(Call::path)
-                .contains("/admin/realms/infinevo/users/" + raced + "/execute-actions-email");
-    }
-
-    @Test
-    @DisplayName("D-62: the set-password mail returns to the app — web client and the invitation link's origin")
-    void setPasswordMailCarriesTheWayBack() {
-        new KeycloakProvisioningServiceImpl(
-                        UNREACHABLE_ISSUER,
-                        adminUrl(),
-                        "admin",
-                        "admin-pw",
-                        "infinevo-web",
-                        "https://app.example/invitations/accept")
-                .getOrCreateKeycloakUser(EMAIL, null, null);
-
-        Call mail = calls.get(3);
-        assertThat(mail.path()).endsWith("/execute-actions-email");
-        assertThat(mail.query()).isEqualTo("client_id=infinevo-web&redirect_uri=https%3A%2F%2Fapp.example%2F");
-    }
-
-    @Test
-    @DisplayName("D-62: with no invitation link the mail is sent bare rather than with a guessed address")
-    void noInvitationLinkMeansNoRedirect() {
-        service().getOrCreateKeycloakUser(EMAIL, null, null);
-
-        assertThat(calls.get(3).query()).isNull();
-        assertThat(KeycloakProvisioningServiceImpl.appRoot("not a url")).isEmpty();
-        assertThat(KeycloakProvisioningServiceImpl.appRoot("http://localhost:5173/invitations/accept"))
-                .isEqualTo("http://localhost:5173/");
+        assertThat(result.outcome()).isEqualTo(AcceptOutcome.PASSWORD_SET);
+        assertThat(calls).extracting(Call::path).contains(USERS + "/" + raced + "/reset-password");
     }
 
     @Test
@@ -234,20 +238,28 @@ class KeycloakProvisioningServiceTest {
     void refusedCreateKeepsTheAddressOutOfTheMessage() {
         createStatus = 400;
 
-        assertThatThrownBy(() -> service().getOrCreateKeycloakUser(EMAIL, null, null))
+        assertThatThrownBy(() -> service().getOrCreateKeycloakUser(EMAIL, null, null, PASSWORD))
                 .isInstanceOf(KeycloakProvisioningException.class)
                 .hasMessageContaining("HTTP 400")
                 .hasMessageNotContaining(EMAIL);
     }
 
     @Test
+    @DisplayName("a blank password is refused before Keycloak is called")
+    void blankPasswordIsRefused() {
+        assertThatThrownBy(() -> service().getOrCreateKeycloakUser(EMAIL, null, null, " "))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(calls).isEmpty();
+    }
+
+    @Test
     @DisplayName("no issuer or no admin password: refused, never a made-up user id")
     void unconfiguredIsRefused() {
         assertThatThrownBy(() -> new KeycloakProvisioningServiceImpl("", adminUrl(), "admin", "pw")
-                        .getOrCreateKeycloakUser(EMAIL, null, null))
+                        .getOrCreateKeycloakUser(EMAIL, null, null, PASSWORD))
                 .isInstanceOf(KeycloakProvisioningException.class);
         assertThatThrownBy(() -> new KeycloakProvisioningServiceImpl(UNREACHABLE_ISSUER, adminUrl(), "admin", "")
-                        .getOrCreateKeycloakUser(EMAIL, null, null))
+                        .getOrCreateKeycloakUser(EMAIL, null, null, PASSWORD))
                 .isInstanceOf(KeycloakProvisioningException.class)
                 .hasMessageContaining("KEYCLOAK_ADMIN_PASSWORD");
         assertThat(calls).isEmpty();

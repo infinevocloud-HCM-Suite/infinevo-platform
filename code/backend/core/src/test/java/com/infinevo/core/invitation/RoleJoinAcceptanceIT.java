@@ -105,7 +105,8 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
         org.mockito.Mockito.when(keycloakProvisioningService.getOrCreateKeycloakUser(
                         org.mockito.ArgumentMatchers.anyString(),
                         org.mockito.ArgumentMatchers.any(),
-                        org.mockito.ArgumentMatchers.any()))
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         String testToken = InvitationTokenUtils.generateToken();
@@ -123,7 +124,7 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
         userInvitationRoleRepository.save(new UserInvitationRole(tenant, saved.getId(), employeeRole, "admin"));
 
         TenantContext.clear();
-        invitationService.acceptInvitation(testToken);
+        invitationService.acceptInvitation(testToken, "Str0ng-Passw0rd!");
 
         TenantContext.set(tenant);
         com.infinevo.shared.identity.UserAccount account = transactionTemplate.execute(status -> userAccountRepository
@@ -147,7 +148,8 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
         org.mockito.Mockito.when(keycloakProvisioningService.getOrCreateKeycloakUser(
                         org.mockito.ArgumentMatchers.anyString(),
                         org.mockito.ArgumentMatchers.any(),
-                        org.mockito.ArgumentMatchers.any()))
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, false));
 
         String token = InvitationTokenUtils.generateToken();
@@ -161,7 +163,7 @@ class RoleJoinAcceptanceIT extends AbstractIntegrationTest {
         userInvitationRoleRepository.save(new UserInvitationRole(tenant, saved.getId(), invitedRole, "admin"));
 
         TenantContext.clear();
-        invitationService.acceptInvitation(token);
+        invitationService.acceptInvitation(token, "Str0ng-Passw0rd!");
 
         TenantContext.set(tenant);
         java.util.List<com.infinevo.core.authz.UserRole> roles = transactionTemplate.execute(

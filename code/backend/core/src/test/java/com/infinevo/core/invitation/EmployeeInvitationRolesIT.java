@@ -126,11 +126,11 @@ class EmployeeInvitationRolesIT extends AbstractIntegrationTest {
                 "admin",
                 List.of(hrRole)));
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         TenantContext.clear();
-        invitationService.acceptInvitation(token);
+        invitationService.acceptInvitation(token, "Str0ng-Passw0rd!");
         TenantContext.set(tenant);
 
         UserAccount account = transactionTemplate.execute(status -> userAccountRepository
@@ -226,11 +226,11 @@ class EmployeeInvitationRolesIT extends AbstractIntegrationTest {
                 List.of(hrRole, doomed)));
         deleteRole(doomed);
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         TenantContext.clear();
-        invitationService.acceptInvitation(token);
+        invitationService.acceptInvitation(token, "Str0ng-Passw0rd!");
         TenantContext.set(tenant);
 
         UserAccount account = transactionTemplate.execute(status -> userAccountRepository

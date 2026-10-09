@@ -70,7 +70,7 @@ class NoOrphanKeycloakUserIT extends AbstractIntegrationTest {
     void unacceptedInvitationLeavesNoKeycloakUser() {
         invitationService.createUserInvitation(
                 new UserInvitationRequest("unaccepted@example.com", Set.of()), adminUserId);
-        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any());
+        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any(), anyString());
 
         // An expired invitation presented later is refused before Keycloak is touched
         String token = InvitationTokenUtils.generateToken();
@@ -83,16 +83,16 @@ class NoOrphanKeycloakUserIT extends AbstractIntegrationTest {
                 "admin"));
         TenantContext.clear();
 
-        assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+        assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
                 .isInstanceOf(InvitationExpiredException.class);
-        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any());
+        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(anyString(), any(), any(), anyString());
     }
 
     @Test
     @DisplayName("a database write failing after Keycloak created the user deletes that Keycloak user")
     void failedWriteAfterProvisioningDeletesTheNewKeycloakUser() throws SQLException {
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         String token = InvitationTokenUtils.generateToken();
@@ -116,7 +116,7 @@ class NoOrphanKeycloakUserIT extends AbstractIntegrationTest {
                     + " BEFORE INSERT ON core.user_tenant FOR EACH ROW EXECUTE FUNCTION core." + trigger + "()");
         }
         try {
-            assertThatThrownBy(() -> invitationService.acceptInvitation(token))
+            assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
                     .hasStackTraceContaining("simulated write failure");
         } finally {
             try (Connection conn = AuthzTestSchema.migrationConnection();

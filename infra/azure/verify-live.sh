@@ -149,6 +149,10 @@ if [ "$PG_ALERT_STATUS" != "true" ]; then
 fi
 echo "PASS: Metric alert $ALERT_PG exists and is enabled"
 
+# 11. Keycloak realm as deployed (D-88): the realm file imports only once, so the live realm can lag it.
+echo "--- Check 11: Live Keycloak Realm (Forgot password) ---"
+node infra/keycloak/check-realm.mjs --live "https://${AFD_HOST}/auth" --app "https://${AFD_HOST}/"
+
 echo "================================================================="
 echo " ALL LIVE AZURE INFRASTRUCTURE TESTS PASSED SUCCESSFULLY!"
 echo "================================================================="
