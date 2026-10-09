@@ -1,12 +1,12 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-08**, against `main` `7fa1b73a`.
+> Last refreshed: **2026-10-08**, against `main` `861b56dc`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
-## 2026-10-08 — `W-73.1`, `.2`, `.3`, `.5`, `.6`, `.7` merged
+## 2026-10-09 — `W-73` complete: all nine children merged
 
 | Ticket | Commit | What |
 |---|---|---|
@@ -16,11 +16,14 @@
 | `W-73.6` | `04e1964c` | Scheduled earnings paid in monthly instalments by the pay run (`V161`) |
 | `W-73.2` | `0c165413` | `/admin` platform dashboard; waiting admin invitations with Resend (`V168`) |
 | `W-73.7` | `7fa1b73a` | Bulk invite from CSV on the worker; "Invite all without access"; same `core.role.assign` rule |
+| `W-73.8` | `03f22628` | Welcome page per role at first sign-in (`V165`) |
+| `W-73.4` | `db7b0d8e` | One `/users` screen: roles, disable/enable, both invitation kinds (`V164`; disable is tenant-safe in Keycloak) |
+| `W-73.9` | `861b56dc` | Create Tenant seeds India defaults: holidays, leave types, payroll catalogue (`V162`, `V169`) |
 
 - Built by Claude in parallel worktrees (`dev-claude-W-73-n`), one squash each. Gates 5/5, CI green, one independent read each.
 - `CVE-2026-47890` (Spring SSE fragment rendering, fix only in 7.0.9) ignored in `.trivyignore` on `f1de6c7d`, founder-approved: no SSE or server views in the platform. Remove on the Spring 7 upgrade.
-- **Outstanding:** `W-73.6` payslip shows a generic always-taxed "One-time payout" line and has no Refresh button; nothing sweeps a job left RUNNING after a worker crash (W-52 debt); V159 tenant functions have no platform check of their own.
-- **Still in flight:** `W-73.4` (review fixes), `W-73.8` (review fixes). **Next:** `W-73.9` alone.
+- **Outstanding:** `W-73.6` payslip shows a generic always-taxed "One-time payout" line and has no Refresh button; nothing sweeps a job left RUNNING after a worker crash (W-52 debt); V159 tenant functions have no platform check of their own; last sign-in not shown (`W-73.4`); **the 2027 central holiday list must ship before 1 Jan 2027** (`W-73.9`).
+- CI green on `main` through `db7b0d8e`. **Branches:** the nine `dev-claude-W-73-n` branches and worktrees can be deleted.
 
 ## 2026-10-07 — `D-33`–`D-42` fixed on `main` (`f996cd1c`, `a6b3dca3`; CI green at `a63ce18e`)
 
