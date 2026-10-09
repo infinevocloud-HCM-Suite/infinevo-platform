@@ -39,3 +39,7 @@ infra/docker/.env
 
 # Operator setup scripts
 infra/azure/seed_staff.py
+
+# Local staging & test database dumps
+Non-prod_hrms_payroll/
+
