@@ -16,7 +16,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `core` owns the template and the seam; `payroll` fills its part through a `TenantTemplateContributor` bean, as navigation does with `NavigationContributor` — no module calls another | 1 (+ the contributor seam) |
-| Flyway migration | `V162` — `reference.country_template` rows for India | 1 |
+| Flyway migration | `V162` — `reference.country_template` rows for India; `V169` — `core.tenant_template_applied` (amended, §11) | 1 + 1 |
 | Externally testable behaviour | a tenant created with country `IN` has EPF, ESI, PT, a national holiday calendar, standard leave types and the common salary components before its admin signs in | 1 |
 | Frontend area | `core/admin` (one select, one preview) | 1 |
 
@@ -112,7 +112,7 @@ admin --> /setup --> five steps "Pre-filled — review", three to do
 
 | Check | Expected |
 |---|---|
-| Create tenant `IN` on Azure dev, sign in as its admin | `/setup` shows 5 pre-filled, 3 open; `/payroll/settings/epf` shows rates, disabled |
+| Create tenant `IN` on Azure dev, sign in as its admin | `/setup` shows 4 pre-filled, 4 open (amended, §11); `/payroll/settings/epf` shows rates, disabled |
 | Create tenant `AE` | "No template"; checklist all open |
 | Apply template to an older tenant with components already | Components skipped, the rest applied |
 
@@ -126,3 +126,18 @@ admin --> /setup --> five steps "Pre-filled — review", three to do
 ## 10. Rollback
 
 `core.tenant_template_applied` says what was written; a tenant's template rows can be deleted while unused. The reference table stays.
+
+## 11. Amendments at build (2026-10-09)
+
+| Spec said | Built | Why, with evidence |
+|---|---|---|
+| One migration `V162` with both tables | `V162` (reference, India rows) and `V169` (`core.tenant_template_applied`, RLS) | Keeps the reference script tenant-free; Flyway versions are global and `V163`–`V168` were taken |
+| `statutory` covers EPF, ESI **and PT** (`pt_setting`) | EPF and ESI only | There is no per-tenant PT settings table: slabs come from `reference.pt_slab` by each work location's state (`ProfessionalTaxServiceImpl.java:209`, `:262`; `PayrollSetupStepConfiguration.java:154`) |
+| Five steps pre-filled, three open | Four pre-filled (`PAY_SCHEDULE`, `SALARY_COMPONENTS`, `EPF`, `ESI`), four open | Follows from the row above: the PT step completes from work-location state codes the template cannot know |
+| Catalogue deductions PF, ESI, PT, TDS | Salary advance, loan EMI, canteen, notice pay (17 earnings + 4 deductions = 21) | PF, ESI, PT and TDS are derived pay-run lines (`StatutoryComponentCode.java`, `StatutoryLineDeriver.java:20`); a catalogue row would list them twice |
+| `PRE_FILLED` as a new step state | `prefilled: true` on the step reply, with `completed` still true; a step is pre-filled while every row it checks has `updated_by = 'template'` | A save through the module's service replaces `updated_by`. `PayScheduleServiceImpl` did not set it (main `PayScheduleServiceImpl.java:64`) and now does |
+| Country select backed by the reference list | The two-letter field stays (`TenantCreate.jsx:119`); the "Starts with" line sits under it | A select of templated countries would stop a tenant in `AE` from being created |
+| `TenantPage.jsx` | `TenantDetail.jsx` | The tenant page's file name |
+| Holidays for the current and next year | 2026: the central list as gazetted for Delhi (17, DoPT OM of 3 July 2025); 2027: the five dates known now | The rest of 2027 is not published; a migration adds it, bumping `version` |
+| — | **Outstanding (F-3):** the full 2027 list is needed before 1 January 2027 | "Only where none" never tops up a later year: a tenant that already has a calendar gets no 2027 holidays from a re-run, so the 2027 migration must also say how existing tenants get them |
+| Payroll sections always applied | Applied only when the tenant holds `PAYROLL`; otherwise recorded `SKIPPED` | Matches the setup checklist, which lists payroll steps only with the module; `apply-template` fills them after an upgrade |

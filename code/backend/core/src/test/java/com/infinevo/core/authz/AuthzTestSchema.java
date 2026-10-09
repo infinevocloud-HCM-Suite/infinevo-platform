@@ -200,6 +200,17 @@ public final class AuthzTestSchema {
                     if (!functionExists(conn, "core", "restrict_platform_tenant_grant")) {
                         executeResource(conn, "db/migration/core/V158__platform_tenant_role_scope.sql");
                     }
+                    // W-73.9: country templates (reference, with the country lookup they key on) and the
+                    // per-tenant record of what a template run applied.
+                    if (!tableExists(conn, "reference", "country")) {
+                        executeResource(conn, "db/migration/reference/V003__reference_lookups.sql");
+                    }
+                    if (!tableExists(conn, "reference", "country_template")) {
+                        executeResource(conn, "db/migration/reference/V162__country_template_in.sql");
+                    }
+                    if (!tableExists(conn, "core", "tenant_template_applied")) {
+                        executeResource(conn, "db/migration/core/V169__tenant_template_applied.sql");
+                    }
                 }
 
             } catch (Exception e) {

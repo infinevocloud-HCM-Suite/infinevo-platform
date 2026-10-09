@@ -155,6 +155,26 @@ describe('SetupChecklist component', () => {
     expect(screen.getByText('Reason: Externally managed')).toBeDefined();
   });
 
+  it('W-73.9: a step the country template filled reads "Pre-filled — review", not Done', async () => {
+    setupService.get.mockResolvedValue({
+      ...mockChecklistResponse,
+      steps: mockChecklistResponse.steps.map((s) =>
+        s.code === 'PAY_SCHEDULE'
+          ? { ...s, completed: true, completedAt: '2026-10-09T10:00:00Z', prefilled: true }
+          : s,
+      ),
+    });
+    render(
+      <MemoryRouter>
+        <SetupChecklist />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Pre-filled — review')).toBeDefined();
+    expect(screen.getByText('Filled in from the country template. Open it, check the values and save.')).toBeDefined();
+    expect(screen.getAllByText('Done')).toHaveLength(1);
+  });
+
   it('the server percentage is shown unchanged', async () => {
     setupService.get.mockResolvedValueOnce({
       ...mockChecklistResponse,

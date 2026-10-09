@@ -12,6 +12,7 @@ import { impersonationService } from './impersonationService.js';
 import { started } from './impersonationSlice.js';
 import { AuditTab, AUDIT_HINT } from './AuditTab.jsx';
 import { isPlatformTenant, MODULES, STATUSES, STATUS_COLORS } from './platform.js';
+import { applyResultText } from './countryTemplates.js';
 
 /** The user invitation form: the Invitations tab of Users & access (`core.users`, W-73.4). */
 export const INVITATION_FORM_PATH = '/users?tab=invitations';
@@ -43,6 +44,8 @@ export function TenantDetail() {
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [templateResult, setTemplateResult] = useState(null);
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -149,6 +152,18 @@ export function TenantDetail() {
     }
   };
 
+  // W-73.9: a tenant made before country templates gets the sections it has nothing of its own for.
+  const onApplyTemplate = async () => {
+    setApplyingTemplate(true);
+    try {
+      setTemplateResult(await tenantService.applyTemplate(tenant.tenant_id));
+    } catch (err) {
+      errorMsg(err);
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
+
   const overview = (
     <Space direction="vertical" style={{ width: '100%' }} size={token.marginLG}>
       <Descriptions bordered column={1} size="small">
@@ -199,6 +214,21 @@ export function TenantDetail() {
             onChange={onStatusChange}
             options={STATUSES.map((s) => ({ value: s, label: s }))}
           />
+        </Card>
+      )}
+
+      {!platform && (
+        <Card size="small" title="Country template">
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Typography.Text type="secondary">
+              Adds the country&apos;s holidays, leave types, salary components, EPF and ESI settings and pay
+              schedule where this tenant has none of its own. Nothing it already has is changed.
+            </Typography.Text>
+            <Button onClick={onApplyTemplate} loading={applyingTemplate}>
+              Apply country template
+            </Button>
+            {templateResult && <Alert type="info" showIcon message={applyResultText(templateResult)} />}
+          </Space>
         </Card>
       )}
 

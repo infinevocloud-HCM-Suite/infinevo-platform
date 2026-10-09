@@ -1,5 +1,6 @@
 package com.infinevo.core.tenant;
 
+import com.infinevo.core.template.TemplateApplyResponse;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
@@ -102,6 +103,16 @@ public class TenantController {
     public ResponseEntity<Void> resendAdminInvitation(@PathVariable("id") UUID id) {
         tenantService.resendAdminInvitation(id, currentActorUserId());
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Applies the tenant's country template (W-73.9) - for a tenant created before templates. Writes only the
+     * sections the tenant has no rows of its own for. {@code 404} for an unknown tenant.
+     */
+    @PostMapping("/{id}/apply-template")
+    @RequiresAction("core.tenant.provision")
+    public ResponseEntity<TemplateApplyResponse> applyTemplate(@PathVariable("id") UUID id) {
+        return ResponseEntity.ok(tenantService.applyCountryTemplate(id));
     }
 
     @GetMapping("/{id}")

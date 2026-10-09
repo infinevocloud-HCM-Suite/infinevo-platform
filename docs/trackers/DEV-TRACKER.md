@@ -471,7 +471,7 @@ dev environment crash-loops on the next deploy.
 | #— | `W-73.6` Scheduled earnings | A one-time or instalment earning planned for a future month: `payroll.scheduled_earning` (`V161`), written to the month's pay inputs as `ONE_TIME_PAYOUT` when the run opens, cancelled on termination; "Scheduled" checkbox in the component drawer. Spec `W-73-6-scheduled-earnings.md`. Size M | **Done 2026-10-08 on `04e1964c` — Built by Claude.** Outstanding: payslip shows a generic always-taxed "One-time payout" line; no Refresh button |
 | #— | `W-73.7` Bulk invite | CSV of employees with email and roles → employees created and invited in one job on the worker; "Invite all without access" on the employee list. Spec `W-73-7-bulk-invite.md`. Size M | **Done 2026-10-08 on `7fa1b73a` — Built by Claude.** No migration. Outstanding: no sweeper for a job left RUNNING (W-52 debt) |
 | #— | `W-73.8` Welcome screen | First sign-in page per role: tenant admin sees the checklist and the three next steps; employee sees profile completion and where things are. Dismissed once per user. Spec `W-73-8-welcome-screen.md`. Size S | claude (founder) — assigned 2026-10-08 |
-| #— | `W-73.9` Country templates | Create Tenant seeds a country's defaults: statutory settings, holiday calendar, leave types, salary component catalogue (India first, `reference` data, `V162`). Spec `W-73-9-country-templates.md`. Size M | claude (founder) — assigned 2026-10-08 |
+| #— | `W-73.9` Country templates | Create Tenant seeds a country's defaults: statutory settings, holiday calendar, leave types, salary component catalogue (India first, `reference` data, `V162`). Spec `W-73-9-country-templates.md`. Size M | Ready to merge — dev-claude-W-73-9 |
 
 ---
 

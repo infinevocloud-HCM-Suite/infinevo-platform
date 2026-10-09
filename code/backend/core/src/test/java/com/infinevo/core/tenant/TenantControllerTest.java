@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.infinevo.core.template.TemplateApplyResponse;
 import com.infinevo.shared.entitlement.PlatformModule;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -219,5 +220,21 @@ class TenantControllerTest {
         mvc.perform(post("/api/v1/tenants/" + unknown + "/admin-invitation/resend"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("TENANT_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("W-73.9: apply-template answers what was applied and skipped; an unknown tenant 404")
+    void applyTemplate_returns200_unknown404() throws Exception {
+        when(tenantService.applyCountryTemplate(TENANT_ID))
+                .thenReturn(new TemplateApplyResponse("IN", List.of("holidays"), List.of("leave_types")));
+        mvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/apply-template"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.countryCode").value("IN"))
+                .andExpect(jsonPath("$.applied[0]").value("holidays"))
+                .andExpect(jsonPath("$.skipped[0]").value("leave_types"));
+
+        UUID unknown = UUID.randomUUID();
+        when(tenantService.applyCountryTemplate(unknown)).thenThrow(new TenantNotFoundException(unknown));
+        mvc.perform(post("/api/v1/tenants/" + unknown + "/apply-template")).andExpect(status().isNotFound());
     }
 }

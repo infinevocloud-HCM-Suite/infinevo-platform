@@ -20,5 +20,8 @@ public interface HolidayCalendarRepository extends JpaRepository<HolidayCalendar
 
     boolean existsByTenantIdAndNameIgnoreCase(UUID tenantId, String name);
 
+    /** Whether the tenant has any calendar at all (W-73.9: the holiday template writes only where none). */
+    boolean existsByTenantId(UUID tenantId);
+
     boolean existsByTenantIdAndNameIgnoreCaseAndIdNot(UUID tenantId, String name, UUID id);
 }

@@ -28,7 +28,12 @@ function formatDateTime(isoString) {
   }
 }
 
+// W-73.9: a step the country template filled reads "Pre-filled — review" until someone saves it.
+// It still counts as completed in the progress figures.
 function getStepStatusTag(step) {
+  if (step.completed && step.prefilled) {
+    return <Tag color="processing">Pre-filled — review</Tag>;
+  }
   if (step.completed) {
     return <Tag color="success">Done</Tag>;
   }
@@ -42,6 +47,13 @@ function getStepStatusTag(step) {
 }
 
 function renderStepDetails(step) {
+  if (step.completed && step.prefilled) {
+    return (
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        Filled in from the country template. Open it, check the values and save.
+      </Text>
+    );
+  }
   if (step.completed) {
     return step.completedAt ? (
       <Text type="secondary" style={{ fontSize: 12 }}>

@@ -4,6 +4,8 @@ import com.infinevo.core.invitation.InvitationService;
 import com.infinevo.core.invitation.UserInvitationRequest;
 import com.infinevo.core.invitation.UserInvitationResponse;
 import com.infinevo.core.setup.SetupChecklistService;
+import com.infinevo.core.template.TemplateApplyResponse;
+import com.infinevo.core.template.TenantTemplateService;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.PlatformTenant;
 import com.infinevo.shared.tenant.TenantContext;
@@ -53,6 +55,7 @@ public class TenantServiceImpl implements TenantService {
     private final SetupChecklistService setupChecklistService;
     private final Supplier<InvitationService> invitationService;
     private final PlatformTenant platformTenant;
+    private final Supplier<TenantTemplateService> templateService;
 
     public TenantServiceImpl(JdbcTemplate jdbcTemplate) {
         this(jdbcTemplate, (SetupChecklistService) null);
@@ -62,12 +65,23 @@ public class TenantServiceImpl implements TenantService {
     // or it falls back to a no-arg constructor that does not exist. ObjectProvider keeps
     // contexts that do not scan SetupChecklistService or InvitationService (the guard test
     // slices) starting; the invitation service is looked up only when an admin is invited.
-    @Autowired
     public TenantServiceImpl(
             JdbcTemplate jdbcTemplate,
             ObjectProvider<SetupChecklistService> setupChecklistServiceProvider,
             ObjectProvider<InvitationService> invitationServiceProvider,
             ObjectProvider<PlatformTenant> platformTenantProvider) {
+        this(jdbcTemplate, setupChecklistServiceProvider, invitationServiceProvider, platformTenantProvider, null);
+    }
+
+    // W-73.9: the country template service, looked up when a tenant is provisioned, like the invitations.
+    @Autowired
+    public TenantServiceImpl(
+            JdbcTemplate jdbcTemplate,
+            ObjectProvider<SetupChecklistService> setupChecklistServiceProvider,
+            ObjectProvider<InvitationService> invitationServiceProvider,
+            ObjectProvider<PlatformTenant> platformTenantProvider,
+            ObjectProvider<TenantTemplateService> templateServiceProvider) {
+        this.templateService = templateServiceProvider != null ? templateServiceProvider::getIfAvailable : () -> null;
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.setupChecklistService =
                 setupChecklistServiceProvider != null ? setupChecklistServiceProvider.getIfAvailable() : null;
@@ -89,6 +103,7 @@ public class TenantServiceImpl implements TenantService {
         this.setupChecklistService = setupChecklistService;
         this.invitationService = () -> invitationService;
         this.platformTenant = new PlatformTenant();
+        this.templateService = () -> null;
     }
 
     // Declared here, not as an interface default, so a call through the Spring proxy opens the
@@ -195,8 +210,13 @@ public class TenantServiceImpl implements TenantService {
         log.info("Provisioned tenant {} ({}) with modules {}", tenantId, name, modules);
 
         UUID adminInvitationId = null;
-        if (setupChecklistService != null || adminEmail != null) {
+        TenantTemplateService templates = templateService.get();
+        if (setupChecklistService != null || adminEmail != null || templates != null) {
             adminInvitationId = runAsTenant(tenantId, () -> {
+                // W-73.9: the country's defaults, before the checklist reads them and the admin is invited.
+                if (templates != null) {
+                    templates.apply(tenantId, finalCountryCode);
+                }
                 if (setupChecklistService != null) {
                     setupChecklistService.assemble(tenantId);
                 }
@@ -259,6 +279,30 @@ public class TenantServiceImpl implements TenantService {
                 invitation.status(),
                 invitation.invitationId(),
                 sent);
+    }
+
+    @Override
+    @Transactional
+    public TemplateApplyResponse applyCountryTemplate(UUID tenantId) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        platformTenant.requirePlatformTenant();
+        if (platformTenant.isPlatformTenant(tenantId)) {
+            throw new IllegalArgumentException("The platform tenant takes no country template");
+        }
+        TenantTemplateService templates = templateService.get();
+        if (templates == null) {
+            throw new IllegalStateException("Country templates are not available on this server");
+        }
+        // Read across row-level security through the SECURITY DEFINER overview (V159), before rebinding.
+        List<String> country = jdbcTemplate.query(
+                "SELECT country_code FROM core.get_tenant_overview(?)",
+                (rs, rowNum) -> rs.getString("country_code"),
+                tenantId);
+        if (country.isEmpty()) {
+            throw new TenantNotFoundException(tenantId);
+        }
+        String countryCode = country.get(0) == null ? null : country.get(0).trim();
+        return runAsTenant(tenantId, () -> templates.apply(tenantId, countryCode));
     }
 
     // The checklist rows and the administrator invitation belong to the new tenant, but the open

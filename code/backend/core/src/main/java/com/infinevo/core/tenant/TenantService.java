@@ -1,5 +1,6 @@
 package com.infinevo.core.tenant;
 
+import com.infinevo.core.template.TemplateApplyResponse;
 import java.util.UUID;
 
 /**
@@ -30,4 +31,13 @@ public interface TenantService {
      *     invitation
      */
     void resendAdminInvitation(UUID tenantId, UUID actorUserId);
+
+    /**
+     * Applies the tenant's country template to a tenant created before templates, or again (W-73.9). Writes
+     * only the sections the tenant has no rows for. Platform tenant only.
+     *
+     * @throws TenantNotFoundException when no such tenant exists
+     * @throws IllegalArgumentException for the platform tenant itself
+     */
+    TemplateApplyResponse applyCountryTemplate(UUID tenantId);
 }

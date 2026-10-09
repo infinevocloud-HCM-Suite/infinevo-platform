@@ -57,7 +57,9 @@ class ReferenceSchemaIT {
             "action",
             // W-31.2 — professional tax state and slabs (V064__pt_state_and_slab.sql)
             "pt_state",
-            "pt_slab");
+            "pt_slab",
+            // W-73.9 — country templates (V162__country_template_in.sql)
+            "country_template");
 
     private static String jdbcUrl;
 
