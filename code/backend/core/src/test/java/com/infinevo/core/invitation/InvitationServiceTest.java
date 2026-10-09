@@ -308,7 +308,8 @@ class InvitationServiceTest {
 
         UUID keycloakUserId = UUID.randomUUID();
         when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
-                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(
+                        keycloakUserId, true, AcceptOutcome.SET_PASSWORD_EMAIL_FAILED));
 
         UserAccount userAccount = mock(UserAccount.class);
         when(userAccount.getId()).thenReturn(UUID.randomUUID());
@@ -317,8 +318,8 @@ class InvitationServiceTest {
         when(userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantId, inv.getId()))
                 .thenReturn(List.of());
 
-        // First acceptance succeeds
-        invitationService.acceptInvitation(token);
+        // First acceptance succeeds and passes the provisioning outcome to the accept page (D-62)
+        assertThat(invitationService.acceptInvitation(token)).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_FAILED);
         assertThat(inv.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
         assertThat(inv.getAcceptedAt()).isNotNull();
 

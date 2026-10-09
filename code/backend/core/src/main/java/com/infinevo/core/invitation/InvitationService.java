@@ -46,7 +46,8 @@ public interface InvitationService {
      */
     List<UUID> employeesWithoutAccess();
 
-    void acceptInvitation(String token);
+    /** Accepts and returns what the invitee does next — the accept page words its message from it (D-62). */
+    AcceptOutcome acceptInvitation(String token);
 
     void declineInvitation(String token, String reason);
 }

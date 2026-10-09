@@ -48,8 +48,8 @@ public class InvitationAcceptanceController {
         if (request == null || request.token() == null || request.token().isBlank()) {
             return badRequest("token must not be blank");
         }
-        invitationService.acceptInvitation(request.token());
-        return ResponseEntity.ok(new InvitationMessageResponse("Invitation accepted successfully"));
+        AcceptOutcome outcome = invitationService.acceptInvitation(request.token());
+        return ResponseEntity.ok(new AcceptInvitationResponse("Invitation accepted successfully", outcome));
     }
 
     @PostMapping("/decline")

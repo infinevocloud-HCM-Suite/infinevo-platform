@@ -449,7 +449,7 @@ public class InvitationServiceImpl implements InvitationService {
      */
     @Override
     @Transactional(noRollbackFor = InvitationExpiredException.class)
-    public void acceptInvitation(String token) {
+    public AcceptOutcome acceptInvitation(String token) {
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException("Invitation token must not be blank");
         }
@@ -459,21 +459,19 @@ public class InvitationServiceImpl implements InvitationService {
         // Try user invitation first (security definer bypasses RLS)
         Optional<UserInvitation> userInvOpt = userInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (userInvOpt.isPresent()) {
-            acceptUserInvitation(userInvOpt.get());
-            return;
+            return acceptUserInvitation(userInvOpt.get());
         }
 
         // Try employee invitation (security definer bypasses RLS)
         Optional<EmployeeInvitation> empInvOpt = employeeInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (empInvOpt.isPresent()) {
-            acceptEmployeeInvitation(empInvOpt.get());
-            return;
+            return acceptEmployeeInvitation(empInvOpt.get());
         }
 
         throw new IllegalArgumentException("Invalid invitation token");
     }
 
-    private void acceptUserInvitation(UserInvitation rawInv) {
+    private AcceptOutcome acceptUserInvitation(UserInvitation rawInv) {
         UUID tenantId = rawInv.getTenantId();
         boolean unbindAtCommit = bindTenantUntilTransactionEnds(tenantId);
         try {
@@ -520,6 +518,7 @@ public class InvitationServiceImpl implements InvitationService {
                 inv.setUpdatedAt(Instant.now());
                 inv.setUpdatedBy("invitation-accept");
                 userInvitationRepository.save(inv);
+                return provisioning.outcome();
             } catch (RuntimeException e) {
                 compensate(provisioning);
                 throw e;
@@ -531,7 +530,7 @@ public class InvitationServiceImpl implements InvitationService {
         }
     }
 
-    private void acceptEmployeeInvitation(EmployeeInvitation rawInv) {
+    private AcceptOutcome acceptEmployeeInvitation(EmployeeInvitation rawInv) {
         UUID tenantId = rawInv.getTenantId();
         boolean unbindAtCommit = bindTenantUntilTransactionEnds(tenantId);
         try {
@@ -593,6 +592,7 @@ public class InvitationServiceImpl implements InvitationService {
                 inv.setUpdatedAt(Instant.now());
                 inv.setUpdatedBy("invitation-accept");
                 employeeInvitationRepository.save(inv);
+                return provisioning.outcome();
             } catch (RuntimeException e) {
                 compensate(provisioning);
                 throw e;

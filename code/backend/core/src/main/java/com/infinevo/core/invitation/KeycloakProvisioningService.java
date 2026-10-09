@@ -10,12 +10,25 @@ import java.util.UUID;
  */
 public interface KeycloakProvisioningService {
 
-    /** The Keycloak user, and whether this call created it — only a created user is compensated. */
-    record ProvisioningResult(UUID keycloakUserId, boolean newlyCreated) {}
+    /**
+     * The Keycloak user, whether this call created it — only a created user is compensated — and what the
+     * invitee must do next (D-62).
+     */
+    record ProvisioningResult(UUID keycloakUserId, boolean newlyCreated, AcceptOutcome outcome) {
+
+        /** A created user was sent the set-password mail; a reused one signs in with its password. */
+        public ProvisioningResult(UUID keycloakUserId, boolean newlyCreated) {
+            this(
+                    keycloakUserId,
+                    newlyCreated,
+                    newlyCreated ? AcceptOutcome.SET_PASSWORD_EMAIL_SENT : AcceptOutcome.EXISTING_ACCOUNT);
+        }
+    }
 
     /**
      * Finds an existing Keycloak user by email, or creates one that must set a password on first login
-     * and is sent Keycloak's set-password email.
+     * and is sent Keycloak's set-password email. An existing user who never set a password (an earlier
+     * acceptance whose mail was lost) is sent the mail again (D-62).
      *
      * @param email the user's email address
      * @param firstName optional first name
