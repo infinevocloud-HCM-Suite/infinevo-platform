@@ -30,7 +30,7 @@ describe('LeaveTypes component', () => {
       isActive: true,
       policy: {
         annualDays: 12,
-        exceedBalanceMode: 'MARK_AS_LOP',
+        exceedBalanceMode: 'markAsLOP',
       },
     },
     {
@@ -61,7 +61,8 @@ describe('LeaveTypes component', () => {
       expect(screen.getByText('SL')).toBeDefined();
       expect(screen.getAllByText('Paid').length).toBeGreaterThan(0);
       expect(screen.getByText('Unpaid')).toBeDefined();
-      expect(screen.getByText('MARK_AS_LOP')).toBeDefined();
+      // D-70: the wire value markAsLOP, shown as its label in red.
+      expect(screen.getByText('Mark as LOP').closest('.ant-tag').className).toMatch(/red/);
       expect(screen.getByText('Not configured')).toBeDefined();
     });
   });

@@ -24,6 +24,13 @@ import { PolicyForm } from './PolicyForm.jsx';
 
 const { Title } = Typography;
 
+/** ExceedBalanceMode as the server sends it (@JsonValue, D-70), and how the summary names it. */
+const EXCEED_BALANCE_LABELS = {
+  noLimit: 'No limit',
+  yearEndLimit: 'Year end limit',
+  markAsLOP: 'Mark as LOP',
+};
+
 export function LeaveTypes() {
   const canRead = useCan('core.leave.read');
   const canManage = useCan('core.leave_type.manage');
@@ -177,8 +184,8 @@ export function LeaveTypes() {
         return (
           <Space orientation="vertical" size={2}>
             <span>{p.annualDays} days/yr</span>
-            <Tag color={p.exceedBalanceMode === 'MARK_AS_LOP' ? 'red' : 'blue'}>
-              {p.exceedBalanceMode || 'NO_LIMIT'}
+            <Tag color={p.exceedBalanceMode === 'markAsLOP' ? 'red' : 'blue'}>
+              {EXCEED_BALANCE_LABELS[p.exceedBalanceMode || 'noLimit'] || p.exceedBalanceMode}
             </Tag>
           </Space>
         );

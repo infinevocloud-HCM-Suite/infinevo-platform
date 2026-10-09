@@ -5,6 +5,8 @@ import { Link, Navigate, Routes, Route, useLocation, useNavigate } from 'react-r
 import { useNavigation } from './navigation/useNavigation.js';
 import { navLabel } from './navigation/navLabels.js';
 import { routesFromFeed, portalRoutes } from './routes.js';
+import { moduleEmployeeTabs } from './moduleTabs.js';
+import { ModuleEmployeeTabsProvider } from './navigation/moduleEmployeeTabs.js';
 import { Header } from './Header.jsx';
 import { useImpersonationSession } from './useImpersonationSession.js';
 import { ShellBoundary } from './ShellBoundary.jsx';
@@ -50,7 +52,7 @@ RootRedirect.propTypes = {
  * array anywhere here. An empty feed → empty sidebar and NoModules placeholder.
  */
 export function AppShell() {
-  const { items, tenantName, tenantLogoUrl, tagline, homePath: feedHomePath, loading, error, refetch } =
+  const { items, actions, modules, tenantName, tenantLogoUrl, tagline, homePath: feedHomePath, loading, error, refetch } =
     useNavigation();
   const location = useLocation();
   const { token } = antdTheme.useToken();
@@ -178,19 +180,22 @@ export function AppShell() {
                 <NoModules />
               )
             ) : (
-              <React.Suspense fallback={<Skeleton active />}>
-                <Routes>
-                  {homePath && <Route path="/" element={<RootRedirect homePath={homePath} me={me} />} />}
-                  <Route path={WELCOME_PATH} element={<Welcome homePath={homePath} />} />
-                  {portalRoutes.map((route) => (
-                    <Route key={route.path} path={route.path} element={route.element} />
-                  ))}
-                  {feedRoutes.map((route) => (
-                    <Route key={route.path} path={route.path} element={route.element} />
-                  ))}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </React.Suspense>
+              // The modules' employee page tabs reach core's EmployeePage through this (D-66).
+              <ModuleEmployeeTabsProvider tabs={moduleEmployeeTabs} modules={modules} actions={actions}>
+                <React.Suspense fallback={<Skeleton active />}>
+                  <Routes>
+                    {homePath && <Route path="/" element={<RootRedirect homePath={homePath} me={me} />} />}
+                    <Route path={WELCOME_PATH} element={<Welcome homePath={homePath} />} />
+                    {portalRoutes.map((route) => (
+                      <Route key={route.path} path={route.path} element={route.element} />
+                    ))}
+                    {feedRoutes.map((route) => (
+                      <Route key={route.path} path={route.path} element={route.element} />
+                    ))}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </React.Suspense>
+              </ModuleEmployeeTabsProvider>
             )}
           </Content>
         </Layout>

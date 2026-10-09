@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import dayjs from 'dayjs';
 import { ProfessionalTaxScreen } from './ProfessionalTaxScreen.jsx';
 import { ptService } from './ptService.js';
 
@@ -128,14 +129,30 @@ describe('ProfessionalTaxScreen (W-47.1b §7)', () => {
     });
   });
 
-  it('history button opens drawer and calls ptService.history', async () => {
+  it('D-69: the history drawer shows each PtHistoryResponse — operation, when, who, slabs before and after', async () => {
+    // Shaped as statutory/pt/PtHistoryResponse serialises it (its @JsonProperty names).
     ptService.history.mockResolvedValue([
       {
+        id: 'hist-2',
+        state_code: 'KA',
+        operation: 'OVERRIDE_SET',
+        before_slabs: [
+          { from_amount: 0, to_amount: null, amount: 150, is_female_exempt: false, deduction_months: [] },
+        ],
+        after_slabs: [
+          { from_amount: 0, to_amount: null, amount: 200, is_female_exempt: false, deduction_months: [] },
+        ],
+        changed_at: '2026-04-01T10:00:00Z',
+        changed_by: 'user-11111111',
+      },
+      {
         id: 'hist-1',
-        effective_from: '2026-04-01',
-        created_at: '2026-04-01T10:00:00Z',
-        registration_number: 'KA-OLD-123',
-        slabs: [{ amount: 200 }],
+        state_code: 'KA',
+        operation: 'OVERRIDE_RESET',
+        before_slabs: [],
+        after_slabs: [],
+        changed_at: '2026-03-15T08:30:00Z',
+        changed_by: 'user-22222222',
       },
     ]);
 
@@ -149,8 +166,19 @@ describe('ProfessionalTaxScreen (W-47.1b §7)', () => {
 
     await waitFor(() => {
       expect(ptService.history).toHaveBeenCalledWith('KA');
-      expect(screen.getByTestId('pt-history-drawer')).toBeDefined();
-      expect(screen.getByText('Effective: 2026-04-01')).toBeDefined();
+      expect(screen.getByTestId('pt-history-entry-0')).toBeDefined();
     });
+
+    const first = within(screen.getByTestId('pt-history-entry-0'));
+    expect(first.getByText('OVERRIDE_SET')).toBeDefined();
+    expect(first.getByText(dayjs('2026-04-01T10:00:00Z').format('D MMM YYYY, HH:mm'))).toBeDefined();
+    expect(first.getByText(/user-11111111/)).toBeDefined();
+    expect(within(screen.getByTestId('pt-history-before-0')).getByText('₹150')).toBeDefined();
+    expect(within(screen.getByTestId('pt-history-after-0')).getByText('₹200')).toBeDefined();
+
+    const second = within(screen.getByTestId('pt-history-entry-1'));
+    expect(second.getByText('OVERRIDE_RESET')).toBeDefined();
+    expect(second.getByText(dayjs('2026-03-15T08:30:00Z').format('D MMM YYYY, HH:mm'))).toBeDefined();
+    expect(second.getByText(/user-22222222/)).toBeDefined();
   });
 });

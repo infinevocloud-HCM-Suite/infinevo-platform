@@ -57,21 +57,22 @@ export function FbpPlanScreen() {
         const p = planRes.value;
         setPlan(p);
         dispatch(setFbpPlan(p));
-        setIsEnabled(!!p.is_enabled);
+        // FbpPlanResponse field names (D-67).
+        setIsEnabled(!!p.isEnabled);
         form.setFieldsValue({
-          is_enabled: !!p.is_enabled,
-          window_opens_on: p.window_opens_on ? dayjs(p.window_opens_on) : null,
-          window_closes_on: p.window_closes_on ? dayjs(p.window_closes_on) : null,
-          notify_on_release: !!p.notify_on_release,
-          notify_on_lock: !!p.notify_on_lock,
-          reminder_days_before_close: p.reminder_days_before_close
-            ? p.reminder_days_before_close.map(String)
+          isEnabled: !!p.isEnabled,
+          windowOpensOn: p.windowOpensOn ? dayjs(p.windowOpensOn) : null,
+          windowClosesOn: p.windowClosesOn ? dayjs(p.windowClosesOn) : null,
+          notifyOnRelease: !!p.notifyOnRelease,
+          notifyOnLock: !!p.notifyOnLock,
+          reminderDaysBeforeClose: p.reminderDaysBeforeClose
+            ? p.reminderDaysBeforeClose.map(String)
             : ['15', '7', '3', '1'],
         });
       } else {
         form.setFieldsValue({
-          is_enabled: false,
-          reminder_days_before_close: ['15', '7', '3', '1'],
+          isEnabled: false,
+          reminderDaysBeforeClose: ['15', '7', '3', '1'],
         });
       }
 
@@ -95,23 +96,24 @@ export function FbpPlanScreen() {
     try {
       const reminderDays = Array.from(
         new Set(
-          (values.reminder_days_before_close || [])
+          (values.reminderDaysBeforeClose || [])
             .map((v) => parseInt(v, 10))
             .filter((n) => !isNaN(n) && n >= 1 && n <= 60)
         )
       ).sort((a, b) => b - a);
 
+      // FbpPlanRequest field names (D-67).
       const payload = {
-        is_enabled: !!values.is_enabled,
-        window_opens_on: values.window_opens_on
-          ? (typeof values.window_opens_on === 'string' ? values.window_opens_on : values.window_opens_on.format('YYYY-MM-DD'))
+        isEnabled: !!values.isEnabled,
+        windowOpensOn: values.windowOpensOn
+          ? (typeof values.windowOpensOn === 'string' ? values.windowOpensOn : values.windowOpensOn.format('YYYY-MM-DD'))
           : null,
-        window_closes_on: values.window_closes_on
-          ? (typeof values.window_closes_on === 'string' ? values.window_closes_on : values.window_closes_on.format('YYYY-MM-DD'))
+        windowClosesOn: values.windowClosesOn
+          ? (typeof values.windowClosesOn === 'string' ? values.windowClosesOn : values.windowClosesOn.format('YYYY-MM-DD'))
           : null,
-        notify_on_release: !!values.notify_on_release,
-        notify_on_lock: !!values.notify_on_lock,
-        reminder_days_before_close: reminderDays,
+        notifyOnRelease: !!values.notifyOnRelease,
+        notifyOnLock: !!values.notifyOnLock,
+        reminderDaysBeforeClose: reminderDays,
       };
 
       const updated = await fbpService.savePlan(payload);
@@ -128,13 +130,13 @@ export function FbpPlanScreen() {
   const handleToggleLock = async () => {
     setLocking(true);
     try {
-      if (plan?.is_locked) {
+      if (plan?.isLocked) {
         const updated = await fbpService.unlock();
-        setPlan((prev) => ({ ...prev, ...updated, is_locked: false, locked_at: null }));
+        setPlan((prev) => ({ ...prev, ...updated, isLocked: false, lockedAt: null }));
         message.success('FBP plan unlocked');
       } else {
         const updated = await fbpService.lock();
-        setPlan((prev) => ({ ...prev, ...updated, is_locked: true }));
+        setPlan((prev) => ({ ...prev, ...updated, isLocked: true }));
         message.success('FBP plan locked');
       }
     } catch (err) {
@@ -167,8 +169,8 @@ export function FbpPlanScreen() {
     },
     {
       title: 'Max Limit (₹)',
-      dataIndex: 'max_limit',
-      key: 'max_limit',
+      dataIndex: 'maxLimit',
+      key: 'maxLimit',
       render: (limit) => (limit != null ? `₹${limit}` : 'No limit'),
     },
   ];
@@ -194,25 +196,25 @@ export function FbpPlanScreen() {
           plan && (
             <Space>
               <Tag
-                color={plan.is_locked ? 'error' : plan.is_enabled ? 'success' : 'default'}
+                color={plan.isLocked ? 'error' : plan.isEnabled ? 'success' : 'default'}
                 data-testid="fbp-status-tag"
               >
-                {plan.is_locked ? 'Locked' : plan.is_enabled ? 'Active' : 'Disabled'}
+                {plan.isLocked ? 'Locked' : plan.isEnabled ? 'Enabled' : 'Disabled'}
               </Tag>
-              {plan.locked_at && (
+              {plan.lockedAt && (
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Locked at: {plan.locked_at}
+                  Locked at: {dayjs(plan.lockedAt).format('D MMM YYYY, HH:mm')}
                 </Text>
               )}
               <Button
                 size="small"
-                icon={plan.is_locked ? <UnlockOutlined /> : <LockOutlined />}
-                danger={!plan.is_locked}
+                icon={plan.isLocked ? <UnlockOutlined /> : <LockOutlined />}
+                danger={!plan.isLocked}
                 loading={locking}
                 onClick={handleToggleLock}
                 data-testid="lock-fbp-button"
               >
-                {plan.is_locked ? 'Unlock Plan' : 'Lock Plan'}
+                {plan.isLocked ? 'Unlock Plan' : 'Lock Plan'}
               </Button>
             </Space>
           )
@@ -223,15 +225,15 @@ export function FbpPlanScreen() {
           layout="vertical"
           onFinish={handleFinish}
           onValuesChange={(changed) => {
-            if ('is_enabled' in changed) {
-              setIsEnabled(!!changed.is_enabled);
+            if ('isEnabled' in changed) {
+              setIsEnabled(!!changed.isEnabled);
             }
           }}
         >
           <Row gutter={24} align="middle">
             <Col xs={24} md={8}>
               <Form.Item
-                name="is_enabled"
+                name="isEnabled"
                 label="Enable Flexible Benefit Plan"
                 valuePropName="checked"
                 extra="Allow employees to submit declarations during open window"
@@ -242,7 +244,7 @@ export function FbpPlanScreen() {
 
             <Col xs={24} md={8}>
               <Form.Item
-                name="window_opens_on"
+                name="windowOpensOn"
                 label="Window Opens On"
                 rules={[
                   {
@@ -261,7 +263,7 @@ export function FbpPlanScreen() {
 
             <Col xs={24} md={8}>
               <Form.Item
-                name="window_closes_on"
+                name="windowClosesOn"
                 label="Window Closes On"
                 rules={[
                   {
@@ -284,7 +286,7 @@ export function FbpPlanScreen() {
           <Row gutter={24}>
             <Col xs={24} md={12}>
               <Form.Item
-                name="notify_on_release"
+                name="notifyOnRelease"
                 label="Notify Employees on Window Release"
                 valuePropName="checked"
                 extra="Send email notification when FBP window opens"
@@ -295,7 +297,7 @@ export function FbpPlanScreen() {
 
             <Col xs={24} md={12}>
               <Form.Item
-                name="notify_on_lock"
+                name="notifyOnLock"
                 label="Notify Employees on Lock"
                 valuePropName="checked"
                 extra="Send email notification when FBP window closes or locks"
@@ -308,7 +310,7 @@ export function FbpPlanScreen() {
           <Row gutter={24}>
             <Col xs={24}>
               <Form.Item
-                name="reminder_days_before_close"
+                name="reminderDaysBeforeClose"
                 label="Reminder Days Before Window Closes"
                 extra="Integer days (1-60). Press Enter to add tags."
                 rules={[

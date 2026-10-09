@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { Navigate } from 'react-router-dom';
 import { routes, reducers, portalPanels, employeeTabs } from './index.js';
 import payrunReducer from './payrun/payrunSlice.js';
 import taxReducer from './tax/taxSlice.js';
@@ -12,6 +13,7 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/runs',
       '/payroll/runs/new-off-cycle',
       '/payroll/runs/:id',
+      '/payroll/settings',
       '/payroll/settings/pay-schedule',
       '/payroll/settings/epf',
       '/payroll/settings/esi',
@@ -26,6 +28,12 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/deductions',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
+  });
+
+  it('D-64: /payroll/settings — the menu item path — redirects to the pay schedule screen', () => {
+    const settings = routes.find((r) => r.path === '/payroll/settings');
+    expect(settings.element.type).toBe(Navigate);
+    expect(settings.element.props).toEqual({ to: '/payroll/settings/pay-schedule', replace: true });
   });
 
   it('registers the payrun, tax, salary, and settings slices', () => {

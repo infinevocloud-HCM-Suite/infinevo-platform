@@ -95,23 +95,24 @@ export function PayScheduleScreen() {
       if (lopRes.status === 'fulfilled' && lopRes.value) {
         const lop = lopRes.value;
         dispatch(setLopPolicy(lop));
-        const basis = lop.working_day_basis || 'ACTUAL_DAYS';
+        // LopPolicyResponse field names (D-68).
+        const basis = lop.workingDayBasis || 'ACTUAL_DAYS';
         setWorkingDayBasis(basis);
         lopForm.setFieldsValue({
-          working_day_basis: basis,
-          configured_days_per_month: lop.configured_days_per_month,
-          weekends_payable: lop.weekends_payable ?? true,
-          holidays_payable: lop.holidays_payable ?? true,
-          lop_rounding: lop.lop_rounding || 'HALF_UP_2',
-          effective_from: lop.effective_from ? dayjs(lop.effective_from) : dayjs(getFirstOfNextMonth()),
+          workingDayBasis: basis,
+          configuredDaysPerMonth: lop.configuredDaysPerMonth,
+          weekendsPayable: lop.weekendsPayable ?? true,
+          holidaysPayable: lop.holidaysPayable ?? true,
+          lopRounding: lop.lopRounding || 'HALF_UP_2',
+          effectiveFrom: lop.effectiveFrom ? dayjs(lop.effectiveFrom) : dayjs(getFirstOfNextMonth()),
         });
       } else {
         lopForm.setFieldsValue({
-          working_day_basis: 'ACTUAL_DAYS',
-          weekends_payable: true,
-          holidays_payable: true,
-          lop_rounding: 'HALF_UP_2',
-          effective_from: dayjs(getFirstOfNextMonth()),
+          workingDayBasis: 'ACTUAL_DAYS',
+          weekendsPayable: true,
+          holidaysPayable: true,
+          lopRounding: 'HALF_UP_2',
+          effectiveFrom: dayjs(getFirstOfNextMonth()),
         });
       }
     } catch {
@@ -179,15 +180,16 @@ export function PayScheduleScreen() {
   const handleSaveLop = async (values) => {
     setLopSaving(true);
     try {
+      // LopPolicyRequest field names (D-68).
       const payload = {
-        working_day_basis: values.working_day_basis,
-        configured_days_per_month:
-          values.working_day_basis === 'ORG_DAYS' ? values.configured_days_per_month : null,
-        weekends_payable: !!values.weekends_payable,
-        holidays_payable: !!values.holidays_payable,
-        lop_rounding: values.lop_rounding || 'HALF_UP_2',
-        effective_from: values.effective_from
-          ? (typeof values.effective_from === 'string' ? values.effective_from : values.effective_from.format('YYYY-MM-DD'))
+        workingDayBasis: values.workingDayBasis,
+        configuredDaysPerMonth:
+          values.workingDayBasis === 'ORG_DAYS' ? values.configuredDaysPerMonth : null,
+        weekendsPayable: !!values.weekendsPayable,
+        holidaysPayable: !!values.holidaysPayable,
+        lopRounding: values.lopRounding || 'HALF_UP_2',
+        effectiveFrom: values.effectiveFrom
+          ? (typeof values.effectiveFrom === 'string' ? values.effectiveFrom : values.effectiveFrom.format('YYYY-MM-DD'))
           : getFirstOfNextMonth(),
       };
       const updated = await lopPolicyService.save(payload);
@@ -343,15 +345,15 @@ export function PayScheduleScreen() {
           layout="vertical"
           onFinish={handleSaveLop}
           onValuesChange={(changed) => {
-            if (changed.working_day_basis) {
-              setWorkingDayBasis(changed.working_day_basis);
+            if (changed.workingDayBasis) {
+              setWorkingDayBasis(changed.workingDayBasis);
             }
           }}
         >
           <Row gutter={24}>
             <Col xs={24} md={12}>
               <Form.Item
-                name="working_day_basis"
+                name="workingDayBasis"
                 label="Working-Day Basis"
                 rules={[{ required: true, message: 'Select a working day basis' }]}
               >
@@ -369,7 +371,7 @@ export function PayScheduleScreen() {
             {workingDayBasis === 'ORG_DAYS' && (
               <Col xs={24} md={12}>
                 <Form.Item
-                  name="configured_days_per_month"
+                  name="configuredDaysPerMonth"
                   label="Configured Days per Month (Optional)"
                   extra="Fixed days count per month if not using calendar working days"
                 >
@@ -386,7 +388,7 @@ export function PayScheduleScreen() {
 
             <Col xs={24} md={12}>
               <Form.Item
-                name="effective_from"
+                name="effectiveFrom"
                 label="Effective From"
                 rules={[{ required: true, message: 'Effective date is required' }]}
                 extra="Policy is versioned; a save creates a new version"
@@ -404,7 +406,7 @@ export function PayScheduleScreen() {
           <Row gutter={24}>
             <Col xs={24} md={8}>
               <Form.Item
-                name="weekends_payable"
+                name="weekendsPayable"
                 label="Weekends Payable"
                 valuePropName="checked"
                 extra="Whether weekly off days are considered payable"
@@ -415,7 +417,7 @@ export function PayScheduleScreen() {
 
             <Col xs={24} md={8}>
               <Form.Item
-                name="holidays_payable"
+                name="holidaysPayable"
                 label="Holidays Payable"
                 valuePropName="checked"
                 extra="Whether organization holidays are considered payable"
@@ -426,7 +428,7 @@ export function PayScheduleScreen() {
 
             <Col xs={24} md={8}>
               <Form.Item
-                name="lop_rounding"
+                name="lopRounding"
                 label="LOP Rounding Rule"
                 rules={[{ required: true, message: 'Select rounding rule' }]}
               >
@@ -435,7 +437,7 @@ export function PayScheduleScreen() {
                   options={[
                     { label: 'Half Up (2 decimals)', value: 'HALF_UP_2' },
                     { label: 'Half Up (Integer)', value: 'HALF_UP_0' },
-                    { label: 'Truncate (2 decimals)', value: 'TRUNCATE_2' },
+                    { label: 'No rounding', value: 'NONE' },
                   ]}
                 />
               </Form.Item>

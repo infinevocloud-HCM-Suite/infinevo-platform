@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
- * HRMS's menu items (W-42.1 §5). Each is here because its endpoint is in this module: the boot-time catalogue check
+ * HRMS's menu items (W-42.1 §5). Each is here because its screen is in this module: the boot-time catalogue check
  * ({@code NavigationCatalogueValidator}) refuses an item whose {@code targetEndpoint} has no {@code GET} mapping.
  */
 @Component
@@ -103,6 +103,30 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "hrms.overtime.request");
 
+    /**
+     * Everyone's regularizations, for HR (D-72): {@code RegularizationController}'s {@code GET
+     * .../regularizations}. The caller's own list sits behind an employee action HR may not hold.
+     */
+    public static final ItemDefinition REGULARIZATIONS_ALL = new ItemDefinition(
+            "hrms.regularizations_all",
+            "nav.hrms.regularizations_all",
+            "/hrms/regularizations/all",
+            "/api/v1/hrms/attendance/regularizations",
+            PlatformModule.HRMS,
+            "core.attendance.read");
+
+    /**
+     * Everyone's overtime, for HR (D-72, W-68): core's {@code OvertimeController} {@code GET /api/v1/overtime}, the
+     * list the screen reads. The caller's own requests sit behind {@code hrms.overtime.request}, an employee action.
+     */
+    public static final ItemDefinition OVERTIME_ALL = new ItemDefinition(
+            "hrms.overtime_all",
+            "nav.hrms.overtime_all",
+            "/hrms/overtime-requests/all",
+            "/api/v1/overtime",
+            PlatformModule.HRMS,
+            "core.overtime.read");
+
     /** The module's screens, in menu order. */
     public static final List<ItemDefinition> LEAVES = List.of(
             TIMESHEETS,
@@ -114,7 +138,9 @@ public class HrmsNavigation implements NavigationContributor {
             ATTENDANCE_SETTINGS,
             DASHBOARD,
             REGULARIZATIONS,
-            OVERTIME_REQUESTS);
+            OVERTIME_REQUESTS,
+            REGULARIZATIONS_ALL,
+            OVERTIME_ALL);
 
     /**
      * The one HRMS menu group (D-34). No action of its own: the feed hides it when every screen inside

@@ -48,7 +48,7 @@ describe('leaveTypeService', () => {
 
   it('calls savePolicy on /v1/leave-types/{id}/policy', async () => {
     apiClient.put.mockResolvedValueOnce({ data: { annualDays: 15 } });
-    const policyPayload = { annualDays: 15, exceedBalanceMode: 'NO_LIMIT' };
+    const policyPayload = { annualDays: 15, exceedBalanceMode: 'noLimit' };
     const res = await leaveTypeService.savePolicy('type-1', policyPayload);
     expect(apiClient.put).toHaveBeenCalledWith('/v1/leave-types/type-1/policy', policyPayload);
     expect(res).toEqual({ annualDays: 15 });

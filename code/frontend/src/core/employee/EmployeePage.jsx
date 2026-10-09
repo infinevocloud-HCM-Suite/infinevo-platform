@@ -1,15 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
-import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, Popconfirm, theme } from 'antd';
+import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, Popconfirm, Skeleton, theme } from 'antd';
 import {
   ArrowLeftOutlined,
   StopOutlined,
   DeleteOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons';
-import { useCan } from '@shell/screens';
+import { useCan, useModuleEmployeeTabs } from '@shell/screens';
 import { employeeService } from './employeeService.js';
 import { orgMasterService } from './orgMasterService.js';
 import { setMasters } from './employeeSlice.js';
@@ -39,6 +39,9 @@ export function EmployeePage() {
   const canReadOrg = useCan('core.org.read');
   const canInvite = useCan('core.employee.create');
   const canReadDocuments = useCan('core.document.read');
+  // D-66: tabs the modules contribute (Salary, FBP, Tax declaration...), already gated by the shell
+  // on the module the tenant holds and the action the user holds.
+  const moduleTabs = useModuleEmployeeTabs();
 
   const mastersLoadedAt = useSelector((state) => state.employee?.loadedAt);
 
@@ -187,11 +190,23 @@ export function EmployeePage() {
     return true;
   });
 
-  const tabItems = visibleTabs.map((tab) => ({
-    key: tab.key,
-    label: tab.label,
-    children: tab.render({ employee, setEmployee }),
-  }));
+  const tabItems = [
+    ...visibleTabs.map((tab) => ({
+      key: tab.key,
+      label: tab.label,
+      children: tab.render({ employee, setEmployee }),
+    })),
+    // Module tabs are lazy; each suspends on its own so the page around it stays.
+    ...moduleTabs.map((tab) => ({
+      key: tab.key,
+      label: tab.label,
+      children: (
+        <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
+          {tab.render({ employee, setEmployee })}
+        </Suspense>
+      ),
+    })),
+  ];
 
   return (
     <div>

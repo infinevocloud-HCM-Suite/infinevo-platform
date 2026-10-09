@@ -449,6 +449,14 @@ public class ApprovalService {
                 .findByTenantIdAndId(tenantId, instanceId)
                 .orElseThrow(() -> new NoSuchElementException("Approval instance not found: " + instanceId));
         List<ApprovalStep> steps = stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instanceId);
+        // D-71: one lookup for the trail, not one per step, as the inbox names its subjects.
+        List<UUID> assigneeIds = steps.stream()
+                .map(ApprovalStep::getAssigneeEmployeeId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, String> assigneeNames =
+                assigneeIds.isEmpty() ? Collections.emptyMap() : employeeService.displayNames(assigneeIds);
         return new ApprovalHistoryResponse(
                 instance.getId(),
                 instance.getFlowType(),
@@ -459,7 +467,11 @@ public class ApprovalService {
                 instance.getCreatedAt(),
                 instance.getCompletedAt(),
                 steps.stream()
-                        .map(ApprovalHistoryResponse.ApprovalHistoryStepResponse::from)
+                        .map(step -> ApprovalHistoryResponse.ApprovalHistoryStepResponse.from(
+                                step,
+                                step.getAssigneeEmployeeId() == null
+                                        ? null
+                                        : assigneeNames.get(step.getAssigneeEmployeeId())))
                         .toList());
     }
 

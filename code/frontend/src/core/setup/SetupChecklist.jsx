@@ -85,6 +85,9 @@ export function SetupChecklist() {
   const canManageTenant = useCan('core.tenant.manage');
   const canReadOrg = useCan('core.org.read');
   const canReadEmployee = useCan('core.employee.read');
+  const canManagePayrollSettings = useCan('payroll.settings.manage');
+  const canReadPayRuns = useCan('payroll.run.read');
+  const canReadSalaryStructure = useCan('payroll.structure.read');
   const hasHrms = useHasModule('HRMS');
   const hasPayroll = useHasModule('PAYROLL');
 
@@ -92,8 +95,11 @@ export function SetupChecklist() {
     () => ({
       'core.org.read': canReadOrg,
       'core.employee.read': canReadEmployee,
+      'payroll.settings.manage': canManagePayrollSettings,
+      'payroll.run.read': canReadPayRuns,
+      'payroll.structure.read': canReadSalaryStructure,
     }),
-    [canReadOrg, canReadEmployee]
+    [canReadOrg, canReadEmployee, canManagePayrollSettings, canReadPayRuns, canReadSalaryStructure]
   );
 
   const [loading, setLoading] = useState(false);

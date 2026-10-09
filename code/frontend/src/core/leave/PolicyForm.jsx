@@ -20,10 +20,17 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 const { Text } = Typography;
 
+/*
+ * D-70: the policy enums travel as their @JsonValue - AccrualFrequency ('monthly', 'yearly'),
+ * ResetFrequency ('yearly', 'monthly', 'quarterly', 'halfYearly') and ExceedBalanceMode
+ * ('noLimit', 'yearEndLimit', 'markAsLOP'). LeavePolicyResponse sends these, so every select,
+ * default and comparison here uses them too.
+ */
+
 export function PolicyForm({ leaveType, onSuccess, onCancel }) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
-  const [exceedMode, setExceedMode] = useState(leaveType?.policy?.exceedBalanceMode || 'NO_LIMIT');
+  const [exceedMode, setExceedMode] = useState(leaveType?.policy?.exceedBalanceMode || 'noLimit');
   const [accrualOn, setAccrualOn] = useState(Boolean(leaveType?.policy?.accrualEnabled));
   const [carryForwardOn, setCarryForwardOn] = useState(Boolean(leaveType?.policy?.carryForwardEnabled));
 
@@ -50,21 +57,21 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         .filter((e) => ['location', 'work_location'].includes((e.dimension || '').toLowerCase()))
         .map((e) => e.valueId);
 
-      setExceedMode(p.exceedBalanceMode || 'NO_LIMIT');
+      setExceedMode(p.exceedBalanceMode || 'noLimit');
       setAccrualOn(Boolean(p.accrualEnabled));
       setCarryForwardOn(Boolean(p.carryForwardEnabled));
 
       form.setFieldsValue({
         annualDays: p.annualDays,
         accrualEnabled: p.accrualEnabled,
-        accrualFrequency: p.accrualFrequency || 'MONTHLY',
+        accrualFrequency: p.accrualFrequency || 'monthly',
         accrualUnits: p.accrualUnits,
         resetEnabled: p.resetEnabled,
-        resetFrequency: p.resetFrequency || 'YEARLY',
+        resetFrequency: p.resetFrequency || 'yearly',
         carryForwardEnabled: p.carryForwardEnabled,
         carryForwardCap: p.carryForwardCap,
         carryForwardExpiresAfterMonths: p.carryForwardExpiresAfterMonths,
-        exceedBalanceMode: p.exceedBalanceMode || 'NO_LIMIT',
+        exceedBalanceMode: p.exceedBalanceMode || 'noLimit',
         exceedBalanceLimitDays: p.exceedBalanceLimitDays,
         gender: p.gender || 'ALL',
         departmentIds: deptIds,
@@ -72,15 +79,15 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         locationIds: locIds,
       });
     } else {
-      setExceedMode('NO_LIMIT');
+      setExceedMode('noLimit');
       form.setFieldsValue({
         annualDays: 12,
         accrualEnabled: false,
-        accrualFrequency: 'MONTHLY',
+        accrualFrequency: 'monthly',
         resetEnabled: true,
-        resetFrequency: 'YEARLY',
+        resetFrequency: 'yearly',
         carryForwardEnabled: false,
-        exceedBalanceMode: 'NO_LIMIT',
+        exceedBalanceMode: 'noLimit',
         gender: 'ALL',
         departmentIds: [],
         designationIds: [],
@@ -113,7 +120,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
             : null,
           exceedBalanceMode: values.exceedBalanceMode,
           exceedBalanceLimitDays:
-            values.exceedBalanceMode === 'YEAR_END_LIMIT' ? values.exceedBalanceLimitDays : null,
+            values.exceedBalanceMode === 'yearEndLimit' ? values.exceedBalanceLimitDays : null,
           gender: values.gender && values.gender !== 'ALL' ? values.gender : null,
           eligibility,
         };
@@ -161,8 +168,8 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
             <Form.Item name="accrualFrequency" label="Accrual Frequency">
               <Select
                 options={[
-                  { value: 'MONTHLY', label: 'Monthly' },
-                  { value: 'YEARLY', label: 'Yearly' },
+                  { value: 'monthly', label: 'Monthly' },
+                  { value: 'yearly', label: 'Yearly' },
                 ]}
               />
             </Form.Item>
@@ -188,10 +195,10 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
           <Form.Item name="resetFrequency" label="Reset Frequency">
             <Select
               options={[
-                { value: 'YEARLY', label: 'Yearly' },
-                { value: 'HALF_YEARLY', label: 'Half-Yearly' },
-                { value: 'QUARTERLY', label: 'Quarterly' },
-                { value: 'MONTHLY', label: 'Monthly' },
+                { value: 'yearly', label: 'Yearly' },
+                { value: 'halfYearly', label: 'Half-Yearly' },
+                { value: 'quarterly', label: 'Quarterly' },
+                { value: 'monthly', label: 'Monthly' },
               ]}
             />
           </Form.Item>
@@ -234,14 +241,14 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
               data-testid="exceed-balance-select"
               onChange={(val) => setExceedMode(val)}
               options={[
-                { value: 'NO_LIMIT', label: 'No Limit (Unlimited Negative)' },
-                { value: 'YEAR_END_LIMIT', label: 'Year End Limit (Capped Negative)' },
-                { value: 'MARK_AS_LOP', label: 'Mark as LOP (Loss of Pay)' },
+                { value: 'noLimit', label: 'No Limit (Unlimited Negative)' },
+                { value: 'yearEndLimit', label: 'Year End Limit (Capped Negative)' },
+                { value: 'markAsLOP', label: 'Mark as LOP (Loss of Pay)' },
               ]}
             />
           </Form.Item>
         </Col>
-        {exceedMode === 'YEAR_END_LIMIT' && (
+        {exceedMode === 'yearEndLimit' && (
           <Col span={12}>
             <Form.Item
               name="exceedBalanceLimitDays"

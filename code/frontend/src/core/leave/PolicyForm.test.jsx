@@ -25,6 +25,8 @@ vi.mock('@shared/ui/msgHelper.js', () => ({
 }));
 
 describe('PolicyForm component', () => {
+  // D-70: the wire values LeavePolicyResponse sends - the enums' @JsonValue (AccrualFrequency,
+  // ResetFrequency, ExceedBalanceMode), not their Java constant names.
   const dummyLeaveType = {
     id: 'type-1',
     name: 'Annual Leave',
@@ -32,14 +34,14 @@ describe('PolicyForm component', () => {
     policy: {
       annualDays: 15,
       accrualEnabled: true,
-      accrualFrequency: 'MONTHLY',
+      accrualFrequency: 'monthly',
       accrualUnits: 1.25,
       resetEnabled: true,
-      resetFrequency: 'CALENDAR_YEAR',
+      resetFrequency: 'yearly',
       carryForwardEnabled: true,
       carryForwardCap: 5,
       carryForwardExpiresAfterMonths: 3,
-      exceedBalanceMode: 'YEAR_END_LIMIT',
+      exceedBalanceMode: 'yearEndLimit',
       exceedBalanceLimitDays: 10,
       gender: 'ALL',
       eligibility: [],
@@ -50,20 +52,20 @@ describe('PolicyForm component', () => {
     vi.clearAllMocks();
   });
 
-  it('reveals negative balance limit field when YEAR_END_LIMIT is set or selected', async () => {
+  it('reveals negative balance limit field when the server says yearEndLimit', async () => {
     const { rerender } = render(<PolicyForm leaveType={dummyLeaveType} />);
 
-    // Since exceedBalanceMode is YEAR_END_LIMIT initially, the limit field must be present
+    // Since exceedBalanceMode is yearEndLimit initially, the limit field must be present
     await waitFor(() => {
       expect(screen.getByText(/Negative Balance Limit/i)).toBeDefined();
     });
 
-    // When mode is NO_LIMIT, the field should not be in document
+    // When mode is noLimit, the field should not be in document
     const noLimitLeaveType = {
       ...dummyLeaveType,
       policy: {
         ...dummyLeaveType.policy,
-        exceedBalanceMode: 'NO_LIMIT',
+        exceedBalanceMode: 'noLimit',
         exceedBalanceLimitDays: null,
       },
     };
@@ -74,7 +76,7 @@ describe('PolicyForm component', () => {
     });
   });
 
-  it('submits form and calls leaveTypeService.savePolicy', async () => {
+  it('submits form and calls leaveTypeService.savePolicy, keeping the yearEndLimit limit', async () => {
     leaveTypeService.savePolicy.mockResolvedValueOnce({ success: true });
     const onSuccess = vi.fn();
 
@@ -88,11 +90,27 @@ describe('PolicyForm component', () => {
         'type-1',
         expect.objectContaining({
           annualDays: 15,
-          exceedBalanceMode: 'YEAR_END_LIMIT',
+          exceedBalanceMode: 'yearEndLimit',
           exceedBalanceLimitDays: 10,
+          accrualFrequency: 'monthly',
+          resetFrequency: 'yearly',
         })
       );
       expect(onSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it('defaults a new policy to the wire values', async () => {
+    leaveTypeService.savePolicy.mockResolvedValueOnce({ success: true });
+    render(<PolicyForm leaveType={{ id: 'type-2', name: 'Sick', code: 'SL', policy: null }} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Save Policy/i }));
+
+    await waitFor(() => {
+      expect(leaveTypeService.savePolicy).toHaveBeenCalledWith(
+        'type-2',
+        expect.objectContaining({ exceedBalanceMode: 'noLimit', resetFrequency: 'yearly' })
+      );
     });
   });
 });

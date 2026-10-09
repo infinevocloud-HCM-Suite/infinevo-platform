@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -20,6 +21,7 @@ vi.mock('./leaveTypeService.js', () => ({
   leaveTypeService: {
     get: vi.fn(),
     list: vi.fn(),
+    eligible: vi.fn(),
   },
 }));
 
@@ -69,16 +71,54 @@ describe('LeaveRequestDetail component', () => {
     code: 'CL',
   };
 
-  const mockHistory = [
-    {
-      id: 'step-1',
-      stepName: 'Manager Review',
-      status: 'APPROVED',
-      decidedBy: 'Manager Dave',
-      decidedAt: '2026-10-02T12:00:00Z',
-      comment: 'Approved as requested',
-    },
-  ];
+  // D-71: shaped like ApprovalHistoryResponse - the steps are ApprovalHistoryStepResponse records,
+  // stepIndex 0-based, decision APPROVED | REJECTED | null (pending), assigneeName nullable.
+  const mockHistory = {
+    instanceId: 'inst-1',
+    flowType: 'LEAVE',
+    status: 'IN_PROGRESS',
+    subjectTable: 'leave_request',
+    subjectId: 'req-1',
+    subjectEmployeeId: 'emp-1',
+    startedAt: '2026-10-01T10:00:00Z',
+    completedAt: null,
+    steps: [
+      {
+        stepId: 'step-1',
+        stepIndex: 0,
+        itemRef: null,
+        approverKind: 'REPORTING_MANAGER',
+        assigneeEmployeeId: 'emp-mgr',
+        assigneeName: 'Manager Dave',
+        delegatedFromEmployeeId: null,
+        escalatedFromEmployeeId: null,
+        reassignedFromEmployeeId: null,
+        reassignReason: null,
+        decision: 'APPROVED',
+        comment: 'Approved as requested',
+        approvedAmount: null,
+        decidedAt: '2026-10-02T12:00:00Z',
+        createdAt: '2026-10-01T10:00:00Z',
+      },
+      {
+        stepId: 'step-2',
+        stepIndex: 1,
+        itemRef: null,
+        approverKind: 'ROLE',
+        assigneeEmployeeId: null,
+        assigneeName: null,
+        delegatedFromEmployeeId: null,
+        escalatedFromEmployeeId: null,
+        reassignedFromEmployeeId: null,
+        reassignReason: null,
+        decision: null,
+        comment: null,
+        approvedAmount: null,
+        decidedAt: null,
+        createdAt: '2026-10-02T12:00:00Z',
+      },
+    ],
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -103,9 +143,29 @@ describe('LeaveRequestDetail component', () => {
       expect(screen.getByText('Charlie Brown (EMP009)')).toBeDefined();
       expect(screen.getByText('Casual Leave (CL)')).toBeDefined();
       expect(screen.getByText('Family emergency')).toBeDefined();
-      expect(screen.getByText(/Manager Review - APPROVED/i)).toBeDefined();
       expect(screen.getByText(/Approved as requested/i)).toBeDefined();
     });
+  });
+
+  it('D-71: renders each approval step from the fields the server sends', async () => {
+    render(
+      <MemoryRouter initialEntries={['/leave/requests/req-1']}>
+        <Routes>
+          <Route path="/leave/requests/:id" element={<LeaveRequestDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const decided = dayjs('2026-10-02T12:00:00Z').format('D MMM YYYY, HH:mm');
+    await waitFor(() => {
+      expect(screen.getByText('Step 1 — Approved')).toBeDefined();
+    });
+    expect(screen.getByText(`by Manager Dave · ${decided}`)).toBeDefined();
+    expect(screen.getByText('Step 2 — Pending')).toBeDefined();
+    expect(screen.getByText('Awaiting decision')).toBeDefined();
+    const dots = document.querySelectorAll('.ant-timeline-item-head');
+    expect(dots[0].className).toMatch(/green/);
+    expect(dots[1].className).toMatch(/blue/);
   });
 
   it('allows cancelling an approved leave with a reason', async () => {
@@ -136,5 +196,31 @@ describe('LeaveRequestDetail component', () => {
     await waitFor(() => {
       expect(leaveRequestService.cancel).toHaveBeenCalledWith('req-1', '');
     });
+  });
+
+  it('D-72: a manager from /approvals sees the request even when the side calls are refused, and goes back to /approvals', async () => {
+    // A manager holds core.leave.read_team and core.approval.decide, not core.leave.read or manage.
+    vi.spyOn(useCanModule, 'useCan').mockImplementation(
+      (code) => code === 'core.leave.read_team' || code === 'core.approval.decide'
+    );
+    const forbidden = Object.assign(new Error('Forbidden'), { response: { status: 403 } });
+    employeeService.get.mockRejectedValue(forbidden);
+    leaveTypeService.list.mockRejectedValue(forbidden);
+    leaveTypeService.eligible.mockRejectedValue(forbidden);
+    approvalService.history.mockRejectedValue(forbidden);
+
+    render(
+      <MemoryRouter initialEntries={['/leave/requests/req-1']}>
+        <Routes>
+          <Route path="/leave/requests/:id" element={<LeaveRequestDetail />} />
+          <Route path="/approvals" element={<div>Approvals inbox</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByText('Family emergency')).toBeDefined());
+    expect(screen.queryByRole('button', { name: /Cancel Leave/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Back/i }));
+    await waitFor(() => expect(screen.getByText('Approvals inbox')).toBeDefined());
   });
 });

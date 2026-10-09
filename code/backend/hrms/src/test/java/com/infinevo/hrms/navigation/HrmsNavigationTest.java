@@ -3,6 +3,7 @@ package com.infinevo.hrms.navigation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
+import com.infinevo.core.overtime.OvertimeController;
 import com.infinevo.hrms.attendance.AttendancePreferenceController;
 import com.infinevo.hrms.attendance.ClockController;
 import com.infinevo.hrms.attendance.RegularizationController;
@@ -48,9 +49,9 @@ class HrmsNavigationTest {
     }
 
     @Test
-    @DisplayName("HRMS contributes exactly ten items, as the specs' tables say")
-    void tenItems() {
-        assertThat(items).hasSize(10);
+    @DisplayName("HRMS contributes exactly twelve items, as the specs' tables say")
+    void twelveItems() {
+        assertThat(items).hasSize(12);
         assertItem(
                 items.get(0),
                 "hrms.timesheets",
@@ -121,6 +122,35 @@ class HrmsNavigationTest {
                 "/hrms/overtime-requests",
                 "/api/v1/hrms/overtime-requests/mine",
                 "hrms.overtime.request");
+        assertItem(
+                items.get(10),
+                "hrms.regularizations_all",
+                "nav.hrms.regularizations_all",
+                "/hrms/regularizations/all",
+                "/api/v1/hrms/attendance/regularizations",
+                "core.attendance.read");
+        assertItem(
+                items.get(11),
+                "hrms.overtime_all",
+                "nav.hrms.overtime_all",
+                "/hrms/overtime-requests/all",
+                "/api/v1/overtime",
+                "core.overtime.read");
+    }
+
+    @Test
+    @DisplayName("D-72: HR reaches everyone's regularizations and overtime from GETs guarded by the item's action")
+    void allRequestListsAreGuardedGets() {
+        Method regularizations =
+                getMapping(RegularizationController.class, items.get(10).targetEndpoint());
+        assertThat(regularizations.getAnnotation(RequiresAction.class).value()).isEqualTo("core.attendance.read");
+        assertThat(RegularizationController.class
+                        .getAnnotation(RequiresModule.class)
+                        .value())
+                .isEqualTo(PlatformModule.HRMS);
+        // Everyone's overtime is core's list (W-68); the menu item still sits under HRMS.
+        Method overtime = getMapping(OvertimeController.class, items.get(11).targetEndpoint());
+        assertThat(overtime.getAnnotation(RequiresAction.class).value()).isEqualTo("core.overtime.read");
     }
 
     @Test

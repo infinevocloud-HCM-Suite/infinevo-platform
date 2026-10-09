@@ -231,8 +231,11 @@ describe('SetupChecklist component', () => {
     // WORK_LOCATION requires core.org.read: should NOT have an Open button
     expect(document.getElementById('btn-open-step-work-location')).toBeNull();
 
-    // PAY_SCHEDULE has no entry in stepLinks: should NOT have an Open button
-    expect(document.getElementById('btn-open-step-pay-schedule')).toBeNull();
+    // NEW_CUSTOM_STEP has no entry in stepLinks: should NOT have an Open button
+    expect(document.getElementById('btn-open-step-new-custom-step')).toBeNull();
+
+    // PAY_SCHEDULE links to the payroll settings (D-65): Open shows for a holder of payroll.settings.manage
+    expect(document.getElementById('btn-open-step-pay-schedule')).not.toBeNull();
   });
 
   it('renders Open button when step link exists and user has required action, and navigates on click', async () => {

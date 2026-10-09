@@ -36,6 +36,18 @@ function renderScreen() {
   );
 }
 
+// Shaped as core/lop/LopPolicyResponse serialises it (camelCase, D-68).
+const LOP_POLICY = {
+  id: 'lop-1',
+  tenantId: 'tenant-1',
+  workingDayBasis: 'ORG_DAYS',
+  configuredDaysPerMonth: 26,
+  weekendsPayable: false,
+  holidaysPayable: true,
+  lopRounding: 'HALF_UP_0',
+  effectiveFrom: '2026-11-01',
+};
+
 describe('PayScheduleScreen (W-47.1b §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,14 +59,7 @@ describe('PayScheduleScreen (W-47.1b §7)', () => {
       first_period_start: '2026-04-01',
     });
 
-    lopPolicyService.get.mockResolvedValue({
-      id: 'lop-1',
-      working_day_basis: 'ACTUAL_DAYS',
-      weekends_payable: true,
-      holidays_payable: true,
-      lop_rounding: 'HALF_UP_2',
-      effective_from: '2026-11-01',
-    });
+    lopPolicyService.get.mockResolvedValue(LOP_POLICY);
 
     payScheduleService.period.mockResolvedValue({
       start: '2026-10-01',
@@ -107,19 +112,28 @@ describe('PayScheduleScreen (W-47.1b §7)', () => {
     expect(lopPolicyService.save).not.toHaveBeenCalled();
   });
 
-  it('basis save sends effective_from and only LOP keys, independent of schedule save', async () => {
-    lopPolicyService.save.mockResolvedValue({
-      working_day_basis: 'ACTUAL_DAYS',
-      weekends_payable: true,
-      holidays_payable: true,
-      lop_rounding: 'HALF_UP_2',
-      effective_from: '2026-11-01',
+  it('D-68: shows the loss-of-pay policy the server returns', async () => {
+    renderScreen();
+
+    // The configured-days field only shows for ORG_DAYS, so its value proves the basis was read.
+    await waitFor(() => {
+      expect(screen.getByTestId('lop-configured-days-input')).toBeDefined();
     });
+    const configured = screen.getByTestId('lop-configured-days-input');
+    expect(Number((configured.tagName === 'INPUT' ? configured : configured.querySelector('input')).value)).toBe(26);
+    expect(screen.getByTestId('lop-weekends-switch').getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByTestId('lop-holidays-switch').getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByDisplayValue('2026-11-01')).toBeDefined();
+    expect(screen.getByTitle('Half Up (Integer)')).toBeDefined();
+  });
+
+  it('D-68: basis save sends the LopPolicyRequest fields only, independent of schedule save', async () => {
+    lopPolicyService.save.mockResolvedValue(LOP_POLICY);
 
     renderScreen();
 
     await waitFor(() => {
-      expect(screen.getByTestId('save-lop-button')).toBeDefined();
+      expect(screen.getByTestId('lop-configured-days-input')).toBeDefined();
     });
 
     fireEvent.click(screen.getByTestId('save-lop-button'));
@@ -129,15 +143,14 @@ describe('PayScheduleScreen (W-47.1b §7)', () => {
     });
 
     const payload = lopPolicyService.save.mock.calls[0][0];
-    expect(payload.working_day_basis).toBe('ACTUAL_DAYS');
-    expect(payload.weekends_payable).toBe(true);
-    expect(payload.holidays_payable).toBe(true);
-    expect(payload.lop_rounding).toBe('HALF_UP_2');
-    expect(payload.effective_from).toBe('2026-11-01');
-
-    // Ensure Schedule fields are NOT in LOP payload
-    expect(payload.working_days).toBeUndefined();
-    expect(payload.pay_day_rule).toBeUndefined();
+    expect(payload).toEqual({
+      workingDayBasis: 'ORG_DAYS',
+      configuredDaysPerMonth: 26,
+      weekendsPayable: false,
+      holidaysPayable: true,
+      lopRounding: 'HALF_UP_0',
+      effectiveFrom: '2026-11-01',
+    });
     expect(payScheduleService.save).not.toHaveBeenCalled();
   });
 

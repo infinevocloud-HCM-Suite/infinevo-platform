@@ -58,8 +58,31 @@ public class PayrollNavigation implements NavigationContributor {
             PlatformModule.PAYROLL,
             "payroll.employee_deduction.read");
 
+    /**
+     * Payroll settings (D-64) — the shell mounts {@code /payroll/settings/*} only under a path the feed names.
+     * The screen's landing tab is the pay schedule, so the target is {@code PayScheduleController}'s
+     * {@code GET /api/v1/payroll/pay-schedule}; the action is the one every settings save asks for.
+     */
+    public static final ItemDefinition SETTINGS = new ItemDefinition(
+            "payroll.settings",
+            "nav.payroll.settings",
+            "/payroll/settings",
+            "/api/v1/payroll/pay-schedule",
+            PlatformModule.PAYROLL,
+            "payroll.settings.manage");
+
+    /** Salary components (D-64) — {@code EarningController}'s {@code GET /api/v1/payroll/components/earnings}. */
+    public static final ItemDefinition COMPONENTS = new ItemDefinition(
+            "payroll.components",
+            "nav.payroll.components",
+            "/payroll/components",
+            "/api/v1/payroll/components/earnings",
+            PlatformModule.PAYROLL,
+            "payroll.structure.read");
+
     /** The module's screens, in menu order. */
-    public static final List<ItemDefinition> LEAVES = List.of(DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS);
+    public static final List<ItemDefinition> LEAVES =
+            List.of(DASHBOARD, RUNS, PRIOR_PAYROLL, CLAIMS, DEDUCTIONS, SETTINGS, COMPONENTS);
 
     /**
      * The one Payroll menu group (D-34). No action of its own: the feed hides it when every screen inside

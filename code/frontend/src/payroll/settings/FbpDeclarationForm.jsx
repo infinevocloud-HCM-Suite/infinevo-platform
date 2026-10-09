@@ -49,14 +49,15 @@ export function FbpDeclarationForm({
       const data = await fbpService.declaration(employeeId, date);
       setDeclaration(data);
 
+      // FbpDeclarationLineResponse field names (D-67). The line's own annual amount is its ceiling.
       const rawLines = data?.lines || [];
       const formattedLines = rawLines.map((l) => ({
-        component_id: l.component_id || l.id,
+        componentId: l.componentId,
         kind: l.kind,
-        name: l.name || l.component_name || l.code,
-        code: l.code,
-        max_limit: l.max_limit,
-        annual_amount: l.annual_amount != null ? Number(l.annual_amount) : 0,
+        componentName: l.componentName || l.componentCode,
+        componentCode: l.componentCode,
+        lineAnnualAmount: l.lineAnnualAmount,
+        annualAmount: l.declaredAnnualAmount != null ? Number(l.declaredAnnualAmount) : 0,
       }));
       setLines(formattedLines);
     } catch (err) {
@@ -81,7 +82,7 @@ export function FbpDeclarationForm({
       const updated = [...prev];
       updated[index] = {
         ...updated[index],
-        annual_amount: value != null ? Number(value) : 0,
+        annualAmount: value != null ? Number(value) : 0,
       };
       return updated;
     });
@@ -91,10 +92,11 @@ export function FbpDeclarationForm({
     setSaving(true);
     setError404(null);
     try {
+      // FbpDeclarationLineRequest field names (D-67).
       const payloadLines = lines.map((l) => ({
         kind: l.kind,
-        component_id: l.component_id,
-        annual_amount: Number(l.annual_amount || 0),
+        componentId: l.componentId,
+        annualAmount: Number(l.annualAmount || 0),
       }));
 
       const payload = { lines: payloadLines };
@@ -127,36 +129,36 @@ export function FbpDeclarationForm({
     },
     {
       title: 'Component',
-      dataIndex: 'name',
-      key: 'name',
+      dataIndex: 'componentName',
+      key: 'componentName',
       render: (name, r) => (
         <Space direction="vertical" size={0}>
           <Text strong>{name}</Text>
-          {r.code && <Text type="secondary" code>{r.code}</Text>}
+          {r.componentCode && <Text type="secondary" code>{r.componentCode}</Text>}
         </Space>
       ),
     },
     {
       title: 'Max Limit (₹)',
-      dataIndex: 'max_limit',
-      key: 'max_limit',
+      dataIndex: 'lineAnnualAmount',
+      key: 'lineAnnualAmount',
       width: 160,
       render: (val) => (val != null ? `₹${val}` : 'No limit'),
     },
     {
       title: 'Declared Annual Amount (₹)',
-      dataIndex: 'annual_amount',
-      key: 'annual_amount',
+      dataIndex: 'annualAmount',
+      key: 'annualAmount',
       width: 220,
       render: (val, record, idx) => (
         <InputNumber
           min={0}
-          max={record.max_limit != null ? Number(record.max_limit) : undefined}
+          max={record.lineAnnualAmount != null ? Number(record.lineAnnualAmount) : undefined}
           style={{ width: '100%' }}
           value={val}
           onChange={(newVal) => handleAmountChange(idx, newVal)}
           disabled={!canManage}
-          data-testid={`fbp-line-amount-${record.component_id || idx}`}
+          data-testid={`fbp-line-amount-${record.componentId || idx}`}
         />
       ),
     },
@@ -219,7 +221,7 @@ export function FbpDeclarationForm({
                 <Card size="small" style={{ background: token.colorBgLayout }}>
                   <Statistic
                     title="FBP Annual Pool"
-                    value={declaration.pool_annual ?? declaration.fbp?.pool_annual ?? 0}
+                    value={declaration.summary?.poolAnnual ?? 0}
                     prefix="₹"
                     precision={2}
                   />
@@ -229,7 +231,7 @@ export function FbpDeclarationForm({
                 <Card size="small" style={{ background: token.colorBgLayout }}>
                   <Statistic
                     title="Total Declared"
-                    value={declaration.declared_annual ?? declaration.fbp?.declared_annual ?? 0}
+                    value={declaration.summary?.declaredAnnual ?? 0}
                     prefix="₹"
                     precision={2}
                     valueStyle={{ color: token.colorSuccess }}
@@ -240,12 +242,12 @@ export function FbpDeclarationForm({
                 <Card size="small" style={{ background: token.colorBgLayout }}>
                   <Statistic
                     title="Unallocated Amount"
-                    value={declaration.unallocated_annual ?? declaration.fbp?.unallocated_annual ?? 0}
+                    value={declaration.summary?.unallocatedAnnual ?? 0}
                     prefix="₹"
                     precision={2}
                     valueStyle={{
                       color:
-                        (declaration.unallocated_annual ?? declaration.fbp?.unallocated_annual ?? 0) < 0
+                        (declaration.summary?.unallocatedAnnual ?? 0) < 0
                           ? token.colorError
                           : token.colorWarning,
                     }}
@@ -258,7 +260,7 @@ export function FbpDeclarationForm({
           <Table
             dataSource={lines}
             columns={columns}
-            rowKey={(r) => r.component_id}
+            rowKey={(r) => r.componentId}
             pagination={false}
             size="middle"
             bordered

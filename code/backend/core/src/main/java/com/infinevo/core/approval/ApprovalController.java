@@ -53,8 +53,9 @@ public class ApprovalController {
         return approvalService.getInstance(instanceId);
     }
 
+    // An approver reads the trail too, as they read the instance above: the request screens show it (D-71).
     @GetMapping("/api/v1/approvals/{instanceId}/history")
-    @RequiresAction("core.approval.read")
+    @RequiresAction(value = "core.approval.read", anyOf = "core.approval.decide")
     public ApprovalHistoryResponse getApprovalHistory(@PathVariable("instanceId") UUID instanceId) {
         return approvalService.getHistory(instanceId);
     }

@@ -6,6 +6,22 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-09 — Screen audit Phase 1: `D-64`–`D-73` fixed on `main`
+
+| Defect | What |
+|---|---|
+| `D-64`, `D-65` | Payroll settings and salary components in the menu; setup checklist opens every payroll step |
+| `D-66` | Salary, statutory profile, scheduled earnings and FBP tabs on the employee page (shell composes module tabs) |
+| `D-67`, `D-68`, `D-69`, `D-70` | FBP, loss-of-pay, PT history and leave policy screens use the server's field names; `V170` grants `core.lop_policy.*` to `payroll-officer` |
+| `D-71` | Approval trail shows step, decision, approver name; approvers (`core.approval.decide`) read the history |
+| `D-72` | Leave, regularization, overtime detail open from `/approvals` and from HR's new "All" lists (`mountWith` takes several paths) |
+| `D-73` | Roles and Audit log screens |
+
+- Found by the 2026-10-09 role-by-role screen audit ("Screen Audit by Role" doc). Built by Claude on `dev-claude`; gates 5/5, CI green, one independent read — its four findings fixed before merge.
+- **Not proven in a browser.** Unit tests use sample replies; no end-to-end tests exist. Founder 2026-10-09: add a Playwright per-role suite once these fixes are on `main`.
+- **Open:** `D-74`–`D-87` (Phases 2–4). PT history "changed by" still shows a user id (`D-79`). An employee still sees no approval trail on their own request (no `read_own` on history).
+- **Branches:** `dev-claude` can be reset to `main`.
+
 ## 2026-10-09 — `W-73` complete: all nine children merged
 
 | Ticket | Commit | What |

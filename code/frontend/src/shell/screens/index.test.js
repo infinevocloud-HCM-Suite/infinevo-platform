@@ -6,9 +6,9 @@ import { describe, it, expect } from 'vitest';
 import * as screens from './index.js';
 
 describe('@shell/screens', () => {
-  it('exports the error screens and the two feed hints, and nothing else', () => {
+  it('exports the error screens, the two feed hints and the module employee tabs, and nothing else', () => {
     expect(Object.keys(screens).sort()).toEqual(
-      ['NoModules', 'NotEntitled', 'NotFound', 'Suspended', 'useCan', 'useHasModule'].sort(),
+      ['NoModules', 'NotEntitled', 'NotFound', 'Suspended', 'useCan', 'useHasModule', 'useModuleEmployeeTabs'].sort(),
     );
   });
 });
