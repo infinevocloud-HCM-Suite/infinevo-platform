@@ -65,6 +65,7 @@ describe('apiClient response interceptor', () => {
     });
 
     expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith('UNAUTHORIZED');
   });
 
   it('calls onUnauthorized handler on UNAUTHENTICATED code even without 401 status', async () => {
