@@ -123,11 +123,19 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-40 | Add Employee asks for six fields only — number, names, work email, mobile (`EmployeeCreate.jsx:143-241`) — and no section holds gender, date of joining, job title, employment type, probation end or notice period (`sectionFields.js`); legacy HRMS captures gender on the same form (`AddEmployee.jsx:1007-1012`) | 2026-10-07, legacy cross-check | Add Employee: **Required** (names, work email, date of joining, department, designation, location) and a collapsed **More** group (gender, employment type, probation end, notice period, mobile); the same fields on the Employment section; `core.employee` gains the missing columns by migration | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `V154` on `employee_employment` (gender and joining date already existed; designation is the job title). Department, designation and location optional on Add Employee (founder 2026-10-07) |
 | D-41 | Time zone and shift times are free text (`sectionFields.js:84-86`): any string saves | 2026-10-07, legacy cross-check | time zone: a searchable select of IANA zones, default the tenant's; shift start and end: time pickers, `HH:mm` validated on the backend | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; time zone stays blank until picked; nothing carries the tenant's zone yet |
 | D-42 | Create Tenant has no administrator email (`TenantCreate.jsx:70-109`, `TenantRequest.java:9`): after creating a tenant the platform staff must act-as into it and invite the admin by hand | 2026-10-07, founder on Azure dev | `TenantRequest` gains `adminEmail`; provisioning creates a `tenant-admin` user invitation in the new tenant and sends it; the tenant list shows "admin invited / accepted" | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `V159`; `admin_email` refused when `INVITATION_LINK_BASE_URL` is unset |
-| D-43 | Project Manager & Team Member pickers require typing >= 2 chars and do not load initial dropdown options on open; Timesheet weekly entry lacks structured task details section (only 240px note popover) | 2026-10-08, manual QA Timesheet flow (`S7-09`) | sayeed (`dev-sayeed`) | **open** |
-| D-44 | Approvals Inbox has no "Decided / History" view (approved/rejected steps vanish immediately); Timesheet Review screen inaccessible to Tenant Admin due to hard requirement for employee profile on default tab | 2026-10-08, manual QA Timesheet flow (`S7-10`) | sayeed (`dev-sayeed`) | **open** |
+| D-43 | Project Manager & Team Member pickers require typing >= 2 chars and do not load initial dropdown options on open (save should also succeed without manager, showing 'No data' if none exist); Timesheet weekly entry lacks structured task details section (only 240px note popover) | 2026-10-08, manual QA Timesheet flow (`S7-09`) | sayeed (`dev-sayeed`) | **open** |
+| D-44 | Approvals Inbox has no "Decided / History" view (approved/rejected steps vanish immediately); "View item" on timesheet step fails with "Could not load the timesheet entry"; Timesheet Review screen inaccessible/empty to Tenant Admin | 2026-10-08, manual QA Timesheet flow (`S7-10`) | sayeed (`dev-sayeed`) | **open** |
+| D-45 | Submitted timesheet lacks Edit or Recall-to-Draft option; employee cannot correct hours or recreate week timesheet (blocked by unique week constraint) unless manager rejects | 2026-10-09, manual QA Timesheet flow (`S7-09`) | sayeed (`dev-sayeed`) | **open** |
+| D-46 | Attendance card displays today's session timeline only (past date session intervals cannot be expanded/viewed); Tenant Admin has no employee profile and cannot clock in/out | 2026-10-09, manual QA Attendance flow (`S7-02`, `S7-03`) | sayeed (`dev-sayeed`) | **open** |
+| D-47 | Regularization (`/hrms/regularizations`) and Overtime (`/hrms/overtime-requests`) tables load blank by default; date range is required to fetch data instead of acting as an optional filter with sensible defaults | 2026-10-09, manual QA (`S7-05`, `S7-07`) | sayeed (`dev-sayeed`) | **open** |
+| D-48 | Rejected overtime request vanishes from Approvals and request UI instead of remaining visible with status `REJECTED` in a history/decided view | 2026-10-09, manual QA Overtime flow (`S7-08`) | sayeed (`dev-sayeed`) | **open** |
+| D-49 | Leave Year input in `LeaveImport.jsx` uses `<InputNumber>`, blocking required `YYYY-YY` string format (e.g. `2026-27`) for April-cycle tenants and causing HTTP 400 Bad Request | 2026-10-09, manual QA Leave Import flow (`S20-03`, `S20-04`) | sayeed (`dev-sayeed`) | **open** |
+| D-50 | Missing "Download Sample CSV Template" button/link on `/leave/import` screen | 2026-10-09, manual QA Leave Import flow (`S20-02`) | sayeed (`dev-sayeed`) | **open** |
+| D-51 | Error report document UUID in validation warning alert on `/leave/import` is rendered as plain text instead of a clickable download link | 2026-10-09, manual QA Leave Import flow (`S20-03`) | sayeed (`dev-sayeed`) | **open** |
+| D-52 | Employee role cannot access Leave module (sidebar omits Leave and direct `/leave/requests` throws 404) because parent `core.leave` group requires `core.leave.read` rather than allowing `core.leave.apply` / `core.leave.read_own` | 2026-10-09, manual QA Employee Persona (`S20-06`, `/leave/requests`) | sayeed (`dev-sayeed`) | **open** |
 | D-62 | Accepting an invitation ends on a page whose main action is "Sign in" (`AcceptInvitation.jsx:113-121`), so invitees reach the login screen before they have a password; a reused Keycloak account gets no set-password mail yet is told to wait for one (`KeycloakProvisioningServiceImpl.java:159-161`); the set-password mail carries no way back to the app; `/invitations/accept/` with a trailing slash falls into sign-in (`main.jsx:31`) | 2026-10-09, founder | claude: accept returns an `outcome` (mail sent / mail failed / existing account) and the page words its next step from it; an existing account still awaiting `UPDATE_PASSWORD` is sent the mail again; the mail carries `client_id` and the app root as `redirect_uri`; trailing slash accepted | **fixed on main — built by claude** |
 
-Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D-44 are M. Each is one branch, one commit, no spec. Anything larger from the same 2026-10-07 review is a `W-73` child spec (§6).
+Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D-44, D-45, D-46, D-47, D-48, D-49, D-50, D-51, D-52 are M. Each is one branch, one commit, no spec. Anything larger from the same 2026-10-07 review is a `W-73` child spec (§6).
 
 ### QA & Manual Testing Defect Log (Dev 5 — Time & Operations)
 
@@ -158,8 +166,8 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
 #### D-43 (BUG-D5-005): Timesheet & Project Flow — Empty Dropdown in Employee Pickers & Lack of Structured Task Details Section
 - **Found:** 2026-10-08, Timesheet & Project Flow Testing (`/hrms/projects`, `/hrms/projects/:id`, `/hrms/timesheets/week/:weekStart`, Step `S7-09`)
 - **Symptoms:**
-  1. **Project Manager Picker (`ProjectForm.jsx`)**: When opening the Manager field, no options or dropdown list appear. Users see an empty box giving the impression of manual text input; names only appear if typing >= 2 characters.
-  2. **Team Member Picker (`TeamTab.jsx`)**: When assigning employees to the project team, clicking the employee selector shows no dropdown choices unless typing >= 2 characters.
+  1. **Project Manager Picker (`ProjectForm.jsx`)**: When opening the Manager field, no options or dropdown list appear. Users see an empty box giving the impression of manual text input; names only appear if typing >= 2 characters. Furthermore, if no managers exist in the organisation, the field should clearly show a "No data" state, and project creation should succeed when no manager is assigned (manager is optional in the domain model).
+  2. **Team Member Picker (`TeamTab.jsx`)**: When assigning employees to the project team, clicking the employee selector shows no dropdown choices unless typing >= 2 characters. A browsable list of employees with an active search filter should appear instead.
   3. **Timesheet Task Entry Details (`TimesheetWeek.jsx`)**: In the weekly timesheet grid, task hours entry only offers a small popup note popover (`NoteCell`, 240px wide textarea) without a structured task execution / work details section.
 - **Root Cause:**
   1 & 2: `AssignableEmployeeController.java` rejects queries `< MIN_QUERY_LENGTH` (2 chars) answering `[]`, and `EmployeePicker.jsx` aborts searches under 2 chars without prefetching on open/focus.
@@ -167,15 +175,92 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
 - **Impact:** Degraded user experience during project setup and team assignment, confusion over whether employees exist, and limited ability to record comprehensive work descriptions during timesheet submission.
 - **Status:** Open.
 
-#### D-44 (BUG-D5-006): Approvals Inbox Missing History/Decided View & Timesheet Review Inaccessible to Tenant Admin
+#### D-44 (BUG-D5-006): Approvals Inbox Missing History/Decided View, Timesheet Entry View Fails, & Review Inaccessible to Tenant Admin
 - **Found:** 2026-10-08, Timesheet Approval Verification (`/approvals`, `/hrms/timesheet-review`, Step `S7-10`)
 - **Symptoms:**
   1. **Vanishing Approvals (`/approvals`)**: After approving or rejecting an item (e.g. timesheet), the record immediately disappears from `/approvals`. There is no "History", "Approved", or "Decided" tab, leaving the user with no visible audit or confirmation in the UI of what was decided.
-  2. **Timesheet Review Inaccessible (`/hrms/timesheet-review`)**: Tenant Administrator (`tenant-admin`) viewing Timesheet Review sees a persistent red error: `"Could not load timesheets."` on the default "My projects" tab.
+  2. **Approvals Inbox "View Item" Fails (`/hrms/timesheet-review/entries/:entryId`)**: Clicking "View item" on a pending `TIMESHEET` row in `/approvals` navigates to `/hrms/timesheet-review/entries/:entryId`, which errors with `"Could not load the timesheet entry."`
+  3. **Timesheet Review Inaccessible to Tenant Admin (`/hrms/timesheet-review`)**: Tenant Administrator (`tenant-admin`) viewing Timesheet Review sees a persistent red error: `"Could not load timesheets."` on the default "My projects" tab, and no timesheets are listed across the tabs for Admin.
 - **Root Cause:**
   1. `Inbox.jsx` only queries `approvalService.pending()`. No UI tab exists to query `ApprovalHistoryResponse` (`GET /api/v1/approvals/{instanceId}/history`) or filtered past decisions.
-  2. `TimesheetReviewServiceImpl.managed()` calls `caller()` which forces `employeeService.currentEmployee()`. A Tenant Admin account has no employee record, answering `403 FORBIDDEN: Not permitted: requires action 'hrms.timesheet.approve'`. Furthermore, the "All" tab requires `hrms.timesheet.read`, which is only seeded on the `hr` role, not `tenant-admin`.
-- **Impact:** Approvers cannot track previously approved items; Tenant Admins cannot audit tenant timesheets from `/hrms/timesheet-review`.
+  2. `TimesheetProjectEntryServiceImpl.java:45-63` enforces `currentEmployee()` and checks `step.getAssigneeEmployeeId()`. When an admin or fallback approver clicks "View item", `caller()` throws HTTP 403 `PermissionDeniedException` (if user has no employee record) or HTTP 404 `ResourceNotFoundException` (if not the exact assignee).
+  3. `TimesheetReviewServiceImpl.managed()` calls `caller()` which forces `employeeService.currentEmployee()`. A Tenant Admin account has no employee record, answering `403 FORBIDDEN: Not permitted: requires action 'hrms.timesheet.approve'`. Furthermore, the "All" tab requires `hrms.timesheet.read`, which is only seeded on the `hr` role, not `tenant-admin`.
+- **Impact:** Approvers cannot inspect the submitted timesheet entry from the inbox; approvers cannot track previously approved items; Tenant Admins cannot audit tenant timesheets from `/hrms/timesheet-review`.
+- **Status:** Open.
+
+#### D-45 (BUG-D5-007): Submitted Timesheet Lacks Edit / Recall-to-Draft Flow (Locked Out by One-Timesheet-Per-Week Constraint)
+- **Found:** 2026-10-09, manual QA Timesheet flow (`/hrms/timesheets/week/:weekStart`, Step `S7-09`)
+- **Symptoms:**
+  1. Once an employee clicks **Submit**, the entire week grid enters a locked read-only state. All hours inputs are disabled, and action buttons (Save draft, Submit, Delete draft) are hidden.
+  2. There is no **"Recall / Withdraw to Draft"** option. If an employee realizes they entered incorrect task hours or submitted prematurely, they cannot edit the submitted week or submit a corrected one because PostgreSQL enforces a strict unique constraint on `(tenant_id, employee_id, week_start_date)`. The employee is stranded unless a manager explicitly rejects the timesheet.
+- **Root Cause:** The timesheet state machine transitions directly from `DRAFT` to `SUBMITTED` without an intermediate `RECALLED` / `WITHDRAWN` transition or edit permission for pending submissions prior to approval.
+- **Impact:** Employees who make errors during submission have no self-service way to correct their weekly hours, leading to stranded records or forcing manual communication with approvers to trigger a rejection.
+- **Status:** Open.
+
+#### D-46 (BUG-D5-008): Attendance Screen Hides Past Session Intervals & Tenant Admin Blocked from Clock In/Out
+- **Found:** 2026-10-09, manual QA Attendance flow (`/hrms/attendance`, Step `S7-02`, `S7-03`)
+- **Symptoms:**
+  1. **Past Date Sessions Invisibility (`ClockCard.jsx`, `MyAttendance.jsx`)**: The Clock Card renders a timeline with individual clock-in and clock-out timestamps for today only. For past dates, the "My days" table only lists aggregated totals and session counts (`sessions: N`); there is no way for the employee to view or expand individual session start/end intervals from earlier dates.
+  2. **Tenant Admin Clocking Inaccessibility**: Tenant Administrator accounts have no linked employee record (`core.employee`), completely preventing clock in and clock out operations or attendance self-service testing under the admin persona.
+- **Root Cause:**
+  1. `ClockCard.jsx` loads today's sessions via `attendanceService.today()`. `MyAttendance.jsx` groups monthly data by day (`byDay`) without providing row expansion for historical session timelines.
+  2. `AttendanceCaptureController.java` requires an active employee context linked to the caller's user account.
+- **Impact:** Employees cannot audit their exact historical punch pairs; Tenant Admins cannot use or verify attendance capture directly.
+- **Status:** Open.
+
+#### D-47 (BUG-D5-009): Regularization & Overtime Request Screens Require Manual Date Range Selection to Fetch Data
+- **Found:** 2026-10-09, manual QA Regularizations & Overtime (`/hrms/regularizations`, `/hrms/overtime-requests`, Steps `S7-05`, `S7-07`)
+- **Symptoms:**
+  1. Navigating to `/hrms/regularizations` or `/hrms/overtime-requests` initially displays an empty table. No API call is executed on mount because the component `range` state is initialized to `null` (`MyRegularizations.jsx:14`, `MyOvertime.jsx:14`).
+  2. Users are forced to manually pick a date range in the picker before any requests appear. The date range should act as a filtering mechanism, not an entry gate to display data; screens should automatically fetch and display current records (e.g. current month or default 30-90 days) on initial load.
+- **Root Cause:** `useEffect` only invokes `load(range)` if `range` is truthy (`if (range) load(range)`), with `range` initialized to `null` instead of a default preset range like `[dayjs().startOf('month'), dayjs()]`.
+- **Impact:** Users assume no regularization or overtime requests exist upon opening the page, causing confusion and requiring redundant user interactions.
+- **Status:** Open.
+
+#### D-48 (BUG-D5-010): Rejected Overtime Requests Vanish from Approvals & UI Views
+- **Found:** 2026-10-09, manual QA Overtime Approvals (`/approvals`, `/hrms/overtime-requests`, Step `S7-08`)
+- **Symptoms:**
+  1. Once an approver rejects an overtime request, the record completely disappears from the UI rather than remaining visible with status `REJECTED` in an audit or decided history view.
+- **Root Cause:** `/approvals` inbox only queries pending approval steps (`approvalService.pending()`) and lacks a "Decided / History" tab to view rejected/approved requests. Additionally, employee view filters may not surface terminal decisions without explicit date matching.
+- **Impact:** Approvers and employees lose visibility and confirmation of rejected overtime applications, leaving no visible audit trail in the UI.
+- **Status:** Open.
+
+#### D-49 (BUG-D5-011): Leave Year Input in `LeaveImport.jsx` Uses `InputNumber`, Blocking Required `YYYY-YY` Format for April Tenants
+- **Found:** 2026-10-09, manual QA Leave Import flow (`/leave/import`, Steps `S20-03`, `S20-04`)
+- **Symptoms:**
+  1. For tenants whose financial year starts in month 4 (April), the backend requires leave year formatted as `YYYY-YY` (e.g. `2026-27`).
+  2. `LeaveImport.jsx` uses Ant Design `<InputNumber value={leaveYear} onChange={setLeaveYear} />` defaulting to numeric `2026`. Any attempt to enter `2026-27` is rejected by `InputNumber` because it only accepts numeric characters.
+  3. When submitted as numeric `2026`, backend throws `HTTP 400 Bad Request: Invalid leave year format '2026'. Tenant starting in month 4 requires YYYY-YY (e.g. 2026-27)`. This completely blocks users from executing leave imports through the UI without manual state manipulation.
+- **Root Cause:** `LeaveImport.jsx` hardcodes `InputNumber` instead of text `<Input>` or `<Select>` dynamically populated from tenant leave year configuration.
+- **Impact:** High / Blocker for April-cycle tenants trying to import leave balances.
+- **Status:** Open.
+
+#### D-50 (BUG-D5-012): Missing Sample CSV Template Download Link on `/leave/import`
+- **Found:** 2026-10-09, manual QA Leave Import flow (`/leave/import`, Step `S20-02`)
+- **Symptoms:**
+  1. Test step S20-02 requires downloading a sample CSV template with expected headers (`employee_code, leave_type_code, year, balance_days`).
+  2. The UI page `/leave/import` does not have any "Download Sample Template" button or download link.
+- **Root Cause:** `LeaveImport.jsx` only renders the upload dropzone and leave year input; no sample template generator or download link is implemented.
+- **Impact:** Users must guess or reverse-engineer the expected CSV headers and format.
+- **Status:** Open.
+
+#### D-51 (BUG-D5-013): Error Report Document UUID in Warning Alert is Plain Text and Unclickable
+- **Found:** 2026-10-09, manual QA Leave Import flow (`/leave/import`, Step `S20-03`)
+- **Symptoms:**
+  1. When an import completes with validation errors, the Alert message displays: `"Some rows had validation errors. Download error report document: <document-uuid>"`.
+  2. The document UUID is rendered as plain text. Users cannot click to download or view the generated error CSV report.
+- **Root Cause:** `LeaveImport.jsx` renders `errorReportDocumentId` directly inside a string message instead of wrapping it in a download link/button backed by document download API.
+- **Impact:** HR/Admin cannot easily access the generated error report to identify which rows failed validation.
+- **Status:** Open.
+
+#### D-52 (BUG-D5-014): Employee Role Completely Missing Leave Menu Access Due to Parent `core.leave.read` Guard
+- **Found:** 2026-10-09, manual QA Employee Persona Verification (`/leave/requests`, `/me`)
+- **Symptoms:**
+  1. Logged in as Employee (`gafeg90661@calirona.com`), the "Leave" navigation item is completely absent from the sidebar.
+  2. Direct URL navigation to `/leave/requests` throws 404.
+  3. Employees cannot apply for leave or view their balances in the UI.
+- **Root Cause:** `NavigationCatalogue.java:158` guards the parent `"core.leave"` group with action `"core.leave.read"`. The seeded `employee` role only possesses `"core.leave.apply"` and `"core.leave.read_own"`, not `"core.leave.read"`. Because the parent menu item is hidden, its children (including leave application and my requests) are inaccessible.
+- **Impact:** Critical / Blocker: Employees cannot perform self-service leave operations.
 - **Status:** Open.
 
 ---
