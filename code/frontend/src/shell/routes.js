@@ -3,19 +3,21 @@ import { routes as coreRoutes } from '../core/index.js';
 import { routes as hrmsRoutes } from '../hrms/index.js';
 import { routes as payrollRoutes } from '../payroll/index.js';
 import { PortalLayout } from './portal/PortalLayout.jsx';
+import { PayslipPage } from './portal/PayslipPage.jsx';
 import { ApplyLeave } from '../core/portal/ApplyLeave.jsx';
 import { LeaveRequestDetail } from '../core/leave/LeaveRequestDetail.jsx';
 
 /**
  * Self-service portal routes (W-25 §5, W-46.5 §5).
  * Mounted for authenticated users; renders panels returned dynamically from /api/v1/me/panels,
- * plus the self-service leave apply and request detail screens.
+ * plus the self-service leave apply and request detail screens and one payslip (D-74).
  */
 export const portalRoutes = [
   { path: '/me', element: React.createElement(PortalLayout) },
   { path: '/me/:panelId', element: React.createElement(PortalLayout) },
   { path: '/me/leave/apply', element: React.createElement(ApplyLeave) },
   { path: '/me/leave/requests/:id', element: React.createElement(LeaveRequestDetail, { readOnly: true }) },
+  { path: '/me/payslips/:payrunId', element: React.createElement(PayslipPage) },
 ];
 
 /**
