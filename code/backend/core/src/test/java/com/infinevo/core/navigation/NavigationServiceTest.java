@@ -756,7 +756,8 @@ class NavigationServiceTest {
     }
 
     @Test
-    @DisplayName("D-75: an employee lookup that fails hides the portal item and leaves the rest of the menu up")
+    @DisplayName(
+            "D-75: an employee lookup that throws before the database hides the portal item and leaves the rest of the menu up")
     void brokenEmployeeLookupHidesThePortalOnly() {
         TenantContext.set(UUID.randomUUID());
         when(permissionService.currentActions())

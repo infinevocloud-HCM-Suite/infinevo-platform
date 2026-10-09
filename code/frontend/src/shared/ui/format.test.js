@@ -49,4 +49,8 @@ describe('humanize', () => {
     expect(humanize(undefined)).toBe('—');
     expect(humanize('')).toBe('—');
   });
+
+  it('formatMoney takes another currency symbol; the rupee is only the default (payroll is India-only today)', () => {
+    expect(formatMoney('1250.5', 'AED')).toBe('AED 1,250.50');
+  });
 });

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.authz.AuthzTestSchema;
 import com.infinevo.core.guard.PermissionGuardTestApp;
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
+import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.shared.test.RedisTestContainerInitializer;
@@ -28,10 +29,14 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerExecutionChain;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
  * W-12.3 §7 — the ticket's reason to exist: for every leaf of the shipped catalogue, a visible item's
@@ -57,6 +62,9 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private RequestMappingHandlerMapping requestMappingHandlerMapping;
 
     private final ObjectMapper json = new ObjectMapper();
 
@@ -157,23 +165,35 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
                     .isBetween(200, 299);
         } else {
             // Hidden because the caller holds none of its actions - that is the menu's rule. The endpoint
-            // usually refuses too; it may answer when it also serves an own- or team-scoped view of the same
-            // family (GET /leave-requests lists HR's register and, under core.leave.read_own, an employee's own).
+            // usually refuses too. It may answer only when its own @RequiresAction.anyOf names an action the
+            // caller holds: GET /leave-requests lists HR's register under core.leave.read and, under
+            // core.leave.read_own, the caller's own rows. Anything else answering 2xx is an enforcement gap.
             Set<String> held = heldActions(tenantId, sub);
             assertThat(held)
                     .as("Absent menu item '%s': the caller must hold none of its actions", def.key())
                     .doesNotContainAnyElementsOf(def.actions());
             if (httpStatus != HttpStatus.FORBIDDEN.value()) {
-                String family =
-                        def.requiredAction().substring(0, def.requiredAction().lastIndexOf('.') + 1);
-                assertThat(held)
+                Set<String> anyOf = endpointAnyOf(def.targetEndpoint());
+                assertThat(anyOf)
                         .as(
-                                "Absent menu item '%s' answered %d on '%s' though the caller holds no own or team action of %s*",
-                                def.key(), httpStatus, def.targetEndpoint(), family)
-                        .anyMatch(a -> a.startsWith(family) && (a.endsWith("_own") || a.endsWith("_team")));
+                                "Absent menu item '%s' answered %d on '%s', whose anyOf %s names nothing the caller holds",
+                                def.key(), httpStatus, def.targetEndpoint(), anyOf)
+                        .anyMatch(held::contains);
                 assertThat(httpStatus).isBetween(200, 299);
             }
         }
+    }
+
+    /** The {@code anyOf} codes of the {@code @RequiresAction} guarding {@code GET path}; empty when it has none. */
+    private Set<String> endpointAnyOf(String path) throws Exception {
+        HandlerExecutionChain chain = requestMappingHandlerMapping.getHandler(new MockHttpServletRequest("GET", path));
+        assertThat(chain).as("GET %s has a handler", path).isNotNull();
+        HandlerMethod handler = (HandlerMethod) chain.getHandler();
+        RequiresAction guard = handler.getMethodAnnotation(RequiresAction.class);
+        if (guard == null) {
+            guard = handler.getBeanType().getAnnotation(RequiresAction.class);
+        }
+        return guard == null ? Set.of() : Set.of(guard.anyOf());
     }
 
     private Set<String> heldActions(UUID tenantId, UUID sub) throws Exception {

@@ -275,8 +275,9 @@ public class NavigationService {
 
     /**
      * True when the caller has a live employee record in the bound tenant (D-75). No employee service (a unit
-     * test) is read as "has one", so the action alone decides; a lookup that fails - no tenant bound, a broken
-     * read - is read as "has none": a broken lookup must not take the whole menu down.
+     * test) is read as "has one", so the action alone decides. A lookup that throws before it reaches the
+     * database - no tenant bound - is read as "has none" and hides the item alone. The read joins this
+     * feed's transaction, so a failure inside the database still fails the feed; this guard does not cover it.
      */
     private boolean hasEmployeeRecord() {
         if (employees == null) {

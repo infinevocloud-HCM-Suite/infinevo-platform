@@ -41,14 +41,14 @@ export function formatDate(value) {
  * @param {string|number|null} value
  * @returns {string}
  */
-export function formatMoney(value) {
+export function formatMoney(value, symbol = '₹') {
   if (isBlank(value)) return EMPTY;
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    return DECIMAL.test(trimmed) ? `₹ ${moneyFormat.format(trimmed)}` : EMPTY;
+    return DECIMAL.test(trimmed) ? `${symbol} ${moneyFormat.format(trimmed)}` : EMPTY;
   }
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return `₹ ${moneyFormat.format(value)}`;
+    return `${symbol} ${moneyFormat.format(value)}`;
   }
   return EMPTY;
 }
