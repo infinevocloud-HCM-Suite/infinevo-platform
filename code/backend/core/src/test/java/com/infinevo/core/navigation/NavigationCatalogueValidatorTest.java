@@ -106,7 +106,8 @@ class NavigationCatalogueValidatorTest {
                 "/api/v1/tenants/current/profile",
                 "/api/v1/leave-types",
                 "/api/v1/leave-requests",
-                "/api/v1/leave-imports");
+                "/api/v1/leave-imports",
+                "/api/v1/me/panels");
 
         assertThat(NavigationCatalogueValidator.missingEndpoints(
                         NavigationCatalogue.DEFAULT_ITEMS, shippedGetEndpoints))

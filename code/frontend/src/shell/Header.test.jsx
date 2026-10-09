@@ -60,6 +60,27 @@ describe('Header component', () => {
 
     expect(logoutSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('D-75: the user menu offers My profile when the shell passes onMyProfile, and it opens the profile', async () => {
+    me({ displayName: 'Esha Employee' });
+    const onMyProfile = vi.fn();
+
+    render(<Header onMyProfile={onMyProfile} />);
+    fireEvent.click(screen.getByRole('button', { name: /user menu/i }));
+    fireEvent.click(await screen.findByText('My profile'));
+
+    expect(onMyProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('D-75: no My profile when the shell passes no onMyProfile', async () => {
+    me({ displayName: 'Harish HR' });
+
+    render(<Header />);
+    fireEvent.click(screen.getByRole('button', { name: /user menu/i }));
+
+    expect(await screen.findByText('Sign out')).toBeDefined();
+    expect(screen.queryByText('My profile')).toBeNull();
+  });
 });
 
 describe('Header branding (W-73.1 §7)', () => {

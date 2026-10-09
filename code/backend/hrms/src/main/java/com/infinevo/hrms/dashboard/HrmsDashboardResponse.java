@@ -16,7 +16,8 @@ import java.util.UUID;
 /**
  * The HRMS dashboard for the caller (W-44 §4): figures plus at most five rows per block. A block the caller holds no
  * action for is {@code null} — present in the JSON, never absent and never a {@code 403}. {@code team} is
- * {@code null} when all three of its blocks are.
+ * {@code null} when all three of its blocks are; {@code me} is {@code null} when no employee record is linked to the
+ * caller, who then sees only the team blocks (D-76).
  */
 @JsonInclude(JsonInclude.Include.ALWAYS)
 public record HrmsDashboardResponse(

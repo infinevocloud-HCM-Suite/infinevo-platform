@@ -74,6 +74,9 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
         acmeAdminSub = UUID.randomUUID();
         UUID acmeAdminAccount = AuthzTestSchema.insertMember(acmeTenant, acmeAdminSub, "admin@acme.match.test");
         AuthzTestSchema.grant(acmeTenant, acmeAdminAccount, AuthzTestSchema.roleId(acmeTenant, "tenant-admin"));
+        // D-75: the self-service item shows only for a login linked to an employee record, as real users are.
+        AuthzTestSchema.linkEmployee(
+                AuthzTestSchema.insertEmployee(acmeTenant, "MATCH-ADMIN", "Admin"), acmeAdminAccount);
 
         globexTenant = AuthzTestSchema.insertTenant("Globex Match " + UUID.randomUUID());
         provisionSubscription(globexTenant, "ACTIVE", "HRMS", "PAYROLL");
@@ -81,9 +84,12 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
         UUID globexEmployeeAccount =
                 AuthzTestSchema.insertMember(globexTenant, globexEmployeeSub, "employee@globex.match.test");
         AuthzTestSchema.grant(globexTenant, globexEmployeeAccount, AuthzTestSchema.roleId(globexTenant, "employee"));
+        AuthzTestSchema.linkEmployee(
+                AuthzTestSchema.insertEmployee(globexTenant, "MATCH-EMP", "Employee"), globexEmployeeAccount);
         globexHrSub = UUID.randomUUID();
         UUID globexHrAccount = AuthzTestSchema.insertMember(globexTenant, globexHrSub, "hr@globex.match.test");
         AuthzTestSchema.grant(globexTenant, globexHrAccount, AuthzTestSchema.roleId(globexTenant, "hr"));
+        AuthzTestSchema.linkEmployee(AuthzTestSchema.insertEmployee(globexTenant, "MATCH-HR", "Hr"), globexHrAccount);
     }
 
     @Test
@@ -150,10 +156,32 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
                     .as("Visible menu item '%s' must answer 2xx on '%s'", def.key(), def.targetEndpoint())
                     .isBetween(200, 299);
         } else {
-            assertThat(httpStatus)
-                    .as("Absent menu item '%s' must answer 403 on '%s'", def.key(), def.targetEndpoint())
-                    .isEqualTo(HttpStatus.FORBIDDEN.value());
+            // Hidden because the caller holds none of its actions - that is the menu's rule. The endpoint
+            // usually refuses too; it may answer when it also serves an own- or team-scoped view of the same
+            // family (GET /leave-requests lists HR's register and, under core.leave.read_own, an employee's own).
+            Set<String> held = heldActions(tenantId, sub);
+            assertThat(held)
+                    .as("Absent menu item '%s': the caller must hold none of its actions", def.key())
+                    .doesNotContainAnyElementsOf(def.actions());
+            if (httpStatus != HttpStatus.FORBIDDEN.value()) {
+                String family =
+                        def.requiredAction().substring(0, def.requiredAction().lastIndexOf('.') + 1);
+                assertThat(held)
+                        .as(
+                                "Absent menu item '%s' answered %d on '%s' though the caller holds no own or team action of %s*",
+                                def.key(), httpStatus, def.targetEndpoint(), family)
+                        .anyMatch(a -> a.startsWith(family) && (a.endsWith("_own") || a.endsWith("_team")));
+                assertThat(httpStatus).isBetween(200, 299);
+            }
         }
+    }
+
+    private Set<String> heldActions(UUID tenantId, UUID sub) throws Exception {
+        MvcResult navResult = mvc.perform(as(tenantId, sub, get("/api/v1/navigation")))
+                .andExpect(status().isOk())
+                .andReturn();
+        return json.readValue(navResult.getResponse().getContentAsString(), NavigationResponse.class)
+                .actions();
     }
 
     private static List<String> leafKeys(List<ItemDefinition> items) {

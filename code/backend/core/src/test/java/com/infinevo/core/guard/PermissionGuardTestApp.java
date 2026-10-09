@@ -33,6 +33,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  *       {@code shared.audit} entity and repository — the real target of the {@code core.audit}
  *       navigation item, so {@code NavigationMatchesEnforcementIT} walks no stand-in (W-12.3).
  *       The audit <em>listener</em> is not imported; nothing here writes audit rows.
+ *   <li>{@code com.infinevo.core.portal} - {@code PortalController}, the real target of the {@code core.me}
+ *       navigation item (D-75), so the catalogue check finds its {@code GET} and the walk calls it.
  *   <li>{@link RedisConfig}, imported by name — the real {@code CacheService} over the test Redis, so
  *       the version bump is exercised against the store every replica shares.
  *   <li>{@link UserProfileSyncService}, imported by name — what the default
@@ -61,6 +63,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.lop",
             "com.infinevo.core.navigation",
             "com.infinevo.core.org",
+            "com.infinevo.core.portal",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
             "com.infinevo.core.tenant",

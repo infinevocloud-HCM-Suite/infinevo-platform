@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.infinevo.core.employee.EmployeeResponse;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
 import com.infinevo.core.setup.SetupChecklistService;
 import com.infinevo.core.tenant.TenantBranding;
@@ -190,6 +192,7 @@ class NavigationServiceTest {
         when(permissionService.currentActions())
                 .thenReturn(Set.of(
                         "core.employee.read",
+                        "core.employee.read_own",
                         "core.org.read",
                         "core.role.read",
                         "core.audit.read",
@@ -268,6 +271,7 @@ class NavigationServiceTest {
         assertThat(NavigationCatalogue.DEFAULT_ITEMS)
                 .extracting(ItemDefinition::key)
                 .containsExactly(
+                        "core.me",
                         "core.admin.home",
                         "core.people",
                         "core.org",
@@ -363,10 +367,14 @@ class NavigationServiceTest {
             "core.employee.read",
             "payroll.run.read",
             "hrms.project.read_own");
-    private static final Set<String> HR = Set.of("core.tenant.read", "core.employee.read", "hrms.project.read_own");
-    private static final Set<String> MANAGER = Set.of("core.employee.read_team", "hrms.project.read_own");
+    // V171: every seeded role that may be on the payroll holds core.employee.read_own (D-75).
+    private static final Set<String> HR =
+            Set.of("core.tenant.read", "core.employee.read", "core.employee.read_own", "hrms.project.read_own");
+    private static final Set<String> MANAGER =
+            Set.of("core.employee.read_team", "core.employee.read_own", "hrms.project.read_own");
     private static final Set<String> EMPLOYEE = Set.of("core.employee.read_own", "hrms.project.read_own");
-    private static final Set<String> PAYROLL_OFFICER = Set.of("core.employee.read", "payroll.run.read");
+    private static final Set<String> PAYROLL_OFFICER =
+            Set.of("core.employee.read", "core.employee.read_own", "payroll.run.read");
 
     private String homeFor(Set<String> actions, Set<PlatformModule> modules, UUID tenant, Boolean setupComplete) {
         TenantContext.set(tenant);
@@ -532,7 +540,7 @@ class NavigationServiceTest {
     }
 
     @Test
-    @DisplayName("D-35: a manager lands on the HRMS dashboard, or the portal without it")
+    @DisplayName("D-35: a manager seeing no approvals inbox lands on its first screen, the dashboard; else the portal")
     void managerLandsOnTheHrmsDashboard() {
         assertThat(homeFor(MANAGER, BOTH, UUID.randomUUID(), false)).isEqualTo("/hrms/dashboard");
         assertThat(homeFor(MANAGER, Set.of(PlatformModule.PAYROLL), UUID.randomUUID(), false))
@@ -541,15 +549,16 @@ class NavigationServiceTest {
     }
 
     @Test
-    @DisplayName("D-35: the seeded manager (no hrms.project.read_own) lands on the first screen it can see")
-    void seededManagerWithoutTheDashboardLandsOnItsFirstScreen() {
-        // V158's manager: reads the team, approves, holds no hrms.project.read_own, so no HRMS dashboard.
+    @DisplayName("D-76: a manager lands on the approvals inbox, even when the HRMS dashboard is in the feed")
+    void managerLandsOnTheApprovalsInbox() {
+        // V158's manager: reads the team and decides approvals.
         Set<String> seededManager = Set.of(
                 "core.employee.read_team",
                 "core.org.read",
                 "core.leave.read_team",
                 "core.leave.approve",
                 "core.approval.decide",
+                "hrms.timesheet.approve",
                 "hrms.project.manage");
         ItemDefinition approvals = new ItemDefinition(
                 "core.approvals",
@@ -558,19 +567,20 @@ class NavigationServiceTest {
                 "/api/v1/approvals/pending",
                 null,
                 "core.approval.decide");
-        List<ItemDefinition> catalogue = List.of(HOME_PEOPLE, approvals, HOME_HRMS_DASHBOARD);
+        ItemDefinition dashboard = HOME_HRMS_DASHBOARD.withAnyOf("hrms.timesheet.approve");
+        List<ItemDefinition> catalogue = List.of(HOME_PEOPLE, dashboard, approvals);
         for (PlatformModule module : PlatformModule.values()) {
             when(entitlementService.holds(module)).thenReturn(true);
         }
         when(permissionService.currentActions()).thenReturn(seededManager);
         TenantContext.set(UUID.randomUUID());
 
-        String home = new NavigationService(
+        NavigationResponse feed = new NavigationService(
                         entitlementService, permissionService, catalogue, null, null, new PlatformTenant())
-                .navigation()
-                .homePath();
+                .navigation();
 
-        assertThat(home).isEqualTo("/approvals");
+        assertThat(keysOf(feed)).contains("hrms.dashboard");
+        assertThat(feed.homePath()).isEqualTo("/approvals");
     }
 
     @Test
@@ -595,6 +605,181 @@ class NavigationServiceTest {
     @DisplayName("D-35: an employee lands on the portal, even when the HRMS dashboard is in the feed")
     void employeeLandsOnThePortal() {
         assertThat(homeFor(EMPLOYEE, BOTH, UUID.randomUUID(), false)).isEqualTo("/me");
+    }
+
+    @Test
+    @DisplayName("D-76: an item with alternatives shows for any one of them, and hides when none is held")
+    void itemWithAlternativesShowsForAnyOne() {
+        ItemDefinition dashboard = HOME_HRMS_DASHBOARD.withAnyOf("hrms.timesheet.approve", "hrms.project.read_team");
+        for (PlatformModule module : PlatformModule.values()) {
+            when(entitlementService.holds(module)).thenReturn(true);
+        }
+        NavigationService service = new NavigationService(entitlementService, permissionService, List.of(dashboard));
+
+        for (String held : List.of("hrms.project.read_own", "hrms.timesheet.approve", "hrms.project.read_team")) {
+            when(permissionService.currentActions()).thenReturn(Set.of(held));
+            assertThat(keysOf(service.navigation())).as(held).containsExactly("hrms.dashboard");
+        }
+        when(permissionService.currentActions()).thenReturn(Set.of("hrms.timesheet.read", "core.employee.read"));
+        assertThat(keysOf(service.navigation())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("D-76: hr (reads every employee) lands on the HRMS dashboard ahead of the approvals inbox")
+    void hrLandsOnTheDashboardAheadOfApprovals() {
+        ItemDefinition approvals = new ItemDefinition(
+                "core.approvals",
+                "nav.approvals",
+                "/approvals",
+                "/api/v1/approvals/pending",
+                null,
+                "core.approval.decide");
+        ItemDefinition dashboard = HOME_HRMS_DASHBOARD.withAnyOf("hrms.timesheet.approve");
+        for (PlatformModule module : PlatformModule.values()) {
+            when(entitlementService.holds(module)).thenReturn(true);
+        }
+        when(permissionService.currentActions())
+                .thenReturn(Set.of(
+                        "core.employee.read",
+                        "core.employee.read_team",
+                        "core.approval.decide",
+                        "hrms.timesheet.approve"));
+        TenantContext.set(UUID.randomUUID());
+
+        String home = new NavigationService(
+                        entitlementService,
+                        permissionService,
+                        List.of(HOME_PEOPLE, approvals, dashboard),
+                        null,
+                        null,
+                        new PlatformTenant())
+                .navigation()
+                .homePath();
+
+        assertThat(home).isEqualTo("/hrms/dashboard");
+    }
+
+    @Test
+    @DisplayName("D-75: an employee's shipped menu names the self-service portal first")
+    void employeeMenuNamesThePortalFirst() {
+        TenantContext.set(UUID.randomUUID());
+        when(permissionService.currentActions())
+                .thenReturn(Set.of("core.employee.read_own", "core.org.read", "core.leave.read_own"));
+
+        NavigationResponse feed = new NavigationService(entitlementService, permissionService).navigation();
+
+        assertThat(feed.items().get(0).key()).isEqualTo("core.me");
+        assertThat(feed.items().get(0).labelKey()).isEqualTo("nav.me");
+        assertThat(feed.items().get(0).path()).isEqualTo("/me");
+        assertThat(feed.homePath()).isEqualTo("/me");
+    }
+
+    @Test
+    @DisplayName("D-75: a caller without core.employee.read_own has no portal item")
+    void noReadOwnNoPortalItem() {
+        TenantContext.set(UUID.randomUUID());
+        when(permissionService.currentActions()).thenReturn(Set.of("core.employee.read", "core.org.read"));
+
+        assertThat(keysOf(new NavigationService(entitlementService, permissionService).navigation()))
+                .doesNotContain("core.me");
+    }
+
+    @Test
+    @DisplayName("D-75: the platform tenant's menu has no portal item - staff have no employee record")
+    void platformTenantHasNoPortalItem() {
+        TenantContext.set(PlatformTenant.DEFAULT_PLATFORM_TENANT_ID);
+        when(permissionService.currentActions())
+                .thenReturn(Set.of("core.employee.read_own", "core.tenant.provision", "core.audit.read"));
+
+        NavigationResponse feed = new NavigationService(
+                        entitlementService,
+                        permissionService,
+                        NavigationCatalogue.DEFAULT_ITEMS,
+                        null,
+                        null,
+                        new PlatformTenant())
+                .navigation();
+
+        assertThat(keysOf(feed)).doesNotContain("core.me");
+        assertThat(feed.homePath()).isEqualTo("/admin");
+    }
+
+    @Test
+    @DisplayName(
+            "D-76: over the shipped core menu a manager who also holds read_own lands on approvals, not the portal")
+    void managerWithPortalLandsOnApprovals() {
+        TenantContext.set(UUID.randomUUID());
+        when(permissionService.currentActions())
+                .thenReturn(Set.of(
+                        "core.employee.read_own",
+                        "core.employee.read_team",
+                        "core.org.read",
+                        "core.approval.decide",
+                        "core.holiday.read"));
+
+        assertThat(new NavigationService(entitlementService, permissionService)
+                        .navigation()
+                        .homePath())
+                .isEqualTo("/approvals");
+    }
+
+    @Test
+    @DisplayName("D-75: with an employee service, the portal item needs a linked record on top of the action")
+    void portalItemNeedsALinkedEmployeeRecord() {
+        TenantContext.set(UUID.randomUUID());
+        when(permissionService.currentActions())
+                .thenReturn(Set.of("core.employee.read_own", "core.employee.read", "core.org.read"));
+        EmployeeService employees = mock(EmployeeService.class);
+        when(employees.currentEmployee()).thenReturn(Optional.empty());
+
+        NavigationResponse noRecord = withEmployees(employees).navigation();
+
+        assertThat(keysOf(noRecord)).doesNotContain("core.me");
+        assertThat(keysOf(noRecord)).contains("core.people");
+
+        when(employees.currentEmployee()).thenReturn(Optional.of(mock(EmployeeResponse.class)));
+
+        NavigationResponse linked = withEmployees(employees).navigation();
+
+        assertThat(linked.items().get(0).key()).isEqualTo("core.me");
+    }
+
+    @Test
+    @DisplayName("D-75: a linked record without the action is still no portal item - the endpoint would 403")
+    void linkedRecordWithoutTheActionHasNoPortalItem() {
+        TenantContext.set(UUID.randomUUID());
+        when(permissionService.currentActions()).thenReturn(Set.of("core.employee.read", "core.org.read"));
+        EmployeeService employees = mock(EmployeeService.class);
+        when(employees.currentEmployee()).thenReturn(Optional.of(mock(EmployeeResponse.class)));
+
+        assertThat(keysOf(withEmployees(employees).navigation())).doesNotContain("core.me");
+    }
+
+    @Test
+    @DisplayName("D-75: an employee lookup that fails hides the portal item and leaves the rest of the menu up")
+    void brokenEmployeeLookupHidesThePortalOnly() {
+        TenantContext.set(UUID.randomUUID());
+        when(permissionService.currentActions())
+                .thenReturn(Set.of("core.employee.read_own", "core.employee.read", "core.org.read"));
+        EmployeeService broken = mock(EmployeeService.class);
+        when(broken.currentEmployee()).thenThrow(new IllegalStateException("no tenant bound"));
+
+        NavigationResponse feed = withEmployees(broken).navigation();
+
+        assertThat(keysOf(feed)).doesNotContain("core.me");
+        assertThat(keysOf(feed)).contains("core.people");
+    }
+
+    private NavigationService withEmployees(EmployeeService employees) {
+        return new NavigationService(
+                entitlementService,
+                permissionService,
+                NavigationCatalogue.DEFAULT_ITEMS,
+                null,
+                null,
+                new PlatformTenant(),
+                null,
+                employees);
     }
 
     private static ItemDefinition group(String key) {

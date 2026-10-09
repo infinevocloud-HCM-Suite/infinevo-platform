@@ -76,14 +76,19 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "core.attendance.manage");
 
-    /** The caller's HRMS dashboard (W-48.6): {@code HrmsDashboardController}'s {@code GET /api/v1/hrms/dashboard}. */
+    /**
+     * The caller's HRMS dashboard (W-48.6): {@code HrmsDashboardController}'s {@code GET /api/v1/hrms/dashboard}.
+     * Employees, managers and HR all see it (D-76): the employee by their own projects, the manager by the team, HR
+     * by approving timesheets. Every code here is one the endpoint admits.
+     */
     public static final ItemDefinition DASHBOARD = new ItemDefinition(
-            "hrms.dashboard",
-            "nav.hrms.dashboard",
-            "/hrms/dashboard",
-            "/api/v1/hrms/dashboard",
-            PlatformModule.HRMS,
-            "hrms.project.read_own");
+                    "hrms.dashboard",
+                    "nav.hrms.dashboard",
+                    "/hrms/dashboard",
+                    "/api/v1/hrms/dashboard",
+                    PlatformModule.HRMS,
+                    "hrms.project.read_own")
+            .withAnyOf("hrms.project.read_team", "hrms.timesheet.read_team", "hrms.timesheet.approve");
 
     /** The caller's regularizations (W-48.5): {@code RegularizationController}'s {@code GET .../regularizations/mine}. */
     public static final ItemDefinition REGULARIZATIONS = new ItemDefinition(

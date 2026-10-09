@@ -321,6 +321,21 @@ class HrmsDashboardIT extends AbstractIntegrationTest {
         mvc.perform(authed(get("/api/v1/hrms/dashboard"), subMember)).andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("D-76: a login that approves timesheets but has no employee record gets 200 and the team blocks only")
+    void approverWithoutEmployeeGetsTeamBlocksOnly() throws Exception {
+        UUID subApprover = UUID.randomUUID();
+        HrmsProjectTestSchema.insertMemberWithActions(tenant, subApprover, "hrms.timesheet.approve");
+        HrmsTestApp.CURRENT_EMPLOYEE.remove();
+
+        mvc.perform(authed(get("/api/v1/hrms/dashboard"), subApprover))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.me").value(nullValue()))
+                .andExpect(jsonPath("$.data.team.approvals.waiting").value(0))
+                .andExpect(jsonPath("$.data.team.projects").value(nullValue()))
+                .andExpect(jsonPath("$.data.team.reports").value(nullValue()));
+    }
+
     // --- fixture -------------------------------------------------------------------------------------------------
 
     private MockHttpServletRequestBuilder authed(MockHttpServletRequestBuilder builder, UUID sub) {

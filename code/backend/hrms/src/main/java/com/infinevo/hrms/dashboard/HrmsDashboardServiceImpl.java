@@ -43,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.security.access.AccessDeniedException;
@@ -93,32 +94,44 @@ public class HrmsDashboardServiceImpl implements HrmsDashboardService {
         this.lateQuery = Objects.requireNonNull(lateQuery, "lateQuery must not be null");
     }
 
+    /**
+     * The caller's blocks. A caller with no employee record linked - HR or a manager signed in without one (D-76) -
+     * gets the team blocks their actions allow, figured over no managed project and no report, and {@code me} null;
+     * with no team action either, the dashboard has nothing to show and is a {@code 403}.
+     */
     @Override
     public HrmsDashboardResponse forCaller() {
         UUID tenantId = TenantContext.require();
-        EmployeeResponse caller = employeeService
-                .currentEmployee()
-                .orElseThrow(() -> new AccessDeniedException("No employee profile linked to current user account"));
-        UUID employeeId = caller.id();
-        LocalDate today = tenantClock.today();
-        LocalDate week = TimesheetRules.mondayOf(today);
-
-        boolean projectsOwn = permissionService.holds(ProjectAccessResolver.ACTION_READ_OWN);
-        Me me = new Me(
-                permissionService.holds(ACTION_ATTENDANCE_MARK) ? today() : null,
-                permissionService.holds(TimesheetAccessResolver.ACTION_READ_OWN)
-                        ? timesheets(tenantId, employeeId, week)
-                        : null,
-                projectsOwn ? myProjects(tenantId, employeeId) : null,
-                projectsOwn ? myTasks(tenantId, employeeId, today, week.plusDays(6)) : null);
-
         boolean projectsTeam = permissionService.holds(ProjectAccessResolver.ACTION_READ_TEAM);
         boolean approve = permissionService.holds(TimesheetAccessResolver.ACTION_APPROVE);
         boolean readTeam = permissionService.holds(TimesheetAccessResolver.ACTION_READ_TEAM);
+        boolean anyTeam = projectsTeam || approve || readTeam;
+        Optional<EmployeeResponse> caller = employeeService.currentEmployee();
+        if (caller.isEmpty() && !anyTeam) {
+            throw new AccessDeniedException("No employee profile linked to current user account");
+        }
+        UUID employeeId = caller.map(EmployeeResponse::id).orElse(null);
+        LocalDate today = tenantClock.today();
+        LocalDate week = TimesheetRules.mondayOf(today);
+
+        Me me = null;
+        if (employeeId != null) {
+            boolean projectsOwn = permissionService.holds(ProjectAccessResolver.ACTION_READ_OWN);
+            me = new Me(
+                    permissionService.holds(ACTION_ATTENDANCE_MARK) ? today() : null,
+                    permissionService.holds(TimesheetAccessResolver.ACTION_READ_OWN)
+                            ? timesheets(tenantId, employeeId, week)
+                            : null,
+                    projectsOwn ? myProjects(tenantId, employeeId) : null,
+                    projectsOwn ? myTasks(tenantId, employeeId, today, week.plusDays(6)) : null);
+        }
+
         Team team = null;
-        if (projectsTeam || approve || readTeam) {
-            Set<UUID> managed =
-                    projectsTeam || approve ? timesheetAccess.managedProjectIds(tenantId, employeeId) : Set.of();
+        if (anyTeam) {
+            // No employee record: nothing is managed by, and nobody reports to, a missing id.
+            Set<UUID> managed = (projectsTeam || approve) && employeeId != null
+                    ? timesheetAccess.managedProjectIds(tenantId, employeeId)
+                    : Set.of();
             team = new Team(
                     projectsTeam ? teamProjects(tenantId, managed, today) : null,
                     approve ? approvals(tenantId, managed) : null,
@@ -225,7 +238,7 @@ public class HrmsDashboardServiceImpl implements HrmsDashboardService {
      * mail never disagree (W-44 §13 decision 4).
      */
     private Reports reports(UUID tenantId, UUID employeeId, LocalDate today, LocalDate week) {
-        Set<UUID> reportIds = timesheetAccess.directReportIds(tenantId, employeeId);
+        Set<UUID> reportIds = employeeId == null ? Set.of() : timesheetAccess.directReportIds(tenantId, employeeId);
         if (reportIds.isEmpty()) {
             return new Reports(0, 0, 0, List.of());
         }

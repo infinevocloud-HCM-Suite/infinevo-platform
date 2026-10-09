@@ -272,6 +272,17 @@ public final class AuthzTestSchema {
         }
     }
 
+    /** Links an employee row to a login, as accepting an invitation does (W-13.4); the portal item needs it (D-75). */
+    public static void linkEmployee(UUID employeeId, UUID userAccountId) throws SQLException {
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps =
+                        conn.prepareStatement("UPDATE core.employee SET user_account_id = ? WHERE id = ?")) {
+            ps.setObject(1, userAccountId);
+            ps.setObject(2, employeeId);
+            ps.executeUpdate();
+        }
+    }
+
     /** Inserts a user account in a tenant, as the schema owner. */
     public static UUID insertUserAccount(UUID tenantId, String email) throws SQLException {
         return insertUserAccount(tenantId, UUID.randomUUID(), email);

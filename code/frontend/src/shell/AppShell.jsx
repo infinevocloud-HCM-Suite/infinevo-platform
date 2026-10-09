@@ -29,6 +29,23 @@ const IMPERSONATION_ADMIN_PATH = '/admin/tenants';
 const WELCOME_PATH = '/welcome';
 
 /**
+ * The portal's profile panel (D-75), which the header's user menu opens as My profile whenever the
+ * feed names the self-service portal item - the server shows that item only to a caller with a
+ * linked employee record, so the header link and the menu item agree. The shell reads it from the
+ * feed it already holds: a second feed hook in the header would refetch the feed twice on every
+ * tenant change.
+ */
+const MY_PROFILE_PATH = '/me/profile';
+const PORTAL_KEY = 'core.me';
+const PORTAL_PATH = '/me';
+
+function hasPortalItem(items) {
+  return (items || []).some(
+    (item) => item.key === PORTAL_KEY || item.path === PORTAL_PATH || hasPortalItem(item.children),
+  );
+}
+
+/**
  * Where `/` goes: the welcome page until the user dismisses it (W-73.8), the home path after.
  * It waits for `/me` - deciding before it answers would send everyone home and skip the page.
  */
@@ -59,6 +76,7 @@ export function AppShell() {
   const session = useImpersonationSession();
   const me = useMe();
   const navigate = useNavigate();
+  const ownsProfile = hasPortalItem(items);
 
   const menuItems = buildMenuItems(items);
   const selectedKey = findSelectedKey(items, location.pathname);
@@ -145,6 +163,7 @@ export function AppShell() {
             tenantLogoUrl={tenantLogoUrl}
             tagline={tagline}
             onGettingStarted={() => navigate(WELCOME_PATH)}
+            onMyProfile={ownsProfile ? () => navigate(MY_PROFILE_PATH) : undefined}
           />
           <Content style={{ padding: token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
             {!loading && error ? (

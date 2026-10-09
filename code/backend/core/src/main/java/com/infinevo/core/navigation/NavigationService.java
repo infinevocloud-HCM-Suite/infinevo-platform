@@ -1,5 +1,6 @@
 package com.infinevo.core.navigation;
 
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.setup.SetupChecklistService;
 import com.infinevo.core.tenant.TenantBranding;
 import com.infinevo.core.tenant.TenantProfileService;
@@ -27,7 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Derives the navigation feed for the current caller and bound tenant (W-12.3, spec section 4).
  *
- * <p>Filters items by module entitlement (W-12.2) and by action (W-11.2).
+ * <p>Filters items by module entitlement (W-12.2) and by action (W-11.2) - the item's action or any of its
+ * alternatives (D-76). The self-service portal item also needs a linked employee record (D-75).
  * Returns the filtered menu alongside the caller's full action-code set, the caller's home page (D-35) and the
  * bound tenant's branding - name, logo link, tagline (W-73.1).
  */
@@ -52,6 +54,14 @@ public class NavigationService {
      */
     private final TenantProfileService tenantProfiles;
 
+    /**
+     * Answers whether the caller has a linked employee record, which the self-service portal item needs on top
+     * of its action (D-75): the action is seeded on every role that may be on the payroll, the record says who
+     * actually is. Null only in unit tests that construct the service without one; the item then shows on the
+     * action alone.
+     */
+    private final EmployeeService employees;
+
     @Autowired
     public NavigationService(
             EntitlementService entitlementService,
@@ -60,7 +70,8 @@ public class NavigationService {
             JdbcTemplate jdbcTemplate,
             ObjectProvider<SetupChecklistService> setupChecklist,
             ObjectProvider<PlatformTenant> platformTenant,
-            ObjectProvider<TenantProfileService> tenantProfiles) {
+            ObjectProvider<TenantProfileService> tenantProfiles,
+            ObjectProvider<EmployeeService> employees) {
         this(
                 entitlementService,
                 permissionService,
@@ -68,7 +79,8 @@ public class NavigationService {
                 jdbcTemplate,
                 setupChecklist.getIfAvailable(),
                 platformTenant.getIfAvailable(PlatformTenant::new),
-                tenantProfiles.getIfAvailable());
+                tenantProfiles.getIfAvailable(),
+                employees.getIfAvailable());
     }
 
     public NavigationService(EntitlementService entitlementService, PermissionService permissionService) {
@@ -108,9 +120,30 @@ public class NavigationService {
             SetupChecklistService setupChecklist,
             PlatformTenant platformTenant,
             TenantProfileService tenantProfiles) {
+        this(
+                entitlementService,
+                permissionService,
+                catalogueItems,
+                jdbcTemplate,
+                setupChecklist,
+                platformTenant,
+                tenantProfiles,
+                null);
+    }
+
+    public NavigationService(
+            EntitlementService entitlementService,
+            PermissionService permissionService,
+            List<NavigationCatalogue.ItemDefinition> catalogueItems,
+            JdbcTemplate jdbcTemplate,
+            SetupChecklistService setupChecklist,
+            PlatformTenant platformTenant,
+            TenantProfileService tenantProfiles,
+            EmployeeService employees) {
         this.jdbcTemplate = jdbcTemplate;
         this.setupChecklist = setupChecklist;
         this.tenantProfiles = tenantProfiles;
+        this.employees = employees;
         this.platformTenant = Objects.requireNonNull(platformTenant, "platformTenant must not be null");
         this.entitlementService = Objects.requireNonNull(entitlementService, "entitlementService must not be null");
         this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
@@ -161,6 +194,7 @@ public class NavigationService {
     static final String PAYROLL_HOME = "/payroll/dashboard";
     static final String HRMS_HOME = "/hrms/dashboard";
     static final String EMPLOYEES_HOME = "/employees";
+    static final String APPROVALS_HOME = "/approvals";
 
     /**
      * Where the shell lands this caller after login (D-35, W-73 section 3). Decided from the bound tenant and the
@@ -170,9 +204,10 @@ public class NavigationService {
      *   <li>the platform tenant: the platform dashboard (W-73.2), else the tenants screen;
      *   <li>a tenant admin ({@code core.tenant.manage}) whose setup is unfinished: the setup checklist;
      *   <li>a payroll reader ({@code payroll.run.read}, which gates the payroll dashboard): the payroll dashboard;
-     *   <li>someone who reads other people ({@code core.employee.read} or {@code core.employee.read_team}) and
-     *       sees the HRMS dashboard: the HRMS dashboard;
-     *   <li>an employee reader ({@code core.employee.read}): the employee list;
+     *   <li>an employee reader ({@code core.employee.read}, HR) who sees the HRMS dashboard: the HRMS dashboard (D-76);
+     *   <li>a team reader ({@code core.employee.read_team}, a manager) who sees the approvals inbox: the inbox (D-76);
+     *   <li>an employee reader: the employee list;
+     *   <li>anyone else who reads other people: the first screen they can see other than the portal;
      *   <li>everyone else: the portal.
      * </ol>
      *
@@ -201,16 +236,20 @@ public class NavigationService {
         if (actions.contains("payroll.run.read") && visible.contains(PAYROLL_HOME)) {
             return PAYROLL_HOME;
         }
-        boolean readsOthers = actions.contains("core.employee.read") || actions.contains("core.employee.read_team");
-        if (readsOthers && visible.contains(HRMS_HOME)) {
+        boolean readsAll = actions.contains("core.employee.read");
+        boolean readsTeam = actions.contains("core.employee.read_team");
+        if (readsAll && visible.contains(HRMS_HOME)) {
             return HRMS_HOME;
         }
-        if (actions.contains("core.employee.read") && visible.contains(EMPLOYEES_HOME)) {
+        if (readsTeam && visible.contains(APPROVALS_HOME)) {
+            return APPROVALS_HOME;
+        }
+        if (readsAll && visible.contains(EMPLOYEES_HOME)) {
             return EMPLOYEES_HOME;
         }
-        if (readsOthers) {
-            // A manager with no dashboard in the feed (the seeded manager holds no hrms.project.read_own)
-            // still has a working screen - the approvals inbox - which beats the portal.
+        if (readsAll || readsTeam) {
+            // Someone who reads other people but sees none of the screens above still has a working screen,
+            // which beats the portal - the portal item comes first in the menu (D-75), so it is skipped here.
             return firstLeafPath(items).orElse(PORTAL_HOME);
         }
         return PORTAL_HOME;
@@ -234,6 +273,25 @@ public class NavigationService {
         }
     }
 
+    /**
+     * True when the caller has a live employee record in the bound tenant (D-75). No employee service (a unit
+     * test) is read as "has one", so the action alone decides; a lookup that fails - no tenant bound, a broken
+     * read - is read as "has none": a broken lookup must not take the whole menu down.
+     */
+    private boolean hasEmployeeRecord() {
+        if (employees == null) {
+            return true;
+        }
+        try {
+            return employees.currentEmployee().isPresent();
+        } catch (RuntimeException e) {
+            log.warn(
+                    "Employee record could not be read for the portal item: {}",
+                    e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
     private static void collectPaths(List<NavigationItemResponse> items, Set<String> into) {
         for (NavigationItemResponse item : items) {
             if (item.children() != null && !item.children().isEmpty()) {
@@ -244,6 +302,7 @@ public class NavigationService {
         }
     }
 
+    /** The first visible screen's path, never the portal's: the portal is every fallback's own answer. */
     private static Optional<String> firstLeafPath(List<NavigationItemResponse> items) {
         for (NavigationItemResponse item : items) {
             if (item.children() != null && !item.children().isEmpty()) {
@@ -251,7 +310,7 @@ public class NavigationService {
                 if (child.isPresent()) {
                     return child;
                 }
-            } else if (item.path() != null) {
+            } else if (item.path() != null && !PORTAL_HOME.equals(item.path())) {
                 return Optional.of(item.path());
             }
         }
@@ -284,13 +343,27 @@ public class NavigationService {
     /**
      * Screens that make sense only inside a customer tenant (D-33). The platform tenant keeps the actions
      * behind them ({@code core.tenant.read}, {@code core.user.manage}) for the tenant and user endpoints,
-     * so the action filter alone would show them; the platform's menu is Tenants and Audit.
+     * so the action filter alone would show them; the platform's menu is Tenants and Audit. The self-service portal
+     * (D-75) is here too: platform staff have no employee record, so it would only ever be empty.
      */
-    static final Set<String> CUSTOMER_ONLY_KEYS = Set.of("core.setup", "core.users", "core.settings.company");
+    static final Set<String> CUSTOMER_ONLY_KEYS =
+            Set.of("core.me", "core.setup", "core.users", "core.settings.company");
+
+    /**
+     * The self-service portal (D-75): shown to anyone with a linked employee record, whatever their role. Its action
+     * ({@code core.employee.read_own}) is on every seeded role that may be on the payroll (V171), so the record is
+     * what tells a payroll officer who is staff from one who is not.
+     */
+    static final String PORTAL_KEY = "core.me";
 
     private Optional<NavigationItemResponse> filterItem(
             NavigationCatalogue.ItemDefinition itemDef, Set<String> actions, boolean platformTenantBound) {
         if (platformTenantBound && CUSTOMER_ONLY_KEYS.contains(itemDef.key())) {
+            return Optional.empty();
+        }
+
+        // Record check: the portal shows only to a caller with an employee record of their own (D-75)
+        if (PORTAL_KEY.equals(itemDef.key()) && !hasEmployeeRecord()) {
             return Optional.empty();
         }
 
@@ -299,8 +372,8 @@ public class NavigationService {
             return Optional.empty();
         }
 
-        // Action check: if an action is required, the user must hold it
-        if (itemDef.requiredAction() != null && !actions.contains(itemDef.requiredAction())) {
+        // Action check: the user must hold the required action or one of its alternatives (D-76)
+        if (!itemDef.admits(actions)) {
             return Optional.empty();
         }
 
