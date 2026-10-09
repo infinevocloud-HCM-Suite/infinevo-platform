@@ -32,8 +32,33 @@ public interface RoleService {
     /** Deletes a tenant role. Refused for a system role, and while any user holds it. */
     void delete(UUID id);
 
-    /** Replaces the set of roles a user holds in the bound tenant. */
+    /**
+     * Replaces the set of roles a user holds in the bound tenant. Refused when it would take
+     * {@code tenant-admin} from the caller, or from the tenant's last active holder (W-73.4).
+     */
     UserRolesResponse replaceUserRoles(UUID userAccountId, UserRolesRequest request);
+
+    /**
+     * Refuses disabling the caller's own account, or the tenant's last active {@code tenant-admin} (W-73.4)
+     * — the same rule as {@link #replaceUserRoles}, so an admin cannot lock the tenant out either way.
+     */
+    void requireCanDisable(UUID userAccountId);
+
+    /** Whether the user holds the seeded {@code tenant-admin} role in the bound tenant (W-73.4). */
+    boolean holdsTenantAdmin(UUID userAccountId);
+
+    /**
+     * Refuses a change that would leave the caller without {@code tenant-admin}, or the tenant with no
+     * active holder of it (W-73.4 §2). Maps to {@code 409}; the message says which and what to do.
+     */
+    class AdminGuardException extends RuntimeException {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        public AdminGuardException(String message) {
+            super(message);
+        }
+    }
 
     /** No such role or user in the bound tenant. Maps to {@code 404}. */
     class NotFoundException extends RuntimeException {

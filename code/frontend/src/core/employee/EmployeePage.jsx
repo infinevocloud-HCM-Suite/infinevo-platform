@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
-import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, theme } from 'antd';
+import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, Popconfirm, theme } from 'antd';
 import {
   ArrowLeftOutlined,
   StopOutlined,
@@ -93,6 +93,17 @@ export function EmployeePage() {
     try {
       await employeeInvitationService.resend(access.invitationId);
       await successMsg('Invitation Sent', 'An email went to the work email.');
+      await loadAccess();
+    } catch (err) {
+      await errorMsg(err);
+    }
+  };
+
+  // W-73.4: the employee invitations list moved to Users & access (core.user.manage), so HR revokes here.
+  const handleRevoke = async () => {
+    try {
+      await employeeInvitationService.revoke(access.invitationId);
+      await successMsg('Invitation Revoked', 'The link in the email no longer works.');
       await loadAccess();
     } catch (err) {
       await errorMsg(err);
@@ -213,9 +224,21 @@ export function EmployeePage() {
                       {`Invited, expires ${dayjs(access.expiresAt).format('DD MMM YYYY')}`}
                     </Tag>
                     {canInvite && (
-                      <Button size="small" id="btn-resend-invitation" onClick={handleResend}>
-                        Resend
-                      </Button>
+                      <>
+                        <Button size="small" id="btn-resend-invitation" onClick={handleResend}>
+                          Resend
+                        </Button>
+                        <Popconfirm
+                          title="Revoke this invitation?"
+                          okText="Revoke"
+                          okButtonProps={{ danger: true, id: 'btn-confirm-revoke-invitation' }}
+                          onConfirm={handleRevoke}
+                        >
+                          <Button size="small" danger id="btn-revoke-invitation">
+                            Revoke
+                          </Button>
+                        </Popconfirm>
+                      </>
                     )}
                   </>
                 )}

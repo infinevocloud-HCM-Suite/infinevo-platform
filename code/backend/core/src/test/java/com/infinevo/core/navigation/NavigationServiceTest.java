@@ -275,8 +275,7 @@ class NavigationServiceTest {
                         "core.leave",
                         "core.settings",
                         "core.tenants");
-        assertThat(childKeys("core.people"))
-                .containsExactly("core.employee", "core.invitations.users", "core.invitations.employees");
+        assertThat(childKeys("core.people")).containsExactly("core.employee", "core.users");
         assertThat(childKeys("core.org"))
                 .containsExactly(
                         "core.org.departments",
@@ -424,24 +423,19 @@ class NavigationServiceTest {
     }
 
     @Test
-    @DisplayName("D-33, W-73.1: the platform tenant's menu hides Setup, User invitations and Company profile even"
+    @DisplayName("D-33, W-73.1, W-73.4: the platform tenant's menu hides Setup, Users & access and Company profile even"
             + " though staff hold their actions")
     void platformTenantHidesCustomerOnlyScreens() {
         Set<String> staff = Set.of("core.tenant.read", "core.tenant.provision", "core.audit.read", "core.user.manage");
         ItemDefinition people = new ItemDefinition(
                 "core.people",
                 "nav.people",
-                "/invitations/users",
-                "/api/v1/user-invitations",
+                "/users",
+                "/api/v1/users",
                 null,
                 null,
                 List.of(new ItemDefinition(
-                        "core.invitations.users",
-                        "nav.userInvitations",
-                        "/invitations/users",
-                        "/api/v1/user-invitations",
-                        null,
-                        "core.user.manage")));
+                        "core.users", "nav.users", "/users", "/api/v1/users", null, "core.user.manage")));
         ItemDefinition settings = new ItemDefinition(
                 "core.settings",
                 "nav.settings",

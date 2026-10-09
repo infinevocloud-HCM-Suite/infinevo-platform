@@ -28,8 +28,12 @@ export function getInvitationStatusTag(status) {
   }
 }
 
+/** The Kind column's words (W-73.4): who the invitation is for. */
+export const INVITATION_KINDS = { USER: 'User', EMPLOYEE: 'Employee' };
+
 export function InvitationTable({
   data = [],
+  showKind = false,
   loading = false,
   onResend,
   onRevoke,
@@ -44,6 +48,18 @@ export function InvitationTable({
       key: 'email',
       render: (email) => email || '—',
     },
+    ...(showKind
+      ? [
+          {
+            title: 'Kind',
+            dataIndex: 'kind',
+            key: 'kind',
+            render: (kind) => (
+              <Tag color={kind === 'EMPLOYEE' ? 'blue' : 'purple'}>{INVITATION_KINDS[kind] || kind || '—'}</Tag>
+            ),
+          },
+        ]
+      : []),
     {
       title: 'Status',
       dataIndex: 'status',
@@ -75,7 +91,7 @@ export function InvitationTable({
               size="small"
               id={`btn-resend-${record.id}`}
               loading={resendingId === record.id}
-              onClick={() => onResend?.(record.id)}
+              onClick={() => onResend?.(record.id, record)}
             >
               Resend
             </Button>
@@ -85,7 +101,7 @@ export function InvitationTable({
               okText="Yes, revoke"
               cancelText="Cancel"
               okButtonProps={{ danger: true, id: `btn-confirm-revoke-${record.id}` }}
-              onConfirm={() => onRevoke?.(record.id)}
+              onConfirm={() => onRevoke?.(record.id, record)}
             >
               <Button
                 size="small"
@@ -119,12 +135,14 @@ InvitationTable.propTypes = {
     PropTypes.shape({
       id: PropTypes.string.isRequired,
       email: PropTypes.string,
+      kind: PropTypes.oneOf(['USER', 'EMPLOYEE']),
       status: PropTypes.string.isRequired,
       expiresAt: PropTypes.string,
       createdAt: PropTypes.string,
     }),
   ),
   loading: PropTypes.bool,
+  showKind: PropTypes.bool,
   onResend: PropTypes.func,
   onRevoke: PropTypes.func,
   resendingId: PropTypes.string,

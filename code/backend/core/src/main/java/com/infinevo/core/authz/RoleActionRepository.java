@@ -28,15 +28,21 @@ public interface RoleActionRepository extends JpaRepository<RoleAction, UUID> {
      * point at a role in its own tenant ({@code V022}'s composite key), but stating it here as well
      * keeps the join on the {@code (tenant_id, role_id, ...)} index and makes the query correct on its
      * own terms rather than by the schema's courtesy.
+     *
+     * <p>A disabled account holds nothing (W-73.4): its roles stay on record, so enabling it again restores
+     * them, but no action is granted while {@code core.user_account.status} is not {@code ACTIVE}.
      */
     @Query(
             """
             select distinct ra.actionCode
-              from UserRole ur, RoleAction ra
+              from UserRole ur, RoleAction ra, UserAccount ua
              where ur.tenantId = :tenantId
                and ur.userAccountId = :userAccountId
                and ra.tenantId = ur.tenantId
                and ra.roleId = ur.roleId
+               and ua.tenantId = ur.tenantId
+               and ua.id = ur.userAccountId
+               and ua.status = 'ACTIVE'
             """)
     Set<String> findActionCodesOfUser(@Param("tenantId") UUID tenantId, @Param("userAccountId") UUID userAccountId);
 }

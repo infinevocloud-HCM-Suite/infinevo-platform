@@ -53,6 +53,21 @@ describe('routesFromFeed', () => {
     expect(routesFromFeed(feed, registered).map((r) => r.path)).toEqual(['/employees/new']);
   });
 
+  it('W-73.4: mounts a redirect with the path it names in mountWith, and not without it', () => {
+    const registered = {
+      core: [
+        { path: '/users', element: 'Users' },
+        { path: '/invitations/users', mountWith: '/users', element: 'Redirect' },
+      ],
+    };
+
+    expect(routesFromFeed([{ key: 'core.users', path: '/users' }], registered).map((r) => r.path)).toEqual([
+      '/users',
+      '/invitations/users',
+    ]);
+    expect(routesFromFeed([{ key: 'core.roles', path: '/roles' }], registered)).toEqual([]);
+  });
+
   it('mounts nothing for an empty feed', () => {
     expect(routesFromFeed([], groups)).toEqual([]);
     expect(routesFromFeed(undefined, groups)).toEqual([]);

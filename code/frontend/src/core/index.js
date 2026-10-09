@@ -1,4 +1,5 @@
 import React, { lazy } from 'react';
+import { Navigate } from 'react-router-dom';
 import employeeReducer from './employee/employeeSlice.js';
 import approvalReducer from './approvals/approvalSlice.js';
 import leaveReducer from './leave/leaveSlice.js';
@@ -57,11 +58,8 @@ const SetupChecklist = lazy(() =>
   import('./setup/SetupChecklist.jsx').then((m) => ({ default: m.SetupChecklist }))
 );
 
-const UserInvitations = lazy(() =>
-  import('./invitation/UserInvitations.jsx').then((m) => ({ default: m.UserInvitations }))
-);
-const EmployeeInvitations = lazy(() =>
-  import('./invitation/EmployeeInvitations.jsx').then((m) => ({ default: m.EmployeeInvitations }))
+const UsersScreen = lazy(() =>
+  import('./users/UsersScreen.jsx').then((m) => ({ default: m.UsersScreen }))
 );
 const AcceptInvitation = lazy(() =>
   import('./invitation/AcceptInvitation.jsx').then((m) => ({ default: m.AcceptInvitation }))
@@ -106,6 +104,8 @@ const TenantDetail = lazy(() =>
   import('./admin/TenantDetail.jsx').then((m) => ({ default: m.TenantDetail }))
 );
 
+const INVITATIONS_TAB = { to: '/users?tab=invitations', replace: true };
+
 // Employee, leave, holidays, organisation setup, approvals. Available to every tenant.
 // Screens and slices land here as their work items are built.
 export const routes = [
@@ -129,8 +129,10 @@ export const routes = [
   { path: '/holidays/:id/edit', element: React.createElement(Calendars) },
   { path: '/holidays/:id', element: React.createElement(CalendarHolidays) },
   { path: '/setup', element: React.createElement(SetupChecklist) },
-  { path: '/invitations/users', element: React.createElement(UserInvitations) },
-  { path: '/invitations/employees', element: React.createElement(EmployeeInvitations) },
+  // W-73.4: one screen for accounts, roles and invitations; the two old invitation paths redirect to it.
+  { path: '/users', element: React.createElement(UsersScreen) },
+  { path: '/invitations/users', mountWith: '/users', element: React.createElement(Navigate, INVITATIONS_TAB) },
+  { path: '/invitations/employees', mountWith: '/users', element: React.createElement(Navigate, INVITATIONS_TAB) },
   { path: '/leave/types', element: React.createElement(LeaveTypes) },
   { path: '/leave/allocations', element: React.createElement(Allocations) },
   { path: '/leave/requests', element: React.createElement(LeaveRequests) },

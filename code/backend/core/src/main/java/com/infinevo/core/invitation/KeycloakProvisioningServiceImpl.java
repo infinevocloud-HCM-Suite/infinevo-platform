@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +101,39 @@ public class KeycloakProvisioningServiceImpl implements KeycloakProvisioningServ
                         "Keycloak refused to delete user " + keycloakUserId + ": HTTP " + resp.statusCode());
             }
             log.info("Compensating cleanup: deleted Keycloak user {} (HTTP {})", keycloakUserId, resp.statusCode());
+        } catch (IOException e) {
+            throw new KeycloakProvisioningException(
+                    "Keycloak could not be reached: " + e.getClass().getSimpleName(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new KeycloakProvisioningException("Interrupted while calling Keycloak", e);
+        }
+    }
+
+    @Override
+    public void setEnabled(UUID keycloakUserId, boolean enabled) {
+        Objects.requireNonNull(keycloakUserId, "keycloakUserId must not be null");
+        Target target = target();
+        try {
+            String adminToken = fetchAdminToken(target);
+            HttpRequest putReq = HttpRequest.newBuilder()
+                    .uri(URI.create(target.usersUrl() + "/" + keycloakUserId))
+                    .header("Authorization", "Bearer " + adminToken)
+                    .header("Content-Type", "application/json")
+                    .timeout(TIMEOUT)
+                    .PUT(HttpRequest.BodyPublishers.ofString(
+                            objectMapper.writeValueAsString(Map.of("enabled", enabled))))
+                    .build();
+            HttpResponse<String> resp = httpClient.send(putReq, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 404) {
+                log.warn("Keycloak holds no user {}; enabled={} not applied there", keycloakUserId, enabled);
+                return;
+            }
+            if (resp.statusCode() / 100 != 2) {
+                throw new KeycloakProvisioningException("Keycloak refused to set enabled=" + enabled + " on user "
+                        + keycloakUserId + ": HTTP " + resp.statusCode());
+            }
+            log.info("Keycloak user {} enabled={}", keycloakUserId, enabled);
         } catch (IOException e) {
             throw new KeycloakProvisioningException(
                     "Keycloak could not be reached: " + e.getClass().getSimpleName(), e);

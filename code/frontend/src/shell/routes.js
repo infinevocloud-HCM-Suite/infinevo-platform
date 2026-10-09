@@ -29,6 +29,9 @@ export const portalRoutes = [
  * module's screens by typing a URL, and an empty feed is an empty route tree - there is no
  * static list of routes per module and no default.
  *
+ * A route may name `mountWith`, another path: it is mounted when the feed names that one. Old paths
+ * kept as redirects use it, so a bookmark still lands while nothing the feed hides is reachable.
+ *
  * A child route is mounted on the parent's menu permission alone, so a child screen that needs
  * a different action code checks it itself with `useCan` and renders `NotEntitled`. Either way
  * the endpoint behind it refuses on its own (W-12.2).
@@ -54,6 +57,8 @@ export function routesFromFeed(feedItems = [], groups = routeGroups) {
     .flat()
     .filter((route) => {
       if (feedPaths.has(route.path)) return true;
+      // An old path kept as a redirect (W-73.4) mounts with the screen it now leads to.
+      if (route.mountWith && feedPaths.has(route.mountWith)) return true;
       for (const prefix of feedPaths) {
         if (prefix && prefix !== '/' && route.path.startsWith(`${prefix}/`)) {
           return true;

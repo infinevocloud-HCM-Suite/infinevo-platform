@@ -29,4 +29,12 @@ public interface KeycloakProvisioningService {
      * Deletes a Keycloak user by their UUID during compensating cleanup if subsequent steps fail.
      */
     void deleteKeycloakUser(UUID keycloakUserId);
+
+    /**
+     * Sets the Keycloak user's {@code enabled} flag (W-73.4 Disable / Enable). A user Keycloak no longer
+     * holds is logged and ignored: nobody can sign in as them either way.
+     *
+     * @throws KeycloakProvisioningException if Keycloak is not configured, cannot be reached or refuses
+     */
+    void setEnabled(UUID keycloakUserId, boolean enabled);
 }

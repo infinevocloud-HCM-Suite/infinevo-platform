@@ -13,8 +13,8 @@ import { started } from './impersonationSlice.js';
 import { AuditTab, AUDIT_HINT } from './AuditTab.jsx';
 import { isPlatformTenant, MODULES, STATUSES, STATUS_COLORS } from './platform.js';
 
-/** The `W-24.2` user invitation form (`core.invitations.users`, `/invitations/users`). */
-export const INVITATION_FORM_PATH = '/invitations/users';
+/** The user invitation form: the Invitations tab of Users & access (`core.users`, W-73.4). */
+export const INVITATION_FORM_PATH = '/users?tab=invitations';
 
 /** Statuses that lock a tenant out of its modules, so they ask first. */
 const LOCKING_STATUSES = ['SUSPENDED', 'CANCELLED'];

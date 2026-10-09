@@ -79,20 +79,9 @@ public final class NavigationCatalogue {
                                     "/api/v1/employees",
                                     null,
                                     "core.employee.read"),
+                            // W-73.4: one screen for accounts, roles and both kinds of invitation
                             new ItemDefinition(
-                                    "core.invitations.users",
-                                    "nav.userInvitations",
-                                    "/invitations/users",
-                                    "/api/v1/user-invitations",
-                                    null,
-                                    "core.user.manage"),
-                            new ItemDefinition(
-                                    "core.invitations.employees",
-                                    "nav.employeeInvitations",
-                                    "/invitations/employees",
-                                    "/api/v1/employee-invitations",
-                                    null,
-                                    "core.employee.create"))),
+                                    "core.users", "nav.users", "/users", "/api/v1/users", null, "core.user.manage"))),
             new ItemDefinition(
                     "core.org",
                     "nav.organisation",

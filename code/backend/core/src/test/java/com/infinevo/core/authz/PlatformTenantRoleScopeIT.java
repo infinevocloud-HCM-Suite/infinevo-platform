@@ -146,9 +146,8 @@ class PlatformTenantRoleScopeIT extends AbstractIntegrationTest {
                         "core.holiday",
                         "core.leave",
                         "core.approvals",
-                        "core.invitations.employees",
                         "core.setup",
-                        "core.invitations.users",
+                        "core.users",
                         "core.people");
         assertThat(keys)
                 .as("Settings holds Audit only")

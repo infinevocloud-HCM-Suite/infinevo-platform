@@ -14,7 +14,6 @@ export const NAV_LABELS = {
   'nav.audit': 'Audit log',
   'nav.departments': 'Departments',
   'nav.designations': 'Designations',
-  'nav.employeeInvitations': 'Employee invitations',
   'nav.employees': 'Employees',
   'nav.holidays': 'Holidays',
   'nav.hrms': 'HRMS',
@@ -47,7 +46,7 @@ export const NAV_LABELS = {
   'nav.settings.company': 'Company profile',
   'nav.setup': 'Setup',
   'nav.tenants': 'Tenants',
-  'nav.userInvitations': 'User invitations',
+  'nav.users': 'Users & access',
 };
 
 const MODULE_PREFIXES = new Set(['nav', 'hrms', 'payroll', 'core']);

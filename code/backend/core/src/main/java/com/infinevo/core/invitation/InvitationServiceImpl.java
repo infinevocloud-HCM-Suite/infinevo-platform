@@ -111,11 +111,14 @@ public class InvitationServiceImpl implements InvitationService {
         String email = request.email().trim().toLowerCase();
 
         Set<UUID> roleIds = request.roleIds() != null ? request.roleIds() : Set.of();
-        // Validate roles exist in tenant
+        // Validate roles exist in tenant; platform-admin is never granted from one (W-73.4, as W-73.3)
         for (UUID roleId : roleIds) {
-            roleRepository
+            Role role = roleRepository
                     .findByIdAndTenantId(roleId, tenantId)
                     .orElseThrow(() -> new IllegalArgumentException("Role not found in tenant: " + roleId));
+            if (PLATFORM_ADMIN_ROLE.equals(role.getCode())) {
+                throw new IllegalArgumentException("Role platform-admin cannot be granted from inside a tenant");
+            }
         }
 
         // Active check: reject if there is already a live PENDING invitation for this email in this tenant

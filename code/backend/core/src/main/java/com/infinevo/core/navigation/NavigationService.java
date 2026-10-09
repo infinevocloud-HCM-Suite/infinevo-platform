@@ -286,8 +286,7 @@ public class NavigationService {
      * behind them ({@code core.tenant.read}, {@code core.user.manage}) for the tenant and user endpoints,
      * so the action filter alone would show them; the platform's menu is Tenants and Audit.
      */
-    static final Set<String> CUSTOMER_ONLY_KEYS =
-            Set.of("core.setup", "core.invitations.users", "core.settings.company");
+    static final Set<String> CUSTOMER_ONLY_KEYS = Set.of("core.setup", "core.users", "core.settings.company");
 
     private Optional<NavigationItemResponse> filterItem(
             NavigationCatalogue.ItemDefinition itemDef, Set<String> actions, boolean platformTenantBound) {

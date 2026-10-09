@@ -121,3 +121,22 @@ None if `core.user_account` already has `enabled`; otherwise `V164__user_account
 ## 10. Rollback
 
 Restore the two catalogue items; the screen can stay unreachable.
+
+## 11. Amended at build (2026-10-08)
+
+| Spec said | Built | Evidence |
+|---|---|---|
+| `PUT /users/{id}/roles` auth `core.user.manage` | `core.role.assign`, unchanged; the screen hides Change roles without it | `UserRoleController.java:30-31` |
+| `V164__user_account_enabled.sql` if no `enabled` | No new column: `status` exists, `enabled` = `status = 'ACTIVE'`, Disable writes `DISABLED`. `V164__user_account_disable.sql` holds the two functions below instead | `core/V009__user_account.sql:12` |
+| `UserController` in `core/.../authz/` | `core/.../user/`: thirteen test contexts scan `authz` without the Keycloak bean Disable needs | `PermissionGuardTestApp.java`, `AuthzTestApp.java` |
+| Last sign-in "if held" | Not held: `last_synced_at` moves only when token claims change | `UserAccount.java` `applyClaims` |
+| — | A disabled account holds no action; its roles stay for Enable | `RoleActionRepository.findActionCodesOfUser` |
+| Disable = Keycloak `enabled=false` | One Keycloak user can hold an account in several tenants, and the flag is realm-wide. Disable turns it off only when no other tenant holds that user ACTIVE; Enable turns it on only when no other tenant holds it DISABLED. Otherwise the per-tenant status decides (`core.keycloak_user_account_states`, SECURITY DEFINER, `V164`) | `UserDirectoryService.disable` / `enable` |
+| — | Keycloak is called before commit; if the transaction then rolls back, the flag is set back | `UserDirectoryService.setKeycloakEnabled` |
+| — | The last-tenant-admin count runs under a per-tenant advisory lock, in both the role-removal and the disable path | `UserRoleRepository.lockTenantAdminGuard` |
+| — | A disabled account has no role chips on `/me`, and impersonating it grants no action (`core.resolve_impersonation` replaced in `V164`) | `UserRoleRepository.findRoleCodesOfUser` |
+| Disable / Enable need `core.user.manage` | Also `core.role.assign` when the target holds `tenant-admin` | `UserController.requireRoleAssignForTenantAdmin` |
+| — | HR (`core.employee.create` only) no longer sees the employee invitations list; Revoke sits beside Resend on the employee page | `EmployeePage.jsx` `handleRevoke` |
+| — | `POST /user-invitations` with roles needs `core.role.assign` and refuses `platform-admin`, as `W-73.3` does for employee invitations | `EmployeeInvitationController.java:56-61` |
+| — | The Employee invitations screen's "invite an existing employee" picker is gone; the employee page's Invite (`W-73.3`) does that | `EmployeePage.jsx:81` |
+| Old routes redirect | A route may name `mountWith`; the two old paths mount with `/users` | `shell/routes.js` |

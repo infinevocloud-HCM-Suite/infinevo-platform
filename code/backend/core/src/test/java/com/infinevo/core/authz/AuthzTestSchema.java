@@ -162,6 +162,9 @@ public final class AuthzTestSchema {
                     executeResource(conn, "db/migration/core/V159__list_tenants_admin_invitation.sql");
                     // W-73.2: the platform dashboard's waiting administrator invitations, read across RLS.
                     executeResource(conn, "db/migration/core/V168__list_waiting_admin_invitations.sql");
+                    // W-73.4: cross-tenant Keycloak-user states for Disable, and resolve_impersonation
+                    // granting nothing for a disabled target (replaces V084's function)
+                    executeResource(conn, "db/migration/core/V164__user_account_disable.sql");
                     // W-18.1: loss-of-pay policy
                     executeResource(conn, "db/migration/core/V116__lop_policy.sql");
                     if (!tableExists(conn, "core", "document")) {

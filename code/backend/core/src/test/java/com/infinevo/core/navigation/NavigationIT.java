@@ -105,13 +105,7 @@ class NavigationIT extends AbstractIntegrationTest {
         assertThat(admin.tenantName()).startsWith("Acme Navigation ");
         assertThat(employee.tenantName()).startsWith("Globex Navigation ");
         assertThat(allKeysOf(employee))
-                .doesNotContain(
-                        "core.roles",
-                        "core.audit",
-                        "core.setup",
-                        "core.invitations.users",
-                        "core.invitations.employees",
-                        "core.tenants");
+                .doesNotContain("core.roles", "core.audit", "core.setup", "core.users", "core.tenants");
     }
 
     @Test

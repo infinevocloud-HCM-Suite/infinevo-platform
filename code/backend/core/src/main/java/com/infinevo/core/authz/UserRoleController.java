@@ -26,7 +26,11 @@ public class UserRoleController extends AuthzController {
         this.roleService = Objects.requireNonNull(roleService, "roleService must not be null");
     }
 
-    /** {@code 200}; {@code 404} when the user or any role is not in this tenant. */
+    /**
+     * {@code 200}; {@code 404} when the user or any role is not in this tenant; {@code 409} when it would
+     * take {@code tenant-admin} from the caller or from the last active holder, or grant {@code platform-admin}
+     * (W-73.4).
+     */
     @PutMapping("/{id}/roles")
     @RequiresAction("core.role.assign")
     public UserRolesResponse replaceRoles(@PathVariable("id") UUID id, @RequestBody UserRolesRequest request) {

@@ -1,5 +1,6 @@
 package com.infinevo.core.invitation;
 
+import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
@@ -34,14 +35,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserInvitationController {
 
     private final InvitationService invitationService;
+    private final PermissionService permissionService;
 
-    public UserInvitationController(InvitationService invitationService) {
+    public UserInvitationController(InvitationService invitationService, PermissionService permissionService) {
         this.invitationService = Objects.requireNonNull(invitationService, "invitationService must not be null");
+        this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
     }
 
+    /**
+     * {@code 201}; {@code 403} without {@code core.user.manage}, or with non-empty {@code roleIds} and without
+     * {@code core.role.assign} — the rule {@code EmployeeInvitationController.create} applies (W-73.3), so the
+     * Users &amp; access invite cannot grant what {@code PUT /users/{id}/roles} would refuse (W-73.4).
+     */
     @PostMapping
     @RequiresAction("core.user.manage")
     public ResponseEntity<UserInvitationResponse> create(@RequestBody UserInvitationRequest request) {
+        if (request != null && request.roleIds() != null && !request.roleIds().isEmpty()) {
+            permissionService.require(EmployeeInvitationController.ROLE_ASSIGN_ACTION);
+        }
         UserInvitationResponse response = invitationService.createUserInvitation(request, currentActorUserId());
         return ResponseEntity.created(URI.create("/api/v1/user-invitations/" + response.id()))
                 .body(response);

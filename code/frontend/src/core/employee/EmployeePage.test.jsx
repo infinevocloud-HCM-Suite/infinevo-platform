@@ -23,6 +23,7 @@ vi.mock('../invitation/employeeInvitationService.js', () => ({
   employeeInvitationService: {
     create: vi.fn(),
     resend: vi.fn(),
+    revoke: vi.fn(),
   },
 }));
 
@@ -237,6 +238,30 @@ describe('EmployeePage component', () => {
     await waitFor(() => expect(employeeInvitationService.resend).toHaveBeenCalledWith('inv-1'));
   });
 
+  it('W-73.4: Revoke asks first, then revokes the pending invitation', async () => {
+    employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+    employeeService.getAccess.mockResolvedValue({
+      state: 'INVITED',
+      invitationId: 'inv-1',
+      expiresAt: '2026-10-15T10:00:00Z',
+      roles: [],
+    });
+    employeeInvitationService.revoke.mockResolvedValueOnce(undefined);
+
+    renderPage('emp-acc-1');
+
+    await waitFor(() => expect(document.getElementById('btn-revoke-invitation')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-revoke-invitation'));
+    expect(employeeInvitationService.revoke).not.toHaveBeenCalled();
+    fireEvent.click(await waitFor(() => {
+      const ok = document.getElementById('btn-confirm-revoke-invitation');
+      if (!ok) throw new Error('confirm not rendered yet');
+      return ok;
+    }));
+
+    await waitFor(() => expect(employeeInvitationService.revoke).toHaveBeenCalledWith('inv-1'));
+  });
+
   it('shows Active with the account roles and no invite action', async () => {
     employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
     employeeService.getAccess.mockResolvedValue({
@@ -256,5 +281,6 @@ describe('EmployeePage component', () => {
     expect(screen.getByText('hr')).toBeDefined();
     expect(document.getElementById('btn-invite-employee')).toBeNull();
     expect(document.getElementById('btn-resend-invitation')).toBeNull();
+    expect(document.getElementById('btn-revoke-invitation')).toBeNull();
   });
 });
