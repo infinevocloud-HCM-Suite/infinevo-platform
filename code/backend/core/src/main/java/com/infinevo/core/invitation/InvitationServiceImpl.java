@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class InvitationServiceImpl implements InvitationService {
 
     private static final Logger log = LoggerFactory.getLogger(InvitationServiceImpl.class);
+
+    /** The seeded role every accepted employee invitation grants (W-24.2 §6). */
+    private static final String EMPLOYEE_ROLE = "employee";
+
+    /** Never granted from inside a tenant (W-73.3 §4). */
+    private static final String PLATFORM_ADMIN_ROLE = "platform-admin";
 
     private final UserInvitationRepository userInvitationRepository;
     private final UserInvitationRoleRepository userInvitationRoleRepository;
@@ -104,11 +111,14 @@ public class InvitationServiceImpl implements InvitationService {
         String email = request.email().trim().toLowerCase();
 
         Set<UUID> roleIds = request.roleIds() != null ? request.roleIds() : Set.of();
-        // Validate roles exist in tenant
+        // Validate roles exist in tenant; platform-admin is never granted from one (W-73.4, as W-73.3)
         for (UUID roleId : roleIds) {
-            roleRepository
+            Role role = roleRepository
                     .findByIdAndTenantId(roleId, tenantId)
                     .orElseThrow(() -> new IllegalArgumentException("Role not found in tenant: " + roleId));
+            if (PLATFORM_ADMIN_ROLE.equals(role.getCode())) {
+                throw new IllegalArgumentException("Role platform-admin cannot be granted from inside a tenant");
+            }
         }
 
         // Active check: reject if there is already a live PENDING invitation for this email in this tenant
@@ -242,6 +252,17 @@ public class InvitationServiceImpl implements InvitationService {
                 .findByIdAndTenantIdAndDeletedFalse(request.employeeId(), tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Employee not found: " + request.employeeId()));
 
+        // W-73.3: the extra roles must exist in this tenant, and platform-admin is never granted from one
+        Set<UUID> roleIds = request.roleIds() != null ? request.roleIds() : Set.of();
+        for (UUID roleId : roleIds) {
+            Role role = roleRepository
+                    .findByIdAndTenantId(roleId, tenantId)
+                    .orElseThrow(() -> new IllegalArgumentException("Role not found in tenant: " + roleId));
+            if (PLATFORM_ADMIN_ROLE.equals(role.getCode())) {
+                throw new IllegalArgumentException("Role platform-admin cannot be granted from inside a tenant");
+            }
+        }
+
         String email = employee.getWorkEmail();
         if (email == null || email.isBlank()) {
             throw new IllegalArgumentException("Employee has no work email address configured");
@@ -260,7 +281,7 @@ public class InvitationServiceImpl implements InvitationService {
         Instant expiresAt = Instant.now().plus(7, ChronoUnit.DAYS);
 
         EmployeeInvitation invitation = new EmployeeInvitation(
-                tenantId, employee.getId(), email, tokenHash, expiresAt, actorUserId, actorUserId.toString());
+                tenantId, employee.getId(), email, tokenHash, expiresAt, actorUserId, actorUserId.toString(), roleIds);
 
         EmployeeInvitation saved = employeeInvitationRepository.save(invitation);
 
@@ -328,7 +349,8 @@ public class InvitationServiceImpl implements InvitationService {
                 newTokenHash,
                 newExpiry,
                 actorUserId,
-                actorUserId.toString());
+                actorUserId.toString(),
+                survivingRoleIds(tenantId, existing.getRoleIds(), existing.getId()));
 
         EmployeeInvitation savedNew = employeeInvitationRepository.save(newInv);
 
@@ -371,6 +393,54 @@ public class InvitationServiceImpl implements InvitationService {
         employeeInvitationRepository.save(existing);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public EmployeeAccessResponse employeeAccess(UUID employeeId) {
+        UUID tenantId = requireCurrentTenant();
+        Employee employee = employeeRepository
+                .findByIdAndTenantIdAndDeletedFalse(employeeId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Employee not found: " + employeeId));
+
+        UUID accountId = employee.getUserAccountId();
+        if (accountId != null) {
+            List<UUID> held = userRoleRepository.findByTenantIdAndUserAccountId(tenantId, accountId).stream()
+                    .map(UserRole::getRoleId)
+                    .toList();
+            return new EmployeeAccessResponse(
+                    EmployeeAccessResponse.State.ACTIVE, null, null, roleRefs(tenantId, held));
+        }
+
+        Optional<EmployeeInvitation> pending =
+                employeeInvitationRepository.findActivePendingByEmployeeId(tenantId, employee.getId(), Instant.now());
+        if (pending.isPresent()) {
+            EmployeeInvitation inv = pending.get();
+            Set<UUID> granted = new LinkedHashSet<>();
+            roleRepository.findByTenantIdAndCode(tenantId, EMPLOYEE_ROLE).ifPresent(role -> granted.add(role.getId()));
+            granted.addAll(inv.getRoleIds());
+            return new EmployeeAccessResponse(
+                    EmployeeAccessResponse.State.INVITED, inv.getId(), inv.getExpiresAt(), roleRefs(tenantId, granted));
+        }
+
+        return new EmployeeAccessResponse(EmployeeAccessResponse.State.NONE, null, null, List.of());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> employeesWithoutAccess() {
+        return employeeInvitationRepository.findEmployeeIdsWithoutAccess(requireCurrentTenant(), Instant.now());
+    }
+
+    /** The tenant's roles among {@code roleIds}, sorted by code; ids not in the tenant are dropped. */
+    private List<EmployeeAccessResponse.RoleRef> roleRefs(UUID tenantId, Collection<UUID> roleIds) {
+        if (roleIds.isEmpty()) {
+            return List.of();
+        }
+        return roleRepository.findByTenantIdAndIdIn(tenantId, roleIds).stream()
+                .map(role -> new EmployeeAccessResponse.RoleRef(role.getId(), role.getCode(), role.getName()))
+                .sorted(Comparator.comparing(EmployeeAccessResponse.RoleRef::code))
+                .toList();
+    }
+
     /**
      * {@inheritDoc}
      *
@@ -379,7 +449,7 @@ public class InvitationServiceImpl implements InvitationService {
      */
     @Override
     @Transactional(noRollbackFor = InvitationExpiredException.class)
-    public void acceptInvitation(String token) {
+    public AcceptOutcome acceptInvitation(String token) {
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException("Invitation token must not be blank");
         }
@@ -389,21 +459,19 @@ public class InvitationServiceImpl implements InvitationService {
         // Try user invitation first (security definer bypasses RLS)
         Optional<UserInvitation> userInvOpt = userInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (userInvOpt.isPresent()) {
-            acceptUserInvitation(userInvOpt.get());
-            return;
+            return acceptUserInvitation(userInvOpt.get());
         }
 
         // Try employee invitation (security definer bypasses RLS)
         Optional<EmployeeInvitation> empInvOpt = employeeInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (empInvOpt.isPresent()) {
-            acceptEmployeeInvitation(empInvOpt.get());
-            return;
+            return acceptEmployeeInvitation(empInvOpt.get());
         }
 
         throw new IllegalArgumentException("Invalid invitation token");
     }
 
-    private void acceptUserInvitation(UserInvitation rawInv) {
+    private AcceptOutcome acceptUserInvitation(UserInvitation rawInv) {
         UUID tenantId = rawInv.getTenantId();
         boolean unbindAtCommit = bindTenantUntilTransactionEnds(tenantId);
         try {
@@ -450,6 +518,7 @@ public class InvitationServiceImpl implements InvitationService {
                 inv.setUpdatedAt(Instant.now());
                 inv.setUpdatedBy("invitation-accept");
                 userInvitationRepository.save(inv);
+                return provisioning.outcome();
             } catch (RuntimeException e) {
                 compensate(provisioning);
                 throw e;
@@ -461,7 +530,7 @@ public class InvitationServiceImpl implements InvitationService {
         }
     }
 
-    private void acceptEmployeeInvitation(EmployeeInvitation rawInv) {
+    private AcceptOutcome acceptEmployeeInvitation(EmployeeInvitation rawInv) {
         UUID tenantId = rawInv.getTenantId();
         boolean unbindAtCommit = bindTenantUntilTransactionEnds(tenantId);
         try {
@@ -502,12 +571,16 @@ public class InvitationServiceImpl implements InvitationService {
                         tenantId,
                         keycloakUserId);
 
-                // 4. Add the seeded 'employee' role (W-24.2 §6) to whatever the account already holds
+                // 4. Add the seeded 'employee' role (W-24.2 §6) and the invitation's roles (W-73.3) to whatever
+                //    the account already holds
                 Role employeeRole = roleRepository
-                        .findByTenantIdAndCode(tenantId, "employee")
+                        .findByTenantIdAndCode(tenantId, EMPLOYEE_ROLE)
                         .orElseThrow(() ->
                                 new IllegalStateException("Seeded 'employee' role not found in tenant " + tenantId));
-                grantRoles(tenantId, account.getId(), List.of(employeeRole.getId()));
+                Set<UUID> granted = new LinkedHashSet<>();
+                granted.add(employeeRole.getId());
+                granted.addAll(survivingRoleIds(tenantId, inv.getRoleIds(), inv.getId()));
+                grantRoles(tenantId, account.getId(), granted);
 
                 // 5. Link the employee to the account
                 employee.setUserAccountId(account.getId());
@@ -519,6 +592,7 @@ public class InvitationServiceImpl implements InvitationService {
                 inv.setUpdatedAt(Instant.now());
                 inv.setUpdatedBy("invitation-accept");
                 employeeInvitationRepository.save(inv);
+                return provisioning.outcome();
             } catch (RuntimeException e) {
                 compensate(provisioning);
                 throw e;
@@ -528,6 +602,31 @@ public class InvitationServiceImpl implements InvitationService {
                 TenantContext.clear();
             }
         }
+    }
+
+    /**
+     * The invitation's role ids that still name a role in this tenant other than {@code platform-admin}.
+     * {@code role_ids} carries no foreign key, so a custom role deleted while the invitation was pending
+     * leaves a stale id behind; it is dropped here rather than failing the acceptance or the resend.
+     */
+    private List<UUID> survivingRoleIds(UUID tenantId, Collection<UUID> roleIds, UUID invitationId) {
+        List<UUID> surviving = new ArrayList<>();
+        for (UUID roleId : roleIds) {
+            boolean grantable = roleRepository
+                    .findByIdAndTenantId(roleId, tenantId)
+                    .filter(role -> !PLATFORM_ADMIN_ROLE.equals(role.getCode()))
+                    .isPresent();
+            if (grantable) {
+                surviving.add(roleId);
+            } else {
+                log.info(
+                        "Invitation {} role {} no longer exists in tenant {} and is dropped",
+                        invitationId,
+                        roleId,
+                        tenantId);
+            }
+        }
+        return surviving;
     }
 
     /**

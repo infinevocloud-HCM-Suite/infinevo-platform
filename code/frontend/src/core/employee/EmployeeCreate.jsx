@@ -16,14 +16,19 @@ import {
   Button,
   DatePicker,
   Collapse,
+  Checkbox,
+  Alert,
   Typography,
   Space,
   theme,
 } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
+import { useCan } from '@shell/screens';
 import { employeeService } from './employeeService.js';
 import { orgMasterService } from './orgMasterService.js';
 import { setMasters } from './employeeSlice.js';
+import { roleService } from '../approvals/roleService.js';
+import { employeeInvitationService } from '../invitation/employeeInvitationService.js';
 import {
   GENDER_OPTIONS,
   EMPLOYMENT_TYPE_OPTIONS,
@@ -121,6 +126,41 @@ export function toCreatePayload(values) {
   };
 }
 
+/** Never offered on Add Employee: the platform role is not a tenant grant (W-73.3). */
+export const PLATFORM_ADMIN_CODE = 'platform-admin';
+/** Choosing extra roles needs the same action as PUT /users/{id}/roles; the server refuses it too. */
+export const ROLE_ASSIGN_ACTION = 'core.role.assign';
+/** Granted by the server on accept; shown pre-ticked and locked. */
+export const EMPLOYEE_CODE = 'employee';
+
+/** Options for the roles select: every role but platform-admin, employee first and locked. */
+export function roleOptions(roles) {
+  const usable = (roles || []).filter((r) => r.code !== PLATFORM_ADMIN_CODE);
+  const ordered = [
+    ...usable.filter((r) => r.code === EMPLOYEE_CODE),
+    ...usable.filter((r) => r.code !== EMPLOYEE_CODE),
+  ];
+  return ordered.map((r) => ({
+    value: r.id,
+    label: r.name || r.code,
+    disabled: r.code === EMPLOYEE_CODE,
+  }));
+}
+
+const employeeRoleIdOf = (roles) => (roles || []).find((r) => r.code === EMPLOYEE_CODE)?.id;
+
+/**
+ * The invitation request: the extra roles only, the employee role stripped. Without
+ * core.role.assign no extra role is sent at all.
+ */
+export function toInvitationPayload(employeeId, values, roles, canAssignRoles = true) {
+  const employeeRoleId = employeeRoleIdOf(roles);
+  return {
+    employeeId,
+    roleIds: canAssignRoles ? (values.roleIds || []).filter((id) => id !== employeeRoleId) : [],
+  };
+}
+
 function FieldError({ name, errors, touched }) {
   if (!touched[name] || !errors[name]) return null;
   return (
@@ -140,11 +180,21 @@ export function EmployeeCreate() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { token } = theme.useToken();
+  const canAssignRoles = useCan(ROLE_ASSIGN_ACTION);
 
   const masters = useSelector((state) => state.employee?.masters || {});
   const mastersLoadedAt = useSelector((state) => state.employee?.loadedAt);
   const [loading, setLoading] = useState(false);
   const [openPanels, setOpenPanels] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [partialFailure, setPartialFailure] = useState(null);
+
+  useEffect(() => {
+    if (!canAssignRoles) return;
+    roleService.list().then(setRoles).catch(() => setRoles([]));
+  }, [canAssignRoles]);
+
+  const employeeRoleId = employeeRoleIdOf(roles);
 
   useEffect(() => {
     if (!mastersLoadedAt) {
@@ -171,14 +221,27 @@ export function EmployeeCreate() {
     employmentType: null,
     probationEndDate: null,
     noticePeriodDays: null,
+    giveAccess: false,
+    roleIds: [],
   };
 
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
       const created = await employeeService.create(toCreatePayload(values));
-      await successMsg('Employee Created', `Employee ${created.employeeNumber} created successfully.`);
-      navigate(`/employees/${created.id}`);
+      if (!values.giveAccess) {
+        await successMsg('Employee Created', `Employee ${created.employeeNumber} created successfully.`);
+        navigate(`/employees/${created.id}`);
+        return;
+      }
+      // Second step: the employee exists now, so a failure here must not read as "not saved".
+      try {
+        await employeeInvitationService.create(toInvitationPayload(created.id, values, roles, canAssignRoles));
+        await successMsg('Employee Created', `Employee ${created.employeeNumber} created and invited.`);
+        navigate(`/employees/${created.id}`);
+      } catch (inviteErr) {
+        setPartialFailure({ employeeId: created.id, message: inviteErr?.message || 'unknown error' });
+      }
     } catch (err) {
       await errorMsg(err);
     } finally {
@@ -210,6 +273,21 @@ export function EmployeeCreate() {
         />
         <Title level={4} style={{ margin: 0 }}>Create New Employee</Title>
       </div>
+
+      {partialFailure && (
+        <Alert
+          type="warning"
+          showIcon
+          id="alert-invitation-failed"
+          style={{ marginBottom: token.marginLG }}
+          message={`Saved. Invitation failed: ${partialFailure.message} — invite from the employee page`}
+          action={
+            <Button size="small" onClick={() => navigate(`/employees/${partialFailure.employeeId}`)}>
+              Open employee page
+            </Button>
+          }
+        />
+      )}
 
       <Formik
         initialValues={initialValues}
@@ -465,12 +543,49 @@ export function EmployeeCreate() {
                 ]}
               />
 
+              <Title level={5} style={{ marginTop: token.marginLG }}>Portal access</Title>
+              <Checkbox
+                id="check-giveAccess"
+                checked={values.giveAccess}
+                onChange={(e) => setFieldValue('giveAccess', e.target.checked)}
+              >
+                Give portal access
+              </Checkbox>
+              {values.giveAccess && !canAssignRoles && (
+                <div style={{ marginTop: token.marginSM }}>
+                  <Text strong>Roles: </Text>
+                  <Text id="text-locked-role">Employee</Text>
+                  <div>
+                    <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
+                  </div>
+                </div>
+              )}
+              {values.giveAccess && canAssignRoles && (
+                <div style={{ marginTop: token.marginSM }}>
+                  <label htmlFor="select-roles"><Text strong>Roles</Text></label>
+                  <Select
+                    mode="multiple"
+                    id="select-roles"
+                    style={{ width: '100%' }}
+                    placeholder="Select roles"
+                    optionFilterProp="label"
+                    options={roleOptions(roles)}
+                    value={[employeeRoleId, ...values.roleIds].filter(Boolean)}
+                    onChange={(ids) =>
+                      setFieldValue('roleIds', (ids || []).filter((rid) => rid !== employeeRoleId))
+                    }
+                  />
+                  <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
+                </div>
+              )}
+
               <div style={{ marginTop: token.marginLG, display: 'flex', justifyContent: 'flex-end', gap: token.marginSM }}>
                 <Button onClick={() => navigate('/employees')}>Cancel</Button>
                 <Button
                   type="primary"
                   icon={<SaveOutlined />}
                   loading={loading}
+                  disabled={Boolean(partialFailure)}
                   onClick={onCreate}
                   id="btn-submit-employee"
                 >

@@ -32,7 +32,8 @@ class EndpointGuardCoverageTest {
     /** Controllers that deliberately need no action, and why. */
     private static final Map<String, String> EXEMPT = Map.of(
             "com.infinevo.shared.identity.MeController",
-            "returns only the caller's own identity; every authenticated member may see themselves",
+            "returns only the caller's own identity and records only the caller's own welcome-page flag (W-73.8);"
+                    + " every authenticated member may see themselves",
             "com.infinevo.core.document.DocumentDownloadController",
             "the D-22 public download (PublicEndpoints): no bearer token exists to check an action against;"
                     + " the signed, expiring link is the authorisation",

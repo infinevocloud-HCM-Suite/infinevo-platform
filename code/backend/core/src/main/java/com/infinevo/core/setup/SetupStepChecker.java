@@ -28,4 +28,16 @@ public interface SetupStepChecker {
      * @return true if the step condition is currently satisfied, false otherwise
      */
     boolean isComplete(UUID tenantId);
+
+    /**
+     * Whether the step's data was written by a country template and nobody has saved it since (W-73.9), so the
+     * checklist shows it as "Pre-filled - review" rather than done. Asked only of a complete step; side-effect
+     * free, like {@link #isComplete}.
+     *
+     * @param tenantId the tenant to check
+     * @return true while every row the step looks at still carries the template as its last writer
+     */
+    default boolean isPrefilled(UUID tenantId) {
+        return false;
+    }
 }

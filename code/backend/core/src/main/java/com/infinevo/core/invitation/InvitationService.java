@@ -30,7 +30,24 @@ public interface InvitationService {
 
     void revokeEmployeeInvitation(UUID invitationId, UUID actorUserId);
 
-    void acceptInvitation(String token);
+    /**
+     * The employee's portal access (W-73.3 §4): {@code ACTIVE} when linked to an account, with its roles;
+     * {@code INVITED} when a live pending invitation exists, with the roles acceptance will grant;
+     * otherwise {@code NONE}.
+     *
+     * @throws IllegalArgumentException when the employee does not exist in the current tenant
+     */
+    EmployeeAccessResponse employeeAccess(UUID employeeId);
+
+    /**
+     * The live, active employees of the bound tenant who have a work email, no linked account and no live
+     * pending invitation — whom "Invite all without access" invites (W-73.7). Ordered by employee number.
+     * Each is then invited through {@link #createEmployeeInvitation}, one transaction each.
+     */
+    List<UUID> employeesWithoutAccess();
+
+    /** Accepts and returns what the invitee does next — the accept page words its message from it (D-62). */
+    AcceptOutcome acceptInvitation(String token);
 
     void declineInvitation(String token, String reason);
 }

@@ -43,7 +43,22 @@ describe('employeeInvitationService', () => {
     apiClient.post.mockResolvedValueOnce({ data: mockCreated });
 
     const res = await employeeInvitationService.create(payload);
-    expect(apiClient.post).toHaveBeenCalledWith('/v1/employee-invitations', payload);
+    expect(apiClient.post).toHaveBeenCalledWith('/v1/employee-invitations', {
+      employeeId: 'emp-456',
+      roleIds: [],
+    });
+    expect(res).toEqual(mockCreated);
+  });
+
+  it('passes the extra roleIds through on create', async () => {
+    const mockCreated = { id: 'emp-inv-6', employeeId: 'emp-457', roleIds: ['role-hr'] };
+    apiClient.post.mockResolvedValueOnce({ data: mockCreated });
+
+    const res = await employeeInvitationService.create({ employeeId: 'emp-457', roleIds: ['role-hr'] });
+    expect(apiClient.post).toHaveBeenCalledWith('/v1/employee-invitations', {
+      employeeId: 'emp-457',
+      roleIds: ['role-hr'],
+    });
     expect(res).toEqual(mockCreated);
   });
 

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.infinevo.core.authz.AuthzTestSchema;
+import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.identity.UserProfileSyncService;
 import com.infinevo.shared.tenant.PlatformTenant;
 import com.infinevo.shared.tenant.TenantContext;
@@ -204,6 +205,154 @@ class TenantAdminInvitationIT extends AbstractIntegrationTest {
         assertThat(tenantsNamed(name)).isEmpty();
     }
 
+    @Test
+    @DisplayName(
+            "W-73.2: resending a pending admin invitation supersedes it, moves the expiry and queues a second email")
+    void resendPending_supersedesAndSendsAgain() throws SQLException {
+        String email = "resend-" + UUID.randomUUID() + "@example.test";
+        TenantResponse created =
+                tenantService.provisionTenant(request("Resend Corp " + UUID.randomUUID(), email), actorUserId);
+        UUID tenantId = created.tenantId();
+        UUID first = created.adminInvitationId();
+        // Pull the first invitation's expiry back a day, so "moved" is unambiguous.
+        ownerUpdate("UPDATE core.user_invitation SET expires_at = now() + interval '6 days' WHERE id = ?", first);
+        String firstExpiry = ownerRow("SELECT expires_at::text FROM core.user_invitation WHERE id = ?", first)
+                .get(0);
+
+        tenantService.resendAdminInvitation(tenantId, actorUserId);
+
+        assertThat(TenantContext.current()).as("binding restored").contains(platformTenant.tenantId());
+        List<String> old =
+                ownerRow("SELECT status, superseded_by_id::text FROM core.user_invitation WHERE id = ?", first);
+        assertThat(old.get(0)).isEqualTo("REVOKED");
+        UUID second = UUID.fromString(old.get(1));
+        List<String> fresh = ownerRow(
+                "SELECT tenant_id::text, email, status, (expires_at > ?::timestamptz)::text"
+                        + " FROM core.user_invitation WHERE id = ?",
+                firstExpiry,
+                second);
+        assertThat(fresh).containsExactly(tenantId.toString(), email, "PENDING", "true");
+        assertThat(ownerStrings(
+                        "SELECT r.code FROM core.user_invitation_role uir JOIN core.role r"
+                                + " ON r.tenant_id = uir.tenant_id AND r.id = uir.role_id WHERE uir.invitation_id = ?",
+                        second))
+                .containsExactly("tenant-admin");
+        assertThat(ownerStrings(
+                        "SELECT id::text FROM core.notification WHERE tenant_id = ? AND event = 'USER_INVITATION'",
+                        tenantId))
+                .hasSize(2);
+
+        TenantSummaryResponse.WaitingTenant waiting = waitingFor(tenantId);
+        assertThat(waiting.invitationStatus()).isEqualTo("PENDING");
+        assertThat(waiting.adminEmail()).isEqualTo(email);
+    }
+
+    @Test
+    @DisplayName("W-73.2: an expired admin invitation shows EXPIRED; resend sends a fresh tenant-admin invitation")
+    void resendExpired_sendsAFreshInvitation() throws SQLException {
+        String email = "expired-" + UUID.randomUUID() + "@example.test";
+        TenantResponse created =
+                tenantService.provisionTenant(request("Expired Corp " + UUID.randomUUID(), email), actorUserId);
+        UUID tenantId = created.tenantId();
+        ownerUpdate(
+                "UPDATE core.user_invitation SET expires_at = now() - interval '1 day' WHERE id = ?",
+                created.adminInvitationId());
+        assertThat(waitingFor(tenantId).invitationStatus()).isEqualTo("EXPIRED");
+
+        tenantService.resendAdminInvitation(tenantId, actorUserId);
+
+        List<String> pending = ownerStrings(
+                "SELECT id::text FROM core.user_invitation WHERE tenant_id = ? AND status = 'PENDING'"
+                        + " AND expires_at > now()",
+                tenantId);
+        assertThat(pending)
+                .hasSize(1)
+                .doesNotContain(created.adminInvitationId().toString());
+        TenantSummaryResponse.WaitingTenant waiting = waitingFor(tenantId);
+        assertThat(waiting.invitationStatus()).isEqualTo("PENDING");
+        assertThat(waiting.expiresAt()).isAfter(java.time.Instant.now().plus(java.time.Duration.ofDays(6)));
+    }
+
+    @Test
+    @DisplayName("W-73.2: resend is refused when the admin accepted, when there was no invitation, and for an"
+            + " unknown tenant")
+    void resend_refusedWhenNothingIsWaiting() throws SQLException {
+        TenantResponse accepted = tenantService.provisionTenant(
+                request("Accepted Corp " + UUID.randomUUID(), "acc-" + UUID.randomUUID() + "@example.test"),
+                actorUserId);
+        ownerUpdate(
+                "UPDATE core.user_invitation SET status = 'ACCEPTED', accepted_at = now() WHERE id = ?",
+                accepted.adminInvitationId());
+        assertThatThrownBy(() -> tenantService.resendAdminInvitation(accepted.tenantId(), actorUserId))
+                .isInstanceOf(AdminInvitationNotWaitingException.class);
+
+        TenantResponse none =
+                tenantService.provisionTenant(request("None Corp " + UUID.randomUUID(), null), actorUserId);
+        assertThatThrownBy(() -> tenantService.resendAdminInvitation(none.tenantId(), actorUserId))
+                .isInstanceOf(AdminInvitationNotWaitingException.class);
+
+        assertThatThrownBy(() -> tenantService.resendAdminInvitation(UUID.randomUUID(), actorUserId))
+                .isInstanceOf(TenantNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("W-73.2 review: an expired admin invitation whose address already holds another pending"
+            + " invitation is refused as a conflict, and nothing is written")
+    void resendExpired_withAnotherPendingToTheSameAddress_isAConflict() throws SQLException {
+        String email = "dup-" + UUID.randomUUID() + "@example.test";
+        TenantResponse created =
+                tenantService.provisionTenant(request("Dup Corp " + UUID.randomUUID(), email), actorUserId);
+        UUID tenantId = created.tenantId();
+        ownerUpdate(
+                "UPDATE core.user_invitation SET expires_at = now() - interval '1 day' WHERE id = ?",
+                created.adminInvitationId());
+        // A live invitation to the same address carrying another role (hr), so the admin one stays the waiting one.
+        UUID other = UUID.randomUUID();
+        try (Connection conn = AuthzTestSchema.migrationConnection()) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO core.user_invitation (id, tenant_id, email, token_hash, status, expires_at,"
+                            + " invited_by_user_id) VALUES (?, ?, ?, ?, 'PENDING', now() + interval '3 days', ?)")) {
+                ps.setObject(1, other);
+                ps.setObject(2, tenantId);
+                ps.setString(3, email);
+                ps.setString(
+                        4, (other.toString().replace("-", "") + other.toString().replace("-", "")).substring(0, 64));
+                ps.setObject(5, actorUserId);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO core.user_invitation_role (tenant_id, invitation_id, role_id) VALUES (?, ?, ?)")) {
+                ps.setObject(1, tenantId);
+                ps.setObject(2, other);
+                ps.setObject(3, AuthzTestSchema.roleId(tenantId, "hr"));
+                ps.executeUpdate();
+            }
+        }
+        assertThat(waitingFor(tenantId).invitationStatus()).isEqualTo("EXPIRED");
+
+        assertThatThrownBy(() -> tenantService.resendAdminInvitation(tenantId, actorUserId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already exists");
+
+        assertThat(ownerStrings("SELECT id::text FROM core.user_invitation WHERE tenant_id = ?", tenantId))
+                .containsExactlyInAnyOrder(created.adminInvitationId().toString(), other.toString());
+    }
+
+    @Test
+    @DisplayName("W-73.2: bound to a customer tenant, resend is refused before anything is read")
+    void resend_fromCustomerTenant_isRefused() {
+        TenantContext.set(UUID.randomUUID());
+        assertThatThrownBy(() -> tenantService.resendAdminInvitation(UUID.randomUUID(), actorUserId))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    private TenantSummaryResponse.WaitingTenant waitingFor(UUID tenantId) {
+        return tenantQueryService.summary().waitingForAdmin().stream()
+                .filter(w -> w.id().equals(tenantId))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("tenant " + tenantId + " not waiting for its admin"));
+    }
+
     private static TenantRequest request(String name, String adminEmail) {
         return new TenantRequest(name, "IN", "Asia/Kolkata", (short) 4, Set.of(), adminEmail);
     }
@@ -224,12 +373,16 @@ class TenantAdminInvitationIT extends AbstractIntegrationTest {
         }
     }
 
-    private static List<String> ownerRow(String sql, UUID param) throws SQLException {
+    private static List<String> ownerRow(String sql, Object... params) throws SQLException {
         try (Connection conn = AuthzTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setObject(1, param);
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
             try (ResultSet rs = ps.executeQuery()) {
-                assertThat(rs.next()).as("row for " + param).isTrue();
+                assertThat(rs.next())
+                        .as("row for " + java.util.Arrays.toString(params))
+                        .isTrue();
                 List<String> values = new ArrayList<>();
                 for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
                     values.add(rs.getString(i));

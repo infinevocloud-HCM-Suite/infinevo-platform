@@ -78,6 +78,10 @@ public final class PayrollTestSchema {
             if (!tableExists(conn, "payroll", "earning")) {
                 executeResource(conn, "db/migration/payroll/V042__earning.sql");
             }
+            // W-73.6: V161 adds the Scheduled flag the Earning entity maps, and the scheduled_earning table.
+            if (!columnExists(conn, "payroll", "earning", "is_scheduled_earning")) {
+                executeResource(conn, "db/migration/payroll/V161__scheduled_earning.sql");
+            }
             if (!tableExists(conn, "payroll", "deduction")) {
                 executeResource(conn, "db/migration/payroll/V043__deduction.sql");
             }
@@ -210,6 +214,7 @@ public final class PayrollTestSchema {
             }
             if (!tableExists(conn, "core", "document")) {
                 executeResource(conn, "db/migration/core/V037__document.sql");
+                executeResource(conn, "db/migration/core/V166__document_label.sql");
             }
             if (!tableExists(conn, "core", "approval_definition")) {
                 executeResource(conn, "db/migration/core/V089__approval_definition.sql");
@@ -426,6 +431,7 @@ public final class PayrollTestSchema {
                         id,
                         null,
                         com.infinevo.core.document.DocumentKind.EXPORT,
+                        null,
                         fileName,
                         "text/csv",
                         (long) content.length,

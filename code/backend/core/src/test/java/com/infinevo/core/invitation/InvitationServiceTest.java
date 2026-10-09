@@ -251,6 +251,24 @@ class InvitationServiceTest {
     }
 
     @Test
+    @DisplayName("createEmployeeInvitation: a role not in the tenant is refused and nothing is saved (W-73.3)")
+    void createEmployeeInvitationUnknownRoleRefused() {
+        UUID empId = UUID.randomUUID();
+        UUID unknownRole = UUID.randomUUID();
+        Employee emp = mock(Employee.class);
+        when(emp.getWorkEmail()).thenReturn("jane@example.com");
+        when(employeeRepository.findByIdAndTenantIdAndDeletedFalse(empId, tenantId))
+                .thenReturn(Optional.of(emp));
+        when(roleRepository.findByIdAndTenantId(unknownRole, tenantId)).thenReturn(Optional.empty());
+
+        EmployeeInvitationRequest request = new EmployeeInvitationRequest(empId, Set.of(unknownRole));
+        assertThatThrownBy(() -> invitationService.createEmployeeInvitation(request, actorUserId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Role not found in tenant");
+        verify(employeeInvitationRepository, never()).save(any(EmployeeInvitation.class));
+    }
+
+    @Test
     @DisplayName("resendUserInvitation: revokes previous invitation, links superseded_by, issues new token")
     void resendUserInvitationSuccess() {
         UUID oldId = UUID.randomUUID();
@@ -290,7 +308,8 @@ class InvitationServiceTest {
 
         UUID keycloakUserId = UUID.randomUUID();
         when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
-                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
+                .thenReturn(new KeycloakProvisioningService.ProvisioningResult(
+                        keycloakUserId, true, AcceptOutcome.SET_PASSWORD_EMAIL_FAILED));
 
         UserAccount userAccount = mock(UserAccount.class);
         when(userAccount.getId()).thenReturn(UUID.randomUUID());
@@ -299,8 +318,8 @@ class InvitationServiceTest {
         when(userInvitationRoleRepository.findByTenantIdAndInvitationId(tenantId, inv.getId()))
                 .thenReturn(List.of());
 
-        // First acceptance succeeds
-        invitationService.acceptInvitation(token);
+        // First acceptance succeeds and passes the provisioning outcome to the accept page (D-62)
+        assertThat(invitationService.acceptInvitation(token)).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_FAILED);
         assertThat(inv.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
         assertThat(inv.getAcceptedAt()).isNotNull();
 

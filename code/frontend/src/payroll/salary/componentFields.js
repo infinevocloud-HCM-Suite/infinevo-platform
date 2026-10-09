@@ -106,6 +106,7 @@ export const componentSchemas = {
     taxable: Yup.boolean(),
     variable: Yup.boolean(),
     oneTime: Yup.boolean(),
+    scheduledEarning: Yup.boolean(),
     fbpComponent: Yup.boolean(),
     includedInEpf: Yup.boolean(),
     epfInclusionType: Yup.string()
@@ -171,6 +172,7 @@ export const defaultInitialValues = {
     taxable: true,
     variable: false,
     oneTime: false,
+    scheduledEarning: false,
     fbpComponent: false,
     includedInEpf: false,
     epfInclusionType: 'NEVER',
@@ -239,8 +241,8 @@ export const REQUEST_FIELDS = {
   earnings: [
     'code', 'name', 'displayName', 'earningType', 'calculationType', 'defaultValue', 'percentageOf',
     'maxLimit', 'earningFrequency', 'parentEarningId', 'proRata', 'includedInCtc',
-    'includedInSalaryStructure', 'taxable', 'variable', 'oneTime', 'fbpComponent', 'includedInEpf',
-    'epfInclusionType', 'includedInEsi', 'showInPayslip',
+    'includedInSalaryStructure', 'taxable', 'variable', 'oneTime', 'scheduledEarning', 'fbpComponent',
+    'includedInEpf', 'epfInclusionType', 'includedInEsi', 'showInPayslip',
   ],
   deductions: [
     'code', 'name', 'displayName', 'deductionType', 'calculationType', 'defaultValue', 'percentageOf',
@@ -307,6 +309,7 @@ export function normaliseInitialValues(kind, row) {
       values.variable = Boolean(row.variable);
       values.oneTime = Boolean(row.oneTime);
     }
+    values.scheduledEarning = Boolean(row.scheduledEarning);
     if (!values.earningFrequency) values.earningFrequency = 'MONTHLY';
     values.epfInclusionType = epfInclusionOnRead(row);
   }

@@ -66,6 +66,10 @@ final class IdentityTestSchema {
             if (!tableExists(conn, "user_account")) {
                 executeResource(conn, "db/migration/core/V009__user_account.sql");
             }
+            // W-73.8: welcome_seen_at, read and written by native SQL for GET and PUT /api/v1/me.
+            if (!columnExists(conn, "user_account", "welcome_seen_at")) {
+                executeResource(conn, "db/migration/core/V165__user_account_welcome.sql");
+            }
         }
     }
 
@@ -159,6 +163,17 @@ final class IdentityTestSchema {
         try (PreparedStatement ps =
                 conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = 'core' AND tablename = ?")) {
             ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String table, String column) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = 'core' AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, table);
+            ps.setString(2, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

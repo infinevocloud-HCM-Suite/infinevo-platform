@@ -30,4 +30,10 @@ public interface EarningRepository extends JpaRepository<Earning, UUID> {
     boolean existsByTenantIdAndParentEarningIdAndDeletedFalse(UUID tenantId, UUID parentEarningId);
 
     boolean existsByTenantIdAndDeletedFalse(UUID tenantId);
+
+    /** W-73.9: whether a country template wrote any of the tenant's earnings. */
+    boolean existsByTenantIdAndCreatedBy(UUID tenantId, String createdBy);
+
+    /** W-73.9: whether anyone other than the given writer last wrote one of the tenant's earnings, deleted or not. */
+    boolean existsByTenantIdAndUpdatedByNot(UUID tenantId, String updatedBy);
 }

@@ -155,7 +155,9 @@ public class SetupChecklistService {
                 step.setCompletedAt(null);
                 repository.save(step);
             }
-            listed.add(new ListedStep(step, def.get()));
+            // W-73.9: a complete step still holding only what the country template wrote.
+            boolean prefilled = complete && !step.isSkipped() && checker.isPrefilled(tenantId);
+            listed.add(new ListedStep(step, def.get(), prefilled));
         }
 
         Map<PlatformModule, Instant> groupBaseline = new HashMap<>();
@@ -173,7 +175,7 @@ public class SetupChecklistService {
         List<SetupStepResponse> stepResponses = new ArrayList<>();
         for (ListedStep ls : listed) {
             boolean isNew = isNewStep(ls.step(), groupBaseline.get(ls.step().getModule()), lastTouch);
-            stepResponses.add(toResponse(ls.step(), ls.def(), isNew));
+            stepResponses.add(toResponse(ls.step(), ls.def(), isNew, ls.prefilled()));
         }
 
         stepResponses.sort(Comparator.comparingInt(SetupStepResponse::displayOrder));
@@ -279,7 +281,7 @@ public class SetupChecklistService {
         step = repository.save(step);
 
         // A skipped step is resolved, so it is never new.
-        return toResponse(step, def, false);
+        return toResponse(step, def, false, false);
     }
 
     private static boolean isNewStep(TenantSetupStep step, Instant groupBaseline, Instant lastTouch) {
@@ -304,7 +306,7 @@ public class SetupChecklistService {
     }
 
     private static SetupStepResponse toResponse(
-            TenantSetupStep step, SetupStepCatalogue.StepDefinition def, boolean isNew) {
+            TenantSetupStep step, SetupStepCatalogue.StepDefinition def, boolean isNew, boolean prefilled) {
         return new SetupStepResponse(
                 step.getStepCode(),
                 def.label(),
@@ -315,14 +317,15 @@ public class SetupChecklistService {
                 step.getSkipReason(),
                 step.getCompletedAt(),
                 step.getFirstSeenAt(),
-                isNew);
+                isNew,
+                prefilled);
     }
 
     private boolean isApplicable(SetupStepCatalogue.StepDefinition def, Set<PlatformModule> activeModules) {
         return def.module() == null || (activeModules != null && activeModules.contains(def.module()));
     }
 
-    private record ListedStep(TenantSetupStep step, SetupStepCatalogue.StepDefinition def) {}
+    private record ListedStep(TenantSetupStep step, SetupStepCatalogue.StepDefinition def, boolean prefilled) {}
 
     public static class SetupStepNotFoundException extends RuntimeException {
         public SetupStepNotFoundException(String stepCode) {

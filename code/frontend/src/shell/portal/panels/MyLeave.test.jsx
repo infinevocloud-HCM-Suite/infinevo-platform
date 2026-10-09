@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MyLeave } from './MyLeave.jsx';
-import { MyDocuments } from './MyDocuments.jsx';
 import { portalService } from '../portalService.js';
 
 // The payloads below are the server's own shapes: a Spring page for leave requests
-// (LeaveRequestResponse rows under `content`), a plain list of LeaveBalanceResponse, and a
-// plain list of DocumentResponse. A panel that reads any other field name shows an empty
+// (LeaveRequestResponse rows under `content`) and a plain list of LeaveBalanceResponse. The
+// documents panel is core's MyDocumentsPanel now (W-73.5), tested beside it. A panel that reads any other field name shows an empty
 // table and zero balances while looking finished.
 describe('Portal panels read the fields the server sends (W-25)', () => {
   beforeEach(() => {
@@ -50,19 +49,5 @@ describe('Portal panels read the fields the server sends (W-25)', () => {
     expect(screen.getAllByText('Casual Leave').length).toBe(2);
     expect(screen.getByText('10')).toBeDefined();
     expect(screen.getByText('Used: 2 days')).toBeDefined();
-  });
-
-  it('MyDocuments shows the file name and kind', async () => {
-    vi.spyOn(portalService, 'getDocuments').mockResolvedValue([
-      { id: 'doc-1', kind: 'EMPLOYEE_DOCUMENT', fileName: 'offer-letter.pdf', createdAt: '2026-09-01T10:00:00Z' },
-    ]);
-
-    render(<MyDocuments />);
-
-    await waitFor(() => {
-      expect(screen.getByText('offer-letter.pdf')).toBeDefined();
-    });
-    expect(screen.getByText('EMPLOYEE_DOCUMENT')).toBeDefined();
-    expect(screen.queryByText('VERIFIED')).toBeNull();
   });
 });

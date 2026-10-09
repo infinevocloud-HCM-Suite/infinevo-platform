@@ -44,7 +44,7 @@ infra/azure/
      `og-{env}-{web,app,keycloak}`, routes `/*`, `/api/*`, `/auth/*`, and the rule set
      `rsorigintag` stamping `X-Infinevo-Origin` on each response.
    - `wafinfinevoshared`: Front Door WAF policy (`Standard_AzureFrontDoor`, Prevention) —
-     a 100-requests-per-minute-per-IP rate limit and a canary rule blocking
+     a 1000-requests-per-minute-per-IP rate limit and a canary rule blocking
      `?wafcanary=block`, associated to each endpoint by `sp-infinevo-{env}`.
 
 2. **`rg-infinevo-{env}` (Central India, Per Environment: `dev`, `uat`, `prod`)**:

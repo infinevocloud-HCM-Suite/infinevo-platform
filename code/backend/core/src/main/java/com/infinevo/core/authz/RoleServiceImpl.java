@@ -1,6 +1,7 @@
 package com.infinevo.core.authz;
 
 import com.infinevo.shared.authz.PermissionCache;
+import com.infinevo.shared.identity.UserAccount;
 import com.infinevo.shared.identity.UserAccountRepository;
 import com.infinevo.shared.tenant.PlatformTenant;
 import com.infinevo.shared.tenant.TenantContext;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -85,6 +87,9 @@ public class RoleServiceImpl implements RoleService {
      * provisioning grants it elsewhere (W-12.1). Still never granted through this API.
      */
     private static final String PLATFORM_ADMIN = "platform-admin";
+
+    /** The seeded tenant administrator (V022). A tenant must always keep one active holder (W-73.4). */
+    static final String TENANT_ADMIN = "tenant-admin";
 
     /** Held by Infinevo staff only: see {@link #requireNoPlatformOnlyActions}. */
     static final Set<String> PLATFORM_ONLY_ACTIONS = Set.of("core.tenant.provision", "core.tenant.impersonate");
@@ -245,16 +250,7 @@ public class RoleServiceImpl implements RoleService {
         UUID tenantId = TenantContext.require();
         Objects.requireNonNull(userAccountId, "userAccountId must not be null");
 
-        // core.user_role.user_account_id references user_account(id) alone (V023), so the database
-        // would accept a grant to another tenant's user. Under row-level security that account is not
-        // visible here; the tenant comparison says the same thing again without relying on it.
-        boolean userVisible = userAccountRepository
-                .findById(userAccountId)
-                .filter(account -> tenantId.equals(account.getTenantId()))
-                .isPresent();
-        if (!userVisible) {
-            throw new NotFoundException("No user " + userAccountId + " in this tenant");
-        }
+        UserAccount account = requireAccount(tenantId, userAccountId);
 
         if (request == null || request.roleIds() == null) {
             throw new ValidationException(Map.of("roleIds", "roleIds is required; send an empty list to revoke all"));
@@ -295,6 +291,16 @@ public class RoleServiceImpl implements RoleService {
         if (added.stream().anyMatch(ur -> platformAdmin.contains(ur.getRoleId()))) {
             throw new SystemRoleException(PLATFORM_ADMIN, "granted from inside a tenant");
         }
+        // W-73.4: nobody removes their own tenant-admin, and the last active one stays.
+        Optional<UUID> tenantAdmin = tenantAdminRoleId(tenantId);
+        if (tenantAdmin.isPresent()
+                && removed.stream().anyMatch(ur -> ur.getRoleId().equals(tenantAdmin.get()))) {
+            if (isCaller(tenantId, account)) {
+                throw new AdminGuardException(
+                        "You cannot remove your own tenant-admin role. Ask another tenant administrator to do it.");
+            }
+            requireAnotherActiveAdmin(tenantId, tenantAdmin.get(), account, "remove tenant-admin from");
+        }
         userRoleRepository.deleteAll(removed);
         userRoleRepository.saveAll(added);
         bumpAfterCommit(tenantId);
@@ -303,6 +309,84 @@ public class RoleServiceImpl implements RoleService {
                 .sorted((a, b) -> a.getCode().compareTo(b.getCode()))
                 .toList();
         return new UserRolesResponse(userAccountId, withActions(tenantId, ordered));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void requireCanDisable(UUID userAccountId) {
+        UUID tenantId = TenantContext.require();
+        Objects.requireNonNull(userAccountId, "userAccountId must not be null");
+        UserAccount account = requireAccount(tenantId, userAccountId);
+        if (isCaller(tenantId, account)) {
+            throw new AdminGuardException("You cannot disable your own account.");
+        }
+        Optional<UUID> tenantAdmin = tenantAdminRoleId(tenantId);
+        if (tenantAdmin.isPresent()
+                && userRoleRepository.findByTenantIdAndUserAccountId(tenantId, userAccountId).stream()
+                        .anyMatch(ur -> ur.getRoleId().equals(tenantAdmin.get()))) {
+            requireAnotherActiveAdmin(tenantId, tenantAdmin.get(), account, "disable");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean holdsTenantAdmin(UUID userAccountId) {
+        UUID tenantId = TenantContext.require();
+        Optional<UUID> tenantAdmin = tenantAdminRoleId(tenantId);
+        return tenantAdmin.isPresent()
+                && userRoleRepository.findByTenantIdAndUserAccountId(tenantId, userAccountId).stream()
+                        .anyMatch(ur -> ur.getRoleId().equals(tenantAdmin.get()));
+    }
+
+    /**
+     * The account in the bound tenant, or {@link NotFoundException}.
+     *
+     * <p>{@code core.user_role.user_account_id} references {@code user_account(id)} alone (V023), so the
+     * database would accept a grant to another tenant's user. Under row-level security that account is not
+     * visible here; the tenant comparison says the same thing again without relying on it.
+     */
+    private UserAccount requireAccount(UUID tenantId, UUID userAccountId) {
+        return userAccountRepository
+                .findById(userAccountId)
+                .filter(found -> tenantId.equals(found.getTenantId()))
+                .orElseThrow(() -> new NotFoundException("No user " + userAccountId + " in this tenant"));
+    }
+
+    /** The seeded {@code tenant-admin} role of this tenant, if it has one. */
+    private Optional<UUID> tenantAdminRoleId(UUID tenantId) {
+        return roleRepository
+                .findByTenantIdAndCode(tenantId, TENANT_ADMIN)
+                .filter(Role::isSystem)
+                .map(Role::getId);
+    }
+
+    /** Whether the account is the signed-in caller's own, matched on the token subject. */
+    private boolean isCaller(UUID tenantId, UserAccount account) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null) {
+            return false;
+        }
+        try {
+            return account.getKeycloakUserId().equals(UUID.fromString(auth.getName()));
+        } catch (IllegalArgumentException notAUuid) {
+            return false;
+        }
+    }
+
+    /**
+     * Refuses when the account is an active holder of {@code tenant-admin} and no other active account holds
+     * it. A disabled holder cannot sign in, so it neither counts nor needs protecting.
+     */
+    private void requireAnotherActiveAdmin(UUID tenantId, UUID tenantAdminRoleId, UserAccount account, String verb) {
+        if (!UserAccount.STATUS_ACTIVE.equals(account.getStatus())) {
+            return;
+        }
+        // Held to commit: a concurrent removal or disable in this tenant waits here and then counts afresh.
+        userRoleRepository.lockTenantAdminGuard(tenantId);
+        if (userRoleRepository.countActiveHolders(tenantId, tenantAdminRoleId) <= 1) {
+            throw new AdminGuardException("Cannot " + verb + " " + account.getEmail()
+                    + ": they are the last active tenant administrator. Give tenant-admin to someone else first.");
+        }
     }
 
     /**

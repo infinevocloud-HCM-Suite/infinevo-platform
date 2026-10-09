@@ -61,6 +61,21 @@ describe('tenantService', () => {
     );
   });
 
+  it('getSummary GETs /v1/tenants/summary without the impersonation header (W-73.2)', async () => {
+    const summary = { total: 2, byStatus: { ACTIVE: 2 }, recent: [], waitingForAdmin: [] };
+    apiClient.get.mockResolvedValueOnce({ data: summary });
+    expect(await tenantService.getSummary()).toEqual(summary);
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/tenants/summary', { skipImpersonation: true });
+  });
+
+  it('resendAdminInvitation POSTs to /v1/tenants/{id}/admin-invitation/resend with no body (W-73.2)', async () => {
+    apiClient.post.mockResolvedValueOnce({ status: 204 });
+    await tenantService.resendAdminInvitation('t-1');
+    expect(apiClient.post).toHaveBeenCalledWith('/v1/tenants/t-1/admin-invitation/resend', null, {
+      skipImpersonation: true,
+    });
+  });
+
   it('setStatus PUTs { status } without the impersonation header', async () => {
     apiClient.put.mockResolvedValueOnce({ data: { status: 'SUSPENDED' } });
     await tenantService.setStatus('t-1', 'SUSPENDED');

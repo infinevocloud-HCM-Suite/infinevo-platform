@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Select, Checkbox, Button, Card, Space, Typography } from 'antd';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { tenantService } from './tenantService.js';
 import { MODULES } from './platform.js';
+import { startsWithLine } from './countryTemplates.js';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -30,11 +31,32 @@ export function isTimeZone(value) {
  * Administrator email is optional (D-42). When given, the server invites that address into the
  * new tenant as its `tenant-admin`, so nobody has to act as the tenant to invite its first admin.
  * Sent as `admin_email`, snake_case like the other `TenantRequest` fields.
+ *
+ * Under Country, the country's template (W-73.9): "Starts with: holidays, leave types, ..." when the
+ * server has one, "No template" when not. The server applies it as part of the same create.
  */
 export function TenantCreate() {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const [templates, setTemplates] = useState(null);
+  const country = Form.useWatch('country_code', form);
+
+  useEffect(() => {
+    let live = true;
+    tenantService
+      .countryTemplates()
+      .then((list) => {
+        if (live) setTemplates(Array.isArray(list) ? list : null);
+      })
+      .catch(() => {
+        // No line rather than a wrong one: the server still applies whatever template exists.
+        if (live) setTemplates(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const onFinish = async (values) => {
     setSaving(true);
@@ -88,6 +110,7 @@ export function TenantCreate() {
         <Form.Item
           label="Country"
           name="country_code"
+          extra={startsWithLine(templates, country)}
           rules={[
             { required: true, message: 'Country is required' },
             { pattern: /^\s*[A-Za-z]{2}\s*$/, message: 'Two-letter ISO 3166-1 code, for example IN' },

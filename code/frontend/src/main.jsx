@@ -27,8 +27,10 @@ export function bootstrap(
 ) {
   if (!rootElement) return null;
 
+  // A mail client may add a trailing slash; the invitation link must still skip sign-in (D-62).
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   const publicRoute = Array.isArray(publicRoutes)
-    ? publicRoutes.find((r) => r.path === pathname)
+    ? publicRoutes.find((r) => r.path === path)
     : null;
 
   if (publicRoute) {

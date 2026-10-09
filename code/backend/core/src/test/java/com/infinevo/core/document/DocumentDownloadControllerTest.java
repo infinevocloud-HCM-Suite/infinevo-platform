@@ -137,6 +137,7 @@ class DocumentDownloadControllerTest {
                 documentId,
                 null,
                 DocumentKind.EMPLOYEE_DOCUMENT,
+                null,
                 fileName,
                 "application/pdf",
                 bytes.length,

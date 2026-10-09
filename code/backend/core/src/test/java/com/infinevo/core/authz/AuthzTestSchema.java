@@ -155,13 +155,25 @@ public final class AuthzTestSchema {
                     // W-24.2: user and employee invitations
                     executeResource(conn, "db/migration/core/V117__user_invitation.sql");
                     executeResource(conn, "db/migration/core/V118__employee_invitation.sql");
+                    // W-73.3: role_ids on employee_invitation; the token lookup function returns it
+                    executeResource(conn, "db/migration/core/V163__employee_invitation_roles.sql");
                     // D-42: list_tenants() and get_tenant_overview() report the administrator
                     // invitation, reading the V117 tables; TenantQueryService maps the new columns.
                     executeResource(conn, "db/migration/core/V159__list_tenants_admin_invitation.sql");
+                    // W-73.2: the platform dashboard's waiting administrator invitations, read across RLS.
+                    executeResource(conn, "db/migration/core/V168__list_waiting_admin_invitations.sql");
+                    // W-73.4: cross-tenant Keycloak-user states for Disable, and resolve_impersonation
+                    // granting nothing for a disabled target (replaces V084's function)
+                    executeResource(conn, "db/migration/core/V164__user_account_disable.sql");
                     // W-18.1: loss-of-pay policy
                     executeResource(conn, "db/migration/core/V116__lop_policy.sql");
                     if (!tableExists(conn, "core", "document")) {
                         executeResource(conn, "db/migration/core/V037__document.sql");
+                        executeResource(conn, "db/migration/core/V166__document_label.sql");
+                    }
+                    // W-73.1: logo and tagline on core.tenant, and the TENANT_LOGO document kind.
+                    if (!columnExists(conn, "core", "tenant", "logo_document_id")) {
+                        executeResource(conn, "db/migration/core/V160__tenant_branding.sql");
                     }
                     if (!tableExists(conn, "core", "leave_type")) {
                         executeResource(conn, "db/migration/core/V126__leave_type.sql");
@@ -187,6 +199,17 @@ public final class AuthzTestSchema {
                     // rewrites core.seed_system_roles (V148's body) and refuses any other platform grant.
                     if (!functionExists(conn, "core", "restrict_platform_tenant_grant")) {
                         executeResource(conn, "db/migration/core/V158__platform_tenant_role_scope.sql");
+                    }
+                    // W-73.9: country templates (reference, with the country lookup they key on) and the
+                    // per-tenant record of what a template run applied.
+                    if (!tableExists(conn, "reference", "country")) {
+                        executeResource(conn, "db/migration/reference/V003__reference_lookups.sql");
+                    }
+                    if (!tableExists(conn, "reference", "country_template")) {
+                        executeResource(conn, "db/migration/reference/V162__country_template_in.sql");
+                    }
+                    if (!tableExists(conn, "core", "tenant_template_applied")) {
+                        executeResource(conn, "db/migration/core/V169__tenant_template_applied.sql");
                     }
                 }
 
@@ -383,6 +406,45 @@ public final class AuthzTestSchema {
                 }
             }
             return out;
+        }
+    }
+
+    /**
+     * A document row written directly as the owner, with no blob — for W-73.1's logo reference. {@code kind}
+     * and {@code contentType} are taken as given so a test can hand the profile endpoint the wrong kind.
+     */
+    public static UUID insertDocumentRow(UUID tenantId, String kind, String contentType, long sizeBytes)
+            throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (Connection conn = migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.document (id, tenant_id, employee_id, kind, file_name, content_type,
+                                                   size_bytes, blob_container, blob_path, checksum_sha256)
+                        VALUES (?, ?, NULL, ?, 'logo.png', ?, ?, 'documents', ?, ?)
+                        """)) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.setString(3, kind);
+            ps.setString(4, contentType);
+            ps.setLong(5, sizeBytes);
+            ps.setString(6, tenantId + "/tenant/" + kind + "/" + id);
+            ps.setString(7, "0".repeat(64));
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    private static boolean columnExists(Connection conn, String schema, String table, String column)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
+            ps.setString(3, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 

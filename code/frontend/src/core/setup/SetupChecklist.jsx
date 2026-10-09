@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Card,
   Progress,
@@ -28,7 +28,12 @@ function formatDateTime(isoString) {
   }
 }
 
+// W-73.9: a step the country template filled reads "Pre-filled — review" until someone saves it.
+// It still counts as completed in the progress figures.
 function getStepStatusTag(step) {
+  if (step.completed && step.prefilled) {
+    return <Tag color="processing">Pre-filled — review</Tag>;
+  }
   if (step.completed) {
     return <Tag color="success">Done</Tag>;
   }
@@ -42,6 +47,13 @@ function getStepStatusTag(step) {
 }
 
 function renderStepDetails(step) {
+  if (step.completed && step.prefilled) {
+    return (
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        Filled in from the country template. Open it, check the values and save.
+      </Text>
+    );
+  }
   if (step.completed) {
     return step.completedAt ? (
       <Text type="secondary" style={{ fontSize: 12 }}>
@@ -68,6 +80,7 @@ function renderStepDetails(step) {
 
 export function SetupChecklist() {
   const navigate = useNavigate();
+  const location = useLocation();
   const canRead = useCan('core.tenant.read');
   const canManageTenant = useCan('core.tenant.manage');
   const canReadOrg = useCan('core.org.read');
@@ -110,6 +123,14 @@ export function SetupChecklist() {
   useEffect(() => {
     fetchChecklist();
   }, [fetchChecklist]);
+
+  // `/setup#setup-step-row-<code>` (the welcome page's links, W-73.8): the row exists only once the
+  // steps have loaded, and the router does not scroll to a hash by itself.
+  useEffect(() => {
+    if (!checklistData || !location.hash) return;
+    const row = document.getElementById(location.hash.slice(1));
+    if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'start' });
+  }, [checklistData, location.hash]);
 
   const groups = useMemo(() => {
     if (!checklistData?.steps) return [];

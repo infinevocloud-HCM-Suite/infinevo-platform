@@ -53,6 +53,13 @@ describe('main.jsx bootstrap', () => {
     expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();
   });
 
+  it('at /invitations/accept/ (trailing slash), the public page still renders without sign-in (D-62)', async () => {
+    await bootstrap(container, '/invitations/accept/');
+
+    expect(keycloakAuth.initAuth).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();
+  });
+
   it('at /, initAuth IS called and the application shell renders', async () => {
     keycloakAuth.initAuth.mockResolvedValueOnce(true);
 

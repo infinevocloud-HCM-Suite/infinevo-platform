@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.infinevo.core.authz.RoleService;
 import com.infinevo.core.employee.EmployeeService;
@@ -28,13 +29,16 @@ class InvitationAcceptanceControllerTest {
     }
 
     @Test
-    @DisplayName("accept delegates to invitationService")
+    @DisplayName("accept delegates to invitationService and returns what the invitee does next (D-62)")
     void acceptDelegatesToService() {
+        when(invitationService.acceptInvitation("valid-token")).thenReturn(AcceptOutcome.EXISTING_ACCOUNT);
         AcceptInvitationRequest request = new AcceptInvitationRequest("valid-token");
         ResponseEntity<?> response = controller.accept(request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(((InvitationMessageResponse) response.getBody()).message()).contains("accepted successfully");
+        AcceptInvitationResponse body = (AcceptInvitationResponse) response.getBody();
+        assertThat(body.message()).contains("accepted successfully");
+        assertThat(body.outcome()).isEqualTo(AcceptOutcome.EXISTING_ACCOUNT);
         verify(invitationService).acceptInvitation("valid-token");
     }
 

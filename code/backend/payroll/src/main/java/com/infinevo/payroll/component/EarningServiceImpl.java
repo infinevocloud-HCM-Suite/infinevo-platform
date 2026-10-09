@@ -211,6 +211,7 @@ public class EarningServiceImpl implements EarningService {
         earning.setTaxable(Boolean.TRUE.equals(request.taxable()));
         earning.setVariable(Boolean.TRUE.equals(request.variable()));
         earning.setOneTime(Boolean.TRUE.equals(request.oneTime()));
+        earning.setScheduledEarning(Boolean.TRUE.equals(request.scheduledEarning()));
         earning.setFbpComponent(Boolean.TRUE.equals(request.fbpComponent()));
         earning.setIncludedInEpf(Boolean.TRUE.equals(request.includedInEpf()));
         earning.setEpfInclusionType(request.epfInclusionType());

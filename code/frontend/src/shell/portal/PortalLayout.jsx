@@ -12,11 +12,10 @@ import {
 import { portalService } from './portalService.js';
 import { MyProfile } from './panels/MyProfile.jsx';
 import { MyLeave } from './panels/MyLeave.jsx';
-import { MyDocuments } from './panels/MyDocuments.jsx';
 import { MyPayslips } from './panels/MyPayslips.jsx';
 import { portalPanels as hrmsPortalPanels } from '../../hrms/index.js';
 import { portalPanels as payrollPortalPanels } from '../../payroll/index.js';
-import { leaveActions, profileActions } from '../../core/portal/index.js';
+import { leaveActions, profileActions, MyDocumentsPanel } from '../../core/portal/index.js';
 
 const { Title, Text } = Typography;
 
@@ -32,7 +31,7 @@ const PANEL_ICONS = {
 const PANEL_COMPONENTS = {
   profile: MyProfile,
   leave: MyLeave,
-  documents: MyDocuments,
+  documents: MyDocumentsPanel,
   payslips: MyPayslips,
 };
 

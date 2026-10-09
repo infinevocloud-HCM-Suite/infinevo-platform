@@ -15,6 +15,23 @@ vi.mock('../../shared/api/client.js', () => ({
   setTenantSuspendedHandler: vi.fn(),
 }));
 
+// The header reads /me through the same client (W-73.1); it is stubbed so the call counts and the
+// tenant-change listener count below are the feed's alone.
+vi.mock('../auth/useMe.js', () => ({
+  // welcomeSeen: true keeps `/` on the feed's home path, which is what these tests are about (W-73.8).
+  useMe: () => ({
+    displayName: '',
+    roles: [],
+    email: null,
+    welcomeSeen: true,
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+  fetchMe: vi.fn().mockResolvedValue({}),
+  markWelcomeSeen: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../auth/keycloak.js', () => {
   const listeners = new Set();
   return {

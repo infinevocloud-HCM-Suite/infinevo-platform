@@ -403,6 +403,36 @@ class RoleServiceTest {
     }
 
     @Test
+    @DisplayName("W-73.4: tenant-admin cannot be taken from the last active holder; with a second it can")
+    void lastActiveTenantAdminIsKept() {
+        UUID userId = userInTenant();
+        UserAccount account = userAccountRepository.findById(userId).orElseThrow();
+        when(account.getStatus()).thenReturn(UserAccount.STATUS_ACTIVE);
+        when(account.getEmail()).thenReturn("admin@acme.test");
+        when(account.getKeycloakUserId()).thenReturn(UUID.randomUUID());
+        Role tenantAdmin = systemRole("tenant-admin", "Tenant administrator");
+        when(roleRepository.findByTenantIdAndCode(TENANT, "tenant-admin")).thenReturn(Optional.of(tenantAdmin));
+        when(userRoleRepository.findByTenantIdAndUserAccountId(TENANT, userId))
+                .thenReturn(List.of(new UserRole(TENANT, userId, tenantAdmin.getId(), "t")));
+        when(userRoleRepository.countActiveHolders(TENANT, tenantAdmin.getId())).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.replaceUserRoles(userId, new UserRolesRequest(List.of())))
+                .isInstanceOf(RoleService.AdminGuardException.class)
+                .hasMessageContaining("last active tenant administrator");
+        assertThatThrownBy(() -> service.requireCanDisable(userId))
+                .isInstanceOf(RoleService.AdminGuardException.class)
+                .hasMessageContaining("last active tenant administrator");
+        verify(userRoleRepository, never()).deleteAll(anyIterable());
+        verify(userRoleRepository, org.mockito.Mockito.times(2)).lockTenantAdminGuard(TENANT);
+
+        when(userRoleRepository.countActiveHolders(TENANT, tenantAdmin.getId())).thenReturn(2L);
+        assertThat(service.replaceUserRoles(userId, new UserRolesRequest(List.of()))
+                        .roles())
+                .isEmpty();
+        service.requireCanDisable(userId);
+    }
+
+    @Test
     @DisplayName("A grant replaces the user's roles by difference")
     @SuppressWarnings("unchecked")
     void grantReplacesByDifference() {

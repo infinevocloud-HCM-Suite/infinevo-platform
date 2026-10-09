@@ -11,7 +11,7 @@ import { auditService } from './auditService.js';
 import * as screens from '@shell/screens';
 
 vi.mock('./tenantService.js', () => ({
-  tenantService: { get: vi.fn(), setModules: vi.fn(), setStatus: vi.fn() },
+  tenantService: { get: vi.fn(), setModules: vi.fn(), setStatus: vi.fn(), applyTemplate: vi.fn() },
 }));
 vi.mock('./impersonationService.js', () => ({
   impersonationService: { open: vi.fn(), close: vi.fn() },
@@ -218,6 +218,23 @@ describe('TenantDetail', () => {
     expect(screen.queryByText(/You are acting as/)).toBeNull();
   });
 
+  it('W-73.9: "Apply country template" applies it and says what was added and what was left alone', async () => {
+    tenantService.applyTemplate.mockResolvedValue({
+      countryCode: 'IN',
+      applied: ['holidays', 'statutory'],
+      skipped: ['salary_components'],
+    });
+    setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Apply country template' }));
+
+    await waitFor(() => expect(tenantService.applyTemplate).toHaveBeenCalledWith('tenant-globex'));
+    expect(
+      await screen.findByText(
+        'Added holidays, EPF and ESI. Left alone, already set up or module not held: salary components.',
+      ),
+    ).toBeDefined();
+  });
+
   it('shows the platform tenant with its tag and no switches, status or act-as', async () => {
     setup({ overview: { ...globex, tenant_id: '00000000-0000-0000-0000-000000000001', name: 'Infinevo', modules: [] } });
     const title = await screen.findAllByText('Infinevo');
@@ -227,5 +244,6 @@ describe('TenantDetail', () => {
     expect(screen.queryByRole('combobox', { name: 'Subscription status' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Act as' })).toBeNull();
     expect(within(document.body).queryByText('Act as')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Apply country template' })).toBeNull();
   });
 });

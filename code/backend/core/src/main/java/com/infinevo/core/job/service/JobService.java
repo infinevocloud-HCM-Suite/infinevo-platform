@@ -2,6 +2,7 @@ package com.infinevo.core.job.service;
 
 import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.entity.JobStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,7 +30,14 @@ public interface JobService {
 
     void markCompleted(String jobId, String resultPayload);
 
+    /**
+     * Marks the job FAILED, keeping the last attempt's error. An {@code import} job's payload — the uploaded
+     * file while queued — is cut to its {@code kind} (W-73.7); every other queue keeps its payload.
+     */
     void markFailed(String jobId, String errorMessage);
 
     Optional<JobStatusResponseDTO> getJobStatus(String jobId, UUID tenantId);
+
+    /** The tenant's twenty most recent jobs on {@code queueName}, newest first (W-73.7 import history). */
+    List<JobStatusResponseDTO> recentJobs(UUID tenantId, String queueName);
 }

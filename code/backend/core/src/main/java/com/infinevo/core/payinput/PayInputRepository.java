@@ -1,6 +1,7 @@
 package com.infinevo.core.payinput;
 
 import java.time.YearMonth;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,6 +35,21 @@ public interface PayInputRepository extends JpaRepository<PayInput, UUID> {
 
     /** Every row tagged to one run, all employees, one statement — the batch read W-30.2 needs. */
     List<PayInput> findByTenantIdAndRunRef(UUID tenantId, UUID runRef);
+
+    /**
+     * The rows a module wrote under the given references, in one statement — how W-73.6's scheduled
+     * earnings find the pay input each instalment became, and check one is not written twice.
+     * Reversals are included; a caller that wants originals only filters on {@code reversesId}.
+     */
+    List<PayInput> findByTenantIdAndSourceModuleAndSourceRefIn(
+            UUID tenantId, String sourceModule, Collection<String> sourceRefs);
+
+    /**
+     * One employee's rows a module wrote under references starting with {@code sourceRefPrefix}, in one
+     * statement — the history of W-73.6's scheduled instalments, whichever months they landed in.
+     */
+    List<PayInput> findByTenantIdAndEmployeeIdAndSourceModuleAndSourceRefStartingWith(
+            UUID tenantId, UUID employeeId, String sourceModule, String sourceRefPrefix);
 
     /** Whether a reversal of this row already exists — {@code reverse} refuses a second one. */
     boolean existsByTenantIdAndReversesId(UUID tenantId, UUID reversesId);

@@ -54,23 +54,53 @@ describe('AcceptInvitation component', () => {
     expect(Object.values(sessionStorage)).not.toContain('secret-token-12345');
   });
 
-  it('accept posts the token and displays success state', async () => {
-    publicInvitationService.accept.mockResolvedValueOnce({ message: 'Accepted' });
+  it('a new account: tells the invitee to open the second email, with no main Sign in button (D-62)', async () => {
+    publicInvitationService.accept.mockResolvedValueOnce({
+      message: 'Accepted',
+      outcome: 'SET_PASSWORD_EMAIL_SENT',
+    });
 
     render(<AcceptInvitation />);
-
-    const acceptBtn = screen.getByRole('button', { name: /Accept Invitation/i });
-    fireEvent.click(acceptBtn);
+    fireEvent.click(screen.getByRole('button', { name: /Accept Invitation/i }));
 
     await waitFor(() => {
       expect(publicInvitationService.accept).toHaveBeenCalledWith('secret-token-12345');
     });
 
-    expect(screen.getByText('Invitation Accepted')).toBeDefined();
-    expect(
-      screen.getByText(/Accepted. Check your email to set your password, then sign in./i),
-    ).toBeDefined();
-    expect(screen.getByRole('link', { name: /Sign in/i }) || screen.getByText(/Sign in/i)).toBeDefined();
+    expect(await screen.findByText('Check your email')).toBeDefined();
+    expect(screen.getByText(/second email with a link to set your password/i)).toBeDefined();
+    expect(document.getElementById('btn-sign-in')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/');
+  });
+
+  it('an existing account: says to sign in with the existing password, with a Sign in button (D-62)', async () => {
+    publicInvitationService.accept.mockResolvedValueOnce({ outcome: 'EXISTING_ACCOUNT' });
+
+    render(<AcceptInvitation />);
+    fireEvent.click(screen.getByRole('button', { name: /Accept Invitation/i }));
+
+    expect(await screen.findByText(/already have an Infinevo account/i)).toBeDefined();
+    expect(screen.queryByText('Check your email')).toBeNull();
+    expect(document.getElementById('btn-sign-in')).not.toBeNull();
+  });
+
+  it('the set-password mail failed: points at Forgot password, with a Sign in button (D-62)', async () => {
+    publicInvitationService.accept.mockResolvedValueOnce({ outcome: 'SET_PASSWORD_EMAIL_FAILED' });
+
+    render(<AcceptInvitation />);
+    fireEvent.click(screen.getByRole('button', { name: /Accept Invitation/i }));
+
+    expect(await screen.findByText(/Forgot password\?/)).toBeDefined();
+    expect(document.getElementById('btn-sign-in')).not.toBeNull();
+  });
+
+  it('a reply with no outcome falls back to the check-your-email message', async () => {
+    publicInvitationService.accept.mockResolvedValueOnce({ message: 'Accepted' });
+
+    render(<AcceptInvitation />);
+    fireEvent.click(screen.getByRole('button', { name: /Accept Invitation/i }));
+
+    expect(await screen.findByText('Check your email')).toBeDefined();
   });
 
   it('decline refuses a blank reason, then submits non-blank reason', async () => {

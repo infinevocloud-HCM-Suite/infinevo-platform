@@ -151,6 +151,7 @@ class ComponentRlsIT extends AbstractIntegrationTest {
                 false,
                 false,
                 false,
+                false,
                 null,
                 false,
                 true);

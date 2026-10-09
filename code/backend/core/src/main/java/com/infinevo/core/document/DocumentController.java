@@ -34,6 +34,10 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
  * {@code /api/v1/documents} — upload and soft delete (W-21, spec section 4). The two reads, metadata
  * and signed link, are {@link DocumentReadController}'s: their guard is two codes, not one.
  *
+ * <p>Upload takes a multipart {@code file} part and the request parameters {@code kind}, an optional
+ * {@code employeeId}, and an optional {@code label} — what an {@code EMPLOYEE_DOCUMENT} is, one of
+ * {@link DocumentLabel} (W-73.5); a label on any other kind is a {@code 400}.
+ *
  * <p>Thin by rule: unpack, delegate, repack — {@code docs/CONVENTIONS.md} section 3. No endpoint names
  * a tenant; {@code TenantContextFilter} bound it from the verified token.
  *
@@ -70,7 +74,8 @@ public class DocumentController {
     public ResponseEntity<DocumentResponse> upload(
             @RequestPart("file") MultipartFile file,
             @RequestParam("kind") DocumentKind kind,
-            @RequestParam(value = "employeeId", required = false) UUID employeeId)
+            @RequestParam(value = "employeeId", required = false) UUID employeeId,
+            @RequestParam(value = "label", required = false) DocumentLabel label)
             throws IOException {
         if (!kind.isUploadable()) {
             throw new DocumentService.ValidationException(
@@ -78,7 +83,7 @@ public class DocumentController {
         }
         UUID id;
         try (InputStream content = file.getInputStream()) {
-            id = documentService.store(kind, employeeId, file.getOriginalFilename(), content);
+            id = documentService.store(kind, employeeId, label, file.getOriginalFilename(), content);
         }
         return ResponseEntity.created(URI.create("/api/v1/documents/" + id)).body(documentService.get(id));
     }
@@ -134,7 +139,8 @@ public class DocumentController {
 
     /**
      * A request the framework could not bind: no {@code file} part, no {@code kind}, a {@code kind}
-     * outside {@link DocumentKind}, an id that is not a UUID, or a body that is not multipart at all.
+     * outside {@link DocumentKind}, a {@code label} outside {@link DocumentLabel}, an id that is not a
+     * UUID, or a body that is not multipart at all.
      *
      * <p>The exception's own message is not echoed: it carries the internal type names.
      */
@@ -150,7 +156,9 @@ public class DocumentController {
                 HttpStatus.BAD_REQUEST,
                 ApiError.VALIDATION_FAILED,
                 "The request could not be read. Send multipart/form-data with a 'file' part and a 'kind' of"
-                        + " EMPLOYEE_DOCUMENT, LEAVE_ATTACHMENT, REIMBURSEMENT_RECEIPT or INVESTMENT_PROOF.");
+                        + " EMPLOYEE_DOCUMENT, LEAVE_ATTACHMENT, REIMBURSEMENT_RECEIPT, INVESTMENT_PROOF or"
+                        + " TENANT_LOGO, and optionally a 'label' of ID_PROOF, ADDRESS_PROOF, OFFER_LETTER,"
+                        + " CONTRACT, CERTIFICATE or OTHER.");
     }
 
     private static ResponseEntity<ApiErrorResponse> error(HttpStatus status, ApiError code, String message) {

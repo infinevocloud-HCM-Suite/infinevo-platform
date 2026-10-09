@@ -14,7 +14,7 @@ param appOriginHostName string
 param keycloakOriginHostName string
 
 @description('Requests per client IP per minute above which the WAF blocks (W-51 section 2.4)')
-param rateLimitThreshold int = 100
+param rateLimitThreshold int = 1000
 
 @description('Tags for the resources')
 param tags object = {}

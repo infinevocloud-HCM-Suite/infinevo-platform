@@ -60,7 +60,7 @@ describe('InvitationTable component', () => {
     const resendBtn = document.getElementById('btn-resend-inv-1');
     fireEvent.click(resendBtn);
 
-    expect(handleResend).toHaveBeenCalledWith('inv-1');
+    expect(handleResend).toHaveBeenCalledWith('inv-1', mockInvitations[0]);
   });
 
   it('confirms before calling onRevoke', async () => {
@@ -78,8 +78,26 @@ describe('InvitationTable component', () => {
     fireEvent.click(confirmBtn);
 
     await waitFor(() => {
-      expect(handleRevoke).toHaveBeenCalledWith('inv-1');
+      expect(handleRevoke).toHaveBeenCalledWith('inv-1', mockInvitations[0]);
     });
+  });
+
+  it('W-73.4: shows a Kind column only when asked', () => {
+    const { rerender } = render(<InvitationTable data={mockInvitations} />);
+    expect(screen.queryByText('Kind')).toBeNull();
+
+    rerender(
+      <InvitationTable
+        showKind
+        data={[
+          { ...mockInvitations[0], kind: 'USER' },
+          { ...mockInvitations[1], kind: 'EMPLOYEE' },
+        ]}
+      />,
+    );
+    expect(screen.getByText('Kind')).toBeDefined();
+    expect(screen.getByText('User')).toBeDefined();
+    expect(screen.getByText('Employee')).toBeDefined();
   });
 
   it('renders custom emptyText when no invitations exist', () => {

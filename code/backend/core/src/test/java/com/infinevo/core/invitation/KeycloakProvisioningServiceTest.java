@@ -77,7 +77,7 @@ class KeycloakProvisioningServiceTest {
                 exchange.getResponseHeaders().add("Location", adminUrl() + users + "/" + createdId);
             }
             respond(exchange, createStatus, createStatus == 201 ? "" : "{\"error\":\"bad " + EMAIL + "\"}");
-        } else if (path.equals(users + "/" + createdId + "/execute-actions-email") && method.equals("PUT")) {
+        } else if (path.startsWith(users + "/") && path.endsWith("/execute-actions-email") && method.equals("PUT")) {
             respond(exchange, actionsEmailStatus, "");
         } else {
             respond(exchange, 404, "");
@@ -109,6 +109,7 @@ class KeycloakProvisioningServiceTest {
 
         assertThat(result.keycloakUserId()).isEqualTo(createdId);
         assertThat(result.newlyCreated()).isTrue();
+        assertThat(result.outcome()).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_SENT);
         assertThat(calls)
                 .extracting(Call::method, Call::path)
                 .containsExactly(
@@ -130,6 +131,7 @@ class KeycloakProvisioningServiceTest {
         KeycloakProvisioningService.ProvisioningResult result = service().getOrCreateKeycloakUser(EMAIL, null, null);
 
         assertThat(result.newlyCreated()).isTrue();
+        assertThat(result.outcome()).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_FAILED);
         assertThat(logs.list)
                 .anySatisfy(event -> assertThat(event.getFormattedMessage()).contains("set-password email"));
         assertThat(logs.list)
@@ -146,7 +148,85 @@ class KeycloakProvisioningServiceTest {
 
         assertThat(result.keycloakUserId()).isEqualTo(existing);
         assertThat(result.newlyCreated()).isFalse();
+        assertThat(result.outcome()).isEqualTo(AcceptOutcome.EXISTING_ACCOUNT);
         assertThat(calls).extracting(Call::method).containsExactly("POST", "GET");
+    }
+
+    @Test
+    @DisplayName("D-62: an existing user who never set a password is sent the set-password mail again")
+    void existingUserAwaitingPasswordGetsTheMailAgain() {
+        UUID existing = UUID.randomUUID();
+        searchBody = "[{\"id\":\"" + existing + "\",\"requiredActions\":[\"UPDATE_PASSWORD\"]}]";
+
+        KeycloakProvisioningService.ProvisioningResult result = service().getOrCreateKeycloakUser(EMAIL, null, null);
+
+        assertThat(result.keycloakUserId()).isEqualTo(existing);
+        assertThat(result.newlyCreated()).isFalse();
+        assertThat(result.outcome()).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_SENT);
+        assertThat(calls)
+                .extracting(Call::method, Call::path)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("POST", "/realms/master/protocol/openid-connect/token"),
+                        org.assertj.core.groups.Tuple.tuple("GET", "/admin/realms/infinevo/users"),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "PUT", "/admin/realms/infinevo/users/" + existing + "/execute-actions-email"));
+    }
+
+    @Test
+    @DisplayName("D-62: a create that races another acceptance (409) reuses the user and sends the mail itself")
+    void raceOnCreateSendsTheMail() {
+        UUID raced = UUID.randomUUID();
+        createStatus = 409;
+        // The first search finds nothing; the search after the 409 finds the raced user, still awaiting a password.
+        server.removeContext("/");
+        server.createContext("/", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if (path.equals("/admin/realms/infinevo/users")
+                    && exchange.getRequestMethod().equals("GET")) {
+                long searches =
+                        calls.stream().filter(c -> c.method().equals("GET")).count();
+                searchBody =
+                        searches == 0 ? "[]" : "[{\"id\":\"" + raced + "\",\"requiredActions\":[\"UPDATE_PASSWORD\"]}]";
+            }
+            handle(exchange);
+        });
+
+        KeycloakProvisioningService.ProvisioningResult result = service().getOrCreateKeycloakUser(EMAIL, null, null);
+
+        assertThat(result.keycloakUserId()).isEqualTo(raced);
+        assertThat(result.newlyCreated()).isFalse();
+        assertThat(result.outcome()).isEqualTo(AcceptOutcome.SET_PASSWORD_EMAIL_SENT);
+        assertThat(calls)
+                .extracting(Call::path)
+                .contains("/admin/realms/infinevo/users/" + raced + "/execute-actions-email");
+    }
+
+    @Test
+    @DisplayName("D-62: the set-password mail returns to the app — web client and the invitation link's origin")
+    void setPasswordMailCarriesTheWayBack() {
+        new KeycloakProvisioningServiceImpl(
+                        UNREACHABLE_ISSUER,
+                        adminUrl(),
+                        "admin",
+                        "admin-pw",
+                        "infinevo-web",
+                        "https://app.example/invitations/accept")
+                .getOrCreateKeycloakUser(EMAIL, null, null);
+
+        Call mail = calls.get(3);
+        assertThat(mail.path()).endsWith("/execute-actions-email");
+        assertThat(mail.query()).isEqualTo("client_id=infinevo-web&redirect_uri=https%3A%2F%2Fapp.example%2F");
+    }
+
+    @Test
+    @DisplayName("D-62: with no invitation link the mail is sent bare rather than with a guessed address")
+    void noInvitationLinkMeansNoRedirect() {
+        service().getOrCreateKeycloakUser(EMAIL, null, null);
+
+        assertThat(calls.get(3).query()).isNull();
+        assertThat(KeycloakProvisioningServiceImpl.appRoot("not a url")).isEmpty();
+        assertThat(KeycloakProvisioningServiceImpl.appRoot("http://localhost:5173/invitations/accept"))
+                .isEqualTo("http://localhost:5173/");
     }
 
     @Test

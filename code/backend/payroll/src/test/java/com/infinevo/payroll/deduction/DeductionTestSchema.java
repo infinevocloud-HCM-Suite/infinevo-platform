@@ -76,7 +76,7 @@ final class DeductionTestSchema {
         PayrollTestApp.TEST_DOCUMENTS.put(
                 id,
                 new DocumentResponse(
-                        id, employeeId, kind, "proof.pdf", "application/pdf", 1024L, "0", Instant.now(), "test"));
+                        id, employeeId, kind, null, "proof.pdf", "application/pdf", 1024L, "0", Instant.now(), "test"));
         return id;
     }
 

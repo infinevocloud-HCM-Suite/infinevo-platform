@@ -120,6 +120,24 @@ describe('SetupChecklist component', () => {
     expect(screen.queryByText('Pay schedule')).toBeNull();
   });
 
+  it('scrolls to the row the URL hash names once the steps have loaded (W-73.8 welcome links)', async () => {
+    const scrolled = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function scrollIntoView() {
+      scrolled.push(this.id);
+    };
+    try {
+      render(
+        <MemoryRouter initialEntries={['/setup#setup-step-row-pay-schedule']}>
+          <SetupChecklist />
+        </MemoryRouter>
+      );
+      await waitFor(() => expect(scrolled).toEqual(['setup-step-row-pay-schedule']));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   it('renders each of the four tags: Done, Skipped, New, and To do', async () => {
     render(
       <MemoryRouter>
@@ -135,6 +153,26 @@ describe('SetupChecklist component', () => {
     });
 
     expect(screen.getByText('Reason: Externally managed')).toBeDefined();
+  });
+
+  it('W-73.9: a step the country template filled reads "Pre-filled — review", not Done', async () => {
+    setupService.get.mockResolvedValue({
+      ...mockChecklistResponse,
+      steps: mockChecklistResponse.steps.map((s) =>
+        s.code === 'PAY_SCHEDULE'
+          ? { ...s, completed: true, completedAt: '2026-10-09T10:00:00Z', prefilled: true }
+          : s,
+      ),
+    });
+    render(
+      <MemoryRouter>
+        <SetupChecklist />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Pre-filled — review')).toBeDefined();
+    expect(screen.getByText('Filled in from the country template. Open it, check the values and save.')).toBeDefined();
+    expect(screen.getAllByText('Done')).toHaveLength(1);
   });
 
   it('the server percentage is shown unchanged', async () => {

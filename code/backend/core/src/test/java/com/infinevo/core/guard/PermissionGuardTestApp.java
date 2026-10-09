@@ -63,7 +63,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
-            "com.infinevo.core.tenant"
+            "com.infinevo.core.tenant",
+            "com.infinevo.core.user"
         },
         excludeFilters = {
             @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),

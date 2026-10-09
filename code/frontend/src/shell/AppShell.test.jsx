@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import fs from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -8,6 +8,7 @@ import { Provider } from 'react-redux';
 import { store } from './store.js';
 import { AppShell } from './AppShell.jsx';
 import * as navigationModule from './navigation/useNavigation.js';
+import * as meModule from './auth/useMe.js';
 import * as clientModule from '../shared/api/client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -140,6 +141,36 @@ describe('AppShell component', () => {
     expect(titles).toEqual(['People', 'Settings']);
   });
 
+  it('selects the menu item with the longest matching path, not the first prefix (W-73.2)', () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [
+        { key: 'core.admin.home', labelKey: 'nav.admin.home', path: '/zz-admin' },
+        { key: 'core.tenants', labelKey: 'nav.tenants', path: '/zz-admin/tenants' },
+        { key: 'core.other', labelKey: 'nav.roles', path: '/zz-admin-other' },
+      ],
+      loading: false,
+    });
+
+    const { container, unmount } = render(
+      <MemoryRouter initialEntries={['/zz-admin/tenants/abc']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+    const selected = () =>
+      Array.from(container.querySelectorAll('.ant-menu-item-selected')).map((el) => el.textContent.trim());
+    expect(selected()).toEqual(['Tenants']);
+    unmount();
+
+    const second = render(
+      <MemoryRouter initialEntries={['/zz-admin']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+    expect(
+      Array.from(second.container.querySelectorAll('.ant-menu-item-selected')).map((el) => el.textContent.trim()),
+    ).toEqual(['Dashboard']);
+  });
+
   it('shows the tenant name from the feed in the header', () => {
     vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
       items: [{ key: 'core', labelKey: 'Core', path: '/core' }],
@@ -216,6 +247,95 @@ describe('AppShell component', () => {
     shellFiles.forEach((filename) => {
       const source = fs.readFileSync(resolve(__dirname, filename), 'utf-8');
       expect(source).not.toMatch(hexRegex);
+    });
+  });
+
+  describe('welcome page (W-73.8)', () => {
+    const adminFeed = {
+      items: [{ key: 'core.setup', labelKey: 'nav.setup', path: '/setup' }],
+      homePath: '/setup',
+      tenantName: 'Acme Ltd',
+      loading: false,
+    };
+
+    function meSays(overrides) {
+      return vi.spyOn(meModule, 'useMe').mockReturnValue({
+        displayName: 'Ana Acme',
+        roles: ['tenant-admin'],
+        email: null,
+        welcomeSeen: false,
+        loading: false,
+        error: null,
+        refetch: vi.fn(),
+        ...overrides,
+      });
+    }
+
+    function renderAt(path) {
+      return render(
+        <Provider store={store}>
+          <MemoryRouter initialEntries={[path]}>
+            <AppShell />
+          </MemoryRouter>
+        </Provider>,
+      );
+    }
+
+    it('sends / to /welcome while /me says the page has not been seen', async () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(adminFeed);
+      meSays({ welcomeSeen: false });
+      renderAt('/');
+      expect(await screen.findByTestId('welcome-screen')).toBeDefined();
+      expect(screen.getByTestId('welcome-card-admin')).toBeDefined();
+    });
+
+    it('sends / to the home path once it has been seen', async () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+        items: [{ key: 'core.employee', labelKey: 'nav.employees', path: '/employees' }],
+        homePath: '/employees',
+        loading: false,
+      });
+      meSays({ roles: ['hr'], welcomeSeen: true });
+      renderAt('/');
+      expect(await screen.findByRole('heading', { name: /Employees/i }, { timeout: 5000 })).toBeDefined();
+      expect(screen.queryByTestId('welcome-screen')).toBeNull();
+    });
+
+    it('waits for /me before deciding where / goes', async () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(adminFeed);
+      // Not seen, but still loading: without the wait this would open the (eager) welcome page at once.
+      meSays({ loading: true, welcomeSeen: false });
+      renderAt('/');
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+      expect(screen.queryByTestId('welcome-screen')).toBeNull();
+      expect(document.querySelector('.ant-skeleton')).not.toBeNull();
+    });
+
+    it('an employee with an empty menu sees the welcome page first', async () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({ items: [], homePath: '/me', loading: false });
+      meSays({ roles: ['employee'], welcomeSeen: false });
+      renderAt('/');
+      expect(await screen.findByTestId('welcome-card-employee')).toBeDefined();
+      expect(screen.queryByText('No Modules Available')).toBeNull();
+    });
+
+    it('a user with no modules sees NoModules, not the welcome page (spec section 9)', () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({ items: [], loading: false });
+      meSays({ roles: [], welcomeSeen: false });
+      renderAt('/welcome');
+      expect(screen.getByText('No Modules Available')).toBeDefined();
+      expect(screen.queryByTestId('welcome-screen')).toBeNull();
+    });
+
+    it('the user menu opens it again as Getting started', async () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(adminFeed);
+      meSays({ welcomeSeen: true });
+      renderAt('/setup');
+      fireEvent.click(screen.getByRole('button', { name: 'User menu' }));
+      fireEvent.click(await screen.findByText('Getting started'));
+      expect(await screen.findByTestId('welcome-screen')).toBeDefined();
     });
   });
 });

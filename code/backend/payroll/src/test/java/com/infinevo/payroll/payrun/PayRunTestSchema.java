@@ -120,6 +120,12 @@ public final class PayRunTestSchema {
      */
     public static void clean() throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection()) {
+            // W-73.6: references core.employee ON DELETE RESTRICT, so it goes before the employees do.
+            if (PayrollTestSchema.tableExists(conn, "payroll", "scheduled_earning")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("DELETE FROM payroll.scheduled_earning");
+                }
+            }
             if (PayrollTestSchema.tableExists(conn, "core", "notification")) {
                 try (Statement st = conn.createStatement()) {
                     st.execute("DELETE FROM core.notification");

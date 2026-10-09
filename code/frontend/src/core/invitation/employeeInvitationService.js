@@ -12,8 +12,9 @@ export const employeeInvitationService = {
     return Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
   },
 
-  async create(body) {
-    const res = await apiClient.post('/v1/employee-invitations', body);
+  /** roleIds are the extra roles; the server grants `employee` itself on accept (W-73.3). */
+  async create({ employeeId, roleIds = [] }) {
+    const res = await apiClient.post('/v1/employee-invitations', { employeeId, roleIds });
     return res?.data ?? res;
   },
 

@@ -10,14 +10,51 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return { ...actual, useNavigate: () => mockNavigate };
 });
-vi.mock('./tenantService.js', () => ({ tenantService: { create: vi.fn() } }));
+vi.mock('./tenantService.js', () => ({ tenantService: { create: vi.fn(), countryTemplates: vi.fn() } }));
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn().mockResolvedValue(undefined),
   errorMsg: vi.fn(),
 }));
 
+const TEMPLATES = [
+  {
+    countryCode: 'IN',
+    sections: ['holidays', 'leave_types', 'pay_schedule', 'salary_components', 'statutory'],
+    version: 1,
+  },
+];
+
 describe('TenantCreate', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tenantService.countryTemplates.mockResolvedValue(TEMPLATES);
+  });
+
+  it('W-73.9: under Country, says what an IN tenant starts with, and "No template" for AE', async () => {
+    render(<MemoryRouter><TenantCreate /></MemoryRouter>);
+
+    expect(
+      await screen.findByText(
+        'Starts with: holidays, leave types, pay schedule, salary components, EPF and ESI',
+      ),
+    ).toBeDefined();
+
+    fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'ae' } });
+    expect(await screen.findByText('No template — the admin sets everything up')).toBeDefined();
+  });
+
+  it('W-73.9: no line at all when the template list cannot be read, and the form still creates', async () => {
+    tenantService.countryTemplates.mockRejectedValue(new Error('403'));
+    tenantService.create.mockResolvedValue({ tenantId: 't-9' });
+    render(<MemoryRouter><TenantCreate /></MemoryRouter>);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Initech' } });
+    fireEvent.click(screen.getByRole('button', { name: /create tenant/i }));
+
+    await waitFor(() => expect(tenantService.create).toHaveBeenCalled());
+    expect(screen.queryByText(/Starts with/)).toBeNull();
+    expect(screen.queryByText(/No template/)).toBeNull();
+  });
 
   it('posts the W-12-1 field names with the defaults and returns to the list', async () => {
     tenantService.create.mockResolvedValue({ tenantId: 't-9' });

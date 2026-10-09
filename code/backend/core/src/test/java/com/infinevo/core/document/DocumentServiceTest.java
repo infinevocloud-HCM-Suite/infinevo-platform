@@ -152,6 +152,40 @@ class DocumentServiceTest {
         verify(untouched, never()).saveAndFlush(any());
     }
 
+    // ── label (W-73.5)
+
+    @Test
+    @DisplayName("A label on an employee document is saved on the row")
+    void labelOnAnEmployeeDocumentIsSaved() {
+        UUID employee = UUID.randomUUID();
+        when(employees.findByIdAndTenantIdAndDeletedFalse(employee, TENANT))
+                .thenReturn(Optional.of(mock(Employee.class)));
+
+        service.store(DocumentKind.EMPLOYEE_DOCUMENT, employee, DocumentLabel.OFFER_LETTER, "offer.pdf", in(PDF));
+
+        Document row = savedRow();
+        assertThat(row.getLabel()).isEqualTo(DocumentLabel.OFFER_LETTER);
+        assertThat(DocumentResponse.from(row).label()).isEqualTo(DocumentLabel.OFFER_LETTER);
+    }
+
+    @Test
+    @DisplayName("A label on any other kind is a field error on label, and nothing is uploaded or saved")
+    void labelOnAnotherKindIsRefused() {
+        assertThatThrownBy(() ->
+                        service.store(DocumentKind.LEAVE_ATTACHMENT, null, DocumentLabel.ID_PROOF, "note.pdf", in(PDF)))
+                .isInstanceOfSatisfying(DocumentService.ValidationException.class, e -> assertThat(e.fieldErrors())
+                        .containsOnlyKeys("label"));
+        assertNothingWritten();
+    }
+
+    @Test
+    @DisplayName("The four-argument store saves no label - a label is never required")
+    void fourArgumentStoreSavesNoLabel() {
+        service.store(DocumentKind.EMPLOYEE_DOCUMENT, null, "offer.pdf", in(PDF));
+
+        assertThat(savedRow().getLabel()).isNull();
+    }
+
     // ── size
 
     @Test
@@ -319,7 +353,18 @@ class DocumentServiceTest {
     void deleteIsSoft() {
         UUID id = UUID.randomUUID();
         Document document = new Document(
-                id, TENANT, null, DocumentKind.EXPORT, "e.csv", "text/csv", 3, "documents", "p", "x".repeat(64), "t");
+                id,
+                TENANT,
+                null,
+                DocumentKind.EXPORT,
+                null,
+                "e.csv",
+                "text/csv",
+                3,
+                "documents",
+                "p",
+                "x".repeat(64),
+                "t");
         when(documents.findByIdAndTenantIdAndDeletedFalse(id, TENANT)).thenReturn(Optional.of(document));
 
         service.delete(id);
@@ -421,7 +466,8 @@ class DocumentServiceTest {
                         DocumentKind.EMPLOYEE_DOCUMENT,
                         DocumentKind.LEAVE_ATTACHMENT,
                         DocumentKind.REIMBURSEMENT_RECEIPT,
-                        DocumentKind.INVESTMENT_PROOF);
+                        DocumentKind.INVESTMENT_PROOF,
+                        DocumentKind.TENANT_LOGO);
     }
 
     // ── helpers

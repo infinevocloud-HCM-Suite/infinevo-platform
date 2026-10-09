@@ -1,4 +1,5 @@
 import React, { lazy } from 'react';
+import { Navigate } from 'react-router-dom';
 import employeeReducer from './employee/employeeSlice.js';
 import approvalReducer from './approvals/approvalSlice.js';
 import leaveReducer from './leave/leaveSlice.js';
@@ -9,6 +10,9 @@ const EmployeeList = lazy(() =>
 );
 const EmployeeCreate = lazy(() =>
   import('./employee/EmployeeCreate.jsx').then((m) => ({ default: m.EmployeeCreate }))
+);
+const EmployeeImport = lazy(() =>
+  import('./employee/EmployeeImport.jsx').then((m) => ({ default: m.EmployeeImport }))
 );
 const EmployeePage = lazy(() =>
   import('./employee/EmployeePage.jsx').then((m) => ({ default: m.EmployeePage }))
@@ -54,11 +58,8 @@ const SetupChecklist = lazy(() =>
   import('./setup/SetupChecklist.jsx').then((m) => ({ default: m.SetupChecklist }))
 );
 
-const UserInvitations = lazy(() =>
-  import('./invitation/UserInvitations.jsx').then((m) => ({ default: m.UserInvitations }))
-);
-const EmployeeInvitations = lazy(() =>
-  import('./invitation/EmployeeInvitations.jsx').then((m) => ({ default: m.EmployeeInvitations }))
+const UsersScreen = lazy(() =>
+  import('./users/UsersScreen.jsx').then((m) => ({ default: m.UsersScreen }))
 );
 const AcceptInvitation = lazy(() =>
   import('./invitation/AcceptInvitation.jsx').then((m) => ({ default: m.AcceptInvitation }))
@@ -86,6 +87,13 @@ const LeaveImport = lazy(() =>
   import('./leave/LeaveImport.jsx').then((m) => ({ default: m.LeaveImport }))
 );
 
+const CompanyProfile = lazy(() =>
+  import('./settings/CompanyProfile.jsx').then((m) => ({ default: m.CompanyProfile }))
+);
+
+const PlatformHome = lazy(() =>
+  import('./admin/PlatformHome.jsx').then((m) => ({ default: m.PlatformHome }))
+);
 const TenantList = lazy(() =>
   import('./admin/TenantList.jsx').then((m) => ({ default: m.TenantList }))
 );
@@ -96,11 +104,15 @@ const TenantDetail = lazy(() =>
   import('./admin/TenantDetail.jsx').then((m) => ({ default: m.TenantDetail }))
 );
 
+const INVITATIONS_TAB = { to: '/users?tab=invitations', replace: true };
+
 // Employee, leave, holidays, organisation setup, approvals. Available to every tenant.
 // Screens and slices land here as their work items are built.
 export const routes = [
   { path: '/employees', element: React.createElement(EmployeeList) },
   { path: '/employees/new', element: React.createElement(EmployeeCreate) },
+  // W-73.7: beneath the Employees item, no menu entry of its own; the screen checks core.employee.create.
+  { path: '/employees/import', element: React.createElement(EmployeeImport) },
   { path: '/employees/:id', element: React.createElement(EmployeePage) },
   { path: '/org/departments', element: React.createElement(Departments) },
   { path: '/org/designations', element: React.createElement(Designations) },
@@ -117,8 +129,10 @@ export const routes = [
   { path: '/holidays/:id/edit', element: React.createElement(Calendars) },
   { path: '/holidays/:id', element: React.createElement(CalendarHolidays) },
   { path: '/setup', element: React.createElement(SetupChecklist) },
-  { path: '/invitations/users', element: React.createElement(UserInvitations) },
-  { path: '/invitations/employees', element: React.createElement(EmployeeInvitations) },
+  // W-73.4: one screen for accounts, roles and invitations; the two old invitation paths redirect to it.
+  { path: '/users', element: React.createElement(UsersScreen) },
+  { path: '/invitations/users', mountWith: '/users', element: React.createElement(Navigate, INVITATIONS_TAB) },
+  { path: '/invitations/employees', mountWith: '/users', element: React.createElement(Navigate, INVITATIONS_TAB) },
   { path: '/leave/types', element: React.createElement(LeaveTypes) },
   { path: '/leave/allocations', element: React.createElement(Allocations) },
   { path: '/leave/requests', element: React.createElement(LeaveRequests) },
@@ -126,7 +140,11 @@ export const routes = [
   { path: '/leave/requests/:id', element: React.createElement(LeaveRequestDetail) },
   { path: '/leave/employees/:id', element: React.createElement(EmployeeLeave) },
   { path: '/leave/import', element: React.createElement(LeaveImport) },
-  // Platform staff only: mounted when the feed carries `core.tenants` (W-65.1 §4, W-65.3 §5).
+  // W-73.1: mounted when the feed carries `core.settings.company`.
+  { path: '/settings/company', element: React.createElement(CompanyProfile) },
+  // Platform staff only: mounted when the feed carries `core.admin.home` (W-73.2) or `core.tenants`
+  // (W-65.1 §4, W-65.3 §5).
+  { path: '/admin', element: React.createElement(PlatformHome) },
   { path: '/admin/tenants', element: React.createElement(TenantList) },
   { path: '/admin/tenants/new', element: React.createElement(TenantCreate) },
   { path: '/admin/tenants/:id', element: React.createElement(TenantDetail) },

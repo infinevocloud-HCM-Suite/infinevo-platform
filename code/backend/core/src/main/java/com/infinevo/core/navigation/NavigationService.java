@@ -1,6 +1,8 @@
 package com.infinevo.core.navigation;
 
 import com.infinevo.core.setup.SetupChecklistService;
+import com.infinevo.core.tenant.TenantBranding;
+import com.infinevo.core.tenant.TenantProfileService;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.entitlement.EntitlementService;
 import com.infinevo.shared.entitlement.PlatformModule;
@@ -26,7 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Derives the navigation feed for the current caller and bound tenant (W-12.3, spec section 4).
  *
  * <p>Filters items by module entitlement (W-12.2) and by action (W-11.2).
- * Returns the filtered menu alongside the caller's full action-code set, and the caller's home page (D-35).
+ * Returns the filtered menu alongside the caller's full action-code set, the caller's home page (D-35) and the
+ * bound tenant's branding - name, logo link, tagline (W-73.1).
  */
 @Service
 public class NavigationService {
@@ -43,6 +46,12 @@ public class NavigationService {
 
     private final PlatformTenant platformTenant;
 
+    /**
+     * Reads the bound tenant's name, tagline and logo link in one go (W-73.1); null in a context without it
+     * (a unit test), which then falls back to the name alone through {@link #jdbcTemplate}.
+     */
+    private final TenantProfileService tenantProfiles;
+
     @Autowired
     public NavigationService(
             EntitlementService entitlementService,
@@ -50,14 +59,16 @@ public class NavigationService {
             ObjectProvider<NavigationContributor> contributors,
             JdbcTemplate jdbcTemplate,
             ObjectProvider<SetupChecklistService> setupChecklist,
-            ObjectProvider<PlatformTenant> platformTenant) {
+            ObjectProvider<PlatformTenant> platformTenant,
+            ObjectProvider<TenantProfileService> tenantProfiles) {
         this(
                 entitlementService,
                 permissionService,
                 NavigationCatalogue.withContributed(contributors.orderedStream().toList()),
                 jdbcTemplate,
                 setupChecklist.getIfAvailable(),
-                platformTenant.getIfAvailable(PlatformTenant::new));
+                platformTenant.getIfAvailable(PlatformTenant::new),
+                tenantProfiles.getIfAvailable());
     }
 
     public NavigationService(EntitlementService entitlementService, PermissionService permissionService) {
@@ -86,8 +97,20 @@ public class NavigationService {
             JdbcTemplate jdbcTemplate,
             SetupChecklistService setupChecklist,
             PlatformTenant platformTenant) {
+        this(entitlementService, permissionService, catalogueItems, jdbcTemplate, setupChecklist, platformTenant, null);
+    }
+
+    public NavigationService(
+            EntitlementService entitlementService,
+            PermissionService permissionService,
+            List<NavigationCatalogue.ItemDefinition> catalogueItems,
+            JdbcTemplate jdbcTemplate,
+            SetupChecklistService setupChecklist,
+            PlatformTenant platformTenant,
+            TenantProfileService tenantProfiles) {
         this.jdbcTemplate = jdbcTemplate;
         this.setupChecklist = setupChecklist;
+        this.tenantProfiles = tenantProfiles;
         this.platformTenant = Objects.requireNonNull(platformTenant, "platformTenant must not be null");
         this.entitlementService = Objects.requireNonNull(entitlementService, "entitlementService must not be null");
         this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
@@ -116,13 +139,24 @@ public class NavigationService {
         }
 
         List<NavigationItemResponse> items = List.copyOf(visibleItems);
-        return new NavigationResponse(items, actions, modules, tenantName(), homePath(items, actions));
+        TenantBranding branding = tenantBranding();
+        return new NavigationResponse(
+                items,
+                actions,
+                modules,
+                branding.name(),
+                homePath(items, actions),
+                branding.logoUrl(),
+                branding.tagline());
     }
 
     /** The portal's own page: mounted for every signed-in user whatever the feed says, so always a safe home. */
     static final String PORTAL_HOME = "/me";
 
-    static final String PLATFORM_HOME = "/admin/tenants";
+    static final String PLATFORM_HOME = "/admin";
+    /** The platform home before W-73.2's dashboard, still the fallback when the dashboard item is withdrawn. */
+    static final String PLATFORM_TENANTS = "/admin/tenants";
+
     static final String SETUP_HOME = "/setup";
     static final String PAYROLL_HOME = "/payroll/dashboard";
     static final String HRMS_HOME = "/hrms/dashboard";
@@ -133,7 +167,7 @@ public class NavigationService {
      * caller's actions, never from a role name, and only ever a path the visible feed names (or the portal):
      *
      * <ol>
-     *   <li>the platform tenant: the tenants screen;
+     *   <li>the platform tenant: the platform dashboard (W-73.2), else the tenants screen;
      *   <li>a tenant admin ({@code core.tenant.manage}) whose setup is unfinished: the setup checklist;
      *   <li>a payroll reader ({@code payroll.run.read}, which gates the payroll dashboard): the payroll dashboard;
      *   <li>someone who reads other people ({@code core.employee.read} or {@code core.employee.read_team}) and
@@ -142,7 +176,7 @@ public class NavigationService {
      *   <li>everyone else: the portal.
      * </ol>
      *
-     * <p>The platform tenant falls back to the first visible path when its tenants screen is hidden.
+     * <p>The platform tenant falls back to the first visible path when both its screens are hidden.
      */
     private String homePath(List<NavigationItemResponse> items, Set<String> actions) {
         Set<String> visible = new LinkedHashSet<>();
@@ -152,6 +186,9 @@ public class NavigationService {
         if (tenantId.isPresent() && platformTenant.isPlatformTenant(tenantId.get())) {
             if (visible.contains(PLATFORM_HOME)) {
                 return PLATFORM_HOME;
+            }
+            if (visible.contains(PLATFORM_TENANTS)) {
+                return PLATFORM_TENANTS;
             }
             return firstLeafPath(items).orElse(PORTAL_HOME);
         }
@@ -221,18 +258,27 @@ public class NavigationService {
         return Optional.empty();
     }
 
+    private static final TenantBranding NO_BRANDING = new TenantBranding(null, null, null, null);
+
     /**
-     * The bound tenant's name. Row-level security lets a tenant read its own row, so while staff
-     * act inside a customer tenant this is the customer's name.
+     * The bound tenant's name, tagline and logo link (W-73.1). Row-level security lets a tenant read its own
+     * row, so while staff act inside a customer tenant this is the customer's branding. Without a profile
+     * service - a unit test - the name alone, from the same row; every field null when nothing can be read.
      */
-    private String tenantName() {
+    private TenantBranding tenantBranding() {
         Optional<UUID> tenantId = TenantContext.current();
-        if (jdbcTemplate == null || tenantId.isEmpty()) {
-            return null;
+        if (tenantId.isEmpty()) {
+            return NO_BRANDING;
+        }
+        if (tenantProfiles != null) {
+            return tenantProfiles.branding().orElse(NO_BRANDING);
+        }
+        if (jdbcTemplate == null) {
+            return NO_BRANDING;
         }
         List<String> names = jdbcTemplate.queryForList(
                 "SELECT name FROM core.tenant WHERE tenant_id = ?", String.class, tenantId.get());
-        return names.isEmpty() ? null : names.get(0);
+        return names.isEmpty() ? NO_BRANDING : new TenantBranding(names.get(0), null, null, null);
     }
 
     /**
@@ -240,7 +286,7 @@ public class NavigationService {
      * behind them ({@code core.tenant.read}, {@code core.user.manage}) for the tenant and user endpoints,
      * so the action filter alone would show them; the platform's menu is Tenants and Audit.
      */
-    static final Set<String> CUSTOMER_ONLY_KEYS = Set.of("core.setup", "core.invitations.users");
+    static final Set<String> CUSTOMER_ONLY_KEYS = Set.of("core.setup", "core.users", "core.settings.company");
 
     private Optional<NavigationItemResponse> filterItem(
             NavigationCatalogue.ItemDefinition itemDef, Set<String> actions, boolean platformTenantBound) {

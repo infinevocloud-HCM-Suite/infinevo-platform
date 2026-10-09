@@ -6,9 +6,11 @@ import { onTenantChange } from '../auth/keycloak.js';
 /**
  * The navigation feed (W-12.3 §5): what the server says this caller may see, and nothing else.
  *
- *   GET /api/v1/navigation -> { items: [...ordered...], actions: [...caller's codes...], homePath }
+ *   GET /api/v1/navigation -> { items: [...ordered...], actions: [...caller's codes...], homePath,
+ *                               tenantName, tenantLogoUrl, tagline }
  *
  * `homePath` (D-35) is where the server says this caller lands after login; null when absent.
+ * `tenantLogoUrl` and `tagline` (W-73.1) are the header's branding; null when the tenant has none.
  *
  * One store for the whole shell. It is fetched once after login and again whenever the
  * signed-in tenant changes - the signal for that is the Keycloak adapter's token callbacks
@@ -24,6 +26,8 @@ const EMPTY = Object.freeze({
   actions: [],
   modules: [],
   tenantName: null,
+  tenantLogoUrl: null,
+  tagline: null,
   homePath: null,
   loading: false,
   loaded: false,
@@ -68,6 +72,8 @@ export async function fetchNavigationFeed() {
       actions: Array.isArray(data.actions) ? data.actions : [],
       modules: Array.isArray(data.modules) ? data.modules : [],
       tenantName: typeof data.tenantName === 'string' ? data.tenantName : null,
+      tenantLogoUrl: typeof data.tenantLogoUrl === 'string' && data.tenantLogoUrl ? data.tenantLogoUrl : null,
+      tagline: typeof data.tagline === 'string' && data.tagline ? data.tagline : null,
       homePath: typeof data.homePath === 'string' && data.homePath.startsWith('/') ? data.homePath : null,
       loading: false,
       loaded: true,
@@ -80,6 +86,8 @@ export async function fetchNavigationFeed() {
       actions: [],
       modules: [],
       tenantName: null,
+      tenantLogoUrl: null,
+      tagline: null,
       homePath: null,
       loading: false,
       loaded: true,
@@ -104,6 +112,8 @@ NavigationProvider.propTypes = {
     actions: PropTypes.oneOfType([PropTypes.array, PropTypes.instanceOf(Set)]),
     modules: PropTypes.array,
     tenantName: PropTypes.string,
+    tenantLogoUrl: PropTypes.string,
+    tagline: PropTypes.string,
     homePath: PropTypes.string,
     loading: PropTypes.bool,
     error: PropTypes.object,
@@ -111,8 +121,8 @@ NavigationProvider.propTypes = {
 };
 
 /**
- * The feed as the shell sees it: `items`, `actions`, `modules`, `tenantName`, `homePath`, `loading`, `error`,
- * and `refetch`.
+ * The feed as the shell sees it: `items`, `actions`, `modules`, `tenantName`, `tenantLogoUrl`, `tagline`,
+ * `homePath`, `loading`, `error`, and `refetch`.
  *
  * `loading` is true from the first render until the first fetch settles - not only while a
  * request is in flight - so the shell never reads "not asked yet" as "the feed is empty".
@@ -148,6 +158,8 @@ export function useNavigation() {
     actions: active.actions || [],
     modules: active.modules || [],
     tenantName: active.tenantName || null,
+    tenantLogoUrl: active.tenantLogoUrl || null,
+    tagline: active.tagline || null,
     homePath: active.homePath || null,
     loading: !!active.loading || (!provided && !active.loaded),
     error: active.error || null,

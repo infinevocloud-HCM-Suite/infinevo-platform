@@ -30,6 +30,29 @@ public interface EmployeeInvitationRepository extends JpaRepository<EmployeeInvi
 
     Optional<EmployeeInvitation> findByTokenHash(String tokenHash);
 
+    /**
+     * The live, active employees in this tenant with a work email, no linked account and no live pending
+     * invitation — the ones "Invite all without access" invites (W-73.7). Ordered by employee number.
+     */
+    @Query(
+            """
+            SELECT e.id FROM Employee e
+            WHERE e.tenantId = :tenantId
+              AND e.deleted = false
+              AND e.status = com.infinevo.core.employee.EmploymentStatus.ACTIVE
+              AND e.userAccountId IS NULL
+              AND e.workEmail IS NOT NULL
+              AND TRIM(e.workEmail) <> ''
+              AND NOT EXISTS (
+                  SELECT i.id FROM EmployeeInvitation i
+                  WHERE i.tenantId = :tenantId
+                    AND i.employeeId = e.id
+                    AND i.status = com.infinevo.core.invitation.InvitationStatus.PENDING
+                    AND i.expiresAt > :now)
+            ORDER BY e.employeeNumber
+            """)
+    List<UUID> findEmployeeIdsWithoutAccess(@Param("tenantId") UUID tenantId, @Param("now") Instant now);
+
     @Query(
             "SELECT e FROM EmployeeInvitation e WHERE e.tenantId = :tenantId AND e.employeeId = :employeeId AND e.status = com.infinevo.core.invitation.InvitationStatus.PENDING AND e.expiresAt > :now")
     Optional<EmployeeInvitation> findActivePendingByEmployeeId(

@@ -47,6 +47,10 @@ public class Earning extends SalaryComponent {
     @Column(name = "is_one_time", nullable = false)
     private boolean oneTime = false;
 
+    /** W-73.6: can be planned for a future month on the employee's Salary tab ({@code V161}). */
+    @Column(name = "is_scheduled_earning", nullable = false)
+    private boolean scheduledEarning = false;
+
     @Column(name = "is_fbp_component", nullable = false)
     private boolean fbpComponent = false;
 
@@ -138,6 +142,14 @@ public class Earning extends SalaryComponent {
 
     public void setOneTime(boolean oneTime) {
         this.oneTime = oneTime;
+    }
+
+    public boolean isScheduledEarning() {
+        return scheduledEarning;
+    }
+
+    public void setScheduledEarning(boolean scheduledEarning) {
+        this.scheduledEarning = scheduledEarning;
     }
 
     public boolean isFbpComponent() {

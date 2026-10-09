@@ -43,6 +43,11 @@ abstract class AuthzController {
         return conflict(e);
     }
 
+    @ExceptionHandler(RoleService.AdminGuardException.class)
+    public ResponseEntity<ApiErrorResponse> handleAdminGuard(RoleService.AdminGuardException e) {
+        return conflict(e);
+    }
+
     @ExceptionHandler(RoleService.RoleInUseException.class)
     public ResponseEntity<ApiErrorResponse> handleInUse(RoleService.RoleInUseException e) {
         return conflict(e);

@@ -9,6 +9,34 @@ const GENERIC_409_MESSAGE =
   'This invitation cannot be used. It may have expired, been used or been withdrawn. Ask for a new invitation.';
 const SERVICE_503_MESSAGE = 'Try again in a few minutes';
 
+/**
+ * What the invitee does next, by the accept reply's `outcome` (D-62). Nobody is sent to the sign-in
+ * screen before they have a password, or told to wait for a mail that will not come.
+ */
+export const ACCEPTED_NEXT_STEP = {
+  SET_PASSWORD_EMAIL_SENT: {
+    title: 'Check your email',
+    text:
+      "You're in. We've sent you a second email with a link to set your password. " +
+      'Open it, choose a password, and you will be taken to sign in.',
+    showSignIn: false,
+  },
+  SET_PASSWORD_EMAIL_FAILED: {
+    title: 'Your account is ready',
+    text:
+      "We couldn't send the email to set your password. On the sign-in page, choose " +
+      '"Forgot password?" and enter this email address to get the link.',
+    showSignIn: true,
+  },
+  EXISTING_ACCOUNT: {
+    title: 'Invitation accepted',
+    text: 'You already have an Infinevo account. Sign in with your existing password.',
+    showSignIn: true,
+  },
+};
+
+const ACCEPTED_FALLBACK = ACCEPTED_NEXT_STEP.SET_PASSWORD_EMAIL_SENT;
+
 export function AcceptInvitation() {
   const [token] = useState(() => {
     if (typeof window === 'undefined') return '';
@@ -34,6 +62,7 @@ export function AcceptInvitation() {
   const [declineError, setDeclineError] = useState(null);
 
   const [status, setStatus] = useState('idle'); // 'idle' | 'accepted' | 'declined' | 'error'
+  const [outcome, setOutcome] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
   const formatError = (err) => {
@@ -56,7 +85,8 @@ export function AcceptInvitation() {
     setAccepting(true);
     setErrorMessage(null);
     try {
-      await publicInvitationService.accept(token);
+      const reply = await publicInvitationService.accept(token);
+      setOutcome(reply?.outcome ?? null);
       setStatus('accepted');
     } catch (err) {
       setStatus('error');
@@ -98,6 +128,7 @@ export function AcceptInvitation() {
   };
 
   if (status === 'accepted') {
+    const next = ACCEPTED_NEXT_STEP[outcome] ?? ACCEPTED_FALLBACK;
     return (
       <div
         style={{
@@ -112,13 +143,21 @@ export function AcceptInvitation() {
         <Card style={{ maxWidth: 520, width: '100%', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
           <Result
             status="success"
-            title="Invitation Accepted"
-            subTitle="Accepted. Check your email to set your password, then sign in."
-            extra={[
-              <Button type="primary" key="signin" id="btn-sign-in" href="/">
-                Sign in
-              </Button>,
-            ]}
+            title={next.title}
+            subTitle={next.text}
+            extra={
+              next.showSignIn
+                ? [
+                    <Button type="primary" key="signin" id="btn-sign-in" href="/">
+                      Sign in
+                    </Button>,
+                  ]
+                : [
+                    <Paragraph key="later" type="secondary" style={{ marginBottom: 0 }}>
+                      Already set your password? <a href="/">Sign in</a>
+                    </Paragraph>,
+                  ]
+            }
           />
         </Card>
       </div>

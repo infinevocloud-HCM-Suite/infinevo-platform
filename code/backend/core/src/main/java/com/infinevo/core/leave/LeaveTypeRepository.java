@@ -19,4 +19,7 @@ public interface LeaveTypeRepository extends JpaRepository<LeaveType, UUID> {
     List<LeaveType> findByTenantIdAndIsActiveTrueOrderByCodeAsc(UUID tenantId);
 
     boolean existsByTenantIdAndCode(UUID tenantId, String code);
+
+    /** Whether the tenant has any leave type at all (W-73.9: the leave template writes only where none). */
+    boolean existsByTenantId(UUID tenantId);
 }

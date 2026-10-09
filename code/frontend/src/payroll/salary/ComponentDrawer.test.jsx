@@ -395,4 +395,25 @@ describe('buildPayload', () => {
     expect(payload.earningFrequency).toBe('MONTHLY');
     expect(payload.includedInEpf).toBe(true);
   });
+
+  it('W-73.6: the Scheduled checkbox sits under Variable and is sent as scheduledEarning', async () => {
+    componentService.create.mockResolvedValue({ id: 'new-id' });
+    renderDrawer();
+
+    const scheduledBox = screen.getByRole('checkbox', { name: 'Scheduled' });
+    expect(scheduledBox.checked).toBe(false);
+    fireEvent.click(scheduledBox);
+    await chooseEarningType('Bonus');
+    fillRequired();
+    save();
+
+    await waitFor(() => expect(componentService.create).toHaveBeenCalledTimes(1));
+    const body = componentService.create.mock.calls[0][1];
+    expect(body.scheduledEarning).toBe(true);
+    expect(body.variable).toBe(false);
+    expect(normaliseInitialValues('earnings', { earningType: 'Bonus', scheduledEarning: true }).scheduledEarning).toBe(
+      true
+    );
+    expect(normaliseInitialValues('earnings', { earningType: 'Bonus' }).scheduledEarning).toBe(false);
+  });
 });

@@ -48,13 +48,22 @@ public final class NavigationCatalogue {
     }
 
     /**
-     * The core menu, in groups (D-34): People, Organisation, Approvals, Leave, Settings, then the platform's
-     * Tenants. A group's {@code path} and {@code targetEndpoint} are its first child's; the feed rewrites the path
+     * The core menu, in groups (D-34): the platform's Dashboard (W-73.2), People, Organisation, Approvals, Leave,
+     * Settings, then the platform's Tenants. Dashboard and Tenants need {@code core.tenant.provision}, which only
+     * the platform tenant's roles hold (V158), so a customer never sees either. A group's {@code path} and {@code targetEndpoint} are its first child's; the feed rewrites the path
      * to the first child the caller can see. People, Organisation and Settings require no action of their own, so
      * the service shows each exactly when one of its children is visible. Leaf keys, label keys, paths, endpoints
      * and actions are the ones the flat menu had, so the frontend's routes and labels still match.
      */
     public static final List<ItemDefinition> DEFAULT_ITEMS = List.of(
+            // W-73.2: the platform staff's home page, first in their menu.
+            new ItemDefinition(
+                    "core.admin.home",
+                    "nav.admin.home",
+                    "/admin",
+                    "/api/v1/tenants/summary",
+                    null,
+                    "core.tenant.provision"),
             new ItemDefinition(
                     "core.people",
                     "nav.people",
@@ -70,20 +79,9 @@ public final class NavigationCatalogue {
                                     "/api/v1/employees",
                                     null,
                                     "core.employee.read"),
+                            // W-73.4: one screen for accounts, roles and both kinds of invitation
                             new ItemDefinition(
-                                    "core.invitations.users",
-                                    "nav.userInvitations",
-                                    "/invitations/users",
-                                    "/api/v1/user-invitations",
-                                    null,
-                                    "core.user.manage"),
-                            new ItemDefinition(
-                                    "core.invitations.employees",
-                                    "nav.employeeInvitations",
-                                    "/invitations/employees",
-                                    "/api/v1/employee-invitations",
-                                    null,
-                                    "core.employee.create"))),
+                                    "core.users", "nav.users", "/users", "/api/v1/users", null, "core.user.manage"))),
             new ItemDefinition(
                     "core.org",
                     "nav.organisation",
@@ -200,6 +198,14 @@ public final class NavigationCatalogue {
                                     "nav.setup",
                                     "/setup",
                                     "/api/v1/setup-checklist",
+                                    null,
+                                    "core.tenant.read"),
+                            // W-73.1: the company profile - name, logo, tagline - for whoever reads the tenant
+                            new ItemDefinition(
+                                    "core.settings.company",
+                                    "nav.settings.company",
+                                    "/settings/company",
+                                    "/api/v1/tenants/current/profile",
                                     null,
                                     "core.tenant.read"),
                             new ItemDefinition(

@@ -6,6 +6,8 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class PayScheduleServiceImpl implements PayScheduleService {
+
+    private static final int MAX_ACTOR_LEN = 100;
 
     private final PayScheduleRepository repository;
 
@@ -60,9 +64,23 @@ public class PayScheduleServiceImpl implements PayScheduleService {
                         ? request.inputCutoffDay().shortValue()
                         : PaySchedule.DEFAULT_INPUT_CUTOFF_DAY);
         schedule.setFirstPeriodStart(request.firstPeriodStart());
+        // W-73.9: a save is a review - it replaces the country template as the last writer.
+        schedule.setUpdatedBy(currentActor());
 
         PaySchedule saved = repository.save(schedule);
         return PayScheduleResponse.from(saved, true);
+    }
+
+    private static String currentActor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null
+                || !auth.isAuthenticated()
+                || auth.getName() == null
+                || auth.getName().isBlank()) {
+            return PaySchedule.ACTOR_SYSTEM;
+        }
+        String name = auth.getName();
+        return name.length() > MAX_ACTOR_LEN ? name.substring(0, MAX_ACTOR_LEN) : name;
     }
 
     // ── validation ───────────────────────────────────────────────────────────

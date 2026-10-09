@@ -154,7 +154,13 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public UUID store(DocumentKind kind, UUID employeeId, String fileName, InputStream content) {
-        Accepted accepted = accept(kind, employeeId, fileName, content != null);
+        return store(kind, employeeId, null, fileName, content);
+    }
+
+    @Override
+    @Transactional
+    public UUID store(DocumentKind kind, UUID employeeId, DocumentLabel label, String fileName, InputStream content) {
+        Accepted accepted = accept(kind, employeeId, label, fileName, content != null);
 
         byte[] bytes = readBounded(content, limitFor(kind));
         checkContent(accepted, bytes.length, bytes);
@@ -162,13 +168,13 @@ public class DocumentServiceImpl implements DocumentService {
         UUID id = UUID.randomUUID();
         String path = blobPath(accepted.tenantId(), employeeId, kind, id);
         blobStorage.upload(container, path, bytes, accepted.type().contentType());
-        return persist(id, accepted, employeeId, kind, bytes.length, path, sha256Hex(bytes));
+        return persist(id, accepted, employeeId, kind, label, bytes.length, path, sha256Hex(bytes));
     }
 
     @Override
     @Transactional
     public UUID storeFile(DocumentKind kind, UUID employeeId, String fileName, Path file) {
-        Accepted accepted = accept(kind, employeeId, fileName, file != null);
+        Accepted accepted = accept(kind, employeeId, null, fileName, file != null);
 
         long size;
         byte[] head;
@@ -187,7 +193,7 @@ public class DocumentServiceImpl implements DocumentService {
         String path = blobPath(accepted.tenantId(), employeeId, kind, id);
         String checksum = sha256Hex(file);
         blobStorage.upload(container, path, file, accepted.type().contentType());
-        return persist(id, accepted, employeeId, kind, size, path, checksum);
+        return persist(id, accepted, employeeId, kind, null, size, path, checksum);
     }
 
     @Override
@@ -225,20 +231,39 @@ public class DocumentServiceImpl implements DocumentService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentResponse> findByEmployeeAndKind(UUID employeeId, DocumentKind kind) {
+        UUID tenantId = TenantContext.require();
+        if (employeeId == null || kind == null) {
+            return List.of();
+        }
+        return documents
+                .findByTenantIdAndEmployeeIdAndKindAndDeletedFalseOrderByCreatedAtDesc(tenantId, employeeId, kind)
+                .stream()
+                .map(DocumentResponse::from)
+                .toList();
+    }
+
     /** What {@link #accept} settled: the bound tenant, the cleaned name, and the type it names. */
     private record Accepted(UUID tenantId, String name, DocumentType type) {}
 
     /**
-     * Every check that needs no bytes: a tenant is bound, the request is whole, the name is one of the
-     * accepted types, and the employee — if named — is live in the bound tenant. In that order, so a
-     * request that is refused never has its content read.
+     * Every check that needs no bytes: a tenant is bound, the request is whole, a label sits only on an
+     * employee document (W-73.5), the name is one of the accepted types, and the employee — if named —
+     * is live in the bound tenant. In that order, so a request that is refused never has its content
+     * read. A label is never required: the column is nullable and the callers that predate it upload
+     * employee documents without one.
      */
-    private Accepted accept(DocumentKind kind, UUID employeeId, String fileName, boolean hasContent) {
+    private Accepted accept(
+            DocumentKind kind, UUID employeeId, DocumentLabel label, String fileName, boolean hasContent) {
         UUID tenantId = TenantContext.require();
 
         Map<String, String> errors = new LinkedHashMap<>();
         if (kind == null) {
             errors.put("kind", "kind is required");
+        } else if (label != null && kind != DocumentKind.EMPLOYEE_DOCUMENT) {
+            errors.put("label", "label applies to EMPLOYEE_DOCUMENT only");
         }
         String name = cleanFileName(fileName, errors);
         if (!hasContent) {
@@ -276,12 +301,20 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     private UUID persist(
-            UUID id, Accepted accepted, UUID employeeId, DocumentKind kind, long size, String path, String checksum) {
+            UUID id,
+            Accepted accepted,
+            UUID employeeId,
+            DocumentKind kind,
+            DocumentLabel label,
+            long size,
+            String path,
+            String checksum) {
         documents.saveAndFlush(new Document(
                 id,
                 accepted.tenantId(),
                 employeeId,
                 kind,
+                label,
                 accepted.name(),
                 accepted.type().contentType(),
                 size,

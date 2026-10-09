@@ -335,6 +335,7 @@ class ComponentControllerTest {
                 false,
                 false,
                 false,
+                false,
                 true,
                 null,
                 false,

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import com.azure.storage.queue.QueueServiceClient;
+import com.infinevo.core.employeeimport.EmployeeImportService;
 import com.infinevo.core.job.JobState;
 import com.infinevo.core.job.dto.JobStatusResponseDTO;
 import com.infinevo.core.job.service.JobService;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -94,6 +96,16 @@ class QueueRoundTripIT extends AbstractIntegrationTest {
                 reporter.report(1, 1);
                 return computedRun(payrunId);
             };
+        }
+
+        /**
+         * The listener package also holds the employee import listener (W-73.7); its service lives in
+         * core, which this context does not load. A stand-in lets the listener be built; nothing here
+         * sends to its queue.
+         */
+        @Bean
+        EmployeeImportService employeeImportService() {
+            return Mockito.mock(EmployeeImportService.class);
         }
 
         /** A second listener, on its own queue, whose payload step always throws. */

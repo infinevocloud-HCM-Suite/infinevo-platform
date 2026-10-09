@@ -104,6 +104,7 @@ public class ProofTestDocuments {
                                 id,
                                 rs.getObject(1, UUID.class),
                                 DocumentKind.valueOf(rs.getString(2)),
+                                null,
                                 rs.getString(3),
                                 rs.getString(4),
                                 rs.getLong(5),

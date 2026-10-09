@@ -154,6 +154,101 @@ class TenantQueryServiceTest {
     }
 
     @Test
+    @DisplayName("W-73.2: bound to a customer tenant, summary() throws PermissionDeniedException before any SQL runs")
+    void summary_whenCustomerTenant_throwsBeforeSql() {
+        TenantContext.set(CUSTOMER_TENANT);
+
+        assertThatThrownBy(() -> tenantQueryService.summary()).isInstanceOf(PermissionDeniedException.class);
+
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    @DisplayName("W-73.2: summary() counts customers by status, keeps the last ten, names the waiting ones and"
+            + " leaves the platform tenant out")
+    void summary_countsCustomersAndLeavesThePlatformOut() {
+        TenantContext.set(PLATFORM_TENANT);
+        Instant now = Instant.parse("2026-10-08T10:00:00Z");
+
+        List<TenantOverview> rows = new java.util.ArrayList<>();
+        rows.add(tenant(PLATFORM_TENANT, "Infinevo", "ACTIVE", now));
+        UUID suspended = UUID.randomUUID();
+        rows.add(tenant(suspended, "Suspended Co", "SUSPENDED", now.minus(java.time.Duration.ofDays(40))));
+        UUID noSubscription = UUID.randomUUID();
+        rows.add(tenant(noSubscription, "Bare Co", null, null));
+        UUID newest = null;
+        for (int i = 0; i < 11; i++) {
+            UUID id = UUID.randomUUID();
+            rows.add(tenant(id, "Active " + i, "ACTIVE", now.minus(java.time.Duration.ofDays(i))));
+            if (i == 0) {
+                newest = id;
+            }
+        }
+        when(jdbcTemplate.query(eq("SELECT * FROM core.list_tenants()"), any(RowMapper.class)))
+                .thenReturn(rows);
+        Instant expiry = now.plus(java.time.Duration.ofDays(3));
+        when(jdbcTemplate.query(eq(WaitingAdminInvitation.SELECT_ALL), any(RowMapper.class)))
+                .thenReturn(List.of(
+                        new WaitingAdminInvitation(
+                                suspended, UUID.randomUUID(), "boss@suspended.test", "EXPIRED", expiry),
+                        new WaitingAdminInvitation(
+                                PLATFORM_TENANT, UUID.randomUUID(), "staff@infinevo.test", "PENDING", expiry)));
+
+        TenantSummaryResponse summary = tenantQueryService.summary(now);
+
+        assertThat(summary.total()).isEqualTo(13);
+        assertThat(summary.byStatus())
+                .containsEntry("ACTIVE", 11L)
+                .containsEntry("SUSPENDED", 1L)
+                .containsEntry("PAST_DUE", 0L)
+                .containsEntry("CANCELLED", 0L)
+                .containsEntry("NONE", 1L);
+        assertThat(summary.createdLast30Days())
+                .as("eleven in the window; the 40-day-old one is not")
+                .isEqualTo(11);
+        assertThat(summary.recent()).hasSize(TenantQueryService.RECENT_LIMIT);
+        assertThat(summary.recent().get(0).id()).isEqualTo(newest);
+        assertThat(summary.recent())
+                .extracting(TenantSummaryResponse.RecentTenant::id)
+                .doesNotContain(PLATFORM_TENANT, noSubscription);
+        assertThat(summary.waitingForAdmin())
+                .containsExactly(new TenantSummaryResponse.WaitingTenant(
+                        suspended, "Suspended Co", "boss@suspended.test", "EXPIRED", expiry));
+    }
+
+    @Test
+    @DisplayName("W-73.2: with no customer tenants, summary() is all zeros and empty tables")
+    void summary_withNoCustomers_isEmpty() {
+        TenantContext.set(PLATFORM_TENANT);
+        when(jdbcTemplate.query(eq("SELECT * FROM core.list_tenants()"), any(RowMapper.class)))
+                .thenReturn(List.of(tenant(PLATFORM_TENANT, "Infinevo", "ACTIVE", Instant.now())));
+        when(jdbcTemplate.query(eq(WaitingAdminInvitation.SELECT_ALL), any(RowMapper.class)))
+                .thenReturn(List.of());
+
+        TenantSummaryResponse summary = tenantQueryService.summary();
+
+        assertThat(summary.total()).isZero();
+        assertThat(summary.byStatus()).containsOnlyKeys("ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELLED");
+        assertThat(summary.byStatus().values()).containsOnly(0L);
+        assertThat(summary.recent()).isEmpty();
+        assertThat(summary.waitingForAdmin()).isEmpty();
+    }
+
+    private static TenantOverview tenant(UUID id, String name, String status, Instant createdAt) {
+        return new TenantOverview(
+                id,
+                name,
+                "IN",
+                "Asia/Kolkata",
+                status,
+                List.of(),
+                createdAt,
+                null,
+                0L,
+                TenantOverview.AdminInvitation.NONE);
+    }
+
+    @Test
     @DisplayName("set_subscription_modules on the Infinevo tenant is refused")
     void updateModules_onPlatformTenant_isRefused() {
         assertThatThrownBy(() -> subscriptionService.updateModules(PLATFORM_TENANT, Set.of(PlatformModule.PAYROLL)))

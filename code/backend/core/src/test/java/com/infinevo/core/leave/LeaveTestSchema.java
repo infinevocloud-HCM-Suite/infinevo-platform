@@ -81,6 +81,7 @@ public final class LeaveTestSchema {
             }
             if (!tableExists(conn, "document")) {
                 executeResource(conn, "db/migration/core/V037__document.sql");
+                executeResource(conn, "db/migration/core/V166__document_label.sql");
             }
             if (!tableExists(conn, "approval_definition")) {
                 executeResource(conn, "db/migration/core/V089__approval_definition.sql");
