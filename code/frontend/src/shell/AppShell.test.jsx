@@ -187,6 +187,62 @@ describe('AppShell component', () => {
     expect(screen.getByTestId('tenant-display').textContent).toContain('Acme Ltd');
   });
 
+  it('D-75: the portal item stays selected on /me screens, and My profile opens /me/profile', async () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [
+        { key: 'core.me', labelKey: 'nav.me', path: '/me' },
+        { key: 'core.org.departments', labelKey: 'nav.departments', path: '/zz-departments' },
+      ],
+      actions: ['core.employee.read_own'],
+      homePath: '/me',
+      loading: false,
+    });
+    const selected = (container) =>
+      Array.from(container.querySelectorAll('.ant-menu-item-selected')).map((el) => el.textContent.trim());
+
+    const first = render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/me/leave']}>
+          <AppShell />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(selected(first.container)).toEqual(['My self-service']);
+    first.unmount();
+
+    const { container } = render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/zz-departments']}>
+          <AppShell />
+        </MemoryRouter>
+      </Provider>,
+    );
+    expect(selected(container)).toEqual(['Departments']);
+    fireEvent.click(screen.getByRole('button', { name: 'User menu' }));
+    fireEvent.click(await screen.findByText('My profile'));
+    expect(selected(container)).toEqual(['My self-service']);
+  });
+
+  it('D-75: no My profile in the user menu when the feed has no portal item, even with core.employee.read_own', async () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [{ key: 'core.org.departments', labelKey: 'nav.departments', path: '/zz-departments' }],
+      actions: ['core.employee.read_own', 'core.employee.read', 'core.org.read'],
+      loading: false,
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/zz-departments']}>
+          <AppShell />
+        </MemoryRouter>
+      </Provider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'User menu' }));
+
+    expect(await screen.findByText('Sign out')).toBeDefined();
+    expect(screen.queryByText('My profile')).toBeNull();
+  });
+
   it('mounts a route from module index when the feed names its path', async () => {
     vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
       items: [{ key: 'employees', labelKey: 'Employees', path: '/employees' }],

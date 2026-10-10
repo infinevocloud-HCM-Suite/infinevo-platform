@@ -16,7 +16,9 @@ import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.entitlement.RequiresModule;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -162,6 +164,36 @@ class HrmsNavigationTest {
         assertGuardedGet(OvertimeRequestController.class, items.get(9));
     }
 
+    @Test
+    @DisplayName("D-76: managers and HR see the dashboard too - by team or approve actions, each one the GET admits")
+    void dashboardShowsForTeamAndApproveActions() {
+        ItemDefinition dashboard = HrmsNavigation.DASHBOARD;
+        assertThat(dashboard.requiredAction()).isEqualTo("hrms.project.read_own");
+        assertThat(dashboard.anyOf())
+                .containsExactly("hrms.project.read_team", "hrms.timesheet.read_team", "hrms.timesheet.approve");
+
+        assertThat(dashboard.admits(Set.of("hrms.project.read_own")))
+                .as("employee")
+                .isTrue();
+        assertThat(dashboard.admits(Set.of("hrms.project.read_team", "hrms.timesheet.approve")))
+                .as("seeded manager")
+                .isTrue();
+        assertThat(dashboard.admits(Set.of("hrms.timesheet.read", "hrms.timesheet.approve", "hrms.project.read")))
+                .as("seeded hr")
+                .isTrue();
+        assertThat(dashboard.admits(Set.of("payroll.run.read", "core.org.read")))
+                .as("finance")
+                .isFalse();
+
+        RequiresAction guard = getMapping(HrmsDashboardController.class, dashboard.targetEndpoint())
+                .getAnnotation(RequiresAction.class);
+        Set<String> admitted = new HashSet<>(Arrays.asList(guard.anyOf()));
+        admitted.add(guard.value());
+        assertThat(admitted)
+                .as("every code that shows the item opens its endpoint, or the menu leads to a 403")
+                .containsAll(dashboard.actions());
+    }
+
     private static void assertGuardedGet(Class<?> controller, ItemDefinition item) {
         Method target = getMapping(controller, item.targetEndpoint());
         RequiresAction action = target.getAnnotation(RequiresAction.class);
@@ -169,6 +201,7 @@ class HrmsNavigationTest {
             action = controller.getAnnotation(RequiresAction.class);
         }
         assertThat(action.value()).isEqualTo(item.requiredAction());
+        assertThat(action.anyOf()).contains(item.anyOf().toArray(String[]::new));
         assertThat(controller.getAnnotation(RequiresModule.class).value()).isEqualTo(item.requiredModule());
     }
 

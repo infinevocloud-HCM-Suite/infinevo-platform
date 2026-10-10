@@ -3,7 +3,7 @@
  * any depth, or names a path above it; an empty feed mounts nothing.
  */
 import { describe, it, expect } from 'vitest';
-import { routesFromFeed, routeGroups } from './routes.js';
+import { routesFromFeed, routeGroups, portalRoutes } from './routes.js';
 
 const groups = {
   core: [
@@ -98,5 +98,11 @@ describe('routesFromFeed', () => {
   it('D-73: mounts the Roles and Audit log screens when the feed names them', () => {
     expect(routesFromFeed([{ key: 'core.roles', path: '/roles' }]).map((r) => r.path)).toEqual(['/roles']);
     expect(routesFromFeed([{ key: 'core.audit', path: '/audit' }]).map((r) => r.path)).toEqual(['/audit']);
+  });
+});
+
+describe('portalRoutes', () => {
+  it('D-74: registers the payslip page beneath the payslips panel', () => {
+    expect(portalRoutes.map((r) => r.path)).toContain('/me/payslips/:payrunId');
   });
 });

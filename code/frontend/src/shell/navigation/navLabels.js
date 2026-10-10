@@ -35,6 +35,7 @@ export const NAV_LABELS = {
   'nav.leave.requests': 'Leave requests',
   'nav.leave.types': 'Leave types',
   'nav.locations': 'Work locations',
+  'nav.me': 'My self-service',
   'nav.organisation': 'Organisation',
   'nav.payroll': 'Payroll',
   'nav.payroll.claims': 'Reimbursement claims',

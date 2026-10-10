@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.authz.AuthzTestSchema;
 import com.infinevo.core.guard.PermissionGuardTestApp;
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
+import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.test.AbstractIntegrationTest;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
 import com.infinevo.shared.test.RedisTestContainerInitializer;
@@ -28,10 +29,14 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.HandlerExecutionChain;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
  * W-12.3 §7 — the ticket's reason to exist: for every leaf of the shipped catalogue, a visible item's
@@ -58,6 +63,9 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private RequestMappingHandlerMapping requestMappingHandlerMapping;
+
     private final ObjectMapper json = new ObjectMapper();
 
     private UUID acmeTenant;
@@ -74,6 +82,9 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
         acmeAdminSub = UUID.randomUUID();
         UUID acmeAdminAccount = AuthzTestSchema.insertMember(acmeTenant, acmeAdminSub, "admin@acme.match.test");
         AuthzTestSchema.grant(acmeTenant, acmeAdminAccount, AuthzTestSchema.roleId(acmeTenant, "tenant-admin"));
+        // D-75: the self-service item shows only for a login linked to an employee record, as real users are.
+        AuthzTestSchema.linkEmployee(
+                AuthzTestSchema.insertEmployee(acmeTenant, "MATCH-ADMIN", "Admin"), acmeAdminAccount);
 
         globexTenant = AuthzTestSchema.insertTenant("Globex Match " + UUID.randomUUID());
         provisionSubscription(globexTenant, "ACTIVE", "HRMS", "PAYROLL");
@@ -81,9 +92,12 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
         UUID globexEmployeeAccount =
                 AuthzTestSchema.insertMember(globexTenant, globexEmployeeSub, "employee@globex.match.test");
         AuthzTestSchema.grant(globexTenant, globexEmployeeAccount, AuthzTestSchema.roleId(globexTenant, "employee"));
+        AuthzTestSchema.linkEmployee(
+                AuthzTestSchema.insertEmployee(globexTenant, "MATCH-EMP", "Employee"), globexEmployeeAccount);
         globexHrSub = UUID.randomUUID();
         UUID globexHrAccount = AuthzTestSchema.insertMember(globexTenant, globexHrSub, "hr@globex.match.test");
         AuthzTestSchema.grant(globexTenant, globexHrAccount, AuthzTestSchema.roleId(globexTenant, "hr"));
+        AuthzTestSchema.linkEmployee(AuthzTestSchema.insertEmployee(globexTenant, "MATCH-HR", "Hr"), globexHrAccount);
     }
 
     @Test
@@ -150,10 +164,44 @@ class NavigationMatchesEnforcementIT extends AbstractIntegrationTest {
                     .as("Visible menu item '%s' must answer 2xx on '%s'", def.key(), def.targetEndpoint())
                     .isBetween(200, 299);
         } else {
-            assertThat(httpStatus)
-                    .as("Absent menu item '%s' must answer 403 on '%s'", def.key(), def.targetEndpoint())
-                    .isEqualTo(HttpStatus.FORBIDDEN.value());
+            // Hidden because the caller holds none of its actions - that is the menu's rule. The endpoint
+            // usually refuses too. It may answer only when its own @RequiresAction.anyOf names an action the
+            // caller holds: GET /leave-requests lists HR's register under core.leave.read and, under
+            // core.leave.read_own, the caller's own rows. Anything else answering 2xx is an enforcement gap.
+            Set<String> held = heldActions(tenantId, sub);
+            assertThat(held)
+                    .as("Absent menu item '%s': the caller must hold none of its actions", def.key())
+                    .doesNotContainAnyElementsOf(def.actions());
+            if (httpStatus != HttpStatus.FORBIDDEN.value()) {
+                Set<String> anyOf = endpointAnyOf(def.targetEndpoint());
+                assertThat(anyOf)
+                        .as(
+                                "Absent menu item '%s' answered %d on '%s', whose anyOf %s names nothing the caller holds",
+                                def.key(), httpStatus, def.targetEndpoint(), anyOf)
+                        .anyMatch(held::contains);
+                assertThat(httpStatus).isBetween(200, 299);
+            }
         }
+    }
+
+    /** The {@code anyOf} codes of the {@code @RequiresAction} guarding {@code GET path}; empty when it has none. */
+    private Set<String> endpointAnyOf(String path) throws Exception {
+        HandlerExecutionChain chain = requestMappingHandlerMapping.getHandler(new MockHttpServletRequest("GET", path));
+        assertThat(chain).as("GET %s has a handler", path).isNotNull();
+        HandlerMethod handler = (HandlerMethod) chain.getHandler();
+        RequiresAction guard = handler.getMethodAnnotation(RequiresAction.class);
+        if (guard == null) {
+            guard = handler.getBeanType().getAnnotation(RequiresAction.class);
+        }
+        return guard == null ? Set.of() : Set.of(guard.anyOf());
+    }
+
+    private Set<String> heldActions(UUID tenantId, UUID sub) throws Exception {
+        MvcResult navResult = mvc.perform(as(tenantId, sub, get("/api/v1/navigation")))
+                .andExpect(status().isOk())
+                .andReturn();
+        return json.readValue(navResult.getResponse().getContentAsString(), NavigationResponse.class)
+                .actions();
     }
 
     private static List<String> leafKeys(List<ItemDefinition> items) {

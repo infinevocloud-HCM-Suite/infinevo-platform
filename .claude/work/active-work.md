@@ -6,6 +6,21 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-10 — Screen audit Phase 2: `D-74`–`D-77` fixed on `main`
+
+| Defect | What |
+|---|---|
+| `D-74` | My Payslips lists real payslips (period, paid on, net pay) and `/me/payslips/:payrunId` shows one; `shared/ui/format.js` seeds the shared formatters |
+| `D-75` | "My self-service" first in the menu and "My profile" in the header for any login linked to an employee record; `V171` grants `core.employee.read_own` to hr, manager, payroll-officer, finance |
+| `D-76` | Menu items may name several actions (`ItemDefinition.anyOf`); HRMS dashboard shows for managers and HR and serves team cards without an employee record; home: HR → `/hrms/dashboard`, manager → `/approvals` |
+| `D-77` | My Profile shows org names, "Active", "Male", "1 Apr 2026", grouped Personal / Job / Contact |
+
+- Built by Claude on `dev-claude-p2`; gates 5/5, CI green, one independent read — its three findings fixed before merge (the enforcement IT now reads each endpoint's `anyOf` from the handler mapping).
+- **Founder decisions 2026-10-09/10:** self-service for anyone with an employee record, not the employee role alone; no payslip Download yet (the signed-in reply carries no link) — a later ticket.
+- **Known local flake:** `LeaveRequestServiceImplTest.cancelOnOrAfterStartDateRefused` fails between 00:00 and 05:30 IST (local date vs UTC); CI is UTC and green.
+- **Open:** `D-78`–`D-87` (Phases 3–4); e2e per-role suite (Playwright) once these are on `main`.
+- **Branches:** `dev-claude-p2` can be deleted; `dev-claude` holds another session's uncommitted `D-88` work — do not reset it.
+
 ## 2026-10-09 — Screen audit Phase 1: `D-64`–`D-73` fixed on `main`
 
 | Defect | What |
