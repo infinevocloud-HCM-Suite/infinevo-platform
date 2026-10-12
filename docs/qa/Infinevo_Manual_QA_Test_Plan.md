@@ -380,14 +380,14 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S9-01 | `/payroll/settings/tax-declaration/2026` | As Payroll Officer: Open Tax Declaration settings for FY 2026-27. *(DEFER if 404)*. | Settings page loads. Default regime: `NEW`. | [ ] PENDING |
-| 2 | S9-02 | `/payroll/settings/tax-declaration/2026` | Set Window: Start = `2026-10-01`, End = `2026-12-31`, Allow Regime Change = **YES**. Save. | Window marked `OPEN`. Banner shows active status. | [ ] PENDING |
-| 3 | S9-03 | `/me` | Log in as EMP-01. Navigate to `/me` → **Tax Declarations**. | FY 2026-27 declaration form opens in editable state. | [ ] PENDING |
+| 1 | S9-01 | `/payroll/settings/tax-declaration/2026` | As Payroll Officer: Open Tax Declaration settings for FY 2026-27. *(DEFER if 404)*. | Settings page loads. Default regime: `NEW`. | [x] PASS |
+| 2 | S9-02 | `/payroll/settings/tax-declaration/2026` | Set Window: Start = `2026-10-01`, End = `2026-12-31`, Allow Regime Change = **YES**. Save. | Window marked `OPEN`. Banner shows active status. | [x] PASS |
+| 3 | S9-03 | `/me` | Log in as EMP-01. Navigate to `/me` → **Tax Declarations**. | FY 2026-27 declaration form opens in editable state. | [x] PASS |
 | 4 | S9-04 | `/me/tax-declaration` | Select Regime: **OLD REGIME**. | Form shows Old Regime deduction sections (80C, 80D, HRA). | [ ] PENDING |
 | 5 | S9-05 | `/me/tax-declaration` | In Housing / HRA Section: Monthly Rent = Rs 15,000, City Type = `Metro (Mumbai)`, Landlord PAN = `ABCD12345E`. Save. | Section saved successfully. | [ ] PENDING |
 | 6 | S9-06 | `/me/tax-declaration` | In Chapter VI-A / 80C Section: LIC Premium = Rs 50,000, PPF = Rs 50,000 (Total 80C = Rs 1,00,000). Save. | 80C total updates to Rs 1,00,000. | [ ] PENDING |
-| 7 | S9-07 | `/me/tax-declaration` | Open Summary Tab. Click **Submit Declaration**. | Status changes to `SUBMITTED`. Form fields lock to read-only. | [ ] PENDING |
-| 8 | S9-08 | `/me/tax-declaration` | Click **Reopen Declaration**. Change 80C LIC to Rs 75,000. Click Re-submit. | Declaration re-submitted with new value (Total 80C = Rs 1,25,000). | [ ] PENDING |
+| 7 | S9-07 | `/me/tax-declaration` | Open Summary Tab. Click **Submit Declaration**. | Status changes to `SUBMITTED`. Form fields lock to read-only. | [x] PASS |
+| 8 | S9-08 | `/me/tax-declaration` | Click **Reopen Declaration**. Change 80C LIC to Rs 75,000. Click Re-submit. | Declaration re-submitted with new value (Total 80C = Rs 1,25,000). | [x] PASS |
 | 9 | S9-09 | `/payroll/settings/tax-declaration/2026` | As Payroll Officer: Change End Date to `2026-10-05` (past date) to close the window. Save. | Window status updates to `CLOSED`. | [ ] PENDING |
 | 10 | S9-10 | `/me` | Log in as EMP-02. Open Tax Declarations. Attempt to submit. | Submission blocked: "Tax declaration window for FY 2026-27 is currently closed." | [ ] PENDING |
 
@@ -711,6 +711,7 @@ Each developer updates this table daily before standup:
 | 2026-10-09 | Sayeed (Dev 5) | Azure Dev | Stage 20 (Leave Balance Import) | S20-01 to S20-06 | 5 | 1 | 0 | 0 | S20-01, S20-03, S20-04, S20-05, S20-06 PASS (Valid/invalid dry-runs and live imports verified on Azure UI); S20-02 FAIL due to D-50 (Missing sample template download); Defects logged: D-49 (Leave year input `<InputNumber>` blocks `YYYY-YY` April tenants), D-50 (Missing sample CSV), D-51 (Unclickable error report UUID), D-52 (Employee role missing Leave menu) |
 | 2026-10-12 | Sayeed (Dev 5) | Azure Dev | Stage 6 (Leave Application & Approvals) | S6-01 to S6-10 | 2 | 8 | 0 | 0 | S6-01 PASS (Approval definitions verified), S6-07 PASS (On-behalf direct approval verified); Defects logged: D-53 (Employee portal leave balance cards misaligned), D-54 (Admin request detail view incorrectly displays applicant-only "Withdraw" action), D-55 (PolicyForm throws `effectiveFrom cannot be null` due to missing date field on deployed environment) |
 | 2026-10-12 | Sayeed (Dev 5) | Azure Dev | Stage 19 (Employee Self-Service Portal) | S19-01 to S19-06 | 4 | 1 | 0 | 1 | S19-01 PASS (Login & redirect to `/me` verified), S19-02 PASS, S19-03 PASS, S19-06 PASS (Emergency contact update persists); S19-04 FAIL (No Holiday Calendar tab on `/me`); S19-05 DEFER (No payslips generated yet); Defects logged: D-56 (Profile summary visual misalignment), D-57 (Missing Holiday Calendar tab on `/me`), D-58 (My Profile form sections visual misalignment) |
+| 2026-10-12 | Devashish (Dev 3) | Azure Dev | Stage 9 (Employee Tax Declaration) | S9-01, S9-02, S9-03, S9-07, S9-08 | 5 | 0 | 0 | 0 | S9-01 & S9-02 PASS (FY 2026-27 window opened with default regime NEW); S9-03 PASS (EMP-01 declaration loaded); S9-07 PASS (Submit declaration & locking verified); S9-08 PASS (Reopen, edit & re-submit verified); Note: Section 6A in New Regime strictly exposes 80CCD(2) by design per Section 115BAC |
 
 ---
 
