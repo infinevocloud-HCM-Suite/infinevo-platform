@@ -272,8 +272,8 @@ All compensation arithmetic follows standard monthly conversion:
 | 7 | S4-07 | `/leave/types/new` | Create Leave Type: Name: `Sick Leave`, Code: `SL`, Paid: **YES**, Unit: `DAYS`, Allow Half-Day: **ON**. Save. | SL leave type active. | [x] PASS |
 | 8 | S4-08 | `/leave/types/new` | Create Leave Type: Name: `Loss of Pay`, Code: `LOP`, Paid: **NO**, Unit: `DAYS`, Allow Half-Day: **OFF**. Save. | LOP type active (unpaid leave). | [x] PASS |
 | 9 | S4-09 | `/leave/allocations` | Click `nav.leave.allocations`. Filter Year: `2026`. Click Allocate Balance. | Allocation grid loads showing all active employees. | [x] PASS |
-| 10 | S4-10 | `/leave/allocations` | Allocate EL: EMP-01 = 12 days, EMP-02 = 10 days, EMP-03 = 8 days. Save. | Balance records saved. | [!] FAIL — Retest after deployment (`D-10`: Missing policy effectiveFrom) |
-| 11 | S4-11 | `/leave/allocations` | Allocate SL: 6 days each for EMP-01, EMP-02, and EMP-03. Save. | Balance table reflects updated SL counts. | [!] FAIL — Retest after deployment (`D-10`: Missing policy effectiveFrom) |
+| 10 | S4-10 | `/leave/allocations` | Allocate EL: EMP-01 = 12 days, EMP-02 = 10 days, EMP-03 = 8 days. Save. | Balance records saved. | [!] FAIL — Retest after deployment (D-55: PolicyForm missing effective date field, throws VALIDATION_FAILED) |
+| 11 | S4-11 | `/leave/allocations` | Allocate SL: 6 days each for EMP-01, EMP-02, and EMP-03. Save. | Balance table reflects updated SL counts. | [!] FAIL — Retest after deployment (D-55: PolicyForm missing effective date field, throws VALIDATION_FAILED) |
 
 ---
 
@@ -312,9 +312,9 @@ All compensation arithmetic follows standard monthly conversion:
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
 | 1 | S6-01 | `/approvals/definitions` | As Admin: Open `nav.approvals.definitions`. Create definition: Flow = `LEAVE`, Step 1 = `REPORTING_MANAGER`, Escalate After = 3 days. Save. | Approval flow active for leaves. | [x] PASS |
-| 2 | S6-02 | `/me` | Log in as EMP-02. Navigate to **My Leave** → Click **Apply Leave**. | Leave application form opens. Balance shown: EL = 10 days. | [!] FAIL — Retest after deployment (`D-10`: Policy `effectiveFrom` missing on server; `/me` requires employee account) |
+| 2 | S6-02 | `/me` | Log in as EMP-02. Navigate to **My Leave** → Click **Apply Leave**. | Leave application form opens. Balance shown: EL = 10 days. | [!] FAIL (D-53: Leave balance is visible on employee portal, but UI cards are misaligned and lack structured meter layout) |
 | 3 | S6-03 | `/me/leave/apply` | Leave Type: `Earned Leave`, From: `2026-10-20`, To: `2026-10-22` (3 days), Reason: `Diwali Family Function`. Submit. | Request submitted. Status = `PENDING`. EMP-01 receives approval email alert. | [!] FAIL — Retest after deployment (`D-10`: `/api/v1/leave-types/eligible` returns `[]`; "No data" in Leave Type dropdown) |
-| 4 | S6-04 | `/approvals` | Log in as EMP-01 (Manager). Navigate to `nav.approvals` inbox. | EMP-02's leave request is listed with applicant name, dates (3 days), and reason. | [!] FAIL — Retest after deployment (Blocked by S6-03: no pending leave request exists) |
+| 4 | S6-04 | `/approvals` | Log in as EMP-01 (Manager). Navigate to `nav.approvals` inbox. | EMP-02's leave request is listed with applicant name, dates (3 days), and reason. | [!] FAIL (D-54: View details of employee leave request on `/leave/requests/:id` incorrectly displays applicant-only "Withdraw" button to admin) |
 | 5 | S6-05 | `/approvals` | Click the request row. Click **Approve** with comment: `Approved, enjoy holidays!`. | Request status changes to `APPROVED`. | [!] FAIL — Retest after deployment (Blocked by S6-03: cannot approve uncreated request) |
 | 6 | S6-06 | `/me` | Log in as EMP-02. Check leave balance. | EL balance reduced from 10 to **7 days**. | [!] FAIL — Retest after deployment (Blocked by S6-03: no balance reduction) |
 | 7 | S6-07 | `/leave/requests` | Log in as HR. Click **New On-Behalf Request**. Employee = EMP-03, Type = Sick Leave, Date = `2026-10-12` (1 day), Reason = `Fever`. Submit. | Status directly created as `APPROVED` (no approval required for HR on-behalf per W-16.3). EMP-03 SL balance becomes 5. | [x] PASS |
@@ -578,12 +578,12 @@ All compensation arithmetic follows standard monthly conversion:
 
 | Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
 |---|---|---|---|---|---|
-| 1 | S19-01 | `/me` | Log in as employee (`pediroh497@calirona.com`). Navigate to Base URL. | Auto-redirects to `/me` self-service portal. Welcomes employee. | [!] FAIL (`D-17`: Blocked by Azure Front Door WAF `The request is blocked. 20261007T...`; cannot log in) |
-| 2 | S19-02 | `/me` | Inspect Profile Summary widget. | Displays Name, Designation, Department, Location. | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
-| 3 | S19-03 | `/me` | Click **Leave Balances** tab. | Balance meters show EL and SL remaining. | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
-| 4 | S19-04 | `/me` | Click **Holiday Calendar** tab. | Lists upcoming holidays for Mumbai location. | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
-| 5 | S19-05 | `/me` | Click **My Payslips** tab. | Payslip cards listed with earnings and deductions. | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
-| 6 | S19-06 | `/me/profile` | Open My Profile → Emergency Contact. Edit phone to `9888888888`. Save. | Details persist. Toast: "Profile details updated." | [!] FAIL (Blocked by S19-01 / D-17: cannot access `/me` portal) |
+| 1 | S19-01 | `/me` | Log in as employee (`gafeg90661@calirona.com`). Navigate to Base URL. | Auto-redirects to `/me` self-service portal. Welcomes employee. | [x] PASS |
+| 2 | S19-02 | `/me` | Inspect Profile Summary widget. | Displays Name, Designation, Department, Location. | [x] PASS (Profile summary visible; D-56 logged for UI misalignment) |
+| 3 | S19-03 | `/me` | Click **Leave Balances** tab. | Balance meters show EL and SL remaining. | [x] PASS (Leave balances visible; D-53 logged for UI layout misalignment) |
+| 4 | S19-04 | `/me` | Click **Holiday Calendar** tab. | Lists upcoming holidays for Mumbai location. | [!] FAIL (D-57: No Holiday Calendar tab or widget available on `/me` portal) |
+| 5 | S19-05 | `/me` | Click **My Payslips** tab. | Payslip cards listed with earnings and deductions. | [-] DEFER (Tab loads; no payslip cards generated yet since pay run not processed) |
+| 6 | S19-06 | `/me/profile` | Open My Profile → Emergency Contact. Edit phone to `9888888888`. Save. | Details persist. Toast: "Profile details updated." | [x] PASS (Emergency contact phone update persists; D-58 logged for UI misalignment) |
 
 ---
 
@@ -709,6 +709,8 @@ Each developer updates this table daily before standup:
 | 2026-10-06 | Krushna (Dev 4) | `QA-D4` | Stage 1, Stage 2, Stage 3, Stage 14, Stage 17 | | | | | | Org masters & onboarding |
 | 2026-10-07 | Sayeed (Dev 5) | `QA-D5` / `QA-D2` | Stage 4, Stage 6, Stage 7, Stage 19 | S4-01 to S4-11, S6-01 to S6-10, S7-01 to S7-10, S19-01 to S19-06 | 10 | 27 | 0 | 0 | S6-01 & S7-04 PASS; Stages 4 & 6 marked FAIL (Retest after deployment) due to D-15 & D-16; Stages 7 & 19 marked FAIL/BLOCKED due to D-17 (Azure Front Door WAF blocking Keycloak employee login with 'The request is blocked' and pending invitation activation) |
 | 2026-10-09 | Sayeed (Dev 5) | Azure Dev | Stage 20 (Leave Balance Import) | S20-01 to S20-06 | 5 | 1 | 0 | 0 | S20-01, S20-03, S20-04, S20-05, S20-06 PASS (Valid/invalid dry-runs and live imports verified on Azure UI); S20-02 FAIL due to D-50 (Missing sample template download); Defects logged: D-49 (Leave year input `<InputNumber>` blocks `YYYY-YY` April tenants), D-50 (Missing sample CSV), D-51 (Unclickable error report UUID), D-52 (Employee role missing Leave menu) |
+| 2026-10-12 | Sayeed (Dev 5) | Azure Dev | Stage 6 (Leave Application & Approvals) | S6-01 to S6-10 | 2 | 8 | 0 | 0 | S6-01 PASS (Approval definitions verified), S6-07 PASS (On-behalf direct approval verified); Defects logged: D-53 (Employee portal leave balance cards misaligned), D-54 (Admin request detail view incorrectly displays applicant-only "Withdraw" action), D-55 (PolicyForm throws `effectiveFrom cannot be null` due to missing date field on deployed environment) |
+| 2026-10-12 | Sayeed (Dev 5) | Azure Dev | Stage 19 (Employee Self-Service Portal) | S19-01 to S19-06 | 4 | 1 | 0 | 1 | S19-01 PASS (Login & redirect to `/me` verified), S19-02 PASS, S19-03 PASS, S19-06 PASS (Emergency contact update persists); S19-04 FAIL (No Holiday Calendar tab on `/me`); S19-05 DEFER (No payslips generated yet); Defects logged: D-56 (Profile summary visual misalignment), D-57 (Missing Holiday Calendar tab on `/me`), D-58 (My Profile form sections visual misalignment) |
 
 ---
 
