@@ -2,14 +2,17 @@ import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { Card, Statistic, Table } from 'antd';
 
-/** `me.projects` (W-48.6 §5): the server's `active` count, then at most five rows. */
+/**
+ * `me.projects` (W-48.6 §5): the server's `active` count, then at most five rows. A row links to My work (D-72):
+ * the project page mounts only for `hrms.project.manage`, which an employee does not hold.
+ */
 export function MyProjectsCard({ projects }) {
   if (!projects) return null;
   const columns = [
     {
       title: 'Project',
       key: 'name',
-      render: (_, p) => <Link to={`/hrms/projects/${p.project_id}`}>{p.name}</Link>,
+      render: (_, p) => <Link to="/hrms/my-work">{p.name}</Link>,
     },
     {
       title: 'Progress',

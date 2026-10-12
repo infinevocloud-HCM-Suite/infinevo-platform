@@ -217,13 +217,47 @@ class HrmsDashboardServiceTest {
     }
 
     @Test
-    @DisplayName("No employee record linked to the login is AccessDeniedException (403), never 500")
+    @DisplayName("No employee record and only own actions is AccessDeniedException (403), never 500")
     void noEmployeeIsAccessDenied() {
-        held.addAll(ALL);
+        held.addAll(Set.of(MARK, TS_OWN, PROJECT_OWN));
         when(employees.currentEmployee()).thenReturn(Optional.empty());
 
         assertThatThrownBy(service::forCaller).isInstanceOf(AccessDeniedException.class);
         verifyNoInteractions(queries, clock, access, lateQuery);
+    }
+
+    @Test
+    @DisplayName("D-76: no employee record but a team action is the team blocks only; me is null and never read")
+    void noEmployeeWithTeamActionsGetsTeamBlocksOnly() {
+        held.addAll(ALL);
+        when(employees.currentEmployee()).thenReturn(Optional.empty());
+
+        HrmsDashboardResponse r = service.forCaller();
+
+        assertThat(r.asOf()).isEqualTo(TODAY);
+        assertThat(r.me()).isNull();
+        assertThat(r.team().approvals().waiting()).isZero();
+        assertThat(r.team().approvals().oldest()).isEmpty();
+        assertThat(r.team().projects().managed()).isZero();
+        assertThat(r.team().reports().reports()).isZero();
+        // No employee, so nothing managed and no reports: never a query keyed on a missing id.
+        verifyNoInteractions(clock, access, lateQuery);
+        verify(queries, never()).weeks(any(), any(), anyCollection());
+        verify(queries, never()).myProjects(any(), any());
+    }
+
+    @Test
+    @DisplayName("D-76: hr's approve action alone, with no employee record, is the approvals block")
+    void noEmployeeWithApproveOnly() {
+        held.add(APPROVE);
+        when(employees.currentEmployee()).thenReturn(Optional.empty());
+
+        HrmsDashboardResponse r = service.forCaller();
+
+        assertThat(r.me()).isNull();
+        assertThat(r.team().approvals()).isNotNull();
+        assertThat(r.team().projects()).isNull();
+        assertThat(r.team().reports()).isNull();
     }
 
     @Test

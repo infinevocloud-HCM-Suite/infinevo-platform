@@ -545,26 +545,54 @@ export function ProfessionalTaxScreen() {
           <Alert message="No history records found for this state" type="info" showIcon />
         ) : (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            {/* PtHistoryResponse field names (D-69). */}
             {historyData.map((h, idx) => (
-              <Card key={h.id || idx} size="small">
-                <Row justify="space-between">
+              <Card key={h.id || idx} size="small" data-testid={`pt-history-entry-${idx}`}>
+                <Row justify="space-between" align="middle">
                   <Col>
-                    <Text strong>Effective: {h.effective_from}</Text>
+                    <Tag color={h.operation === 'OVERRIDE_RESET' ? 'orange' : 'blue'}>{h.operation}</Tag>
                   </Col>
                   <Col>
-                    <Text type="secondary">{h.created_at || h.changed_at}</Text>
+                    <Text type="secondary">
+                      {h.changed_at ? dayjs(h.changed_at).format('D MMM YYYY, HH:mm') : '—'}
+                    </Text>
                   </Col>
                 </Row>
-                {h.registration_number && (
-                  <div>
-                    <Text type="secondary">Reg: {h.registration_number}</Text>
-                  </div>
-                )}
-                {h.slabs && (
-                  <div style={{ marginTop: 8 }}>
-                    <Text type="secondary">{h.slabs.length} slab(s) configured</Text>
-                  </div>
-                )}
+                <div style={{ marginTop: 4 }}>
+                  <Text type="secondary">Changed by: {h.changed_by || '—'}</Text>
+                </div>
+                <div style={{ marginTop: 8 }} data-testid={`pt-history-before-${idx}`}>
+                  <Text strong>Before</Text>
+                  {h.before_slabs?.length ? (
+                    <Table
+                      dataSource={h.before_slabs}
+                      columns={slabColumns}
+                      rowKey={(r) => `before-${r.from_amount}-${r.to_amount}`}
+                      pagination={false}
+                      size="small"
+                    />
+                  ) : (
+                    <div>
+                      <Text type="secondary">No slabs</Text>
+                    </div>
+                  )}
+                </div>
+                <div style={{ marginTop: 8 }} data-testid={`pt-history-after-${idx}`}>
+                  <Text strong>After</Text>
+                  {h.after_slabs?.length ? (
+                    <Table
+                      dataSource={h.after_slabs}
+                      columns={slabColumns}
+                      rowKey={(r) => `after-${r.from_amount}-${r.to_amount}`}
+                      pagination={false}
+                      size="small"
+                    />
+                  ) : (
+                    <div>
+                      <Text type="secondary">No slabs</Text>
+                    </div>
+                  )}
+                </div>
               </Card>
             ))}
           </Space>

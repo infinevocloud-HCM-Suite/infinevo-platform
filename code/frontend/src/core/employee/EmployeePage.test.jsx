@@ -8,6 +8,8 @@ import { employeeService } from './employeeService.js';
 import { employeeInvitationService } from '../invitation/employeeInvitationService.js';
 import employeeReducer from './employeeSlice.js';
 import * as useCanModule from '@shell/screens';
+import { ModuleEmployeeTabsProvider } from '@shell/navigation/moduleEmployeeTabs.js';
+import { moduleEmployeeTabs } from '@shell/moduleTabs.js';
 
 vi.mock('./employeeService.js', () => ({
   employeeService: {
@@ -282,5 +284,48 @@ describe('EmployeePage component', () => {
     expect(document.getElementById('btn-invite-employee')).toBeNull();
     expect(document.getElementById('btn-resend-invitation')).toBeNull();
     expect(document.getElementById('btn-revoke-invitation')).toBeNull();
+  });
+  describe('D-66: module employee tabs the shell composes', () => {
+    function renderWithFeed(feed) {
+      return render(
+        <ModuleEmployeeTabsProvider tabs={moduleEmployeeTabs} modules={feed.modules} actions={feed.actions}>
+          <Provider store={store}>
+            <MemoryRouter initialEntries={['/employees/emp-acc-1']}>
+              <Routes>
+                <Route path="/employees/:id" element={<EmployeePage />} />
+              </Routes>
+            </MemoryRouter>
+          </Provider>
+        </ModuleEmployeeTabsProvider>
+      );
+    }
+
+    it('shows the Payroll Salary tab after the core tabs when the tenant holds Payroll and the user payroll.salary.read', async () => {
+      employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+      renderWithFeed({ modules: ['CORE', 'PAYROLL'], actions: ['payroll.salary.read'] });
+
+      await waitFor(() => expect(screen.getByText('Overview')).toBeDefined());
+      const labels = screen.getAllByRole('tab').map((t) => t.textContent);
+      expect(labels).toContain('Salary');
+      expect(labels.indexOf('Salary')).toBeGreaterThan(labels.indexOf('Documents'));
+      expect(labels).not.toContain('FBP');
+      expect(labels).not.toContain('Tax declaration');
+    });
+
+    it('hides the Salary tab when the tenant does not hold Payroll', async () => {
+      employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+      renderWithFeed({ modules: ['CORE'], actions: ['payroll.salary.read'] });
+
+      await waitFor(() => expect(screen.getByText('Overview')).toBeDefined());
+      expect(screen.queryByText('Salary')).toBeNull();
+    });
+
+    it('hides the Salary tab when the user lacks payroll.salary.read', async () => {
+      employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+      renderWithFeed({ modules: ['CORE', 'PAYROLL'], actions: [] });
+
+      await waitFor(() => expect(screen.getByText('Overview')).toBeDefined());
+      expect(screen.queryByText('Salary')).toBeNull();
+    });
   });
 });

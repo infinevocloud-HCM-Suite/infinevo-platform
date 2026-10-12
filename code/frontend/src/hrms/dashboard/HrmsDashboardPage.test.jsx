@@ -44,6 +44,19 @@ describe('HrmsDashboardPage (W-48.6 §7)', { timeout: 60000 }, () => {
     expect(screen.getByText('Team', { selector: '.ant-divider-inner-text' })).toBeDefined();
   });
 
+  it('D-76: a caller with no employee record (me null) sees the Team cards only', async () => {
+    const reply = managerReply();
+    reply.me = null;
+    reply.team.projects = null;
+    reply.team.reports = null;
+    hrmsDashboardService.summary.mockResolvedValue(reply);
+    renderPage();
+    await screen.findByText('As of 2026-10-04', {}, WAIT);
+    for (const t of ALL.slice(0, 4)) expect(screen.queryByText(t, { selector: '.ant-card-head-title' })).toBeNull();
+    expect(screen.getByText('Waiting for me', { selector: '.ant-card-head-title' })).toBeDefined();
+    expect(screen.getByText('Team', { selector: '.ant-divider-inner-text' })).toBeDefined();
+  });
+
   it('a null me.today hides that card only', async () => {
     const reply = managerReply();
     reply.me.today = null;

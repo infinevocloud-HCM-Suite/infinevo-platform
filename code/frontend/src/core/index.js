@@ -87,6 +87,13 @@ const LeaveImport = lazy(() =>
   import('./leave/LeaveImport.jsx').then((m) => ({ default: m.LeaveImport }))
 );
 
+const RolesScreen = lazy(() =>
+  import('./roles/RolesScreen.jsx').then((m) => ({ default: m.RolesScreen }))
+);
+const AuditLogScreen = lazy(() =>
+  import('./audit/AuditLogScreen.jsx').then((m) => ({ default: m.AuditLogScreen }))
+);
+
 const CompanyProfile = lazy(() =>
   import('./settings/CompanyProfile.jsx').then((m) => ({ default: m.CompanyProfile }))
 );
@@ -131,13 +138,17 @@ export const routes = [
   { path: '/setup', element: React.createElement(SetupChecklist) },
   // W-73.4: one screen for accounts, roles and invitations; the two old invitation paths redirect to it.
   { path: '/users', element: React.createElement(UsersScreen) },
+  // D-73: the Roles and Audit log menu items (NavigationCatalogue core.roles, core.audit).
+  { path: '/roles', element: React.createElement(RolesScreen) },
+  { path: '/audit', element: React.createElement(AuditLogScreen) },
   { path: '/invitations/users', mountWith: '/users', element: React.createElement(Navigate, INVITATIONS_TAB) },
   { path: '/invitations/employees', mountWith: '/users', element: React.createElement(Navigate, INVITATIONS_TAB) },
   { path: '/leave/types', element: React.createElement(LeaveTypes) },
   { path: '/leave/allocations', element: React.createElement(Allocations) },
   { path: '/leave/requests', element: React.createElement(LeaveRequests) },
   { path: '/leave/requests/new', element: React.createElement(RecordLeave) },
-  { path: '/leave/requests/:id', element: React.createElement(LeaveRequestDetail) },
+  // D-72: an approver opens a leave request from the inbox, so it mounts with /approvals too.
+  { path: '/leave/requests/:id', mountWith: '/approvals', element: React.createElement(LeaveRequestDetail) },
   { path: '/leave/employees/:id', element: React.createElement(EmployeeLeave) },
   { path: '/leave/import', element: React.createElement(LeaveImport) },
   // W-73.1: mounted when the feed carries `core.settings.company`.

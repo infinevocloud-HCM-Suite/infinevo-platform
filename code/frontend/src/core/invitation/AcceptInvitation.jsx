@@ -18,7 +18,8 @@ export const ACCEPTED_NEXT_STEP = {
     title: 'Check your email',
     text:
       "You're in. We've sent you a second email with a link to set your password. " +
-      'Open it, choose a password, and you will be taken to sign in.',
+      'Open it, choose a password, and you will be taken to sign in. If this browser is signed in to ' +
+      'Infinevo as someone else, open the email link in a private window.',
     showSignIn: false,
   },
   SET_PASSWORD_EMAIL_FAILED: {
@@ -213,6 +214,13 @@ export function AcceptInvitation() {
           <Paragraph type="secondary">
             You have been invited to join the Infinevo HCM platform. Please accept or decline below.
           </Paragraph>
+          <Alert
+            type="info"
+            showIcon
+            id="alert-other-account"
+            style={{ textAlign: 'left' }}
+            message="Signed in to Infinevo as someone else in this browser? Sign out first, or open this link and the password email in a private window."
+          />
         </div>
 
         {errorMessage && (

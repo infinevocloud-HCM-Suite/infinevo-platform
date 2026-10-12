@@ -81,11 +81,16 @@ class NavigationIT extends AbstractIntegrationTest {
         acmeAdminAccount = AuthzTestSchema.insertMember(acmeTenant, acmeAdminSub, "admin@acme.nav.test");
         acmeAdminRole = AuthzTestSchema.roleId(acmeTenant, "tenant-admin");
         AuthzTestSchema.grant(acmeTenant, acmeAdminAccount, acmeAdminRole);
+        // D-75: the self-service item shows only for a login linked to an employee record, as real users are.
+        AuthzTestSchema.linkEmployee(
+                AuthzTestSchema.insertEmployee(acmeTenant, "NAV-ADMIN", "Admin"), acmeAdminAccount);
 
         globexEmployeeSub = UUID.randomUUID();
         UUID globexEmployeeAccount =
                 AuthzTestSchema.insertMember(globexTenant, globexEmployeeSub, "employee@globex.nav.test");
         AuthzTestSchema.grant(globexTenant, globexEmployeeAccount, AuthzTestSchema.roleId(globexTenant, "employee"));
+        AuthzTestSchema.linkEmployee(
+                AuthzTestSchema.insertEmployee(globexTenant, "NAV-EMP", "Employee"), globexEmployeeAccount);
     }
 
     @Test

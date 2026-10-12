@@ -31,6 +31,11 @@ describe('navLabels', () => {
     expect(keys.filter((k) => !NAV_LABELS[k])).toEqual([]);
   });
 
+  it('D-75: the self-service portal item has its label', () => {
+    expect(backendLabelKeys()).toContain('nav.me');
+    expect(navLabel('nav.me')).toBe('My self-service');
+  });
+
   it('returns the mapped label for a known key', () => {
     expect(navLabel('nav.setup')).toBe('Setup');
     expect(navLabel('nav.payroll.runs')).toBe('Payroll runs');

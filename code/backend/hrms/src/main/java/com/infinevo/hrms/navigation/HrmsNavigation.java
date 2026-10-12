@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
- * HRMS's menu items (W-42.1 §5). Each is here because its endpoint is in this module: the boot-time catalogue check
+ * HRMS's menu items (W-42.1 §5). Each is here because its screen is in this module: the boot-time catalogue check
  * ({@code NavigationCatalogueValidator}) refuses an item whose {@code targetEndpoint} has no {@code GET} mapping.
  */
 @Component
@@ -76,14 +76,19 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "core.attendance.manage");
 
-    /** The caller's HRMS dashboard (W-48.6): {@code HrmsDashboardController}'s {@code GET /api/v1/hrms/dashboard}. */
+    /**
+     * The caller's HRMS dashboard (W-48.6): {@code HrmsDashboardController}'s {@code GET /api/v1/hrms/dashboard}.
+     * Employees, managers and HR all see it (D-76): the employee by their own projects, the manager by the team, HR
+     * by approving timesheets. Every code here is one the endpoint admits.
+     */
     public static final ItemDefinition DASHBOARD = new ItemDefinition(
-            "hrms.dashboard",
-            "nav.hrms.dashboard",
-            "/hrms/dashboard",
-            "/api/v1/hrms/dashboard",
-            PlatformModule.HRMS,
-            "hrms.project.read_own");
+                    "hrms.dashboard",
+                    "nav.hrms.dashboard",
+                    "/hrms/dashboard",
+                    "/api/v1/hrms/dashboard",
+                    PlatformModule.HRMS,
+                    "hrms.project.read_own")
+            .withAnyOf("hrms.project.read_team", "hrms.timesheet.read_team", "hrms.timesheet.approve");
 
     /** The caller's regularizations (W-48.5): {@code RegularizationController}'s {@code GET .../regularizations/mine}. */
     public static final ItemDefinition REGULARIZATIONS = new ItemDefinition(
@@ -103,6 +108,30 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "hrms.overtime.request");
 
+    /**
+     * Everyone's regularizations, for HR (D-72): {@code RegularizationController}'s {@code GET
+     * .../regularizations}. The caller's own list sits behind an employee action HR may not hold.
+     */
+    public static final ItemDefinition REGULARIZATIONS_ALL = new ItemDefinition(
+            "hrms.regularizations_all",
+            "nav.hrms.regularizations_all",
+            "/hrms/regularizations/all",
+            "/api/v1/hrms/attendance/regularizations",
+            PlatformModule.HRMS,
+            "core.attendance.read");
+
+    /**
+     * Everyone's overtime, for HR (D-72, W-68): core's {@code OvertimeController} {@code GET /api/v1/overtime}, the
+     * list the screen reads. The caller's own requests sit behind {@code hrms.overtime.request}, an employee action.
+     */
+    public static final ItemDefinition OVERTIME_ALL = new ItemDefinition(
+            "hrms.overtime_all",
+            "nav.hrms.overtime_all",
+            "/hrms/overtime-requests/all",
+            "/api/v1/overtime",
+            PlatformModule.HRMS,
+            "core.overtime.read");
+
     /** The module's screens, in menu order. */
     public static final List<ItemDefinition> LEAVES = List.of(
             TIMESHEETS,
@@ -114,7 +143,9 @@ public class HrmsNavigation implements NavigationContributor {
             ATTENDANCE_SETTINGS,
             DASHBOARD,
             REGULARIZATIONS,
-            OVERTIME_REQUESTS);
+            OVERTIME_REQUESTS,
+            REGULARIZATIONS_ALL,
+            OVERTIME_ALL);
 
     /**
      * The one HRMS menu group (D-34). No action of its own: the feed hides it when every screen inside

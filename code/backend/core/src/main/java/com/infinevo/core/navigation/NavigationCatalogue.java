@@ -2,7 +2,9 @@ package com.infinevo.core.navigation;
 
 import com.infinevo.shared.entitlement.PlatformModule;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Catalogue of navigation item definitions (W-12.3, spec section 4).
@@ -23,6 +25,12 @@ import java.util.List;
  */
 public final class NavigationCatalogue {
 
+    /**
+     * One menu item. {@code requiredAction} and {@code anyOf} mirror {@code @RequiresAction(value, anyOf)}: the
+     * caller sees the item when they hold {@code requiredAction} or any code in {@code anyOf} (D-76). With neither,
+     * the item asks for no action. A leaf's codes must all be ones its endpoint's {@code GET} admits, or the menu
+     * would show a screen that answers 403.
+     */
     public record ItemDefinition(
             String key,
             String labelKey,
@@ -30,7 +38,23 @@ public final class NavigationCatalogue {
             String targetEndpoint,
             PlatformModule requiredModule,
             String requiredAction,
+            List<String> anyOf,
             List<ItemDefinition> children) {
+
+        public ItemDefinition {
+            anyOf = anyOf == null ? List.of() : List.copyOf(anyOf);
+        }
+
+        public ItemDefinition(
+                String key,
+                String labelKey,
+                String path,
+                String targetEndpoint,
+                PlatformModule requiredModule,
+                String requiredAction,
+                List<ItemDefinition> children) {
+            this(key, labelKey, path, targetEndpoint, requiredModule, requiredAction, List.of(), children);
+        }
 
         public ItemDefinition(
                 String key,
@@ -39,7 +63,36 @@ public final class NavigationCatalogue {
                 String targetEndpoint,
                 PlatformModule requiredModule,
                 String requiredAction) {
-            this(key, labelKey, path, targetEndpoint, requiredModule, requiredAction, List.of());
+            this(key, labelKey, path, targetEndpoint, requiredModule, requiredAction, List.of(), List.of());
+        }
+
+        /** This item, also shown to a caller holding any of {@code alternatives} (D-76). */
+        public ItemDefinition withAnyOf(String... alternatives) {
+            return new ItemDefinition(
+                    key,
+                    labelKey,
+                    path,
+                    targetEndpoint,
+                    requiredModule,
+                    requiredAction,
+                    List.of(alternatives),
+                    children);
+        }
+
+        /** Every action code that shows this item: {@code requiredAction} then {@code anyOf}; empty when none. */
+        public Set<String> actions() {
+            Set<String> all = new LinkedHashSet<>();
+            if (requiredAction != null) {
+                all.add(requiredAction);
+            }
+            all.addAll(anyOf);
+            return all;
+        }
+
+        /** True when {@code held} opens this item: no action asked, or one of {@link #actions()} held. */
+        public boolean admits(Set<String> held) {
+            Set<String> wanted = actions();
+            return wanted.isEmpty() || wanted.stream().anyMatch(held::contains);
         }
 
         public boolean hasChildren() {
@@ -48,14 +101,17 @@ public final class NavigationCatalogue {
     }
 
     /**
-     * The core menu, in groups (D-34): the platform's Dashboard (W-73.2), People, Organisation, Approvals, Leave,
-     * Settings, then the platform's Tenants. Dashboard and Tenants need {@code core.tenant.provision}, which only
+     * The core menu, in groups (D-34): the caller's self-service portal (D-75), the platform's Dashboard (W-73.2),
+     * People, Organisation, Approvals, Leave, Settings, then the platform's Tenants. Dashboard and Tenants need {@code core.tenant.provision}, which only
      * the platform tenant's roles hold (V158), so a customer never sees either. A group's {@code path} and {@code targetEndpoint} are its first child's; the feed rewrites the path
      * to the first child the caller can see. People, Organisation and Settings require no action of their own, so
      * the service shows each exactly when one of its children is visible. Leaf keys, label keys, paths, endpoints
      * and actions are the ones the flat menu had, so the frontend's routes and labels still match.
      */
     public static final List<ItemDefinition> DEFAULT_ITEMS = List.of(
+            // D-75: the caller's own portal, first in an employee's menu. The portal's routes are mounted for every
+            // signed-in user; the item makes them reachable. Platform staff have no employee record and never see it.
+            new ItemDefinition("core.me", "nav.me", "/me", "/api/v1/me/panels", null, "core.employee.read_own"),
             // W-73.2: the platform staff's home page, first in their menu.
             new ItemDefinition(
                     "core.admin.home",

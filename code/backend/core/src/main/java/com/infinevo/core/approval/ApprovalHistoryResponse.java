@@ -25,6 +25,7 @@ public record ApprovalHistoryResponse(
             String itemRef,
             ApproverKind approverKind,
             UUID assigneeEmployeeId,
+            String assigneeName,
             UUID delegatedFromEmployeeId,
             UUID escalatedFromEmployeeId,
             UUID reassignedFromEmployeeId,
@@ -35,13 +36,15 @@ public record ApprovalHistoryResponse(
             Instant decidedAt,
             Instant createdAt) {
 
-        public static ApprovalHistoryStepResponse from(ApprovalStep step) {
+        /** {@code assigneeName} is the assignee's display name (D-71), or null when the step has no assignee. */
+        public static ApprovalHistoryStepResponse from(ApprovalStep step, String assigneeName) {
             return new ApprovalHistoryStepResponse(
                     step.getId(),
                     step.getStepIndex(),
                     step.getItemRef(),
                     step.getApproverKind(),
                     step.getAssigneeEmployeeId(),
+                    assigneeName,
                     step.getDelegatedFromEmployeeId(),
                     step.getEscalatedFromEmployeeId(),
                     step.getReassignedFromEmployeeId(),

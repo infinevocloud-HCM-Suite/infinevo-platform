@@ -3,19 +3,21 @@ import { routes as coreRoutes } from '../core/index.js';
 import { routes as hrmsRoutes } from '../hrms/index.js';
 import { routes as payrollRoutes } from '../payroll/index.js';
 import { PortalLayout } from './portal/PortalLayout.jsx';
+import { PayslipPage } from './portal/PayslipPage.jsx';
 import { ApplyLeave } from '../core/portal/ApplyLeave.jsx';
 import { LeaveRequestDetail } from '../core/leave/LeaveRequestDetail.jsx';
 
 /**
  * Self-service portal routes (W-25 §5, W-46.5 §5).
  * Mounted for authenticated users; renders panels returned dynamically from /api/v1/me/panels,
- * plus the self-service leave apply and request detail screens.
+ * plus the self-service leave apply and request detail screens and one payslip (D-74).
  */
 export const portalRoutes = [
   { path: '/me', element: React.createElement(PortalLayout) },
   { path: '/me/:panelId', element: React.createElement(PortalLayout) },
   { path: '/me/leave/apply', element: React.createElement(ApplyLeave) },
   { path: '/me/leave/requests/:id', element: React.createElement(LeaveRequestDetail, { readOnly: true }) },
+  { path: '/me/payslips/:payrunId', element: React.createElement(PayslipPage) },
 ];
 
 /**
@@ -29,8 +31,9 @@ export const portalRoutes = [
  * module's screens by typing a URL, and an empty feed is an empty route tree - there is no
  * static list of routes per module and no default.
  *
- * A route may name `mountWith`, another path: it is mounted when the feed names that one. Old paths
- * kept as redirects use it, so a bookmark still lands while nothing the feed hides is reachable.
+ * A route may name `mountWith`, another path or a list of paths: it is mounted when the feed names
+ * one of them. Old paths kept as redirects use it, so a bookmark still lands while nothing the feed
+ * hides is reachable; so do detail screens opened from more than one list.
  *
  * A child route is mounted on the parent's menu permission alone, so a child screen that needs
  * a different action code checks it itself with `useCan` and renders `NotEntitled`. Either way
@@ -58,7 +61,9 @@ export function routesFromFeed(feedItems = [], groups = routeGroups) {
     .filter((route) => {
       if (feedPaths.has(route.path)) return true;
       // An old path kept as a redirect (W-73.4) mounts with the screen it now leads to.
-      if (route.mountWith && feedPaths.has(route.mountWith)) return true;
+      // A detail screen reached from several lists names each of them (D-72).
+      const mountWith = [].concat(route.mountWith || []);
+      if (mountWith.some((path) => feedPaths.has(path))) return true;
       for (const prefix of feedPaths) {
         if (prefix && prefix !== '/' && route.path.startsWith(`${prefix}/`)) {
           return true;

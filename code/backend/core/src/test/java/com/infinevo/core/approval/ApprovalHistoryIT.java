@@ -62,6 +62,7 @@ class ApprovalHistoryIT extends AbstractIntegrationTest {
     private UUID tenantId;
     private UUID noPermUserSub;
     private UUID readerUserSub;
+    private UUID approverUserSub;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -79,6 +80,11 @@ class ApprovalHistoryIT extends AbstractIntegrationTest {
         UUID readerAccountId = AuthzTestSchema.insertMember(tenantId, readerUserSub, "reader@history.test");
         UUID roleId = AuthzTestSchema.insertRole(tenantId, "history-reader", "History Reader", "core.approval.read");
         AuthzTestSchema.grant(tenantId, readerAccountId, roleId);
+
+        // D-71: a seeded manager holds core.approval.decide, not core.approval.read
+        approverUserSub = UUID.randomUUID();
+        UUID approverAccountId = AuthzTestSchema.insertMember(tenantId, approverUserSub, "approver@history.test");
+        AuthzTestSchema.grant(tenantId, approverAccountId, AuthzTestSchema.roleId(tenantId, "manager"));
     }
 
     @AfterEach
@@ -164,6 +170,13 @@ class ApprovalHistoryIT extends AbstractIntegrationTest {
                                 b.subject(noPermUserSub.toString()).claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isForbidden());
 
+        // D-71: an approver (core.approval.decide) reads the trail the request screens show
+        mvc.perform(get("/api/v1/approvals/" + instanceId + "/history")
+                        .with(jwt().jwt(b ->
+                                b.subject(approverUserSub.toString()).claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.steps[0].assigneeName").value("Delegate"));
+
         // 2. With core.approval.read -> 200 OK and shows all 3 distinctly
         mvc.perform(get("/api/v1/approvals/" + instanceId + "/history")
                         .with(jwt().jwt(b ->
@@ -173,13 +186,17 @@ class ApprovalHistoryIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.status").value("APPROVED"))
                 .andExpect(jsonPath("$.steps[0].delegatedFromEmployeeId").value(delegatorId.toString()))
                 .andExpect(jsonPath("$.steps[0].assigneeEmployeeId").value(delegateId.toString()))
+                // D-71: each step names its assignee, as the pending-approvals list does.
+                .andExpect(jsonPath("$.steps[0].assigneeName").value("Delegate"))
                 .andExpect(jsonPath("$.steps[0].decision").value("APPROVED"))
                 .andExpect(jsonPath("$.steps[1].escalatedFromEmployeeId").value(escalatedFromId.toString()))
                 .andExpect(jsonPath("$.steps[1].assigneeEmployeeId").value(escalationAssigneeId.toString()))
+                .andExpect(jsonPath("$.steps[1].assigneeName").value("EscalationAssignee"))
                 .andExpect(jsonPath("$.steps[1].decision").value("APPROVED"))
                 .andExpect(jsonPath("$.steps[2].reassignedFromEmployeeId").value(reassignedFromId.toString()))
                 .andExpect(jsonPath("$.steps[2].reassignReason").value("Original approver left company"))
                 .andExpect(jsonPath("$.steps[2].assigneeEmployeeId").value(reassignedToId.toString()))
+                .andExpect(jsonPath("$.steps[2].assigneeName").value("ReassignedTo"))
                 .andExpect(jsonPath("$.steps[2].decision").value("APPROVED"));
     }
 

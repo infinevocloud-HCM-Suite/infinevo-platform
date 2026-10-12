@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.navigation.NavigationCatalogue;
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
+import com.infinevo.payroll.component.EarningController;
 import com.infinevo.payroll.dashboard.PayrollDashboardController;
 import com.infinevo.payroll.deduction.EmployeeDeductionController;
 import com.infinevo.payroll.payrun.PayRunController;
 import com.infinevo.payroll.reimbursement.ReimbursementClaimController;
+import com.infinevo.payroll.schedule.PayScheduleController;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.entitlement.PlatformModule;
 import java.lang.reflect.Method;
@@ -68,7 +70,9 @@ class PayrollNavigationTest {
                         PayrollNavigation.RUNS,
                         PayrollNavigation.PRIOR_PAYROLL,
                         PayrollNavigation.CLAIMS,
-                        PayrollNavigation.DEDUCTIONS);
+                        PayrollNavigation.DEDUCTIONS,
+                        PayrollNavigation.SETTINGS,
+                        PayrollNavigation.COMPONENTS);
         assertThat(group.path()).isEqualTo(PayrollNavigation.DASHBOARD.path());
     }
 
@@ -113,6 +117,45 @@ class PayrollNavigationTest {
         assertThat(item.path()).isEqualTo("/payroll/deductions");
         assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
         assertResolvesToGet(EmployeeDeductionController.class, item);
+    }
+
+    @Test
+    @DisplayName("D-64: payroll.settings opens /payroll/settings for whoever manages payroll settings")
+    void settingsItemLeadsToTheSettingsScreens() {
+        ItemDefinition item = PayrollNavigation.SETTINGS;
+        assertThat(item.key()).isEqualTo("payroll.settings");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.settings");
+        assertThat(item.path()).isEqualTo("/payroll/settings");
+        assertThat(item.requiredAction()).isEqualTo("payroll.settings.manage");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        // The settings landing screen is the pay schedule; its GET is what the boot-time check finds.
+        assertThat(PayScheduleController.class
+                        .getAnnotation(RequestMapping.class)
+                        .value())
+                .containsExactly(item.targetEndpoint());
+        assertThat(Arrays.stream(PayScheduleController.class.getDeclaredMethods())
+                        .anyMatch(m -> m.isAnnotationPresent(GetMapping.class)
+                                && m.getAnnotation(GetMapping.class).value().length == 0))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("D-64: payroll.components opens /payroll/components behind the salary structure read action")
+    void componentsItemMatchesTheController() {
+        ItemDefinition item = PayrollNavigation.COMPONENTS;
+        assertThat(item.key()).isEqualTo("payroll.components");
+        assertThat(item.labelKey()).isEqualTo("nav.payroll.components");
+        assertThat(item.path()).isEqualTo("/payroll/components");
+        assertThat(item.requiredAction()).isEqualTo("payroll.structure.read");
+        assertThat(item.requiredModule()).isEqualTo(PlatformModule.PAYROLL);
+        Method list = Arrays.stream(EarningController.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(GetMapping.class)
+                        && m.getAnnotation(GetMapping.class).value().length == 0)
+                .findFirst()
+                .orElseThrow();
+        assertThat(EarningController.class.getAnnotation(RequestMapping.class).value())
+                .containsExactly(item.targetEndpoint());
+        assertThat(list.getAnnotation(RequiresAction.class).value()).isEqualTo(item.requiredAction());
     }
 
     /**

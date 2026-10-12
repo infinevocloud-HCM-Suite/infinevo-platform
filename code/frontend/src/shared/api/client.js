@@ -101,7 +101,8 @@ apiClient.interceptors.response.use(
 
     if (isUnauthorized && typeof unauthorizedHandler === 'function') {
       try {
-        unauthorizedHandler();
+        // The code lets the shell tell "sign in again" from "no tenant bound" (D-63).
+        unauthorizedHandler(code);
       } catch (err) {
         console.error('unauthorizedHandler threw error', err);
       }

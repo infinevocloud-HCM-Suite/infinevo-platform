@@ -36,11 +36,24 @@ const STATUS_TAGS = {
   CANCELLED: { color: 'purple', label: 'Cancelled' },
 };
 
+/*
+ * D-71: an approval trail step is an ApprovalHistoryStepResponse - stepIndex is 0-based, decision
+ * is ApprovalDecision (APPROVED | REJECTED) or null while the step waits, assigneeName may be null.
+ */
+const DECISIONS = {
+  APPROVED: { color: 'green', label: 'Approved' },
+  REJECTED: { color: 'red', label: 'Rejected' },
+};
+const PENDING_DECISION = { color: 'blue', label: 'Pending' };
+
 export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const canManage = useCan('core.leave.manage');
+  // D-72: a manager reaches this screen from /approvals (core.leave.read_team) and may not hold
+  // the Leave requests menu, so the way back is the inbox they came from.
+  const canReadAll = useCan('core.leave.read');
 
   const [loading, setLoading] = useState(false);
   const [request, setRequest] = useState(null);
@@ -165,7 +178,8 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   const statusConfig = STATUS_TAGS[request.status] || { color: 'default', label: request.status };
   const isPortal = location.pathname.startsWith('/me');
   const isReadOnly = readOnly || isPortal;
-  const effectiveBackPath = backPath || (isPortal ? '/me/leave' : '/leave/requests');
+  const effectiveBackPath =
+    backPath || (isPortal ? '/me/leave' : canReadAll ? '/leave/requests' : '/approvals');
 
   const canWithdraw = !isReadOnly && canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED');
   const canCancel = !isReadOnly && canManage && request.status === 'APPROVED';
@@ -273,29 +287,29 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
             />
           ) : approvalHistory.length > 0 ? (
             <Timeline
-              items={approvalHistory.map((step) => ({
-                color:
-                  step.status === 'APPROVED'
-                    ? 'green'
-                    : step.status === 'REJECTED'
-                    ? 'red'
-                    : 'blue',
-                children: (
-                  <>
-                    <Text strong>{`${step.stepName || 'Approval Step'} - ${step.status}`}</Text>
-                    <br />
-                    <Text type="secondary">
-                      {step.decidedBy ? `Decided by ${step.decidedBy}` : 'Pending assignment'}
-                      {step.decidedAt ? ` at ${dayjs(step.decidedAt).format('YYYY-MM-DD HH:mm')}` : ''}
-                    </Text>
-                    {step.comment && (
-                      <p style={{ margin: '4px 0 0 0', fontStyle: 'italic' }}>
-                        &ldquo;{step.comment}&rdquo;
-                      </p>
-                    )}
-                  </>
-                ),
-              }))}
+              items={approvalHistory.map((step) => {
+                const decision = DECISIONS[step.decision] || PENDING_DECISION;
+                const by = step.assigneeName ? `by ${step.assigneeName}` : null;
+                const when = step.decidedAt ? dayjs(step.decidedAt).format('D MMM YYYY, HH:mm') : null;
+                return {
+                  key: step.stepId,
+                  color: decision.color,
+                  children: (
+                    <>
+                      <Text strong>{`Step ${step.stepIndex + 1} — ${decision.label}`}</Text>
+                      <br />
+                      <Text type="secondary">
+                        {[by, when].filter(Boolean).join(' · ') || 'Awaiting decision'}
+                      </Text>
+                      {step.comment && (
+                        <p style={{ margin: '4px 0 0 0', fontStyle: 'italic' }}>
+                          &ldquo;{step.comment}&rdquo;
+                        </p>
+                      )}
+                    </>
+                  ),
+                };
+              })}
             />
           ) : (
             <Text type="secondary">No approval steps recorded.</Text>

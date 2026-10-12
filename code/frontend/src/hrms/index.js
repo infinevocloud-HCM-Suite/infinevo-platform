@@ -75,13 +75,14 @@ export const routes = [
   // W-48.6 §5: the dashboard (feed `hrms.dashboard`).
   { path: '/hrms/dashboard', element: React.createElement(HrmsDashboardPage) },
   // W-48.5 §5: requests (feed `hrms.regularizations`, `hrms.overtime_requests`). `/all` before `/:id`.
+  // D-72: a detail also mounts with the approvals inbox, which links to it; a manager holds no employee-only menu.
   { path: '/hrms/regularizations', element: React.createElement(MyRegularizations) },
   { path: '/hrms/regularizations/all', element: React.createElement(RegularizationLog) },
-  { path: '/hrms/regularizations/:id', element: React.createElement(RegularizationDetail) },
+  { path: '/hrms/regularizations/:id', mountWith: ['/approvals', '/hrms/regularizations/all'], element: React.createElement(RegularizationDetail) },
   { path: '/hrms/overtime-requests', element: React.createElement(MyOvertime) },
   // W-68 §5: HR overtime list. `/all` before `/:id`.
   { path: '/hrms/overtime-requests/all', element: React.createElement(OvertimeLog) },
-  { path: '/hrms/overtime-requests/:id', element: React.createElement(OvertimeDetail) },
+  { path: '/hrms/overtime-requests/:id', mountWith: ['/approvals', '/hrms/overtime-requests/all'], element: React.createElement(OvertimeDetail) },
 ];
 
 export const reducers = {};

@@ -3,6 +3,7 @@ package com.infinevo.hrms.navigation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
+import com.infinevo.core.overtime.OvertimeController;
 import com.infinevo.hrms.attendance.AttendancePreferenceController;
 import com.infinevo.hrms.attendance.ClockController;
 import com.infinevo.hrms.attendance.RegularizationController;
@@ -15,7 +16,9 @@ import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.entitlement.RequiresModule;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,9 +51,9 @@ class HrmsNavigationTest {
     }
 
     @Test
-    @DisplayName("HRMS contributes exactly ten items, as the specs' tables say")
-    void tenItems() {
-        assertThat(items).hasSize(10);
+    @DisplayName("HRMS contributes exactly twelve items, as the specs' tables say")
+    void twelveItems() {
+        assertThat(items).hasSize(12);
         assertItem(
                 items.get(0),
                 "hrms.timesheets",
@@ -121,6 +124,35 @@ class HrmsNavigationTest {
                 "/hrms/overtime-requests",
                 "/api/v1/hrms/overtime-requests/mine",
                 "hrms.overtime.request");
+        assertItem(
+                items.get(10),
+                "hrms.regularizations_all",
+                "nav.hrms.regularizations_all",
+                "/hrms/regularizations/all",
+                "/api/v1/hrms/attendance/regularizations",
+                "core.attendance.read");
+        assertItem(
+                items.get(11),
+                "hrms.overtime_all",
+                "nav.hrms.overtime_all",
+                "/hrms/overtime-requests/all",
+                "/api/v1/overtime",
+                "core.overtime.read");
+    }
+
+    @Test
+    @DisplayName("D-72: HR reaches everyone's regularizations and overtime from GETs guarded by the item's action")
+    void allRequestListsAreGuardedGets() {
+        Method regularizations =
+                getMapping(RegularizationController.class, items.get(10).targetEndpoint());
+        assertThat(regularizations.getAnnotation(RequiresAction.class).value()).isEqualTo("core.attendance.read");
+        assertThat(RegularizationController.class
+                        .getAnnotation(RequiresModule.class)
+                        .value())
+                .isEqualTo(PlatformModule.HRMS);
+        // Everyone's overtime is core's list (W-68); the menu item still sits under HRMS.
+        Method overtime = getMapping(OvertimeController.class, items.get(11).targetEndpoint());
+        assertThat(overtime.getAnnotation(RequiresAction.class).value()).isEqualTo("core.overtime.read");
     }
 
     @Test
@@ -132,6 +164,36 @@ class HrmsNavigationTest {
         assertGuardedGet(OvertimeRequestController.class, items.get(9));
     }
 
+    @Test
+    @DisplayName("D-76: managers and HR see the dashboard too - by team or approve actions, each one the GET admits")
+    void dashboardShowsForTeamAndApproveActions() {
+        ItemDefinition dashboard = HrmsNavigation.DASHBOARD;
+        assertThat(dashboard.requiredAction()).isEqualTo("hrms.project.read_own");
+        assertThat(dashboard.anyOf())
+                .containsExactly("hrms.project.read_team", "hrms.timesheet.read_team", "hrms.timesheet.approve");
+
+        assertThat(dashboard.admits(Set.of("hrms.project.read_own")))
+                .as("employee")
+                .isTrue();
+        assertThat(dashboard.admits(Set.of("hrms.project.read_team", "hrms.timesheet.approve")))
+                .as("seeded manager")
+                .isTrue();
+        assertThat(dashboard.admits(Set.of("hrms.timesheet.read", "hrms.timesheet.approve", "hrms.project.read")))
+                .as("seeded hr")
+                .isTrue();
+        assertThat(dashboard.admits(Set.of("payroll.run.read", "core.org.read")))
+                .as("finance")
+                .isFalse();
+
+        RequiresAction guard = getMapping(HrmsDashboardController.class, dashboard.targetEndpoint())
+                .getAnnotation(RequiresAction.class);
+        Set<String> admitted = new HashSet<>(Arrays.asList(guard.anyOf()));
+        admitted.add(guard.value());
+        assertThat(admitted)
+                .as("every code that shows the item opens its endpoint, or the menu leads to a 403")
+                .containsAll(dashboard.actions());
+    }
+
     private static void assertGuardedGet(Class<?> controller, ItemDefinition item) {
         Method target = getMapping(controller, item.targetEndpoint());
         RequiresAction action = target.getAnnotation(RequiresAction.class);
@@ -139,6 +201,7 @@ class HrmsNavigationTest {
             action = controller.getAnnotation(RequiresAction.class);
         }
         assertThat(action.value()).isEqualTo(item.requiredAction());
+        assertThat(action.anyOf()).contains(item.anyOf().toArray(String[]::new));
         assertThat(controller.getAnnotation(RequiresModule.class).value()).isEqualTo(item.requiredModule());
     }
 

@@ -1,4 +1,5 @@
 import React, { lazy } from 'react';
+import { Navigate } from 'react-router-dom';
 import payrunReducer from './payrun/payrunSlice.js';
 import taxReducer from './tax/taxSlice.js';
 import salaryReducer from './salary/salarySlice.js';
@@ -80,6 +81,11 @@ export const routes = [
   { path: '/payroll/runs', element: React.createElement(RunList) },
   { path: '/payroll/runs/new-off-cycle', element: React.createElement(OffCycleCreate) },
   { path: '/payroll/runs/:id', element: React.createElement(RunPage) },
+  // D-64: the menu item's path; the settings screens sit beneath it and open on the pay schedule.
+  {
+    path: '/payroll/settings',
+    element: React.createElement(Navigate, { to: '/payroll/settings/pay-schedule', replace: true }),
+  },
   {
     path: '/payroll/settings/pay-schedule',
     element: React.createElement(SettingsLayout, null, React.createElement(PayScheduleScreen)),

@@ -5,6 +5,8 @@ import { Link, Navigate, Routes, Route, useLocation, useNavigate } from 'react-r
 import { useNavigation } from './navigation/useNavigation.js';
 import { navLabel } from './navigation/navLabels.js';
 import { routesFromFeed, portalRoutes } from './routes.js';
+import { moduleEmployeeTabs } from './moduleTabs.js';
+import { ModuleEmployeeTabsProvider } from './navigation/moduleEmployeeTabs.js';
 import { Header } from './Header.jsx';
 import { useImpersonationSession } from './useImpersonationSession.js';
 import { ShellBoundary } from './ShellBoundary.jsx';
@@ -25,6 +27,23 @@ const IMPERSONATION_ADMIN_PATH = '/admin/tenants';
 
 /** The first-sign-in page (W-73.8). Mounted for every signed-in user, like the portal. */
 const WELCOME_PATH = '/welcome';
+
+/**
+ * The portal's profile panel (D-75), which the header's user menu opens as My profile whenever the
+ * feed names the self-service portal item - the server shows that item only to a caller with a
+ * linked employee record, so the header link and the menu item agree. The shell reads it from the
+ * feed it already holds: a second feed hook in the header would refetch the feed twice on every
+ * tenant change.
+ */
+const MY_PROFILE_PATH = '/me/profile';
+const PORTAL_KEY = 'core.me';
+const PORTAL_PATH = '/me';
+
+function hasPortalItem(items) {
+  return (items || []).some(
+    (item) => item.key === PORTAL_KEY || item.path === PORTAL_PATH || hasPortalItem(item.children),
+  );
+}
 
 /**
  * Where `/` goes: the welcome page until the user dismisses it (W-73.8), the home path after.
@@ -50,13 +69,14 @@ RootRedirect.propTypes = {
  * array anywhere here. An empty feed → empty sidebar and NoModules placeholder.
  */
 export function AppShell() {
-  const { items, tenantName, tenantLogoUrl, tagline, homePath: feedHomePath, loading, error, refetch } =
+  const { items, actions, modules, tenantName, tenantLogoUrl, tagline, homePath: feedHomePath, loading, error, refetch } =
     useNavigation();
   const location = useLocation();
   const { token } = antdTheme.useToken();
   const session = useImpersonationSession();
   const me = useMe();
   const navigate = useNavigate();
+  const ownsProfile = hasPortalItem(items);
 
   const menuItems = buildMenuItems(items);
   const selectedKey = findSelectedKey(items, location.pathname);
@@ -143,6 +163,7 @@ export function AppShell() {
             tenantLogoUrl={tenantLogoUrl}
             tagline={tagline}
             onGettingStarted={() => navigate(WELCOME_PATH)}
+            onMyProfile={ownsProfile ? () => navigate(MY_PROFILE_PATH) : undefined}
           />
           <Content style={{ padding: token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
             {!loading && error ? (
@@ -178,19 +199,22 @@ export function AppShell() {
                 <NoModules />
               )
             ) : (
-              <React.Suspense fallback={<Skeleton active />}>
-                <Routes>
-                  {homePath && <Route path="/" element={<RootRedirect homePath={homePath} me={me} />} />}
-                  <Route path={WELCOME_PATH} element={<Welcome homePath={homePath} />} />
-                  {portalRoutes.map((route) => (
-                    <Route key={route.path} path={route.path} element={route.element} />
-                  ))}
-                  {feedRoutes.map((route) => (
-                    <Route key={route.path} path={route.path} element={route.element} />
-                  ))}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </React.Suspense>
+              // The modules' employee page tabs reach core's EmployeePage through this (D-66).
+              <ModuleEmployeeTabsProvider tabs={moduleEmployeeTabs} modules={modules} actions={actions}>
+                <React.Suspense fallback={<Skeleton active />}>
+                  <Routes>
+                    {homePath && <Route path="/" element={<RootRedirect homePath={homePath} me={me} />} />}
+                    <Route path={WELCOME_PATH} element={<Welcome homePath={homePath} />} />
+                    {portalRoutes.map((route) => (
+                      <Route key={route.path} path={route.path} element={route.element} />
+                    ))}
+                    {feedRoutes.map((route) => (
+                      <Route key={route.path} path={route.path} element={route.element} />
+                    ))}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </React.Suspense>
+              </ModuleEmployeeTabsProvider>
             )}
           </Content>
         </Layout>
