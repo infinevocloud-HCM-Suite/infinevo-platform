@@ -19,6 +19,20 @@
 - Tracker §11 holds his QA rows with their branch numbers; the founder renumbers once.
 - **Branches:** `dev-claude-devashish` can be deleted; `dev-devashish` resets to `main` (the proof screens stay in its history).
 
+## 2026-10-13 — Playwright per-role e2e suite on `main`; its findings `D-89`–`D-93` fixed
+
+| What | Where |
+|---|---|
+| Suite | `code/frontend/e2e/` — one project per seeded role (platform admin, tenant admin, HR, manager, payroll officer, finance, employee): landing page, every sidebar screen opens with a heading and clean tables (no ISO dates, no raw codes, no empty headers), every safe button on each list works; plus the leave request flow end to end (HR creates type and policy → allocates → employee applies → manager approves → HR approves → employee sees Approved) |
+| Run | `npm run e2e` in `code/frontend` against the compose stack (`infra/docker`, seeded); CI job `e2e` on every push, **non-blocking** (`continue-on-error`) until the role walks are green; report uploaded as `e2e-report` |
+| Seed | A login per role in `infra/docker/keycloak/dev-realm.json` and `infra/docker/seed/` (02/03/06/07), password `Local_dev_pw1!` |
+| Stack | `D-89`: the dev server proxies `/api` (`vite.config.js`), so a browser works against the local stack |
+
+- First CI run of the suite: 31 passed, 6 failed, 1 flaky. The failures were real: `D-90` (Valid From optional on the form), `D-91` (misleading "requires action" for a login with no employee record, 14 sites), `D-92` (manager's View Item answered 400: direct reports read outside a transaction), `D-93` (allocation sends a January window to an April-cycle tenant) — all fixed in this squash — and `D-78` (ISO dates on Employees, an empty header on Deductions), which stays with Phase 3.
+- **Known suite gaps:** the Deductions and Employees walks fail until `D-78`; the suite treats "No employee record is linked to your account" as designed behaviour; local Testcontainers and Docker Desktop hung on the founder's machine on 2026-10-13, so CI is where the suite runs.
+- **Open:** `D-78`–`D-87` (Phases 3–4), `D-25` (proof-of-investment screens need a spec), Sayeed's `D-43`–`D-58` except `D-52`/`D-55`, Krushna's §9.4 items. Make the `e2e` job blocking once a run is green.
+- **Branches:** `dev-claude-e2e` can be deleted.
+
 ## 2026-10-13 — Krushna's Day 4 employee fixes on `main` (`BUG-D4-13`–`BUG-D4-22`)
 
 | Fix | What |

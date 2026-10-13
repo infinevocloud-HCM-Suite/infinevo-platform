@@ -21,7 +21,7 @@ import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeclaration.IncomeTaxDeclarationWindow;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationWindowService;
 import com.infinevo.payroll.taxdeclaration.summary.TaxSummaryService;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.money.Money;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
@@ -303,12 +303,12 @@ class TaxRecalculationRulesTest {
     }
 
     @Test
-    @DisplayName("historyOwn throws PermissionDeniedException when no employee in context")
+    @DisplayName("historyOwn with no employee record says so (D-91), rather than naming an action the caller holds")
     void historyOwnWithoutCurrentEmployeeThrows() {
         given(employeeService.currentEmployee()).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.historyOwn(fy.label()))
-                .isInstanceOf(PermissionDeniedException.class)
-                .hasMessageContaining("payroll.tax_declaration.read_own");
+                .isInstanceOf(NoEmployeeRecordException.class)
+                .hasMessageContaining("No employee record is linked");
     }
 }

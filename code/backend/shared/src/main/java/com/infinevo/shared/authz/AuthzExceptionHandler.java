@@ -39,9 +39,15 @@ public class AuthzExceptionHandler {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(ApiErrorResponse.of(denied.error(), denied.getMessage(), traceId()));
         }
-        String message = e instanceof PermissionDeniedException denied
-                ? ApiError.FORBIDDEN.defaultMessage() + ": requires action '" + denied.actionCode() + "'"
-                : ApiError.FORBIDDEN.defaultMessage();
+        String message;
+        if (e instanceof PermissionDeniedException denied) {
+            message = ApiError.FORBIDDEN.defaultMessage() + ": requires action '" + denied.actionCode() + "'";
+        } else if (e instanceof NoEmployeeRecordException) {
+            // D-91: the action is held; what is missing is the employee record. Say that, not the action.
+            message = e.getMessage();
+        } else {
+            message = ApiError.FORBIDDEN.defaultMessage();
+        }
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(ApiErrorResponse.of(ApiError.FORBIDDEN, message, traceId()));

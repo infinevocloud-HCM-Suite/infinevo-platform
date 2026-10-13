@@ -10,7 +10,7 @@ import com.infinevo.payroll.taxcalc.model.TaxComputation;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeclaration.dto.ApiResponse;
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotFoundException;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.entitlement.RequiresModule;
@@ -70,7 +70,7 @@ public class MyTaxCalculationController {
     }
 
     private EmployeeResponse currentEmployeeOrDeny(String actionCode) {
-        return employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(actionCode));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 
     @ExceptionHandler(DeclarationNotFoundException.class)

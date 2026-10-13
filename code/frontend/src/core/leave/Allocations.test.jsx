@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Allocations } from './Allocations.jsx';
+import { Allocations, leaveYearWindow } from './Allocations.jsx';
 import { leaveBalanceService } from './leaveBalanceService.js';
+import { companyProfileService } from '../settings/companyProfileService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { employeeService } from '../employee/employeeService.js';
 import * as useCanModule from '@shell/screens';
@@ -18,6 +19,10 @@ vi.mock('./leaveTypeService.js', () => ({
   leaveTypeService: {
     list: vi.fn(),
   },
+}));
+
+vi.mock('../settings/companyProfileService.js', () => ({
+  companyProfileService: { get: vi.fn().mockResolvedValue({ name: 'Globex', leaveYearStartMonth: 4 }) },
 }));
 
 vi.mock('../employee/employeeService.js', () => ({
@@ -111,8 +116,9 @@ describe('Allocations component', () => {
           employeeId: 'emp-1',
           leaveTypeId: 'type-1',
           openingDays: 10,
-          yearStartDate: expect.stringMatching(/^\d{4}-01-01$/),
-          yearEndDate: expect.stringMatching(/^\d{4}-12-31$/),
+          // D-93: an April-cycle tenant's leave year runs 1 April to 31 March, not January to December.
+          yearStartDate: expect.stringMatching(/^\d{4}-04-01$/),
+          yearEndDate: expect.stringMatching(/^\d{4}-03-31$/),
         })
       );
     });
@@ -142,5 +148,26 @@ describe('Allocations component', () => {
     await waitFor(() => {
       expect(leaveBalanceService.accrue).toHaveBeenCalled();
     });
+  });
+});
+
+describe('Allocations when the company profile cannot be read (D-93)', () => {
+  it('assumes the server default, April, and says so beside Leave Year', async () => {
+    companyProfileService.get.mockRejectedValueOnce(new Error('boom'));
+    render(<Allocations />);
+    await waitFor(() => {
+      expect(companyProfileService.get).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Allocate/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/assuming the leave year starts in April/i)).toBeDefined();
+    });
+  });
+});
+
+describe('leaveYearWindow (D-93)', () => {
+  it('runs January to December for a January start and April to March for an April start', () => {
+    expect(leaveYearWindow(2026, 1)).toEqual({ yearStartDate: '2026-01-01', yearEndDate: '2026-12-31' });
+    expect(leaveYearWindow(2026, 4)).toEqual({ yearStartDate: '2026-04-01', yearEndDate: '2027-03-31' });
   });
 });

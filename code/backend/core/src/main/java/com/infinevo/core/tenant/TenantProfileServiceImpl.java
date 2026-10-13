@@ -111,10 +111,16 @@ public class TenantProfileServiceImpl implements TenantProfileService {
     /** The three columns in one query, under the bound tenant's row-level security. */
     private Optional<TenantBranding> read(UUID tenantId) {
         List<TenantBranding> rows = jdbcTemplate.query(
-                "SELECT name, tagline, logo_document_id FROM core.tenant WHERE tenant_id = ?",
+                "SELECT name, tagline, logo_document_id, leave_year_start_month FROM core.tenant WHERE tenant_id = ?",
                 (rs, rowNum) -> {
                     UUID logoId = rs.getObject("logo_document_id", UUID.class);
-                    return new TenantBranding(rs.getString("name"), rs.getString("tagline"), logoId, logoUrl(logoId));
+                    short month = rs.getShort("leave_year_start_month");
+                    return new TenantBranding(
+                            rs.getString("name"),
+                            rs.getString("tagline"),
+                            logoId,
+                            logoUrl(logoId),
+                            rs.wasNull() ? null : month);
                 },
                 tenantId);
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
@@ -142,7 +148,11 @@ public class TenantProfileServiceImpl implements TenantProfileService {
 
     private static TenantProfileResponse toResponse(TenantBranding branding) {
         return new TenantProfileResponse(
-                branding.name(), branding.tagline(), branding.logoDocumentId(), branding.logoUrl());
+                branding.name(),
+                branding.tagline(),
+                branding.logoDocumentId(),
+                branding.logoUrl(),
+                branding.leaveYearStartMonth());
     }
 
     /** Trimmed; blank is "no tagline"; over the limit is refused. */

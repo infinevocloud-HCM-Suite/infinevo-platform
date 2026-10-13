@@ -23,7 +23,15 @@
 --   employee.acme     -> employee       in Acme Manufacturing
 --   admin.globex      -> tenant-admin   in Globex Corporation
 --   employee.globex   -> employee       in Globex Corporation
+--   hr.globex         -> hr             in Globex Corporation
+--   manager.globex    -> manager        in Globex Corporation
+--   payroll.globex    -> payroll-officer in Globex Corporation
+--   finance.globex    -> finance        in Globex Corporation
 --   staff.infinevo    -> platform-admin in Infinevo
+--
+-- The four Globex role logins exist so an end-to-end browser suite can sign in as every
+-- system role V022 seeds. hr.globex also makes the LEAVE flow's second step (ROLE "hr",
+-- V089) resolvable once 06-employees.sql links it to an employee.
 --
 -- Only staff.infinevo gets platform-admin: it holds core.tenant.provision, which no customer
 -- user may hold, and they are platform staff in the platform tenant (W-65.1).
@@ -33,6 +41,10 @@ INSERT INTO core.user_account (tenant_id, keycloak_user_id, email, created_by, u
     ('11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000002', 'emp@acme-payroll.local', 'seed', 'seed'),
     ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000001', 'admin@globex-full.local', 'seed', 'seed'),
     ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000002', 'emp@globex-full.local', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000003', 'hr@globex-full.local', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000004', 'manager@globex-full.local', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000005', 'payroll@globex-full.local', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000006', 'finance@globex-full.local', 'seed', 'seed'),
     ('00000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'staff@infinevo.local', 'seed', 'seed')
 ON CONFLICT (tenant_id, keycloak_user_id) DO NOTHING;
 
@@ -43,6 +55,10 @@ FROM (VALUES
         ('11111111-1111-1111-1111-111111111111'::uuid, 'a0000000-0000-0000-0000-000000000002'::uuid, 'employee'),
         ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000001'::uuid, 'tenant-admin'),
         ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid, 'employee'),
+        ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000003'::uuid, 'hr'),
+        ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000004'::uuid, 'manager'),
+        ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000005'::uuid, 'payroll-officer'),
+        ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000006'::uuid, 'finance'),
         ('00000000-0000-0000-0000-000000000001'::uuid, 'c0000000-0000-0000-0000-000000000001'::uuid, 'platform-admin')
      ) AS g (tenant_id, keycloak_user_id, role_code)
 JOIN core.user_account ua ON ua.tenant_id = g.tenant_id AND ua.keycloak_user_id = g.keycloak_user_id

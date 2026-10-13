@@ -316,7 +316,11 @@ export function LeaveTypes() {
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="validFrom" label="Valid From">
+              <Form.Item
+                name="validFrom"
+                label="Valid From"
+                rules={[{ required: true, message: 'Valid From is required' }]}
+              >
                 <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
               </Form.Item>
             </Col>

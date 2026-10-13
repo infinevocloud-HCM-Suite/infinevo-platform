@@ -52,6 +52,11 @@ docker compose -f infra/docker/compose.yml exec postgres psql -U postgres -d inf
 infra/docker/smoke.sh
 ```
 
+CI does the same thing. The `e2e` job in `.github/workflows/ci.yml` builds these dev
+images, runs `up -d`, `seed/seed.sh` and `smoke.sh`, then drives the stack with the
+browser suite in `code/frontend/e2e/` and tears it down with `down -v`. It is report-only
+for now (`continue-on-error`); its html report is the `e2e-report` artifact on the run.
+
 **Too heavy?** Nine containers need roughly 2 GB. For backend-only work:
 
 ```bash

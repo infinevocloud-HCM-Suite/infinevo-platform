@@ -8,7 +8,7 @@ import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotEditableExcep
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotFoundException;
 import com.infinevo.payroll.taxdeclaration.exception.WindowValidationException;
 import com.infinevo.payroll.taxdeclaration.housing.HraRuleReader;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -360,7 +360,7 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
     }
 
     private EmployeeResponse currentEmployeeOrDeny(String actionCode) {
-        return employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(actionCode));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 
     private TaxDeclarationResponse toResponse(

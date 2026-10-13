@@ -11,7 +11,7 @@ import com.infinevo.hrms.project.ValidationException;
 import com.infinevo.hrms.timesheet.TimesheetRequest.DayLine;
 import com.infinevo.hrms.timesheet.TimesheetRequest.ProjectLine;
 import com.infinevo.hrms.timesheet.TimesheetRequest.TaskLine;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -238,18 +238,18 @@ class TimesheetCrudIT extends TimesheetItSupport {
     }
 
     @Test
-    @DisplayName("A login with no employee record is the permission error on every operation, not a server error")
-    void noEmployeeIsPermissionDenied() {
+    @DisplayName("D-91: a caller with no employee record is told so, not that it lacks an action it holds")
+    void noEmployeeRecordIsSaidSo() {
         HrmsTestApp.CURRENT_EMPLOYEE.remove();
         UUID anyId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> timesheets.create(simple(WEEK))).isInstanceOf(PermissionDeniedException.class);
-        assertThatThrownBy(() -> timesheets.replace(anyId, simple(WEEK))).isInstanceOf(PermissionDeniedException.class);
-        assertThatThrownBy(() -> timesheets.delete(anyId)).isInstanceOf(PermissionDeniedException.class);
-        assertThatThrownBy(() -> timesheets.get(anyId)).isInstanceOf(PermissionDeniedException.class);
+        assertThatThrownBy(() -> timesheets.create(simple(WEEK))).isInstanceOf(NoEmployeeRecordException.class);
+        assertThatThrownBy(() -> timesheets.replace(anyId, simple(WEEK))).isInstanceOf(NoEmployeeRecordException.class);
+        assertThatThrownBy(() -> timesheets.delete(anyId)).isInstanceOf(NoEmployeeRecordException.class);
+        assertThatThrownBy(() -> timesheets.get(anyId)).isInstanceOf(NoEmployeeRecordException.class);
         assertThatThrownBy(() -> timesheets.listMine(null, null, null, null))
-                .isInstanceOf(PermissionDeniedException.class);
-        assertThatThrownBy(() -> timesheets.forWeek(null)).isInstanceOf(PermissionDeniedException.class);
+                .isInstanceOf(NoEmployeeRecordException.class);
+        assertThatThrownBy(() -> timesheets.forWeek(null)).isInstanceOf(NoEmployeeRecordException.class);
     }
 
     @Test

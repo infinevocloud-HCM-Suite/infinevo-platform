@@ -2,7 +2,7 @@ package com.infinevo.payroll.proof;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.List;
 import java.util.Objects;
@@ -66,9 +66,7 @@ public class ProofCommentServiceImpl implements ProofCommentService {
 
         validateBody(request.body());
 
-        EmployeeResponse reviewer = employeeService
-                .currentEmployee()
-                .orElseThrow(() -> new PermissionDeniedException("payroll.proof.review"));
+        EmployeeResponse reviewer = employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
 
         proofRepository
                 .findByTenantIdAndId(tenantId, proofId)
@@ -96,9 +94,7 @@ public class ProofCommentServiceImpl implements ProofCommentService {
         Objects.requireNonNull(financialYear, "financialYear must not be null");
         Objects.requireNonNull(itemId, "itemId must not be null");
 
-        EmployeeResponse me = employeeService
-                .currentEmployee()
-                .orElseThrow(() -> new PermissionDeniedException("payroll.proof.read_own"));
+        EmployeeResponse me = employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
 
         EmployeeProofOfInvestment proof = proofRepository
                 .findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, me.id(), financialYear)
@@ -122,9 +118,7 @@ public class ProofCommentServiceImpl implements ProofCommentService {
 
         validateBody(request.body());
 
-        EmployeeResponse me = employeeService
-                .currentEmployee()
-                .orElseThrow(() -> new PermissionDeniedException("payroll.proof.submit_own"));
+        EmployeeResponse me = employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
 
         EmployeeProofOfInvestment proof = proofRepository
                 .findByTenantIdAndEmployeeIdAndFinancialYear(tenantId, me.id(), financialYear)

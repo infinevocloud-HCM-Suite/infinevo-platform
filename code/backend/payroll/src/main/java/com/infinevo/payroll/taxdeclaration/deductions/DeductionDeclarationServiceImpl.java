@@ -18,7 +18,7 @@ import com.infinevo.payroll.taxdeclaration.deductions.dto.Section6AItemResponse;
 import com.infinevo.payroll.taxdeclaration.deductions.dto.Section6ALineRequest;
 import com.infinevo.payroll.taxdeclaration.deductions.dto.Section6ALineResponse;
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotEditableException;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -327,6 +327,6 @@ public class DeductionDeclarationServiceImpl implements DeductionDeclarationServ
     }
 
     private EmployeeResponse currentEmployeeOrDeny(String actionCode) {
-        return employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(actionCode));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 }

@@ -2,8 +2,7 @@ package com.infinevo.core.leave;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
-import com.infinevo.core.org.ReportingLine;
-import com.infinevo.core.org.ReportingLineRepository;
+import com.infinevo.core.org.ReportingLineService;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
@@ -43,18 +42,18 @@ public class LeaveRequestController {
     private final LeaveRequestService leaveRequestService;
     private final EmployeeService employeeService;
     private final PermissionService permissionService;
-    private final ReportingLineRepository reportingLineRepository;
+    private final ReportingLineService reportingLineService;
 
     public LeaveRequestController(
             LeaveRequestService leaveRequestService,
             EmployeeService employeeService,
             PermissionService permissionService,
-            ReportingLineRepository reportingLineRepository) {
+            ReportingLineService reportingLineService) {
         this.leaveRequestService = Objects.requireNonNull(leaveRequestService, "leaveRequestService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.permissionService = Objects.requireNonNull(permissionService, "permissionService must not be null");
-        this.reportingLineRepository =
-                Objects.requireNonNull(reportingLineRepository, "reportingLineRepository must not be null");
+        this.reportingLineService =
+                Objects.requireNonNull(reportingLineService, "reportingLineService must not be null");
     }
 
     @PostMapping("/api/v1/leave-requests")
@@ -96,11 +95,7 @@ public class LeaveRequestController {
         if (permissionService.holds("core.leave.read_team")) {
             List<UUID> allowedIds = new ArrayList<>();
             allowedIds.add(caller.id());
-            List<ReportingLine> directReports =
-                    reportingLineRepository.findDirectReports(tenantId, caller.id(), LocalDate.now());
-            for (ReportingLine line : directReports) {
-                allowedIds.add(line.getEmployee().getId());
-            }
+            allowedIds.addAll(reportingLineService.directReportIds(caller.id(), LocalDate.now()));
             if (employeeId != null) {
                 if (!allowedIds.contains(employeeId)) {
                     return Page.empty(pageable);
@@ -149,10 +144,9 @@ public class LeaveRequestController {
             if (caller.id().equals(resp.employeeId())) {
                 return resp;
             }
-            List<ReportingLine> directReports =
-                    reportingLineRepository.findDirectReports(tenantId, caller.id(), LocalDate.now());
-            boolean isReport =
-                    directReports.stream().anyMatch(l -> l.getEmployee().getId().equals(resp.employeeId()));
+            boolean isReport = reportingLineService
+                    .directReportIds(caller.id(), LocalDate.now())
+                    .contains(resp.employeeId());
             if (isReport) {
                 return resp;
             }

@@ -20,12 +20,34 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { leaveBalanceService } from './leaveBalanceService.js';
 import { employeeService } from '../employee/employeeService.js';
+import { companyProfileService } from '../settings/companyProfileService.js';
 
 const { Title, Text } = Typography;
+
+/** The server's default for core.tenant.leave_year_start_month (V033): April. */
+const DEFAULT_LEAVE_YEAR_START_MONTH = 4;
+
+/** The leave-year window for the year it starts in: Jan-Dec when the tenant's year starts in January, Apr-Mar for April. */
+export function leaveYearWindow(year, startMonth) {
+  const start = dayjs(new Date(year, startMonth - 1, 1));
+  const end = start.add(1, 'year').subtract(1, 'day');
+  return { yearStartDate: start.format('YYYY-MM-DD'), yearEndDate: end.format('YYYY-MM-DD') };
+}
+
+function leaveYearHint(year, startMonth, fromTenant) {
+  if (!year) return null;
+  const { yearStartDate, yearEndDate } = leaveYearWindow(Number(year), startMonth);
+  const window = `Leave year ${dayjs(yearStartDate).format('D MMM YYYY')} to ${dayjs(yearEndDate).format('D MMM YYYY')}`;
+  return fromTenant ? window : `${window} (company settings could not be read; assuming the leave year starts in April)`;
+}
 
 export function Allocations() {
   const canManage = useCan('core.leave_balance.manage');
   const [selectedYear, setSelectedYear] = useState(dayjs().year());
+  // D-93: the tenant's leave year may start in April; the window sent with an allocation follows it.
+  // Until the company profile answers, assume April - the server's own default (core.tenant, V033).
+  const [leaveYearStartMonth, setLeaveYearStartMonth] = useState(DEFAULT_LEAVE_YEAR_START_MONTH);
+  const [leaveYearFromTenant, setLeaveYearFromTenant] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [employees, setEmployees] = useState([]);
@@ -35,6 +57,7 @@ export function Allocations() {
   // Allocate Modal
   const [allocateModalOpen, setAllocateModalOpen] = useState(false);
   const [allocateForm] = Form.useForm();
+  const typedLeaveYear = Form.useWatch('leaveYear', allocateForm);
   const [allocating, setAllocating] = useState(false);
 
   // Accrual Modal
@@ -45,10 +68,15 @@ export function Allocations() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [empData, typeData] = await Promise.all([
+      const [empData, typeData, profile] = await Promise.all([
         employeeService.list({ size: 1000 }),
         leaveTypeService.list(),
+        companyProfileService.get().catch(() => null),
       ]);
+      const month = Number(profile?.leaveYearStartMonth);
+      const known = month >= 1 && month <= 12;
+      setLeaveYearStartMonth(known ? month : DEFAULT_LEAVE_YEAR_START_MONTH);
+      setLeaveYearFromTenant(known);
 
       const empList = Array.isArray(empData)
         ? empData
@@ -98,8 +126,7 @@ export function Allocations() {
         employeeId: values.employeeId,
         leaveTypeId: values.leaveTypeId,
         leaveYear: String(values.leaveYear),
-        yearStartDate: `${values.leaveYear}-01-01`,
-        yearEndDate: `${values.leaveYear}-12-31`,
+        ...leaveYearWindow(Number(values.leaveYear), leaveYearStartMonth),
         openingDays: Number(values.openingDays),
       };
       await leaveBalanceService.allocate(payload);
@@ -294,6 +321,7 @@ export function Allocations() {
               <Form.Item
                 name="leaveYear"
                 label="Leave Year"
+                extra={leaveYearHint(typedLeaveYear ?? selectedYear, leaveYearStartMonth, leaveYearFromTenant)}
                 rules={[{ required: true, message: 'Please enter year' }]}
               >
                 <InputNumber style={{ width: '100%' }} />

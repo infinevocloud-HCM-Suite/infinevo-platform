@@ -16,7 +16,19 @@ export default defineConfig({
       '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
     },
   },
-  server: { port: 5173 },
+  // The dev server proxies /api to the backend, so the browser calls its own origin as it does
+  // behind nginx in production (infra/docker/nginx/default.conf): the backend has no CORS
+  // configuration and needs none. VITE_API_PROXY_TARGET is the backend as the dev server sees
+  // it - http://app:8080 inside compose, http://localhost:8080 for `npm run dev` on the host.
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     rollupOptions: {
       output: {

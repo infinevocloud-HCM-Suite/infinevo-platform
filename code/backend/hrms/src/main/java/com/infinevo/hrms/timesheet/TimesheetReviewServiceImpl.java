@@ -4,7 +4,7 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.hrms.project.ResourceNotFoundException;
 import com.infinevo.hrms.project.ValidationException;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -143,10 +143,7 @@ public class TimesheetReviewServiceImpl implements TimesheetReviewService {
 
     /** The login's employee; a login with no employee record is the permission error (403), never a 500. */
     private UUID caller(String action) {
-        return employeeService
-                .currentEmployee()
-                .map(EmployeeResponse::id)
-                .orElseThrow(() -> new PermissionDeniedException(action));
+        return employeeService.currentEmployee().map(EmployeeResponse::id).orElseThrow(NoEmployeeRecordException::new);
     }
 
     /** Loads the weeks of a page of ids, in that page's order, reads their names in one batch, and maps each. */

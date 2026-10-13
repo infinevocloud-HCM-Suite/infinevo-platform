@@ -263,7 +263,10 @@ services:
       context: ../..
       dockerfile: infra/docker/dev.Dockerfile.frontend
     environment:
-      VITE_API_BASE_URL: http://localhost:8080
+      # No VITE_API_BASE_URL: the app calls /api on its own origin and the dev server proxies it
+      # to the backend (vite.config.js), as nginx does in production. A direct browser call to
+      # :8080 fails twice over - the backend has no CORS, and the old value dropped the /api prefix.
+      VITE_API_PROXY_TARGET: http://app:8080
       VITE_KEYCLOAK_URL: http://localhost:8081
     ports: ["${WEB_PORT:-5173}:5173"]
     depends_on:

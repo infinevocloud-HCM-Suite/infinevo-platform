@@ -1,7 +1,8 @@
 # Continuous integration for infinevo-platform.
 #
 # Jobs: backend, frontend, static, security-deps, security-code, security-secrets
-# run in parallel; images waits on backend and frontend. Nothing here deploys and
+# run in parallel; images waits on backend and frontend; e2e brings the compose stack
+# up and drives it with a browser (report-only for now). Nothing here deploys and
 # nothing is pushed to a registry - W-50 owns the registry, W-54 the deployment.
 #
 # D-43: GitHub refuses branch protection on a private repository on the Free plan, so
@@ -58,6 +59,7 @@ jobs:
       backend: ${{ steps.f.outputs.backend }}
       frontend: ${{ steps.f.outputs.frontend }}
       images: ${{ steps.f.outputs.images }}
+      e2e: ${{ steps.f.outputs.e2e }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -105,11 +107,15 @@ jobs:
           # A backend navigation catalogue change must run navLabels.test.js (D-10).
           match '^code/frontend/|^code/backend/[a-z]+/src/main/java/com/infinevo/[a-z]+/navigation/' && f=true || f=false
           match '^(code/|infra/docker/)'                        && i=true || i=false
+          # The browser suite drives the compose stack, so anything that changes what the
+          # stack runs (code/, infra/docker/) or how this job is defined must run it.
+          match '^(code/|infra/docker/|\.github/workflows/ci\.yml$)' && e=true || e=false
 
           echo "backend=$b"  >> "$GITHUB_OUTPUT"
           echo "frontend=$f" >> "$GITHUB_OUTPUT"
           echo "images=$i"   >> "$GITHUB_OUTPUT"
-          echo "backend=$b frontend=$f images=$i"
+          echo "e2e=$e"      >> "$GITHUB_OUTPUT"
+          echo "backend=$b frontend=$f images=$i e2e=$e"
 
   # ── compile + test + Spotless ───────────────────────────────────────────────
   backend:
@@ -679,3 +685,119 @@ jobs:
           check_size infinevo-frontend:test  40
           check_size infinevo-keycloak:test 300
           exit "$failed"
+
+  # ── end-to-end: the browser suite against the compose stack ─────────────────
+  # The Playwright suite in code/frontend/e2e signs in as every seeded role and walks
+  # every screen it can reach (see code/frontend/e2e/README.md). It needs the whole
+  # local stack - infra/docker/compose.yml, seeded by infra/docker/seed/seed.sh - so
+  # this is the one job that runs the dev images rather than only building them.
+  #
+  # Scope: needs.scope.outputs.e2e - code/, infra/docker/ or this file. It does not
+  # wait on `frontend` or `backend`: those lint and unit-test, this proves the running
+  # product, and the two are independent evidence. A compile error fails here too, just
+  # later and louder (the image build), which is acceptable for a report-only job.
+  #
+  # first iteration — the suite records what is broken; it becomes blocking once the
+  # role walks are green. `continue-on-error: true` at job level means a red e2e job
+  # does not change the run's conclusion, which is what check-done.mjs gate 8 reads -
+  # so a teething problem in the suite cannot hold a merge. Remove that line to make
+  # it blocking; nothing else needs to change.
+  #
+  # One runner, no matrix: the stack is nine containers and ~2 GB, and the suite is
+  # pinned to one worker because the Vite dev server resets connections under parallel
+  # browsers (playwright.config.js:23-26). The dev image builds are plain `compose
+  # build` - the `images` job above uses plain `docker build` with no layer cache either,
+  # so there is no cache pattern to reuse yet. If this job's wall time hurts, the Maven
+  # dependency layer of dev.Dockerfile.backend is the one worth caching.
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    needs: scope
+    if: needs.scope.outputs.e2e == 'true'
+    timeout-minutes: 40   # dev image builds ~10m, stack healthy ~3m, suite on one worker
+    continue-on-error: true
+    env:
+      COMPOSE: docker compose -f infra/docker/compose.yml
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'        # D-42, same as the frontend job and the web dev image
+          cache: 'npm'
+          cache-dependency-path: code/frontend/package-lock.json
+
+      # Built separately from `up` so the log shows build time and boot time apart.
+      - name: Build the dev images
+        run: $COMPOSE build
+
+      # No `--wait`: it treats a one-shot service (migrate, which exits 0 on purpose)
+      # differently across compose versions. The poll below asks the same questions
+      # smoke.sh asks of the three containers the browser will talk to, and prints the
+      # container table and the app log on timeout so a boot failure is diagnosable.
+      - name: Start the stack
+        run: |
+          set -uo pipefail
+          $COMPOSE up -d
+          deadline=$((SECONDS + 600))
+          until curl -fsS http://localhost:8080/actuator/health | grep -q UP \
+                && curl -fsS -o /dev/null http://localhost:5173 \
+                && curl -fsS -o /dev/null http://localhost:8081/realms/infinevo; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::stack not healthy after 600s"
+              $COMPOSE ps
+              $COMPOSE logs --no-color --tail=100 migrate app
+              exit 1
+            fi
+            sleep 5
+          done
+          $COMPOSE ps
+
+      - name: Seed tenants, users and employees
+        run: bash infra/docker/seed/seed.sh
+
+      - name: Smoke the stack
+        run: bash infra/docker/smoke.sh
+
+      - name: Install dependencies
+        working-directory: code/frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: code/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the end-to-end suite
+        working-directory: code/frontend
+        env:
+          CI: 'true'
+          E2E_BASE_URL: http://localhost:5173
+        run: npx playwright test -c e2e/playwright.config.js
+
+      # The suite's own evidence: html report, traces on retry, a screenshot of every
+      # screen visited. Uploaded whatever happened above - a failure before the suite ran
+      # leaves nothing to upload, hence `warn` rather than `error`.
+      - name: Upload e2e report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            code/frontend/e2e/test-results
+            code/frontend/e2e/playwright-report
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Dump container logs
+        if: failure()
+        run: |
+          for s in app web keycloak; do
+            echo "::group::$s (last 200 lines)"
+            $COMPOSE logs --no-color --tail=200 "$s" || true
+            echo "::endgroup::"
+          done
+
+      - name: Tear the stack down
+        if: always()
+        run: $COMPOSE down -v --remove-orphans || true
