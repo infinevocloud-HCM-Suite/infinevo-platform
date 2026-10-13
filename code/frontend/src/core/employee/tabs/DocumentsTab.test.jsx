@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { Modal } from 'antd';
 import { DocumentsTab } from './DocumentsTab.jsx';
 import { documentService, MAX_DOCUMENT_BYTES } from '../../document/documentService.js';
 import { successMsg } from '@shared/ui/msgHelper.js';
@@ -164,4 +165,32 @@ describe('DocumentsTab (W-73.5 §7)', () => {
 
     expect(await screen.findByRole('button', { name: /delete/i })).toBeDefined();
   });
+
+  it('confirms and deletes a document, destroying the modal and refreshing list', async () => {
+    documentService.listForEmployee.mockResolvedValue([offerLetter]);
+    documentService.remove.mockResolvedValue({});
+    const destroySpy = vi.fn();
+    const confirmSpy = vi.spyOn(Modal, 'confirm').mockImplementation((config) => {
+      config.onOk();
+      return { destroy: destroySpy };
+    });
+
+    render(<DocumentsTab employeeId="emp-1" />);
+
+    const deleteBtn = await screen.findByRole('button', { name: /delete/i });
+    fireEvent.click(deleteBtn);
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Delete document',
+        okText: 'Delete',
+      })
+    );
+    await waitFor(() => {
+      expect(documentService.remove).toHaveBeenCalledWith('doc-1');
+      expect(destroySpy).toHaveBeenCalled();
+      expect(successMsg).toHaveBeenCalledWith('Document deleted', expect.stringContaining('offer-letter.pdf'));
+    });
+  });
 });
+

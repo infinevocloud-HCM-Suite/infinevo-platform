@@ -52,14 +52,15 @@ describe('SectionTab component', () => {
   });
 
   it.each([
-    ['contact', 'personalEmail', 'user@home.com', 'Save Contact Details'],
-    ['identification', 'panNumber', 'ABCDE1234F', 'Save Identification Details'],
-    ['employment', 'payGrade', 'L5', 'Save Employment Details'],
-    ['bank', 'bankName', 'State Bank', 'Save Bank Details'],
-  ])('loads and saves %s section', async (sectionName, fieldName, fieldValue, buttonName) => {
+    ['contact', 'personalEmail', 'user@home.com', 'Save Contact Details', {}],
+    ['identification', 'panNumber', 'ABCDE1234F', 'Save Identification Details', { aadhaarNumber: '123456789012' }],
+    ['employment', 'payGrade', 'L5', 'Save Employment Details', {}],
+    ['bank', 'bankName', 'State Bank', 'Save Bank Details', {}],
+  ])('loads and saves %s section', async (sectionName, fieldName, fieldValue, buttonName, extraFields) => {
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
     employeeService.section.mockResolvedValueOnce({
       [fieldName]: fieldValue,
+      ...extraFields,
     });
     employeeService.saveSection.mockResolvedValueOnce({});
 
@@ -82,6 +83,24 @@ describe('SectionTab component', () => {
         expect.objectContaining({ [fieldName]: fieldValue })
       );
     });
+  });
+
+  it('validates that Aadhaar is required for identification section', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    employeeService.section.mockResolvedValueOnce({
+      panNumber: 'ABCDE1234F',
+    });
+
+    render(<SectionTab employeeId="emp-1" sectionName="identification" />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('ABCDE1234F')).toBeDefined();
+    });
+
+    const saveBtn = screen.getByRole('button', { name: /save identification details/i });
+    fireEvent.click(saveBtn);
+
+    expect(employeeService.saveSection).not.toHaveBeenCalled();
   });
 
   it('renders inputs as disabled and hides save button when permission is missing', async () => {

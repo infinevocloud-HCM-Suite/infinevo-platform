@@ -58,11 +58,57 @@ public record EmployeeRequest(
         UUID workLocationId,
         EmploymentType employmentType,
         LocalDate probationEndDate,
-        Integer noticePeriodDays) {
+        Integer noticePeriodDays,
+        String terminationReason,
+        String terminationRemarks) {
 
-    /** The canonical constructor is the one Jackson binds — named, so the shorter one below cannot be picked. */
+    /** The canonical constructor is the one Jackson binds — named, so the shorter ones below cannot be picked. */
     @JsonCreator
     public EmployeeRequest {}
+
+    /**
+     * The request as it was before BUG-D4-20, without the termination reason and remarks. Kept so
+     * the seventeen-field callers still compile unchanged.
+     */
+    public EmployeeRequest(
+            String employeeNumber,
+            String firstName,
+            String middleName,
+            String lastName,
+            String gender,
+            LocalDate dateOfJoining,
+            LocalDate terminationDate,
+            EmploymentStatus status,
+            String workEmail,
+            String mobile,
+            Boolean portalEnabled,
+            UUID departmentId,
+            UUID designationId,
+            UUID workLocationId,
+            EmploymentType employmentType,
+            LocalDate probationEndDate,
+            Integer noticePeriodDays) {
+        this(
+                employeeNumber,
+                firstName,
+                middleName,
+                lastName,
+                gender,
+                dateOfJoining,
+                terminationDate,
+                status,
+                workEmail,
+                mobile,
+                portalEnabled,
+                departmentId,
+                designationId,
+                workLocationId,
+                employmentType,
+                probationEndDate,
+                noticePeriodDays,
+                null,
+                null);
+    }
 
     /**
      * The request as it was before D-40, without the three employment terms. Kept so the callers

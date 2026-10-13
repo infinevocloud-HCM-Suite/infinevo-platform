@@ -133,8 +133,8 @@ public class EmployeeIdentificationServiceImpl
     @Override
     protected void validate(EmployeeIdentificationRequest request, Map<String, String> errors) {
         optional(errors, "immigrationStatus", request.immigrationStatus(), MAX_IMMIGRATION_STATUS);
-        optionalPattern(errors, "aadhaarNumber", request.aadhaarNumber(), MAX_AADHAAR, AADHAAR_PATTERN, "12 digits");
-        optionalPattern(
+        requiredPattern(errors, "aadhaarNumber", request.aadhaarNumber(), MAX_AADHAAR, AADHAAR_PATTERN, "12 digits");
+        requiredPattern(
                 errors,
                 "panNumber",
                 request.panNumber(),
@@ -149,6 +149,26 @@ public class EmployeeIdentificationServiceImpl
         optional(errors, "addressProofType", request.addressProofType(), MAX_PROOF_TYPE);
         optional(errors, "addressDocumentName", request.addressDocumentName(), MAX_DOCUMENT_NAME);
         optional(errors, "addressDocumentNumber", request.addressDocumentNumber(), MAX_DOCUMENT_NUMBER);
+    }
+
+    @Override
+    protected void validateAgainst(
+            EmployeeIdentificationRequest request, Employee employee, Map<String, String> errors) {
+        UUID tenantId = TenantContext.require();
+        String pan = trimToNull(request.panNumber());
+        if (pan != null && !errors.containsKey("panNumber")) {
+            if (identifications.existsByTenantIdAndPanNumberAndEmployeeIdNot(tenantId, pan, employee.getId())) {
+                errors.put("panNumber", "PAN number " + pan + " already belongs to an employee in this tenant");
+            }
+        }
+        String aadhaar = trimToNull(request.aadhaarNumber());
+        if (aadhaar != null && !errors.containsKey("aadhaarNumber")) {
+            if (identifications.existsByTenantIdAndAadhaarNumberAndEmployeeIdNot(tenantId, aadhaar, employee.getId())) {
+                errors.put(
+                        "aadhaarNumber",
+                        "Aadhaar number " + aadhaar + " already belongs to an employee in this tenant");
+            }
+        }
     }
 
     @Override

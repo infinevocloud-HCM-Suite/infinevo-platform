@@ -97,16 +97,16 @@ class EmployeeQueryServiceTest {
     }
 
     @Test
-    @DisplayName("Default sort is lastName ascending when the client sends none")
-    void defaultSortIsLastNameAscending() {
+    @DisplayName("Default sort is employeeNumber ascending when the client sends none")
+    void defaultSortIsEmployeeNumberAscending() {
         Pageable unsorted = PageRequest.of(0, 25);
         when(repository.search(any(), any(), any(), eq(false), any())).thenReturn(Page.empty());
 
         service.search(null, null, false, unsorted);
 
         verify(repository).search(eq(TENANT), eq(null), eq(null), eq(false), org.mockito.ArgumentMatchers.argThat(p -> {
-            assertThat(p.getSort().getOrderFor("lastName")).isNotNull();
-            assertThat(p.getSort().getOrderFor("lastName").getDirection()).isEqualTo(Sort.Direction.ASC);
+            assertThat(p.getSort().getOrderFor("employeeNumber")).isNotNull();
+            assertThat(p.getSort().getOrderFor("employeeNumber").getDirection()).isEqualTo(Sort.Direction.ASC);
             return true;
         }));
     }

@@ -67,6 +67,10 @@ public final class PayrollTestSchema {
             }
             if (!tableExists(conn, "core", "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
+                executeResource(
+                        conn,
+                        "db/migration/core/V173__employee_termination_reason.sql"); // BUG-D4-20 columns the Employee
+                // entity maps
             }
             if (!tableExists(conn, "core", "employee_personal")) {
                 executeResource(conn, "db/migration/core/V015__employee_personal.sql");

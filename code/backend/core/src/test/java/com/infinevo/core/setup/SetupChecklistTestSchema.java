@@ -60,6 +60,10 @@ public final class SetupChecklistTestSchema {
             // suite passed only when another suite had created the table first.
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
+                executeResource(
+                        conn,
+                        "db/migration/core/V173__employee_termination_reason.sql"); // BUG-D4-20 columns the Employee
+                // entity maps
             }
         }
     }

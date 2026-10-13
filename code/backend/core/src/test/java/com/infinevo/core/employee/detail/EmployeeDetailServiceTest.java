@@ -3,6 +3,7 @@ package com.infinevo.core.employee.detail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,6 +49,7 @@ class EmployeeDetailServiceTest {
     private static final UUID TENANT_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID EMPLOYEE_A = UUID.fromString("aaaaaaaa-0000-4000-8000-00000000000a");
     private static final UUID EMPLOYEE_B = UUID.fromString("bbbbbbbb-0000-4000-8000-00000000000b");
+    private static final UUID EMPLOYEE_C = UUID.fromString("cccccccc-0000-4000-8000-00000000000c");
 
     private EmployeeRepository employees;
     private PermissionService permissionService;
@@ -60,6 +62,7 @@ class EmployeeDetailServiceTest {
     private EmployeeBankServiceImpl bankService;
 
     private List<EmployeePersonal> personalStore;
+    private List<EmployeeIdentification> identificationStore;
     private List<EmployeeBank> bankStore;
 
     @BeforeEach
@@ -75,6 +78,9 @@ class EmployeeDetailServiceTest {
                     if (EMPLOYEE_A.equals(id) && TENANT_A.equals(tenantId)) {
                         return Optional.of(employee(EMPLOYEE_A));
                     }
+                    if (EMPLOYEE_C.equals(id) && TENANT_A.equals(tenantId)) {
+                        return Optional.of(employee(EMPLOYEE_C));
+                    }
                     if (EMPLOYEE_B.equals(id) && TENANT_B.equals(tenantId)) {
                         return Optional.of(employee(EMPLOYEE_B));
                     }
@@ -83,6 +89,7 @@ class EmployeeDetailServiceTest {
 
         personalStore = new ArrayList<>();
         bankStore = new ArrayList<>();
+        identificationStore = new ArrayList<>();
 
         permissionService = mock(PermissionService.class);
         when(permissionService.holds("core.employee.update")).thenReturn(true);
@@ -96,8 +103,28 @@ class EmployeeDetailServiceTest {
                 employees,
                 permissionService,
                 employeeService);
-        identificationService = new EmployeeIdentificationServiceImpl(
-                store(EmployeeIdentificationRepository.class, new ArrayList<>()), employees);
+        EmployeeIdentificationRepository idRepo = store(EmployeeIdentificationRepository.class, identificationStore);
+        when(idRepo.existsByTenantIdAndPanNumberAndEmployeeIdNot(any(UUID.class), anyString(), any(UUID.class)))
+                .thenAnswer(inv -> {
+                    UUID tenantId = inv.getArgument(0);
+                    String pan = inv.getArgument(1);
+                    UUID employeeId = inv.getArgument(2);
+                    return identificationStore.stream()
+                            .anyMatch(row -> tenantId.equals(row.getTenantId())
+                                    && pan.equalsIgnoreCase(row.getPanNumber())
+                                    && !employeeId.equals(row.getEmployee().getId()));
+                });
+        when(idRepo.existsByTenantIdAndAadhaarNumberAndEmployeeIdNot(any(UUID.class), anyString(), any(UUID.class)))
+                .thenAnswer(inv -> {
+                    UUID tenantId = inv.getArgument(0);
+                    String aadhaar = inv.getArgument(1);
+                    UUID employeeId = inv.getArgument(2);
+                    return identificationStore.stream()
+                            .anyMatch(row -> tenantId.equals(row.getTenantId())
+                                    && aadhaar.equals(row.getAadhaarNumber())
+                                    && !employeeId.equals(row.getEmployee().getId()));
+                });
+        identificationService = new EmployeeIdentificationServiceImpl(idRepo, employees);
         employmentService = new EmployeeEmploymentServiceImpl(
                 store(EmployeeEmploymentRepository.class, new ArrayList<>()), employees);
         bankService = new EmployeeBankServiceImpl(store(EmployeeBankRepository.class, bankStore), employees);
@@ -349,14 +376,14 @@ class EmployeeDetailServiceTest {
         @Test
         @DisplayName("PAN must be AAAAA9999A in upper case — the frozen pattern, Identification.java:23")
         void panShapeIsChecked() {
-            assertThat(fieldErrors(
-                            () -> identificationService.put(EMPLOYEE_A, identificationRequest("abcde1234f", null))))
+            assertThat(fieldErrors(() ->
+                            identificationService.put(EMPLOYEE_A, identificationRequest("abcde1234f", "123456789012"))))
                     .containsKey("panNumber");
-            assertThat(fieldErrors(
-                            () -> identificationService.put(EMPLOYEE_A, identificationRequest("ABCD1234F", null))))
+            assertThat(fieldErrors(() ->
+                            identificationService.put(EMPLOYEE_A, identificationRequest("ABCD1234F", "123456789012"))))
                     .containsKey("panNumber");
             assertThat(identificationService
-                            .put(EMPLOYEE_A, identificationRequest("ABCDE1234F", null))
+                            .put(EMPLOYEE_A, identificationRequest("ABCDE1234F", "123456789012"))
                             .panNumber())
                     .isEqualTo("ABCDE1234F");
         }
@@ -364,16 +391,40 @@ class EmployeeDetailServiceTest {
         @Test
         @DisplayName("Aadhaar must be twelve digits — the frozen pattern, Identification.java:19")
         void aadhaarShapeIsChecked() {
-            assertThat(fieldErrors(
-                            () -> identificationService.put(EMPLOYEE_A, identificationRequest(null, "12345678901"))))
+            assertThat(fieldErrors(() ->
+                            identificationService.put(EMPLOYEE_A, identificationRequest("ABCDE1234F", "12345678901"))))
                     .containsKey("aadhaarNumber");
-            assertThat(fieldErrors(
-                            () -> identificationService.put(EMPLOYEE_A, identificationRequest(null, "12345678901A"))))
+            assertThat(fieldErrors(() ->
+                            identificationService.put(EMPLOYEE_A, identificationRequest("ABCDE1234F", "12345678901A"))))
                     .containsKey("aadhaarNumber");
             assertThat(identificationService
-                            .put(EMPLOYEE_A, identificationRequest(null, "123456789012"))
+                            .put(EMPLOYEE_A, identificationRequest("ABCDE1234F", "123456789012"))
                             .aadhaarNumber())
                     .isEqualTo("123456789012");
+        }
+
+        @Test
+        @DisplayName("PAN and Aadhaar are mandatory")
+        void panAndAadhaarAreMandatory() {
+            assertThat(fieldErrors(
+                            () -> identificationService.put(EMPLOYEE_A, identificationRequest(null, "123456789012"))))
+                    .containsKey("panNumber");
+            assertThat(fieldErrors(
+                            () -> identificationService.put(EMPLOYEE_A, identificationRequest("ABCDE1234F", null))))
+                    .containsKey("aadhaarNumber");
+        }
+
+        @Test
+        @DisplayName("PAN and Aadhaar must be strictly unique within the tenant")
+        void panAndAadhaarMustBeUniqueWithinTenant() {
+            identificationService.put(EMPLOYEE_A, identificationRequest("ABCDE1234F", "123456789012"));
+
+            assertThat(fieldErrors(() ->
+                            identificationService.put(EMPLOYEE_C, identificationRequest("ABCDE1234F", "987654321098"))))
+                    .containsKey("panNumber");
+            assertThat(fieldErrors(() ->
+                            identificationService.put(EMPLOYEE_C, identificationRequest("XYZPQ5678R", "123456789012"))))
+                    .containsKey("aadhaarNumber");
         }
 
         @Test

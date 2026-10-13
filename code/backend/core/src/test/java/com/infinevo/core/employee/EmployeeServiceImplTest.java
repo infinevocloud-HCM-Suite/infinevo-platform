@@ -103,6 +103,20 @@ class EmployeeServiceImplTest {
                         .anyMatch(e -> e.getTenantId().equals(inv.getArgument(0))
                                 && e.getEmployeeNumber().equals(inv.getArgument(1))
                                 && !e.getId().equals(inv.getArgument(2))));
+        when(repository.existsByTenantIdAndWorkEmailIgnoreCaseAndDeletedFalse(any(UUID.class), anyString()))
+                .thenAnswer(inv -> store.values().stream()
+                        .anyMatch(e -> e.getTenantId().equals(inv.getArgument(0))
+                                && !e.isDeleted()
+                                && e.getWorkEmail() != null
+                                && e.getWorkEmail().equalsIgnoreCase(inv.getArgument(1))));
+        when(repository.existsByTenantIdAndWorkEmailIgnoreCaseAndIdNotAndDeletedFalse(
+                        any(UUID.class), anyString(), any(UUID.class)))
+                .thenAnswer(inv -> store.values().stream()
+                        .anyMatch(e -> e.getTenantId().equals(inv.getArgument(0))
+                                && !e.isDeleted()
+                                && e.getWorkEmail() != null
+                                && e.getWorkEmail().equalsIgnoreCase(inv.getArgument(1))
+                                && !e.getId().equals(inv.getArgument(2))));
 
         TenantContext.set(TENANT_A);
     }
@@ -212,6 +226,90 @@ class EmployeeServiceImplTest {
                 "E-1", "Asha", null, "Rao", null, JOINED, null, null, "asha-at-work", null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(bad)).isInstanceOf(EmployeeService.ValidationException.class);
+    }
+
+    @Test
+    @DisplayName("Duplicate work email in the same tenant is rejected with a validation error")
+    void duplicateWorkEmailIsRejected() {
+        EmployeeRequest first = new EmployeeRequest(
+                "E-1", "Asha", null, "Rao", null, JOINED, null, null, "asha@company.com", null, null, null, null, null);
+        service.create(first);
+
+        EmployeeRequest duplicate = new EmployeeRequest(
+                "E-2", "Usha", null, "Rao", null, JOINED, null, null, "ASHA@company.com", null, null, null, null, null);
+
+        assertThatThrownBy(() -> service.create(duplicate))
+                .isInstanceOf(EmployeeService.ValidationException.class)
+                .extracting(e -> ((EmployeeService.ValidationException) e).fieldErrors())
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsKey("workEmail");
+    }
+
+    @Test
+    @DisplayName("A name typed in lower case is capitalised; a name with its own capitals is kept as typed")
+    void employeeNamesAreFormattedToTitleCase() {
+        EmployeeRequest request = new EmployeeRequest(
+                "E-1",
+                "asha",
+                "a.K.",
+                "d'Souza-McDonald",
+                null,
+                JOINED,
+                null,
+                null,
+                "eng@company.com",
+                null,
+                null,
+                null,
+                null,
+                null);
+        EmployeeResponse response = service.create(request);
+
+        assertThat(response.firstName()).isEqualTo("Asha");
+        assertThat(response.middleName()).isEqualTo("a.K.");
+        assertThat(response.lastName()).isEqualTo("d'Souza-McDonald");
+    }
+
+    @Test
+    @DisplayName("BUG-D4-20: the termination reason and remarks are stored with the date and come back on the record")
+    void terminationReasonAndRemarksAreStored() {
+        UUID id = service.create(request("E-1")).id();
+
+        EmployeeResponse left = service.update(id, terminated(JOINED.plusYears(1), "RESIGNATION", "Moved abroad."));
+
+        assertThat(left.terminationReason()).isEqualTo("RESIGNATION");
+        assertThat(left.terminationRemarks()).isEqualTo("Moved abroad.");
+        assertThat(store.get(id).getTerminationReason()).isEqualTo("RESIGNATION");
+    }
+
+    @Test
+    @DisplayName("BUG-D4-20: a reason or remarks on an employee who is not TERMINATED is a field error")
+    void terminationReasonRefusedUnlessTerminated() {
+        UUID id = service.create(request("E-1")).id();
+        EmployeeRequest active = new EmployeeRequest(
+                "E-1",
+                "Asha",
+                null,
+                "Rao",
+                null,
+                JOINED,
+                null,
+                EmploymentStatus.ACTIVE,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "RESIGNATION",
+                null);
+
+        assertThatThrownBy(() -> service.update(id, active))
+                .isInstanceOf(EmployeeService.ValidationException.class)
+                .hasMessageContaining("terminationReason");
     }
 
     @Test
@@ -400,14 +498,14 @@ class EmployeeServiceImplTest {
     }
 
     @Test
-    @DisplayName("TERMINATED is terminal — a leaver is not reinstated on the same row")
-    void terminationIsFinal() {
+    @DisplayName("A terminated employee can be reactivated to ACTIVE")
+    void reactivateTerminatedEmployee() {
         UUID id = service.create(request("E-1")).id();
         service.update(id, withStatus(EmploymentStatus.TERMINATED, JOINED.plusYears(1)));
 
-        assertThatThrownBy(() -> service.update(id, withStatus(EmploymentStatus.ACTIVE, null)))
-                .isInstanceOf(EmployeeService.ValidationException.class)
-                .hasMessageContaining("TERMINATED");
+        EmployeeResponse reactivated = service.update(id, withStatus(EmploymentStatus.ACTIVE, null));
+        assertThat(reactivated.status()).isEqualTo(EmploymentStatus.ACTIVE);
+        assertThat(reactivated.terminationDate()).isNull();
     }
 
     @Test
@@ -650,6 +748,29 @@ class EmployeeServiceImplTest {
                 null,
                 null,
                 null);
+    }
+
+    private static EmployeeRequest terminated(LocalDate terminationDate, String reason, String remarks) {
+        return new EmployeeRequest(
+                "E-1",
+                "Asha",
+                null,
+                "Rao",
+                null,
+                JOINED,
+                terminationDate,
+                EmploymentStatus.TERMINATED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                reason,
+                remarks);
     }
 
     private static EmployeeRequest withStatus(EmploymentStatus status, LocalDate terminationDate) {

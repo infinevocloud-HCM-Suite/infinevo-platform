@@ -38,7 +38,54 @@ public record EmployeeResponse(
         UUID designationId,
         UUID workLocationId,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        String terminationReason,
+        String terminationRemarks) {
+
+    /** The response as it was before BUG-D4-20. Kept so the nineteen-field callers in tests still compile. */
+    public EmployeeResponse(
+            UUID id,
+            UUID tenantId,
+            String employeeNumber,
+            String firstName,
+            String middleName,
+            String lastName,
+            String gender,
+            LocalDate dateOfJoining,
+            LocalDate terminationDate,
+            EmploymentStatus status,
+            String workEmail,
+            String mobile,
+            boolean portalEnabled,
+            UUID userAccountId,
+            UUID departmentId,
+            UUID designationId,
+            UUID workLocationId,
+            Instant createdAt,
+            Instant updatedAt) {
+        this(
+                id,
+                tenantId,
+                employeeNumber,
+                firstName,
+                middleName,
+                lastName,
+                gender,
+                dateOfJoining,
+                terminationDate,
+                status,
+                workEmail,
+                mobile,
+                portalEnabled,
+                userAccountId,
+                departmentId,
+                designationId,
+                workLocationId,
+                createdAt,
+                updatedAt,
+                null,
+                null);
+    }
 
     /**
      * Repacks a persisted employee. The only way one of these is built.
@@ -81,6 +128,8 @@ public record EmployeeResponse(
                         ? null
                         : employee.getWorkLocation().getId(),
                 employee.getCreatedAt(),
-                employee.getUpdatedAt());
+                employee.getUpdatedAt(),
+                employee.getTerminationReason(),
+                employee.getTerminationRemarks());
     }
 }

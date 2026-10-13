@@ -8,6 +8,8 @@ import { useCan } from '@shell/screens';
 import { employeeService } from '../employeeService.js';
 import { GENDER_OPTIONS } from '../sectionFields.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { toTitleCase } from '@shared/ui/format.js';
+import { TERMINATION_REASONS } from '../TerminateModal.jsx';
 
 const { Text } = Typography;
 
@@ -81,9 +83,9 @@ export function OverviewTab({ employee, onUpdate }) {
       const payload = {
         ...formData,
         employeeNumber: formData.employeeNumber.trim(),
-        firstName: formData.firstName.trim(),
-        middleName: formData.middleName ? formData.middleName.trim() : null,
-        lastName: formData.lastName ? formData.lastName.trim() : null,
+        firstName: toTitleCase(formData.firstName.trim()),
+        middleName: formData.middleName ? toTitleCase(formData.middleName.trim()) : null,
+        lastName: formData.lastName ? toTitleCase(formData.lastName.trim()) : null,
         gender: formData.gender || null,
         workEmail: formData.workEmail ? formData.workEmail.trim() : null,
         mobile: formData.mobile ? formData.mobile.trim() : null,
@@ -91,6 +93,8 @@ export function OverviewTab({ employee, onUpdate }) {
         designationId: formData.designationId || null,
         workLocationId: formData.workLocationId || null,
         terminationDate: employee.terminationDate || null,
+        terminationReason: employee.terminationReason || null,
+        terminationRemarks: employee.terminationRemarks || null,
       };
 
       const updated = await employeeService.update(employee.id, payload);
@@ -321,6 +325,15 @@ export function OverviewTab({ employee, onUpdate }) {
             <Text type="danger">{employee.terminationDate}</Text>
           </Descriptions.Item>
         )}
+        {employee.terminationReason && (
+          <Descriptions.Item label="Termination Reason">
+            {TERMINATION_REASONS.find((o) => o.value === employee.terminationReason)?.label ||
+              employee.terminationReason}
+          </Descriptions.Item>
+        )}
+        {employee.terminationRemarks && (
+          <Descriptions.Item label="Exit Remarks">{employee.terminationRemarks}</Descriptions.Item>
+        )}
       </Descriptions>
     </div>
   );
@@ -340,6 +353,8 @@ OverviewTab.propTypes = {
     mobile: PropTypes.string,
     portalEnabled: PropTypes.bool,
     terminationDate: PropTypes.string,
+    terminationReason: PropTypes.string,
+    terminationRemarks: PropTypes.string,
     departmentId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     designationId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     workLocationId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),

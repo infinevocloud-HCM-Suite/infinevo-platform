@@ -74,7 +74,7 @@ public class EmployeeController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "status", required = false) EmploymentStatus status,
             @RequestParam(name = "includeDeleted", defaultValue = "false") boolean includeDeleted,
-            @PageableDefault(size = 25, sort = "lastName") Pageable pageable) {
+            @PageableDefault(size = 25, sort = "employeeNumber") Pageable pageable) {
         return employeeQueryService.search(q, status, includeDeleted, pageable);
     }
 

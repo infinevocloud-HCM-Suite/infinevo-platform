@@ -65,6 +65,9 @@ final class DocumentTestSchema {
                     executeResource(conn, "db/migration/core/V009__user_account.sql");
                     // The employee a document may belong to, with the V014 org columns its entity maps.
                     executeResource(conn, "db/migration/core/V010__employee.sql");
+                    executeResource(
+                            conn, "db/migration/core/V173__employee_termination_reason.sql"); // BUG-D4-20 columns the
+                    // Employee entity maps
                     executeResource(conn, "db/migration/core/V011__department.sql");
                     executeResource(conn, "db/migration/core/V012__designation.sql");
                     executeResource(conn, "db/migration/core/V013__work_location.sql");

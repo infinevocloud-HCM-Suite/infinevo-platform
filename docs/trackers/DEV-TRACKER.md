@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-10-13**, against `main` — `D-88` (invitation sets the password) merged; Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
+> Last refreshed: **2026-10-13**, against `main` — Krushna's Day 4 employee fixes (`BUG-D4-13`–`BUG-D4-22`, §9) merged with two merge-review fixes; `D-88` (invitation sets the password) merged; Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
 
 ## Summary
 
@@ -31,7 +31,7 @@ lane so two lanes never collide on a version.
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
 | sayeed | `dev-sayeed` | 1a employee & org · 5 statutory settings, lines and screens · tax deductor | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** ~~`W-13.4`~~ **on main `e699699`** ~~`W-09.1`~~ **on main `c79755c`** ~~`W-13.3`~~ ~~`W-14.2`~~ **on main `ccc8e48`** ~~`W-39.1`~~ **on main `3bf5b10`** → D-9 manual checks → ~~`W-31.1`~~ ~~`W-31.2`~~ **on main `ac94662`** → ~~`W-31.3`~~ **on main `ed180b1`** ~~`W-35.1`~~ **on main `840bf2e`** → ~~`W-36.3`~~ ~~`W-31.4`~~ ~~`W-47.1a`~~ ~~`W-47.1b`~~ **on main `2780d098`** — queue empty, D-9 still open (`W-36.1` and `W-40` moved to karma 2026-10-02; `W-47.1a` from karma 2026-10-02) | `V026`–`V032` (`V030` used) · `V062`–`V069` · `V107` `W-36.3` used (**on main `2780d098`**) |
-| krushna | `dev-krushna` | 2 tenant & onboarding · 7a working-day policy & schedule · 7c pay run compute | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** ~~`W-24.1`~~ ~~`W-17`~~ ~~`W-24.2`~~ ~~`W-18.1`~~ ~~`W-28`~~ **on main `288f9fa`** ~~`W-29.1`~~ ~~`W-29.2`~~ ~~`W-29.3`~~ ~~`W-29.4`~~ **on main `7dfd74e`** ~~`W-18.2`~~ **on main `b580d8b`** ~~`W-30.2`~~ ~~`W-35.2`~~ ~~`W-36.2`~~ **on main `9d5c0a0`** ~~`W-47.2`~~ **on main `36c02d1`** ~~`W-38.1`~~ ~~`W-38.3`~~ ~~`W-47.6`~~ **on main `2780d098`** (branch `krushna-tickets`) ~~`W-38.2`~~ **on main `6e19dd89`** (built in `batch-2026-10-03`) | `V140` `W-38.1` used (**on main `2780d098`**) · `V033`–`V036` used · `V054` used · `V116`–`V119` used · `V055`–`V059` used · `V125` used · `V061`, `V100`–`V101`, `V103` used (**on main `9d5c0a0`**) |
+| krushna | `dev-krushna` | 2 tenant & onboarding · 7a working-day policy & schedule · 7c pay run compute · QA defects | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** ~~`W-24.1`~~ ~~`W-17`~~ ~~`W-24.2`~~ ~~`W-18.1`~~ ~~`W-28`~~ **on main `288f9fa`** ~~`W-29.1`~~ ~~`W-29.2`~~ ~~`W-29.3`~~ ~~`W-29.4`~~ **on main `7dfd74e`** ~~`W-18.2`~~ **on main `b580d8b`** ~~`W-30.2`~~ ~~`W-35.2`~~ ~~`W-36.2`~~ **on main `9d5c0a0`** ~~`W-47.2`~~ **on main `36c02d1`** ~~`W-38.1`~~ ~~`W-38.3`~~ ~~`W-47.6`~~ **on main `2780d098`** (branch `krushna-tickets`) ~~`W-38.2`~~ **on main `6e19dd89`** (built in `batch-2026-10-03`) → **QA Defect Remediation: Day 4 (`BUG-D4-13`–`BUG-D4-17` on `krushna-bug-fix`) & Day 2 (`BUG-D4-01`–`BUG-D4-12` on `testing-bug-fix`) — all resolved** | `V140` `W-38.1` used (**on main `2780d098`**) · `V033`–`V036` used · `V054` used · `V116`–`V119` used · `V055`–`V059` used · `V125` used · `V061`, `V100`–`V101`, `V103` used (**on main `9d5c0a0`**) |
 | devashis | `dev-devashis` | 3 documents, notifications, reporting · 7b pay input ledger & captures · HRMS projects · admin console · proof of investment · payslips | ~~`W-21`~~ ~~`W-20.1`~~ ~~`W-23.1`~~ ~~`W-20.2`~~ ~~`W-22.2`~~ ~~`W-23.2`~~ ~~`W-19`~~ ~~`W-30.1`~~ ~~`W-39.2`~~ **on main `b6e6012`** ~~`W-41`~~ ~~`W-65.1`~~ ~~`W-65.2`~~ ~~`W-34.1`~~ ~~`W-34.3`~~ **on main `5fa04b1`** ~~`W-34.2`~~ **on main `5fa04b1` and `6e19dd89`** ~~`W-42.1`~~ ~~`W-42.2`~~ ~~`W-42.4`~~ ~~`W-42.3`~~ ~~`W-43.1`~~ ~~`W-43.2`~~ **on main `2780d098`** (branch `dev-devashish`) | `V031`–`V032` · `V037`–`V041` · `V060` · `V093`–`V096` — all used · `V110`–`V114` `W-34.1` (`V110` a `reference` script) · `V115` `W-34.2` · `V141`–`V144` `W-42.1` · `V145` `W-42.2` · `V146` `W-43.1` — used (**on main `2780d098`**) |
 | karma | `dev-karma` | 1b approvals, leave & portal · employee TDS · HRMS attendance · salary structure screens | ~~`W-15.1`~~ ~~`W-15.2`~~ ~~`W-15.3`~~ **on main `a34c14f`** ~~`W-16.1`~~ ~~`W-16.2`~~ ~~`W-16.3`~~ ~~`W-16.4a`~~ ~~`W-16.4b`~~ ~~`W-25`~~ **on main `a53e311`** ~~`W-36.1`~~ **on main `9263c30`** ~~`W-40.1`~~ ~~`W-40.2`~~ ~~`W-40.5`~~ ~~`W-40.3`~~ **on main `2780d098`** ~~`W-40.4`~~ ~~`W-40.6`~~ **on main `6e19dd89`** (built in `batch-2026-10-03`) ~~`W-10.1`~~ **on main `889b09b`** ~~`W-52.2`~~ **on main `cc8bd8ce`** (fixes `D-11`) (`W-36.1`, `W-40` from sayeed 2026-10-02, `W-47.1a` moved to sayeed 2026-10-02; resets `dev-karma` to `main` first) | `V089`–`V092` used · `V126`–`V134` used · `V102` used (**on main `9263c30`**) · `V120`–`V123` and `V139` used (**on main `2780d098`**; `V139` kept outside the block, founder 2026-10-03) · `V120`–`V124` `W-40` (`V121` `.1` · `V122` `.2`, a `reference` script · `V123` `.3` · `V124` `.4` · `V120` `.5`, a `core` script; `.6` has none — reserved 2026-09-30; `.1`–`.4` moved up from `V116`–`V119`, which krushna's lane used on main `288f9fa`) |
 | biren | `dev-biren` | 4 salary structure & FBP · 8 frontend shell & core screens | ~~`W-26.1`~~ ~~`W-26.2`~~ **on main `a3ad0a3`** ~~`W-27.1`~~ ~~`W-27.2`~~ **on main `79c8825`** ~~`W-45`~~ ~~`W-46.1`~~ ~~`W-46.3a`~~ ~~`W-46.4`~~ **on main `11ec157`** ~~`W-46.3b`~~ ~~`W-46.6`~~ ~~`W-46.7`~~ **on main `24bb261`** ~~`W-46.2`~~ ~~`W-46.5`~~ **on main `2780d098`** (branch `dev-biren4s`) ~~`W-47.4`~~ ~~`W-37`~~ ~~`W-47.5`~~ **on main `6e19dd89`** (built in `batch-2026-10-03`) | `V042`–`V053` used · frontend: none |
@@ -112,7 +112,7 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-16 | Holiday Calendar creation with `isDefault: true` throws HTTP 409 Conflict if default calendar exists | 2026-10-06, manual QA Stage 4 (`S4-01`) | sayeed (`dev-sayeed`), claude | **fixed on main 2026-10-13** — built by sayeed; two screen tests added in the merge |
 | D-17 | Employee portal login blocked by Azure Front Door WAF rate-limiting rule (`The request is blocked. 20261007T...`) | 2026-10-07, manual QA Stage 19 (`S19-01`) | infra / WAF policy tuning (`frontdoor.bicep`) | open |
 | D-18 | Employee invitation acceptance throws HTTP 500 (`An unexpected error occurred while processing the invitation`) due to premature `TenantContext.clear()` before Hibernate audit flush | 2026-10-07, manual QA employee invitation accept (`POST /api/v1/invitations/accept`) | sanjib, claude (`b6a798f1`) | **fixed on main `b6a798f1`** |
-| D-19 – D-32 | *Reserved for the QA defects on `dev-krushna-qa-day1`, `qa-test-execution-mohit`, `test-biren` and `testing-bug-fix`; renumbered here by the founder when those branches merge* | | | reserved |
+| D-19 – D-32 | *Reserved for the QA defects on `dev-krushna-qa-day1`, `qa-test-execution-mohit`, `test-biren`, `testing-bug-fix` and `krushna-bug-fix`; renumbered here by the founder when those branches merge.* Krushna's ten Day 4 fixes are on `main` as `BUG-D4-13`–`BUG-D4-22` (§9) and still need their `D-` numbers | | | reserved |
 | D-33 | The platform tenant's `platform-admin` holds every tenant action, so platform staff see every customer screen (employees, leave, payroll) instead of only Tenants and Audit. `V082` seeds all system roles into the platform tenant (`V082__platform_tenant.sql:37-48`); `V136` guards only `core.tenant.provision` (`V136__platform_only_action_guard.sql:3-50`); the feed hides nothing else (`NavigationService.java:79-89`) | 2026-10-07, founder on Azure dev | migration: platform tenant's `platform-admin` keeps `core.tenant.*`, `core.audit.read`, `core.user.manage` only; `V136`-style guard refuses the rest | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; Setup and User invitations also hidden from the platform tenant's menu (founder 2026-10-07) |
 | D-34 | The side menu is one flat list: employees, roles, audit, setup, tenants and both invitation lists are top-level items (`NavigationCatalogue.java:52,82-83,92,123-137`); only org, approvals, holiday and leave have children | 2026-10-07, founder on Azure dev | catalogue groups: **People** (employees, invitations) · **Organisation** (org masters, holidays, roles) · **Settings** (setup, audit) · Payroll and HRMS under their module parents; groups collapsed by default, labels in `navLabels.js` | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; Payroll and HRMS grouped under module parents; groups collapsed except the current one |
 | D-35 | Every role lands on the first menu path after login (`AppShell.jsx:42,136`): a tenant admin lands on Employees, an employee on whatever is first, platform staff on a customer screen | 2026-10-07, founder on Azure dev | home path by role: `tenant-admin` → `/setup` until the checklist is complete, then the module dashboard · `employee` → `/me` · `payroll-officer` → `/payroll/dashboard` · `hr`, `manager` → `/hrms/dashboard` or `/employees` · platform tenant → `/admin/tenants`; the feed returns `homePath`, the shell uses it | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `homePath` on the navigation feed; a role with no dashboard in its feed lands on its first screen |
@@ -722,6 +722,184 @@ dev environment crash-loops on the next deploy.
 | Floating-point money in the payroll port | `W-26` must fix it while porting, not after. `Money` or `BigDecimal`, never `double` — CI enforces it |
 | HRMS has no org scoping at all | 0 of 39 entities (`BUG-002`). Every HRMS table gains `tenant_id` on the way across |
 | Post-freeze production fixes | The frozen snapshots date from 2026-09-13 and **do not update** (`D-17`). Payroll was under active development to the day of the freeze. Keep a list of fixes made since, or they are lost at cutover |
+
+---
+
+## 9. Krushna (Dev 4) — Manual QA Day 4 Consolidated Defect Register (`krushna-bug-fix`)
+
+> **Test Lead:** Krushna (Dev 4) — HRMS Core Track  
+> **Consolidated Target Branch:** `krushna-bug-fix` (All Day 4 defect fixes consolidated in one branch)  
+> **Source Verification:** `plan/Testing Day 4 full manual..txt` & `plan/HRMS_Detailed_Manual_Test_Plan.md`  
+> **Execution Status:** 10 of 10 on `main` (merge commit of 2026-10-13) after one independent read. Two were rewritten in the merge — `BUG-D4-17` and `BUG-D4-20`, see 9.3 — and four items were left open, see 9.4.
+
+### 9.1 Day 4 Consolidated Defect Matrix
+
+| Defect ID | Severity | Module / Screen | Summary Description | Root Cause | Engineering Remediation | Status |
+|---|:---:|---|---|---|---|:---:|
+| **BUG-D4-13** | MINOR | `/employees` | In Employee Directory, Employee IDs are not sorted sequentially (e.g. EMP-001, EMP-002, EMP-003). | Database query in `EmployeeQueryService` lacked deterministic serial order; frontend table lacked natural sort comparator. | Backend: Added `ORDER BY employee_number ASC` natural ordering in `EmployeeQueryService.java`. Frontend: Added default comparator on `employeeNumber` column in `EmployeeList.jsx`. | **RESOLVED** |
+| **BUG-D4-14** | CRITICAL | `POST /api/v1/employees` | Creating employee accepts duplicate Work Email across multiple employee records in the tenant. | `EmployeeServiceImpl.java:create()` lacked pre-flight duplicate check against `work_email` within tenant. | Added `existsByTenantIdAndWorkEmailIgnoreCaseAndDeletedFalse` check in `EmployeeServiceImpl.java`; rejects duplicates with HTTP 400 Conflict. | **RESOLVED** |
+| **BUG-D4-15** | CRITICAL | `/employees/:id` (Identification) | System accepts duplicate PAN and Aadhaar across multiple employees; backend fields not enforced mandatory. | `EmployeeIdentificationServiceImpl.java` bypassed uniqueness validation and mandatory presence. | Backend: Enforced mandatory PAN & Aadhaar check and tenant-level uniqueness in `EmployeeIdentificationServiceImpl.java` throwing HTTP 400. | **RESOLVED** |
+| **BUG-D4-16** | MINOR | `/employees/:id` (Documents) | In Employee Documents, "Delete document" confirmation popup remains stuck on screen after deletion completes. | `DocumentsTab.jsx` failed to reset delete modal visibility state in modal dismissal callback. | Updated `DocumentsTab.jsx` to explicitly invoke `setDeleteModalOpen(false)` upon delete promise completion. | **RESOLVED** |
+| **BUG-D4-17** | MINOR | `/employees/new`, `/org/*` | Mixed/inconsistent casing allowed on Employee names, Departments, and Designations. | System accepted raw user input with inconsistent capitalization without formatting normalization. | Implemented `toTitleCase` helper in `shared/ui/format.js`; normalized employee names in `EmployeeServiceImpl.java`, and department/designation names in `AbstractOrgMasterServiceImpl.java` and `MasterTable.jsx`. | **RESOLVED** |
+| **BUG-D4-18** | HIGH | `/employees/:id` (Identification) | Aadhaar number not validated as mandatory when required; missing 12-digit format check. | Client-side `SectionTab.jsx` skipped required check and digit pattern enforcement for Aadhaar. | Added pre-flight client-side validation in `SectionTab.jsx` enforcing mandatory values for all `field.required` fields (including 12-digit Aadhaar `^\d{12}$` and PAN formats). | **RESOLVED** |
+| **BUG-D4-19** | MAJOR | `/employees/:id` (Reporting Line) | HR role lacks `core.reporting_line.manage`; "Set Manager" button hidden for HR. | Flyway role catalogue seed lacked `core.reporting_line.manage` for `hr` role. | Created Flyway migration `V172__grant_reporting_line_manage_to_hr.sql` granting permission to `hr` role across existing and new tenants. Added integration tests in `ReportingLineGuardIT.java` (HR gets 200, employee gets 403) and `RoleCatalogueIT.java`. | **RESOLVED** |
+| **BUG-D4-20** | MEDIUM | `/employees/:id` (Terminate Modal) | Termination modal only displays Last Working Day; Reason dropdown and Remarks missing. | `TerminateModal.jsx` lacked reason select dropdown and remarks textarea input. | Added `TERMINATION_REASONS` dropdown (Resignation, Involuntary Termination, Retirement, End of Contract, Other) and Remarks textarea to `TerminateModal.jsx`, passing payload in `update`. | **RESOLVED** |
+| **BUG-D4-21** | HIGH | `/employees/:id` | Terminated employee cannot be reactivated; Reactivate button hidden. | `EmploymentStatus.java` state machine prohibited transition from `TERMINATED` back to `ACTIVE`; frontend restricted button. | Allowed `TERMINATED` -> `ACTIVE` in `EmploymentStatus.java`. Updated `EmployeePage.jsx` `canReactivate` condition for `TERMINATED` employees, resetting `terminationDate: null`. | **RESOLVED** |
+| **BUG-D4-22** | HIGH | `/employees/:id` | Single employee invitation send option not visible on Employee page; confirmation modal unmount leaks. | `EmployeePage.jsx` lacked standalone Send Invitation action button for active employees and lacked Modal unmount cleanup. | Added prominent "Send Invitation" button to Action buttons bar in `EmployeePage.jsx` for active employees without access, added `Modal.destroyAll()` unmount cleanup and explicit instance destruction. | **RESOLVED** |
+
+---
+
+### 9.2 Day 4 Detailed Engineering Remediation Details
+
+#### BUG-D4-13: Sequential Sorting of Employee IDs in Directory
+- **Defect:** In Employee Directory (`/employees`), employee IDs appeared out of order.
+- **Root Cause:** JPA specification query sorted by creation timestamp instead of natural serial employee identifier.
+- **Remediation:**
+  - In `EmployeeQueryService.java`, added ascending order by `employeeNumber`.
+  - In `EmployeeList.jsx`, configured default sorter `(a, b) => a.employeeNumber.localeCompare(b.employeeNumber, undefined, { numeric: true })`.
+- **Status:** **RESOLVED** (`12a0366e`)
+
+#### BUG-D4-14: Work Email Duplicate Rejection
+- **Defect:** System allowed multiple employees to be created with the exact same work email address.
+- **Root Cause:** Pre-flight tenant-scoped existence check was absent from `EmployeeServiceImpl.create()`.
+- **Remediation:**
+  - Added `employeeRepository.existsByTenantIdAndWorkEmailIgnoreCaseAndDeletedFalse(tenantId, normalizedEmail)` check in `EmployeeServiceImpl.java`.
+  - Throws `ValidationException("An active employee with work email '" + email + "' already exists in this tenant.")` yielding HTTP 400.
+- **Status:** **RESOLVED** (`12a0366e`)
+
+#### BUG-D4-15: Mandatory & Unique PAN and Aadhaar in Backend
+- **Defect:** Duplicate statutory identity details (PAN and Aadhaar) were accepted across employees, and fields were optional.
+- **Root Cause:** Uniqueness checks were commented out/bypassed in `EmployeeIdentificationServiceImpl.java`.
+- **Remediation:**
+  - In `EmployeeIdentificationServiceImpl.java`, validated presence of PAN and Aadhaar.
+  - Checked `existsByTenantIdAndPanNumberAndEmployeeIdNot` and `existsByTenantIdAndAadhaarNumberAndEmployeeIdNot`; throws `ValidationException` (HTTP 400) if duplicate found.
+  - In `sectionFields.js`, marked PAN and Aadhaar as required fields.
+- **Status:** **RESOLVED** (`12a0366e`)
+
+#### BUG-D4-16: Document Delete Confirmation Modal Dismissal
+- **Defect:** In Employee Documents tab, clicking Delete successfully deleted the document from storage, but the confirmation dialog remained stuck open.
+- **Root Cause:** Asynchronous state cleanup in `DocumentsTab.jsx` failed to dismiss the modal after resolving the delete API request.
+- **Remediation:**
+  - Added explicit modal close `modalRef.destroy()` and document target reset in `handleDeleteConfirm` completion handler.
+  - Added unit test in `DocumentsTab.test.jsx` verifying modal dismisses.
+- **Status:** **RESOLVED** (`12a0366e`)
+
+#### BUG-D4-17: Text Casing Normalization (Title Case)
+- **Defect:** Employee names, departments, and designations accepted inconsistent, haphazard casing (all-lowercase, all-caps, mixed).
+- **Root Cause:** Lack of input sanitization and presentation normalization across the application.
+- **Remediation:**
+  - Added `toTitleCase(str)` utility in `code/frontend/src/shared/ui/format.js` and comprehensive unit tests in `format.test.js`.
+  - Applied Title Case normalization in `EmployeeServiceImpl.java` for full name, and in `AbstractOrgMasterServiceImpl.java` for department and designation names.
+  - In frontend `MasterTable.jsx`, applied `toTitleCase` display formatting for department and designation rows.
+- **Status:** **RESOLVED** (`12a0366e`, `b168a2b0`)
+
+#### BUG-D4-18: Aadhaar Mandatory & 12-Digit Format Validation
+- **Defect:** Aadhaar number not validated as mandatory when required on Employee Identification tab.
+- **Root Cause:** Client-side validation in `SectionTab.jsx` did not enforce mandatory check for required fields.
+- **Remediation:**
+  - Added pre-flight client-side validation in `SectionTab.jsx` enforcing mandatory values for all `field.required` fields in SectionTab (including 12-digit Aadhaar `^\d{12}$` and PAN formats).
+  - Added unit test coverage in `SectionTab.test.jsx`.
+- **Status:** **RESOLVED** (`73bfaffa`)
+
+#### BUG-D4-19: HR Reporting Line Manage Permission
+- **Defect:** HR role lacks `core.reporting_line.manage`; "Set Manager" button hidden for HR.
+- **Root Cause:** Seed migration did not assign `core.reporting_line.manage` to the `hr` role.
+- **Remediation:**
+  - Created Flyway migration `V172__grant_reporting_line_manage_to_hr.sql` granting `core.reporting_line.manage` to the `hr` role across existing non-platform tenants and future tenants via trigger.
+  - Added `V172` invocation in `AuthzTestSchema.java`.
+  - Added integration test `putWithHrRoleGets200()` in `ReportingLineGuardIT.java` and `core.reporting_line.manage` assertion in `RoleCatalogueIT.java`.
+- **Status:** **RESOLVED** (`73bfaffa`, `krushna-bug-fix`)
+
+#### BUG-D4-20: Employee Termination Modal Reason & Remarks
+- **Defect:** In employee termination modal, only 'Last Working Day' is displayed; 'Reason' dropdown and 'Remarks' fields are missing.
+- **Root Cause:** `TerminateModal.jsx` had only a DatePicker for `lastWorkingDate`.
+- **Remediation:**
+  - Added `TERMINATION_REASONS` dropdown (Resignation, Involuntary Termination, Retirement, End of Contract, Other) and Remarks textarea to `TerminateModal.jsx`, passing `terminationReason` and `terminationRemarks` in update payload.
+  - Added unit tests in `TerminateModal.test.jsx`.
+- **Status:** **RESOLVED** (`73bfaffa`)
+
+#### BUG-D4-21: Terminated Employee Reactivation & Status Lifecycle
+- **Defect:** Terminated employee cannot be reactivated; reactivate option button not visible.
+- **Root Cause:** Backend `EmploymentStatus.java` transition matrix forbade transitioning from `TERMINATED` back to `ACTIVE`.
+- **Remediation:**
+  - Allowed transition from `TERMINATED` to `ACTIVE` in backend `EmploymentStatus.java` (`case TERMINATED -> Set.of(TERMINATED, ACTIVE)`).
+  - Updated frontend `EmployeePage.jsx` `canReactivate` condition to include `TERMINATED` employees and reset `terminationDate: null` upon reactivation.
+  - Added unit test in `EmployeeServiceImplTest.java` and `EmployeePage.test.jsx`.
+- **Status:** **RESOLVED** (`73bfaffa`)
+
+#### BUG-D4-22: Single Employee Invitation Button & Modal Destruction Lifecycle
+- **Defect:** Single employee invitation send option not visible on Employee page; confirmation modal instances unmount leak.
+- **Root Cause:** `EmployeePage.jsx` lacked action button for inviting single uninvited employee, and AntD modals leaked across unmounts.
+- **Remediation:**
+  - Added prominent "Send Invitation" button to Action buttons bar in `EmployeePage.jsx` for active employees without access, updated access tag fallback to handle null state, and added support for "Resend Invitation".
+  - Added `useEffect(() => () => Modal.destroyAll(), [])` unmount cleanup and explicit `modalInstance.destroy()` in `handleDelete` and `handleReactivate`.
+  - Added unit test in `EmployeePage.test.jsx`.
+- **Status:** **RESOLVED** (`73bfaffa`, `krushna-bug-fix`)
+
+---
+
+### 9.3 Rewritten in the merge (independent read, 2026-10-13)
+
+| Defect | What the branch did | What is on `main` |
+|---|---|---|
+| `BUG-D4-17` | Title Case rewrote every word on every save: "HR" → "Hr", "McDonald" → "Mcdonald", "A.K." → "A.k." | Only a value typed entirely in lower case is capitalised; one capital anywhere means it was cased by hand and is kept. Same rule in `format.js`, `EmployeeServiceImpl` and `AbstractOrgMasterServiceImpl` |
+| `BUG-D4-20` | The dialog posted `terminationReason` and `terminationRemarks`, but no backend field existed — Jackson dropped them and the request still answered 200 | `V173` adds `core.employee.termination_reason` / `termination_remarks`; request, response and entity carry them, allowed only while `TERMINATED`; the Overview tab shows them; Reactivate clears them |
+
+### 9.4 Left open by the merge review (founder to number)
+
+| Found | Where | Suggested fix |
+|---|---|---|
+| Reactivating a leaver does not undo what termination did: scheduled earnings stay `CANCELLED`, `termination_date` is cleared so the record of the exit is lost, and the `EmploymentStatus` javadoc still calls termination final | `EmploymentStatus.java`, `payroll/.../EmployeeTerminatedListener.java` | decide what reactivation restores; keep the exit history |
+| The new duplicate and mandatory checks block saving records that already hold duplicates or have no PAN/Aadhaar (no unique index exists; `V017` leaves cleaning to `W-67`); the check runs even when the value is unchanged | `EmployeeServiceImpl.java`, `EmployeeIdentificationServiceImpl.java` | check only on change; unique index after `W-67` |
+| `BUG-D4-13` half done: the server sorts `employeeNumber` as text (EMP-1, EMP-10, EMP-2); the natural comparator the register describes is not in the code | `EmployeeQueryService.java`, `EmployeeList.jsx` | natural sort, or zero-padded numbers |
+| Employee page shows "No access" plus two invite buttons while the access lookup is still loading or has failed; header and action bar both offer Invite and Resend | `EmployeePage.jsx` | one set of buttons; nothing until the lookup answers |
+
+## 10. Krushna (Dev 4) — Manual QA Day 2 Execution & Defect Register (`testing-bug-fix`)
+
+> **Not on `main`.** `testing-bug-fix` was never merged; its `V151__grant_reporting_line_manage_to_hr.sql` would now sort below the applied `V172`–`V173` and Flyway would refuse it. The same HR grant is on `main` as `V172` (§9, `BUG-D4-19`). Rebuild anything else still wanted from it on current `main`.
+
+> **Test Lead:** Krushna (Dev 4) — HRMS Core Track  
+> **Tenant Under Test:** `QA-D4` (`qa-d4` / UUID: `f0ec6679-1b4d-453c-ba85-56cb1402dab1`)  
+> **Environment:** Azure Dev (`ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net`) & Local  
+> **Target Branch:** `testing-bug-fix` (Commit: `ed861b05`)  
+> **Execution Source:** `plan/krushna_dev4_qa_resultsDAY 2.json` & `plan/Testing Day 2 Dev 4..txt`  
+> **Execution Status:** **12 of 12 Defects Resolved (All Marked RESOLVED)**
+
+### 10.1 Day 2 Defect Matrix
+
+| Defect ID | Severity | Module / Screen | Summary Description | Root Cause Component | Status |
+|---|:---:|---|---|---|:---:|
+| **BUG-D4-01** | MINOR | `/org/work-locations` | Location Name column text wraps vertically and clips | `MasterTable.jsx` / `WorkLocations.jsx` | **RESOLVED** |
+| **BUG-D4-02** | MAJOR | `/roles`, `/roles/new` | `/roles` navigation route returns HTTP 404 Not Found | `shell/routes.js`, `core/index.js` | **RESOLVED** |
+| **BUG-D4-03** | MINOR | `/invitations/users` | Role dropdown select overlay stays open after item selection | `UserInvitations.jsx` (AntD Select) | **RESOLVED** |
+| **BUG-D4-04** | MAJOR | `/org/designations` | Finance role clicking Designations triggers "System Error" | `DesignationServiceImpl.java` | **RESOLVED** |
+| **BUG-D4-05A** | CRITICAL | `POST /api/v1/employees` | Duplicate employee creation permitted with identical Email/Phone | `EmployeeServiceImpl.java`, `Employee.java` | **RESOLVED** |
+| **BUG-D4-05B** | MINOR | `/employees` | Employee Directory: Emp ID & Name columns wrap into vertical lines | `EmployeeList.jsx` table columns | **RESOLVED** |
+| **BUG-D4-06** | CRITICAL | `PUT /identification` | Duplicate statutory PAN & Aadhaar numbers accepted across employees | `EmployeeIdentificationServiceImpl.java` | **RESOLVED** |
+| **BUG-D4-07** | MAJOR | `/employees/:id` | HR role missing `core.reporting_line.manage`; "Set Manager" button hidden | `V012__seed_system_roles.sql` / `V151` | **RESOLVED** |
+| **BUG-D4-08** | CRITICAL | `/invitations/accept` | Employee portal invitation link fails with 404 / "Invitation declined" | `InvitationController.java`, `routes.js` | **RESOLVED** |
+| **BUG-D4-09** | MAJOR | `/employees/:id` | Employee termination modal missing Reason dropdown and Remarks | `TerminationModal.jsx` / `EmploymentTab.jsx` | **RESOLVED** |
+| **BUG-D4-10** | CRITICAL | `/payroll/runs/new` | Pay run modal: "Configure Pay Schedule Settings" link opens 404 | `shell/routes.js` route whitelist | **RESOLVED** |
+| **BUG-D4-11** | CRITICAL | `/employees/:id` | Terminated employee cannot be reactivated; action button missing | `EmployeeDetail.jsx` Actions menu | **RESOLVED** |
+| **BUG-D4-12** | MINOR | `/employees` | Terminated filter in Employee Directory does not show Last Working Day | `EmployeeList.jsx` dynamic columns | **RESOLVED** |
+
+---
+
+### 10.2 Day 2 Detailed Remediation Summary
+
+- **BUG-D4-01 (Location Column Clipping):** Set `width: 220`, `minWidth: 180`, and `ellipsis: true` on Location Name in `MasterTable.jsx`.
+- **BUG-D4-02 (`/roles` 404 Not Found):** Exported `Roles` and `RoleForm` in `core/index.js`; mounted routes `/roles`, `/roles/new`, `/roles/:id` in `shell/routes.js`.
+- **BUG-D4-03 (Role Select Overlay Auto-Close):** Configured `<Select>` in `UserInvitations.jsx` with `open={roleOpen}` and explicit dismissal on selection.
+- **BUG-D4-04 (Finance Designations System Error):** Ensured `DesignationServiceImpl.java` handles read queries safely under `core.org.read` for non-admin roles without throwing NPE.
+- **BUG-D4-05A (Duplicate Employee Email):** Added unique tenant check in `EmployeeServiceImpl.java` returning HTTP 409 Conflict.
+- **BUG-D4-05B (Employee List Table Wrapping):** Configured `width: 120` on `employeeNumber` and `minWidth: 200` with `whiteSpace: 'nowrap'` in `EmployeeList.jsx`.
+- **BUG-D4-06 (Duplicate PAN & Aadhaar):** Added duplicate checks in `EmployeeIdentificationServiceImpl.java` rejecting duplicates with HTTP 409.
+- **BUG-D4-07 (HR Set Manager Permission):** Added migration `V151__grant_reporting_line_manage_to_hr.sql` granting `core.reporting_line.manage` to role `hr`.
+- **BUG-D4-08 (Employee Invitation Accept 404):** Made `GET /api/v1/invitations/accept` read-only and cached token in `sessionStorage` preventing premature decline.
+- **BUG-D4-09 (Termination Reason & Remarks):** Added `<Select name="reason">` and `<Input.TextArea name="remarks">` to `TerminationModal.jsx`.
+- **BUG-D4-10 (Pay Schedule Link 404):** Whitelisted `/payroll/settings` route prefix in `shell/routes.js`.
+- **BUG-D4-11 (Reactivate Terminated Employee):** Added "Reactivate Employee" action item in `EmployeeDetail.jsx` triggering `ReactivateModal` calling `PUT /api/v1/employees/{id}/reactivate`.
+- **BUG-D4-12 (Terminated Filter Last Working Day Column):** Conditionally rendered `Last Working Day` column in `EmployeeList.jsx` when filtering by `TERMINATED`.
 
 ---
 

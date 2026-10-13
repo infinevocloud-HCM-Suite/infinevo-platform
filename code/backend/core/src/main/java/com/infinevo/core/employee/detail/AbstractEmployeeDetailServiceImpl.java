@@ -275,6 +275,16 @@ abstract class AbstractEmployeeDetailServiceImpl<E extends EmployeeDetail, Q, R>
         return trimmed;
     }
 
+    /** {@link #required}, and then an exact shape. */
+    static String requiredPattern(
+            Map<String, String> errors, String field, String value, int max, String pattern, String shape) {
+        String trimmed = required(errors, field, value, max);
+        if (trimmed != null && !errors.containsKey(field) && !trimmed.matches(pattern)) {
+            errors.put(field, field + " must be " + shape);
+        }
+        return trimmed;
+    }
+
     /**
      * The end of a shift must be after its start, when both are given.
      *

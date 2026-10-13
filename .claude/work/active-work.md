@@ -6,6 +6,21 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-13 — Krushna's Day 4 employee fixes on `main` (`BUG-D4-13`–`BUG-D4-22`)
+
+| Fix | What |
+|---|---|
+| Duplicates | Work email, PAN and Aadhaar refused when another employee in the tenant has them (400, field error); PAN and Aadhaar mandatory on the Identification tab |
+| HR sets managers | `V172` grants `core.reporting_line.manage` to `hr` |
+| Exit and return | Terminate asks for a reason and remarks and stores them (`V173`); a terminated employee can be reactivated |
+| Names | Lower-case names and masters are capitalised on save; anything with a capital is kept as typed |
+| Employee page | Send / Resend invitation for an employee without access; document delete dialog closes |
+
+- Built by Krushna on `krushna-bug-fix`; one independent read before the squash. Two findings fixed in the merge (`BUG-D4-17` rewrote cased names; `BUG-D4-20` stored nothing). Four items left open — tracker §9.4, founder to number.
+- **Numbering:** the branch used `BUG-D4-nn`, Devashish's and Sayeed's branches both use `D-15`–`D-18` for different defects. The founder renumbers once on `main` (tracker row `D-15 – D-32`).
+- **Merge order agreed 2026-10-13:** Krushna → Sayeed (after tests) → `D-88` (`dev-claude`) → e2e suite (`dev-claude-e2e`) → Devashish after a rebase (his branch rebuilds `/roles`, which `D-73` already delivered).
+- **Branches:** `dev-claude-krushna` and `krushna-bug-fix` can be deleted.
+
 ## 2026-10-13 — `D-88` on `main`: the invitation link sets the password
 
 | What | Detail |

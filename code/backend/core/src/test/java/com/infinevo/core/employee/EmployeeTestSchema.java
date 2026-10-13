@@ -67,6 +67,10 @@ public final class EmployeeTestSchema {
             }
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
+                executeResource(
+                        conn,
+                        "db/migration/core/V173__employee_termination_reason.sql"); // BUG-D4-20 columns the Employee
+                // entity maps
             }
             // W-14.1. Not optional here even though these tests say nothing about an org master:
             // Employee now maps department_id, designation_id and work_location_id, so every SELECT
