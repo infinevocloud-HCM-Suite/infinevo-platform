@@ -106,11 +106,11 @@ class EmployeeInvitationAcceptanceIT extends AbstractIntegrationTest {
                         "admin"))
                 .getId();
         UUID keycloakUserId = UUID.randomUUID();
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(keycloakUserId, true));
 
         TenantContext.clear();
-        invitationService.acceptInvitation(token);
+        invitationService.acceptInvitation(token, "Str0ng-Passw0rd!");
 
         assertThat(TenantContext.isBound())
                 .as("the acceptance leaves no tenant on the thread")

@@ -449,9 +449,12 @@ public class InvitationServiceImpl implements InvitationService {
      */
     @Override
     @Transactional(noRollbackFor = InvitationExpiredException.class)
-    public AcceptOutcome acceptInvitation(String token) {
+    public AcceptOutcome acceptInvitation(String token, String password) {
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException("Invitation token must not be blank");
+        }
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Password must not be blank");
         }
 
         String tokenHash = InvitationTokenUtils.hashToken(token);
@@ -459,19 +462,19 @@ public class InvitationServiceImpl implements InvitationService {
         // Try user invitation first (security definer bypasses RLS)
         Optional<UserInvitation> userInvOpt = userInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (userInvOpt.isPresent()) {
-            return acceptUserInvitation(userInvOpt.get());
+            return acceptUserInvitation(userInvOpt.get(), password);
         }
 
         // Try employee invitation (security definer bypasses RLS)
         Optional<EmployeeInvitation> empInvOpt = employeeInvitationRepository.findByTokenHashSecurityDefiner(tokenHash);
         if (empInvOpt.isPresent()) {
-            return acceptEmployeeInvitation(empInvOpt.get());
+            return acceptEmployeeInvitation(empInvOpt.get(), password);
         }
 
         throw new IllegalArgumentException("Invalid invitation token");
     }
 
-    private AcceptOutcome acceptUserInvitation(UserInvitation rawInv) {
+    private AcceptOutcome acceptUserInvitation(UserInvitation rawInv, String password) {
         UUID tenantId = rawInv.getTenantId();
         boolean unbindAtCommit = bindTenantUntilTransactionEnds(tenantId);
         try {
@@ -486,9 +489,10 @@ public class InvitationServiceImpl implements InvitationService {
                 throw new InvitationExpiredException();
             }
 
-            // 1. Provision or reuse Keycloak user (W-24.2 §13 decision 2)
+            // 1. Provision or reuse Keycloak user (W-24.2 §13 decision 2) and set the chosen password (D-88).
+            //    A refused password throws before anything below is written; the invitation stays PENDING.
             KeycloakProvisioningService.ProvisioningResult provisioning =
-                    keycloakProvisioningService.getOrCreateKeycloakUser(inv.getEmail(), null, null);
+                    keycloakProvisioningService.getOrCreateKeycloakUser(inv.getEmail(), null, null, password);
             UUID keycloakUserId = provisioning.keycloakUserId();
 
             try {
@@ -530,7 +534,7 @@ public class InvitationServiceImpl implements InvitationService {
         }
     }
 
-    private AcceptOutcome acceptEmployeeInvitation(EmployeeInvitation rawInv) {
+    private AcceptOutcome acceptEmployeeInvitation(EmployeeInvitation rawInv, String password) {
         UUID tenantId = rawInv.getTenantId();
         boolean unbindAtCommit = bindTenantUntilTransactionEnds(tenantId);
         try {
@@ -550,10 +554,10 @@ public class InvitationServiceImpl implements InvitationService {
                     .orElseThrow(() ->
                             new IllegalStateException("Employee not found for invitation: " + inv.getEmployeeId()));
 
-            // 1. Provision Keycloak user
+            // 1. Provision Keycloak user and set the chosen password (D-88); a refused password throws here
             KeycloakProvisioningService.ProvisioningResult provisioning =
                     keycloakProvisioningService.getOrCreateKeycloakUser(
-                            inv.getEmail(), employee.getFirstName(), employee.getLastName());
+                            inv.getEmail(), employee.getFirstName(), employee.getLastName(), password);
             UUID keycloakUserId = provisioning.keycloakUserId();
 
             try {
@@ -686,7 +690,7 @@ public class InvitationServiceImpl implements InvitationService {
         inv.setUpdatedBy("system");
     }
 
-    /** {@code noRollbackFor} for the reason {@link #acceptInvitation(String)} gives. */
+    /** {@code noRollbackFor} for the reason {@link #acceptInvitation(String, String)} gives. */
     @Override
     @Transactional(noRollbackFor = InvitationExpiredException.class)
     public void declineInvitation(String token, String reason) {

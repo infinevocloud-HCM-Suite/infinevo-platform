@@ -13,13 +13,14 @@ describe('publicInvitationService', () => {
     vi.clearAllMocks();
   });
 
-  it('calls accept with token', async () => {
-    const mockResponse = { message: 'Invitation accepted successfully' };
+  it('calls accept with the token and the chosen password (D-88)', async () => {
+    const mockResponse = { message: 'Invitation accepted successfully', outcome: 'PASSWORD_SET' };
     apiClient.post.mockResolvedValueOnce({ data: mockResponse });
 
-    const res = await publicInvitationService.accept('token-abc-123');
+    const res = await publicInvitationService.accept('token-abc-123', 'Str0ng-Passw0rd!');
     expect(apiClient.post).toHaveBeenCalledWith('/v1/invitations/accept', {
       token: 'token-abc-123',
+      password: 'Str0ng-Passw0rd!',
     });
     expect(res).toEqual(mockResponse);
   });

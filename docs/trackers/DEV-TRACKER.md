@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-10-13**, against `main` — Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
+> Last refreshed: **2026-10-13**, against `main` — `D-88` (invitation sets the password) merged; Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
 
 ## Summary
 
@@ -165,6 +165,7 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-85 | Tenant detail shows 404 for any load error (`TenantDetail.jsx:57-69`); tenant list has no error state (`TenantList.jsx:43-45`) | 2026-10-09, screen audit | error screen with Retry | open |
 | D-86 | Leave types offer "Hours", which `LeaveUnit` refuses (`LeaveTypes.jsx:285`); `DRAFT` has no label; employee leave history never mounts (`core/index.js:141`) | 2026-10-09, screen audit | drop Hours; Draft label; history under `/employees` and linked | open |
 | D-87 | Timesheet and Tax declaration panels share order 5; Claims panel has no icon (`TimesheetPanelProvider.java`, `TaxDeclarationPanelProvider.java`, `PortalLayout.jsx:22-29`) | 2026-10-09, screen audit | orders 5, 6, 7; icon | open |
+| D-88 | No way to set or recover a password once an invitation is accepted. The accept page set none; the only password came from Keycloak's set-password mail (`KeycloakProvisioningServiceImpl.java`), a reused account got no mail at all (`AcceptOutcome.EXISTING_ACCOUNT`); the live Azure dev login page showed no "Forgot password?" though the realm file says `resetPasswordAllowed: true`; nothing in the app resets a password | 2026-10-09, founder on Azure dev | founder: (1) "Forgot password?" on the login screen — `resetPasswordAllowed` on the live realm, `check-realm.mjs --live` checks the deployed realm; (2) one email, not two: the invitation link opens a set-password screen, the accept call carries the password, sets it in Keycloak and clears `UPDATE_PASSWORD`, realm policy failures shown on that screen. ("Send set-password link" on Users & Access considered and dropped.) | **fixed on main 2026-10-13** — built by claude on `dev-claude`; one independent read, its findings fixed before merge. Outstanding: `resetPasswordAllowed` must be set on the live dev realm (verify-live check 11 fails until then) |
 
 Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D-44, D-45, D-46, D-47, D-48, D-49, D-50, D-51, D-52, D-53, D-54, D-55, D-56, D-57, D-58 are M. Each is one branch, one commit, no spec. Anything larger from the same 2026-10-07 review is a `W-73` child spec (§6).
 

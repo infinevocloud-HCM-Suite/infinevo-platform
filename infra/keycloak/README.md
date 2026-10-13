@@ -5,7 +5,7 @@ This directory contains the canonical production Keycloak realm definition and v
 | File | Purpose |
 |---|---|
 | `infinevo-realm.json` | Canonical production realm export baked into the production container image. |
-| `check-realm.mjs` | Static validation script run in CI (`ci.yml` `static` job) to prevent leaking users or secrets. |
+| `check-realm.mjs` | Static validation script run in CI (`ci.yml` `static` job) to prevent leaking users or secrets. With `--live <keycloak-url> --app <app-url>` it also checks the deployed realm's sign-in page offers "Forgot password?" (D-88); `infra/azure/verify-live.sh` runs it that way. |
 
 ---
 
@@ -48,6 +48,11 @@ To modify configuration (e.g. token lifespan, mail settings, client redirect URI
 3. **Synchronize back to `infinevo-realm.json`:**
    - Always make the corresponding change in `infra/keycloak/infinevo-realm.json` and commit it, so subsequent environment deployments inherit the updated configuration.
    - Run `node infra/keycloak/check-realm.mjs` to ensure no credentials or localhost URLs were accidentally committed.
+
+4. **Check the live realm, not only the file (D-88):**
+   - `node infra/keycloak/check-realm.mjs --live https://<host>/auth --app https://<host>/` fetches the deployed
+     sign-in page and fails unless it offers "Forgot password?" (`resetPasswordAllowed`). The accept page sets the
+     invitee's first password itself; this link is the only way back for anyone who loses it.
 
 ---
 

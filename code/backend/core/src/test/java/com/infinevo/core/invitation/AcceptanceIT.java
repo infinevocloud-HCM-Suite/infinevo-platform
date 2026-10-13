@@ -66,7 +66,7 @@ class AcceptanceIT extends AbstractIntegrationTest {
         mockKeycloakUserId = UUID.randomUUID();
         transactionTemplate = new TransactionTemplate(transactionManager);
 
-        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any()))
+        when(keycloakProvisioningService.getOrCreateKeycloakUser(anyString(), any(), any(), anyString()))
                 .thenReturn(new KeycloakProvisioningService.ProvisioningResult(mockKeycloakUserId, true));
 
         TenantContext.set(tenant);
@@ -91,7 +91,7 @@ class AcceptanceIT extends AbstractIntegrationTest {
         UserInvitationResponse created = invitationService.createUserInvitation(req, adminUserId);
 
         verify(keycloakProvisioningService, org.mockito.Mockito.never())
-                .getOrCreateKeycloakUser(anyString(), any(), any());
+                .getOrCreateKeycloakUser(anyString(), any(), any(), anyString());
 
         // 2. Perform acceptance with a known single-use bearer token
         String testToken = InvitationTokenUtils.generateToken();
@@ -110,10 +110,11 @@ class AcceptanceIT extends AbstractIntegrationTest {
         TenantContext.clear();
 
         // 3. Accept using the token (unauthenticated)
-        invitationService.acceptInvitation(testToken);
+        invitationService.acceptInvitation(testToken, "Str0ng-Passw0rd!");
 
         // Verify Keycloak user was provisioned upon acceptance
-        verify(keycloakProvisioningService).getOrCreateKeycloakUser("accept-test-2@example.com", null, null);
+        verify(keycloakProvisioningService)
+                .getOrCreateKeycloakUser("accept-test-2@example.com", null, null, "Str0ng-Passw0rd!");
 
         // Verify invitation status updated to ACCEPTED
         TenantContext.set(tenant);
@@ -124,7 +125,8 @@ class AcceptanceIT extends AbstractIntegrationTest {
 
         // 4. A second acceptance with the same token is refused
         TenantContext.clear();
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> invitationService.acceptInvitation(testToken))
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> invitationService.acceptInvitation(testToken, "Str0ng-Passw0rd!"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already been accepted");
     }

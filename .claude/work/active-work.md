@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-13 — `D-88` on `main`: the invitation link sets the password
+
+| What | Detail |
+|---|---|
+| Accept page | Asks for a password and its confirmation (realm rules as a hint) and sends it with the token. One email, no second "set your password" mail |
+| Server | Creates the Keycloak user, sets the password, clears `UPDATE_PASSWORD`; a password the realm policy refuses is a 400 shown beside the field, the half-created user is deleted and the invitation stays PENDING. An existing account keeps its password and is pointed at "Forgot password?" |
+| Realm check | `check-realm.mjs --live <keycloak> --app <root>` fails without the reset-credentials link; `verify-live.sh` runs it as check 11 |
+
+- Built by Claude on `dev-claude` (`c777b419`, `8eb38e5b`); gates 5/5, CI green, one independent read, its findings fixed on the branch. Founder's tester mail (`.claude/outputs/2026-10-09-dev-validation-logins.md`) describes this flow.
+- **Outstanding:** set `resetPasswordAllowed` on the live dev realm, then check 11 passes; "Send set-password link" on Users & Access dropped on purpose.
+- **Branches:** `dev-claude` can be reset to `main`.
+
 ## 2026-10-13 — Sayeed's leave fixes on `main` (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58`
 
 | Fix | What |

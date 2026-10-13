@@ -133,7 +133,8 @@ class EmployeeInvitationLifecycleIT extends AbstractIntegrationTest {
                 invitationService.resendEmployeeInvitation(original.getId(), adminUserId);
 
         TenantContext.clear();
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> invitationService.acceptInvitation(resentToken))
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> invitationService.acceptInvitation(resentToken, "Str0ng-Passw0rd!"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("revoked");
 
@@ -152,12 +153,14 @@ class EmployeeInvitationLifecycleIT extends AbstractIntegrationTest {
         invitationService.revokeEmployeeInvitation(another.getId(), adminUserId);
 
         TenantContext.clear();
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> invitationService.acceptInvitation(revokedToken))
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> invitationService.acceptInvitation(revokedToken, "Str0ng-Passw0rd!"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("revoked");
 
         org.mockito.Mockito.verify(keycloakProvisioningService, org.mockito.Mockito.never())
                 .getOrCreateKeycloakUser(
+                        org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.any());
