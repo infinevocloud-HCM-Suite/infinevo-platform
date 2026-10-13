@@ -41,7 +41,9 @@ describe('InstanceDetail component', () => {
           comment: 'Approved by delegate',
           decidedAt: '2026-10-01T10:00:00Z',
           delegatedFromEmployeeId: 'emp-mgr-1',
+          delegatedFromEmployeeName: 'Vikram Shah',
           assigneeEmployeeId: 'emp-delegate-2',
+          assigneeName: 'Meera Iyer',
         },
         {
           stepIndex: 1,
@@ -49,7 +51,9 @@ describe('InstanceDetail component', () => {
           reason: 'Timed out, escalated',
           occurredAt: '2026-10-02T10:00:00Z',
           escalatedFromEmployeeId: 'emp-mgr-1',
+          escalatedFromEmployeeName: 'Vikram Shah',
           assigneeEmployeeId: 'emp-director-3',
+          assigneeName: 'Ravi Kumar',
         },
       ],
     });
@@ -63,9 +67,50 @@ describe('InstanceDetail component', () => {
     await waitFor(() => {
       expect(screen.getByText('Approval Instance Details')).toBeDefined();
       expect(screen.getByText('inst-1')).toBeDefined();
-      expect(screen.getByText(/Delegated from: emp-mgr-1/)).toBeDefined();
-      expect(screen.getByText(/Escalated from: emp-mgr-1/)).toBeDefined();
+      expect(screen.getByText(/Delegated from: Vikram Shah/)).toBeDefined();
+      expect(screen.getByText(/Escalated from: Vikram Shah/)).toBeDefined();
+      expect(screen.getByText(/Assignee: Meera Iyer/)).toBeDefined();
     });
+    expect(screen.queryByText(/emp-mgr-1/)).toBeNull();
+    expect(screen.queryByText(/emp-delegate-2/)).toBeNull();
+  });
+
+  it('names the requester and each step assignee, never their ids (D-79)', async () => {
+    approvalService.get.mockResolvedValueOnce({
+      id: 'inst-3',
+      flowType: 'LEAVE',
+      status: 'APPROVED',
+      subjectEmployeeId: 'emp-asha',
+      subjectEmployeeName: 'Asha Rao',
+      steps: [
+        {
+          id: 'step-1',
+          stepIndex: 0,
+          approverKind: 'REPORTING_MANAGER',
+          assigneeEmployeeId: 'emp-vikram',
+          assigneeEmployeeName: 'Vikram Shah',
+          decision: 'APPROVED',
+          approvedAmount: '1500.00',
+          decidedAt: '2026-10-01T10:00:00Z',
+        },
+      ],
+    });
+    approvalService.history.mockResolvedValueOnce({ steps: [] });
+
+    render(
+      <MemoryRouter>
+        <InstanceDetail instanceId="inst-3" />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Asha Rao')).toBeDefined();
+      expect(screen.getByText('Vikram Shah')).toBeDefined();
+    });
+    expect(screen.getByText('1 Oct 2026')).toBeDefined();
+    expect(screen.getByText(/1,500.00/)).toBeDefined();
+    expect(screen.queryByText('emp-asha')).toBeNull();
+    expect(screen.queryByText('emp-vikram')).toBeNull();
   });
 
   it('loads get and history independently so instance still renders if history fails', async () => {

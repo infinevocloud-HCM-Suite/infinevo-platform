@@ -5,6 +5,7 @@ import { NotFound } from '@shell/screens';
 import { requestService } from './requestService.js';
 import { backLink } from './RegularizationDetail.jsx';
 import { STATUS_COLOR, stamp } from './range.js';
+import { formatDate, formatMoney, formatMonth, humanize, statusLabel } from '@shared/ui/format.js';
 
 /** One overtime request, read-only (W-48.5 §5). Hours and amount are shown as sent; nothing is computed. */
 export function OvertimeDetail() {
@@ -34,14 +35,14 @@ export function OvertimeDetail() {
   return (
     <Card title="Overtime request" extra={back}>
       <Descriptions size="small" column={2} bordered>
-        <Descriptions.Item label="Date">{item.overtimeDate}</Descriptions.Item>
+        <Descriptions.Item label="Date">{formatDate(item.overtimeDate)}</Descriptions.Item>
         <Descriptions.Item label="Status">
-          <Tag color={STATUS_COLOR[item.status]}>{item.status}</Tag>
+          <Tag color={STATUS_COLOR[item.status]}>{statusLabel(item.status)}</Tag>
         </Descriptions.Item>
         <Descriptions.Item label="Hours">{item.hours}</Descriptions.Item>
-        <Descriptions.Item label="Amount">{item.amount ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="Source">{item.source || '—'}</Descriptions.Item>
-        {item.postedPeriod && <Descriptions.Item label="Posted period">{item.postedPeriod}</Descriptions.Item>}
+        <Descriptions.Item label="Amount">{formatMoney(item.amount)}</Descriptions.Item>
+        <Descriptions.Item label="Source">{humanize(item.source)}</Descriptions.Item>
+        {item.postedPeriod && <Descriptions.Item label="Posted period">{formatMonth(item.postedPeriod)}</Descriptions.Item>}
         <Descriptions.Item label="Remarks" span={2}>
           {item.remarks || '—'}
         </Descriptions.Item>

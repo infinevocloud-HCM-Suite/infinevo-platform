@@ -354,6 +354,43 @@ export async function checkTable(page, where = page.url()) {
   return unique;
 }
 
+/**
+ * D-58: a value squeezed into a column so narrow that it wraps one character per line ("G a u t a m",
+ * "1 A p r 2 0 2 4") reads as broken even though the text is right. Looks at every descriptions
+ * value, table cell and statistic on the screen: a value of four or more characters wrapped to three
+ * or more lines at three characters or fewer per line is reported.
+ * Soft failure, one line per distinct offender, like checkTable.
+ */
+export async function checkSqueezedText(page, where = page.url()) {
+  const offenders = await page.$$eval(
+    '.ant-layout-content .ant-descriptions-item-content, .ant-layout-content .ant-table-cell, .ant-layout-content .ant-statistic-content',
+    (nodes) =>
+      nodes
+        .map((node) => {
+          const text = (node.innerText || '').replace(/\s+/g, ' ').trim();
+          // Measure the text itself, not the cell: every cell in a table row shares the row's
+          // height and carries padding, so the cell box would flag short siblings of a tall value.
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const rect = range.getBoundingClientRect();
+          const lineHeight = parseFloat(getComputedStyle(node).lineHeight) || 22;
+          // An empty table's "No data" cell is an icon over a caption, three lines by design.
+          const placeholder = Boolean(node.closest('.ant-table-placeholder') || node.querySelector('.ant-empty'));
+          return { text, width: Math.round(rect.width), height: Math.round(rect.height), lineHeight, placeholder };
+        })
+        .filter((cell) => cell.text.length >= 4 && cell.width > 0 && !cell.placeholder)
+        // Squeezed means the text wraps far more often than its length warrants: three or more
+        // lines while averaging three characters or fewer per line ("G a u t a m" is six lines
+        // for six characters; a three-line thirty-character note is not flagged).
+        .map((cell) => ({ ...cell, lines: Math.round(cell.height / cell.lineHeight) }))
+        .filter((cell) => cell.lines >= 3 && cell.text.length / cell.lines <= 3)
+        .map((cell) => `"${cell.text.slice(0, 30)}" wrapped to ${cell.lines} lines in a ${cell.width}px wide box`)
+  );
+  const unique = [...new Set(offenders)];
+  expect.soft(unique, `screen ${where}: ${unique.length} squeezed value(s) (D-58)`).toEqual([]);
+  return unique;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Buttons
 // ---------------------------------------------------------------------------------------------
@@ -518,6 +555,14 @@ export async function pickDate(page, input, isoDate) {
   await input.fill(isoDate);
   await input.press('Enter');
   await page.locator('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A yyyy-mm-dd as the screens show it since D-78: "19 Oct 2026" (shared/ui/format.js formatDate). */
+export function displayDate(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
 }
 
 /** yyyy-mm-dd in local time. */

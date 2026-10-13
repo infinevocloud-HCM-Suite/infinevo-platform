@@ -20,6 +20,7 @@ import { PlusOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/i
 import { useCan } from '@shell/screens';
 import { payrunService } from './payrunService.js';
 import { MidYearBanner } from '../priorpayroll/MidYearBanner.jsx';
+import { EMPTY, formatDate, formatMoney, formatMonth, humanize, statusLabel } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -127,13 +128,13 @@ export function RunList() {
       title: 'Period',
       dataIndex: 'period',
       key: 'period',
-      render: (period) => <Text strong>{period}</Text>,
+      render: (period) => <Text strong>{formatMonth(period)}</Text>,
     },
     {
       title: 'Pay Date',
       dataIndex: 'pay_date',
       key: 'pay_date',
-      render: (date, record) => <Text>{date || record.payDate || '-'}</Text>,
+      render: (date, record) => <Text>{formatDate(date || record.payDate)}</Text>,
     },
     {
       title: 'Type',
@@ -143,7 +144,7 @@ export function RunList() {
         const val = type || record.runType || 'REGULAR';
         return (
           <Tag color={val === 'OFF_CYCLE' ? 'purple' : 'blue'}>
-            {val}
+            {humanize(val)}
           </Tag>
         );
       },
@@ -154,7 +155,7 @@ export function RunList() {
       key: 'status',
       render: (status) => (
         <Tag color={STATUS_COLOR_MAP[status] || 'default'}>
-          {status}
+          {statusLabel(status)}
         </Tag>
       ),
     },
@@ -162,8 +163,8 @@ export function RunList() {
       title: 'Employees (Inc / Skip)',
       key: 'counts',
       render: (_, record) => {
-        const inc = record.included_count !== undefined ? record.included_count : record.includedCount ?? '-';
-        const skip = record.skipped_count !== undefined ? record.skipped_count : record.skippedCount ?? '-';
+        const inc = record.included_count !== undefined ? record.included_count : record.includedCount ?? EMPTY;
+        const skip = record.skipped_count !== undefined ? record.skipped_count : record.skippedCount ?? EMPTY;
         return <Text>{`${inc} / ${skip}`}</Text>;
       },
     },
@@ -177,11 +178,11 @@ export function RunList() {
         const status = record.status;
         const isComputed = status === 'COMPUTED' || status === 'APPROVED' || status === 'PAID';
         if (!isComputed || val === undefined || val === null) {
-          return <Text type="secondary">-</Text>;
+          return <Text type="secondary">{EMPTY}</Text>;
         }
         return (
           <Text strong style={{ fontFamily: 'monospace' }}>
-            {Number(val).toFixed(2)}
+            {formatMoney(val)}
           </Text>
         );
       },

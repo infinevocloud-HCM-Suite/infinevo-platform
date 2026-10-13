@@ -48,8 +48,14 @@ export const portalService = {
     return { departments, designations, workLocations };
   },
 
-  async getLeaveRequests() {
-    const res = await apiClient.get('/v1/me/leave-requests');
+  /**
+   * The caller's leave requests, newest first, as a Spring page (`content`, `totalElements`).
+   * D-80: `params` ({ page, size }) asks for a given page; without it the server's default page.
+   */
+  async getLeaveRequests(params) {
+    const res = params
+      ? await apiClient.get('/v1/me/leave-requests', { params })
+      : await apiClient.get('/v1/me/leave-requests');
     return res?.data !== undefined ? res.data : res;
   },
 

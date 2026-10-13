@@ -6,14 +6,9 @@ import { claimService } from './claimService.js';
 import { deductionService } from './deductionService.js';
 import { ClaimForm } from './ClaimForm.jsx';
 import { ClaimDescriptions } from './ClaimDetail.jsx';
-import {
-  claimStatus,
-  deductionStatus,
-  deductionTypeLabel,
-  formatAmount,
-  formatDate,
-} from './claimLabels.js';
+import { claimStatus, deductionStatus, deductionTypeLabel } from './claimLabels.js';
 import { readError } from '../tax/apiError.js';
+import { EMPTY, formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -102,21 +97,21 @@ export function MyClaimsPanel() {
   };
 
   const claimColumns = [
-    { title: 'Bill date', dataIndex: 'bill_date', key: 'bill_date', render: formatDate },
-    { title: 'Component', dataIndex: 'component_name', key: 'component_name', render: (v) => v || '-' },
+    { title: 'Bill date', dataIndex: 'bill_date', key: 'bill_date', render: (v) => formatDate(v) },
+    { title: 'Component', dataIndex: 'component_name', key: 'component_name', render: (v) => v || EMPTY },
     {
       title: 'Requested',
       dataIndex: 'requested_amount',
       key: 'requested_amount',
       align: 'right',
-      render: formatAmount,
+      render: (v) => formatMoney(v),
     },
     {
       title: 'Approved',
       dataIndex: 'approved_amount',
       key: 'approved_amount',
       align: 'right',
-      render: formatAmount,
+      render: (v) => formatMoney(v),
     },
     {
       title: 'Status',
@@ -127,8 +122,8 @@ export function MyClaimsPanel() {
         return <Tag color={tag.color}>{tag.label}</Tag>;
       },
     },
-    { title: 'Posted period', dataIndex: 'posted_period', key: 'posted_period', render: (v) => v || '-' },
-    { title: 'Remarks', dataIndex: 'remarks', key: 'remarks', render: (v) => v || '-' },
+    { title: 'Posted period', dataIndex: 'posted_period', key: 'posted_period', render: (v) => formatMonth(v) },
+    { title: 'Remarks', dataIndex: 'remarks', key: 'remarks', render: (v) => v || EMPTY },
   ];
 
   // A reversed deduction is struck through and carries its reversal date.
@@ -136,7 +131,7 @@ export function MyClaimsPanel() {
     row.status === 'REVERSED' ? <Text delete>{content}</Text> : content;
 
   const deductionColumns = [
-    { title: 'Period', dataIndex: 'period', key: 'period', render: (v, row) => struck(row, v) },
+    { title: 'Period', dataIndex: 'period', key: 'period', render: (v, row) => struck(row, formatMonth(v)) },
     {
       title: 'Type',
       dataIndex: 'deduction_type',
@@ -148,9 +143,9 @@ export function MyClaimsPanel() {
       dataIndex: 'amount',
       key: 'amount',
       align: 'right',
-      render: (v, row) => struck(row, formatAmount(v)),
+      render: (v, row) => struck(row, formatMoney(v)),
     },
-    { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v, row) => struck(row, v || '-') },
+    { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v, row) => struck(row, v || EMPTY) },
     {
       title: 'Status',
       dataIndex: 'status',

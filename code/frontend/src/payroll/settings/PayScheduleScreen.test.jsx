@@ -179,9 +179,9 @@ describe('PayScheduleScreen (W-47.1b §7)', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('preview-descriptions')).toBeDefined();
-      expect(screen.getByText('2026-10-01')).toBeDefined();
-      expect(screen.getAllByText('2026-10-31').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('2026-10-25')).toBeDefined();
+      expect(screen.getByText('1 Oct 2026')).toBeDefined();
+      expect(screen.getAllByText('31 Oct 2026').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('25 Oct 2026')).toBeDefined();
     });
   });
 });

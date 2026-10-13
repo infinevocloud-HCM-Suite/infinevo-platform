@@ -25,6 +25,7 @@ import {
   CheckCircleOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
+import { useCan } from '@shell/screens';
 import { payrunService } from './payrunService.js';
 
 const { Title, Text } = Typography;
@@ -53,6 +54,9 @@ export function parseEmployeeError(message) {
 
 export function OffCycleCreate() {
   const navigate = useNavigate();
+  // The server refuses both calls this screen makes without payroll.run.execute
+  // (OffCyclePayRunController.java:55, :67); a role without it is told so up front (D-82).
+  const canExecute = useCan('payroll.run.execute');
   const [currentStep, setCurrentStep] = useState(0);
 
   // Step 1: Run creation
@@ -109,8 +113,8 @@ export function OffCycleCreate() {
   ];
 
   useEffect(() => {
-    searchEmployees('');
-  }, []);
+    if (canExecute) searchEmployees('');
+  }, [canExecute]);
 
   const handleStep1Submit = async () => {
     if (!payDate || selectedEmployees.length === 0) return;
@@ -239,6 +243,20 @@ export function OffCycleCreate() {
       setStep2Loading(false);
     }
   };
+
+  if (!canExecute) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Alert
+          type="warning"
+          showIcon
+          message="You cannot create an off-cycle run"
+          description="Creating a pay run needs the payroll run permission. Ask a payroll officer."
+          action={<Button onClick={() => navigate('/payroll/runs')}>Back to runs</Button>}
+        />
+      </div>
+    );
+  }
 
   const inputColumns = [
     {

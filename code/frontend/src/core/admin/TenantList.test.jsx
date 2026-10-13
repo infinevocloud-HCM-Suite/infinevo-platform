@@ -60,7 +60,7 @@ describe('TenantList', () => {
     expect(await screen.findByText('Acme')).toBeDefined();
     const acme = rowOf('Acme');
     expect(within(acme).getByText('PAYROLL')).toBeDefined();
-    expect(within(acme).getByText('ACTIVE')).toBeDefined();
+    expect(within(acme).getByText('Active')).toBeDefined();
   });
 
   it('tags the Infinevo row "platform" and gives it no actions', async () => {

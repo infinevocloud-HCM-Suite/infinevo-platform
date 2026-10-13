@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { reviewService } from './reviewService.js';
 import { STATUS_COLOR, STATUS_LABEL, formatHundredths } from '../timesheet/weekGrid.js';
 import { dayTotals, gridColumns, sumRows, taskRows } from './reviewGrid.js';
+import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 /** The one project line an approver decides (W-48.3 §5), opened from the approvals inbox. */
 export function EntryView() {
@@ -35,10 +36,10 @@ export function EntryView() {
       <Descriptions size="small" column={3} style={{ marginBottom: 16 }}>
         <Descriptions.Item label="Employee">{entry.employee_name || entry.employee_id}</Descriptions.Item>
         <Descriptions.Item label="Week">
-          {entry.week_start_date} to {entry.week_end_date}
+          {formatDate(entry.week_start_date)} to {formatDate(entry.week_end_date)}
         </Descriptions.Item>
         <Descriptions.Item label="Status">
-          <Tag color={STATUS_COLOR[entry.status]}>{STATUS_LABEL[entry.status] || entry.status}</Tag>
+          <Tag color={STATUS_COLOR[entry.status]}>{STATUS_LABEL[entry.status] || statusLabel(entry.status)}</Tag>
         </Descriptions.Item>
       </Descriptions>
       <Table

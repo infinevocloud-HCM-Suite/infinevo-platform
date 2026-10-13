@@ -22,20 +22,20 @@ describe('YearTable (W-47.5 §7)', () => {
     renderTable();
     const footer = screen.getByText('Paid (1 runs)').closest('tr');
     // The gross column adds up to 24,38,952.50; the footer is the PAID run alone, as sent.
-    expect(within(footer).getByText('12,00,000.00')).toBeDefined();
-    expect(within(footer).getByText('95,000.00')).toBeDefined();
-    expect(within(footer).getByText('40,000.00')).toBeDefined();
-    expect(within(footer).getByText('11,05,000.00')).toBeDefined();
+    expect(within(footer).getByText('₹ 12,00,000.00')).toBeDefined();
+    expect(within(footer).getByText('₹ 95,000.00')).toBeDefined();
+    expect(within(footer).getByText('₹ 40,000.00')).toBeDefined();
+    expect(within(footer).getByText('₹ 11,05,000.00')).toBeDefined();
     expect(screen.queryByText('24,38,952.50')).toBeNull();
   });
 
   it('lists the months and recent runs, and a row opens its run', () => {
     renderTable();
     const months = screen.getByRole('table', { name: 'Months' });
-    expect(within(months).getByText('41,000.00')).toBeDefined();
+    expect(within(months).getByText('₹ 41,000.00')).toBeDefined();
     const recent = screen.getByRole('table', { name: 'Recent runs' });
-    expect(within(recent).getAllByText('2026-08-31').length).toBeGreaterThan(0);
-    fireEvent.click(within(recent).getByText('2026-08'));
+    expect(within(recent).getAllByText('31 Aug 2026').length).toBeGreaterThan(0);
+    fireEvent.click(within(recent).getByText('Aug 2026'));
     expect(screen.getByText('run page')).toBeDefined();
   });
 });

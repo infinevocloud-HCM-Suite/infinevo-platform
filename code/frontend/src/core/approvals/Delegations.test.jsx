@@ -27,7 +27,10 @@ describe('Delegations component', () => {
     delegationService.list.mockResolvedValue([
       {
         id: 'del-1',
+        delegatorEmployeeId: 'emp-me-1',
+        delegatorEmployeeName: 'Vikram Shah',
         delegateEmployeeId: 'emp-colleague-1',
+        delegateEmployeeName: 'Meera Iyer',
         startsOn: '2026-10-01',
         endsOn: '2026-10-05',
         flowTypes: ['LEAVE', 'OVERTIME'],
@@ -42,8 +45,9 @@ describe('Delegations component', () => {
     render(<Delegations />);
 
     await waitFor(() => {
-      expect(screen.getByText('emp-colleague-1')).toBeDefined();
-      expect(screen.getByText('2026-10-01')).toBeDefined();
+      expect(screen.getByText('Meera Iyer')).toBeDefined();
+      expect(screen.getByText('Vikram Shah')).toBeDefined();
+      expect(screen.getByText('1 Oct 2026')).toBeDefined();
       expect(screen.getByText('LEAVE')).toBeDefined();
     });
 
@@ -67,6 +71,7 @@ describe('Delegations component', () => {
       {
         id: 'del-backend-1',
         delegateEmployeeId: 'emp-colleague-2',
+        delegateEmployeeName: 'Ravi Kumar',
         from,
         to,
         flowTypes: 'REGULARIZATION,REIMBURSEMENT',
@@ -78,26 +83,36 @@ describe('Delegations component', () => {
     render(<Delegations />);
 
     await waitFor(() => {
-      expect(screen.getByText('emp-colleague-2')).toBeDefined();
-      expect(screen.getByText(from)).toBeDefined();
-      expect(screen.getByText(to)).toBeDefined();
+      expect(screen.getByText('Ravi Kumar')).toBeDefined();
+      expect(screen.getByText(dayjs(from).format('D MMM YYYY'))).toBeDefined();
+      expect(screen.getByText(dayjs(to).format('D MMM YYYY'))).toBeDefined();
       expect(screen.getByText('REGULARIZATION')).toBeDefined();
       expect(screen.getByText('REIMBURSEMENT')).toBeDefined();
       expect(screen.getByText('ACTIVE')).toBeDefined();
     });
   });
 
+  it('never prints a person id: names only (D-79)', async () => {
+    render(<Delegations />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Meera Iyer')).toBeDefined();
+    });
+    expect(screen.queryByText('emp-colleague-1')).toBeNull();
+    expect(screen.queryByText('emp-me-1')).toBeNull();
+  });
+
   it('offers Revoke only on a delegation the server marks revocable', async () => {
     delegationService.list.mockResolvedValueOnce([
-      { id: 'del-mine', delegateEmployeeId: 'emp-colleague-3', from: '2026-11-01', to: '2026-11-10', flowTypes: 'LEAVE', isActive: true, revocable: true },
-      { id: 'del-to-me', delegateEmployeeId: 'emp-me', from: '2026-11-01', to: '2026-11-10', flowTypes: 'LEAVE', isActive: true, revocable: false },
+      { id: 'del-mine', delegateEmployeeId: 'emp-colleague-3', delegateEmployeeName: 'Asha Rao', from: '2026-11-01', to: '2026-11-10', flowTypes: 'LEAVE', isActive: true, revocable: true },
+      { id: 'del-to-me', delegateEmployeeId: 'emp-me', delegateEmployeeName: 'Me Myself', from: '2026-11-01', to: '2026-11-10', flowTypes: 'LEAVE', isActive: true, revocable: false },
     ]);
 
     render(<Delegations />);
 
     await waitFor(() => {
-      expect(screen.getByText('emp-colleague-3')).toBeDefined();
-      expect(screen.getByText('emp-me')).toBeDefined();
+      expect(screen.getByText('Asha Rao')).toBeDefined();
+      expect(screen.getByText('Me Myself')).toBeDefined();
     });
     expect(document.getElementById('btn-delete-delegation-del-mine')).toBeTruthy();
     expect(document.getElementById('btn-delete-delegation-del-to-me')).toBeNull();

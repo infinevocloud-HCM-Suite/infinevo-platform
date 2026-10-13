@@ -29,6 +29,7 @@ public record ReimbursementClaimResponse(
         @JsonProperty("pay_input_id") UUID payInputId,
         @JsonProperty("posted_period") String postedPeriod,
         @JsonProperty("approved_by") UUID approvedBy,
+        @JsonProperty("approved_by_name") String approvedByName,
         @JsonProperty("approved_at") Instant approvedAt,
         @JsonProperty("created_at") Instant createdAt,
         @JsonProperty("updated_at") Instant updatedAt) {
@@ -39,6 +40,17 @@ public record ReimbursementClaimResponse(
             String componentCode,
             String componentName,
             BigDecimal maxLimit) {
+        return from(claim, employeeName, componentCode, componentName, maxLimit, null);
+    }
+
+    /** With the approver's display name too (D-79); {@code approved_by} is the deciding step's assignee. */
+    public static ReimbursementClaimResponse from(
+            ReimbursementClaim claim,
+            String employeeName,
+            String componentCode,
+            String componentName,
+            BigDecimal maxLimit,
+            String approvedByName) {
         return new ReimbursementClaimResponse(
                 claim.getId(),
                 claim.getEmployeeId(),
@@ -58,6 +70,7 @@ public record ReimbursementClaimResponse(
                 claim.getPayInputId(),
                 claim.getPostedPeriod(),
                 claim.getApprovedBy(),
+                approvedByName,
                 claim.getApprovedAt(),
                 claim.getCreatedAt(),
                 claim.getUpdatedAt());
@@ -66,9 +79,18 @@ public record ReimbursementClaimResponse(
     /** {@code employeeName} comes from {@code EmployeeService.displayNames} (W-47.4 §4); null when unresolved. */
     public static ReimbursementClaimResponse from(
             ReimbursementClaim claim, Reimbursement component, String employeeName) {
+        return from(claim, component, employeeName, null);
+    }
+
+    /**
+     * With the employee's and the approver's display names, both from {@code EmployeeService.displayNames}
+     * (W-47.4 §4, D-79); null when unresolved.
+     */
+    public static ReimbursementClaimResponse from(
+            ReimbursementClaim claim, Reimbursement component, String employeeName, String approvedByName) {
         String code = component != null ? component.getCode() : null;
         String name = component != null ? component.getName() : null;
         BigDecimal maxLimit = component != null ? component.getMaxLimit() : null;
-        return from(claim, employeeName, code, name, maxLimit);
+        return from(claim, employeeName, code, name, maxLimit, approvedByName);
     }
 }

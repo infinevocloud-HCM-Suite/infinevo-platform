@@ -18,6 +18,7 @@ import { useCan, NotEntitled } from '@shell/screens';
 import { errorMsg } from '@shared/ui/msgHelper.js';
 import { leaveConsumptionService } from './leaveConsumptionService.js';
 import { employeeService } from '../employee/employeeService.js';
+import { EMPTY, formatDate, formatDateTime, formatMonth } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -91,12 +92,13 @@ export function EmployeeLeave() {
       title: 'Consumed On',
       dataIndex: 'consumedOn',
       key: 'consumedOn',
-      render: (d) => d || '-',
+      render: (d) => formatDate(d),
     },
     {
       title: 'Period',
       dataIndex: 'period',
       key: 'period',
+      render: (p) => formatMonth(p),
     },
     {
       title: 'Days',
@@ -108,7 +110,7 @@ export function EmployeeLeave() {
       title: 'Reason',
       dataIndex: 'reason',
       key: 'reason',
-      render: (r) => r || '-',
+      render: (r) => r || EMPTY,
     },
     {
       title: 'Request ID',
@@ -136,7 +138,7 @@ export function EmployeeLeave() {
   ];
 
   const lopColumns = [
-    { title: 'Period', dataIndex: 'period', key: 'period' },
+    { title: 'Period', dataIndex: 'period', key: 'period', render: (p) => formatMonth(p) },
     {
       title: 'LOP Days',
       dataIndex: 'lopDays',
@@ -153,7 +155,7 @@ export function EmployeeLeave() {
       title: 'Created At',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (dt) => (dt ? dayjs(dt).format('YYYY-MM-DD HH:mm') : '-'),
+      render: (dt) => formatDateTime(dt),
     },
   ];
 

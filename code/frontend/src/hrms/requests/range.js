@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { formatDateTime } from '@shared/ui/format.js';
 
 /** The server's longest range (RegularizationServiceImpl, W-48.5 §3). */
 export const MAX_RANGE_DAYS = 93;
@@ -20,6 +21,7 @@ export function timeOf(instant) {
   return instant ? dayjs(instant).format('HH:mm') : '—';
 }
 
+/** A decision time as '1 Apr 2026, 14:05' (D-78). */
 export function stamp(instant) {
-  return instant ? dayjs(instant).format('YYYY-MM-DD HH:mm') : '—';
+  return formatDateTime(instant);
 }

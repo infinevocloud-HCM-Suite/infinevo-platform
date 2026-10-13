@@ -5,6 +5,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { errorMsg } from '@shared/ui/msgHelper.js';
 import { tenantService } from './tenantService.js';
 import { isPlatformTenant, STATUS_COLORS } from './platform.js';
+import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 const { Title } = Typography;
 
@@ -67,7 +68,7 @@ export function TenantList() {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => <Tag color={STATUS_COLORS[status] || 'default'}>{status}</Tag>,
+      render: (status) => <Tag color={STATUS_COLORS[status] || 'default'}>{statusLabel(status)}</Tag>,
     },
     {
       title: 'Modules',
@@ -93,7 +94,7 @@ export function TenantList() {
       title: 'Created',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (value) => (value ? new Date(value).toLocaleDateString() : ''),
+      render: (value) => formatDate(value),
     },
     {
       title: 'Actions',

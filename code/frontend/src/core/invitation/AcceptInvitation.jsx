@@ -297,7 +297,7 @@ export function AcceptInvitation() {
                 }}
               />
             </Form.Item>
-            <Space orientation="vertical" style={{ width: '100%' }} size="middle">
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
               <Button
                 type="primary"
                 size="large"

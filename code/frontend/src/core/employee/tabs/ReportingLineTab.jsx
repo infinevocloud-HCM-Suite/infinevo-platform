@@ -19,6 +19,7 @@ import { useCan } from '@shell/screens';
 import { reportingLineService } from '../reportingLineService.js';
 import { employeeService } from '../employeeService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { formatDate, humanize } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -120,19 +121,19 @@ export function ReportingLineTab({ employeeId }) {
       title: 'Kind',
       dataIndex: 'kind',
       key: 'kind',
-      render: (kind) => <Tag color="blue">{kind}</Tag>,
+      render: (kind) => <Tag color="blue">{humanize(kind)}</Tag>,
     },
     {
       title: 'Effective From',
       dataIndex: 'effectiveFrom',
       key: 'effectiveFrom',
-      render: (d) => d || '—',
+      render: (d) => formatDate(d),
     },
     {
       title: 'Effective To',
       dataIndex: 'effectiveTo',
       key: 'effectiveTo',
-      render: (d) => d || 'Ongoing',
+      render: (d) => (d ? formatDate(d) : 'Ongoing'),
     },
   ];
 

@@ -44,10 +44,20 @@ describe('Portal panels read the fields the server sends (W-25)', () => {
       expect(screen.getByText('Family function')).toBeDefined();
     });
     expect(screen.getByText('2 day(s)')).toBeDefined();
-    expect(screen.getByText('APPROVED')).toBeDefined();
+    expect(screen.getByText('Approved')).toBeDefined();
+    expect(screen.queryByText('APPROVED')).toBeNull();
+    // Dates read as dates, never the ISO string (D-78).
+    expect(screen.getByText('5 Oct 2026')).toBeDefined();
+    expect(screen.queryByText('2026-10-05')).toBeNull();
     // The balance card and the request row both name the type, from the balance.
     expect(screen.getAllByText('Casual Leave').length).toBe(2);
     expect(screen.getByText('10')).toBeDefined();
-    expect(screen.getByText('Used: 2 days')).toBeDefined();
+    // Each balance is an equal-height card with a meter of days used out of the total (D-53).
+    expect(screen.getByText('Used: 2 of 12 days')).toBeDefined();
+    const card = screen.getByTestId('leave-balance-card');
+    expect(card.style.height).toBe('100%');
+    const meter = card.querySelector('.ant-progress');
+    expect(meter).not.toBeNull();
+    expect(meter.getAttribute('aria-valuenow')).toBe('17');
   });
 });

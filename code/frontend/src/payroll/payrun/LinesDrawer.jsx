@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Drawer, Alert, Table, Typography, Space, Spin, Empty, Tag } from 'antd';
 import { payrunService } from './payrunService.js';
+import { formatMoney } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -69,7 +70,7 @@ export function LinesDrawer({ open, onClose, payrunId, employee, lines: initialL
       align: 'right',
       render: (amt) => (
         <Text style={{ fontFamily: 'monospace' }}>
-          {amt !== undefined && amt !== null ? Number(amt).toFixed(2) : '-'}
+          {formatMoney(amt)}
         </Text>
       ),
     },

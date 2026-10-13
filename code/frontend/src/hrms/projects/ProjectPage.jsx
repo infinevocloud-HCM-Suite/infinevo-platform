@@ -20,6 +20,7 @@ import { ProjectForm } from './ProjectForm.jsx';
 import { TeamTab } from './TeamTab.jsx';
 import { TasksTab } from './TasksTab.jsx';
 import { COLOR, LABEL, PROJECT_STATUSES, errorMessage, projectService } from './projectService.js';
+import { formatDate } from '@shared/ui/format.js';
 
 /** One project (W-48.1 §5): header with status, progress and delete; Details, Team and Tasks tabs. */
 export function ProjectPage() {
@@ -92,8 +93,8 @@ export function ProjectPage() {
       <Descriptions.Item label="Manager">{project.manager_name || '-'}</Descriptions.Item>
       <Descriptions.Item label="Category">{project.category || '-'}</Descriptions.Item>
       <Descriptions.Item label="Priority">{LABEL[project.priority] || project.priority}</Descriptions.Item>
-      <Descriptions.Item label="Start date">{project.start_date || '-'}</Descriptions.Item>
-      <Descriptions.Item label="End date">{project.end_date || '-'}</Descriptions.Item>
+      <Descriptions.Item label="Start date">{formatDate(project.start_date)}</Descriptions.Item>
+      <Descriptions.Item label="End date">{formatDate(project.end_date)}</Descriptions.Item>
       <Descriptions.Item label="Budget">{project.budget ?? '-'}</Descriptions.Item>
       <Descriptions.Item label="Description">{project.description || '-'}</Descriptions.Item>
     </Descriptions>

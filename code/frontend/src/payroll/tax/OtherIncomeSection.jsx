@@ -182,7 +182,7 @@ export function OtherIncomeSection({ fy, editable, onRefresh }) {
       ),
     },
     {
-      title: '',
+      title: 'Actions',
       key: 'actions',
       width: 60,
       render: (_, __, index) => (

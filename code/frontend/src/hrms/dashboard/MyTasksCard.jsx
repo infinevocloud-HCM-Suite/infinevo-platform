@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { Card, Col, Row, Statistic, Table, Typography } from 'antd';
+import { formatDate } from '@shared/ui/format.js';
 
 /** Overdue = due date before the reply's `as_of` (ISO dates compare as strings); never the browser's date. */
 export const isOverdue = (dueDate, asOf) => Boolean(dueDate && asOf && dueDate < asOf);
@@ -21,10 +22,10 @@ export function MyTasksCard({ tasks, asOf }) {
       render: (_, t) =>
         isOverdue(t.due_date, asOf) ? (
           <Typography.Text type="danger" data-testid={`due-${t.task_id}`}>
-            {t.due_date}
+            {formatDate(t.due_date)}
           </Typography.Text>
         ) : (
-          <span data-testid={`due-${t.task_id}`}>{t.due_date ?? '-'}</span>
+          <span data-testid={`due-${t.task_id}`}>{formatDate(t.due_date)}</span>
         ),
     },
   ];

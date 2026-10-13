@@ -3,13 +3,13 @@ import PropTypes from 'prop-types';
 import { Form, Select, DatePicker, Switch, Input, Row, Col, Upload, Button } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import { documentService } from '../document/documentService.js';
+import { EmployeePicker } from './EmployeePicker.jsx';
 
 const { TextArea } = Input;
 
 export function LeaveRequestFields({
   form,
   isEmployeeView = false,
-  employees = [],
   leaveTypes = [],
   onEmployeeChange,
   isHalfDay = false,
@@ -47,16 +47,8 @@ export function LeaveRequestFields({
           label="Employee"
           rules={[{ required: true, message: 'Please select an employee' }]}
         >
-          <Select
-            placeholder="Select employee"
-            showSearch
-            optionFilterProp="label"
-            onChange={onEmployeeChange}
-            options={employees.map((emp) => ({
-              value: emp.id,
-              label: `${emp.firstName || ''} ${emp.lastName || ''} (${emp.employeeNumber || emp.id})`.trim(),
-            }))}
-          />
+          {/* D-80: search-as-you-type over the whole tenant, not a first page of 100. */}
+          <EmployeePicker onChange={onEmployeeChange} />
         </Form.Item>
       )}
 
@@ -151,14 +143,6 @@ export function LeaveRequestFields({
 LeaveRequestFields.propTypes = {
   form: PropTypes.object,
   isEmployeeView: PropTypes.bool,
-  employees: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      firstName: PropTypes.string,
-      lastName: PropTypes.string,
-      employeeNumber: PropTypes.string,
-    })
-  ),
   leaveTypes: PropTypes.arrayOf(
     PropTypes.shape({
       id: PropTypes.string.isRequired,

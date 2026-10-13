@@ -18,6 +18,7 @@ import { componentService } from './componentService.js';
 import { ComponentDrawer } from './ComponentDrawer.jsx';
 import { invalidateComponents } from './salarySlice.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { formatMoney } from '@shared/ui/format.js';
 
 const { Title } = Typography;
 
@@ -127,7 +128,7 @@ export function ComponentsScreen() {
         key: 'defaultValue',
         render: (val, record) => (
           <span style={{ fontFamily: 'monospace' }}>
-            {record.calculationType === 'PERCENTAGE' ? `${val}%` : `₹${val}`}
+            {record.calculationType === 'PERCENTAGE' ? `${val}%` : formatMoney(val)}
           </span>
         ),
       },
@@ -138,7 +139,7 @@ export function ComponentsScreen() {
         title: 'Tags',
         key: 'tags',
         render: (_, record) => (
-          <Space wrap orientation="horizontal" size={[0, 4]}>
+          <Space wrap size={[0, 4]}>
             {record.includedInEpf && <Tag color="blue">EPF</Tag>}
             {record.includedInEsi && <Tag color="cyan">ESI</Tag>}
             {record.fbpComponent && <Tag color="purple">FBP</Tag>}
@@ -153,7 +154,7 @@ export function ComponentsScreen() {
         title: 'Tags',
         key: 'tags',
         render: (_, record) => (
-          <Space orientation="horizontal" size={[0, 4]}>
+          <Space size={[0, 4]}>
             {record.fbpComponent && <Tag color="purple">FBP</Tag>}
             {record.preTax && <Tag color="green">Pre-Tax</Tag>}
             {record.includedInCtc && <Tag color="blue">CTC</Tag>}

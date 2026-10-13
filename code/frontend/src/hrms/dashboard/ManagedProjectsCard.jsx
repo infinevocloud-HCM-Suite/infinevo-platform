@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { Card, Space, Statistic, Table, Tag } from 'antd';
+import { statusLabel } from '@shared/ui/format.js';
 
 /** `team.projects` (W-48.6 §5): `managed`, `by_status` and at most five rows - all the server's figures. */
 export function ManagedProjectsCard({ projects }) {
@@ -20,7 +21,7 @@ export function ManagedProjectsCard({ projects }) {
       <Statistic title="Managed" value={projects.managed} />
       <Space wrap style={{ margin: '8px 0' }}>
         {Object.entries(projects.by_status ?? {}).map(([status, count]) => (
-          <Tag key={status}>{`${status}: ${count}`}</Tag>
+          <Tag key={status}>{`${statusLabel(status)}: ${count}`}</Tag>
         ))}
       </Space>
       <Table size="small" pagination={false} rowKey="project_id" columns={columns} dataSource={projects.items ?? []} />

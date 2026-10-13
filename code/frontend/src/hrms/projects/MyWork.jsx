@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Card, Col, Empty, Progress, Row, Select, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { COLOR, LABEL, TASK_STATUSES, errorMessage, projectService } from './projectService.js';
+import { EMPTY, formatDate, humanize } from '@shared/ui/format.js';
 
 /** A task is overdue when its due date has passed and it is not completed. */
 export function isOverdue(task, today = dayjs().format('YYYY-MM-DD')) {
@@ -42,20 +43,20 @@ export function MyWork() {
 
   const columns = [
     { title: 'Title', dataIndex: 'title' },
-    { title: 'Project', dataIndex: 'project_name', render: (v) => v || '-' },
+    { title: 'Project', dataIndex: 'project_name', render: (v) => v || EMPTY },
     {
       title: 'Due',
       dataIndex: 'due_date',
       render: (v, r) =>
         isOverdue(r) ? (
           <Typography.Text type="danger" data-testid={`overdue-${r.id}`}>
-            {v} (overdue)
+            {formatDate(v)} (overdue)
           </Typography.Text>
         ) : (
-          v || '-'
+          formatDate(v)
         ),
     },
-    { title: 'Priority', dataIndex: 'priority', render: (v) => LABEL[v] || v },
+    { title: 'Priority', dataIndex: 'priority', render: (v) => LABEL[v] || humanize(v) },
     {
       title: 'Status',
       dataIndex: 'status',
@@ -87,7 +88,7 @@ export function MyWork() {
                   extra={<Tag color={COLOR[p.status]}>{LABEL[p.status]}</Tag>}
                 >
                   <Progress percent={p.progress ?? 0} size="small" />
-                  <div>End date: {p.end_date || '-'}</div>
+                  <div>End date: {formatDate(p.end_date)}</div>
                 </Card>
               </Col>
             ))}

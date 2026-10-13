@@ -22,11 +22,11 @@ import {
   CloseCircleOutlined,
   ArrowLeftOutlined,
 } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { declarationService } from './declarationService';
 import { currentFy, fyOptions, formatFyDisplay } from './financialYear';
 import { readError } from './apiError';
+import { EMPTY, formatDate } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -210,8 +210,9 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
               column={{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }}
               size="middle"
             >
-              <Descriptions.Item label="Employee ID">
-                <Text strong>{header.employee_id || empId}</Text>
+              {/* D-79: the reply names the employee; the id alone is never shown. */}
+              <Descriptions.Item label="Employee">
+                <Text strong>{header.employee_name || EMPTY}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Tax Regime">
                 <Tag color={regime === 'NEW' ? 'cyan' : 'magenta'}>
@@ -241,14 +242,10 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
                 {renderBooleanTag(header.has_let_out_property)}
               </Descriptions.Item>
               <Descriptions.Item label="Submitted At">
-                {header.submitted_at
-                  ? dayjs(header.submitted_at).format('YYYY-MM-DD HH:mm')
-                  : 'Not yet submitted'}
+                {header.submitted_at ? formatDate(header.submitted_at) : 'Not yet submitted'}
               </Descriptions.Item>
               <Descriptions.Item label="Last Updated">
-                {header.updated_at
-                  ? dayjs(header.updated_at).format('YYYY-MM-DD HH:mm')
-                  : 'N/A'}
+                {formatDate(header.updated_at)}
               </Descriptions.Item>
             </Descriptions>
           )}

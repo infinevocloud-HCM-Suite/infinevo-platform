@@ -140,7 +140,7 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
         claim.setApprovalInstanceId(instanceId);
         claim = claimRepository.save(claim);
 
-        return ReimbursementClaimResponse.from(claim, component, nameOf(claim.getEmployeeId()));
+        return respond(claim, component);
     }
 
     @Override
@@ -161,7 +161,10 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
         Map<UUID, String> names = loadNames(claims);
         return claims.stream()
                 .map(c -> ReimbursementClaimResponse.from(
-                        c, componentMap.get(c.getReimbursementId()), names.get(c.getEmployeeId())))
+                        c,
+                        componentMap.get(c.getReimbursementId()),
+                        names.get(c.getEmployeeId()),
+                        c.getApprovedBy() == null ? null : names.get(c.getApprovedBy())))
                 .toList();
     }
 
@@ -183,7 +186,7 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
 
         Reimbursement component =
                 reimbursementRepository.findById(claim.getReimbursementId()).orElse(null);
-        return ReimbursementClaimResponse.from(claim, component, nameOf(claim.getEmployeeId()));
+        return respond(claim, component);
     }
 
     @Override
@@ -214,7 +217,10 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
         Map<UUID, Reimbursement> componentMap = loadComponents(page.getContent());
         Map<UUID, String> names = loadNames(page.getContent());
         return page.map(c -> ReimbursementClaimResponse.from(
-                c, componentMap.get(c.getReimbursementId()), names.get(c.getEmployeeId())));
+                c,
+                componentMap.get(c.getReimbursementId()),
+                names.get(c.getEmployeeId()),
+                c.getApprovedBy() == null ? null : names.get(c.getApprovedBy())));
     }
 
     @Override
@@ -245,20 +251,33 @@ public class ReimbursementClaimServiceImpl implements ReimbursementClaimService 
 
         Reimbursement component =
                 reimbursementRepository.findById(claim.getReimbursementId()).orElse(null);
-        return ReimbursementClaimResponse.from(claim, component, nameOf(claim.getEmployeeId()));
+        return respond(claim, component);
     }
 
-    /** One {@code displayNames} call for the whole page or list (W-47.4 §4). */
+    /**
+     * One {@code displayNames} call for the whole page or list (W-47.4 §4): the claimants and, since D-79,
+     * the approvers - {@code approved_by} is the deciding step's assignee, an employee id.
+     */
     private Map<UUID, String> loadNames(List<ReimbursementClaim> claims) {
-        Set<UUID> ids = claims.stream().map(ReimbursementClaim::getEmployeeId).collect(Collectors.toSet());
+        Set<UUID> ids = claims.stream()
+                .flatMap(c -> java.util.stream.Stream.of(c.getEmployeeId(), c.getApprovedBy()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
         if (ids.isEmpty()) {
             return Collections.emptyMap();
         }
-        return employeeService.displayNames(ids);
+        Map<UUID, String> names = employeeService.displayNames(ids);
+        return names != null ? names : Collections.emptyMap();
     }
 
-    private String nameOf(UUID employeeId) {
-        return employeeService.displayNames(Set.of(employeeId)).get(employeeId);
+    /** One claim with its claimant's and approver's names, in one {@code displayNames} read. */
+    private ReimbursementClaimResponse respond(ReimbursementClaim claim, Reimbursement component) {
+        Map<UUID, String> names = loadNames(List.of(claim));
+        return ReimbursementClaimResponse.from(
+                claim,
+                component,
+                names.get(claim.getEmployeeId()),
+                claim.getApprovedBy() == null ? null : names.get(claim.getApprovedBy()));
     }
 
     private Map<UUID, Reimbursement> loadComponents(List<ReimbursementClaim> claims) {

@@ -23,6 +23,7 @@ import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { employeeService } from '../employee/employeeService.js';
 import { approvalService } from '../approvals/approvalService.js';
+import { formatDate } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -186,7 +187,7 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
 
   return (
     <Card style={{ margin: 24, maxWidth: 900 }}>
-      <Space direction="vertical" orientation="vertical" orientationMargin={0} style={{ width: '100%' }} size="large">
+      <Space direction="vertical" style={{ width: '100%' }} size="large">
         <Row justify="space-between" align="middle">
           <Col>
             <Space align="center">
@@ -232,8 +233,8 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
           <Descriptions.Item label="Leave Type">
             {leaveType ? `${leaveType.name} (${leaveType.code})` : request.leaveTypeId}
           </Descriptions.Item>
-          <Descriptions.Item label="From Date">{request.fromDate}</Descriptions.Item>
-          <Descriptions.Item label="To Date">{request.toDate}</Descriptions.Item>
+          <Descriptions.Item label="From Date">{formatDate(request.fromDate)}</Descriptions.Item>
+          <Descriptions.Item label="To Date">{formatDate(request.toDate)}</Descriptions.Item>
           <Descriptions.Item label="Duration">
             <Space>
               <Text strong>{request.workingDays} working day(s)</Text>

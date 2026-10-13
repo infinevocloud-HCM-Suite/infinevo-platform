@@ -141,7 +141,7 @@ describe('PolicyForm component', () => {
       />
     );
 
-    expect(screen.getByText(/Current policy effective from 2026-04-01/)).toBeDefined();
+    expect(screen.getByText(/Current policy effective from 1 Apr 2026/)).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: /Save Policy/i }));
 
     await waitFor(() => {

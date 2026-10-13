@@ -52,8 +52,8 @@ describe('RunList component (W-47.2 §7)', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('2026-10')).toBeDefined();
-      expect(screen.getByText('COMPUTED')).toBeDefined();
+      expect(screen.getByText('Oct 2026')).toBeDefined();
+      expect(screen.getByText('Computed')).toBeDefined();
     });
 
     // Initial list call

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatMoney, humanize, toTitleCase } from './format.js';
+import { formatDate, formatDateTime, formatMoney, formatMonth, humanize, orEmpty, statusLabel, statusTag, toTitleCase } from './format.js';
 
 describe('formatDate', () => {
   it('shows an ISO date as day, short month and year', () => {
@@ -12,6 +12,25 @@ describe('formatDate', () => {
     expect(formatDate(undefined)).toBe('—');
     expect(formatDate('')).toBe('—');
     expect(formatDate('not a date')).toBe('—');
+  });
+});
+
+describe('formatMonth', () => {
+  it('shows a pay month as short month and year', () => {
+    expect(formatMonth('2026-04')).toBe('Apr 2026');
+    expect(formatMonth('2026-04-15')).toBe('Apr 2026');
+    expect(formatMonth(null)).toBe('—');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('shows a local date and time as day, short month, year and 24-hour time', () => {
+    expect(formatDateTime('2026-04-01T14:05:00')).toBe('1 Apr 2026, 14:05');
+  });
+
+  it('shows a dash for a missing or unreadable instant', () => {
+    expect(formatDateTime(null)).toBe('—');
+    expect(formatDateTime('nope')).toBe('—');
   });
 });
 
@@ -71,6 +90,48 @@ describe('toTitleCase', () => {
     expect(toTitleCase('')).toBe('');
     expect(toTitleCase(null)).toBe(null);
     expect(toTitleCase(undefined)).toBe(undefined);
+  });
+});
+
+describe('statusTag', () => {
+  it('gives the words and colour for the codes used across the app', () => {
+    expect(statusTag('APPROVED')).toEqual({ label: 'Approved', color: 'success' });
+    expect(statusTag('REJECTED')).toEqual({ label: 'Rejected', color: 'error' });
+    expect(statusTag('PENDING')).toEqual({ label: 'Pending', color: 'warning' });
+    expect(statusTag('SUBMITTED')).toEqual({ label: 'Submitted', color: 'processing' });
+    expect(statusTag('DRAFT')).toEqual({ label: 'Draft', color: 'default' });
+    expect(statusTag('TERMINATED')).toEqual({ label: 'Terminated', color: 'error' });
+    expect(statusTag('FAILED').color).toBe('error');
+    for (const [code, label] of [
+      ['ACTIVE', 'Active'], ['CANCELLED', 'Cancelled'], ['WITHDRAWN', 'Withdrawn'], ['PAID', 'Paid'],
+      ['RUNNING', 'Running'], ['COMPLETED', 'Completed'], ['OPEN', 'Open'], ['CLOSED', 'Closed'],
+    ]) {
+      expect(statusTag(code).label).toBe(label);
+    }
+  });
+
+  it('reads a lower-case or padded code the same way', () => {
+    expect(statusTag(' active ')).toEqual({ label: 'Active', color: 'success' });
+  });
+
+  it('humanises a code it does not know, in the default colour', () => {
+    expect(statusTag('AWAITING_BANK_FILE')).toEqual({ label: 'Awaiting bank file', color: 'default' });
+  });
+
+  it('shows a dash for a missing code', () => {
+    expect(statusTag(null)).toEqual({ label: '—', color: 'default' });
+    expect(statusTag('')).toEqual({ label: '—', color: 'default' });
+    expect(statusLabel(undefined)).toBe('—');
+    expect(statusLabel('PAST_DUE')).toBe('Past due');
+  });
+});
+
+describe('orEmpty', () => {
+  it('keeps a value and shows a dash for a missing one', () => {
+    expect(orEmpty('Pune')).toBe('Pune');
+    expect(orEmpty(0)).toBe(0);
+    expect(orEmpty(null)).toBe('—');
+    expect(orEmpty('  ')).toBe('—');
   });
 });
 

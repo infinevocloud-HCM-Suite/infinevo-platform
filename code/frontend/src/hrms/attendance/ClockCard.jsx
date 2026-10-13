@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Alert, Button, Card, Space, Spin, Tag, Timeline, Typography } from 'antd';
+import { Alert, Button, Card, Space, Spin, Timeline, Typography } from 'antd';
 import { attendanceService } from './attendanceService.js';
 import { hmm, timeOf } from './format.js';
+import { formatDate } from '@shared/ui/format.js';
+import { StatusTag } from '@shared/ui/StatusTag.jsx';
 
 /**
  * Clock in / clock out for today (W-48.4 §5). The date shown is the server's; the running time is display
@@ -71,7 +73,7 @@ export function ClockCard({ onDay }) {
   const sessions = today?.sessions || [];
 
   return (
-    <Card title={`Today${today?.date ? ` — ${today.date}` : ''}`}>
+    <Card title={`Today${today?.date ? ` — ${formatDate(today.date)}` : ''}`}>
       <Space direction="vertical" style={{ width: '100%' }}>
         {error && <Alert type="error" message={error} showIcon />}
         <Button type="primary" size="large" danger={!!open} loading={busy} onClick={act}>
@@ -85,7 +87,7 @@ export function ClockCard({ onDay }) {
         <Typography.Text strong>Worked today: {hmm(today?.workedMinutes ?? 0)}</Typography.Text>
         {dayStatus && (
           <span>
-            Day status: <Tag>{dayStatus}</Tag>
+            Day status: <StatusTag status={dayStatus} />
           </span>
         )}
         {sessions.length > 0 && (

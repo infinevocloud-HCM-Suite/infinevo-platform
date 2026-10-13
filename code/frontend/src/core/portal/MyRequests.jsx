@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import { portalService } from '@shell/portal/portalService.js';
 import { leaveRequestService } from '../leave/leaveRequestService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { EMPTY, formatDate } from '@shared/ui/format.js';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -118,14 +119,15 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
       title: 'Leave Type',
       dataIndex: 'leaveTypeName',
       key: 'leaveType',
-      render: (text, record) => text || record.leaveTypeCode || record.leaveTypeId || '—',
+      // D-80: the reply names the leave type; its id is never shown.
+      render: (text, record) => text || record.leaveTypeCode || EMPTY,
     },
     {
       title: 'Dates',
       key: 'dates',
       render: (_, record) => (
         <span>
-          {record.fromDate} to {record.toDate}
+          {formatDate(record.fromDate)} to {formatDate(record.toDate)}
           {record.isHalfDay && (
             <Tag color="cyan" style={{ marginLeft: 6 }}>
               {record.halfDayPeriod?.toUpperCase() === 'FIRST' ? '1st Half' : '2nd Half'}
@@ -157,7 +159,7 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
       title: 'Submitted',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (date) => (date ? dayjs(date).format('YYYY-MM-DD') : '—'),
+      render: (date) => formatDate(date),
     },
     {
       title: 'Actions',

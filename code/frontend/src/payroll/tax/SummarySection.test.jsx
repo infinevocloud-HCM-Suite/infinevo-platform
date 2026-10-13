@@ -74,11 +74,11 @@ describe('SummarySection', () => {
     await waitFor(() => {
       expect(screen.getByText('Tax Declaration & Computation Summary — FY 2026-27')).toBeTruthy();
       expect(screen.getByText('House Rent (Annual)')).toBeTruthy();
-      expect(screen.getByText('Section 80C: ₹ 1,50,000')).toBeTruthy();
-      expect(screen.getByText('Section 80D: ₹ 25,000')).toBeTruthy();
+      expect(screen.getByText('Section 80C: ₹ 1,50,000.00')).toBeTruthy();
+      expect(screen.getByText('Section 80D: ₹ 25,000.00')).toBeTruthy();
       expect(screen.getByText('Gross Taxable Income:')).toBeTruthy();
-      expect(screen.getByText('₹ 9,00,000')).toBeTruthy();
-      expect(screen.getAllByText('₹ 30,000').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('₹ 9,00,000.00')).toBeTruthy();
+      expect(screen.getAllByText('₹ 30,000.00').length).toBeGreaterThanOrEqual(1);
     });
   });
 

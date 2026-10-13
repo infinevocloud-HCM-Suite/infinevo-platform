@@ -13,6 +13,7 @@ import { started } from './impersonationSlice.js';
 import { AuditTab, AUDIT_HINT } from './AuditTab.jsx';
 import { isPlatformTenant, MODULES, STATUSES, STATUS_COLORS } from './platform.js';
 import { applyResultText } from './countryTemplates.js';
+import { formatDate, formatDateTime, statusLabel } from '@shared/ui/format.js';
 
 /** The user invitation form: the Invitations tab of Users & access (`core.users`, W-73.4). */
 export const INVITATION_FORM_PATH = '/users?tab=invitations';
@@ -177,12 +178,12 @@ export function TenantDetail() {
         <Descriptions.Item label="Country">{tenant.country_code}</Descriptions.Item>
         <Descriptions.Item label="Timezone">{tenant.timezone}</Descriptions.Item>
         <Descriptions.Item label="Status">
-          <Tag color={STATUS_COLORS[tenant.status] || 'default'}>{tenant.status}</Tag>
+          <Tag color={STATUS_COLORS[tenant.status] || 'default'}>{statusLabel(tenant.status)}</Tag>
         </Descriptions.Item>
         <Descriptions.Item label="Created">
-          {tenant.created_at ? new Date(tenant.created_at).toLocaleString() : ''}
+          {formatDateTime(tenant.created_at)}
         </Descriptions.Item>
-        <Descriptions.Item label="Current period ends">{tenant.current_period_end || '-'}</Descriptions.Item>
+        <Descriptions.Item label="Current period ends">{formatDate(tenant.current_period_end)}</Descriptions.Item>
         <Descriptions.Item label="User accounts">{tenant.user_count}</Descriptions.Item>
       </Descriptions>
 

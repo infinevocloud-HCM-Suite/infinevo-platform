@@ -23,6 +23,7 @@ import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
 import { ScheduledEarningsPanel } from './ScheduledEarningsPanel.jsx';
 import { SalaryVersionForm } from './SalaryVersionForm.jsx';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { EMPTY, formatDate, formatMoney, humanize } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -80,7 +81,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
   const handleCancelVersion = (record) => {
     Modal.confirm({
       title: 'Cancel Salary Version',
-      content: `Are you sure you want to cancel the salary version effective from ${record.effectiveFrom}?`,
+      content: `Are you sure you want to cancel the salary version effective from ${formatDate(record.effectiveFrom)}?`,
       okText: 'Cancel Version',
       okType: 'danger',
       onOk: async () => {
@@ -103,28 +104,28 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
       dataIndex: 'calculationType',
       key: 'calculationType',
       width: 120,
-      render: (t) => <Tag>{t}</Tag>,
+      render: (t) => <Tag>{humanize(t)}</Tag>,
     },
     {
       title: 'Value / %',
       dataIndex: 'value',
       key: 'value',
       width: 120,
-      render: (val, r) => (r.calculationType === 'PERCENTAGE' ? `${val}% of ${r.percentageOf || 'Basic'}` : val),
+      render: (val, r) => (r.calculationType === 'PERCENTAGE' ? `${val}% of ${r.percentageOf || 'Basic'}` : formatMoney(val)),
     },
     {
       title: 'Monthly Amount',
       dataIndex: 'monthlyAmount',
       key: 'monthlyAmount',
       width: 140,
-      render: (amt) => (amt != null ? String(amt) : '-'),
+      render: (amt) => formatMoney(amt),
     },
     {
       title: 'Annual Amount',
       dataIndex: 'annualAmount',
       key: 'annualAmount',
       width: 140,
-      render: (amt) => (amt != null ? String(amt) : '-'),
+      render: (amt) => formatMoney(amt),
     },
     {
       title: 'Status',
@@ -142,30 +143,31 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
       title: 'Effective From',
       dataIndex: 'effectiveFrom',
       key: 'effectiveFrom',
+      render: (d) => formatDate(d),
     },
     {
       title: 'Annual CTC',
       dataIndex: 'annualCtc',
       key: 'annualCtc',
-      render: (val) => (val != null ? String(val) : '-'),
+      render: (val) => formatMoney(val),
     },
     {
       title: 'Monthly CTC',
       dataIndex: 'monthlyCtc',
       key: 'monthlyCtc',
-      render: (val) => (val != null ? String(val) : '-'),
+      render: (val) => formatMoney(val),
     },
     {
       title: 'Change',
       dataIndex: 'changeInPercent',
       key: 'changeInPercent',
-      render: (val) => (val != null ? `${val}%` : '-'),
+      render: (val) => (val != null ? `${val}%` : EMPTY),
     },
     {
       title: 'Notes',
       dataIndex: 'notes',
       key: 'notes',
-      render: (notes) => notes || '-',
+      render: (notes) => notes || EMPTY,
     },
     {
       title: 'Status',
@@ -276,7 +278,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
             title={
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Title level={5} style={{ margin: 0 }}>
-                  Active Structure (Effective {currentVersion.effectiveFrom})
+                  Active Structure (Effective {formatDate(currentVersion.effectiveFrom)})
                 </Title>
                 {currentVersion.changeInPercent != null && (
                   <Tag color="blue">Change: {String(currentVersion.changeInPercent)}%</Tag>
@@ -293,7 +295,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
                 <Text strong>{String(currentVersion.monthlyCtc)}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Effective From">
-                {currentVersion.effectiveFrom}
+                {formatDate(currentVersion.effectiveFrom)}
               </Descriptions.Item>
               <Descriptions.Item label="Change (%)">
                 {currentVersion.changeInPercent != null

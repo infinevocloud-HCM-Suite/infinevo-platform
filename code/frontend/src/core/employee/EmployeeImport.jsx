@@ -23,6 +23,7 @@ import {
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg } from '@shared/ui/msgHelper.js';
 import { employeeImportService, saveCsv } from './employeeImportService.js';
+import { formatDateTime, statusTag } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -195,7 +196,7 @@ export function EmployeeImport() {
       title: 'Started',
       dataIndex: 'startedAt',
       key: 'startedAt',
-      render: (v) => (v ? new Date(v).toLocaleString() : '—'),
+      render: (v) => formatDateTime(v),
     },
     { title: 'Kind', dataIndex: 'kind', key: 'kind', render: (k) => KIND_LABEL[k] || k || '—' },
     {
@@ -211,7 +212,7 @@ export function EmployeeImport() {
             </Space>
           );
         }
-        const tag = JOB_STATUS[s] || { color: 'default', label: s };
+        const tag = JOB_STATUS[s] || statusTag(s);
         return (
           <Space direction="vertical" size={0}>
             <Tag color={tag.color}>{tag.label}</Tag>

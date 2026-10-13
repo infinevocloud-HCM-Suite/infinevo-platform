@@ -9,6 +9,7 @@ import { employeeService } from './employeeService.js';
 import { employeeImportService } from './employeeImportService.js';
 import { orgMasterService } from './orgMasterService.js';
 import { setMasters } from './employeeSlice.js';
+import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -156,8 +157,8 @@ export function EmployeeList() {
       key: 'status',
       render: (status, r) => (
         <Space size="small">
-          <Tag color={statusColorMap[status] || 'default'}>{status}</Tag>
-          {r.isDeleted && <Tag color="error">DELETED</Tag>}
+          <Tag color={statusColorMap[status] || 'default'}>{statusLabel(status)}</Tag>
+          {r.isDeleted && <Tag color="error">Deleted</Tag>}
         </Space>
       ),
     },
@@ -165,7 +166,7 @@ export function EmployeeList() {
       title: 'Date of Joining',
       dataIndex: 'dateOfJoining',
       key: 'dateOfJoining',
-      render: (date) => date || '—',
+      render: (date) => formatDate(date),
     },
   ];
 

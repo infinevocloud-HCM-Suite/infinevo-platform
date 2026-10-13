@@ -1,15 +1,16 @@
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { Card, Table, Tag } from 'antd';
-import { formatAmount, formatDate } from '../claims/claimLabels.js';
+
 import { runStatus } from './labels.js';
+import { formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
 
 const statusCell = (s) => {
   const tag = runStatus(s);
   return <Tag color={tag.color}>{tag.label}</Tag>;
 };
 
-const money = (key, title) => ({ title, dataIndex: key, key, align: 'right', render: formatAmount });
+const money = (key, title) => ({ title, dataIndex: key, key, align: 'right', render: (v) => formatMoney(v) });
 
 /**
  * The year's months and the recent runs (W-47.5 §5). The months footer is `year_totals` as the
@@ -23,7 +24,7 @@ export function YearTable({ months, yearTotals, recentRuns }) {
   });
 
   const monthColumns = [
-    { title: 'Period', dataIndex: 'period', key: 'period' },
+    { title: 'Period', dataIndex: 'period', key: 'period', render: (v) => formatMonth(v) },
     { title: 'Status', dataIndex: 'status', key: 'status', render: statusCell },
     money('gross', 'Gross'),
     money('deductions', 'Deductions'),
@@ -32,9 +33,9 @@ export function YearTable({ months, yearTotals, recentRuns }) {
   ];
 
   const recentColumns = [
-    { title: 'Period', dataIndex: 'period', key: 'period' },
+    { title: 'Period', dataIndex: 'period', key: 'period', render: (v) => formatMonth(v) },
     { title: 'Status', dataIndex: 'status', key: 'status', render: statusCell },
-    { title: 'Pay date', dataIndex: 'pay_date', key: 'pay_date', render: formatDate },
+    { title: 'Pay date', dataIndex: 'pay_date', key: 'pay_date', render: (v) => formatDate(v) },
     money('net_pay', 'Net pay'),
   ];
 
@@ -56,16 +57,16 @@ export function YearTable({ months, yearTotals, recentRuns }) {
                   <strong>Paid ({yearTotals.paid_runs} runs)</strong>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={2} align="right">
-                  {formatAmount(yearTotals.gross)}
+                  {formatMoney(yearTotals.gross)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={3} align="right">
-                  {formatAmount(yearTotals.deductions)}
+                  {formatMoney(yearTotals.deductions)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={4} align="right">
-                  {formatAmount(yearTotals.tax)}
+                  {formatMoney(yearTotals.tax)}
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={5} align="right">
-                  {formatAmount(yearTotals.net_pay)}
+                  {formatMoney(yearTotals.net_pay)}
                 </Table.Summary.Cell>
               </Table.Summary.Row>
             ) : null

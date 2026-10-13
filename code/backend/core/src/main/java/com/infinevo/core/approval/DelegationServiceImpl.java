@@ -1,11 +1,15 @@
 package com.infinevo.core.approval;
 
 import com.infinevo.core.employee.EmployeeRepository;
+import com.infinevo.core.employee.EmployeeService;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
@@ -22,12 +26,23 @@ public class DelegationServiceImpl implements DelegationService {
     private final ApprovalDelegationRepository delegationRepository;
     private final EmployeeRepository employeeRepository;
 
-    @Autowired
+    /** Names the delegator and delegate of each reply (D-79); null in a hand-built test, which then gets no names. */
+    private final EmployeeService employeeService;
+
     public DelegationServiceImpl(
             ApprovalDelegationRepository delegationRepository, EmployeeRepository employeeRepository) {
+        this(delegationRepository, employeeRepository, null);
+    }
+
+    @Autowired
+    public DelegationServiceImpl(
+            ApprovalDelegationRepository delegationRepository,
+            EmployeeRepository employeeRepository,
+            @Autowired(required = false) EmployeeService employeeService) {
         this.delegationRepository =
                 Objects.requireNonNull(delegationRepository, "delegationRepository must not be null");
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
+        this.employeeService = employeeService;
     }
 
     @Override
@@ -76,15 +91,17 @@ public class DelegationServiceImpl implements DelegationService {
         ApprovalDelegation delegation =
                 new ApprovalDelegation(tenantId, callerEmployeeId, delegateId, request.flowTypes(), from, to);
         ApprovalDelegation saved = delegationRepository.save(delegation);
-        return DelegationResponse.from(saved);
+        return DelegationResponse.from(saved, null, names(List.of(saved)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DelegationResponse> getDelegations(UUID tenantId, UUID employeeId, LocalDate activeOn) {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
-        return delegationRepository.searchDelegations(tenantId, employeeId, activeOn).stream()
-                .map(DelegationResponse::from)
+        List<ApprovalDelegation> rows = delegationRepository.searchDelegations(tenantId, employeeId, activeOn);
+        Map<UUID, String> names = names(rows);
+        return rows.stream()
+                .map(delegation -> DelegationResponse.from(delegation, null, names))
                 .toList();
     }
 
@@ -117,5 +134,26 @@ public class DelegationServiceImpl implements DelegationService {
                 .filter(d -> d.coversFlow(flowType))
                 .map(ApprovalDelegation::getDelegateEmployeeId)
                 .findFirst();
+    }
+
+    /**
+     * The display names of everyone these delegations name, delegators and delegates alike, in one
+     * {@code displayNames} read for the whole list (D-79) - never one per row.
+     */
+    private Map<UUID, String> names(List<ApprovalDelegation> rows) {
+        if (employeeService == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        Set<UUID> ids = new HashSet<>();
+        for (ApprovalDelegation d : rows) {
+            if (d.getDelegatorEmployeeId() != null) {
+                ids.add(d.getDelegatorEmployeeId());
+            }
+            if (d.getDelegateEmployeeId() != null) {
+                ids.add(d.getDelegateEmployeeId());
+            }
+        }
+        Map<UUID, String> names = ids.isEmpty() ? Map.of() : employeeService.displayNames(ids);
+        return names != null ? names : Map.of();
     }
 }

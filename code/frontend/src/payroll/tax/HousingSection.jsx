@@ -28,6 +28,7 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { declarationService } from './declarationService';
 import { setSectionData, selectTaxSection, selectTaxFy } from './taxSlice';
 import { readError, rowErrorsFrom } from './apiError';
+import { formatMoney } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -457,7 +458,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
       ),
     },
     {
-      title: '',
+      title: 'Actions',
       key: 'actions',
       width: 50,
       render: (_, __, index) => (
@@ -715,7 +716,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
                     <span>{prop.property_name}</span>
                     {prop.net_income_loss != null && (
                       <Tag color={Number(prop.net_income_loss) < 0 ? 'orange' : 'blue'}>
-                        Net: ₹ {Number(prop.net_income_loss).toLocaleString('en-IN')}
+                        Net: {formatMoney(prop.net_income_loss)}
                       </Tag>
                     )}
                   </Space>

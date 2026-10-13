@@ -7,6 +7,7 @@ import {
   collectMenu,
   expectNoErrorScreen,
   findErrorScreen,
+  checkSqueezedText,
   gotoApp,
   openMenuLeaf,
   pageHeading,
@@ -71,6 +72,7 @@ export function defineRoleSuite(roleKey) {
         expect.soft(error, `${where} shows ${error}`).toBeNull();
         expect.soft(await pageHeading(page), `${where} has a heading`).not.toBe('');
         await checkTable(page, where);
+        await checkSqueezedText(page, where);
         await screenshotScreen(page, roleKey, leaf.href);
       }
     });

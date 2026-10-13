@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { ClaimList } from './ClaimList.jsx';
 import { claimService } from './claimService.js';
+import * as useCanModule from '@shell/screens';
 
 vi.mock('./claimService.js', () => ({
   claimService: {
@@ -40,15 +41,33 @@ describe('ClaimList (W-47.4 §7)', () => {
     claimService.searchEmployees.mockResolvedValue([
       { id: 'emp-1', employeeNumber: 'E01', firstName: 'Asha', lastName: 'Rao' },
     ]);
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+  });
+
+  it('hides the employee filter from a role that cannot read the directory (D-82, finance)', async () => {
+    useCanModule.useCan.mockImplementation((a) => a !== 'core.employee.read');
+    renderList();
+    expect(await screen.findByText('Asha Rao')).toBeDefined();
+    expect(screen.queryAllByLabelText('Employee filter')).toHaveLength(0);
+    expect(claimService.searchEmployees).not.toHaveBeenCalled();
+    expect(screen.getAllByLabelText('Status filter').length).toBeGreaterThan(0);
+    expect(useCanModule.useCan).toHaveBeenCalledWith('core.employee.read');
+  });
+
+  it('shows the employee filter to a role that can read the directory', async () => {
+    renderList();
+    await screen.findByText('Asha Rao');
+    expect(screen.getAllByLabelText('Employee filter').length).toBeGreaterThan(0);
+    await waitFor(() => expect(claimService.searchEmployees).toHaveBeenCalled());
   });
 
   it('shows the employee name, not an id, and amounts as sent', async () => {
     renderList();
     expect(await screen.findByText('Asha Rao')).toBeDefined();
     expect(screen.queryByText('emp-1')).toBeNull();
-    expect(screen.getByText('2,000.00')).toBeDefined();
-    expect(screen.getByText('1,500.00')).toBeDefined();
-    expect(screen.getByText('2026-10')).toBeDefined();
+    expect(screen.getByText('₹ 2,000.00')).toBeDefined();
+    expect(screen.getByText('₹ 1,500.00')).toBeDefined();
+    expect(screen.getByText('Oct 2026')).toBeDefined();
   });
 
   it('filters become query params', async () => {

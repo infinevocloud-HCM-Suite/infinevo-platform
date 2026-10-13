@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Form, Button, Space, Typography, Row, Col } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
@@ -7,7 +7,6 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { LeaveRequestFields } from './LeaveRequestFields.jsx';
 import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
-import { employeeService } from '../employee/employeeService.js';
 
 const { Title, Text } = Typography;
 
@@ -16,20 +15,9 @@ export function RecordLeave() {
   const canManage = useCan('core.leave.manage');
 
   const [form] = Form.useForm();
-  const [employees, setEmployees] = useState([]);
   const [eligibleTypes, setEligibleTypes] = useState([]);
   const [isHalfDay, setIsHalfDay] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    employeeService
-      .list({ size: 1000 })
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.content || [];
-        setEmployees(list);
-      })
-      .catch(() => {});
-  }, []);
 
   const handleEmployeeChange = useCallback(async (employeeId) => {
     form.setFieldsValue({ leaveTypeId: undefined });
@@ -108,7 +96,6 @@ export function RecordLeave() {
         >
           <LeaveRequestFields
             form={form}
-            employees={employees}
             leaveTypes={eligibleTypes}
             onEmployeeChange={handleEmployeeChange}
             isHalfDay={isHalfDay}

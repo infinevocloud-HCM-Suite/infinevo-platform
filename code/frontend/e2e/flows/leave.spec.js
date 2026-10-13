@@ -3,6 +3,7 @@ import { ROLES } from '../fixtures/roles.js';
 import { openAs } from '../fixtures/login.js';
 import {
   dismissSwal,
+  displayDate,
   expectNoErrorScreen,
   findErrorScreen,
   expectSuccessDialog,
@@ -79,7 +80,11 @@ test('1. HR creates the leave type "E2E Casual" with a 12-day policy', async ({ 
       await expect(drawer.getByLabel('Paid Leave')).toBeChecked();
       // Valid From is required on the form since D-90; HR fills today, as they would.
       await pickDate(page, drawer.getByLabel('Valid From'), isoDate(new Date()));
-      await drawer.getByRole('button', { name: 'Save' }).click();
+      // Enter on the last field already submits the antd form; click Save only if it has not.
+      const alreadySubmitting = await page.locator('.swal2-container, .ant-btn-loading').first().isVisible().catch(() => false);
+      if (!alreadySubmitting) {
+        await drawer.getByRole('button', { name: 'Save' }).click({ timeout: 5_000 }).catch(() => {});
+      }
       await expectSuccessDialog(page, 'create leave type');
       await waitForSettled(page);
     } else {
@@ -184,11 +189,11 @@ test('3. The employee applies for one day of "E2E Casual" next Monday', async ({
     const listed = (await rows.allInnerTexts()).join('\n');
     let firstFree = -1;
     for (let week = 0; week < 8 && firstFree < 0; week += 1) {
-      if (!listed.includes(isoDate(nextMonday(7 * week)))) firstFree = week;
+      if (!listed.includes(displayDate(isoDate(nextMonday(7 * week))))) firstFree = week;
     }
     if (firstFree < 0) {
       const target = isoDate(nextMonday(49));
-      const existing = rows.filter({ hasText: target }).first();
+      const existing = rows.filter({ hasText: displayDate(target) }).first();
       const status = ((await existing.innerText()) || '').trim();
       state.leaveDate = target;
       state.alreadyApproved = /approved/i.test(status);
@@ -229,7 +234,7 @@ test('3. The employee applies for one day of "E2E Casual" next Monday', async ({
 
     await page.waitForURL((url) => url.pathname === '/me/leave', { timeout: 30_000 });
     await waitForSettled(page, 45_000);
-    const row = page.locator('[data-testid="panel-leave"] .ant-table-row').filter({ hasText: submitted }).first();
+    const row = page.locator('[data-testid="panel-leave"] .ant-table-row').filter({ hasText: displayDate(submitted) }).first();
     await expect(row, 'the new request is listed under My Leave').toBeVisible();
     await expect(row).toContainText(/submitted|pending/i);
   });
@@ -304,7 +309,7 @@ test('6. The employee sees the request Approved in My Leave', async ({ browser }
     await gotoApp(page, '/me/leave');
     await waitForSettled(page, 45_000);
     await expectNoErrorScreen(page, '/me/leave');
-    const row = page.locator('[data-testid="panel-leave"] .ant-table-row').filter({ hasText: state.leaveDate }).first();
+    const row = page.locator('[data-testid="panel-leave"] .ant-table-row').filter({ hasText: displayDate(state.leaveDate) }).first();
     await expect(row, `the request for ${state.leaveDate} is listed`).toBeVisible();
     await expect(row, 'its status is Approved').toContainText(/approved/i);
   });

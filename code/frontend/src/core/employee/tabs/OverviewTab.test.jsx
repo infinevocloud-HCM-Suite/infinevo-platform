@@ -126,7 +126,7 @@ describe('OverviewTab component', () => {
       </Provider>
     );
 
-    expect(screen.getByText('ACTIVE')).toBeDefined();
+    expect(screen.getByText('Active')).toBeDefined();
 
     // Rerender with terminated employee
     const employeeTerminated = {
@@ -140,7 +140,7 @@ describe('OverviewTab component', () => {
       </Provider>
     );
 
-    expect(screen.getByText('TERMINATED')).toBeDefined();
+    expect(screen.getByText('Terminated')).toBeDefined();
   });
 
   it('blocks saving and shows validation errors when required fields are missing', async () => {

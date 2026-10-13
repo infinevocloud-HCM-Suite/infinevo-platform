@@ -5,6 +5,7 @@ import { useCan } from '@shell/screens';
 import { requestService } from './requestService.js';
 import { OvertimeForm } from './OvertimeForm.jsx';
 import { FMT, MAX_RANGE_DAYS, STATUS_COLOR, presets, spanDays } from './range.js';
+import { formatDate, orEmpty, statusLabel } from '@shared/ui/format.js';
 
 /** The caller's overtime requests and a form to ask for one (W-48.5 §5). */
 export function MyOvertime() {
@@ -46,10 +47,10 @@ export function MyOvertime() {
   };
 
   const columns = [
-    { title: 'Date', dataIndex: 'overtimeDate', key: 'date' },
+    { title: 'Date', dataIndex: 'overtimeDate', key: 'date', render: (d) => formatDate(d) },
     { title: 'Hours', dataIndex: 'hours', key: 'hours' },
-    { title: 'Remarks', dataIndex: 'remarks', key: 'remarks', ellipsis: true },
-    { title: 'Status', key: 'status', render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{r.status}</Tag> },
+    { title: 'Remarks', dataIndex: 'remarks', key: 'remarks', ellipsis: true, render: (v) => orEmpty(v) },
+    { title: 'Status', key: 'status', render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{statusLabel(r.status)}</Tag> },
   ];
 
   return (

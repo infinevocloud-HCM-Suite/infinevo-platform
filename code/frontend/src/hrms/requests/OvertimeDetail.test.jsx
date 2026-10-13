@@ -41,9 +41,9 @@ describe('OvertimeDetail (W-48.5 §7)', () => {
       requestService.overtime.mockResolvedValueOnce(item);
       renderAt();
       expect(await screen.findByText('2.50')).toBeTruthy();
-      expect(screen.getByText('1250.00')).toBeTruthy();
-      expect(screen.getByText('APPROVED')).toBeTruthy();
-      expect(screen.getByText('2026-10')).toBeTruthy();
+      expect(screen.getByText('₹ 1,250.00')).toBeTruthy();
+      expect(screen.getByText('Approved')).toBeTruthy();
+      expect(screen.getByText('Oct 2026')).toBeTruthy();
       expect(requestService.overtime).toHaveBeenCalledWith('o1');
       expect(screen.getByRole('link', { name: 'Back to list' }).getAttribute('href')).toBe('/hrms/overtime-requests');
     },

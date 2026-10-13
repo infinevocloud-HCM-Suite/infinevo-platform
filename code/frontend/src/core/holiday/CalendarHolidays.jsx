@@ -26,6 +26,7 @@ import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { holidayCalendarService } from './holidayCalendarService.js';
+import { formatDate } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -146,11 +147,11 @@ export function CalendarHolidays() {
       render: (_, record) => {
         if (!record.from) return '—';
         if (!record.to || record.from === record.to) {
-          return <Text strong>{record.from}</Text>;
+          return <Text strong>{formatDate(record.from)}</Text>;
         }
         return (
           <Text strong>
-            {record.from} <Text type="secondary">to</Text> {record.to}
+            {formatDate(record.from)} <Text type="secondary">to</Text> {formatDate(record.to)}
           </Text>
         );
       },

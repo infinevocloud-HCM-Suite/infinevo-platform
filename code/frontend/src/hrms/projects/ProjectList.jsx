@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCan } from '@shell/screens';
 import { ProjectForm } from './ProjectForm.jsx';
 import { COLOR, LABEL, PROJECT_STATUSES, errorMessage, projectService } from './projectService.js';
+import { EMPTY, formatDate, statusLabel } from '@shared/ui/format.js';
 
 /**
  * Project list (W-48.1 §5). A caller without `hrms.project.read` (a manager) sees only the projects they manage,
@@ -63,18 +64,18 @@ export function ProjectList() {
       dataIndex: 'name',
       render: (v, r) => <Link to={`/hrms/projects/${r.id}`}>{v}</Link>,
     },
-    { title: 'Manager', dataIndex: 'manager_name', render: (v) => v || '-' },
+    { title: 'Manager', dataIndex: 'manager_name', render: (v) => v || EMPTY },
     {
       title: 'Status',
       dataIndex: 'status',
-      render: (v) => <Tag color={COLOR[v]}>{LABEL[v] || v}</Tag>,
+      render: (v) => <Tag color={COLOR[v]}>{LABEL[v] || statusLabel(v)}</Tag>,
     },
     {
       title: 'Progress',
       dataIndex: 'progress',
       render: (v) => <Progress percent={v ?? 0} size="small" />,
     },
-    { title: 'End date', dataIndex: 'end_date', render: (v) => v || '-' },
+    { title: 'End date', dataIndex: 'end_date', render: (v) => formatDate(v) },
     {
       title: 'Team',
       key: 'team',

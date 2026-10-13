@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { OffCycleCreate, INPUT_KINDS, parseEmployeeError } from './OffCycleCreate.jsx';
 import { payrunService } from './payrunService.js';
+import * as useCanModule from '@shell/screens';
 
 vi.mock('./payrunService.js', () => ({
   payrunService: {
@@ -25,6 +26,31 @@ describe('OffCycleCreate component (W-47.2 §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     payrunService.searchEmployees.mockResolvedValue(mockEmployees);
+    vi.spyOn(useCanModule, 'useCan').mockImplementation((a) => a === 'payroll.run.execute');
+  });
+
+  it('without payroll.run.execute shows no form and calls nothing (D-82)', async () => {
+    useCanModule.useCan.mockReturnValue(false);
+    render(
+      <MemoryRouter>
+        <OffCycleCreate />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('You cannot create an off-cycle run')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Select payment date')).toBeNull();
+    expect(screen.queryByRole('button', { name: /create run & enter inputs/i })).toBeNull();
+    expect(payrunService.searchEmployees).not.toHaveBeenCalled();
+    expect(useCanModule.useCan).toHaveBeenCalledWith('payroll.run.execute');
+  });
+
+  it('with payroll.run.execute shows the form', async () => {
+    render(
+      <MemoryRouter>
+        <OffCycleCreate />
+      </MemoryRouter>
+    );
+    expect(screen.getByPlaceholderText('Select payment date')).toBeTruthy();
+    await waitFor(() => expect(payrunService.searchEmployees).toHaveBeenCalledWith(''));
   });
 
   // Fills step 1 with a pay date and the given employees, then submits it.

@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { ClockCard } from './ClockCard.jsx';
 import { attendanceService } from './attendanceService.js';
 import { hmm, timeOf } from './format.js';
+import { formatDate } from '@shared/ui/format.js';
 
 /** Groups sessions into one row per attendance date (W-48.4 §5). */
 function byDay(sessions) {
@@ -64,7 +65,7 @@ export function MyAttendance() {
   const days = useMemo(() => byDay(rows), [rows]);
 
   const columns = [
-    { title: 'Date', dataIndex: 'date', key: 'date' },
+    { title: 'Date', dataIndex: 'date', key: 'date', render: (d) => formatDate(d) },
     { title: 'First in', key: 'in', render: (_, r) => timeOf(r.firstIn) },
     { title: 'Last out', key: 'out', render: (_, r) => timeOf(r.lastOut) },
     { title: 'Worked', key: 'worked', render: (_, r) => hmm(r.worked) },
@@ -75,7 +76,7 @@ export function MyAttendance() {
       render: (_, r) =>
         r.voided.map((s) => (
           <Tag key={s.id} color="red">
-            {s.voidReason || 'VOIDED'}
+            {s.voidReason || 'Voided'}
           </Tag>
         )),
     },

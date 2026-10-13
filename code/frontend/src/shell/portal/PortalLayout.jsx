@@ -148,7 +148,8 @@ export function PortalLayout() {
         </Space>
       ),
       children: Component ? (
-        <div style={{ marginTop: token.marginMD }}>
+        // The tab bar already leaves marginMD below it; a second margin here doubled the gap (D-56).
+        <div>
           <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
             <Component
               panel={panel}

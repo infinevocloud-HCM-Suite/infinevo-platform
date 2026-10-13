@@ -166,7 +166,7 @@ export function Calendars() {
       dataIndex: 'name',
       key: 'name',
       render: (name, record) => (
-        <Space orientation="horizontal" size="small">
+        <Space size="small">
           <Button
             type="link"
             style={{ padding: 0, fontWeight: 600 }}

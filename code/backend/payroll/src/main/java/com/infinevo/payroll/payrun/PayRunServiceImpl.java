@@ -257,6 +257,17 @@ public class PayRunServiceImpl implements PayRunService {
         this.scheduledEarningService = scheduledEarningService;
     }
 
+    /**
+     * D-79: names the people who locked, cancelled, approved and paid a run in its reply. Setter-injected
+     * and optional, as {@link #setScheduledEarningService}; {@code null} sends the names as null.
+     */
+    private com.infinevo.core.user.ActorNameService actorNameService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setActorNameService(com.infinevo.core.user.ActorNameService actorNameService) {
+        this.actorNameService = actorNameService;
+    }
+
     @Override
     public PayRunResponse create(YearMonth period) {
         Objects.requireNonNull(period, "period must not be null");
@@ -546,7 +557,7 @@ public class PayRunServiceImpl implements PayRunService {
     @Override
     @Transactional(readOnly = true)
     public PayRunResponse get(UUID id) {
-        return PayRunResponse.from(require(id));
+        return respond(require(id), null);
     }
 
     /** Overrides the interface default so a call through the proxy is transactional too. */
@@ -570,7 +581,8 @@ public class PayRunServiceImpl implements PayRunService {
                     ? payRuns.findByTenantIdAndRunType(tenantId, runType, pageable)
                     : payRuns.findByTenantIdAndStatusAndRunType(tenantId, status, runType, pageable);
         }
-        return page.map(PayRunResponse::from);
+        Map<String, String> names = actorNames(page.getContent());
+        return page.map(run -> PayRunResponse.from(run, null, names));
     }
 
     @Override
@@ -587,7 +599,13 @@ public class PayRunServiceImpl implements PayRunService {
                 employeeService.listEmployedBetween(run.getPeriodStart(), run.getPeriodEnd())) {
             numbers.put(employee.id(), employee.employeeNumber());
         }
-        return rows.map(row -> EmployeePayRunResponse.from(row, numbers.get(row.getEmployeeId())));
+        // Names ride in the reply (D-82): the screen must not need core.employee.read to say who a
+        // row is. displayNames reads only the ids this page already carries.
+        Set<UUID> ids = rows.stream().map(EmployeePayRun::getEmployeeId).collect(Collectors.toSet());
+        Map<UUID, String> read = ids.isEmpty() ? Map.of() : employeeService.displayNames(ids);
+        Map<UUID, String> names = read != null ? read : Map.of();
+        return rows.map(row ->
+                EmployeePayRunResponse.from(row, numbers.get(row.getEmployeeId()), names.get(row.getEmployeeId())));
     }
 
     @Override
@@ -605,7 +623,7 @@ public class PayRunServiceImpl implements PayRunService {
         run.lock(currentActor(), Instant.now().truncatedTo(ChronoUnit.MICROS));
         PayRun saved = payRuns.saveAndFlush(run);
         log.info("Locked pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
-        return PayRunResponse.from(saved);
+        return respond(saved, null);
     }
 
     @Override
@@ -615,7 +633,7 @@ public class PayRunServiceImpl implements PayRunService {
         run.cancel(currentActor(), Instant.now().truncatedTo(ChronoUnit.MICROS));
         PayRun saved = payRuns.saveAndFlush(run);
         log.info("Cancelled pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
-        return PayRunResponse.from(saved);
+        return respond(saved, null);
     }
 
     /**
@@ -792,7 +810,7 @@ public class PayRunServiceImpl implements PayRunService {
         run.approve(currentActor(), now());
         PayRun saved = payRuns.saveAndFlush(run);
         log.info("Approved pay run {} for {} in tenant {}", saved.getId(), saved.getPeriod(), saved.getTenantId());
-        return PayRunResponse.from(saved);
+        return respond(saved, null);
     }
 
     @Override
@@ -824,7 +842,7 @@ public class PayRunServiceImpl implements PayRunService {
                 result.run().getPeriod(),
                 tenantId,
                 notifiedCount);
-        return PayRunResponse.from(result.run(), notifiedCount);
+        return respond(result.run(), notifiedCount);
     }
 
     private int sendPayslipNotifications(UUID tenantId, PayRun run, List<EmployeePayRun> included) {
@@ -900,6 +918,29 @@ public class PayRunServiceImpl implements PayRunService {
             }
         }
         return false;
+    }
+
+    /** One run with its actors' names (D-79), read in one statement. */
+    private PayRunResponse respond(PayRun run, Integer notified) {
+        return PayRunResponse.from(run, notified, actorNames(List.of(run)));
+    }
+
+    /**
+     * The display names of everyone these runs record as locking, cancelling, approving or paying them,
+     * in one {@code core.user_account} read for the whole page (D-79), never one per row.
+     */
+    private Map<String, String> actorNames(List<PayRun> runs) {
+        if (actorNameService == null || runs.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> actors = new LinkedHashSet<>();
+        for (PayRun run : runs) {
+            Stream.of(run.getLockedBy(), run.getCancelledBy(), run.getApprovedBy(), run.getPaidBy())
+                    .filter(Objects::nonNull)
+                    .forEach(actors::add);
+        }
+        Map<String, String> names = actors.isEmpty() ? Map.of() : actorNameService.displayNames(actors);
+        return names != null ? names : Map.of();
     }
 
     private static String currentActor() {

@@ -1,5 +1,6 @@
 package com.infinevo.core.leave;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,6 +18,9 @@ public interface LeaveTypeRepository extends JpaRepository<LeaveType, UUID> {
     List<LeaveType> findByTenantIdOrderByCodeAsc(UUID tenantId);
 
     List<LeaveType> findByTenantIdAndIsActiveTrueOrderByCodeAsc(UUID tenantId);
+
+    /** These leave types in the tenant, in one statement - a list reply names each row's type (D-80). */
+    List<LeaveType> findByTenantIdAndIdIn(UUID tenantId, Collection<UUID> ids);
 
     boolean existsByTenantIdAndCode(UUID tenantId, String code);
 

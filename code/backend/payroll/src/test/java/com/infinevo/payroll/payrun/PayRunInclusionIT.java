@@ -99,6 +99,9 @@ class PayRunInclusionIT extends AbstractIntegrationTest {
         assertThat(row(rows, included).skipReason()).isNull();
         assertThat(row(rows, included).salaryVersionId()).isNotNull();
         assertThat(row(rows, included).employeeNumber()).isEqualTo("I-01");
+        // D-82: the reply names the employee, so a role without core.employee.read still sees who.
+        assertThat(row(rows, included).employeeName()).isEqualTo("First Last");
+        assertThat(row(rows, noSalary).employeeName()).isEqualTo("First Last");
         assertThat(row(rows, noSalary).skipReason()).isEqualTo(SkipReason.NO_SALARY);
         assertThat(row(rows, noBank).skipReason()).isEqualTo(SkipReason.NO_BANK_DETAILS);
 

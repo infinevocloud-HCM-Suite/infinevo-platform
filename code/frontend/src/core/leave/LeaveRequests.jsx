@@ -13,12 +13,11 @@ import {
   Col,
 } from 'antd';
 import { PlusOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { errorMsg } from '@shared/ui/msgHelper.js';
+import { EMPTY, formatDate } from '@shared/ui/format.js';
 import { leaveRequestService } from './leaveRequestService.js';
-import { leaveTypeService } from './leaveTypeService.js';
-import { employeeService } from '../employee/employeeService.js';
+import { EmployeePicker } from './EmployeePicker.jsx';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -46,37 +45,8 @@ export function LeaveRequests() {
   const [statusFilter, setStatusFilter] = useState(null);
   const [dateRange, setDateRange] = useState(null);
 
-  // Lookups
-  const [employees, setEmployees] = useState([]);
-  const [employeeMap, setEmployeeMap] = useState({});
-  const [leaveTypeMap, setLeaveTypeMap] = useState({});
-
-  useEffect(() => {
-    employeeService
-      .list(true)
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.content || [];
-        setEmployees(list);
-        const map = {};
-        list.forEach((e) => {
-          map[e.id] = `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.employeeNumber;
-        });
-        setEmployeeMap(map);
-      })
-      .catch(() => {});
-
-    leaveTypeService
-      .list()
-      .then((data) => {
-        const list = Array.isArray(data) ? data : [];
-        const map = {};
-        list.forEach((t) => {
-          map[t.id] = `${t.name} (${t.code})`;
-        });
-        setLeaveTypeMap(map);
-      })
-      .catch(() => {});
-  }, []);
+  // D-80: each row arrives with employeeName and leaveTypeName, read by the server in one batch per
+  // page; the screen no longer loads a page of employees to label rows and misses everyone past it.
 
   const loadRequests = useCallback(
     async (page = 1, pageSize = 15) => {
@@ -126,14 +96,12 @@ export function LeaveRequests() {
     {
       title: 'Employee',
       key: 'employee',
-      render: (_, record) => (
-        <Text strong>{employeeMap[record.employeeId] || record.employeeId}</Text>
-      ),
+      render: (_, record) => <Text strong>{record.employeeName || EMPTY}</Text>,
     },
     {
       title: 'Leave Type',
       key: 'leaveType',
-      render: (_, record) => leaveTypeMap[record.leaveTypeId] || record.leaveTypeId,
+      render: (_, record) => record.leaveTypeName || EMPTY,
     },
     {
       title: 'Dates',
@@ -141,8 +109,8 @@ export function LeaveRequests() {
       render: (_, record) => {
         const isSameDay = record.fromDate === record.toDate;
         const dateStr = isSameDay
-          ? record.fromDate
-          : `${record.fromDate} to ${record.toDate}`;
+          ? formatDate(record.fromDate)
+          : `${formatDate(record.fromDate)} to ${formatDate(record.toDate)}`;
         return (
           <Space>
             <span>{dateStr}</span>
@@ -174,7 +142,7 @@ export function LeaveRequests() {
       title: 'Submitted On',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (dt) => (dt ? dayjs(dt).format('YYYY-MM-DD HH:mm') : '-'),
+      render: (dt) => formatDate(dt),
     },
     {
       title: 'Actions',
@@ -216,18 +184,12 @@ export function LeaveRequests() {
       <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={8} md={6}>
-            <Select
-              allowClear
-              showSearch
+            <EmployeePicker
               placeholder="Filter by employee"
+              ariaLabel="Filter by employee"
               style={{ width: '100%' }}
-              optionFilterProp="label"
               value={employeeFilter}
-              onChange={setEmployeeFilter}
-              options={employees.map((e) => ({
-                value: e.id,
-                label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.employeeNumber,
-              }))}
+              onChange={(v) => setEmployeeFilter(v ?? null)}
             />
           </Col>
           <Col xs={24} sm={8} md={6}>

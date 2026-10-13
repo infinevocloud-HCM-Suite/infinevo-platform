@@ -18,6 +18,7 @@ import { departmentService } from '../org/departmentService.js';
 import { designationService } from '../org/designationService.js';
 import { workLocationService } from '../org/workLocationService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { formatDate } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -168,7 +169,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
             label="Effective From"
             extra={
               leaveType?.policy?.effectiveFrom
-                ? `Current policy effective from ${leaveType.policy.effectiveFrom}. Leave empty to apply the change from the current leave year.`
+                ? `Current policy effective from ${formatDate(leaveType.policy.effectiveFrom)}. Leave empty to apply the change from the current leave year.`
                 : 'Leave empty to start from the first day of the current leave year.'
             }
           >

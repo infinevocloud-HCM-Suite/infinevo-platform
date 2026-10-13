@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, Col, DatePicker, Result, Row, Select, Space, Table, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
+import { useCan } from '@shell/screens';
 import { claimService } from './claimService.js';
 import { EmployeeSelect } from './EmployeeSelect.jsx';
-import { CLAIM_STATUS_OPTIONS, claimStatus, formatAmount, formatDate } from './claimLabels.js';
+import { CLAIM_STATUS_OPTIONS, claimStatus } from './claimLabels.js';
 import { readError } from '../tax/apiError.js';
+import { EMPTY, formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -13,6 +15,10 @@ const { RangePicker } = DatePicker;
 /** `/payroll/claims` (W-47.4 §5): the officer's claim list. No mock rows on failure (DEBT-031). */
 export function ClaimList() {
   const navigate = useNavigate();
+  // The picker searches core's employee directory (`GET /v1/employees`, core.employee.read). A role
+  // that reads claims but not the directory - finance - would get a 403 behind an empty picker, so
+  // the filter is shown only to a role that can fill it (D-82). Each row still names its employee.
+  const canSearchEmployees = useCan('core.employee.read');
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -51,22 +57,22 @@ export function ClaimList() {
   }, [load]);
 
   const columns = [
-    { title: 'Employee', dataIndex: 'employee_name', key: 'employee_name', render: (v) => v || '-' },
-    { title: 'Component', dataIndex: 'component_name', key: 'component_name', render: (v) => v || '-' },
-    { title: 'Bill date', dataIndex: 'bill_date', key: 'bill_date', render: formatDate },
+    { title: 'Employee', dataIndex: 'employee_name', key: 'employee_name', render: (v) => v || EMPTY },
+    { title: 'Component', dataIndex: 'component_name', key: 'component_name', render: (v) => v || EMPTY },
+    { title: 'Bill date', dataIndex: 'bill_date', key: 'bill_date', render: (v) => formatDate(v) },
     {
       title: 'Requested',
       dataIndex: 'requested_amount',
       key: 'requested_amount',
       align: 'right',
-      render: formatAmount,
+      render: (v) => formatMoney(v),
     },
     {
       title: 'Approved',
       dataIndex: 'approved_amount',
       key: 'approved_amount',
       align: 'right',
-      render: formatAmount,
+      render: (v) => formatMoney(v),
     },
     {
       title: 'Status',
@@ -77,7 +83,7 @@ export function ClaimList() {
         return <Tag color={tag.color}>{tag.label}</Tag>;
       },
     },
-    { title: 'Posted period', dataIndex: 'posted_period', key: 'posted_period', render: (v) => v || '-' },
+    { title: 'Posted period', dataIndex: 'posted_period', key: 'posted_period', render: (v) => formatMonth(v) },
   ];
 
   return (
@@ -93,18 +99,20 @@ export function ClaimList() {
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>
-          <Col xs={24} md={8}>
-            <Text type="secondary">Employee</Text>
-            <EmployeeSelect
-              ariaLabel="Employee filter"
-              value={employeeId}
-              onChange={(v) => {
-                setEmployeeId(v);
-                setPage(1);
-              }}
-              style={{ width: '100%' }}
-            />
-          </Col>
+          {canSearchEmployees && (
+            <Col xs={24} md={8}>
+              <Text type="secondary">Employee</Text>
+              <EmployeeSelect
+                ariaLabel="Employee filter"
+                value={employeeId}
+                onChange={(v) => {
+                  setEmployeeId(v);
+                  setPage(1);
+                }}
+                style={{ width: '100%' }}
+              />
+            </Col>
+          )}
           <Col xs={24} md={6}>
             <Text type="secondary">Status</Text>
             <Select

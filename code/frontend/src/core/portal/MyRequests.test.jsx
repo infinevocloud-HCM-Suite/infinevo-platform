@@ -96,6 +96,32 @@ describe('MyRequests component (W-46.5 §7)', () => {
     expect(screen.getAllByText('Approved').length).toBe(2);
   });
 
+  it('names the leave type from the reply and never prints its id (D-80)', async () => {
+    portalService.getLeaveRequests.mockResolvedValue([
+      {
+        id: 'req-x',
+        leaveTypeId: 'type-raw-id',
+        leaveTypeName: null,
+        fromDate: '2026-10-05',
+        toDate: '2026-10-06',
+        workingDays: 2,
+        status: 'APPROVED',
+        createdAt: '2026-10-01T10:00:00Z',
+      },
+    ]);
+    render(
+      <MemoryRouter>
+        <MyRequests />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('5 Oct 2026 to 6 Oct 2026')).toBeDefined();
+    });
+    expect(screen.queryByText('type-raw-id')).toBeNull();
+    expect(screen.getByText('1 Oct 2026')).toBeDefined();
+  });
+
   it('submits a draft request when Submit button is clicked', async () => {
     leaveRequestService.submit.mockResolvedValue({ id: 'req-draft', status: 'PENDING' });
 

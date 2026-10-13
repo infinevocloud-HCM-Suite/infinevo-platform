@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { NotFound } from '@shell/screens';
 import { requestService } from './requestService.js';
 import { STATUS_COLOR, stamp, timeOf } from './range.js';
+import { EMPTY, formatDate } from '@shared/ui/format.js';
 
 /** The back link: to the inbox when opened from it, else to the list (W-48.5 §5). */
 export function backLink(location, list) {
@@ -42,7 +43,8 @@ export function RegularizationDetail() {
   return (
     <Card title="Regularization" extra={back}>
       <Descriptions size="small" column={2} bordered>
-        <Descriptions.Item label="Date">{item.date}</Descriptions.Item>
+        <Descriptions.Item label="Employee">{item.employeeName || EMPTY}</Descriptions.Item>
+        <Descriptions.Item label="Date">{formatDate(item.date)}</Descriptions.Item>
         <Descriptions.Item label="Status">
           <Tag color={STATUS_COLOR[item.status]}>{item.status}</Tag>
         </Descriptions.Item>
@@ -52,7 +54,8 @@ export function RegularizationDetail() {
           {item.reason}
         </Descriptions.Item>
         <Descriptions.Item label="Decided at">{stamp(item.decidedAt)}</Descriptions.Item>
-        <Descriptions.Item label="Decided by">{item.decidedBy || '—'}</Descriptions.Item>
+        {/* D-79: the reply names the decider; the id alone is never shown. */}
+        <Descriptions.Item label="Decided by">{item.decidedByName || EMPTY}</Descriptions.Item>
         <Descriptions.Item label="Decision comment" span={2}>
           {item.decisionComment || '—'}
         </Descriptions.Item>

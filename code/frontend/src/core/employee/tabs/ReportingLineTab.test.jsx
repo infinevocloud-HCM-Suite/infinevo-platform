@@ -52,7 +52,8 @@ describe('ReportingLineTab component', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('Vikram Mehta').length).toBeGreaterThan(0);
-      expect(screen.getByText('PRIMARY')).toBeDefined();
+      expect(screen.getByText('Primary')).toBeDefined();
+      expect(screen.getByText('1 Apr 2026')).toBeDefined();
     });
   });
 

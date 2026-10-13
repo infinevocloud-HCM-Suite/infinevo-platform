@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { Card, Statistic, Table } from 'antd';
+import { formatDate } from '@shared/ui/format.js';
 
 /**
  * `me.projects` (W-48.6 §5): the server's `active` count, then at most five rows. A row links to My work (D-72):
@@ -20,7 +21,7 @@ export function MyProjectsCard({ projects }) {
       key: 'progress',
       render: (v) => `${v}%`,
     },
-    { title: 'End date', dataIndex: 'end_date', key: 'end_date' },
+    { title: 'End date', dataIndex: 'end_date', key: 'end_date', render: (d) => formatDate(d) },
   ];
   return (
     <Card title="My projects">

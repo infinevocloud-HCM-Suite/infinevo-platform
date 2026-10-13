@@ -94,8 +94,22 @@ describe('projectService (W-48.1 §7)', () => {
     ]);
   });
 
-  it('errorMessage reads the ApiErrorResponse message', () => {
-    expect(errorMessage({ response: { data: { message: 'in use' } } })).toBe('in use');
+  it('errorMessage reads the message the shared client flattened (D-81)', () => {
+    // The shape `client.js` rejects with: the server's ApiErrorResponse.message is `message`.
+    expect(
+      errorMessage({ code: 'CONFLICT', message: 'Project name already in use', status: 409 }, 'fb')
+    ).toBe('Project name already in use');
+    expect(errorMessage({ code: 'FORBIDDEN', message: 'Not your project', status: 403 })).toBe(
+      'Not your project'
+    );
+  });
+
+  it('errorMessage falls back when the server sent no message', () => {
+    // No body: the client's own generic text is replaced by the caller's specific fallback.
+    expect(
+      errorMessage({ code: 'INTERNAL', message: 'Something went wrong', status: 500 }, 'Could not load')
+    ).toBe('Could not load');
     expect(errorMessage({}, 'fallback')).toBe('fallback');
+    expect(errorMessage(undefined)).toBe('Something went wrong');
   });
 });
