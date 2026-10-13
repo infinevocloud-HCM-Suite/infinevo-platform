@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-10-03**, against `main` `8b7705c3` — mohit's `W-33.3`, `W-36.4` merged after 19 tickets from five lanes merged together on `integration-2026-10-03` (CI green, backend 15 min; the backend job limit raised to 30 min in the same push). Three lanes assigned 2026-09-25: **sayeed** (defects, then employee), **krushna** (tenant and onboarding), **devashis** (documents, notifications, reporting).
+> Last refreshed: **2026-10-13**, against `main` — Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
 
 ## Summary
 
@@ -103,13 +103,16 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-6 | No link from `core.employee` to `core.user_account`; `*_own` actions and the portal cannot resolve the caller | 2026-09-24 | `W-13.4` | **fixed on main `e699699`** |
 | D-7 | Dead duplicates: `core.cache.PermissionCacheService`, `PermissionInvalidationService`, `core.queue.*` | 2026-09-24 | `W-53.1` | **fixed** `5c07c45` |
 | D-8 | Tax slab seed has only `GENERAL`; senior and super-senior over-deducted (#146) | 2026-09-22 | `W-09.1` | **fixed on main `c79755c`** |
-| D-9 | `W-10` spec §8 login flow never run by hand; `W-14.1` §8 never independently re-run | at merge | sayeed runs the two §8 checks | assigned — sayeed |
 | D-10 | Every role's side menu shows raw keys (`nav.setup`, `nav.employees`): `AppShell.jsx` rendered `labelKey` as it came, and no translation step existed (`W-45` §2 deferred it) | 2026-10-07, founder on Azure dev | claude: `shell/navigation/navLabels.js` maps all 36 backend keys to English, an unknown key falls back to words; `navLabels.test.js` fails the build when a backend catalogue adds a key with no label; CI now runs the frontend job when a backend `navigation/` file changes | **fixed on main `6ba5a1da`** — built by claude |
 | D-11 | The Storage Queue was never connected on Azure, so every email waits 2–3 minutes for the delivery sweep. `W-52` asked for managed identity (`W-52-queue-worker.md:64`) but only the connection-string path was built (`StorageQueueConfig.java:16-18`); `W-52.1` carried it forward "unchanged" (`W-52-1-worker-fix.md:76`); `W-51` forbids the account key a connection string needs; no ticket passed the queue endpoint to the containers | 2026-10-07, founder on Azure dev (invitation emails late) | `W-52.2` | **fixed on main `cc8bd8ce`** — built by karma; takes effect on Azure once `AZURE_STORAGE_QUEUE_ENDPOINT` reaches the app and worker containers |
 | D-12 | Every user saw a 404 right after login: Keycloak returns to `/`, and no route matched `/` (`AppShell.jsx` mounted only feed paths) | 2026-10-07, founder on Azure dev | claude: `/` redirects to the first path in the navigation feed | **fixed on main `c470db64`** — built by claude |
 | D-13 | The signed-in tenant's name appeared nowhere in the app: `GET /api/v1/navigation` carried no tenant name | 2026-10-07, founder on Azure dev | claude: `tenantName` on the navigation reply, read under RLS (the target tenant's while acting as); shown in the header | **fixed on main `c470db64`** — built by claude |
 | D-14 | Keycloak branding on login and admin pages: realm heading used `kc-logo-text` (Keycloak's CSS shows its logo and hides the text); stock titles, favicons and logos | 2026-10-07, founder on Azure dev | claude: `infinevo` Keycloak theme as server default; class dropped from both realm files; Azure dev realms fixed by hand | **fixed on main `c470db64`** — built by claude; reaches Azure with the next Keycloak image |
-| D-15 – D-32 | *Reserved for the QA defects on `dev-krushna-qa-day1`, `qa-test-execution-mohit`, `test-biren` and `testing-bug-fix`; renumbered here by the founder when those branches merge* | | | reserved |
+| D-15 | Leave Allocation fails with `VALIDATION_FAILED: No effective policy found` when `effectiveFrom` is null / unconfigured | 2026-10-06, manual QA Stage 4 (`S4-10`) | sayeed (`dev-sayeed`), claude | **fixed on main 2026-10-13** — built by sayeed; merge review made the date optional end to end and added tests |
+| D-16 | Holiday Calendar creation with `isDefault: true` throws HTTP 409 Conflict if default calendar exists | 2026-10-06, manual QA Stage 4 (`S4-01`) | sayeed (`dev-sayeed`), claude | **fixed on main 2026-10-13** — built by sayeed; two screen tests added in the merge |
+| D-17 | Employee portal login blocked by Azure Front Door WAF rate-limiting rule (`The request is blocked. 20261007T...`) | 2026-10-07, manual QA Stage 19 (`S19-01`) | infra / WAF policy tuning (`frontdoor.bicep`) | open |
+| D-18 | Employee invitation acceptance throws HTTP 500 (`An unexpected error occurred while processing the invitation`) due to premature `TenantContext.clear()` before Hibernate audit flush | 2026-10-07, manual QA employee invitation accept (`POST /api/v1/invitations/accept`) | sanjib, claude (`b6a798f1`) | **fixed on main `b6a798f1`** |
+| D-19 – D-32 | *Reserved for the QA defects on `dev-krushna-qa-day1`, `qa-test-execution-mohit`, `test-biren` and `testing-bug-fix`; renumbered here by the founder when those branches merge* | | | reserved |
 | D-33 | The platform tenant's `platform-admin` holds every tenant action, so platform staff see every customer screen (employees, leave, payroll) instead of only Tenants and Audit. `V082` seeds all system roles into the platform tenant (`V082__platform_tenant.sql:37-48`); `V136` guards only `core.tenant.provision` (`V136__platform_only_action_guard.sql:3-50`); the feed hides nothing else (`NavigationService.java:79-89`) | 2026-10-07, founder on Azure dev | migration: platform tenant's `platform-admin` keeps `core.tenant.*`, `core.audit.read`, `core.user.manage` only; `V136`-style guard refuses the rest | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; Setup and User invitations also hidden from the platform tenant's menu (founder 2026-10-07) |
 | D-34 | The side menu is one flat list: employees, roles, audit, setup, tenants and both invitation lists are top-level items (`NavigationCatalogue.java:52,82-83,92,123-137`); only org, approvals, holiday and leave have children | 2026-10-07, founder on Azure dev | catalogue groups: **People** (employees, invitations) · **Organisation** (org masters, holidays, roles) · **Settings** (setup, audit) · Payroll and HRMS under their module parents; groups collapsed by default, labels in `navLabels.js` | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; Payroll and HRMS grouped under module parents; groups collapsed except the current one |
 | D-35 | Every role lands on the first menu path after login (`AppShell.jsx:42,136`): a tenant admin lands on Employees, an employee on whatever is first, platform staff on a customer screen | 2026-10-07, founder on Azure dev | home path by role: `tenant-admin` → `/setup` until the checklist is complete, then the module dashboard · `employee` → `/me` · `payroll-officer` → `/payroll/dashboard` · `hr`, `manager` → `/hrms/dashboard` or `/employees` · platform tenant → `/admin/tenants`; the feed returns `homePath`, the shell uses it | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `homePath` on the navigation feed; a role with no dashboard in its feed lands on its first screen |
@@ -120,6 +123,22 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-40 | Add Employee asks for six fields only — number, names, work email, mobile (`EmployeeCreate.jsx:143-241`) — and no section holds gender, date of joining, job title, employment type, probation end or notice period (`sectionFields.js`); legacy HRMS captures gender on the same form (`AddEmployee.jsx:1007-1012`) | 2026-10-07, legacy cross-check | Add Employee: **Required** (names, work email, date of joining, department, designation, location) and a collapsed **More** group (gender, employment type, probation end, notice period, mobile); the same fields on the Employment section; `core.employee` gains the missing columns by migration | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `V154` on `employee_employment` (gender and joining date already existed; designation is the job title). Department, designation and location optional on Add Employee (founder 2026-10-07) |
 | D-41 | Time zone and shift times are free text (`sectionFields.js:84-86`): any string saves | 2026-10-07, legacy cross-check | time zone: a searchable select of IANA zones, default the tenant's; shift start and end: time pickers, `HH:mm` validated on the backend | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; time zone stays blank until picked; nothing carries the tenant's zone yet |
 | D-42 | Create Tenant has no administrator email (`TenantCreate.jsx:70-109`, `TenantRequest.java:9`): after creating a tenant the platform staff must act-as into it and invite the admin by hand | 2026-10-07, founder on Azure dev | `TenantRequest` gains `adminEmail`; provisioning creates a `tenant-admin` user invitation in the new tenant and sends it; the tenant list shows "admin invited / accepted" | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `V159`; `admin_email` refused when `INVITATION_LINK_BASE_URL` is unset |
+| D-43 | Project Manager & Team Member pickers require typing >= 2 chars and do not load initial dropdown options on open (save should also succeed without manager, showing 'No data' if none exist); Timesheet weekly entry lacks structured task details section (only 240px note popover) | 2026-10-08, manual QA Timesheet flow (`S7-09`) | sayeed (`dev-sayeed`) | **open** |
+| D-44 | Approvals Inbox has no "Decided / History" view (approved/rejected steps vanish immediately); "View item" on timesheet step fails with "Could not load the timesheet entry"; Timesheet Review screen inaccessible/empty to Tenant Admin | 2026-10-08, manual QA Timesheet flow (`S7-10`) | sayeed (`dev-sayeed`) | **open** |
+| D-45 | Submitted timesheet lacks Edit or Recall-to-Draft option; employee cannot correct hours or recreate week timesheet (blocked by unique week constraint) unless manager rejects | 2026-10-09, manual QA Timesheet flow (`S7-09`) | sayeed (`dev-sayeed`) | **open** |
+| D-46 | Attendance card displays today's session timeline only (past date session intervals cannot be expanded/viewed); Tenant Admin has no employee profile and cannot clock in/out | 2026-10-09, manual QA Attendance flow (`S7-02`, `S7-03`) | sayeed (`dev-sayeed`) | **open** |
+| D-47 | Regularization (`/hrms/regularizations`) and Overtime (`/hrms/overtime-requests`) tables load blank by default; date range is required to fetch data instead of acting as an optional filter with sensible defaults | 2026-10-09, manual QA (`S7-05`, `S7-07`) | sayeed (`dev-sayeed`) | **open** |
+| D-48 | Rejected overtime request vanishes from Approvals and request UI instead of remaining visible with status `REJECTED` in a history/decided view | 2026-10-09, manual QA Overtime flow (`S7-08`) | sayeed (`dev-sayeed`) | **open** |
+| D-49 | Leave Year input in `LeaveImport.jsx` uses `<InputNumber>`, blocking required `YYYY-YY` string format (e.g. `2026-27`) for April-cycle tenants and causing HTTP 400 Bad Request | 2026-10-09, manual QA Leave Import flow (`S20-03`, `S20-04`) | sayeed (`dev-sayeed`) | **open** |
+| D-50 | Missing "Download Sample CSV Template" button/link on `/leave/import` screen | 2026-10-09, manual QA Leave Import flow (`S20-02`) | sayeed (`dev-sayeed`) | **open** |
+| D-51 | Error report document UUID in validation warning alert on `/leave/import` is rendered as plain text instead of a clickable download link | 2026-10-09, manual QA Leave Import flow (`S20-03`) | sayeed (`dev-sayeed`) | **open** |
+| D-52 | Employee role cannot access Leave module (sidebar omits Leave and direct `/leave/requests` throws 404) because parent `core.leave` group requires `core.leave.read` rather than allowing `core.leave.apply` / `core.leave.read_own` | 2026-10-09, manual QA Employee Persona (`S20-06`, `/leave/requests`) | claude (`D-74`) | **fixed on main `db9cdc34` as `D-74`/`D-75`** — "My self-service" shows Leave for any login with an employee record; logged again here by QA before that merge |
+| D-53 | Employee portal (`/me`, `MyLeave.jsx`) leave balance cards are visually misaligned and lack structured meter layout | 2026-10-12, manual QA Employee Leave view (`/me`, `S6-02`) | sayeed (`dev-sayeed`) | **open** |
+| D-54 | Admin detail view of employee leave request (`/leave/requests/:id`) incorrectly displays applicant-only "Withdraw" action | 2026-10-12, manual QA Leave Request Detail (`/leave/requests/:id`, `S6-04`) | sayeed (`dev-sayeed`) | **open** |
+| D-55 | Leave policy drawer (`PolicyForm.jsx`) throws `VALIDATION_FAILED: effectiveFrom cannot be null` on save and lacks input field for effective date | 2026-10-12, manual QA Leave Type Policy (`/leave/types`, `S4-10`) | sayeed (`dev-sayeed`), claude | **fixed on main 2026-10-13** — same change as `D-15`: `LeavePolicyValidator` no longer refuses an empty date, `LeaveTypeServiceImpl` starts the policy on the current leave year, `PolicyForm` sends no default |
+| D-56 | Employee portal (`/me`) dashboard and Profile Summary card suffer from poor layout spacing and visual misalignment | 2026-10-12, manual QA Employee Portal (`/me`, `S19-02`) | sayeed (`dev-sayeed`) | **open** |
+| D-57 | Employee portal (`/me`) lacks a "Holiday Calendar" tab / view for employees to inspect upcoming tenant/location holidays | 2026-10-12, manual QA Employee Portal (`/me`, `S19-04`) | sayeed (`dev-sayeed`) | **open** |
+| D-58 | My Profile screen (`/me/profile`) form inputs and detail sections (Personal, Job, Contact) are visually misaligned | 2026-10-12, manual QA Employee Profile (`/me/profile`, `S19-06`) | sayeed (`dev-sayeed`) | **open** |
 | D-62 | Accepting an invitation ends on a page whose main action is "Sign in" (`AcceptInvitation.jsx:113-121`), so invitees reach the login screen before they have a password; a reused Keycloak account gets no set-password mail yet is told to wait for one (`KeycloakProvisioningServiceImpl.java:159-161`); the set-password mail carries no way back to the app; `/invitations/accept/` with a trailing slash falls into sign-in (`main.jsx:31`) | 2026-10-09, founder | claude: accept returns an `outcome` (mail sent / mail failed / existing account) and the page words its next step from it; an existing account still awaiting `UPDATE_PASSWORD` is sent the mail again; the mail carries `client_id` and the app root as `redirect_uri`; trailing slash accepted | **fixed on main — built by claude** |
 | D-63 | Endless sign-in loop: every 401 sends the browser to Keycloak (`ShellBoundary.jsx:18-23`), and a live Keycloak session hands it straight back to the same 401 — e.g. `TENANT_NOT_BOUND` for an account in no tenant or several (`TenantContextFilter.java:234-243`) — until the browser errors. The invite gave no warning that a browser signed in as someone else makes Keycloak refuse the set-password link (`different_user_authenticated`, Azure dev 2026-10-09 11:37) | 2026-10-09, founder on Azure dev | claude: `TENANT_NOT_BOUND` shows an access-problem screen with Sign out; a re-login carries `relogin=1`, and a second 401 on return stops on that screen; the accept page and its success text say to sign out or use a private window | **fixed on main — built by claude** |
 | D-64 | Payroll settings (pay schedule, EPF, ESI, PT, FBP, tax window) and salary components never mount: no feed path above `/payroll/settings/*` or `/payroll/components` (`routes.js:54-68`, `PayrollNavigation.java:61`) | 2026-10-09, screen audit | "Payroll settings" (`/payroll/settings`, `payroll.settings.manage`) and "Salary components" (`/payroll/components`, `payroll.structure.read`) menu items | **fixed on main — built by claude** |
@@ -147,7 +166,187 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-86 | Leave types offer "Hours", which `LeaveUnit` refuses (`LeaveTypes.jsx:285`); `DRAFT` has no label; employee leave history never mounts (`core/index.js:141`) | 2026-10-09, screen audit | drop Hours; Draft label; history under `/employees` and linked | open |
 | D-87 | Timesheet and Tax declaration panels share order 5; Claims panel has no icon (`TimesheetPanelProvider.java`, `TaxDeclarationPanelProvider.java`, `PortalLayout.jsx:22-29`) | 2026-10-09, screen audit | orders 5, 6, 7; icon | open |
 
-Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40 are M. Each is one branch, one commit, no spec. Anything larger from the same 2026-10-07 review is a `W-73` child spec (§6).
+Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D-44, D-45, D-46, D-47, D-48, D-49, D-50, D-51, D-52, D-53, D-54, D-55, D-56, D-57, D-58 are M. Each is one branch, one commit, no spec. Anything larger from the same 2026-10-07 review is a `W-73` child spec (§6).
+
+### QA & Manual Testing Defect Log (Dev 5 — Time & Operations)
+
+#### D-15 (BUG-D5-001): Leave Allocation & Application Missing Effective Policy
+- **Found:** 2026-10-06, Stage 4 (`S4-10`, `S4-11`) & Stage 6 (`S6-02` to `S6-10`), `POST /api/v1/leave/allocations`, `GET /api/v1/leave-types/eligible`
+- **Error:** `VALIDATION_FAILED: No effective policy found for leave type <UUID>` and empty eligible leave types list (`[]`), showing "No data" in UI Leave Type dropdowns.
+- **Root Cause:** Policy drawer (`PolicyForm.jsx`) lacked an `Effective From` date field, sending `null`. `LeaveAllocationServiceImpl` and `LeaveEligibilityServiceImpl` query `effective_from <= date`, which evaluates to false on `NULL` in PostgreSQL.
+- **Fix:** Added `DatePicker` for `Effective From` (defaulting to start of year) in `PolicyForm.jsx` and updated `LeaveTypeServiceImpl.java` to default null `effectiveFrom` to `currentYearStart`. Fixed in `dev-sayeed` commit `4b400291`.
+
+#### D-16 (BUG-D5-002): Holiday Calendar Default Conflict
+- **Found:** 2026-10-06, Stage 4 (`S4-01`), `POST /api/v1/holiday-calendars`
+- **Error:** `HTTP 409 CONFLICT: A default holiday calendar already exists for tenant`
+- **Root Cause:** Backend enforces one default calendar per tenant (W-17 spec); duplicate default creation is rejected with 409 (default switching requires `PUT`). UI allowed users to toggle default to true on create.
+- **Fix:** In `Calendars.jsx`, forced `isDefault: false` during creation if a default already exists, and disabled the default toggle in the create drawer with helper guidance. Fixed in `dev-sayeed` commit `4b400291`.
+
+#### D-17 (BUG-D5-003): Azure Front Door WAF Blocks Employee Portal Authentication
+- **Found:** 2026-10-07, Stage 19 (`S19-01`), Stage 7 (`S7-01` to `S7-10`), `/login` Keycloak authentication
+- **Error:** `The request is blocked. 20261007T101708Z-17848f5bf682zw4bhC1PNQutug0000000crg00000000ah9m`
+- **Root Cause:** Azure Front Door WAF custom rule `ratelimitperclientip` threshold (100 req/min in `frontdoor.bicep`) triggered during authentication redirects, issuing a 403 block on the client IP.
+- **Impact:** Employee unable to log in; blocks all Stage 19 employee self-service steps (`S19-01` to `S19-06`) and Stage 7 time tracking (`S7-01`, `S7-02`, `S7-03`, `S7-05`, `S7-07`, `S7-09`).
+
+#### D-18 (BUG-D5-004): Employee Invitation Acceptance Throws 500 & Compensation Deletes Keycloak User
+- **Found:** 2026-10-07, Employee Invitation Acceptance (`POST /api/v1/invitations/accept`)
+- **Error:** `HTTP 500 Internal Server Error`, `code: "INTERNAL"`, `message: "An unexpected error occurred while processing the invitation."`, traceId: `9d3cc447-c553-4f97-a545-a9104e91ffa4`.
+- **Root Cause:** In `InvitationServiceImpl.acceptEmployeeInvitation()`, `TenantContext.clear()` was called in `finally` before the outer `@Transactional` commit. During transaction commit, Hibernate flushed the dirty `@Audited` `Employee` entity, which triggered `AuditWriter` requiring `TenantContext`. With the context cleared, it threw `IllegalStateException`, wrapped in `TransactionSystemException` by Spring, answering HTTP 500.
+- **Fix:** Shipped on main `b6a798f1`: `TenantContext` is now kept bound through transaction commit using Spring `TransactionSynchronization.afterCompletion()`.
+
+#### D-43 (BUG-D5-005): Timesheet & Project Flow — Empty Dropdown in Employee Pickers & Lack of Structured Task Details Section
+- **Found:** 2026-10-08, Timesheet & Project Flow Testing (`/hrms/projects`, `/hrms/projects/:id`, `/hrms/timesheets/week/:weekStart`, Step `S7-09`)
+- **Symptoms:**
+  1. **Project Manager Picker (`ProjectForm.jsx`)**: When opening the Manager field, no options or dropdown list appear. Users see an empty box giving the impression of manual text input; names only appear if typing >= 2 characters. Furthermore, if no managers exist in the organisation, the field should clearly show a "No data" state, and project creation should succeed when no manager is assigned (manager is optional in the domain model).
+  2. **Team Member Picker (`TeamTab.jsx`)**: When assigning employees to the project team, clicking the employee selector shows no dropdown choices unless typing >= 2 characters. A browsable list of employees with an active search filter should appear instead.
+  3. **Timesheet Task Entry Details (`TimesheetWeek.jsx`)**: In the weekly timesheet grid, task hours entry only offers a small popup note popover (`NoteCell`, 240px wide textarea) without a structured task execution / work details section.
+- **Root Cause:**
+  1 & 2: `AssignableEmployeeController.java` rejects queries `< MIN_QUERY_LENGTH` (2 chars) answering `[]`, and `EmployeePicker.jsx` aborts searches under 2 chars without prefetching on open/focus.
+  3: Timesheet grid UI models daily work description solely via a cell note popover rather than an expandable task details log or structured activity breakdown.
+- **Impact:** Degraded user experience during project setup and team assignment, confusion over whether employees exist, and limited ability to record comprehensive work descriptions during timesheet submission.
+- **Status:** Open.
+
+#### D-44 (BUG-D5-006): Approvals Inbox Missing History/Decided View, Timesheet Entry View Fails, & Review Inaccessible to Tenant Admin
+- **Found:** 2026-10-08, Timesheet Approval Verification (`/approvals`, `/hrms/timesheet-review`, Step `S7-10`)
+- **Symptoms:**
+  1. **Vanishing Approvals (`/approvals`)**: After approving or rejecting an item (e.g. timesheet), the record immediately disappears from `/approvals`. There is no "History", "Approved", or "Decided" tab, leaving the user with no visible audit or confirmation in the UI of what was decided.
+  2. **Approvals Inbox "View Item" Fails (`/hrms/timesheet-review/entries/:entryId`)**: Clicking "View item" on a pending `TIMESHEET` row in `/approvals` navigates to `/hrms/timesheet-review/entries/:entryId`, which errors with `"Could not load the timesheet entry."`
+  3. **Timesheet Review Inaccessible to Tenant Admin (`/hrms/timesheet-review`)**: Tenant Administrator (`tenant-admin`) viewing Timesheet Review sees a persistent red error: `"Could not load timesheets."` on the default "My projects" tab, and no timesheets are listed across the tabs for Admin.
+- **Root Cause:**
+  1. `Inbox.jsx` only queries `approvalService.pending()`. No UI tab exists to query `ApprovalHistoryResponse` (`GET /api/v1/approvals/{instanceId}/history`) or filtered past decisions.
+  2. `TimesheetProjectEntryServiceImpl.java:45-63` enforces `currentEmployee()` and checks `step.getAssigneeEmployeeId()`. When an admin or fallback approver clicks "View item", `caller()` throws HTTP 403 `PermissionDeniedException` (if user has no employee record) or HTTP 404 `ResourceNotFoundException` (if not the exact assignee).
+  3. `TimesheetReviewServiceImpl.managed()` calls `caller()` which forces `employeeService.currentEmployee()`. A Tenant Admin account has no employee record, answering `403 FORBIDDEN: Not permitted: requires action 'hrms.timesheet.approve'`. Furthermore, the "All" tab requires `hrms.timesheet.read`, which is only seeded on the `hr` role, not `tenant-admin`.
+- **Impact:** Approvers cannot inspect the submitted timesheet entry from the inbox; approvers cannot track previously approved items; Tenant Admins cannot audit tenant timesheets from `/hrms/timesheet-review`.
+- **Status:** Open.
+
+#### D-45 (BUG-D5-007): Submitted Timesheet Lacks Edit / Recall-to-Draft Flow (Locked Out by One-Timesheet-Per-Week Constraint)
+- **Found:** 2026-10-09, manual QA Timesheet flow (`/hrms/timesheets/week/:weekStart`, Step `S7-09`)
+- **Symptoms:**
+  1. Once an employee clicks **Submit**, the entire week grid enters a locked read-only state. All hours inputs are disabled, and action buttons (Save draft, Submit, Delete draft) are hidden.
+  2. There is no **"Recall / Withdraw to Draft"** option. If an employee realizes they entered incorrect task hours or submitted prematurely, they cannot edit the submitted week or submit a corrected one because PostgreSQL enforces a strict unique constraint on `(tenant_id, employee_id, week_start_date)`. The employee is stranded unless a manager explicitly rejects the timesheet.
+- **Root Cause:** The timesheet state machine transitions directly from `DRAFT` to `SUBMITTED` without an intermediate `RECALLED` / `WITHDRAWN` transition or edit permission for pending submissions prior to approval.
+- **Impact:** Employees who make errors during submission have no self-service way to correct their weekly hours, leading to stranded records or forcing manual communication with approvers to trigger a rejection.
+- **Status:** Open.
+
+#### D-46 (BUG-D5-008): Attendance Screen Hides Past Session Intervals & Tenant Admin Blocked from Clock In/Out
+- **Found:** 2026-10-09, manual QA Attendance flow (`/hrms/attendance`, Step `S7-02`, `S7-03`)
+- **Symptoms:**
+  1. **Past Date Sessions Invisibility (`ClockCard.jsx`, `MyAttendance.jsx`)**: The Clock Card renders a timeline with individual clock-in and clock-out timestamps for today only. For past dates, the "My days" table only lists aggregated totals and session counts (`sessions: N`); there is no way for the employee to view or expand individual session start/end intervals from earlier dates.
+  2. **Tenant Admin Clocking Inaccessibility**: Tenant Administrator accounts have no linked employee record (`core.employee`), completely preventing clock in and clock out operations or attendance self-service testing under the admin persona.
+- **Root Cause:**
+  1. `ClockCard.jsx` loads today's sessions via `attendanceService.today()`. `MyAttendance.jsx` groups monthly data by day (`byDay`) without providing row expansion for historical session timelines.
+  2. `AttendanceCaptureController.java` requires an active employee context linked to the caller's user account.
+- **Impact:** Employees cannot audit their exact historical punch pairs; Tenant Admins cannot use or verify attendance capture directly.
+- **Status:** Open.
+
+#### D-47 (BUG-D5-009): Regularization & Overtime Request Screens Require Manual Date Range Selection to Fetch Data
+- **Found:** 2026-10-09, manual QA Regularizations & Overtime (`/hrms/regularizations`, `/hrms/overtime-requests`, Steps `S7-05`, `S7-07`)
+- **Symptoms:**
+  1. Navigating to `/hrms/regularizations` or `/hrms/overtime-requests` initially displays an empty table. No API call is executed on mount because the component `range` state is initialized to `null` (`MyRegularizations.jsx:14`, `MyOvertime.jsx:14`).
+  2. Users are forced to manually pick a date range in the picker before any requests appear. The date range should act as a filtering mechanism, not an entry gate to display data; screens should automatically fetch and display current records (e.g. current month or default 30-90 days) on initial load.
+- **Root Cause:** `useEffect` only invokes `load(range)` if `range` is truthy (`if (range) load(range)`), with `range` initialized to `null` instead of a default preset range like `[dayjs().startOf('month'), dayjs()]`.
+- **Impact:** Users assume no regularization or overtime requests exist upon opening the page, causing confusion and requiring redundant user interactions.
+- **Status:** Open.
+
+#### D-48 (BUG-D5-010): Rejected Overtime Requests Vanish from Approvals & UI Views
+- **Found:** 2026-10-09, manual QA Overtime Approvals (`/approvals`, `/hrms/overtime-requests`, Step `S7-08`)
+- **Symptoms:**
+  1. Once an approver rejects an overtime request, the record completely disappears from the UI rather than remaining visible with status `REJECTED` in an audit or decided history view.
+- **Root Cause:** `/approvals` inbox only queries pending approval steps (`approvalService.pending()`) and lacks a "Decided / History" tab to view rejected/approved requests. Additionally, employee view filters may not surface terminal decisions without explicit date matching.
+- **Impact:** Approvers and employees lose visibility and confirmation of rejected overtime applications, leaving no visible audit trail in the UI.
+- **Status:** Open.
+
+#### D-49 (BUG-D5-011): Leave Year Input in `LeaveImport.jsx` Uses `InputNumber`, Blocking Required `YYYY-YY` Format for April Tenants
+- **Found:** 2026-10-09, manual QA Leave Import flow (`/leave/import`, Steps `S20-03`, `S20-04`)
+- **Symptoms:**
+  1. For tenants whose financial year starts in month 4 (April), the backend requires leave year formatted as `YYYY-YY` (e.g. `2026-27`).
+  2. `LeaveImport.jsx` uses Ant Design `<InputNumber value={leaveYear} onChange={setLeaveYear} />` defaulting to numeric `2026`. Any attempt to enter `2026-27` is rejected by `InputNumber` because it only accepts numeric characters.
+  3. When submitted as numeric `2026`, backend throws `HTTP 400 Bad Request: Invalid leave year format '2026'. Tenant starting in month 4 requires YYYY-YY (e.g. 2026-27)`. This completely blocks users from executing leave imports through the UI without manual state manipulation.
+- **Root Cause:** `LeaveImport.jsx` hardcodes `InputNumber` instead of text `<Input>` or `<Select>` dynamically populated from tenant leave year configuration.
+- **Impact:** High / Blocker for April-cycle tenants trying to import leave balances.
+- **Status:** Open.
+
+#### D-50 (BUG-D5-012): Missing Sample CSV Template Download Link on `/leave/import`
+- **Found:** 2026-10-09, manual QA Leave Import flow (`/leave/import`, Step `S20-02`)
+- **Symptoms:**
+  1. Test step S20-02 requires downloading a sample CSV template with expected headers (`employee_code, leave_type_code, year, balance_days`).
+  2. The UI page `/leave/import` does not have any "Download Sample Template" button or download link.
+- **Root Cause:** `LeaveImport.jsx` only renders the upload dropzone and leave year input; no sample template generator or download link is implemented.
+- **Impact:** Users must guess or reverse-engineer the expected CSV headers and format.
+- **Status:** Open.
+
+#### D-51 (BUG-D5-013): Error Report Document UUID in Warning Alert is Plain Text and Unclickable
+- **Found:** 2026-10-09, manual QA Leave Import flow (`/leave/import`, Step `S20-03`)
+- **Symptoms:**
+  1. When an import completes with validation errors, the Alert message displays: `"Some rows had validation errors. Download error report document: <document-uuid>"`.
+  2. The document UUID is rendered as plain text. Users cannot click to download or view the generated error CSV report.
+- **Root Cause:** `LeaveImport.jsx` renders `errorReportDocumentId` directly inside a string message instead of wrapping it in a download link/button backed by document download API.
+- **Impact:** HR/Admin cannot easily access the generated error report to identify which rows failed validation.
+- **Status:** Open.
+
+#### D-52 (BUG-D5-014): Employee Role Completely Missing Leave Menu Access Due to Parent `core.leave.read` Guard
+- **Found:** 2026-10-09, manual QA Employee Persona Verification (`/leave/requests`, `/me`)
+- **Symptoms:**
+  1. Logged in as Employee (`gafeg90661@calirona.com`), the "Leave" navigation item is completely absent from the sidebar.
+  2. Direct URL navigation to `/leave/requests` throws 404.
+  3. Employees cannot apply for leave or view their balances in the UI.
+- **Root Cause:** `NavigationCatalogue.java:158` guards the parent `"core.leave"` group with action `"core.leave.read"`. The seeded `employee` role only possesses `"core.leave.apply"` and `"core.leave.read_own"`, not `"core.leave.read"`. Because the parent menu item is hidden, its children (including leave application and my requests) are inaccessible.
+- **Impact:** Critical / Blocker: Employees cannot perform self-service leave operations.
+- **Status:** Open.
+
+#### D-53 (BUG-D5-015): Employee Portal (`/me`, `MyLeave.jsx`) Leave Balance Cards Visual Misalignment
+- **Found:** 2026-10-12, manual QA Employee Leave view (`/me`, `MyLeave.jsx`, Step `S6-02`)
+- **Symptoms:**
+  1. On the employee self-service portal (`/me`, My Leave tab), the "Leave Balances" section displays available and consumed days for employee leave types (e.g. EL, SL), but the cards are visually misaligned and lack a structured layout.
+  2. The cards do not maintain consistent height, meter progress bars, or uniform vertical alignment when type names or day counts vary.
+- **Root Cause:** `MyLeave.jsx:136-155` uses Ant Design `<Row gutter={[16, 16]}>` with unconstrained `<Card type="inner">` without flex height matching, visual meter progress bars, or structured alignment containers.
+- **Impact:** Poor visual hierarchy and misaligned UI presentation for employees viewing their leave balances.
+- **Status:** Open.
+
+#### D-54 (BUG-D5-016): Admin Detail View (`/leave/requests/:id`) Incorrectly Exposes Applicant-Only "Withdraw" Action
+- **Found:** 2026-10-12, manual QA Leave Request Detail (`/leave/requests/:id`, Step `S6-04`)
+- **Symptoms:**
+  1. When Tenant Admin or HR views the detail page of a pending employee leave request (`/leave/requests/:id`), the screen displays a prominent red **"Withdraw"** button in the header actions.
+  2. In HRMS business workflows, "Withdraw" is strictly an employee self-service action allowing applicants to pull back their own pending request before an approval decision is made. Administrators and approvers should only see `Approve`, `Reject`, or `Cancel Leave` (for approved leaves), not a self-service "Withdraw" button.
+- **Root Cause:** `LeaveRequestDetail.jsx:184` computes `const canWithdraw = !isReadOnly && canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED');`. It gates the withdraw button on `canManage` (`core.leave.manage`) instead of verifying whether the authenticated user is the applicant employee (`isApplicant`).
+- **Impact:** Confusion over role responsibilities and potential semantic/permission violations if an administrator attempts to trigger an employee self-service withdrawal.
+- **Status:** Open.
+
+#### D-55 (BUG-D5-017): Leave Policy Drawer (`PolicyForm.jsx`) Throws `VALIDATION_FAILED: effectiveFrom cannot be null` on Save and Lacks Effective Date Input
+- **Found:** 2026-10-12, manual QA Leave Type Policy Configuration (`/leave/types`, Step `S4-10`, `S6-01`)
+- **Symptoms:**
+  1. When an administrator adds a leave type or opens the policy drawer (`PolicyForm.jsx`) from `/leave/types` to configure annual days and rules, clicking **Save** throws an error: `HTTP 400 / VALIDATION_FAILED: effectiveFrom date cannot be null`.
+  2. There is no visible input field or date picker on the drawer to specify an effective date.
+- **Root Cause:** Backend `LeavePolicyRequest` enforces `@NotNull LocalDate effectiveFrom`. On the deployed environment, `PolicyForm.jsx` omitted `<DatePicker name="effectiveFrom">`, leaving `values.effectiveFrom` undefined during submission. (Resolved locally in `dev-sayeed` branch by adding `<DatePicker name="effectiveFrom">` defaulting to `dayjs().startOf('year')`, awaiting deployment).
+- **Impact:** Critical / Blocker: Prevents administrators from creating or editing leave policies through the deployed UI.
+- **Status:** Open.
+
+#### D-56 (BUG-D5-018): Employee Portal (`/me`) Dashboard & Profile Summary Card Visual Misalignment
+- **Found:** 2026-10-12, manual QA Employee Portal (`/me`, Step `S19-02`)
+- **Symptoms:**
+  1. On the employee portal (`/me`), the employee profile summary card displays employee details (Name, Job Title, Department, Location), but the content is visually misaligned.
+  2. The text labels and values lack clean vertical rhythm, padding, and structured visual alignment.
+- **Root Cause:** Dashboard header and profile overview card in `MyProfile.jsx` / `/me` layout lack consistent flex alignment, fixed padding, and standard typography container hierarchy.
+- **Impact:** Poor visual presentation on the primary employee landing page.
+- **Status:** Open.
+
+#### D-57 (BUG-D5-019): Missing "Holiday Calendar" Tab on Employee Portal (`/me`)
+- **Found:** 2026-10-12, manual QA Employee Portal (`/me`, Step `S19-04`)
+- **Symptoms:**
+  1. Test step S19-04 requires employees to inspect upcoming tenant/work location holidays on the `/me` portal.
+  2. There is no "Holiday Calendar" tab, card, or widget available anywhere on `/me`.
+- **Root Cause:** `PortalLayout.jsx` and `PortalPanelProvider` do not register a `HolidayCalendarPanelProvider`. Holiday calendar navigation exists exclusively under Organisation masters for Admin/HR, leaving employees without self-service visibility into their upcoming holidays.
+- **Impact:** Employees cannot check their upcoming holiday schedule from the self-service portal.
+- **Status:** Open.
+
+#### D-58 (BUG-D5-020): My Profile Screen (`/me/profile`) UI Form Sections Visual Misalignment
+- **Found:** 2026-10-12, manual QA Employee Profile (`/me/profile`, Step `S19-06`)
+- **Symptoms:**
+  1. On the My Profile screen (`/me/profile`), updating emergency contact details succeeds, but the form sections (Personal, Job, Contact) suffer from visual misalignment.
+  2. Form input fields, label widths, and grid columns lack consistent alignment and responsive structure.
+- **Root Cause:** `MyProfile.jsx` form layout mixes unaligned description rows with inconsistent column definitions (`xs: 1, sm: 2, md: 3`) and missing `labelCol`/`wrapperCol` standardization across editable sections.
+- **Impact:** Unpolished and misaligned UI presentation on employee self-service profile screens.
+- **Status:** Open.
 
 ---
 

@@ -5,6 +5,7 @@ import {
   InputNumber,
   Select,
   Switch,
+  DatePicker,
   Button,
   Space,
   Row,
@@ -63,6 +64,10 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
 
       form.setFieldsValue({
         annualDays: p.annualDays,
+        // Not prefilled on edit: the server dates the new version itself (today's leave year, never
+        // behind the version in force). Sending the stored date back would be refused once a new
+        // leave year starts. The stored date is shown beside the field instead.
+        effectiveFrom: undefined,
         accrualEnabled: p.accrualEnabled,
         accrualFrequency: p.accrualFrequency || 'monthly',
         accrualUnits: p.accrualUnits,
@@ -82,6 +87,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
       setExceedMode('noLimit');
       form.setFieldsValue({
         annualDays: 12,
+        effectiveFrom: undefined,
         accrualEnabled: false,
         accrualFrequency: 'monthly',
         resetEnabled: true,
@@ -108,6 +114,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
 
         const payload = {
           annualDays: values.annualDays,
+          effectiveFrom: values.effectiveFrom ? values.effectiveFrom.format('YYYY-MM-DD') : null,
           accrualEnabled: Boolean(values.accrualEnabled),
           accrualFrequency: values.accrualEnabled ? values.accrualFrequency : null,
           accrualUnits: values.accrualUnits || null,
@@ -146,7 +153,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
     >
       <Text strong>Entitlement & Accrual</Text>
       <Row gutter={16} style={{ marginTop: 8 }}>
-        <Col span={12}>
+        <Col span={8}>
           <Form.Item
             name="annualDays"
             label="Annual Days"
@@ -155,7 +162,20 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
             <InputNumber min={0} max={365} step={0.5} style={{ width: '100%' }} />
           </Form.Item>
         </Col>
-        <Col span={12}>
+        <Col span={8}>
+          <Form.Item
+            name="effectiveFrom"
+            label="Effective From"
+            extra={
+              leaveType?.policy?.effectiveFrom
+                ? `Current policy effective from ${leaveType.policy.effectiveFrom}. Leave empty to apply the change from the current leave year.`
+                : 'Leave empty to start from the first day of the current leave year.'
+            }
+          >
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Current leave year" />
+          </Form.Item>
+        </Col>
+        <Col span={8}>
           <Form.Item name="accrualEnabled" label="Accrual Enabled" valuePropName="checked">
             <Switch onChange={setAccrualOn} />
           </Form.Item>

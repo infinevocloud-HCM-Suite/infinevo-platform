@@ -146,6 +146,57 @@ describe('Calendars component', () => {
     });
   });
 
+  // D-16: the server refuses a second default calendar with 409, so the drawer never offers one.
+  it('creates the first calendar as the default and later ones as location-specific', async () => {
+    holidayCalendarService.list.mockResolvedValue([]);
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/holidays']}>
+          <Calendars />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(holidayCalendarService.list).toHaveBeenCalled();
+    });
+    fireEvent.click(document.getElementById('btn-create-calendar'));
+    await waitFor(() => {
+      expect(screen.getByText('Create Holiday Calendar')).toBeDefined();
+    });
+    expect(document.getElementById('switch-calendar-default').disabled).toBe(false);
+
+    fireEvent.change(document.getElementById('input-calendar-name'), { target: { value: 'First' } });
+    fireEvent.click(document.getElementById('btn-save-calendar'));
+
+    await waitFor(() => {
+      expect(holidayCalendarService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'First', isDefault: true })
+      );
+    });
+  });
+
+  it('disables the default switch when a default calendar already exists', async () => {
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/holidays']}>
+          <Calendars />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('India Standard 2026')).toBeDefined();
+    });
+    fireEvent.click(document.getElementById('btn-create-calendar'));
+    await waitFor(() => {
+      expect(screen.getByText('Create Holiday Calendar')).toBeDefined();
+    });
+
+    expect(document.getElementById('switch-calendar-default').disabled).toBe(true);
+    expect(screen.getByText(/A default calendar already exists/i)).toBeDefined();
+  });
+
   it('loads calendar on edit click and calls update on submit', async () => {
     render(
       <Provider store={store}>

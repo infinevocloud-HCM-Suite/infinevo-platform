@@ -216,20 +216,31 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
                 request.gender() != null && !request.gender().isBlank()
                         ? request.gender().trim()
                         : null);
-        policy.setEffectiveFrom(request.effectiveFrom());
-
-        LocalDate effectiveDate =
-                request.effectiveFrom() != null ? request.effectiveFrom() : LocalDate.now(ZoneOffset.UTC);
-
         // Refuse a policy date before the current leave year (Spec § 6)
         int startMonth = LeaveDateUtils.getTenantLeaveYearStartMonth(jdbcTemplate, tenantId);
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate currentYearStart = LeaveDateUtils.getCurrentLeaveYearStartDate(today, startMonth);
+
+        // No date given (D-55): start from the current leave year - but never behind the version already
+        // in force. Versions are read newest-date-first, so a new row dated 1 April behind a stored
+        // 1 June version would never be the one in force while allocations had already moved to it.
+        LocalDate effectiveDate = request.effectiveFrom();
+        if (effectiveDate == null) {
+            effectiveDate = leavePolicyRepository
+                    .findFirstByTenantIdAndLeaveTypeIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescCreatedAtDesc(
+                            tenantId, leaveTypeId, today)
+                    .map(LeavePolicy::getEffectiveFrom)
+                    .filter(inForce -> inForce.isAfter(currentYearStart))
+                    .orElse(currentYearStart);
+        }
+
         if (effectiveDate.isBefore(currentYearStart)) {
             throw new IllegalArgumentException(
                     "Policy effectiveFrom date cannot be before the current leave year start date (" + currentYearStart
                             + "): " + effectiveDate);
         }
+
+        policy.setEffectiveFrom(effectiveDate);
 
         List<OverdrawnEmployee> overdrawn = List.of();
         if (leaveAllocationService != null && request.annualDays() != null) {

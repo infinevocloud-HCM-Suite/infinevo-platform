@@ -6,6 +6,19 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-13 — Sayeed's leave fixes on `main` (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58`
+
+| Fix | What |
+|---|---|
+| `D-15`, `D-55` | A leave policy saved without an effective date starts on the first day of the tenant's current leave year; a date before it is refused with the reason. The drawer sends no default |
+| `D-16` | The first holiday calendar is the default; once one exists the switch is off and disabled, so the 409 cannot happen from the screen |
+
+- Built by Sayeed on `dev-sayeed`; one independent read before the squash. The branch's own fix did not work end to end — the validator still refused an empty date and the drawer defaulted to 1 January, which an April-cycle tenant refuses — fixed in the merge with tests (`LeavePolicyEffectiveFromTest`, `PolicyForm.test.jsx`, `Calendars.test.jsx`).
+- `D-52` (employee sees no Leave menu) was already fixed on `main` as `D-74`/`D-75`; its row says so now.
+- **Open from Sayeed's QA:** `D-43`–`D-51`, `D-53`, `D-54`, `D-56`–`D-58` — leave import, approvals history, timesheet recall, attendance history, `/me` layout, holiday view. `D-53`, `D-56`, `D-58` overlap the screen audit's Phase 3 (`D-78`).
+- **Numbering:** `D-15`–`D-18` here are Sayeed's; Devashish's branch uses the same numbers for other defects — founder renumbers once on `main`.
+- **Branches:** `dev-claude-sayeed` can be deleted; `dev-sayeed` resets to `main`.
+
 ## 2026-10-10 — Screen audit Phase 2: `D-74`–`D-77` fixed on `main`
 
 | Defect | What |
