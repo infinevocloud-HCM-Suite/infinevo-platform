@@ -173,4 +173,19 @@ class ReportingLineServiceTest {
         ReflectionTestUtils.setField(e, "deleted", false);
         return e;
     }
+
+    @Test
+    @DisplayName(
+            "D-92: directReportIds answers the ids of the manager's direct reports on the date, inside the service")
+    void directReportIdsListsTheReports() {
+        LocalDate asOf = LocalDate.of(2026, 10, 13);
+        ReportingLine bToA =
+                new ReportingLine(TENANT, empB, empA, ReportingLineKind.PRIMARY, LocalDate.of(2026, 1, 1), "test");
+        ReportingLine cToA =
+                new ReportingLine(TENANT, empC, empA, ReportingLineKind.PRIMARY, LocalDate.of(2026, 1, 1), "test");
+        when(repository.findDirectReports(TENANT, empAId, asOf)).thenReturn(List.of(bToA, cToA));
+
+        assertThat(service.directReportIds(empAId, asOf)).containsExactly(empBId, empCId);
+        assertThat(service.directReportIds(empBId, asOf)).isEmpty();
+    }
 }

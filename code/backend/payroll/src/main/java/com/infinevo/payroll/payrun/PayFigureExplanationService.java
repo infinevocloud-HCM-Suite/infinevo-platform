@@ -2,6 +2,7 @@ package com.infinevo.payroll.payrun;
 
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.authz.PermissionDeniedException;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
@@ -112,8 +113,7 @@ public class PayFigureExplanationService {
         if (permissionService.holds(READ_ANY)) {
             return;
         }
-        EmployeeResponse caller =
-                employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(READ_OWN));
+        EmployeeResponse caller = employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
         if (!caller.id().equals(employeeId)) {
             throw new PermissionDeniedException(READ_ANY);
         }

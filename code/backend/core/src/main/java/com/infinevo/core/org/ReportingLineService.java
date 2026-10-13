@@ -91,6 +91,24 @@ public class ReportingLineService {
     }
 
     /**
+     * Ids of the employees who report directly to {@code managerId} on {@code asOf} (D-92).
+     *
+     * <p>The leave controllers used to call the repository themselves, outside any transaction. The
+     * datasource binds the tenant per transaction and refuses an auto-commit connection, so the manager's
+     * "View item" from the inbox answered 400 "connection is in auto-commit mode". Reading here, under
+     * {@code @Transactional}, is what every other tenant-scoped read does.
+     */
+    @Transactional(readOnly = true)
+    public List<UUID> directReportIds(UUID managerId, LocalDate asOf) {
+        UUID tenantId = TenantContext.require();
+        Objects.requireNonNull(managerId, "managerId must not be null");
+        Objects.requireNonNull(asOf, "asOf date must not be null");
+        return repository.findDirectReports(tenantId, managerId, asOf).stream()
+                .map(line -> line.getEmployee().getId())
+                .toList();
+    }
+
+    /**
      * Resolves the ordered chain of managers above an employee as of a specific date (W-14.2, spec section 3).
      *
      * @param employeeId the target employee

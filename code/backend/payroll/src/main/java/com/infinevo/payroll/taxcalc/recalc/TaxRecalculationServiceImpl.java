@@ -14,7 +14,7 @@ import com.infinevo.payroll.taxdeclaration.IncomeTaxDeclarationWindow;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationWindowService;
 import com.infinevo.payroll.taxdeclaration.summary.TaxSummaryService;
 import com.infinevo.payroll.taxdeclaration.summary.dto.TaxSummaryFigures;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Instant;
 import java.util.List;
@@ -198,9 +198,7 @@ public class TaxRecalculationServiceImpl implements TaxRecalculationService {
     @Override
     @Transactional(readOnly = true)
     public List<TaxComputationRecordResponse> historyOwn(String financialYear) {
-        EmployeeResponse current = employeeService
-                .currentEmployee()
-                .orElseThrow(() -> new PermissionDeniedException("payroll.tax_declaration.read_own"));
+        EmployeeResponse current = employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
         return history(current.id(), financialYear);
     }
 

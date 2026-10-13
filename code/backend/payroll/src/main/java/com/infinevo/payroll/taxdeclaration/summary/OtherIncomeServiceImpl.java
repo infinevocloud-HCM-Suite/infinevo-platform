@@ -11,7 +11,7 @@ import com.infinevo.payroll.taxdeclaration.TaxDeclarationWindowService;
 import com.infinevo.payroll.taxdeclaration.exception.DeclarationNotEditableException;
 import com.infinevo.payroll.taxdeclaration.summary.dto.OtherIncomeRequest;
 import com.infinevo.payroll.taxdeclaration.summary.dto.OtherIncomeResponse;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -141,6 +141,6 @@ public class OtherIncomeServiceImpl implements OtherIncomeService {
     }
 
     private EmployeeResponse currentEmployeeOrDeny(String actionCode) {
-        return employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(actionCode));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 }

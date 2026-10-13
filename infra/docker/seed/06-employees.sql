@@ -1,4 +1,4 @@
--- Seed: an employee record for each of the two dev employee logins.
+-- Seed: an employee record for each dev login that is not a tenant admin.
 --
 -- Local development only. Not a Flyway migration, and never run against a deployed
 -- environment — seed.sh says the same thing and is the only thing that runs this file.
@@ -11,6 +11,15 @@
 --
 --   employee.acme     -> ACME-0001 in Acme Manufacturing
 --   employee.globex   -> GLBX-0001 in Globex Corporation
+--   hr.globex         -> GLBX-0002 in Globex Corporation
+--   manager.globex    -> GLBX-0003 in Globex Corporation
+--   payroll.globex    -> GLBX-0004 in Globex Corporation
+--   finance.globex    -> GLBX-0005 in Globex Corporation
+--
+-- The four Globex role logins need an employee record for two reasons: the approval
+-- engine assigns tasks to employees, not logins (CoreApproverResolver resolves ROLE "hr"
+-- through core.employee.user_account_id), and 07-reporting-lines.sql makes GLBX-0003 the
+-- manager of GLBX-0001, which needs both to be employees.
 --
 -- The two admins get no employee record on purpose: a login without one is the case the
 -- /me endpoints must answer cleanly, and it needs someone to exercise it.
@@ -28,7 +37,15 @@ FROM (VALUES
         ('11111111-1111-1111-1111-111111111111'::uuid, 'a0000000-0000-0000-0000-000000000002'::uuid,
          'ACME-0001', 'Asha', 'Employee', DATE '2024-04-01'),
         ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid,
-         'GLBX-0001', 'Gautam', 'Employee', DATE '2024-04-01')
+         'GLBX-0001', 'Gautam', 'Employee', DATE '2024-04-01'),
+        ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000003'::uuid,
+         'GLBX-0002', 'Hema', 'Hr', DATE '2024-04-01'),
+        ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000004'::uuid,
+         'GLBX-0003', 'Manish', 'Manager', DATE '2024-04-01'),
+        ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000005'::uuid,
+         'GLBX-0004', 'Priya', 'Payroll', DATE '2024-04-01'),
+        ('22222222-2222-2222-2222-222222222222'::uuid, 'b0000000-0000-0000-0000-000000000006'::uuid,
+         'GLBX-0005', 'Farah', 'Finance', DATE '2024-04-01')
      ) AS e (tenant_id, keycloak_user_id, employee_number, first_name, last_name, date_of_joining)
 JOIN core.user_account ua ON ua.tenant_id = e.tenant_id AND ua.keycloak_user_id = e.keycloak_user_id
 ON CONFLICT (tenant_id, employee_number) DO NOTHING;

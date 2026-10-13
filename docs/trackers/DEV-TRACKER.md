@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-10-13**, against `main` — Krushna's Day 4 employee fixes (`BUG-D4-13`–`BUG-D4-22`, §9) merged with two merge-review fixes; `D-88` (invitation sets the password) merged; Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
+> Last refreshed: **2026-10-13**, against `main` — Playwright per-role e2e suite in CI (`e2e` job, non-blocking) and its findings `D-89`–`D-93` fixed; Devashish's `D-14` (finance sees Approvals, `V174`) and `D-24` (tax-declaration year route) merged, his QA rows in §11, `D-25` proof screens held for a spec; Krushna's Day 4 employee fixes (`BUG-D4-13`–`BUG-D4-22`, §9) merged with two merge-review fixes; `D-88` (invitation sets the password) merged; Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
 
 ## Summary
 
@@ -133,12 +133,12 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-50 | Missing "Download Sample CSV Template" button/link on `/leave/import` screen | 2026-10-09, manual QA Leave Import flow (`S20-02`) | sayeed (`dev-sayeed`) | **open** |
 | D-51 | Error report document UUID in validation warning alert on `/leave/import` is rendered as plain text instead of a clickable download link | 2026-10-09, manual QA Leave Import flow (`S20-03`) | sayeed (`dev-sayeed`) | **open** |
 | D-52 | Employee role cannot access Leave module (sidebar omits Leave and direct `/leave/requests` throws 404) because parent `core.leave` group requires `core.leave.read` rather than allowing `core.leave.apply` / `core.leave.read_own` | 2026-10-09, manual QA Employee Persona (`S20-06`, `/leave/requests`) | claude (`D-74`) | **fixed on main `db9cdc34` as `D-74`/`D-75`** — "My self-service" shows Leave for any login with an employee record; logged again here by QA before that merge |
-| D-53 | Employee portal (`/me`, `MyLeave.jsx`) leave balance cards are visually misaligned and lack structured meter layout | 2026-10-12, manual QA Employee Leave view (`/me`, `S6-02`) | sayeed (`dev-sayeed`) | **open** |
-| D-54 | Admin detail view of employee leave request (`/leave/requests/:id`) incorrectly displays applicant-only "Withdraw" action | 2026-10-12, manual QA Leave Request Detail (`/leave/requests/:id`, `S6-04`) | sayeed (`dev-sayeed`) | **open** |
-| D-55 | Leave policy drawer (`PolicyForm.jsx`) throws `VALIDATION_FAILED: effectiveFrom cannot be null` on save and lacks input field for effective date | 2026-10-12, manual QA Leave Type Policy (`/leave/types`, `S4-10`) | sayeed (`dev-sayeed`), claude | **fixed on main 2026-10-13** — same change as `D-15`: `LeavePolicyValidator` no longer refuses an empty date, `LeaveTypeServiceImpl` starts the policy on the current leave year, `PolicyForm` sends no default |
-| D-56 | Employee portal (`/me`) dashboard and Profile Summary card suffer from poor layout spacing and visual misalignment | 2026-10-12, manual QA Employee Portal (`/me`, `S19-02`) | sayeed (`dev-sayeed`) | **open** |
-| D-57 | Employee portal (`/me`) lacks a "Holiday Calendar" tab / view for employees to inspect upcoming tenant/location holidays | 2026-10-12, manual QA Employee Portal (`/me`, `S19-04`) | sayeed (`dev-sayeed`) | **open** |
-| D-58 | My Profile screen (`/me/profile`) form inputs and detail sections (Personal, Job, Contact) are visually misaligned | 2026-10-12, manual QA Employee Profile (`/me/profile`, `S19-06`) | sayeed (`dev-sayeed`) | **open** |
+| D-53 | Employee portal (`/me`, `MyLeave.jsx`) leave balance cards are visually misaligned and lack structured meter layout | 2026-10-12, manual QA Employee Leave view (`/me`, `S6-02`) | sayeed (`dev-sayeed`) | **resolved locally** — redesigned balance cards with flex column height, dynamic progress meters, statistic readout, and aligned used/total footer tags |
+| D-54 | Admin detail view of employee leave request (`/leave/requests/:id`) incorrectly displays applicant-only "Withdraw" action | 2026-10-12, manual QA Leave Request Detail (`/leave/requests/:id`, `S6-04`) | sayeed (`dev-sayeed`) | **resolved locally** — gated Withdraw strictly on `isApplicant` so administrators and managers never see applicant withdrawal action on employee requests |
+| D-55 | Leave policy drawer (`PolicyForm.jsx`) throws `VALIDATION_FAILED: effectiveFrom cannot be null` on save and lacks input field for effective date | 2026-10-12, manual QA Leave Type Policy (`/leave/types`, `S4-10`) | sayeed (`dev-sayeed`), claude | **resolved locally** — `LeavePolicyValidator` allows empty date, `LeaveTypeServiceImpl` defaults to current leave year start, `PolicyForm` includes effectiveFrom datepicker with clear guidance |
+| D-56 | Employee portal (`/me`) dashboard and Profile Summary card suffer from poor layout spacing and visual misalignment | 2026-10-12, manual QA Employee Portal (`/me`, `S19-02`) | sayeed (`dev-sayeed`) | **resolved locally** — implemented hero summary card with avatar, badges, structured metadata chips, and responsive flex layout |
+| D-57 | Employee portal (`/me`) lacks a "Holiday Calendar" tab / view for employees to inspect upcoming tenant/location holidays | 2026-10-12, manual QA Employee Portal (`/me`, `S19-04`) | sayeed (`dev-sayeed`) | **resolved locally** — added Holiday Calendar tab to `/me` portal redirecting seamlessly to `/holidays` (Organisation > Holidays) |
+| D-58 | My Profile screen (`/me/profile`) form sections visual misalignment; employee portal presented editable inputs and POST/PUT save calls instead of read-only showcase | 2026-10-12, manual QA Employee Profile (`/me/profile`, `S19-06`) | sayeed (`dev-sayeed`) | **resolved locally** — removed edit inputs and POST API from employee portal; admin retains full edit/POST API; self-service showcases employee details under 2 clean tabs: Personal Details and Contact Details |
 | D-62 | Accepting an invitation ends on a page whose main action is "Sign in" (`AcceptInvitation.jsx:113-121`), so invitees reach the login screen before they have a password; a reused Keycloak account gets no set-password mail yet is told to wait for one (`KeycloakProvisioningServiceImpl.java:159-161`); the set-password mail carries no way back to the app; `/invitations/accept/` with a trailing slash falls into sign-in (`main.jsx:31`) | 2026-10-09, founder | claude: accept returns an `outcome` (mail sent / mail failed / existing account) and the page words its next step from it; an existing account still awaiting `UPDATE_PASSWORD` is sent the mail again; the mail carries `client_id` and the app root as `redirect_uri`; trailing slash accepted | **fixed on main — built by claude** |
 | D-63 | Endless sign-in loop: every 401 sends the browser to Keycloak (`ShellBoundary.jsx:18-23`), and a live Keycloak session hands it straight back to the same 401 — e.g. `TENANT_NOT_BOUND` for an account in no tenant or several (`TenantContextFilter.java:234-243`) — until the browser errors. The invite gave no warning that a browser signed in as someone else makes Keycloak refuse the set-password link (`different_user_authenticated`, Azure dev 2026-10-09 11:37) | 2026-10-09, founder on Azure dev | claude: `TENANT_NOT_BOUND` shows an access-problem screen with Sign out; a re-login carries `relogin=1`, and a second 401 on return stops on that screen; the accept page and its success text say to sign out or use a private window | **fixed on main — built by claude** |
 | D-64 | Payroll settings (pay schedule, EPF, ESI, PT, FBP, tax window) and salary components never mount: no feed path above `/payroll/settings/*` or `/payroll/components` (`routes.js:54-68`, `PayrollNavigation.java:61`) | 2026-10-09, screen audit | "Payroll settings" (`/payroll/settings`, `payroll.settings.manage`) and "Salary components" (`/payroll/components`, `payroll.structure.read`) menu items | **fixed on main — built by claude** |
@@ -166,6 +166,11 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-86 | Leave types offer "Hours", which `LeaveUnit` refuses (`LeaveTypes.jsx:285`); `DRAFT` has no label; employee leave history never mounts (`core/index.js:141`) | 2026-10-09, screen audit | drop Hours; Draft label; history under `/employees` and linked | open |
 | D-87 | Timesheet and Tax declaration panels share order 5; Claims panel has no icon (`TimesheetPanelProvider.java`, `TaxDeclarationPanelProvider.java`, `PortalLayout.jsx:22-29`) | 2026-10-09, screen audit | orders 5, 6, 7; icon | open |
 | D-88 | No way to set or recover a password once an invitation is accepted. The accept page set none; the only password came from Keycloak's set-password mail (`KeycloakProvisioningServiceImpl.java`), a reused account got no mail at all (`AcceptOutcome.EXISTING_ACCOUNT`); the live Azure dev login page showed no "Forgot password?" though the realm file says `resetPasswordAllowed: true`; nothing in the app resets a password | 2026-10-09, founder on Azure dev | founder: (1) "Forgot password?" on the login screen — `resetPasswordAllowed` on the live realm, `check-realm.mjs --live` checks the deployed realm; (2) one email, not two: the invitation link opens a set-password screen, the accept call carries the password, sets it in Keycloak and clears `UPDATE_PASSWORD`, realm policy failures shown on that screen. ("Send set-password link" on Users & Access considered and dropped.) | **fixed on main 2026-10-13** — built by claude on `dev-claude`; one independent read, its findings fixed before merge. Outstanding: `resetPasswordAllowed` must be set on the live dev realm (verify-live check 11 fails until then) |
+| D-89 | The local Docker stack could not be used in a browser: the frontend called the API without `/api` and without CORS the backend refused it (`compose.yml` web `VITE_API_BASE_URL`) | 2026-10-11, building the e2e suite | the dev server proxies `/api` to the backend as nginx does in production (`vite.config.js`, `VITE_API_PROXY_TARGET`) | **fixed on main 2026-10-13** — built by claude |
+| D-90 | Leave type form lets Valid From stay blank while the server requires it (`LeaveTypes.jsx:319`, `LeaveTypeServiceImpl.requireTypeFields`) | 2026-10-12, e2e suite | the field is required on the form | **fixed on main 2026-10-13** — built by claude |
+| D-91 | A login with no employee record (tenant admin, platform staff) opening a self-service screen was told "Not permitted: requires action 'hrms.timesheet.read_own'" though it holds the action: sixteen `currentEmployee().orElseThrow(PermissionDeniedException)` sites in hrms and payroll | 2026-10-12, e2e suite (tenant-admin Timesheets > Open this week) | `NoEmployeeRecordException` (shared): "No employee record is linked to your account…", still 403; `AuthzExceptionHandler` passes the message through | **fixed on main 2026-10-13** — built by claude (16 sites) |
+| D-92 | Manager opening a leave request from the inbox gets 400 "connection is in auto-commit mode: the tenant binding is transaction-local": `LeaveRequestController`, `LeaveAllocationController` and `LeaveConsumptionController` called `ReportingLineRepository.findDirectReports` outside a transaction | 2026-10-13, e2e suite (manager View Item → `/leave/requests/:id`) | `ReportingLineService.directReportIds` (`@Transactional(readOnly = true)`) used by all four call sites | **fixed on main 2026-10-13** — built by claude |
+| D-93 | Manual leave allocation always sends 1 January – 31 December as the leave year (`Allocations.jsx:101`); for an April-cycle tenant (the default) no policy is in force on 1 January, so HR gets "No effective policy found for leave type <uuid>" — the part of `D-15` Sayeed's fix did not reach | 2026-10-13, e2e suite (HR Allocate) | `GET /tenants/current/profile` carries `leaveYearStartMonth`; the screen builds the window from it and shows it beside Leave Year | **fixed on main 2026-10-13** — built by claude. Still open: the error names the leave type by UUID |
 
 Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D-44, D-45, D-46, D-47, D-48, D-49, D-50, D-51, D-52, D-53, D-54, D-55, D-56, D-57, D-58 are M. Each is one branch, one commit, no spec. Anything larger from the same 2026-10-07 review is a `W-73` child spec (§6).
 
@@ -300,54 +305,82 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
 - **Symptoms:**
   1. On the employee self-service portal (`/me`, My Leave tab), the "Leave Balances" section displays available and consumed days for employee leave types (e.g. EL, SL), but the cards are visually misaligned and lack a structured layout.
   2. The cards do not maintain consistent height, meter progress bars, or uniform vertical alignment when type names or day counts vary.
-- **Root Cause:** `MyLeave.jsx:136-155` uses Ant Design `<Row gutter={[16, 16]}>` with unconstrained `<Card type="inner">` without flex height matching, visual meter progress bars, or structured alignment containers.
-- **Impact:** Poor visual hierarchy and misaligned UI presentation for employees viewing their leave balances.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. `MyLeave.jsx` previously rendered unconstrained inner cards without matched height, visual progress meters, or consistent vertical rhythm.
+  2. Redesigned leave balance cards using full-height flex column layout (`height: '100%'`, `justifyContent: 'space-between'`) with subtle container gradient and soft border styling.
+  3. Integrated Ant Design `<Progress>` progress meters reflecting consumption percentage with color-coded status thresholds (success / normal / exception).
+  4. Displayed clean `<Statistic>` readouts for available days and added a structured footer tag displaying "Used: X days" alongside the total allocated entitlement tag.
+  5. Corrected `<Space direction="vertical">` and row key definitions.
+- **Impact:** Greatly improved visual clarity and responsiveness for employees tracking leave balances.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### D-54 (BUG-D5-016): Admin Detail View (`/leave/requests/:id`) Incorrectly Exposes Applicant-Only "Withdraw" Action
 - **Found:** 2026-10-12, manual QA Leave Request Detail (`/leave/requests/:id`, Step `S6-04`)
 - **Symptoms:**
   1. When Tenant Admin or HR views the detail page of a pending employee leave request (`/leave/requests/:id`), the screen displays a prominent red **"Withdraw"** button in the header actions.
   2. In HRMS business workflows, "Withdraw" is strictly an employee self-service action allowing applicants to pull back their own pending request before an approval decision is made. Administrators and approvers should only see `Approve`, `Reject`, or `Cancel Leave` (for approved leaves), not a self-service "Withdraw" button.
-- **Root Cause:** `LeaveRequestDetail.jsx:184` computes `const canWithdraw = !isReadOnly && canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED');`. It gates the withdraw button on `canManage` (`core.leave.manage`) instead of verifying whether the authenticated user is the applicant employee (`isApplicant`).
-- **Impact:** Confusion over role responsibilities and potential semantic/permission violations if an administrator attempts to trigger an employee self-service withdrawal.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. `LeaveRequestDetail.jsx:184` previously evaluated `canWithdraw = !isReadOnly && canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED')`. Because administrators hold `canManage` (`core.leave.manage`), the "Withdraw" action was erroneously exposed to administrators on `/leave/requests/:id`.
+  2. Identified caller profile via `portalService.getProfile()` to determine `currentEmployeeId`.
+  3. Gated `isApplicant = Boolean(currentEmployeeId && request?.employeeId && currentEmployeeId === request.employeeId)` and `canWithdraw = isApplicant && (request.status === 'PENDING' || request.status === 'SUBMITTED')`.
+  4. Administrators viewing employee requests on `/leave/requests/:id` no longer see the self-service "Withdraw" button; they only see "Cancel Leave" if the leave has been approved (`canManage && request.status === 'APPROVED'`).
+  5. Added unit test coverage in `LeaveRequestDetail.test.jsx`.
+- **Impact:** Eliminates confusion over administrative roles and ensures applicant-only self-service action isolation.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### D-55 (BUG-D5-017): Leave Policy Drawer (`PolicyForm.jsx`) Throws `VALIDATION_FAILED: effectiveFrom cannot be null` on Save and Lacks Effective Date Input
 - **Found:** 2026-10-12, manual QA Leave Type Policy Configuration (`/leave/types`, Step `S4-10`, `S6-01`)
 - **Symptoms:**
   1. When an administrator adds a leave type or opens the policy drawer (`PolicyForm.jsx`) from `/leave/types` to configure annual days and rules, clicking **Save** throws an error: `HTTP 400 / VALIDATION_FAILED: effectiveFrom date cannot be null`.
   2. There is no visible input field or date picker on the drawer to specify an effective date.
-- **Root Cause:** Backend `LeavePolicyRequest` enforces `@NotNull LocalDate effectiveFrom`. On the deployed environment, `PolicyForm.jsx` omitted `<DatePicker name="effectiveFrom">`, leaving `values.effectiveFrom` undefined during submission. (Resolved locally in `dev-sayeed` branch by adding `<DatePicker name="effectiveFrom">` defaulting to `dayjs().startOf('year')`, awaiting deployment).
-- **Impact:** Critical / Blocker: Prevents administrators from creating or editing leave policies through the deployed UI.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. Backend `LeavePolicyRequest` previously enforced non-null `effectiveFrom` in `LeavePolicyValidator`, blocking saves when the date was omitted.
+  2. `LeavePolicyValidator` now treats `effectiveFrom` as optional, allowing `LeaveTypeServiceImpl.configurePolicy` to default missing dates to the tenant's current leave year start date (and ensuring it never falls behind versions already in force).
+  3. `PolicyForm.jsx` includes a `<DatePicker name="effectiveFrom">` field with clear guidance ("Leave empty to start from the first day of the current leave year").
+  4. Verified with backend tests (`LeavePolicyEffectiveFromTest`, `LeavePolicyValidationTest`) and frontend unit tests (`PolicyForm.test.jsx`).
+- **Impact:** Administrators can seamlessly create and edit leave policies with either explicit effective dates or automatic defaulting to the active leave year.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### D-56 (BUG-D5-018): Employee Portal (`/me`) Dashboard & Profile Summary Card Visual Misalignment
 - **Found:** 2026-10-12, manual QA Employee Portal (`/me`, Step `S19-02`)
 - **Symptoms:**
   1. On the employee portal (`/me`), the employee profile summary card displays employee details (Name, Job Title, Department, Location), but the content is visually misaligned.
   2. The text labels and values lack clean vertical rhythm, padding, and structured visual alignment.
-- **Root Cause:** Dashboard header and profile overview card in `MyProfile.jsx` / `/me` layout lack consistent flex alignment, fixed padding, and standard typography container hierarchy.
-- **Impact:** Poor visual presentation on the primary employee landing page.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. Dashboard header and profile summary card in `MyProfile.jsx` suffered from unaligned metadata items and basic layout structure.
+  2. Implemented a prominent hero summary card (`panel-profile-summary`) with flex alignment, user avatar with status badge, role/title tags, and structured metadata chips (Employee Code, Department, Work Location, Joining Date) with dedicated Ant Design icons.
+- **Impact:** Clean, modern, and visually balanced hero summary card on employee self-service home.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### D-57 (BUG-D5-019): Missing "Holiday Calendar" Tab on Employee Portal (`/me`)
 - **Found:** 2026-10-12, manual QA Employee Portal (`/me`, Step `S19-04`)
 - **Symptoms:**
   1. Test step S19-04 requires employees to inspect upcoming tenant/work location holidays on the `/me` portal.
   2. There is no "Holiday Calendar" tab, card, or widget available anywhere on `/me`.
-- **Root Cause:** `PortalLayout.jsx` and `PortalPanelProvider` do not register a `HolidayCalendarPanelProvider`. Holiday calendar navigation exists exclusively under Organisation masters for Admin/HR, leaving employees without self-service visibility into their upcoming holidays.
-- **Impact:** Employees cannot check their upcoming holiday schedule from the self-service portal.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. `PortalLayout.jsx` previously only rendered tabs dynamically fetched from `/me/panels`, omitting the tenant holiday calendar which resides under Organisation (`/holidays`).
+  2. Added a dedicated "Holiday Calendar" tab with `<CalendarOutlined />` to the self-service tabs in `PortalLayout.jsx`.
+  3. Configured tab navigation and URL redirect: selecting the tab or hitting `/me/holidays` redirects smoothly to `/holidays` (Organisation > Holidays).
+  4. Excluded `holidays` from the 403 forbidden panel check in `PortalLayout.jsx` and added unit test coverage in `PortalLayout.test.jsx`.
+- **Impact:** Employees can effortlessly navigate to upcoming holiday calendar listings directly from their self-service portal.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
-#### D-58 (BUG-D5-020): My Profile Screen (`/me/profile`) UI Form Sections Visual Misalignment
+#### D-58 (BUG-D5-020): My Profile Screen (`/me/profile`) Form Sections Visual Misalignment & Unrestricted Employee Edits
 - **Found:** 2026-10-12, manual QA Employee Profile (`/me/profile`, Step `S19-06`)
 - **Symptoms:**
-  1. On the My Profile screen (`/me/profile`), updating emergency contact details succeeds, but the form sections (Personal, Job, Contact) suffer from visual misalignment.
-  2. Form input fields, label widths, and grid columns lack consistent alignment and responsive structure.
-- **Root Cause:** `MyProfile.jsx` form layout mixes unaligned description rows with inconsistent column definitions (`xs: 1, sm: 2, md: 3`) and missing `labelCol`/`wrapperCol` standardization across editable sections.
-- **Impact:** Unpolished and misaligned UI presentation on employee self-service profile screens.
-- **Status:** Open.
+  1. On the My Profile screen (`/me/profile`), updating emergency contact details succeeded, but the form sections (Personal, Job, Contact) suffered from visual misalignment.
+  2. Form input fields, label widths, and grid columns lacked consistent alignment and responsive structure.
+  3. Employee portal presented editable form inputs and Save buttons triggering PUT/POST mutation APIs (`/v1/employees/{id}/personal`, `/v1/employees/{id}/contact`).
+- **Requirement & Scope:**
+  - Remove options from employee side to fill details and call POST/PUT API. Employees can only view their details.
+  - On the admin side (`/employees/:id`), retain full capability to edit details and invoke POST/PUT APIs.
+  - In self-service (`/me/profile`), add 2 tabs at the top ("Personal Details" and "Contact Details") to showcase employee details in a structured, read-only UI.
+- **Root Cause & Fix:**
+  1. Removed `actions?.EditOwnSection` editable form and Save buttons from employee portal (`MyProfile.jsx`), preventing employee mutation calls to `PUT /v1/employees/{id}/personal` and `PUT /v1/employees/{id}/contact`.
+  2. Maintained full editable forms and save capability on Admin screens (`/employees/:id`, `employeeTabs.jsx`, `SectionTab.jsx`).
+  3. Added two dedicated tabs at the top ("Personal Details" and "Contact Details") in `MyProfile.jsx` (`panel-profile-tabs`), showcasing employee details in structured, read-only `Descriptions` tables with consistent 180px label widths, soft-tinted backgrounds, and 2-column balanced grids.
+  4. Non-destructively loaded extended section details (`dateOfBirth`, `maritalStatus`, `emergencyContactName`, addresses) via `Promise.allSettled([employeeService.section(id, 'personal'), employeeService.section(id, 'contact')])` without breaking mock expectations.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 ---
 
@@ -910,3 +943,26 @@ dev environment crash-loops on the next deploy.
 - Tables: [../target-state/02-data-model.md](../target-state/02-data-model.md)
 - Rules new code must follow: [../CONVENTIONS.md](../CONVENTIONS.md)
 - Other trackers: [INFRA-TRACKER.md](INFRA-TRACKER.md) · [HARNESS-TRACKER.md](HARNESS-TRACKER.md) · [MIGRATION-TRACKER.md](MIGRATION-TRACKER.md)
+
+## 11. Devashish (Dev 3) — Day 1 manual QA defects (`dev-devashish`, 2026-10-07)
+
+> Logged on `dev-devashish` against the Azure dev ingress on 2026-10-06/07; merged to `main` on 2026-10-13 with `D-14` and `D-24` fixed. Numbers are the branch's: `D-10`–`D-18` here are **not** the `D-15`–`D-18` rows above (Sayeed's) — the founder renumbers once (row `D-19 – D-32`). Status column updated at merge.
+
+| Defect | What | Found | Fix | Status |
+|---|---|---|---|---|
+| D-10 (QA) | Work Locations table: "Name" column text is vertically clipped/misaligned across lines (`S1-05`) | 2026-10-06, manual QA | frontend CSS (`/org/work-locations`) | **open** |
+| D-11 | `/roles` page displays HTTP 404 "Sorry, the page you visited does not exist" (`S1-08`, `S17-01`) | 2026-10-06, manual QA | feature deployment (`/roles`) | fixed on `main` as `D-73` (Roles screen) — his `RoleMatrixScreen` dropped at merge |
+| D-12 | Invite User modal: Role select dropdown does not automatically close after an option is selected (`S2-01`) | 2026-10-06, manual QA | frontend select component (`/invitations/users`) | **open** |
+| D-13 | User Invitations: Revoked invitations display empty Actions column without delete/purge action (`S2-10`) | 2026-10-06, manual QA | frontend / core API (`/invitations/users`) | **open** |
+| D-14 | Finance role RBAC: User assigned `finance` only sees `Organisation`; Claims, Deductions, and Approvals are missing (`S2-06`) | 2026-10-06, manual QA | RBAC role_action & dynamic nav feed | **fixed on main 2026-10-13** — `V174` grants finance `core.approval.decide` (his `V149` replaced: it re-created `seed_system_roles` from a pre-`V158` snapshot and was out of order) |
+| D-15 | Employee creation allows duplicate employee records with identical Work Email and Mobile Number (`S3-02`) | 2026-10-06, manual QA | `core.employee` uniqueness validation | fixed on `main` as Krushna `BUG-D4-14` (duplicate work email) |
+| D-16 | Employee Reporting Line tab: "Set Manager" button not visible when logged in as HR (`S3-05`) | 2026-10-06, manual QA | `core.reporting_line.manage` restricted to `tenant-admin` | fixed on `main` as Krushna `BUG-D4-19` (`V172`) |
+| D-17 | User Management: Missing "Edit Roles" action to modify or assign additional roles to active users (`S3-10`) | 2026-10-06, manual QA | frontend user management (`/users`) | **open (P2)** |
+| D-18 | Employee Invitations: Accepting email invitation link fails with HTTP 404 or "Try again later" error (`S3-11`, `S3-12`) | 2026-10-06, manual QA | token verification & AFD routing (`/invitations/accept`) | fixed on `main` `b6a798f1` / `D-88` |
+| D-19 | Employee Exit: Termination modal only prompts for Last Working Day; "Reason" and "Remarks" fields are missing (`S14-03`) | 2026-10-06, manual QA | frontend termination drawer (`/employees/:id`) | fixed on `main` as Krushna `BUG-D4-20` (`V173`) |
+| D-20 | Payroll Officer sidebar: "Pay Runs" menu item (`/payroll/runs`) is not visible in navigation (`S14-05`) | 2026-10-06, manual QA | `nav.payroll.runs` navigation permissions | **open (P1)** |
+| D-21 | Employee Directory: Filtering by `TERMINATED` status displays Date of Joining but omits Last Working Day (`S14-07`) | 2026-10-06, manual QA | employee directory columns (`/employees`) | **open (P3)** |
+| D-22 | Employee Exit: Terminated employee profile lacks a "Reactivate Employee" button to retract exit (`S14-08`) | 2026-10-06, manual QA | frontend actions menu (`/employees/:id`) | fixed on `main` as Krushna `BUG-D4-21` |
+| D-23 | Custom Roles: Cannot assign custom role `leave-auditor` in User Invitations because `/roles` is not deployed (`S17-04`) | 2026-10-06, manual QA | custom role engine (`/roles`) | fixed on `main` as `D-73` |
+| D-24 | Route Mismatch: `/payroll/settings/tax-declaration/2026` returns HTTP 404 in React Router; live route is `/payroll/settings/tax-declaration` (`S9-01`) | 2026-10-06, manual QA | frontend router (`src/core/routes.js`) | **fixed on main 2026-10-13** — `/payroll/settings/tax-declaration/:year` route, year normalised (`TaxWindowScreen`) |
+| D-25 | Proof of Investment: Receipt upload dropzone and verification queue route `/payroll/tax-declarations/review` unmounted / missing (`S16-01`..`S16-07`) | 2026-10-06, manual QA | frontend declaration & POI review routes | **open** — proof-of-investment screens held back at merge: no spec (W-34 defers screens to W-47), review route never mounted, receipt links carried no token, item statuses did not match the backend; founder writes the `W-47` proof-screens spec |

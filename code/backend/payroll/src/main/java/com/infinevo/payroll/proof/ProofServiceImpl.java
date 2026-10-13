@@ -15,7 +15,7 @@ import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.payroll.taxdeclaration.IncomeTaxDeclarationWindow;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationRules;
 import com.infinevo.payroll.taxdeclaration.TaxDeclarationWindowService;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.io.InputStream;
 import java.time.Clock;
@@ -508,7 +508,7 @@ public class ProofServiceImpl implements ProofService {
     }
 
     private EmployeeResponse currentEmployeeOrDeny(String actionCode) {
-        return employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(actionCode));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 
     /** The audit actor: the employee's work email, or {@code system} when there is none. */

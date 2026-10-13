@@ -6,7 +6,7 @@ import com.infinevo.core.approval.ApprovalStepRepository;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.hrms.project.ResourceNotFoundException;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.util.Objects;
 import java.util.UUID;
@@ -42,10 +42,8 @@ public class TimesheetProjectEntryServiceImpl implements TimesheetProjectEntrySe
     @Override
     public TimesheetProjectEntryResponse get(UUID entryId) {
         UUID tenantId = TenantContext.require();
-        UUID me = employeeService
-                .currentEmployee()
-                .map(EmployeeResponse::id)
-                .orElseThrow(() -> new PermissionDeniedException(ACTION_APPROVE));
+        UUID me =
+                employeeService.currentEmployee().map(EmployeeResponse::id).orElseThrow(NoEmployeeRecordException::new);
 
         TimesheetProjectEntry entry =
                 entryRepository.findByTenantIdAndId(tenantId, entryId).orElseThrow(() -> notFound(entryId));

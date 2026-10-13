@@ -136,7 +136,8 @@ class SeededRoleHomePathTest {
             "payroll.bank_file.export",
             "payroll.report.export",
             "payroll.reimbursement_claim.read",
-            "payroll.employee_deduction.read");
+            "payroll.employee_deduction.read",
+            "core.approval.decide"); // V174 (D-14)
 
     private static final Set<String> EMPLOYEE = Set.of(
             "core.employee.read_own",

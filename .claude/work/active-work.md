@@ -6,6 +6,33 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-13 — Devashish's `D-14` and `D-24` on `main`; proof-of-investment screens held back
+
+| Fix | What |
+|---|---|
+| `D-14` | `V174` grants finance `core.approval.decide`, so a finance login sees Approvals. His `V149` re-created `core.seed_system_roles` from a pre-`V158` snapshot and would have been refused by Flyway as out of order; replaced in the `V170`–`V172` trigger pattern |
+| `D-24` | `/payroll/settings/tax-declaration/:year` mounts under the Settings prefix and normalises the year |
+
+- Built by Devashish on `dev-devashish` (2026-10-07, 32 commits behind); merged with `main` by Claude on `dev-claude-devashish`, one independent read, CI green.
+- **Held back, `D-25` stays open:** `ProofReviewQueue`, `ProofUploadSection`, `proofService` and the proof tab (about 1,100 lines). No spec covers them (W-34 defers screens to W-47); the review route was never mounted; receipt links carried no bearer token; item statuses did not match the backend's. The founder writes the `W-47` proof-screens spec; the code is on `origin/dev-devashish` to start from.
+- Dropped at merge: a second `/roles` screen (`RoleMatrixScreen`) — `main` already has `D-73`'s.
+- Tracker §11 holds his QA rows with their branch numbers; the founder renumbers once.
+- **Branches:** `dev-claude-devashish` can be deleted; `dev-devashish` resets to `main` (the proof screens stay in its history).
+
+## 2026-10-13 — Playwright per-role e2e suite on `main`; its findings `D-89`–`D-93` fixed
+
+| What | Where |
+|---|---|
+| Suite | `code/frontend/e2e/` — one project per seeded role (platform admin, tenant admin, HR, manager, payroll officer, finance, employee): landing page, every sidebar screen opens with a heading and clean tables (no ISO dates, no raw codes, no empty headers), every safe button on each list works; plus the leave request flow end to end (HR creates type and policy → allocates → employee applies → manager approves → HR approves → employee sees Approved) |
+| Run | `npm run e2e` in `code/frontend` against the compose stack (`infra/docker`, seeded); CI job `e2e` on every push, **non-blocking** (`continue-on-error`) until the role walks are green; report uploaded as `e2e-report` |
+| Seed | A login per role in `infra/docker/keycloak/dev-realm.json` and `infra/docker/seed/` (02/03/06/07), password `Local_dev_pw1!` |
+| Stack | `D-89`: the dev server proxies `/api` (`vite.config.js`), so a browser works against the local stack |
+
+- First CI run of the suite: 31 passed, 6 failed, 1 flaky. The failures were real: `D-90` (Valid From optional on the form), `D-91` (misleading "requires action" for a login with no employee record, 14 sites), `D-92` (manager's View Item answered 400: direct reports read outside a transaction), `D-93` (allocation sends a January window to an April-cycle tenant) — all fixed in this squash — and `D-78` (ISO dates on Employees, an empty header on Deductions), which stays with Phase 3.
+- **Known suite gaps:** the Deductions and Employees walks fail until `D-78`; the suite treats "No employee record is linked to your account" as designed behaviour; local Testcontainers and Docker Desktop hung on the founder's machine on 2026-10-13, so CI is where the suite runs.
+- **Open:** `D-78`–`D-87` (Phases 3–4), `D-25` (proof-of-investment screens need a spec), Sayeed's `D-43`–`D-58` except `D-52`/`D-55`, Krushna's §9.4 items. Make the `e2e` job blocking once a run is green.
+- **Branches:** `dev-claude-e2e` can be deleted.
+
 ## 2026-10-13 — Krushna's Day 4 employee fixes on `main` (`BUG-D4-13`–`BUG-D4-22`)
 
 | Fix | What |

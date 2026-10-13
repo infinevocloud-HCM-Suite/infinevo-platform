@@ -65,6 +65,12 @@ export function PortalLayout() {
     fetchPanels();
   }, []);
 
+  useEffect(() => {
+    if (panelId === 'holidays') {
+      navigate('/holidays', { replace: true });
+    }
+  }, [panelId, navigate]);
+
   if (loading) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-loading">
@@ -118,7 +124,7 @@ export function PortalLayout() {
     ? panelId
     : panels[0]?.code;
 
-  if (panelId && !panels.some((p) => p.code === panelId)) {
+  if (panelId && panelId !== 'holidays' && !panels.some((p) => p.code === panelId)) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-panel-forbidden">
         <Card>
@@ -163,6 +169,19 @@ export function PortalLayout() {
     };
   });
 
+  const holidayTab = {
+    key: 'holidays',
+    label: (
+      <Space size="small">
+        <CalendarOutlined />
+        <span>Holiday Calendar</span>
+      </Space>
+    ),
+    children: null,
+  };
+
+  const allTabs = panels.length > 0 ? [...tabItems, holidayTab] : tabItems;
+
   return (
     <div style={{ width: '100%' }} data-testid="portal-layout">
       <div style={{ marginBottom: token.marginMD }}>
@@ -181,8 +200,14 @@ export function PortalLayout() {
       >
         <Tabs
           activeKey={activeKey}
-          onChange={(key) => navigate(`/me/${key}`)}
-          items={tabItems}
+          onChange={(key) => {
+            if (key === 'holidays') {
+              navigate('/holidays');
+            } else {
+              navigate(`/me/${key}`);
+            }
+          }}
+          items={allTabs}
           type="line"
           size="large"
           tabBarStyle={{ marginBottom: token.marginMD }}

@@ -18,7 +18,15 @@
 --   a0000000-…-0002  employee.acme     -> Acme Manufacturing  (11111111-…)
 --   b0000000-…-0001  admin.globex      -> Globex Corporation  (22222222-…)
 --   b0000000-…-0002  employee.globex   -> Globex Corporation  (22222222-…)
+--   b0000000-…-0003  hr.globex         -> Globex Corporation  (22222222-…)
+--   b0000000-…-0004  manager.globex    -> Globex Corporation  (22222222-…)
+--   b0000000-…-0005  payroll.globex    -> Globex Corporation  (22222222-…)
+--   b0000000-…-0006  finance.globex    -> Globex Corporation  (22222222-…)
 --   c0000000-…-0001  staff.infinevo    -> Infinevo            (00000000-…)
+--
+-- Globex carries one login per system role so an end-to-end browser suite can sign in
+-- as each (hr, manager, payroll-officer, finance). Acme stays at two: it holds PAYROLL
+-- only and the role matrix is exercised once.
 --
 -- The `a` / `b` / `c` prefix is the tenant the user belongs to, readable at a glance and
 -- deliberately unlike the tenant UUIDs themselves so the two are never confused in a log.
@@ -34,6 +42,10 @@ INSERT INTO core.user_tenant (tenant_id, user_id, created_by, updated_by) VALUES
     ('11111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000002', 'seed', 'seed'),
     ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000001', 'seed', 'seed'),
     ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000002', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000003', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000004', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000005', 'seed', 'seed'),
+    ('22222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000006', 'seed', 'seed'),
     ('00000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'seed', 'seed')
 ON CONFLICT (user_id, tenant_id) DO NOTHING;
 

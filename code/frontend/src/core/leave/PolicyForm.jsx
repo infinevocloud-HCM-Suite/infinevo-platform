@@ -13,7 +13,6 @@ import {
   Divider,
   Typography,
 } from 'antd';
-import dayjs from 'dayjs';
 import { leaveTypeService } from './leaveTypeService.js';
 import { departmentService } from '../org/departmentService.js';
 import { designationService } from '../org/designationService.js';

@@ -49,6 +49,22 @@
       {
         "name": "employee",
         "description": "Self-service. Whichever modules the tenant holds"
+      },
+      {
+        "name": "hr",
+        "description": "Human resources for one tenant: employees, leave, attendance, timesheets"
+      },
+      {
+        "name": "manager",
+        "description": "Approves the team's leave, attendance and timesheets through the reporting line"
+      },
+      {
+        "name": "payroll-officer",
+        "description": "Runs payroll for one tenant: settings, structures, salaries, runs"
+      },
+      {
+        "name": "finance",
+        "description": "Finance for one tenant: payroll review and reports"
       }
     ]
   },
@@ -170,6 +186,102 @@
       ],
       "realmRoles": [
         "employee"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "22222222-2222-2222-2222-222222222222"
+        ]
+      }
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000003",
+      "username": "hr.globex",
+      "email": "hr@globex-full.local",
+      "firstName": "Hema",
+      "lastName": "Hr",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Local_dev_pw1!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "hr"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "22222222-2222-2222-2222-222222222222"
+        ]
+      }
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000004",
+      "username": "manager.globex",
+      "email": "manager@globex-full.local",
+      "firstName": "Manish",
+      "lastName": "Manager",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Local_dev_pw1!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "manager"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "22222222-2222-2222-2222-222222222222"
+        ]
+      }
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000005",
+      "username": "payroll.globex",
+      "email": "payroll@globex-full.local",
+      "firstName": "Priya",
+      "lastName": "Payroll",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Local_dev_pw1!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "payroll-officer"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "22222222-2222-2222-2222-222222222222"
+        ]
+      }
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000006",
+      "username": "finance.globex",
+      "email": "finance@globex-full.local",
+      "firstName": "Farah",
+      "lastName": "Finance",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Local_dev_pw1!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "finance"
       ],
       "attributes": {
         "tenant_id": [

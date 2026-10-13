@@ -111,6 +111,10 @@ export const routes = [
     element: React.createElement(SettingsLayout, null, React.createElement(TaxWindowScreen)),
   },
   {
+    path: '/payroll/settings/tax-declaration/:year',
+    element: React.createElement(SettingsLayout, null, React.createElement(TaxWindowScreen)),
+  },
+  {
     path: '/employees/:employeeId/tax-declaration/:fy',
     element: React.createElement(OfficerDeclarationView),
   },

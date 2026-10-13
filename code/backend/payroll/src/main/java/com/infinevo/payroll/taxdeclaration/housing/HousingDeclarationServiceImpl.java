@@ -19,7 +19,7 @@ import com.infinevo.payroll.taxdeclaration.housing.dto.LetOutPropertyLineRequest
 import com.infinevo.payroll.taxdeclaration.housing.dto.LetOutPropertyLineResponse;
 import com.infinevo.payroll.taxdeclaration.housing.dto.LetOutPropertyRequest;
 import com.infinevo.payroll.taxdeclaration.housing.dto.LetOutPropertyResponse;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -388,6 +388,6 @@ public class HousingDeclarationServiceImpl implements HousingDeclarationService 
     }
 
     private EmployeeResponse currentEmployeeOrDeny(String actionCode) {
-        return employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(actionCode));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 }

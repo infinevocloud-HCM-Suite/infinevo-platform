@@ -23,6 +23,7 @@ import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { employeeService } from '../employee/employeeService.js';
 import { approvalService } from '../approvals/approvalService.js';
+import { portalService } from '@shell/portal/portalService.js';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -60,12 +61,22 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   const [employee, setEmployee] = useState(null);
   const [leaveType, setLeaveType] = useState(null);
   const [approvalHistory, setApprovalHistory] = useState([]);
+  const [currentEmployeeId, setCurrentEmployeeId] = useState(null);
 
   // Modal for Reason (Withdraw / Cancel)
   const [actionType, setActionType] = useState(null); // 'withdraw' | 'cancel'
   const [reasonModalOpen, setReasonModalOpen] = useState(false);
   const [reasonText, setReasonText] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
+
+  useEffect(() => {
+    portalService
+      ?.getProfile?.()
+      ?.then((profile) => {
+        if (profile?.id) setCurrentEmployeeId(profile.id);
+      })
+      ?.catch(() => {});
+  }, []);
 
   const loadDetail = useCallback(async () => {
     if (!id) return;
@@ -181,12 +192,16 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   const effectiveBackPath =
     backPath || (isPortal ? '/me/leave' : canReadAll ? '/leave/requests' : '/approvals');
 
-  const canWithdraw = !isReadOnly && canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED');
+  // D-54: In HRMS workflows, "Withdraw" is strictly an employee self-service action allowing applicants
+  // to pull back their own pending request before an approval decision is made. Administrators and
+  // approvers should only see Approve, Reject, or Cancel Leave (for approved leaves), not a self-service Withdraw button.
+  const isApplicant = Boolean(currentEmployeeId && request?.employeeId && currentEmployeeId === request.employeeId);
+  const canWithdraw = isApplicant && (request.status === 'PENDING' || request.status === 'SUBMITTED');
   const canCancel = !isReadOnly && canManage && request.status === 'APPROVED';
 
   return (
     <Card style={{ margin: 24, maxWidth: 900 }}>
-      <Space direction="vertical" orientation="vertical" orientationMargin={0} style={{ width: '100%' }} size="large">
+      <Space direction="vertical" style={{ width: '100%' }} size="large">
         <Row justify="space-between" align="middle">
           <Col>
             <Space align="center">

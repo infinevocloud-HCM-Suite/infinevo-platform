@@ -135,11 +135,11 @@ class ProofDocumentIT extends ProofIntegrationTestBase {
         com.infinevo.payroll.PayrollTestApp.CURRENT_EMPLOYEE.remove();
 
         assertThatThrownBy(() -> proofService.readOwn(fy))
-                .isInstanceOf(com.infinevo.shared.authz.PermissionDeniedException.class);
+                .isInstanceOf(com.infinevo.shared.authz.NoEmployeeRecordException.class);
         assertThatThrownBy(() -> proofService.submitOwn(fy))
-                .isInstanceOf(com.infinevo.shared.authz.PermissionDeniedException.class);
+                .isInstanceOf(com.infinevo.shared.authz.NoEmployeeRecordException.class);
         assertThatThrownBy(() -> proofService.openDocumentOwn(fy, UUID.randomUUID(), UUID.randomUUID()))
-                .isInstanceOf(com.infinevo.shared.authz.PermissionDeniedException.class);
+                .isInstanceOf(com.infinevo.shared.authz.NoEmployeeRecordException.class);
     }
 
     @Test

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { TaxWindowScreen } from './TaxWindowScreen';
 import { taxSettingsService } from './taxSettingsService';
 import { successMsg } from '@shared/ui/msgHelper.js';
@@ -124,6 +125,38 @@ describe('TaxWindowScreen', () => {
 
     await waitFor(() => {
       expect(taxSettingsService.get).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('reads financial year from route parameter and normalizes YYYY-YYYY format', async () => {
+    taxSettingsService.get.mockResolvedValueOnce(sampleSettings);
+
+    render(
+      <MemoryRouter initialEntries={['/payroll/settings/tax-declaration/2026-2027']}>
+        <Routes>
+          <Route path="/payroll/settings/tax-declaration/:year" element={<TaxWindowScreen />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(taxSettingsService.get).toHaveBeenCalledWith('2026-27');
+    });
+  });
+
+  it('reads financial year from route parameter when provided as single 4-digit start year', async () => {
+    taxSettingsService.get.mockResolvedValueOnce(sampleSettings);
+
+    render(
+      <MemoryRouter initialEntries={['/payroll/settings/tax-declaration/2025']}>
+        <Routes>
+          <Route path="/payroll/settings/tax-declaration/:year" element={<TaxWindowScreen />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(taxSettingsService.get).toHaveBeenCalledWith('2025-26');
     });
   });
 });

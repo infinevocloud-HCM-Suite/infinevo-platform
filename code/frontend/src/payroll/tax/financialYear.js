@@ -5,7 +5,7 @@
  * API payloads and URL path segments must use the long form 'YYYY-YYYY' (e.g. '2026-2027')
  * because the backend FinancialYear.parse() only accepts ^(\d{4})-(\d{4})$ (B-3 fix).
  *
- * Use currentFy() / formatFy() / fyOptions() for display.
+ * Use currentFy() / formatFy() / fyOptions() / normalizeFy() for display.
  * Use fyForApi()  when passing the FY to any backend API call.
  */
 
@@ -95,3 +95,32 @@ export function fyOptions(count = 3, today = new Date()) {
   }
   return options;
 }
+
+/**
+ * Normalizes any financial year representation into the standard display format 'YYYY-YY'
+ * (e.g. '2026-27'). Handles '2026', '2026-2027', or '2026-27'.
+ *
+ * @param {string|number} raw
+ * @param {Date|string|number} [fallbackDate]
+ * @returns {string} e.g. '2026-27'
+ */
+export function normalizeFy(raw, fallbackDate) {
+  if (!raw) return currentFy(fallbackDate);
+  const str = String(raw).trim();
+  // Case 1: Short format e.g. '2026-27'
+  if (/^\d{4}-\d{2}$/.test(str)) {
+    return str;
+  }
+  // Case 2: Full API/backend format e.g. '2026-2027'
+  const matchFull = str.match(/^(\d{4})-(\d{4})$/);
+  if (matchFull) {
+    const startYear = parseInt(matchFull[1], 10);
+    return formatFy(startYear);
+  }
+  // Case 3: Single 4-digit start year e.g. '2026' or 2026
+  if (/^\d{4}$/.test(str)) {
+    return formatFy(parseInt(str, 10));
+  }
+  return str;
+}
+

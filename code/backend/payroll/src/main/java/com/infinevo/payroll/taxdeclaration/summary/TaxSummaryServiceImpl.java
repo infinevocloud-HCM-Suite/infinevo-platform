@@ -25,7 +25,7 @@ import com.infinevo.payroll.taxdeclaration.summary.dto.ComputedTaxSummaryRespons
 import com.infinevo.payroll.taxdeclaration.summary.dto.DeclaredTotals;
 import com.infinevo.payroll.taxdeclaration.summary.dto.TaxSummaryFigures;
 import com.infinevo.payroll.taxdeclaration.summary.dto.TaxSummaryResponse;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.money.Money;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
@@ -265,6 +265,6 @@ public class TaxSummaryServiceImpl implements TaxSummaryService {
     }
 
     private EmployeeResponse currentEmployeeOrDeny(String actionCode) {
-        return employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(actionCode));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 }

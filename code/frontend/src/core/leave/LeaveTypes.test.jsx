@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { LeaveTypes } from './LeaveTypes.jsx';
 import { leaveTypeService } from './leaveTypeService.js';
 import * as useCanModule from '@shell/screens';
@@ -81,5 +81,22 @@ describe('LeaveTypes component', () => {
       expect(screen.getByRole('dialog', { name: /Add Leave Type/i })).toBeDefined();
       expect(screen.getByPlaceholderText(/e.g. Annual Leave, Sick Leave/i)).toBeDefined();
     });
+  });
+
+  // D-90: the server requires validFrom; the form must not let it stay blank.
+  it('refuses to save a leave type without Valid From', async () => {
+    render(<LeaveTypes />);
+    await waitFor(() => {
+      expect(screen.getByText('Casual Leave')).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Add Leave Type/i }));
+    const dialog = await screen.findByRole('dialog', { name: /Add Leave Type/i });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /Create|Save/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Valid From is required')).toBeDefined();
+    });
+    expect(leaveTypeService.create).not.toHaveBeenCalled();
   });
 });

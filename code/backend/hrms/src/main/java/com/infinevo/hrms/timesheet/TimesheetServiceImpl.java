@@ -5,7 +5,7 @@ import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.hrms.project.ResourceNotFoundException;
 import com.infinevo.hrms.project.ValidationException;
 import com.infinevo.hrms.timesheet.TimesheetRequest.ProjectLine;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -202,7 +202,7 @@ public class TimesheetServiceImpl implements TimesheetService {
      * the 500 that W-25 gave for the same case on {@code /me/employee}.
      */
     private EmployeeResponse currentEmployee(String action) {
-        return employeeService.currentEmployee().orElseThrow(() -> new PermissionDeniedException(action));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 
     /** The caller's own timesheet. Not theirs, or not there, is the same 404, so ids do not leak. */

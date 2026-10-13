@@ -12,7 +12,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .js,.jsx --max-warnings 0",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test -c e2e/playwright.config.js",
+    "e2e:ui": "playwright test -c e2e/playwright.config.js --ui",
+    "e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
@@ -29,9 +32,10 @@
     "yup": "^1.7.1"
   },
   "overrides": {
-    "brace-expansion": "1.1.21"
+    "brace-expansion": "^1.1.21"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "^6.1.1",
@@ -42,8 +46,5 @@
     "prop-types": "^15.8.1",
     "vite": "^8.0.16",
     "vitest": "^5.0.2"
-  },
-  "overrides": {
-    "brace-expansion": "^1.1.21"
   }
 }

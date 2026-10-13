@@ -11,4 +11,11 @@ import java.util.UUID;
  * @param logoDocumentId the logo's document id, or {@code null}
  * @param logoUrl a signed link to the logo, or {@code null} when there is no logo or no link service
  */
-public record TenantBranding(String name, String tagline, UUID logoDocumentId, String logoUrl) {}
+public record TenantBranding(
+        String name, String tagline, UUID logoDocumentId, String logoUrl, Short leaveYearStartMonth) {
+
+    /** Before D-93, without the leave-year start month. */
+    public TenantBranding(String name, String tagline, UUID logoDocumentId, String logoUrl) {
+        this(name, tagline, logoDocumentId, logoUrl, null);
+    }
+}

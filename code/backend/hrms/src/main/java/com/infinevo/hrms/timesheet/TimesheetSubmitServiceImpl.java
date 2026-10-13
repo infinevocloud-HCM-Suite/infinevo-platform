@@ -11,7 +11,7 @@ import com.infinevo.hrms.project.ResourceNotFoundException;
 import com.infinevo.hrms.project.ValidationException;
 import com.infinevo.hrms.timesheet.TimesheetNotifier.Pending;
 import com.infinevo.hrms.timesheet.TimesheetRequest.ProjectLine;
-import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.NoEmployeeRecordException;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -202,9 +202,7 @@ public class TimesheetSubmitServiceImpl implements TimesheetSubmitService {
     }
 
     private EmployeeResponse currentEmployee() {
-        return employeeService
-                .currentEmployee()
-                .orElseThrow(() -> new PermissionDeniedException(TimesheetServiceImpl.ACTION_SUBMIT));
+        return employeeService.currentEmployee().orElseThrow(NoEmployeeRecordException::new);
     }
 
     private Timesheet owned(UUID tenantId, UUID employeeId, UUID id) {
