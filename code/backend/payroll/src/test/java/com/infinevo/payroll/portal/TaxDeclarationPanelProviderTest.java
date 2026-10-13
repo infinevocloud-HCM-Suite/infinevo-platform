@@ -20,7 +20,7 @@ class TaxDeclarationPanelProviderTest {
         PanelDescriptor desc = provider.panel(UUID.randomUUID());
         assertThat(desc.code()).isEqualTo("taxDeclaration");
         assertThat(desc.title()).isEqualTo("Tax declaration");
-        assertThat(desc.displayOrder()).isEqualTo(5);
+        assertThat(desc.displayOrder()).isEqualTo(6);
         assertThat(desc.endpoint()).isEqualTo("/api/v1/me/tax-declaration");
         assertThat(desc.requiredAction()).isEqualTo("payroll.tax_declaration.read_own");
     }

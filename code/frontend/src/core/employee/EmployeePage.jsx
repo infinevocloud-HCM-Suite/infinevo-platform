@@ -8,6 +8,7 @@ import {
   DeleteOutlined,
   CheckCircleOutlined,
   MailOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import { useCan, useModuleEmployeeTabs } from '@shell/screens';
 import { employeeService } from './employeeService.js';
@@ -40,6 +41,8 @@ export function EmployeePage() {
   const canReadOrg = useCan('core.org.read');
   const canInvite = useCan('core.employee.create');
   const canReadDocuments = useCan('core.document.read');
+  // D-86: the employee's leave and LOP history, mounted beneath /employees.
+  const canReadLeave = useCan('core.leave.read');
   // D-66: tabs the modules contribute (Salary, FBP, Tax declaration...), already gated by the shell
   // on the module the tenant holds and the action the user holds.
   const moduleTabs = useModuleEmployeeTabs();
@@ -296,6 +299,16 @@ export function EmployeePage() {
 
           {/* Action buttons */}
           <Space size="small">
+            {canReadLeave && (
+              <Button
+                icon={<CalendarOutlined />}
+                onClick={() => navigate(`/employees/${id}/leave`)}
+                id="btn-employee-leave"
+              >
+                Leave
+              </Button>
+            )}
+
             {canInvite && employee.status === 'ACTIVE' && (!access || access.state === 'NONE') && (
               <Button
                 icon={<MailOutlined />}

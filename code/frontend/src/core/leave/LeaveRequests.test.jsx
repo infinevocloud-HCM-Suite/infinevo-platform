@@ -113,4 +113,20 @@ describe('LeaveRequests component', () => {
 
     expect(mockNavigate).toHaveBeenCalledWith('/leave/requests/new');
   });
+
+  it('labels a DRAFT request "Draft", never the raw code (D-86)', async () => {
+    leaveRequestService.list.mockResolvedValueOnce({
+      content: [{ ...mockRequests[0], status: 'DRAFT' }],
+      totalElements: 1,
+    });
+    render(
+      <MemoryRouter>
+        <LeaveRequests />
+      </MemoryRouter>
+    );
+    await waitFor(() => {
+      expect(screen.getByText('Draft')).toBeDefined();
+    });
+    expect(screen.queryByText('DRAFT')).toBeNull();
+  });
 });

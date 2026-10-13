@@ -7,6 +7,7 @@ import {
   FileTextOutlined,
   DollarOutlined,
   ClockCircleOutlined,
+  WalletOutlined,
   AppstoreOutlined,
 } from '@ant-design/icons';
 import { portalService } from './portalService.js';
@@ -26,6 +27,7 @@ const PANEL_ICONS = {
   payslips: <DollarOutlined />,
   timesheet: <ClockCircleOutlined />,
   taxDeclaration: <FileTextOutlined />,
+  claims: <WalletOutlined />,
 };
 
 const PANEL_COMPONENTS = {

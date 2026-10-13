@@ -21,7 +21,7 @@ class ClaimsPanelProviderTest {
         PanelDescriptor desc = provider.panel(UUID.randomUUID());
         assertThat(desc.code()).isEqualTo("claims");
         assertThat(desc.title()).isEqualTo("Claims and deductions");
-        assertThat(desc.displayOrder()).isEqualTo(6);
+        assertThat(desc.displayOrder()).isEqualTo(7);
         assertThat(desc.endpoint()).isEqualTo("/api/v1/me/reimbursement-claims");
         assertThat(desc.requiredAction()).isEqualTo("payroll.reimbursement_claim.read_own");
     }

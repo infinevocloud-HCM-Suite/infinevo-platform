@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Card, DatePicker, Space, Table, Tag } from 'antd';
 import dayjs from 'dayjs';
 import { ClockCard } from './ClockCard.jsx';
@@ -40,26 +40,49 @@ function byDay(sessions) {
 }
 
 export function MyAttendance() {
-  // The month starts from the server's date, once ClockCard has read it.
-  const [month, setMonth] = useState(null);
+  // The month loads on its own from the client's date, so the list shows even when /today fails
+  // (D-84). If the server's date arrives and falls in another month, it wins until the user picks one.
+  const [month, setMonth] = useState(() => dayjs().startOf('month'));
+  const picked = useRef(false);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const onDay = useCallback((date) => setMonth((m) => m || dayjs(date).startOf('month')), []);
+  const onDay = useCallback((date) => {
+    if (picked.current || !date) return;
+    const server = dayjs(date).startOf('month');
+    if (!server.isValid()) return;
+    setMonth((m) => (m && m.isSame(server, 'month') ? m : server));
+  }, []);
+
+  const pickMonth = (m) => {
+    if (!m) return;
+    picked.current = true;
+    setMonth(m.startOf('month'));
+  };
 
   useEffect(() => {
-    if (!month) return;
+    // The month can change while a read is in flight (client month, then the server's):
+    // a reply for a month no longer shown is dropped.
+    let stale = false;
     setLoading(true);
     setError(null);
     attendanceService
       .mySessions(month.format('YYYY-MM-DD'), month.endOf('month').format('YYYY-MM-DD'))
-      .then((data) => setRows(Array.isArray(data) ? data : []))
+      .then((data) => {
+        if (!stale) setRows(Array.isArray(data) ? data : []);
+      })
       .catch((err) => {
+        if (stale) return;
         setRows([]);
         setError(err?.message || 'Could not load your days');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!stale) setLoading(false);
+      });
+    return () => {
+      stale = true;
+    };
   }, [month]);
 
   const days = useMemo(() => byDay(rows), [rows]);
@@ -92,7 +115,7 @@ export function MyAttendance() {
             picker="month"
             value={month}
             allowClear={false}
-            onChange={(m) => m && setMonth(m.startOf('month'))}
+            onChange={pickMonth}
           />
         }
       >

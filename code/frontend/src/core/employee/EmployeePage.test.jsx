@@ -372,5 +372,29 @@ describe('EmployeePage component', () => {
       expect(employeeService.remove).toHaveBeenCalledWith('emp-term-1');
     });
   });
-});
 
+  it('D-86: a Leave button opens the leave history beneath /employees', async () => {
+    employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/employees/emp-acc-1']}>
+          <Routes>
+            <Route path="/employees/:id" element={<EmployeePage />} />
+            <Route path="/employees/:id/leave" element={<div>leave history page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+    await waitFor(() => expect(document.getElementById('btn-employee-leave')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-employee-leave'));
+    expect(await screen.findByText('leave history page')).toBeDefined();
+  });
+
+  it('D-86: no Leave button without core.leave.read', async () => {
+    employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+    vi.spyOn(useCanModule, 'useCan').mockImplementation((perm) => perm !== 'core.leave.read');
+    renderPage('emp-acc-1');
+    await waitFor(() => expect(document.getElementById('btn-delete-employee')).not.toBeNull());
+    expect(document.getElementById('btn-employee-leave')).toBeNull();
+  });
+});

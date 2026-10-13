@@ -84,6 +84,8 @@ describe('routesFromFeed', () => {
       '/employees/new',
       '/employees/import',
       '/employees/:id',
+      // D-86: the employee's leave history mounts with the Employees item.
+      '/employees/:id/leave',
       '/employees/:employeeId/tax-declaration/:fy',
     ]);
   });

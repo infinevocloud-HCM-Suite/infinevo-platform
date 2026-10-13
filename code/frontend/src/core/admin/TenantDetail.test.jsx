@@ -48,6 +48,19 @@ function setup({ overview = globex, session = null } = {}) {
   return store;
 }
 
+function renderBare(id) {
+  const store = configureStore({ reducer: { impersonation: impersonationReducer } });
+  render(
+    <Provider store={store}>
+      <MemoryRouter initialEntries={[`/admin/tenants/${id}`]}>
+        <Routes>
+          <Route path="/admin/tenants/:id" element={<TenantDetail />} />
+        </Routes>
+      </MemoryRouter>
+    </Provider>,
+  );
+}
+
 function confirmDialog() {
   return document.querySelector('.ant-modal-confirm');
 }
@@ -245,5 +258,24 @@ describe('TenantDetail', () => {
     expect(screen.queryByRole('button', { name: 'Act as' })).toBeNull();
     expect(within(document.body).queryByText('Act as')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Apply country template' })).toBeNull();
+  });
+
+  it('shows NotFound only for a 404 (D-85)', async () => {
+    tenantService.get.mockRejectedValue(Object.assign(new Error('No such tenant'), { status: 404 }));
+    renderBare('nope');
+    expect(await screen.findByText('404')).toBeDefined();
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+  });
+
+  it('shows the server message with Retry for a 500, not NotFound (D-85)', async () => {
+    tenantService.get
+      .mockRejectedValueOnce(Object.assign(new Error('Database unavailable'), { status: 500 }))
+      .mockResolvedValue(globex);
+    renderBare('tenant-globex');
+    expect(await screen.findByText('Database unavailable')).toBeDefined();
+    expect(screen.queryByText('404')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByRole('switch', { name: 'Module HRMS' })).toBeDefined();
+    expect(tenantService.get).toHaveBeenCalledTimes(2);
   });
 });

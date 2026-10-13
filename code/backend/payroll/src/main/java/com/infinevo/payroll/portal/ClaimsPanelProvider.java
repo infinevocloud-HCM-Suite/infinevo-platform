@@ -30,7 +30,7 @@ public class ClaimsPanelProvider implements PortalPanelProvider {
         return new PanelDescriptor(
                 "claims",
                 "Claims and deductions",
-                6,
+                7,
                 "/api/v1/me/reimbursement-claims",
                 "payroll.reimbursement_claim.read_own");
     }

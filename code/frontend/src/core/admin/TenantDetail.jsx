@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -7,6 +7,7 @@ import {
 } from 'antd';
 import { NotFound, useCan } from '@shell/screens';
 import { errorMsg } from '@shared/ui/msgHelper.js';
+import { LoadError } from '@shared/ui/LoadError.jsx';
 import { tenantService } from './tenantService.js';
 import { impersonationService } from './impersonationService.js';
 import { started } from './impersonationSlice.js';
@@ -42,6 +43,9 @@ export function TenantDetail() {
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
+  // Any failure but a 404 is kept whole and shown with Retry, never as "not found" (D-85).
+  const [loadError, setLoadError] = useState(null);
+  const shown = useRef(false);
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -53,10 +57,13 @@ export function TenantDetail() {
     try {
       const res = await tenantService.get(id);
       setTenant(res);
+      shown.current = true;
       setMissing(false);
+      setLoadError(null);
     } catch (err) {
-      if (err?.status === 404) setMissing(true);
-      else errorMsg(err);
+      if (err?.status === 404 || err?.code === 'NOT_FOUND') setMissing(true);
+      else if (shown.current) errorMsg(err);
+      else setLoadError(err || new Error('Could not load the tenant'));
     } finally {
       setLoading(false);
     }
@@ -66,8 +73,15 @@ export function TenantDetail() {
     load();
   }, [load]);
 
+  const retry = () => {
+    setLoading(true);
+    setLoadError(null);
+    load();
+  };
+
   if (loading) return <Skeleton active />;
-  if (missing || !tenant) return <NotFound />;
+  if (missing) return <NotFound />;
+  if (!tenant) return <LoadError title="Could not load the tenant" error={loadError} onRetry={retry} />;
 
   const platform = isPlatformTenant(tenant.tenant_id);
   const modules = tenant.modules || [];

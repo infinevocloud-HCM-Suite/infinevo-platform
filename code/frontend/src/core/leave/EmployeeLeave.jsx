@@ -165,7 +165,7 @@ export function EmployeeLeave() {
         <Row justify="space-between" align="middle">
           <Col>
             <Space align="center">
-              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/leave/requests')}>
+              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/employees/${id}`)}>
                 Back
               </Button>
               <Title level={4} style={{ margin: 0 }}>
