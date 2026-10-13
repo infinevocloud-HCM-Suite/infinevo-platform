@@ -3,7 +3,7 @@
 > The product itself — foundation, data, core platform, payroll, HRMS, frontend.
 > Streams A to F, plus the product items in G and H.
 > **GitHub is authoritative.** Status legend: [README.md](README.md).
-> Last refreshed: **2026-10-13**, against `main` — Krushna's Day 4 employee fixes (`BUG-D4-13`–`BUG-D4-22`, §9) merged with two merge-review fixes; `D-88` (invitation sets the password) merged; Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
+> Last refreshed: **2026-10-13**, against `main` — Devashish's `D-14` (finance sees Approvals, `V174`) and `D-24` (tax-declaration year route) merged, his QA rows in §11, `D-25` proof screens held for a spec; Krushna's Day 4 employee fixes (`BUG-D4-13`–`BUG-D4-22`, §9) merged with two merge-review fixes; `D-88` (invitation sets the password) merged; Sayeed's leave fixes (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58` merged; screen-audit Phases 1–2 (`D-64`–`D-77`) on `main`; `D-78`–`D-87` open.
 
 ## Summary
 
@@ -910,3 +910,26 @@ dev environment crash-loops on the next deploy.
 - Tables: [../target-state/02-data-model.md](../target-state/02-data-model.md)
 - Rules new code must follow: [../CONVENTIONS.md](../CONVENTIONS.md)
 - Other trackers: [INFRA-TRACKER.md](INFRA-TRACKER.md) · [HARNESS-TRACKER.md](HARNESS-TRACKER.md) · [MIGRATION-TRACKER.md](MIGRATION-TRACKER.md)
+
+## 11. Devashish (Dev 3) — Day 1 manual QA defects (`dev-devashish`, 2026-10-07)
+
+> Logged on `dev-devashish` against the Azure dev ingress on 2026-10-06/07; merged to `main` on 2026-10-13 with `D-14` and `D-24` fixed. Numbers are the branch's: `D-10`–`D-18` here are **not** the `D-15`–`D-18` rows above (Sayeed's) — the founder renumbers once (row `D-19 – D-32`). Status column updated at merge.
+
+| Defect | What | Found | Fix | Status |
+|---|---|---|---|---|
+| D-10 (QA) | Work Locations table: "Name" column text is vertically clipped/misaligned across lines (`S1-05`) | 2026-10-06, manual QA | frontend CSS (`/org/work-locations`) | **open** |
+| D-11 | `/roles` page displays HTTP 404 "Sorry, the page you visited does not exist" (`S1-08`, `S17-01`) | 2026-10-06, manual QA | feature deployment (`/roles`) | fixed on `main` as `D-73` (Roles screen) — his `RoleMatrixScreen` dropped at merge |
+| D-12 | Invite User modal: Role select dropdown does not automatically close after an option is selected (`S2-01`) | 2026-10-06, manual QA | frontend select component (`/invitations/users`) | **open** |
+| D-13 | User Invitations: Revoked invitations display empty Actions column without delete/purge action (`S2-10`) | 2026-10-06, manual QA | frontend / core API (`/invitations/users`) | **open** |
+| D-14 | Finance role RBAC: User assigned `finance` only sees `Organisation`; Claims, Deductions, and Approvals are missing (`S2-06`) | 2026-10-06, manual QA | RBAC role_action & dynamic nav feed | **fixed on main 2026-10-13** — `V174` grants finance `core.approval.decide` (his `V149` replaced: it re-created `seed_system_roles` from a pre-`V158` snapshot and was out of order) |
+| D-15 | Employee creation allows duplicate employee records with identical Work Email and Mobile Number (`S3-02`) | 2026-10-06, manual QA | `core.employee` uniqueness validation | fixed on `main` as Krushna `BUG-D4-14` (duplicate work email) |
+| D-16 | Employee Reporting Line tab: "Set Manager" button not visible when logged in as HR (`S3-05`) | 2026-10-06, manual QA | `core.reporting_line.manage` restricted to `tenant-admin` | fixed on `main` as Krushna `BUG-D4-19` (`V172`) |
+| D-17 | User Management: Missing "Edit Roles" action to modify or assign additional roles to active users (`S3-10`) | 2026-10-06, manual QA | frontend user management (`/users`) | **open (P2)** |
+| D-18 | Employee Invitations: Accepting email invitation link fails with HTTP 404 or "Try again later" error (`S3-11`, `S3-12`) | 2026-10-06, manual QA | token verification & AFD routing (`/invitations/accept`) | fixed on `main` `b6a798f1` / `D-88` |
+| D-19 | Employee Exit: Termination modal only prompts for Last Working Day; "Reason" and "Remarks" fields are missing (`S14-03`) | 2026-10-06, manual QA | frontend termination drawer (`/employees/:id`) | fixed on `main` as Krushna `BUG-D4-20` (`V173`) |
+| D-20 | Payroll Officer sidebar: "Pay Runs" menu item (`/payroll/runs`) is not visible in navigation (`S14-05`) | 2026-10-06, manual QA | `nav.payroll.runs` navigation permissions | **open (P1)** |
+| D-21 | Employee Directory: Filtering by `TERMINATED` status displays Date of Joining but omits Last Working Day (`S14-07`) | 2026-10-06, manual QA | employee directory columns (`/employees`) | **open (P3)** |
+| D-22 | Employee Exit: Terminated employee profile lacks a "Reactivate Employee" button to retract exit (`S14-08`) | 2026-10-06, manual QA | frontend actions menu (`/employees/:id`) | fixed on `main` as Krushna `BUG-D4-21` |
+| D-23 | Custom Roles: Cannot assign custom role `leave-auditor` in User Invitations because `/roles` is not deployed (`S17-04`) | 2026-10-06, manual QA | custom role engine (`/roles`) | fixed on `main` as `D-73` |
+| D-24 | Route Mismatch: `/payroll/settings/tax-declaration/2026` returns HTTP 404 in React Router; live route is `/payroll/settings/tax-declaration` (`S9-01`) | 2026-10-06, manual QA | frontend router (`src/core/routes.js`) | **fixed on main 2026-10-13** — `/payroll/settings/tax-declaration/:year` route, year normalised (`TaxWindowScreen`) |
+| D-25 | Proof of Investment: Receipt upload dropzone and verification queue route `/payroll/tax-declarations/review` unmounted / missing (`S16-01`..`S16-07`) | 2026-10-06, manual QA | frontend declaration & POI review routes | **open** — proof-of-investment screens held back at merge: no spec (W-34 defers screens to W-47), review route never mounted, receipt links carried no token, item statuses did not match the backend; founder writes the `W-47` proof-screens spec |

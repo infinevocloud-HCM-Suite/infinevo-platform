@@ -6,6 +6,19 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-13 — Devashish's `D-14` and `D-24` on `main`; proof-of-investment screens held back
+
+| Fix | What |
+|---|---|
+| `D-14` | `V174` grants finance `core.approval.decide`, so a finance login sees Approvals. His `V149` re-created `core.seed_system_roles` from a pre-`V158` snapshot and would have been refused by Flyway as out of order; replaced in the `V170`–`V172` trigger pattern |
+| `D-24` | `/payroll/settings/tax-declaration/:year` mounts under the Settings prefix and normalises the year |
+
+- Built by Devashish on `dev-devashish` (2026-10-07, 32 commits behind); merged with `main` by Claude on `dev-claude-devashish`, one independent read, CI green.
+- **Held back, `D-25` stays open:** `ProofReviewQueue`, `ProofUploadSection`, `proofService` and the proof tab (about 1,100 lines). No spec covers them (W-34 defers screens to W-47); the review route was never mounted; receipt links carried no bearer token; item statuses did not match the backend's. The founder writes the `W-47` proof-screens spec; the code is on `origin/dev-devashish` to start from.
+- Dropped at merge: a second `/roles` screen (`RoleMatrixScreen`) — `main` already has `D-73`'s.
+- Tracker §11 holds his QA rows with their branch numbers; the founder renumbers once.
+- **Branches:** `dev-claude-devashish` can be deleted; `dev-devashish` resets to `main` (the proof screens stay in its history).
+
 ## 2026-10-13 — Krushna's Day 4 employee fixes on `main` (`BUG-D4-13`–`BUG-D4-22`)
 
 | Fix | What |

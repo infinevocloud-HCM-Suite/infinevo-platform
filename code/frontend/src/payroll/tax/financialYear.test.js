@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { currentFy, formatFy, formatFyDisplay, fyOptions } from './financialYear';
+import { currentFy, formatFy, formatFyDisplay, fyOptions, normalizeFy } from './financialYear';
 
 describe('financialYear utility', () => {
   it('correctly resolves 31 March 2027 to 2026-27', () => {
@@ -46,5 +46,26 @@ describe('financialYear utility', () => {
       { label: '2025-26', value: '2025-26' },
       { label: '2024-25', value: '2024-25' },
     ]);
+  });
+
+  describe('normalizeFy', () => {
+    it('normalizes standard short format unchanged', () => {
+      expect(normalizeFy('2026-27')).toBe('2026-27');
+    });
+
+    it('normalizes long format YYYY-YYYY to YYYY-YY', () => {
+      expect(normalizeFy('2026-2027')).toBe('2026-27');
+    });
+
+    it('normalizes single 4-digit start year to YYYY-YY', () => {
+      expect(normalizeFy('2026')).toBe('2026-27');
+      expect(normalizeFy(2026)).toBe('2026-27');
+    });
+
+    it('defaults to currentFy when given null, empty or undefined', () => {
+      const refDate = new Date(2026, 6, 15);
+      expect(normalizeFy(null, refDate)).toBe('2026-27');
+      expect(normalizeFy('', refDate)).toBe('2026-27');
+    });
   });
 });
