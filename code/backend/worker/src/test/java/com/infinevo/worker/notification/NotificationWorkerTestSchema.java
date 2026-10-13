@@ -57,6 +57,7 @@ public final class NotificationWorkerTestSchema {
                         "core/V006__job_status_and_shedlock.sql",
                         "core/V009__user_account.sql",
                         "core/V010__employee.sql",
+                        "core/V173__employee_termination_reason.sql", // BUG-D4-20 columns the Employee entity maps
                         "core/V011__department.sql",
                         "core/V012__designation.sql",
                         "core/V013__work_location.sql",

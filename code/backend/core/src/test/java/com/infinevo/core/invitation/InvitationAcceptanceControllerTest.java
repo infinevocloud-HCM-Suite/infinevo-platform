@@ -31,15 +31,16 @@ class InvitationAcceptanceControllerTest {
     @Test
     @DisplayName("accept delegates to invitationService and returns what the invitee does next (D-62)")
     void acceptDelegatesToService() {
-        when(invitationService.acceptInvitation("valid-token")).thenReturn(AcceptOutcome.EXISTING_ACCOUNT);
-        AcceptInvitationRequest request = new AcceptInvitationRequest("valid-token");
+        when(invitationService.acceptInvitation("valid-token", "Str0ng-Passw0rd!"))
+                .thenReturn(AcceptOutcome.EXISTING_ACCOUNT);
+        AcceptInvitationRequest request = new AcceptInvitationRequest("valid-token", "Str0ng-Passw0rd!");
         ResponseEntity<?> response = controller.accept(request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         AcceptInvitationResponse body = (AcceptInvitationResponse) response.getBody();
         assertThat(body.message()).contains("accepted successfully");
         assertThat(body.outcome()).isEqualTo(AcceptOutcome.EXISTING_ACCOUNT);
-        verify(invitationService).acceptInvitation("valid-token");
+        verify(invitationService).acceptInvitation("valid-token", "Str0ng-Passw0rd!");
     }
 
     @Test
@@ -54,9 +55,20 @@ class InvitationAcceptanceControllerTest {
     }
 
     @Test
-    @DisplayName("a blank token or reason is a 400 and never reaches the service")
+    @DisplayName(
+            "a blank token, a blank or oversized password, or a blank reason is a 400 and never reaches the service")
     void blankInputIsBadRequest() {
-        assertThat(controller.accept(new AcceptInvitationRequest(" ")).getStatusCode())
+        assertThat(controller
+                        .accept(new AcceptInvitationRequest(" ", "Str0ng-Passw0rd!"))
+                        .getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(controller.accept(new AcceptInvitationRequest("t", " ")).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(controller.accept(new AcceptInvitationRequest("t", null)).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(controller
+                        .accept(new AcceptInvitationRequest("t", "x".repeat(129)))
+                        .getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(controller.decline(new DeclineInvitationRequest("t", " ")).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
@@ -81,6 +93,17 @@ class InvitationAcceptanceControllerTest {
             assertThat(response.getBody().code()).isEqualTo(ApiError.CONFLICT.name());
             assertThat(response.getBody().message()).isEqualTo(InvitationAcceptanceController.GENERIC_FAILURE);
         }
+    }
+
+    @Test
+    @DisplayName("D-88: a password Keycloak refused is a 400 that names the rule, not the generic invitation answer")
+    void refusedPasswordIsAValidationFailureWithTheRule() {
+        ResponseEntity<ApiErrorResponse> response =
+                controller.handlePasswordPolicy(new PasswordPolicyException("Invalid password: minimum length 10."));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().code()).isEqualTo(ApiError.VALIDATION_FAILED.name());
+        assertThat(response.getBody().message()).isEqualTo("Invalid password: minimum length 10.");
     }
 
     @Test

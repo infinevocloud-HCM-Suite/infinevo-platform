@@ -20,9 +20,8 @@ public final class LeavePolicyValidator {
         if (request.annualDays() == null || request.annualDays().compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("annualDays must not be null and must be non-negative");
         }
-        if (request.effectiveFrom() == null) {
-            throw new IllegalArgumentException("effectiveFrom must not be null");
-        }
+        // effectiveFrom is optional (D-55): LeaveTypeServiceImpl.configurePolicy defaults a missing
+        // date to the first day of the tenant's current leave year and refuses one before it.
         if (request.exceedBalanceMode() == null) {
             throw new IllegalArgumentException("exceedBalanceMode must not be null");
         }

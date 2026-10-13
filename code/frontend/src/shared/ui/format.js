@@ -64,3 +64,22 @@ export function humanize(code) {
   const words = String(code).trim().replace(/[_\s]+/g, ' ').toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
+
+/**
+ * Capitalises a name typed in all lower case ("asha rao" becomes "Asha Rao") and leaves anything
+ * else exactly as typed. A word that already holds a capital letter was cased on purpose -
+ * "McDonald", "D'Souza", "HR", "R&D" - and rewriting it would be the defect, not the fix. One capital
+ * anywhere in the value means the whole value was cased by hand and is kept. The same
+ * rule as the server's (EmployeeServiceImpl.toTitleCase), so what the form shows is what is stored.
+ *
+ * @param {string|null|undefined} value
+ * @returns {string|null|undefined}
+ */
+export function toTitleCase(value) {
+  if (value === null || value === undefined) return value;
+  const str = String(value).trim();
+  if (!str) return '';
+  if (/[A-Z]/.test(str)) return str;
+  return str.replace(/(^|\s)(\S)/g, (match, separator, first) => separator + first.toUpperCase());
+}
+

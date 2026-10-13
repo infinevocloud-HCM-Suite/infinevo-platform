@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatMoney, humanize } from './format.js';
+import { formatDate, formatMoney, humanize, toTitleCase } from './format.js';
 
 describe('formatDate', () => {
   it('shows an ISO date as day, short month and year', () => {
@@ -54,3 +54,23 @@ describe('humanize', () => {
     expect(formatMoney('1250.5', 'AED')).toBe('AED 1,250.50');
   });
 });
+
+describe('toTitleCase', () => {
+  it('capitalises a name typed in lower case', () => {
+    expect(toTitleCase('senior software engineer')).toBe('Senior Software Engineer');
+    expect(toTitleCase('  asha rao ')).toBe('Asha Rao');
+  });
+
+  it('keeps a name that already has capitals exactly as typed', () => {
+    expect(toTitleCase('HR')).toBe('HR');
+    expect(toTitleCase('R&D and QA/Testing')).toBe('R&D and QA/Testing');
+    expect(toTitleCase("d'Souza-McDonald")).toBe("d'Souza-McDonald");
+  });
+
+  it('handles empty and null values gracefully', () => {
+    expect(toTitleCase('')).toBe('');
+    expect(toTitleCase(null)).toBe(null);
+    expect(toTitleCase(undefined)).toBe(undefined);
+  });
+});
+

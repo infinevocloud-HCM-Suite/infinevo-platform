@@ -221,7 +221,18 @@ public class LeaveTypeServiceImpl implements LeaveTypeService {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate currentYearStart = LeaveDateUtils.getCurrentLeaveYearStartDate(today, startMonth);
 
-        LocalDate effectiveDate = request.effectiveFrom() != null ? request.effectiveFrom() : currentYearStart;
+        // No date given (D-55): start from the current leave year - but never behind the version already
+        // in force. Versions are read newest-date-first, so a new row dated 1 April behind a stored
+        // 1 June version would never be the one in force while allocations had already moved to it.
+        LocalDate effectiveDate = request.effectiveFrom();
+        if (effectiveDate == null) {
+            effectiveDate = leavePolicyRepository
+                    .findFirstByTenantIdAndLeaveTypeIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescCreatedAtDesc(
+                            tenantId, leaveTypeId, today)
+                    .map(LeavePolicy::getEffectiveFrom)
+                    .filter(inForce -> inForce.isAfter(currentYearStart))
+                    .orElse(currentYearStart);
+        }
 
         if (effectiveDate.isBefore(currentYearStart)) {
             throw new IllegalArgumentException(

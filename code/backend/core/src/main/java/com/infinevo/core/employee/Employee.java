@@ -128,6 +128,13 @@ public class Employee {
     @Column(name = "termination_date")
     private LocalDate terminationDate;
 
+    /** Why the employee left — one of the codes the Terminate dialog offers. Null unless TERMINATED (V173). */
+    @Column(name = "termination_reason", length = 32)
+    private String terminationReason;
+
+    @Column(name = "termination_remarks", length = 1000)
+    private String terminationRemarks;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
     private EmploymentStatus status;
@@ -246,6 +253,14 @@ public class Employee {
         return terminationDate;
     }
 
+    public String getTerminationReason() {
+        return terminationReason;
+    }
+
+    public String getTerminationRemarks() {
+        return terminationRemarks;
+    }
+
     public EmploymentStatus getStatus() {
         return status;
     }
@@ -318,6 +333,8 @@ public class Employee {
             String gender,
             LocalDate dateOfJoining,
             LocalDate terminationDate,
+            String terminationReason,
+            String terminationRemarks,
             EmploymentStatus status,
             String workEmail,
             String mobile,
@@ -330,6 +347,8 @@ public class Employee {
         this.gender = gender;
         this.dateOfJoining = dateOfJoining;
         this.terminationDate = terminationDate;
+        this.terminationReason = terminationReason;
+        this.terminationRemarks = terminationRemarks;
         this.status = status;
         this.workEmail = workEmail;
         this.mobile = mobile;

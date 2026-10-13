@@ -74,6 +74,30 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
   };
 
   const handleSave = async () => {
+    for (const field of config.fields) {
+      if (field.required) {
+        const val = values[field.name];
+        if (val === undefined || val === null || String(val).trim() === '') {
+          await errorMsg({ message: `${field.label} is required.` });
+          return;
+        }
+      }
+      if (field.name === 'aadhaarNumber' && values[field.name]) {
+        const aadhaarStr = String(values[field.name]).trim();
+        if (!/^\d{12}$/.test(aadhaarStr)) {
+          await errorMsg({ message: 'Aadhaar Number must be exactly 12 digits.' });
+          return;
+        }
+      }
+      if (field.name === 'panNumber' && values[field.name]) {
+        const panStr = String(values[field.name]).trim();
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panStr)) {
+          await errorMsg({ message: 'PAN Number must be in the format AAAAA9999A in upper case.' });
+          return;
+        }
+      }
+    }
+
     setSaving(true);
     try {
       await employeeService.saveSection(employeeId, sectionName, values);
@@ -238,6 +262,9 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
             <Col xs={24} sm={12} md={field.type === 'textarea' ? 24 : 8} key={field.name}>
               <label htmlFor={`field-${field.name}`}>
                 <Text strong>{field.label}</Text>
+                {field.required && (
+                  <span style={{ color: token.colorError, marginLeft: 4 }} aria-hidden="true">*</span>
+                )}
               </label>
               <div style={{ marginTop: 4 }}>{control}</div>
             </Col>

@@ -32,6 +32,22 @@ public interface EmployeeIdentificationRepository extends EmployeeDetailReposito
     List<PanHolder> findByTenantIdAndPanNumberIn(
             @Param("tenantId") UUID tenantId, @Param("pans") Collection<String> pans);
 
+    @Query("SELECT COUNT(i) > 0 FROM EmployeeIdentification i JOIN i.employee e"
+            + " WHERE i.tenantId = :tenantId AND e.tenantId = :tenantId AND e.deleted = false"
+            + " AND i.panNumber = :panNumber AND e.id <> :employeeId")
+    boolean existsByTenantIdAndPanNumberAndEmployeeIdNot(
+            @Param("tenantId") UUID tenantId,
+            @Param("panNumber") String panNumber,
+            @Param("employeeId") UUID employeeId);
+
+    @Query("SELECT COUNT(i) > 0 FROM EmployeeIdentification i JOIN i.employee e"
+            + " WHERE i.tenantId = :tenantId AND e.tenantId = :tenantId AND e.deleted = false"
+            + " AND i.aadhaarNumber = :aadhaarNumber AND e.id <> :employeeId")
+    boolean existsByTenantIdAndAadhaarNumberAndEmployeeIdNot(
+            @Param("tenantId") UUID tenantId,
+            @Param("aadhaarNumber") String aadhaarNumber,
+            @Param("employeeId") UUID employeeId);
+
     /** One row of {@link #findByTenantIdAndPanNumberIn}. */
     interface PanHolder {
         String getPanNumber();

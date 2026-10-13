@@ -57,6 +57,10 @@ public final class ApprovalTestSchema {
             }
             if (!tableExists(conn, "employee")) {
                 executeResource(conn, "db/migration/core/V010__employee.sql");
+                executeResource(
+                        conn,
+                        "db/migration/core/V173__employee_termination_reason.sql"); // BUG-D4-20 columns the Employee
+                // entity maps
             }
             // The Employee entity maps the V014 org columns and the V026 login link. Whichever
             // test schema runs first creates core.employee for every IT sharing the container,

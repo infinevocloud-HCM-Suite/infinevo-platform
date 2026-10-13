@@ -153,7 +153,7 @@ class InvitationGuardIT extends AbstractIntegrationTest {
         String unknown = InvitationTokenUtils.generateToken();
         mvc.perform(post("/api/v1/invitations/accept")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(new AcceptInvitationRequest(unknown))))
+                        .content(body(new AcceptInvitationRequest(unknown, "Str0ng-Passw0rd!"))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value(InvitationAcceptanceController.GENERIC_FAILURE));
         mvc.perform(post("/api/v1/invitations/decline")

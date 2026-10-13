@@ -69,6 +69,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final int MAX_GENDER = 32;
     private static final int MAX_WORK_EMAIL = 255;
     private static final int MAX_MOBILE = 32;
+    private static final int MAX_TERMINATION_REASON = 32;
+    private static final int MAX_TERMINATION_REMARKS = 1000;
 
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
@@ -133,6 +135,14 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         if (employeeRepository.existsByTenantIdAndEmployeeNumber(tenantId, fields.employeeNumber())) {
             throw new DuplicateEmployeeNumberException(fields.employeeNumber());
+        }
+
+        if (fields.workEmail() != null
+                && employeeRepository.existsByTenantIdAndWorkEmailIgnoreCaseAndDeletedFalse(
+                        tenantId, fields.workEmail())) {
+            throw new ValidationException(Map.of(
+                    "workEmail",
+                    "Work email " + fields.workEmail() + " already belongs to an employee in this tenant"));
         }
 
         Employee employee = new Employee(tenantId, currentActor());
@@ -211,6 +221,14 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employeeRepository.existsByTenantIdAndEmployeeNumberAndIdNot(
                 employee.getTenantId(), fields.employeeNumber(), employee.getId())) {
             throw new DuplicateEmployeeNumberException(fields.employeeNumber());
+        }
+
+        if (fields.workEmail() != null
+                && employeeRepository.existsByTenantIdAndWorkEmailIgnoreCaseAndIdNotAndDeletedFalse(
+                        employee.getTenantId(), fields.workEmail(), employee.getId())) {
+            throw new ValidationException(Map.of(
+                    "workEmail",
+                    "Work email " + fields.workEmail() + " already belongs to an employee in this tenant"));
         }
 
         boolean becomesTerminated =
@@ -503,9 +521,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         Map<String, String> errors = new LinkedHashMap<>();
 
         String employeeNumber = required(errors, "employeeNumber", request.employeeNumber(), MAX_EMPLOYEE_NUMBER);
-        String firstName = required(errors, "firstName", request.firstName(), MAX_NAME);
-        String middleName = optional(errors, "middleName", request.middleName(), MAX_NAME);
-        String lastName = optional(errors, "lastName", request.lastName(), MAX_NAME);
+        String firstName = toTitleCase(required(errors, "firstName", request.firstName(), MAX_NAME));
+        String middleName = toTitleCase(optional(errors, "middleName", request.middleName(), MAX_NAME));
+        String lastName = toTitleCase(optional(errors, "lastName", request.lastName(), MAX_NAME));
         String gender = optional(errors, "gender", request.gender(), MAX_GENDER);
         if (gender != null) {
             Optional<Gender> parsed = Gender.parse(gender);
@@ -549,6 +567,20 @@ public class EmployeeServiceImpl implements EmployeeService {
             errors.put("terminationDate", "terminationDate cannot precede dateOfJoining");
         }
 
+        // BUG-D4-20. The reason and remarks describe the termination, so they follow the same rule as
+        // its date: allowed only while the employee is TERMINATED, and both optional even then - the
+        // dialog insists on a reason, but an import or an older client may not have one to give.
+        String terminationReason =
+                optional(errors, "terminationReason", request.terminationReason(), MAX_TERMINATION_REASON);
+        String terminationRemarks =
+                optional(errors, "terminationRemarks", request.terminationRemarks(), MAX_TERMINATION_REMARKS);
+        if (!status.requiresTerminationDate() && terminationReason != null) {
+            errors.put("terminationReason", "terminationReason may only be set when status is TERMINATED");
+        }
+        if (!status.requiresTerminationDate() && terminationRemarks != null) {
+            errors.put("terminationRemarks", "terminationRemarks may only be set when status is TERMINATED");
+        }
+
         // D-40. Create only: on update the three are ignored (EmployeeRequest), so refusing a value
         // that would not be written would be an error about nothing.
         if (currentStatus == null) {
@@ -566,6 +598,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 gender,
                 dateOfJoining,
                 terminationDate,
+                terminationReason,
+                terminationRemarks,
                 status,
                 workEmail,
                 mobile,
@@ -601,6 +635,33 @@ public class EmployeeServiceImpl implements EmployeeService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    /**
+     * BUG-D4-17. Capitalises a name typed in all lower case ("asha rao" becomes "Asha Rao") and
+     * leaves anything else exactly as typed. A word that already holds a capital letter was cased on
+     * purpose - "McDonald", "D'Souza", "A.K.", "HR" - and rewriting it to "Mcdonald", "D'souza",
+     * "A.k." or "Hr" on every save would be the defect, not the fix. One capital anywhere in the value
+     * means the whole value was cased by hand and is kept.
+     */
+    static String toTitleCase(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        if (trimmed.chars().anyMatch(Character::isUpperCase)) {
+            return trimmed;
+        }
+        StringBuilder sb = new StringBuilder(trimmed.length());
+        boolean startOfWord = true;
+        for (char c : trimmed.toCharArray()) {
+            sb.append(startOfWord ? Character.toTitleCase(c) : c);
+            startOfWord = Character.isWhitespace(c);
+        }
+        return sb.toString();
+    }
+
     /** The validated, cleaned request. Exists so {@link #validate} returns values rather than mutating. */
     private record Fields(
             String employeeNumber,
@@ -610,6 +671,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             String gender,
             LocalDate dateOfJoining,
             LocalDate terminationDate,
+            String terminationReason,
+            String terminationRemarks,
             EmploymentStatus status,
             String workEmail,
             String mobile,
@@ -624,6 +687,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                     gender,
                     dateOfJoining,
                     terminationDate,
+                    terminationReason,
+                    terminationRemarks,
                     status,
                     workEmail,
                     mobile,

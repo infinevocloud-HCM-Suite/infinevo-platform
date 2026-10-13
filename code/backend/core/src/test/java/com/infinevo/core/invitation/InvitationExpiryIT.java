@@ -74,11 +74,12 @@ class InvitationExpiryIT extends AbstractIntegrationTest {
         String token = InvitationTokenUtils.generateToken();
         UUID id = expiredUserInvitation(token);
 
-        assertTimeoutPreemptively(PROMPTLY, () -> assertThatThrownBy(() -> invitationService.acceptInvitation(token))
-                .isInstanceOf(InvitationExpiredException.class));
+        assertTimeoutPreemptively(
+                PROMPTLY, () -> assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
+                        .isInstanceOf(InvitationExpiredException.class));
 
         assertThat(status("user_invitation", id)).isEqualTo("EXPIRED");
-        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(any(), any(), any());
+        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(any(), any(), any(), any());
     }
 
     @Test
@@ -109,11 +110,12 @@ class InvitationExpiryIT extends AbstractIntegrationTest {
                 "admin"));
         TenantContext.clear();
 
-        assertTimeoutPreemptively(PROMPTLY, () -> assertThatThrownBy(() -> invitationService.acceptInvitation(token))
-                .isInstanceOf(InvitationExpiredException.class));
+        assertTimeoutPreemptively(
+                PROMPTLY, () -> assertThatThrownBy(() -> invitationService.acceptInvitation(token, "Str0ng-Passw0rd!"))
+                        .isInstanceOf(InvitationExpiredException.class));
 
         assertThat(status("employee_invitation", saved.getId())).isEqualTo("EXPIRED");
-        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(any(), any(), any());
+        verify(keycloakProvisioningService, never()).getOrCreateKeycloakUser(any(), any(), any(), any());
     }
 
     private UUID expiredUserInvitation(String token) {

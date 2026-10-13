@@ -36,6 +36,7 @@ import {
   NOTICE_PERIOD_MAX,
 } from './sectionFields.js';
 import { successMsg, errorMsg } from '../../shared/ui/msgHelper.js';
+import { toTitleCase } from '../../shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -105,9 +106,9 @@ const trimOrNull = (value) => {
 export function toCreatePayload(values) {
   return {
     employeeNumber: values.employeeNumber.trim(),
-    firstName: values.firstName.trim(),
-    middleName: trimOrNull(values.middleName),
-    lastName: trimOrNull(values.lastName),
+    firstName: toTitleCase(values.firstName),
+    middleName: trimOrNull(values.middleName) ? toTitleCase(values.middleName) : null,
+    lastName: trimOrNull(values.lastName) ? toTitleCase(values.lastName) : null,
     gender: values.gender || null,
     dateOfJoining: values.dateOfJoining,
     status: values.status,

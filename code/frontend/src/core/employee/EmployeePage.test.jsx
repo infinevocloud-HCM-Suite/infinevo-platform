@@ -114,7 +114,7 @@ describe('EmployeePage component', () => {
     });
   });
 
-  it('offers neither Reactivate nor Terminate on a TERMINATED employee - the status is terminal', async () => {
+  it('offers Reactivate on a TERMINATED employee to allow reinstatement', async () => {
     employeeService.get.mockResolvedValueOnce({
       id: 'emp-term-1',
       employeeNumber: 'EMP-998',
@@ -126,7 +126,7 @@ describe('EmployeePage component', () => {
     renderPage('emp-term-1');
 
     await waitFor(() => expect(document.getElementById('btn-delete-employee')).not.toBeNull());
-    expect(document.getElementById('btn-reactivate-employee')).toBeNull();
+    expect(document.getElementById('btn-reactivate-employee')).not.toBeNull();
     expect(document.getElementById('btn-terminate-employee')).toBeNull();
     expect(document.getElementById('btn-delete-employee')).not.toBeNull();
   });
@@ -206,6 +206,7 @@ describe('EmployeePage component', () => {
     expect(employeeService.getAccess).toHaveBeenCalledWith('emp-acc-1');
     const invite = document.getElementById('btn-invite-employee');
     expect(invite).not.toBeNull();
+    expect(document.getElementById('btn-send-employee-invitation')).not.toBeNull();
 
     fireEvent.click(invite);
 
@@ -216,6 +217,23 @@ describe('EmployeePage component', () => {
       })
     );
     await waitFor(() => expect(employeeService.getAccess).toHaveBeenCalledTimes(2));
+  });
+
+  it('triggers invitation when Send Invitation action button is clicked', async () => {
+    employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+    employeeInvitationService.create.mockResolvedValueOnce({ id: 'inv-10' });
+
+    renderPage('emp-acc-1');
+
+    await waitFor(() => expect(document.getElementById('btn-send-employee-invitation')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-send-employee-invitation'));
+
+    await waitFor(() =>
+      expect(employeeInvitationService.create).toHaveBeenCalledWith({
+        employeeId: 'emp-acc-1',
+        roleIds: [],
+      })
+    );
   });
 
   it('shows Invited with the expiry date and a Resend button', async () => {
@@ -328,4 +346,31 @@ describe('EmployeePage component', () => {
       expect(screen.queryByText('Salary')).toBeNull();
     });
   });
+
+  it('calls employeeService.remove and destroys confirm modal when deleting an employee', async () => {
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-term-1',
+      employeeNumber: 'EMP-998',
+      firstName: 'Peter',
+      lastName: 'Tosh',
+      status: 'TERMINATED',
+    });
+    employeeService.remove.mockResolvedValueOnce({});
+
+    renderPage('emp-term-1');
+
+    await waitFor(() => expect(document.getElementById('btn-delete-employee')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-delete-employee'));
+
+    await waitFor(() => {
+      const confirmBtn = document.querySelector('.ant-modal-confirm-btns .ant-btn-dangerous');
+      expect(confirmBtn).not.toBeNull();
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => {
+      expect(employeeService.remove).toHaveBeenCalledWith('emp-term-1');
+    });
+  });
 });
+

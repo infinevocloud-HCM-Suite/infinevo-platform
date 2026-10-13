@@ -113,4 +113,42 @@ describe('PolicyForm component', () => {
       );
     });
   });
+
+  // D-55: a new policy sends no date and the server starts it from the current leave year. A fixed
+  // default of 1 January would be refused by an April-cycle tenant from April to December.
+  it('sends no effective date for a new policy, so the server picks the current leave year', async () => {
+    leaveTypeService.savePolicy.mockResolvedValueOnce({ success: true });
+    render(<PolicyForm leaveType={{ id: 'type-2', name: 'Sick', code: 'SL', policy: null }} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Save Policy/i }));
+
+    await waitFor(() => {
+      expect(leaveTypeService.savePolicy).toHaveBeenCalledWith(
+        'type-2',
+        expect.objectContaining({ effectiveFrom: null })
+      );
+    });
+  });
+
+  it('does not send a stored date back on edit; shows it beside the field instead', async () => {
+    leaveTypeService.savePolicy.mockResolvedValueOnce({ success: true });
+    render(
+      <PolicyForm
+        leaveType={{
+          ...dummyLeaveType,
+          policy: { ...dummyLeaveType.policy, exceedBalanceMode: 'noLimit', exceedBalanceLimitDays: null, effectiveFrom: '2026-04-01' },
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Current policy effective from 2026-04-01/)).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: /Save Policy/i }));
+
+    await waitFor(() => {
+      expect(leaveTypeService.savePolicy).toHaveBeenCalledWith(
+        'type-1',
+        expect.objectContaining({ effectiveFrom: null })
+      );
+    });
+  });
 });

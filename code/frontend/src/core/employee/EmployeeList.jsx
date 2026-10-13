@@ -58,7 +58,7 @@ export function EmployeeList() {
         includeDeleted: canDelete ? includeDeleted : false,
         page: page - 1,
         size: pageSize,
-        sort: 'lastName,asc',
+        sort: 'employeeNumber,asc',
       });
       setData(res.content || []);
       setTotal(res.totalElements || 0);

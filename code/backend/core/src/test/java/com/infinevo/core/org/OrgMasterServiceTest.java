@@ -181,6 +181,18 @@ class OrgMasterServiceTest {
     }
 
     @Test
+    @DisplayName("A department name typed in lower case is capitalised; one with capitals is kept as typed")
+    void nameIsFormattedToTitleCase() {
+        DepartmentResponse lower = departmentService.create(new DepartmentRequest("ENG", "software engineering", null));
+        DepartmentResponse acronym = departmentService.create(new DepartmentRequest("HR", "HR", null));
+        DepartmentResponse mixed = departmentService.create(new DepartmentRequest("RND", "R&D and QA/Testing", null));
+
+        assertThat(lower.name()).isEqualTo("Software Engineering");
+        assertThat(acronym.name()).isEqualTo("HR");
+        assertThat(mixed.name()).isEqualTo("R&D and QA/Testing");
+    }
+
+    @Test
     @DisplayName("A blank code or name is a field error, not a constraint violation later")
     void blankFieldsAreRefused() {
         OrgMasterService.ValidationException thrown = catchThrowableOfType(

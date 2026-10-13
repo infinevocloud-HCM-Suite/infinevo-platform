@@ -93,7 +93,8 @@ export function DocumentsTab({ employeeId }) {
   };
 
   const handleDelete = (doc) => {
-    Modal.confirm({
+    let modalRef;
+    modalRef = Modal.confirm({
       title: 'Delete document',
       content: `Delete ${doc.fileName}? The file is kept in storage but no longer listed.`,
       okText: 'Delete',
@@ -101,9 +102,11 @@ export function DocumentsTab({ employeeId }) {
       onOk: async () => {
         try {
           await documentService.remove(doc.id);
+          modalRef?.destroy();
           await successMsg('Document deleted', `${doc.fileName} is no longer listed.`);
           loadDocuments();
         } catch (err) {
+          modalRef?.destroy();
           await errorMsg(err);
         }
       },

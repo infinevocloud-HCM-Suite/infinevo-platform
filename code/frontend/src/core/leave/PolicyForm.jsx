@@ -65,7 +65,10 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
 
       form.setFieldsValue({
         annualDays: p.annualDays,
-        effectiveFrom: p.effectiveFrom ? dayjs(p.effectiveFrom) : dayjs().startOf('year'),
+        // Not prefilled on edit: the server dates the new version itself (today's leave year, never
+        // behind the version in force). Sending the stored date back would be refused once a new
+        // leave year starts. The stored date is shown beside the field instead.
+        effectiveFrom: undefined,
         accrualEnabled: p.accrualEnabled,
         accrualFrequency: p.accrualFrequency || 'monthly',
         accrualUnits: p.accrualUnits,
@@ -85,7 +88,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
       setExceedMode('noLimit');
       form.setFieldsValue({
         annualDays: 12,
-        effectiveFrom: dayjs().startOf('year'),
+        effectiveFrom: undefined,
         accrualEnabled: false,
         accrualFrequency: 'monthly',
         resetEnabled: true,
@@ -164,9 +167,13 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
           <Form.Item
             name="effectiveFrom"
             label="Effective From"
-            rules={[{ required: true, message: 'Please select effective date' }]}
+            extra={
+              leaveType?.policy?.effectiveFrom
+                ? `Current policy effective from ${leaveType.policy.effectiveFrom}. Leave empty to apply the change from the current leave year.`
+                : 'Leave empty to start from the first day of the current leave year.'
+            }
           >
-            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="YYYY-MM-DD" />
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Current leave year" />
           </Form.Item>
         </Col>
         <Col span={8}>

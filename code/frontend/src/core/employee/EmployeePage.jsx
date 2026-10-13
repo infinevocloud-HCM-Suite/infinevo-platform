@@ -8,6 +8,7 @@ import {
   StopOutlined,
   DeleteOutlined,
   CheckCircleOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { useCan, useModuleEmployeeTabs } from '@shell/screens';
 import { employeeService } from './employeeService.js';
@@ -121,8 +122,15 @@ export function EmployeePage() {
     }
   }, [dispatch, mastersLoadedAt]);
 
+  useEffect(() => {
+    return () => {
+      Modal.destroyAll();
+    };
+  }, []);
+
   const handleDelete = () => {
-    Modal.confirm({
+    let modalInstance = null;
+    modalInstance = Modal.confirm({
       title: 'Delete Employee',
       content: `Are you sure you want to soft-delete employee ${employee.employeeNumber}? They will no longer appear in default searches.`,
       okText: 'Delete',
@@ -130,9 +138,15 @@ export function EmployeePage() {
       onOk: async () => {
         try {
           await employeeService.remove(employee.id);
+          if (modalInstance) {
+            modalInstance.destroy();
+          }
           await successMsg('Employee Deleted', `Employee ${employee.employeeNumber} soft-deleted.`);
           navigate('/employees');
         } catch (err) {
+          if (modalInstance) {
+            modalInstance.destroy();
+          }
           await errorMsg(err);
         }
       },
@@ -140,7 +154,8 @@ export function EmployeePage() {
   };
 
   const handleReactivate = () => {
-    Modal.confirm({
+    let modalInstance = null;
+    modalInstance = Modal.confirm({
       title: 'Reactivate Employee',
       content: `Are you sure you want to reactivate employee ${employee.employeeNumber}? Their status will be set back to ACTIVE.`,
       okText: 'Reactivate',
@@ -150,10 +165,18 @@ export function EmployeePage() {
             ...employee,
             status: 'ACTIVE',
             terminationDate: null,
+            terminationReason: null,
+            terminationRemarks: null,
           });
+          if (modalInstance) {
+            modalInstance.destroy();
+          }
           await successMsg('Employee Reactivated', `Employee ${employee.employeeNumber} reactivated successfully.`);
           setEmployee(updated);
         } catch (err) {
+          if (modalInstance) {
+            modalInstance.destroy();
+          }
           await errorMsg(err);
         }
       },
@@ -177,9 +200,8 @@ export function EmployeePage() {
   }
 
   const fullName = [employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ');
-  // TERMINATED is terminal on the server (EmploymentStatus.allowedNext): only a suspended
-  // employee can be reactivated, and an active or suspended one can be terminated.
-  const canReactivate = employee.status === 'SUSPENDED';
+  // Both suspended and terminated employees can be reactivated back to ACTIVE.
+  const canReactivate = employee.status === 'SUSPENDED' || employee.status === 'TERMINATED';
   const canTerminate = employee.status === 'ACTIVE' || employee.status === 'SUSPENDED';
 
   const visibleTabs = employeeTabs.filter((tab) => {
@@ -223,7 +245,7 @@ export function EmployeePage() {
               <Space align="center" size="small">
                 <Title level={4} style={{ margin: 0 }}>{fullName}</Title>
                 <Tag color={statusColorMap[employee.status] || 'default'}>{employee.status}</Tag>
-                {access?.state === 'NONE' && (
+                {(!access || access?.state === 'NONE') && (
                   <>
                     <Tag id="tag-access">No access</Tag>
                     {canInvite && (
@@ -274,6 +296,26 @@ export function EmployeePage() {
 
           {/* Action buttons */}
           <Space size="small">
+            {canInvite && employee.status === 'ACTIVE' && (!access || access.state === 'NONE') && (
+              <Button
+                icon={<MailOutlined />}
+                onClick={handleInvite}
+                id="btn-send-employee-invitation"
+              >
+                Send Invitation
+              </Button>
+            )}
+
+            {canInvite && employee.status === 'ACTIVE' && access?.state === 'INVITED' && (
+              <Button
+                icon={<MailOutlined />}
+                onClick={handleResend}
+                id="btn-resend-employee-invitation"
+              >
+                Resend Invitation
+              </Button>
+            )}
+
             {canUpdate && canReactivate && (
               <Button
                 type="primary"

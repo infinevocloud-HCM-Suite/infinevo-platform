@@ -75,6 +75,9 @@ public final class AuthzTestSchema {
                     executeResource(conn, "db/migration/core/V008__audit_log.sql");
                     executeResource(conn, "db/migration/core/V009__user_account.sql");
                     executeResource(conn, "db/migration/core/V010__employee.sql");
+                    executeResource(
+                            conn, "db/migration/core/V173__employee_termination_reason.sql"); // BUG-D4-20 columns the
+                    // Employee entity maps
                     executeResource(conn, "db/migration/core/V011__department.sql");
                     executeResource(conn, "db/migration/core/V012__designation.sql");
                     executeResource(conn, "db/migration/core/V013__work_location.sql");
@@ -211,6 +214,7 @@ public final class AuthzTestSchema {
                     if (!tableExists(conn, "core", "tenant_template_applied")) {
                         executeResource(conn, "db/migration/core/V169__tenant_template_applied.sql");
                     }
+                    executeResource(conn, "db/migration/core/V172__grant_reporting_line_manage_to_hr.sql");
                 }
 
             } catch (Exception e) {

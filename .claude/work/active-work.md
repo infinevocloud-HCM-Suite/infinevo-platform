@@ -6,6 +6,46 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-13 — Krushna's Day 4 employee fixes on `main` (`BUG-D4-13`–`BUG-D4-22`)
+
+| Fix | What |
+|---|---|
+| Duplicates | Work email, PAN and Aadhaar refused when another employee in the tenant has them (400, field error); PAN and Aadhaar mandatory on the Identification tab |
+| HR sets managers | `V172` grants `core.reporting_line.manage` to `hr` |
+| Exit and return | Terminate asks for a reason and remarks and stores them (`V173`); a terminated employee can be reactivated |
+| Names | Lower-case names and masters are capitalised on save; anything with a capital is kept as typed |
+| Employee page | Send / Resend invitation for an employee without access; document delete dialog closes |
+
+- Built by Krushna on `krushna-bug-fix`; one independent read before the squash. Two findings fixed in the merge (`BUG-D4-17` rewrote cased names; `BUG-D4-20` stored nothing). Four items left open — tracker §9.4, founder to number.
+- **Numbering:** the branch used `BUG-D4-nn`, Devashish's and Sayeed's branches both use `D-15`–`D-18` for different defects. The founder renumbers once on `main` (tracker row `D-15 – D-32`).
+- **Merge order agreed 2026-10-13:** Krushna → Sayeed (after tests) → `D-88` (`dev-claude`) → e2e suite (`dev-claude-e2e`) → Devashish after a rebase (his branch rebuilds `/roles`, which `D-73` already delivered).
+- **Branches:** `dev-claude-krushna` and `krushna-bug-fix` can be deleted.
+
+## 2026-10-13 — `D-88` on `main`: the invitation link sets the password
+
+| What | Detail |
+|---|---|
+| Accept page | Asks for a password and its confirmation (realm rules as a hint) and sends it with the token. One email, no second "set your password" mail |
+| Server | Creates the Keycloak user, sets the password, clears `UPDATE_PASSWORD`; a password the realm policy refuses is a 400 shown beside the field, the half-created user is deleted and the invitation stays PENDING. An existing account keeps its password and is pointed at "Forgot password?" |
+| Realm check | `check-realm.mjs --live <keycloak> --app <root>` fails without the reset-credentials link; `verify-live.sh` runs it as check 11 |
+
+- Built by Claude on `dev-claude` (`c777b419`, `8eb38e5b`); gates 5/5, CI green, one independent read, its findings fixed on the branch. Founder's tester mail (`.claude/outputs/2026-10-09-dev-validation-logins.md`) describes this flow.
+- **Outstanding:** set `resetPasswordAllowed` on the live dev realm, then check 11 passes; "Send set-password link" on Users & Access dropped on purpose.
+- **Branches:** `dev-claude` can be reset to `main`.
+
+## 2026-10-13 — Sayeed's leave fixes on `main` (`D-15`, `D-16`, `D-55`) and QA rows `D-43`–`D-58`
+
+| Fix | What |
+|---|---|
+| `D-15`, `D-55` | A leave policy saved without an effective date starts on the first day of the tenant's current leave year; a date before it is refused with the reason. The drawer sends no default |
+| `D-16` | The first holiday calendar is the default; once one exists the switch is off and disabled, so the 409 cannot happen from the screen |
+
+- Built by Sayeed on `dev-sayeed`; one independent read before the squash. The branch's own fix did not work end to end — the validator still refused an empty date and the drawer defaulted to 1 January, which an April-cycle tenant refuses — fixed in the merge with tests (`LeavePolicyEffectiveFromTest`, `PolicyForm.test.jsx`, `Calendars.test.jsx`).
+- `D-52` (employee sees no Leave menu) was already fixed on `main` as `D-74`/`D-75`; its row says so now.
+- **Open from Sayeed's QA:** `D-43`–`D-51`, `D-53`, `D-54`, `D-56`–`D-58` — leave import, approvals history, timesheet recall, attendance history, `/me` layout, holiday view. `D-53`, `D-56`, `D-58` overlap the screen audit's Phase 3 (`D-78`).
+- **Numbering:** `D-15`–`D-18` here are Sayeed's; Devashish's branch uses the same numbers for other defects — founder renumbers once on `main`.
+- **Branches:** `dev-claude-sayeed` can be deleted; `dev-sayeed` resets to `main`.
+
 ## 2026-10-10 — Screen audit Phase 2: `D-74`–`D-77` fixed on `main`
 
 | Defect | What |

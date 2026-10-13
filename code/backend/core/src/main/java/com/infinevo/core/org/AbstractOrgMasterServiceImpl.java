@@ -260,7 +260,8 @@ abstract class AbstractOrgMasterServiceImpl<E extends OrgMaster, Q extends OrgMa
         Map<String, String> errors = new LinkedHashMap<>();
 
         String code = required(errors, "code", request.code(), MAX_CODE);
-        String name = required(errors, "name", request.name(), MAX_NAME);
+        String rawName = required(errors, "name", request.name(), MAX_NAME);
+        String name = ("department".equals(kind()) || "designation".equals(kind())) ? toTitleCase(rawName) : rawName;
         validateExtra(request, errors);
 
         if (!errors.isEmpty()) {
@@ -297,6 +298,33 @@ abstract class AbstractOrgMasterServiceImpl<E extends OrgMaster, Q extends OrgMa
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * BUG-D4-17. Capitalises a name typed in all lower case ("human resources" becomes "Human
+     * Resources") and leaves anything else exactly as typed. A word that already holds a capital
+     * letter was cased on purpose - "HR", "IT", "R&D", "QA/Testing" - and rewriting it to "Hr", "It",
+     * "R&d" on every rename would be the defect, not the fix. One capital anywhere in the value
+     * means the whole value was cased by hand and is kept.
+     */
+    static String toTitleCase(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        if (trimmed.chars().anyMatch(Character::isUpperCase)) {
+            return trimmed;
+        }
+        StringBuilder sb = new StringBuilder(trimmed.length());
+        boolean startOfWord = true;
+        for (char c : trimmed.toCharArray()) {
+            sb.append(startOfWord ? Character.toTitleCase(c) : c);
+            startOfWord = Character.isWhitespace(c);
+        }
+        return sb.toString();
     }
 
     /** The validated, cleaned common fields. Exists so {@code validate} returns values rather than mutating. */

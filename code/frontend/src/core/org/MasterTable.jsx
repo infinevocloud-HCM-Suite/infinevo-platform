@@ -17,6 +17,7 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { toTitleCase } from '@shared/ui/format.js';
 import { invalidateMasters } from '../employee/employeeSlice.js';
 
 const { Title, Text } = Typography;
@@ -71,7 +72,7 @@ export function MasterTable({ title, service }) {
     try {
       await service.create({
         code: newCode.trim().toUpperCase(),
-        name: newName.trim(),
+        name: toTitleCase(newName.trim()),
         active: true,
       });
       dispatch(invalidateMasters());
@@ -106,7 +107,7 @@ export function MasterTable({ title, service }) {
     try {
       await service.update(record.id, {
         code: editCode.trim().toUpperCase(),
-        name: editName.trim(),
+        name: toTitleCase(editName.trim()),
         active: record.active,
       });
       dispatch(invalidateMasters());

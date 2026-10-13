@@ -79,10 +79,7 @@ public class EmployeeQueryService {
                 sort = sort.and(Sort.by("id").ascending());
             }
         } else {
-            sort = Sort.by("lastName")
-                    .ascending()
-                    .and(Sort.by("firstName").ascending())
-                    .and(Sort.by("id").ascending());
+            sort = Sort.by("employeeNumber").ascending().and(Sort.by("id").ascending());
         }
 
         return PageRequest.of(pageable.getPageNumber(), size, sort);

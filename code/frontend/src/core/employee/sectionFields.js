@@ -87,8 +87,8 @@ export const sectionFields = {
     title: 'Identification Details',
     permission: 'core.employee_identification.update',
     fields: [
-      { name: 'panNumber', label: 'PAN Number', type: 'text', masked: true },
-      { name: 'aadhaarNumber', label: 'Aadhaar Number', type: 'text', masked: true },
+      { name: 'panNumber', label: 'PAN Number', type: 'text', masked: true, required: true },
+      { name: 'aadhaarNumber', label: 'Aadhaar Number', type: 'text', masked: true, required: true },
       { name: 'immigrationStatus', label: 'Immigration Status', type: 'text' },
       { name: 'personalTaxId', label: 'Personal Tax ID', type: 'text' },
       { name: 'socialInsuranceNumber', label: 'Social Insurance Number', type: 'text' },
