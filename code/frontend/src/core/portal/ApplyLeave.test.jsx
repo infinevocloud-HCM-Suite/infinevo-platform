@@ -204,4 +204,42 @@ describe('ApplyLeave component (W-46.5 §7)', () => {
     expect(screen.getByText(/supporting documents \/ attachments/i)).toBeDefined();
     expect(screen.getByRole('button', { name: /attach document/i })).toBeDefined();
   });
+
+  it('normalizes documentIds wrapper to an array of UUIDs on submit (BUG-D5-023)', async () => {
+    leaveRequestService.create.mockResolvedValue({ id: 'req-sub-doc-1', status: 'SUBMITTED' });
+
+    render(
+      <MemoryRouter>
+        <ApplyLeave
+          initialValues={{
+            ...defaultValues,
+            leaveTypeId: 'type-sl',
+            documentIds: {
+              file: { uid: 'rc-upload-1', name: 'medical_cert.pdf', status: 'done', response: { id: 'doc-uuid-1234' } },
+              fileList: [
+                { uid: 'rc-upload-1', name: 'medical_cert.pdf', status: 'done', response: { id: 'doc-uuid-1234' } },
+              ],
+            },
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(leaveTypeService.eligible).toHaveBeenCalledWith('emp-101');
+    });
+
+    const submitBtn = screen.getByRole('button', { name: /submit/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(leaveRequestService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          leaveTypeId: 'type-sl',
+          documentIds: ['doc-uuid-1234'],
+          submit: true,
+        })
+      );
+    });
+  });
 });

@@ -7,6 +7,24 @@ import { EmployeePicker } from './EmployeePicker.jsx';
 
 const { TextArea } = Input;
 
+export const normalizeDocumentIds = (val) => {
+  if (Array.isArray(val)) {
+    return val
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        return item?.id || item?.documentId || item?.response?.id || item?.response?.documentId;
+      })
+      .filter(Boolean);
+  }
+  if (val && typeof val === 'object') {
+    const list = Array.isArray(val.fileList) ? val.fileList : [val.file].filter(Boolean);
+    return list
+      .map((f) => f?.id || f?.documentId || f?.response?.id || f?.response?.documentId)
+      .filter(Boolean);
+  }
+  return [];
+};
+
 export function LeaveRequestFields({
   form,
   isEmployeeView = false,
@@ -22,7 +40,15 @@ export function LeaveRequestFields({
       const res = await documentService.upload(file, 'LEAVE_ATTACHMENT');
       const docId = res?.id || res?.documentId;
       file.documentId = docId;
+      file.status = 'done';
+      file.response = res;
       onSuccess(res, file);
+      if (form && docId) {
+        const currentDocIds = normalizeDocumentIds(form.getFieldValue('documentIds'));
+        if (!currentDocIds.includes(docId)) {
+          form.setFieldsValue({ documentIds: [...currentDocIds, docId] });
+        }
+      }
     } catch (err) {
       onError(err);
     }
@@ -31,10 +57,7 @@ export function LeaveRequestFields({
   const handleFileChange = ({ fileList: newFileList }) => {
     setFileList(newFileList);
     if (form) {
-      const docIds = newFileList
-        .filter((f) => f.status === 'done' || f.documentId || f.response)
-        .map((f) => f.documentId || f.response?.id || f.response?.documentId)
-        .filter(Boolean);
+      const docIds = normalizeDocumentIds({ fileList: newFileList });
       form.setFieldsValue({ documentIds: docIds });
     }
   };
@@ -126,6 +149,7 @@ export function LeaveRequestFields({
         name="documentIds"
         label="Supporting Documents / Attachments"
         extra="Upload supporting documents (PDF, JPG, PNG) if required by the leave policy."
+        getValueFromEvent={normalizeDocumentIds}
       >
         <Upload
           fileList={fileList}
@@ -133,7 +157,7 @@ export function LeaveRequestFields({
           onChange={handleFileChange}
           multiple
         >
-          <Button icon={<UploadOutlined />}>Attach Document</Button>
+          <Button icon={<UploadOutlined />} id="btn-leave-attach-document">Attach Document</Button>
         </Upload>
       </Form.Item>
     </>

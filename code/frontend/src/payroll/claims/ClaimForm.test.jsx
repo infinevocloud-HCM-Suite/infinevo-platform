@@ -162,4 +162,16 @@ describe('ClaimForm (W-47.4 §7)', () => {
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(await screen.findByRole('combobox', { name: 'Component' })).toBeDefined();
   });
+
+  it('shows warning and disables submit when no components are available', async () => {
+    claimService.components.mockResolvedValueOnce([]);
+    await renderForm();
+
+    expect(await screen.findByTestId('no-components-warning')).toBeDefined();
+    expect(
+      screen.getByText('No reimbursement components are available for claims. Please contact your administrator.')
+    ).toBeDefined();
+    expect(screen.getByRole('combobox', { name: 'Component' })).toHaveProperty('disabled', true);
+    expect(submitButton().disabled).toBe(true);
+  });
 });

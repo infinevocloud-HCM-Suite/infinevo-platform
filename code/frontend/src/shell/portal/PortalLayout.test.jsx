@@ -181,6 +181,63 @@ describe('PortalLayout component (W-25 §7)', () => {
     expect(screen.getByRole('link', { name: /open week/i })).toBeDefined();
     expect(screen.queryByText(/coming soon|in development/i)).toBeNull();
   }, 30000);
+
+  it('renders Holiday Calendar tab and redirects to /holidays when clicked (D-57)', async () => {
+    const acmePanels = [
+      { code: 'profile', title: 'My Profile', displayOrder: 1, endpoint: '/api/v1/me/employee', requiredAction: 'core.employee.read_own' },
+    ];
+
+    vi.spyOn(portalService, 'getPanels').mockResolvedValue(acmePanels);
+    vi.spyOn(portalService, 'getProfile').mockResolvedValue({
+      id: 'emp-1',
+      employeeNumber: 'EMP001',
+      firstName: 'Arun',
+      lastName: 'Acme',
+      status: 'ACTIVE',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/me']}>
+        <Routes>
+          <Route path="/me" element={<PortalLayout />} />
+          <Route path="/me/:panelId" element={<PortalLayout />} />
+          <Route path="/holidays" element={<div data-testid="holidays-page">Organisation Holidays</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Employee Self-Service')).toBeDefined();
+    });
+
+    const holidayTab = screen.getByRole('tab', { name: /holiday calendar/i });
+    expect(holidayTab).toBeDefined();
+
+    holidayTab.click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('holidays-page')).toBeDefined();
+    });
+  });
+
+  it('redirects direct /me/holidays route to /holidays (D-57)', async () => {
+    vi.spyOn(portalService, 'getPanels').mockResolvedValue([
+      { code: 'profile', title: 'My Profile', displayOrder: 1, endpoint: '/api/v1/me/employee', requiredAction: 'core.employee.read_own' },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={['/me/holidays']}>
+        <Routes>
+          <Route path="/me/:panelId" element={<PortalLayout />} />
+          <Route path="/holidays" element={<div data-testid="holidays-page">Organisation Holidays</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('holidays-page')).toBeDefined();
+    });
+  });
 });
 
 describe('PortalLayout panel icons (D-87)', () => {

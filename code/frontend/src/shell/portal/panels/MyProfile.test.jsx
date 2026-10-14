@@ -36,6 +36,18 @@ const LISTS = {
   '/v1/work-locations': [{ ...master(EMPLOYEE.workLocationId, 'BLR', 'Bengaluru HQ'), city: 'Bengaluru' }],
 };
 
+const REPORTING_LINE = [
+  {
+    id: '6f1c2a10-0000-4000-8000-000000000004',
+    employeeId: EMPLOYEE.id,
+    managerId: '6f1c2a10-0000-4000-8000-000000000005',
+    managerName: 'Krushna Sonalkar',
+    kind: 'PRIMARY',
+    effectiveFrom: '2026-04-01',
+    effectiveTo: null,
+  },
+];
+
 function serve(refused = []) {
   return vi.spyOn(apiClient, 'get').mockImplementation(async (url) => {
     if (url === '/v1/me/employee') return { data: EMPLOYEE };
@@ -43,6 +55,9 @@ function serve(refused = []) {
       throw { code: 'FORBIDDEN', message: 'Not allowed', status: 403, isForbidden: true };
     }
     if (LISTS[url]) return { data: LISTS[url] };
+    if (url === `/v1/employees/${EMPLOYEE.id}/reporting-line`) {
+      return { data: REPORTING_LINE };
+    }
     throw new Error(`unexpected GET ${url}`);
   });
 }
@@ -64,6 +79,7 @@ describe('MyProfile shows names and words, not ids and codes (D-77)', () => {
     expect(screen.getByText('Software Engineer')).toBeDefined();
     expect(screen.getByText('Bengaluru HQ')).toBeDefined();
     expect(screen.getAllByText('Asha Kumari Rao').length).toBeGreaterThan(0);
+    expect(valueOf('Reporting manager')).toBe('Krushna Sonalkar');
     expect(valueOf('Status')).toBe('Active');
     expect(valueOf('Gender')).toBe('Male');
     expect(screen.getByText('1 Apr 2026')).toBeDefined();
@@ -74,6 +90,7 @@ describe('MyProfile shows names and words, not ids and codes (D-77)', () => {
     // The number is shown once, and no UUID or raw code reaches the page.
     expect(screen.getAllByText('EMP-001')).toHaveLength(1);
     expect(screen.queryByText(EMPLOYEE.departmentId)).toBeNull();
+    expect(screen.queryByText('6f1c2a10-0000-4000-8000-000000000005')).toBeNull();
     expect(screen.queryByText('ACTIVE')).toBeNull();
     expect(screen.queryByText('MALE')).toBeNull();
     expect(screen.queryByText('2026-04-01')).toBeNull();
@@ -87,7 +104,17 @@ describe('MyProfile shows names and words, not ids and codes (D-77)', () => {
     expect(await screen.findByText('Engineering')).toBeDefined();
     expect(screen.getByText('Bengaluru HQ')).toBeDefined();
     expect(valueOf('Designation')).toBe('—');
+    expect(valueOf('Reporting manager')).toBe('Krushna Sonalkar');
     expect(screen.queryByText(EMPLOYEE.designationId)).toBeNull();
+  });
+
+  it('shows a dash for reporting manager when reporting-line is refused or unassigned', async () => {
+    serve([`/v1/employees/${EMPLOYEE.id}/reporting-line`]);
+
+    render(<MyProfile />);
+
+    expect(await screen.findByText('Engineering')).toBeDefined();
+    expect(valueOf('Reporting manager')).toBe('—');
   });
 });
 

@@ -325,53 +325,130 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
 - **Symptoms:**
   1. On the employee self-service portal (`/me`, My Leave tab), the "Leave Balances" section displays available and consumed days for employee leave types (e.g. EL, SL), but the cards are visually misaligned and lack a structured layout.
   2. The cards do not maintain consistent height, meter progress bars, or uniform vertical alignment when type names or day counts vary.
-- **Root Cause:** `MyLeave.jsx:136-155` uses Ant Design `<Row gutter={[16, 16]}>` with unconstrained `<Card type="inner">` without flex height matching, visual meter progress bars, or structured alignment containers.
-- **Impact:** Poor visual hierarchy and misaligned UI presentation for employees viewing their leave balances.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. `MyLeave.jsx` previously rendered unconstrained inner cards without matched height, visual progress meters, or consistent vertical rhythm.
+  2. Redesigned leave balance cards using full-height flex column layout (`height: '100%'`, `justifyContent: 'space-between'`) with subtle container gradient and soft border styling.
+  3. Integrated Ant Design `<Progress>` progress meters reflecting consumption percentage with color-coded status thresholds (success / normal / exception).
+  4. Displayed clean `<Statistic>` readouts for available days and added a structured footer tag displaying "Used: X days" alongside the total allocated entitlement tag.
+  5. Corrected `<Space direction="vertical">` and row key definitions.
+- **Impact:** Greatly improved visual clarity and responsiveness for employees tracking leave balances.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### D-54 (BUG-D5-016): Admin Detail View (`/leave/requests/:id`) Incorrectly Exposes Applicant-Only "Withdraw" Action
 - **Found:** 2026-10-12, manual QA Leave Request Detail (`/leave/requests/:id`, Step `S6-04`)
 - **Symptoms:**
   1. When Tenant Admin or HR views the detail page of a pending employee leave request (`/leave/requests/:id`), the screen displays a prominent red **"Withdraw"** button in the header actions.
   2. In HRMS business workflows, "Withdraw" is strictly an employee self-service action allowing applicants to pull back their own pending request before an approval decision is made. Administrators and approvers should only see `Approve`, `Reject`, or `Cancel Leave` (for approved leaves), not a self-service "Withdraw" button.
-- **Root Cause:** `LeaveRequestDetail.jsx:184` computes `const canWithdraw = !isReadOnly && canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED');`. It gates the withdraw button on `canManage` (`core.leave.manage`) instead of verifying whether the authenticated user is the applicant employee (`isApplicant`).
-- **Impact:** Confusion over role responsibilities and potential semantic/permission violations if an administrator attempts to trigger an employee self-service withdrawal.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. `LeaveRequestDetail.jsx:184` previously evaluated `canWithdraw = !isReadOnly && canManage && (request.status === 'PENDING' || request.status === 'SUBMITTED')`. Because administrators hold `canManage` (`core.leave.manage`), the "Withdraw" action was erroneously exposed to administrators on `/leave/requests/:id`.
+  2. Identified caller profile via `portalService.getProfile()` to determine `currentEmployeeId`.
+  3. Gated `isApplicant = Boolean(currentEmployeeId && request?.employeeId && currentEmployeeId === request.employeeId)` and `canWithdraw = isApplicant && (request.status === 'PENDING' || request.status === 'SUBMITTED')`.
+  4. Administrators viewing employee requests on `/leave/requests/:id` no longer see the self-service "Withdraw" button; they only see "Cancel Leave" if the leave has been approved (`canManage && request.status === 'APPROVED'`).
+  5. Added unit test coverage in `LeaveRequestDetail.test.jsx`.
+- **Impact:** Eliminates confusion over administrative roles and ensures applicant-only self-service action isolation.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### D-55 (BUG-D5-017): Leave Policy Drawer (`PolicyForm.jsx`) Throws `VALIDATION_FAILED: effectiveFrom cannot be null` on Save and Lacks Effective Date Input
 - **Found:** 2026-10-12, manual QA Leave Type Policy Configuration (`/leave/types`, Step `S4-10`, `S6-01`)
 - **Symptoms:**
   1. When an administrator adds a leave type or opens the policy drawer (`PolicyForm.jsx`) from `/leave/types` to configure annual days and rules, clicking **Save** throws an error: `HTTP 400 / VALIDATION_FAILED: effectiveFrom date cannot be null`.
   2. There is no visible input field or date picker on the drawer to specify an effective date.
-- **Root Cause:** Backend `LeavePolicyRequest` enforces `@NotNull LocalDate effectiveFrom`. On the deployed environment, `PolicyForm.jsx` omitted `<DatePicker name="effectiveFrom">`, leaving `values.effectiveFrom` undefined during submission. (Resolved locally in `dev-sayeed` branch by adding `<DatePicker name="effectiveFrom">` defaulting to `dayjs().startOf('year')`, awaiting deployment).
-- **Impact:** Critical / Blocker: Prevents administrators from creating or editing leave policies through the deployed UI.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. Backend `LeavePolicyRequest` previously enforced non-null `effectiveFrom` in `LeavePolicyValidator`, blocking saves when the date was omitted.
+  2. `LeavePolicyValidator` now treats `effectiveFrom` as optional, allowing `LeaveTypeServiceImpl.configurePolicy` to default missing dates to the tenant's current leave year start date (and ensuring it never falls behind versions already in force).
+  3. `PolicyForm.jsx` includes a `<DatePicker name="effectiveFrom">` field with clear guidance ("Leave empty to start from the first day of the current leave year").
+  4. Verified with backend tests (`LeavePolicyEffectiveFromTest`, `LeavePolicyValidationTest`) and frontend unit tests (`PolicyForm.test.jsx`).
+- **Impact:** Administrators can seamlessly create and edit leave policies with either explicit effective dates or automatic defaulting to the active leave year.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### D-56 (BUG-D5-018): Employee Portal (`/me`) Dashboard & Profile Summary Card Visual Misalignment
 - **Found:** 2026-10-12, manual QA Employee Portal (`/me`, Step `S19-02`)
 - **Symptoms:**
   1. On the employee portal (`/me`), the employee profile summary card displays employee details (Name, Job Title, Department, Location), but the content is visually misaligned.
   2. The text labels and values lack clean vertical rhythm, padding, and structured visual alignment.
-- **Root Cause:** Dashboard header and profile overview card in `MyProfile.jsx` / `/me` layout lack consistent flex alignment, fixed padding, and standard typography container hierarchy.
-- **Impact:** Poor visual presentation on the primary employee landing page.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. Dashboard header and profile summary card in `MyProfile.jsx` suffered from unaligned metadata items and basic layout structure.
+  2. Implemented a prominent hero summary card (`panel-profile-summary`) with flex alignment, user avatar with status badge, role/title tags, and structured metadata chips (Employee Code, Department, Work Location, Joining Date) with dedicated Ant Design icons.
+- **Impact:** Clean, modern, and visually balanced hero summary card on employee self-service home.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### D-57 (BUG-D5-019): Missing "Holiday Calendar" Tab on Employee Portal (`/me`)
 - **Found:** 2026-10-12, manual QA Employee Portal (`/me`, Step `S19-04`)
 - **Symptoms:**
   1. Test step S19-04 requires employees to inspect upcoming tenant/work location holidays on the `/me` portal.
   2. There is no "Holiday Calendar" tab, card, or widget available anywhere on `/me`.
-- **Root Cause:** `PortalLayout.jsx` and `PortalPanelProvider` do not register a `HolidayCalendarPanelProvider`. Holiday calendar navigation exists exclusively under Organisation masters for Admin/HR, leaving employees without self-service visibility into their upcoming holidays.
-- **Impact:** Employees cannot check their upcoming holiday schedule from the self-service portal.
-- **Status:** Open.
+- **Root Cause & Fix:**
+  1. `PortalLayout.jsx` previously only rendered tabs dynamically fetched from `/me/panels`, omitting the tenant holiday calendar which resides under Organisation (`/holidays`).
+  2. Added a dedicated "Holiday Calendar" tab with `<CalendarOutlined />` to the self-service tabs in `PortalLayout.jsx`.
+  3. Configured tab navigation and URL redirect: selecting the tab or hitting `/me/holidays` redirects smoothly to `/holidays` (Organisation > Holidays).
+  4. Excluded `holidays` from the 403 forbidden panel check in `PortalLayout.jsx` and added unit test coverage in `PortalLayout.test.jsx`.
+- **Impact:** Employees can effortlessly navigate to upcoming holiday calendar listings directly from their self-service portal.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
-#### D-58 (BUG-D5-020): My Profile Screen (`/me/profile`) UI Form Sections Visual Misalignment
+#### D-58 (BUG-D5-020): My Profile Screen (`/me/profile`) Form Sections Visual Misalignment & Unrestricted Employee Edits
 - **Found:** 2026-10-12, manual QA Employee Profile (`/me/profile`, Step `S19-06`)
 - **Symptoms:**
-  1. On the My Profile screen (`/me/profile`), updating emergency contact details succeeds, but the form sections (Personal, Job, Contact) suffer from visual misalignment.
-  2. Form input fields, label widths, and grid columns lack consistent alignment and responsive structure.
-- **Root Cause:** `MyProfile.jsx` form layout mixes unaligned description rows with inconsistent column definitions (`xs: 1, sm: 2, md: 3`) and missing `labelCol`/`wrapperCol` standardization across editable sections.
-- **Impact:** Unpolished and misaligned UI presentation on employee self-service profile screens.
+  1. On the My Profile screen (`/me/profile`), updating emergency contact details succeeded, but the form sections (Personal, Job, Contact) suffered from visual misalignment.
+  2. Form input fields, label widths, and grid columns lacked consistent alignment and responsive structure.
+  3. Employee portal presented editable form inputs and Save buttons triggering PUT/POST mutation APIs (`/v1/employees/{id}/personal`, `/v1/employees/{id}/contact`).
+- **Requirement & Scope:**
+  - Remove options from employee side to fill details and call POST/PUT API. Employees can only view their details.
+  - On the admin side (`/employees/:id`), retain full capability to edit details and invoke POST/PUT APIs.
+  - In self-service (`/me/profile`), add 2 tabs at the top ("Personal Details" and "Contact Details") to showcase employee details in a structured, read-only UI.
+- **Root Cause & Fix:**
+  1. Removed `actions?.EditOwnSection` editable form and Save buttons from employee portal (`MyProfile.jsx`), preventing employee mutation calls to `PUT /v1/employees/{id}/personal` and `PUT /v1/employees/{id}/contact`.
+  2. Maintained full editable forms and save capability on Admin screens (`/employees/:id`, `employeeTabs.jsx`, `SectionTab.jsx`).
+  3. Added two dedicated tabs at the top ("Personal Details" and "Contact Details") in `MyProfile.jsx` (`panel-profile-tabs`), showcasing employee details in structured, read-only `Descriptions` tables with consistent 180px label widths, soft-tinted backgrounds, and 2-column balanced grids.
+  4. Non-destructively loaded extended section details (`dateOfBirth`, `maritalStatus`, `emergencyContactName`, addresses) via `Promise.allSettled([employeeService.section(id, 'personal'), employeeService.section(id, 'contact')])` without breaking mock expectations.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
+
+#### BUG-D5-021 (E-01): Missing Reporting Manager Field on Welcome Page & Employee Portal (/me)
+- **Found:** 2026-10-14, Certification Stage E-01 (`sahmad@infinevocloud.com`)
+- **Error / Issue:** No field exists to display the employee's Reporting Manager on the Welcome page (`/welcome`) or on the employee profile page (`/me`).
+- **Expected:** Name, designation, department, and reporting manager displayed as readable words (no UUIDs).
+- **Fix Applied:**
+  1. Added `getReportingManager(employeeId)` and `getJobSummary()` in `portalService.js` to query `/api/v1/employees/{id}/reporting-line` (gated by `core.org.read` which `employee` role holds) and extract primary manager name as readable words.
+  2. In `MyProfile.jsx`: Added `Reporting manager` to the "Job" `Descriptions` block beside `Department` and `Designation`, gracefully displaying `—` if unassigned or refused without throwing.
+  3. In `Welcome.jsx`: Added job summary block (`Descriptions`) in `EmployeeCard` rendering `Department`, `Designation`, and `Reporting manager` words.
+  4. Expanded unit tests in `MyProfile.test.jsx` and `Welcome.test.jsx`.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
+
+#### BUG-D5-023 (E-03a): Leave Application Throws Attachment Validation Error Despite Attaching Document
+- **Found:** 2026-10-14, Certification Stage E-03a (`/me/leave/apply`, applying Sick Leave SL on 2026-10-20)
+- **Error:** `Validation Error: Leave policy requires supporting documents to be attached (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b)`
+- **Symptom:** Even after attaching a supporting document via the upload component on the form, submitting the request fails with the exact same validation error.
+- **Root Cause:** In `LeaveRequestFields.jsx`, `<Upload>` inside `<Form.Item name="documentIds">` sets the field value to an object `{ file, fileList }` on change, overwriting the document UUID array, causing `documentIds` to not be serialized or sent properly to `POST /api/v1/leave/requests`.
+- **Fix Applied:**
+  1. Created and exported `normalizeDocumentIds` in `LeaveRequestFields.jsx` to reliably extract document UUID strings from raw strings, Ant Design `{ file, fileList }` wrappers, or file response objects.
+  2. Added `getValueFromEvent={normalizeDocumentIds}` on `<Form.Item name="documentIds">` in `LeaveRequestFields.jsx` so the form field holds `List<UUID>` strings.
+  3. Updated `handleCustomUpload` and `handleFileChange` to maintain the document ID array when files complete upload or are removed.
+  4. Updated `ApplyLeave.jsx` and `RecordLeave.jsx` to sanitize `documentIds: normalizeDocumentIds(values.documentIds)` in the submission payload.
+  5. Added unit test in `ApplyLeave.test.jsx`.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
+
+#### BUG-D5-024 (E-09): Reimbursement Component Dropdown Empty in New Claim Drawer
+- **Found:** 2026-10-14, Certification Stage E-09 (`/me` Claims tab, New Claim drawer)
+- **Error / Issue:** In the "New Claim" drawer, the "Component" select dropdown is completely empty with no data to select. Because `reimbursement_id` is a mandatory field in the schema, the employee cannot submit any expense reimbursement claim.
+- **Expected:** Available reimbursement components (e.g. Internet, Travel, Medical) should be listed and selectable in the dropdown.
+- **Root Cause:**
+  1. The India country template `salary_components` (`V162__country_template_in.sql` and `SalaryComponentTemplateContributor.java`) only seeded earnings and deductions, omitting standard reimbursement components (`INTERNET`, `TRAVEL`, `MEDICAL`, `FOOD`, `FUEL`).
+  2. Setup checklist step `SALARY_COMPONENTS` only checked earnings existence (`existsByTenantIdAndDeletedFalse`), so checklist marked components complete without prompting the admin to configure reimbursements.
+  3. Consequently, deployed tenants (including Infinevo Test Co) had 0 rows in `payroll.reimbursement`, causing `GET /api/v1/me/reimbursement-claims/components` to return empty list `[]`.
+  4. In `ClaimForm.jsx`, if components are empty, the Select showed "No data" with no warning or explanation, while the form allowed clicking submit which resulted in a validation error.
+- **Fix Applied:**
+  1. Created Flyway migration `V175__default_reimbursement_components.sql` to:
+     - Backfill standard reimbursement components (`INTERNET`, `TRAVEL`, `MEDICAL`, `FOOD`, `FUEL`) into `payroll.reimbursement` for all non-platform tenants in `core.tenant`.
+     - Create trigger `tenant_seed_reimbursements` on `core.tenant` AFTER INSERT to automatically seed default reimbursement components for newly created tenants.
+     - Update `reference.country_template`'s `salary_components` section for `IN` to include `"reimbursements": [...]`.
+  2. Updated `SalaryComponentTemplateContributor.java` to inject `ReimbursementRepository` and seed reimbursements from the template payload.
+  3. Updated `ClaimForm.jsx` to display an informative warning Alert when no components are available, disable the Select with a helpful placeholder, and disable the Submit button when `components.length === 0`.
+  4. Added unit test in `ClaimForm.test.jsx`.
+- **Status:** **Resolved locally in `dev-sayeed`** (`91f0cf98`).
+
+#### BUG-D5-025 (E-08): Missing FBP (Flexible Benefit Plan) Tab on Employee Portal (/me)
+- **Found:** 2026-10-14, Certification Stage E-08 (`/me`)
+- **Error / Issue:** No FBP or Flexible Benefits tab/panel exists on the Employee Self-Service portal (`/me`). In the implementation, `FbpDeclarationTab` is only mapped as an employee tab on `/employees/:id` (accessible to HR/Payroll administrators), leaving employees with no UI screen to view, allocate, or declare their Meal, Fuel, and flexible allowances.
+- **Expected:** An "FBP" tab should be available on the `/me` portal allowing employees to declare flexible benefits within company plan caps per step E-08.
 - **Status:** Open.
 
 ---
