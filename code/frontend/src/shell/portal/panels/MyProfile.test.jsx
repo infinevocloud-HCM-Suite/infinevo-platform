@@ -90,3 +90,28 @@ describe('MyProfile shows names and words, not ids and codes (D-77)', () => {
     expect(screen.queryByText(EMPLOYEE.designationId)).toBeNull();
   });
 });
+
+describe('MyProfile lays its groups out one under another (D-56, D-58)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('stacks Personal, Job and Contact, and puts the edit panel in the same grid below them', async () => {
+    serve();
+
+    function Edit() {
+      return <div>Edit Profile Information</div>;
+    }
+    render(<MyProfile actions={{ EditOwnSection: Edit }} />);
+
+    expect(await screen.findByText('Engineering')).toBeDefined();
+    // A vertical Space, never the horizontal one that squeezed each group into a narrow column.
+    const personal = screen.getByText('Personal').closest('.ant-descriptions');
+    expect(personal.parentElement.closest('.ant-space').className).toContain('ant-space-vertical');
+    const panel = screen.getByTestId('panel-profile');
+    expect(panel.className).toContain('ant-row');
+    const edit = screen.getByTestId('panel-profile-actions');
+    expect(edit.className).toContain('ant-col-24');
+    expect(edit.textContent).toBe('Edit Profile Information');
+  });
+});

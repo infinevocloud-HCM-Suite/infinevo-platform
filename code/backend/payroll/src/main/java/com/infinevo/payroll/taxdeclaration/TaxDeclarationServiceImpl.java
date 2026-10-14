@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -370,9 +371,14 @@ public class TaxDeclarationServiceImpl implements TaxDeclarationService {
         // Rent PAN rule: the same window flag and reference row HousingDeclarationServiceImpl enforces on save.
         boolean panRequired = window != null && window.isPanRequiredForRentOverThreshold();
         BigDecimal panThreshold = hraRuleReader.findPanMandatoryThreshold(decl.getFinancialYear(), decl.getTaxRegime());
+        // D-79: the officer's view names the employee; one displayNames read, never guarded.
+        Map<UUID, String> names = decl.getEmployeeId() == null
+                ? Map.of()
+                : employeeService.displayNames(java.util.Set.of(decl.getEmployeeId()));
         return new TaxDeclarationResponse(
                 decl.getId(),
                 decl.getEmployeeId(),
+                names != null ? names.get(decl.getEmployeeId()) : null,
                 decl.getFinancialYear(),
                 decl.getTaxRegime(),
                 decl.getStatus(),

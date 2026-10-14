@@ -149,7 +149,9 @@ export const routes = [
   { path: '/leave/requests/new', element: React.createElement(RecordLeave) },
   // D-72: an approver opens a leave request from the inbox, so it mounts with /approvals too.
   { path: '/leave/requests/:id', mountWith: '/approvals', element: React.createElement(LeaveRequestDetail) },
-  { path: '/leave/employees/:id', element: React.createElement(EmployeeLeave) },
+  // D-86: an employee's leave and LOP history sits beneath the Employees item, linked from the
+  // employee page; the screen checks core.leave.read. Its old path, /leave/employees/:id, never mounted.
+  { path: '/employees/:id/leave', element: React.createElement(EmployeeLeave) },
   { path: '/leave/import', element: React.createElement(LeaveImport) },
   // W-73.1: mounted when the feed carries `core.settings.company`.
   { path: '/settings/company', element: React.createElement(CompanyProfile) },

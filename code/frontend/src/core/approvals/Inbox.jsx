@@ -19,6 +19,7 @@ import { setPendingCount, decrementPendingCount } from './approvalSlice.js';
 import { DecideModal } from './DecideModal.jsx';
 import { getItemRoute } from './itemRoutes.js';
 import { flowTypesFor } from './flowTypes.js';
+import { formatDate, humanize } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -115,7 +116,7 @@ export function Inbox() {
       width: 160,
       render: (flowType) => {
         const type = flowType || 'GENERAL';
-        return <Tag color={FLOW_TYPE_COLORS[type] || 'default'}>{type}</Tag>;
+        return <Tag color={FLOW_TYPE_COLORS[type] || 'default'}>{humanize(type)}</Tag>;
       },
     },
     {
@@ -150,7 +151,7 @@ export function Inbox() {
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 160,
-      render: (date) => (date ? new Date(date).toLocaleDateString() : '—'),
+      render: (date) => formatDate(date),
     },
     {
       title: 'Actions',

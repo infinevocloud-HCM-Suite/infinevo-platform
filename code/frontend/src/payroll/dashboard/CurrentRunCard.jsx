@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { Alert, Card, Descriptions, Progress, Tag } from 'antd';
-import { formatAmount, formatDate } from '../claims/claimLabels.js';
+import { formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
 import { runStatus } from './labels.js';
 
 /** Today in local time as `YYYY-MM-DD`, the shape of `pay_date`. */
@@ -25,7 +25,7 @@ export function CurrentRunCard({ run, today }) {
 
   return (
     <Card
-      title={`Current run: ${run.period}`}
+      title={`Current run: ${formatMonth(run.period)}`}
       extra={<Link to={`/payroll/runs/${run.payrun_id}`}>Open run</Link>}
     >
       {due && <Alert type="warning" showIcon message="Payment due" style={{ marginBottom: 16 }} />}
@@ -45,9 +45,9 @@ export function CurrentRunCard({ run, today }) {
         <Descriptions.Item label="Paid on">{formatDate(run.paid_on)}</Descriptions.Item>
         <Descriptions.Item label="Included">{run.included}</Descriptions.Item>
         <Descriptions.Item label="Skipped">{run.skipped}</Descriptions.Item>
-        <Descriptions.Item label="Gross">{formatAmount(run.gross)}</Descriptions.Item>
-        <Descriptions.Item label="Deductions">{formatAmount(run.deductions)}</Descriptions.Item>
-        <Descriptions.Item label="Net pay">{formatAmount(run.net_pay)}</Descriptions.Item>
+        <Descriptions.Item label="Gross">{formatMoney(run.gross)}</Descriptions.Item>
+        <Descriptions.Item label="Deductions">{formatMoney(run.deductions)}</Descriptions.Item>
+        <Descriptions.Item label="Net pay">{formatMoney(run.net_pay)}</Descriptions.Item>
       </Descriptions>
     </Card>
   );

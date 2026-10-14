@@ -15,11 +15,11 @@ const renderCard = (run, today) =>
 describe('CurrentRunCard (W-47.5 §7)', () => {
   it('shows the figures as sent and links to the run', () => {
     renderCard(base, '2026-09-15');
-    expect(screen.getByText('Current run: 2026-09')).toBeDefined();
+    expect(screen.getByText('Current run: Sep 2026')).toBeDefined();
     expect(screen.getByText('Computed')).toBeDefined();
-    expect(screen.getByText('12,38,952.50')).toBeDefined();
-    expect(screen.getByText('98,000.00')).toBeDefined();
-    expect(screen.getByText('11,40,952.50')).toBeDefined();
+    expect(screen.getByText('₹ 12,38,952.50')).toBeDefined();
+    expect(screen.getByText('₹ 98,000.00')).toBeDefined();
+    expect(screen.getByText('₹ 11,40,952.50')).toBeDefined();
     expect(screen.getByRole('link', { name: 'Open run' }).getAttribute('href')).toBe('/payroll/runs/run-9');
   });
 

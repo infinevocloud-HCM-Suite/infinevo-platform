@@ -28,7 +28,11 @@ public record ApprovalStepResponse(
         UUID itemId,
         String summary,
         Integer totalSteps,
-        String subjectEmployeeName) {
+        String subjectEmployeeName,
+        String assigneeEmployeeName,
+        String delegatedFromEmployeeName,
+        String escalatedFromEmployeeName,
+        String reassignedFromEmployeeName) {
 
     public static ApprovalStepResponse from(ApprovalStep step) {
         return from(step, null, null);
@@ -48,6 +52,21 @@ public record ApprovalStepResponse(
      */
     public static ApprovalStepResponse from(
             ApprovalStep step, ApprovalInstance instance, Integer totalSteps, String subjectEmployeeName) {
+        return from(step, instance, totalSteps, subjectEmployeeName, null);
+    }
+
+    /**
+     * As above, with every person id on the step named from {@code names} (D-79): the assignee and
+     * whoever it was delegated, escalated or reassigned from. The caller reads the names in one batch;
+     * an id the map does not hold gives a null name.
+     */
+    public static ApprovalStepResponse from(
+            ApprovalStep step,
+            ApprovalInstance instance,
+            Integer totalSteps,
+            String subjectEmployeeName,
+            java.util.Map<UUID, String> names) {
+        java.util.Map<UUID, String> safe = names != null ? names : java.util.Map.of();
         ApprovalFlowType flowType = instance != null ? instance.getFlowType() : null;
         UUID subjectEmployeeId = instance != null ? instance.getSubjectEmployeeId() : null;
         UUID itemId = instance != null ? instance.getSubjectId() : null;
@@ -76,6 +95,14 @@ public record ApprovalStepResponse(
                 itemId,
                 summary,
                 totalSteps,
-                subjectEmployeeName);
+                subjectEmployeeName,
+                nameOf(safe, step.getAssigneeEmployeeId()),
+                nameOf(safe, step.getDelegatedFromEmployeeId()),
+                nameOf(safe, step.getEscalatedFromEmployeeId()),
+                nameOf(safe, step.getReassignedFromEmployeeId()));
+    }
+
+    static String nameOf(java.util.Map<UUID, String> names, UUID id) {
+        return id == null ? null : names.get(id);
     }
 }

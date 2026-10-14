@@ -65,6 +65,12 @@ describe('DeductionList (W-47.4 §7)', () => {
     render(<DeductionList />);
 
     expect(await screen.findByRole('button', { name: /enter deductions/i })).toBeDefined();
+    // Every column is titled - the Reverse column reads "Actions" (D-78) - and money, months read as words.
+    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
+    expect(headers).not.toContain('');
+    expect(headers).toContain('Actions');
+    expect(screen.getByText('₹ 500.00')).toBeDefined();
+    expect(screen.getAllByText('Oct 2026').length).toBe(2);
     fireEvent.click(screen.getByRole('button', { name: /^reverse$/i }));
 
     const dialog = await screen.findByRole('dialog');

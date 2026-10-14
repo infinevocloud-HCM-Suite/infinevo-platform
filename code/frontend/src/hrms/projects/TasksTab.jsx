@@ -18,6 +18,7 @@ import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import dayjs from 'dayjs';
 import { COLOR, LABEL, PRIORITIES, TASK_STATUSES, errorMessage, projectService } from './projectService.js';
+import { EMPTY, formatDate, humanize, statusLabel } from '@shared/ui/format.js';
 
 const taskSchema = Yup.object({
   title: Yup.string().trim().required('Title is required'),
@@ -160,23 +161,23 @@ export function TasksTab({ projectId, team, canManage }) {
 
   const columns = [
     { title: 'Title', dataIndex: 'title' },
-    { title: 'Assignee', dataIndex: 'assignee_name', render: (v) => v || '-' },
-    { title: 'Due', dataIndex: 'due_date', render: (v) => v || '-' },
-    { title: 'Priority', dataIndex: 'priority', render: (v) => LABEL[v] || v },
+    { title: 'Assignee', dataIndex: 'assignee_name', render: (v) => v || EMPTY },
+    { title: 'Due', dataIndex: 'due_date', render: (v) => formatDate(v) },
+    { title: 'Priority', dataIndex: 'priority', render: (v) => LABEL[v] || humanize(v) },
     {
       title: 'Status',
       dataIndex: 'status',
-      render: (v) => <Tag color={COLOR[v]}>{LABEL[v] || v}</Tag>,
+      render: (v) => <Tag color={COLOR[v]}>{LABEL[v] || statusLabel(v)}</Tag>,
     },
     {
       title: 'Estimate',
       dataIndex: 'estimated_hours',
-      render: (v) => (v == null ? '-' : `${v} h`),
+      render: (v) => (v == null ? EMPTY : `${v} h`),
     },
   ];
   if (canManage) {
     columns.push({
-      title: '',
+      title: 'Actions',
       key: 'actions',
       render: (_, r) => (
         <Space>

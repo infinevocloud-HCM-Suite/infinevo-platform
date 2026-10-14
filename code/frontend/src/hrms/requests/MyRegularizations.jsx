@@ -5,6 +5,7 @@ import { useCan } from '@shell/screens';
 import { requestService } from './requestService.js';
 import { RegularizationForm } from './RegularizationForm.jsx';
 import { FMT, MAX_RANGE_DAYS, STATUS_COLOR, presets, spanDays, stamp, timeOf } from './range.js';
+import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 /** The caller's regularization requests, newest first, and a form to ask for one (W-48.5 §5). */
 export function MyRegularizations() {
@@ -47,11 +48,11 @@ export function MyRegularizations() {
   };
 
   const columns = [
-    { title: 'Date', dataIndex: 'date', key: 'date' },
+    { title: 'Date', dataIndex: 'date', key: 'date', render: (d) => formatDate(d) },
     { title: 'In', key: 'in', render: (_, r) => timeOf(r.inAt) },
     { title: 'Out', key: 'out', render: (_, r) => timeOf(r.outAt) },
     { title: 'Reason', dataIndex: 'reason', key: 'reason', ellipsis: true },
-    { title: 'Status', key: 'status', render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{r.status}</Tag> },
+    { title: 'Status', key: 'status', render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{statusLabel(r.status)}</Tag> },
     { title: 'Decided at', key: 'decidedAt', render: (_, r) => stamp(r.decidedAt) },
   ];
 

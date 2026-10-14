@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -211,12 +210,12 @@ public class RegularizationServiceImpl implements RegularizationService {
         validateDateRange(from, to);
         EmployeeResponse employee = requireCurrentEmployee();
         UUID tenantId = TenantContext.require();
-        return regularizations
-                .findByTenantIdAndEmployeeIdAndAttendanceDateBetweenOrderByAttendanceDateDescCreatedAtDesc(
-                        tenantId, employee.id(), from, to)
-                .stream()
-                .map(RegularizationResponse::from)
-                .toList();
+        List<AttendanceRegularization> rows =
+                regularizations
+                        .findByTenantIdAndEmployeeIdAndAttendanceDateBetweenOrderByAttendanceDateDescCreatedAtDesc(
+                                tenantId, employee.id(), from, to);
+        Map<UUID, String> names = names(rows);
+        return rows.stream().map(r -> RegularizationResponse.ownView(r, names)).toList();
     }
 
     @Override
@@ -245,14 +244,9 @@ public class RegularizationServiceImpl implements RegularizationService {
             rows = regularizations.findByTenantIdAndAttendanceDateBetweenOrderByAttendanceDateDescCreatedAtDesc(
                     tenantId, from, to);
         }
-        // One batch name read for the whole list (W-48.5 §4), never one per row.
-        Set<UUID> ids =
-                rows.stream().map(AttendanceRegularization::getEmployeeId).collect(Collectors.toSet());
-        Map<UUID, String> names = ids.isEmpty() ? Map.of() : employeeService.displayNames(ids);
-        Map<UUID, String> resolved = names != null ? names : Map.of();
-        return rows.stream()
-                .map(r -> RegularizationResponse.from(r, resolved.get(r.getEmployeeId())))
-                .toList();
+        // One batch name read for the whole list (W-48.5 §4, D-79), never one per row.
+        Map<UUID, String> names = names(rows);
+        return rows.stream().map(r -> RegularizationResponse.from(r, names)).toList();
     }
 
     @Override
@@ -265,7 +259,7 @@ public class RegularizationServiceImpl implements RegularizationService {
         AttendanceRegularization row =
                 regularizations.findByTenantIdAndId(tenantId, id).orElseThrow(() -> new NotFoundException(id));
         if (permissionService.holds("core.attendance.read")) {
-            return RegularizationResponse.from(row);
+            return RegularizationResponse.from(row, names(List.of(row)));
         }
         UUID caller =
                 employeeService.currentEmployee().map(EmployeeResponse::id).orElse(null);
@@ -273,13 +267,31 @@ public class RegularizationServiceImpl implements RegularizationService {
             throw new NotFoundException(id);
         }
         if (caller.equals(row.getEmployeeId()) && permissionService.holds("core.attendance.read_own")) {
-            return RegularizationResponse.from(row);
+            return RegularizationResponse.ownView(row, names(List.of(row)));
         }
         if (permissionService.holds("core.approval.decide") && isStepApprover(row.getApprovalInstanceId(), caller)) {
-            return RegularizationResponse.from(row);
+            return RegularizationResponse.from(row, names(List.of(row)));
         }
         // Never 403: a refusal would tell the caller the id exists (W-48.5 §4).
         throw new NotFoundException(id);
+    }
+
+    /**
+     * The display names of the requesters and deciders of these rows, in one {@code displayNames} read
+     * (W-48.5 §4, D-79). Both are employee ids: {@code decided_by} is the deciding step's assignee.
+     */
+    private Map<UUID, String> names(List<AttendanceRegularization> rows) {
+        Set<UUID> ids = new java.util.HashSet<>();
+        for (AttendanceRegularization r : rows) {
+            if (r.getEmployeeId() != null) {
+                ids.add(r.getEmployeeId());
+            }
+            if (r.getDecidedBy() != null) {
+                ids.add(r.getDecidedBy());
+            }
+        }
+        Map<UUID, String> names = ids.isEmpty() ? Map.of() : employeeService.displayNames(ids);
+        return names != null ? names : Map.of();
     }
 
     /** Whether the employee is assigned to any step of the instance, pending or decided ({@code ApprovalService.getInstance}). */

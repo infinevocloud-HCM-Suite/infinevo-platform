@@ -15,10 +15,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -195,7 +199,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             entity = leaveRequestRepository.save(entity);
         }
 
-        return LeaveRequestResponse.from(entity, docIds);
+        return respond(tenantId, entity, docIds);
     }
 
     @Override
@@ -283,7 +287,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
 
         leaveConsumptionService.consume(entity);
 
-        return LeaveRequestResponse.from(entity, docIds);
+        return respond(tenantId, entity, docIds);
     }
 
     @Override
@@ -329,7 +333,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         req.setApprovalInstanceId(instanceId);
         req = leaveRequestRepository.save(req);
 
-        return LeaveRequestResponse.from(req, docIds);
+        return respond(tenantId, req, docIds);
     }
 
     @Override
@@ -360,7 +364,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 leaveRequestDocumentRepository.findByTenantIdAndLeaveRequestId(tenantId, req.getId()).stream()
                         .map(LeaveRequestDocument::getDocumentId)
                         .toList();
-        return LeaveRequestResponse.from(req, docIds);
+        return respond(tenantId, req, docIds);
     }
 
     @Override
@@ -395,7 +399,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 leaveRequestDocumentRepository.findByTenantIdAndLeaveRequestId(tenantId, req.getId()).stream()
                         .map(LeaveRequestDocument::getDocumentId)
                         .toList();
-        return LeaveRequestResponse.from(req, docIds);
+        return respond(tenantId, req, docIds);
     }
 
     @Override
@@ -412,7 +416,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 leaveRequestDocumentRepository.findByTenantIdAndLeaveRequestId(tenantId, req.getId()).stream()
                         .map(LeaveRequestDocument::getDocumentId)
                         .toList();
-        return LeaveRequestResponse.from(req, docIds);
+        return respond(tenantId, req, docIds);
     }
 
     @Override
@@ -427,12 +431,13 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Page<LeaveRequest> page =
                 leaveRequestRepository.search(tenantId, employeeId, status, fromDate, toDate, pageable);
+        Names names = names(tenantId, page.getContent());
         return page.map(req -> {
             List<UUID> docIds =
                     leaveRequestDocumentRepository.findByTenantIdAndLeaveRequestId(tenantId, req.getId()).stream()
                             .map(LeaveRequestDocument::getDocumentId)
                             .toList();
-            return LeaveRequestResponse.from(req, docIds);
+            return names.respond(req, docIds);
         });
     }
 
@@ -451,13 +456,59 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         }
         Page<LeaveRequest> page =
                 leaveRequestRepository.searchForEmployees(tenantId, employeeIds, status, fromDate, toDate, pageable);
+        Names names = names(tenantId, page.getContent());
         return page.map(req -> {
             List<UUID> docIds =
                     leaveRequestDocumentRepository.findByTenantIdAndLeaveRequestId(tenantId, req.getId()).stream()
                             .map(LeaveRequestDocument::getDocumentId)
                             .toList();
-            return LeaveRequestResponse.from(req, docIds);
+            return names.respond(req, docIds);
         });
+    }
+
+    /**
+     * The employee and leave type names for a page of requests (D-80): one {@code displayNames} read and
+     * one leave type read for the whole page, never one per row.
+     */
+    private Names names(UUID tenantId, Collection<LeaveRequest> rows) {
+        if (rows.isEmpty()) {
+            return new Names(Map.of(), Map.of());
+        }
+        Set<UUID> employeeIds = new HashSet<>();
+        Set<UUID> typeIds = new HashSet<>();
+        for (LeaveRequest row : rows) {
+            if (row.getEmployeeId() != null) {
+                employeeIds.add(row.getEmployeeId());
+            }
+            if (row.getLeaveTypeId() != null) {
+                typeIds.add(row.getLeaveTypeId());
+            }
+        }
+        Map<UUID, String> employees =
+                employeeService == null || employeeIds.isEmpty() ? Map.of() : employeeService.displayNames(employeeIds);
+        Map<UUID, String> types = new HashMap<>();
+        if (!typeIds.isEmpty()) {
+            for (LeaveType type : leaveTypeRepository.findByTenantIdAndIdIn(tenantId, typeIds)) {
+                types.put(type.getId(), type.getName());
+            }
+        }
+        return new Names(employees != null ? employees : Map.of(), types);
+    }
+
+    /** One request with its names, read in the same transaction (D-80). */
+    private LeaveRequestResponse respond(UUID tenantId, LeaveRequest req, List<UUID> docIds) {
+        return names(tenantId, List.of(req)).respond(req, docIds);
+    }
+
+    /** Employee and leave type display names, keyed by id. */
+    private record Names(Map<UUID, String> employees, Map<UUID, String> leaveTypes) {
+        LeaveRequestResponse respond(LeaveRequest req, List<UUID> docIds) {
+            return LeaveRequestResponse.from(
+                    req,
+                    docIds,
+                    req.getEmployeeId() == null ? null : employees.get(req.getEmployeeId()),
+                    req.getLeaveTypeId() == null ? null : leaveTypes.get(req.getLeaveTypeId()));
+        }
     }
 
     private void validateDatesAndHalfDay(

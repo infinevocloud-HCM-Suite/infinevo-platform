@@ -25,6 +25,7 @@ import { useCan } from '@shell/screens';
 import { fetchActiveComponents } from './salarySlice.js';
 import { scheduledEarningService } from './scheduledEarningService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { EMPTY, formatMoney, formatMonth, statusLabel } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -315,15 +316,15 @@ export function ScheduledEarningsPanel({ employeeId }) {
         </span>
       ),
     },
-    { title: 'Amount', dataIndex: 'amount', key: 'amount', width: 120, render: (v) => (v != null ? String(v) : '-') },
-    { title: 'First month', dataIndex: 'firstPeriod', key: 'firstPeriod', width: 110 },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', width: 120, render: (v) => formatMoney(v) },
+    { title: 'First month', dataIndex: 'firstPeriod', key: 'firstPeriod', width: 110, render: (v) => formatMonth(v) },
     {
       title: 'Instalments',
       key: 'instalments',
       width: 110,
       render: (_, r) => `${r.paidInstalments} / ${r.instalments}`,
     },
-    { title: 'Next month', dataIndex: 'nextPeriod', key: 'nextPeriod', width: 110, render: (v) => v || '-' },
+    { title: 'Next month', dataIndex: 'nextPeriod', key: 'nextPeriod', width: 110, render: (v) => formatMonth(v) },
     {
       title: 'Status',
       dataIndex: 'status',
@@ -331,11 +332,11 @@ export function ScheduledEarningsPanel({ employeeId }) {
       width: 110,
       render: (s, r) => (
         <Tooltip title={r.statusReason || undefined}>
-          <Tag color={STATUS_COLOURS[s] || 'default'}>{s}</Tag>
+          <Tag color={STATUS_COLOURS[s] || 'default'}>{statusLabel(s)}</Tag>
         </Tooltip>
       ),
     },
-    { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v) => v || '-' },
+    { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v) => v || EMPTY },
     {
       title: 'Pay inputs',
       dataIndex: 'payInputIds',

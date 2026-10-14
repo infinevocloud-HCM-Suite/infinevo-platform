@@ -4,6 +4,7 @@ import { Table, Tag, Segmented, Typography, Alert, Card, Button } from 'antd';
 import { EyeOutlined } from '@ant-design/icons';
 import { payrunService } from './payrunService.js';
 import { LinesDrawer } from './LinesDrawer.jsx';
+import { EMPTY, formatMoney } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -66,9 +67,11 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
     fetchEmployees();
   }, [fetchEmployees]);
 
-  // The run's rows carry only the employee number; names come from core, by path (W-47.2 §14.3).
+  // The run's rows carry the name since D-82; core is asked only for a row that still lacks one, so a
+  // role without core.employee.read (finance) is not sent to an endpoint it cannot read.
   useEffect(() => {
     const missing = employees
+      .filter((e) => !(e.employee_name || e.employeeName))
       .map((e) => e.employee_id || e.employeeId)
       .filter((id) => id && !namesAsked.current.has(id));
     if (missing.length === 0) return;
@@ -136,7 +139,7 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
       render: (reason, record) => {
         const code = reason || record.skipReason;
         const text = formatSkipReason(code);
-        return text !== '-' ? <Text type="secondary">{text}</Text> : <Text type="secondary">-</Text>;
+        return text !== '-' ? <Text type="secondary">{text}</Text> : <Text type="secondary">{EMPTY}</Text>;
       },
     },
     {
@@ -147,9 +150,9 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
       render: (amt, record) => {
         const val = amt !== undefined ? amt : record.grossEarnings;
         return val !== undefined && val !== null ? (
-          <Text style={{ fontFamily: 'monospace' }}>{Number(val).toFixed(2)}</Text>
+          <Text style={{ fontFamily: 'monospace' }}>{formatMoney(val)}</Text>
         ) : (
-          '-'
+          EMPTY
         );
       },
     },
@@ -162,10 +165,10 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
         const val = amt !== undefined ? amt : record.netPay;
         return val !== undefined && val !== null ? (
           <Text strong style={{ fontFamily: 'monospace' }}>
-            {Number(val).toFixed(2)}
+            {formatMoney(val)}
           </Text>
         ) : (
-          '-'
+          EMPTY
         );
       },
     },

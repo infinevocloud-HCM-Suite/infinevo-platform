@@ -12,10 +12,14 @@ import java.util.UUID;
  * <p>{@code pan_required_for_rent_over_threshold} and {@code rent_pan_threshold} are the rent PAN rule the
  * house-rent save enforces (W-32.2), read from the same window flag and {@code reference.hra_rule_master}
  * row, so the screen (W-47.3) never hard-codes it. {@code rent_pan_threshold} is null when no rule row exists.
+ *
+ * <p>{@code employee_name} is the employee's display name (D-79), so the officer's view never shows the bare id;
+ * null when the name cannot be read.
  */
 public record TaxDeclarationResponse(
         UUID id,
         @JsonProperty("employee_id") UUID employeeId,
+        @JsonProperty("employee_name") String employeeName,
         @JsonProperty("financial_year") String financialYear,
         @JsonProperty("tax_regime") String taxRegime,
         DeclarationStatus status,

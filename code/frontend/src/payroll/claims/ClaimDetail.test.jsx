@@ -33,6 +33,7 @@ const CLAIM = {
   pay_input_id: null,
   posted_period: null,
   approved_by: null,
+  approved_by_name: null,
   approved_at: null,
   created_at: '2026-09-21T10:00:00Z',
   updated_at: '2026-09-21T10:00:00Z',
@@ -76,6 +77,25 @@ describe('ClaimDetail (W-47.4 §7)', () => {
     expect(await screen.findByText('1,500.00')).toBeDefined();
     expect(screen.getByText('2026-10')).toBeDefined();
     expect(screen.queryByRole('link', { name: 'Open the approval' })).toBeNull();
+  });
+
+  it('names the employee and the approver, never their ids, and shows dates as dates (D-79)', async () => {
+    claimService.get.mockResolvedValueOnce({
+      ...CLAIM,
+      status: 'APPROVED',
+      approved_amount: 1500,
+      approved_by: 'emp-manager',
+      approved_by_name: 'Vikram Shah',
+      approved_at: '2026-09-25T06:00:00Z',
+    });
+    renderDetail();
+
+    expect(await screen.findByText('Vikram Shah')).toBeDefined();
+    expect(screen.getByText('Asha Rao')).toBeDefined();
+    expect(screen.getByText('20 Sep 2026')).toBeDefined();
+    expect(screen.getByText('25 Sep 2026')).toBeDefined();
+    expect(screen.queryByText('emp-manager')).toBeNull();
+    expect(screen.queryByText('emp-1')).toBeNull();
   });
 
   it('a 404 shows the shell not-found screen', async () => {

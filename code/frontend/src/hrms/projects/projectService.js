@@ -79,9 +79,17 @@ export const projectService = {
   },
 };
 
-/** The server's reason for a failed call (`ApiErrorResponse.message`), else a fallback. */
-export function errorMessage(err, fallback = 'Something went wrong') {
-  return err?.response?.data?.message || fallback;
+const CLIENT_DEFAULT = 'Something went wrong';
+
+/**
+ * The server's reason for a failed call, else a fallback (D-81). The shared client has already
+ * flattened the axios error to `{ code, message, status, ... }` (`client.js`), so the server's
+ * `ApiErrorResponse.message` is `err.message`. The client puts its own generic text there when
+ * the server sent no body; the caller's more specific fallback wins over that.
+ */
+export function errorMessage(err, fallback = CLIENT_DEFAULT) {
+  const message = err?.message ?? err?.response?.data?.message;
+  return message && message !== CLIENT_DEFAULT ? message : fallback;
 }
 
 export const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'];

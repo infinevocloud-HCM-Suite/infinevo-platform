@@ -73,8 +73,8 @@ describe('ProfessionalTaxScreen (W-47.1b §7)', () => {
       expect(screen.getByText(/Karnataka \(KA\)/)).toBeDefined();
       expect(screen.getByTestId('pt-source-tag-MH')).toBeDefined();
       expect(screen.getByTestId('pt-source-tag-KA')).toBeDefined();
-      expect(screen.getByTestId('pt-source-tag-MH').textContent).toBe('REFERENCE');
-      expect(screen.getByTestId('pt-source-tag-KA').textContent).toBe('OVERRIDE');
+      expect(screen.getByTestId('pt-source-tag-MH').textContent).toBe('Reference');
+      expect(screen.getByTestId('pt-source-tag-KA').textContent).toBe('Override');
     });
   });
 
@@ -170,14 +170,14 @@ describe('ProfessionalTaxScreen (W-47.1b §7)', () => {
     });
 
     const first = within(screen.getByTestId('pt-history-entry-0'));
-    expect(first.getByText('OVERRIDE_SET')).toBeDefined();
+    expect(first.getByText('Override set')).toBeDefined();
     expect(first.getByText(dayjs('2026-04-01T10:00:00Z').format('D MMM YYYY, HH:mm'))).toBeDefined();
     expect(first.getByText(/user-11111111/)).toBeDefined();
-    expect(within(screen.getByTestId('pt-history-before-0')).getByText('₹150')).toBeDefined();
-    expect(within(screen.getByTestId('pt-history-after-0')).getByText('₹200')).toBeDefined();
+    expect(within(screen.getByTestId('pt-history-before-0')).getByText('₹ 150.00')).toBeDefined();
+    expect(within(screen.getByTestId('pt-history-after-0')).getByText('₹ 200.00')).toBeDefined();
 
     const second = within(screen.getByTestId('pt-history-entry-1'));
-    expect(second.getByText('OVERRIDE_RESET')).toBeDefined();
+    expect(second.getByText('Override reset')).toBeDefined();
     expect(second.getByText(dayjs('2026-03-15T08:30:00Z').format('D MMM YYYY, HH:mm'))).toBeDefined();
     expect(second.getByText(/user-22222222/)).toBeDefined();
   });

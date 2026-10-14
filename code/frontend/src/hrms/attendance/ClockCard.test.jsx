@@ -26,7 +26,7 @@ describe('ClockCard (W-48.4 §7)', () => {
       attendanceService.today.mockResolvedValue(empty);
       render(<ClockCard />);
       expect(await screen.findByRole('button', { name: /clock in/i })).toBeTruthy();
-      expect(screen.getByText(/2026-10-04/)).toBeTruthy();
+      expect(screen.getByText(/4 Oct 2026/)).toBeTruthy();
     },
     T
   );

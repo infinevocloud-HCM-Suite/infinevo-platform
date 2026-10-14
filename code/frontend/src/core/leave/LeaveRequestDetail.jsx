@@ -23,12 +23,13 @@ import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { employeeService } from '../employee/employeeService.js';
 import { approvalService } from '../approvals/approvalService.js';
-import { portalService } from '@shell/portal/portalService.js';
+import { formatDate } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 const STATUS_TAGS = {
+  DRAFT: { color: 'default', label: 'Draft' },
   SUBMITTED: { color: 'blue', label: 'Submitted' },
   PENDING: { color: 'gold', label: 'Pending Approval' },
   APPROVED: { color: 'green', label: 'Approved' },
@@ -247,8 +248,8 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
           <Descriptions.Item label="Leave Type">
             {leaveType ? `${leaveType.name} (${leaveType.code})` : request.leaveTypeId}
           </Descriptions.Item>
-          <Descriptions.Item label="From Date">{request.fromDate}</Descriptions.Item>
-          <Descriptions.Item label="To Date">{request.toDate}</Descriptions.Item>
+          <Descriptions.Item label="From Date">{formatDate(request.fromDate)}</Descriptions.Item>
+          <Descriptions.Item label="To Date">{formatDate(request.toDate)}</Descriptions.Item>
           <Descriptions.Item label="Duration">
             <Space>
               <Text strong>{request.workingDays} working day(s)</Text>

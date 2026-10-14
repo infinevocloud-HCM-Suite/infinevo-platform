@@ -42,7 +42,7 @@ describe('RecordLeave component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
-    employeeService.list.mockResolvedValue(mockEmployees);
+    employeeService.list.mockResolvedValue({ content: mockEmployees });
     leaveTypeService.eligible.mockResolvedValue(mockEligibleTypes);
   });
 
@@ -65,5 +65,25 @@ describe('RecordLeave component', () => {
 
     const submitBtn = screen.getByRole('button', { name: /Record Leave/i });
     expect(submitBtn).toBeDefined();
+  });
+
+  it('searches employees on the server as the user types and never asks for 1,000 (D-80)', async () => {
+    render(
+      <MemoryRouter>
+        <RecordLeave />
+      </MemoryRouter>
+    );
+
+    const picker = screen.getByRole('combobox', { name: 'Employee' });
+    fireEvent.focus(picker);
+    fireEvent.mouseDown(picker);
+    fireEvent.click(await screen.findByText('Alice Smith (EMP100)'));
+
+    await waitFor(() => {
+      expect(leaveTypeService.eligible).toHaveBeenCalledWith('emp-1');
+    });
+    for (const [params] of employeeService.list.mock.calls) {
+      expect(params.size).toBeLessThanOrEqual(20);
+    }
   });
 });

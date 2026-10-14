@@ -159,6 +159,56 @@ class ReimbursementClaimServiceImplTest {
         verify(employeeService, times(1)).displayNames(anyCollection());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    @DisplayName("D-79: list names each approver too, in the same one displayNames call")
+    void listNamesApproversInTheSameCall() {
+        UUID alice = UUID.randomUUID();
+        UUID manager = UUID.randomUUID();
+        Reimbursement travel = component(TENANT_A, "TRAVEL", "Travel", true, false);
+        ReimbursementClaim approved = claim(alice, travel.getId());
+        approved.setApprovedBy(manager);
+        ReimbursementClaim pending = claim(alice, travel.getId());
+        Pageable pageable = PageRequest.of(0, 25);
+        given(claimRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(approved, pending), pageable, 2));
+        given(reimbursementRepository.findAllById(any())).willReturn(List.of(travel));
+        given(employeeService.displayNames(anyCollection()))
+                .willReturn(Map.of(alice, "Alice Smith", manager, "Vikram Shah"));
+
+        List<ReimbursementClaimResponse> rows =
+                service.list(null, null, null, null, pageable).getContent();
+
+        assertThat(rows.get(0).approvedBy()).isEqualTo(manager);
+        assertThat(rows.get(0).approvedByName()).isEqualTo("Vikram Shah");
+        assertThat(rows.get(1).approvedByName()).isNull();
+        org.mockito.ArgumentCaptor<java.util.Collection<UUID>> ids =
+                org.mockito.ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(employeeService, times(1)).displayNames(ids.capture());
+        assertThat(ids.getValue()).containsExactlyInAnyOrder(alice, manager);
+    }
+
+    @Test
+    @DisplayName("D-79: one claim read by id names its claimant and approver in one read")
+    void getNamesClaimantAndApprover() {
+        UUID alice = UUID.randomUUID();
+        UUID manager = UUID.randomUUID();
+        Reimbursement travel = component(TENANT_A, "TRAVEL", "Travel", true, false);
+        ReimbursementClaim approved = claim(alice, travel.getId());
+        ReflectionTestUtils.setField(approved, "id", UUID.randomUUID());
+        approved.setApprovedBy(manager);
+        given(claimRepository.findByTenantIdAndId(TENANT_A, approved.getId())).willReturn(Optional.of(approved));
+        given(reimbursementRepository.findById(travel.getId())).willReturn(Optional.of(travel));
+        given(employeeService.displayNames(anyCollection()))
+                .willReturn(Map.of(alice, "Alice Smith", manager, "Vikram Shah"));
+
+        ReimbursementClaimResponse response = service.get(approved.getId());
+
+        assertThat(response.employeeName()).isEqualTo("Alice Smith");
+        assertThat(response.approvedByName()).isEqualTo("Vikram Shah");
+        verify(employeeService, times(1)).displayNames(anyCollection());
+    }
+
     private static Reimbursement component(UUID tenantId, String code, String name, boolean active, boolean deleted) {
         Reimbursement r = new Reimbursement(tenantId, "test");
         ReflectionTestUtils.setField(r, "id", UUID.randomUUID());

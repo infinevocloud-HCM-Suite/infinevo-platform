@@ -8,8 +8,9 @@ import { useCan } from '@shell/screens';
 import { employeeService } from '../employeeService.js';
 import { GENDER_OPTIONS } from '../sectionFields.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
-import { toTitleCase } from '@shared/ui/format.js';
+import { formatDate, toTitleCase } from '@shared/ui/format.js';
 import { TERMINATION_REASONS } from '../TerminateModal.jsx';
+import { StatusTag } from '@shared/ui/StatusTag.jsx';
 
 const { Text } = Typography;
 
@@ -185,7 +186,7 @@ export function OverviewTab({ employee, onUpdate }) {
           <Col xs={24} sm={12} md={8}>
             <label htmlFor="edit-status"><Text strong>Status</Text></label>
             {formData.status === 'TERMINATED' ? (
-              <div style={{ paddingTop: 4 }}><Tag color="error">TERMINATED</Tag></div>
+              <div style={{ paddingTop: 4 }}><Tag color="error">Terminated</Tag></div>
             ) : (
               <Select
                 id="edit-status"
@@ -304,14 +305,14 @@ export function OverviewTab({ employee, onUpdate }) {
           {[employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ')}
         </Descriptions.Item>
         <Descriptions.Item label="Status">
-          <Tag color={employee.status === 'ACTIVE' ? 'success' : 'default'}>{employee.status}</Tag>
+          <StatusTag status={employee.status} />
         </Descriptions.Item>
         <Descriptions.Item label="Work Email">{employee.workEmail || '—'}</Descriptions.Item>
         <Descriptions.Item label="Mobile">{employee.mobile || '—'}</Descriptions.Item>
         <Descriptions.Item label="Gender">
           {GENDER_OPTIONS.find((o) => o.value === employee.gender)?.label || employee.gender || '—'}
         </Descriptions.Item>
-        <Descriptions.Item label="Date of Joining">{employee.dateOfJoining || '—'}</Descriptions.Item>
+        <Descriptions.Item label="Date of Joining">{formatDate(employee.dateOfJoining)}</Descriptions.Item>
         <Descriptions.Item label="Department">{departmentName}</Descriptions.Item>
         <Descriptions.Item label="Designation">{designationName}</Descriptions.Item>
         <Descriptions.Item label="Work Location">{locationName}</Descriptions.Item>
@@ -322,7 +323,7 @@ export function OverviewTab({ employee, onUpdate }) {
         </Descriptions.Item>
         {employee.terminationDate && (
           <Descriptions.Item label="Termination Date">
-            <Text type="danger">{employee.terminationDate}</Text>
+            <Text type="danger">{formatDate(employee.terminationDate)}</Text>
           </Descriptions.Item>
         )}
         {employee.terminationReason && (

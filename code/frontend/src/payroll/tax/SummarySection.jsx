@@ -19,11 +19,11 @@ import {
   CalculatorOutlined,
   InfoCircleOutlined,
 } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { declarationService } from './declarationService';
 import { formatFyDisplay } from './financialYear';
 import { setSectionData, selectTaxSection, selectTaxFy } from './taxSlice';
 import { readError } from './apiError';
+import { formatDateTime, formatMoney } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -180,7 +180,7 @@ export function SummarySection({ fy }) {
                   key: 'amount',
                   align: 'right',
                   render: (val) => (
-                    <Text strong>₹ {Number(val).toLocaleString('en-IN')}</Text>
+                    <Text strong>{formatMoney(val)}</Text>
                   ),
                 },
               ]}
@@ -193,7 +193,7 @@ export function SummarySection({ fy }) {
                   <Space wrap>
                     {section6aGroups.map((g) => (
                       <Tag key={g.key} color="blue" style={{ fontSize: 13, padding: '4px 10px' }}>
-                        {g.group}: ₹ {g.amount.toLocaleString('en-IN')}
+                        {g.group}: {formatMoney(g.amount)}
                       </Tag>
                     ))}
                   </Space>
@@ -223,38 +223,38 @@ export function SummarySection({ fy }) {
               <Card size="small" type="inner" style={{ background: '#fafafa' }}>
                 <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <Text type="secondary">Gross Taxable Income:</Text>
-                  <Text strong>₹ {Number(computed.taxable_income || 0).toLocaleString('en-IN')}</Text>
+                  <Text strong>{formatMoney(computed.taxable_income || 0)}</Text>
                 </Row>
                 <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <Text type="secondary">Section 10 Exemption (HRA):</Text>
-                  <Text>₹ {Number(computed.exemption_under_section10 || 0).toLocaleString('en-IN')}</Text>
+                  <Text>{formatMoney(computed.exemption_under_section10 || 0)}</Text>
                 </Row>
                 <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <Text type="secondary">Chapter VI-A Allowed Deduction:</Text>
-                  <Text>₹ {Number(computed.exemption_under_section6a || 0).toLocaleString('en-IN')}</Text>
+                  <Text>{formatMoney(computed.exemption_under_section6a || 0)}</Text>
                 </Row>
                 <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <Text strong>Net Taxable Income:</Text>
                   <Text strong style={{ color: '#1677ff' }}>
-                    ₹ {Number(computed.net_taxable_income || 0).toLocaleString('en-IN')}
+                    {formatMoney(computed.net_taxable_income || 0)}
                   </Text>
                 </Row>
                 <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <Text type="secondary">Computed Income Tax:</Text>
-                  <Text strong>₹ {Number(computed.tax_on_taxable_income || 0).toLocaleString('en-IN')}</Text>
+                  <Text strong>{formatMoney(computed.tax_on_taxable_income || 0)}</Text>
                 </Row>
                 <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <Text type="secondary">Tax Paid YTD (Payroll TDS):</Text>
-                  <Text>₹ {Number(computed.tds_through_payroll || computed.tax_ytd_amount || 0).toLocaleString('en-IN')}</Text>
+                  <Text>{formatMoney(computed.tds_through_payroll || computed.tax_ytd_amount || 0)}</Text>
                 </Row>
                 <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <Text type="secondary">Previous Employer TDS Credit:</Text>
-                  <Text>₹ {Number(computed.tds_previous_employer || 0).toLocaleString('en-IN')}</Text>
+                  <Text>{formatMoney(computed.tds_previous_employer || 0)}</Text>
                 </Row>
                 <Row justify="space-between" style={{ padding: '10px 0' }}>
                   <Text strong style={{ fontSize: 15 }}>Remaining Tax to be Deducted:</Text>
                   <Text strong style={{ fontSize: 16, color: '#cf1322' }}>
-                    ₹ {Number(computed.tax_to_be_paid || 0).toLocaleString('en-IN')}
+                    {formatMoney(computed.tax_to_be_paid || 0)}
                   </Text>
                 </Row>
 
@@ -271,7 +271,7 @@ export function SummarySection({ fy }) {
                 {computed.computed_at && (
                   <div style={{ marginTop: 12, textAlign: 'right' }}>
                     <Text type="secondary" style={{ fontSize: 11 }}>
-                      Calculated on {dayjs(computed.computed_at).format('YYYY-MM-DD HH:mm')}
+                      Calculated on {formatDateTime(computed.computed_at)}
                     </Text>
                   </div>
                 )}

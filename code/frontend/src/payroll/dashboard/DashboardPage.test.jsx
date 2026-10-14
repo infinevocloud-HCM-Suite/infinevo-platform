@@ -45,7 +45,7 @@ describe('DashboardPage (W-47.5 §7)', () => {
 
   it('renders every widget from the W-37 response for the current FY', async () => {
     renderPage();
-    expect(await screen.findByText('Current run: 2026-09')).toBeDefined();
+    expect(await screen.findByText('Current run: Sep 2026')).toBeDefined();
     expect(dashboardService.summary).toHaveBeenCalledWith(2026);
     expect(screen.getByText('Active today')).toBeDefined();
     expect(screen.getAllByText('PAID runs, FY 2026-27')).toHaveLength(4);
@@ -55,7 +55,7 @@ describe('DashboardPage (W-47.5 §7)', () => {
 
   it('changing the year refetches for that year', async () => {
     renderPage();
-    await screen.findByText('Current run: 2026-09');
+    await screen.findByText('Current run: Sep 2026');
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Financial year' }));
     fireEvent.click(await screen.findByText('2025-26', { selector: '.ant-select-item-option-content' }));
     await waitFor(() => expect(dashboardService.summary).toHaveBeenLastCalledWith(2025));
@@ -86,7 +86,7 @@ describe('DashboardPage (W-47.5 §7)', () => {
     expect(screen.queryByText(/\d,\d{3}\.\d{2}/)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('Current run: 2026-09')).toBeDefined();
+    expect(await screen.findByText('Current run: Sep 2026')).toBeDefined();
     expect(dashboardService.summary).toHaveBeenCalledTimes(2);
   });
 

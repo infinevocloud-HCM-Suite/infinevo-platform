@@ -100,6 +100,11 @@ describe('EmployeeList component', () => {
       expect(screen.getByText('E-101')).toBeDefined();
       expect(screen.getByText('Asha Rao')).toBeDefined();
     });
+    // The joining date and status read as words, never the ISO date or the code (D-78).
+    expect(screen.getByText('1 Apr 2026')).toBeDefined();
+    expect(screen.queryByText('2026-04-01')).toBeNull();
+    expect(screen.getByText('Active')).toBeDefined();
+    expect(screen.queryByText('ACTIVE')).toBeNull();
 
     // Search query
     const searchInput = screen.getByPlaceholderText('Search employees...');

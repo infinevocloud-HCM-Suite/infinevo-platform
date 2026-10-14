@@ -21,15 +21,9 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { deductionService } from './deductionService.js';
 import { EmployeeSelect } from './EmployeeSelect.jsx';
 import { DeductionGrid } from './DeductionGrid.jsx';
-import {
-  DEDUCTION_STATUS_OPTIONS,
-  DEDUCTION_TYPE_OPTIONS,
-  deductionStatus,
-  deductionTypeLabel,
-  formatAmount,
-  formatDate,
-} from './claimLabels.js';
+import { DEDUCTION_STATUS_OPTIONS, DEDUCTION_TYPE_OPTIONS, deductionStatus, deductionTypeLabel } from './claimLabels.js';
 import { readError } from '../tax/apiError.js';
+import { EMPTY, formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 const REASON_MAX = 255;
@@ -122,11 +116,11 @@ export function DeductionList() {
   };
 
   const columns = [
-    { title: 'Employee', dataIndex: 'employee_name', key: 'employee_name', render: (v) => v || '-' },
-    { title: 'Period', dataIndex: 'period', key: 'period' },
+    { title: 'Employee', dataIndex: 'employee_name', key: 'employee_name', render: (v) => v || EMPTY },
+    { title: 'Period', dataIndex: 'period', key: 'period', render: (v) => formatMonth(v) },
     { title: 'Type', dataIndex: 'deduction_type', key: 'deduction_type', render: deductionTypeLabel },
-    { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right', render: formatAmount },
-    { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v) => v || '-' },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right', render: (v) => formatMoney(v) },
+    { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v) => v || EMPTY },
     {
       title: 'Status',
       dataIndex: 'status',
@@ -141,12 +135,12 @@ export function DeductionList() {
         );
       },
     },
-    { title: 'Posted period', dataIndex: 'posted_period', key: 'posted_period', render: (v) => v || '-' },
+    { title: 'Posted period', dataIndex: 'posted_period', key: 'posted_period', render: (v) => formatMonth(v) },
   ];
 
   if (canManage) {
     columns.push({
-      title: '',
+      title: 'Actions',
       key: 'actions',
       render: (_, row) =>
         row.status === 'POSTED' ? (
@@ -280,7 +274,7 @@ export function DeductionList() {
           <Space direction="vertical" style={{ width: '100%' }}>
             <Text>
               {reversing.employee_name || reversing.employee_id}, {reversing.period},{' '}
-              {deductionTypeLabel(reversing.deduction_type)}, {formatAmount(reversing.amount)}
+              {deductionTypeLabel(reversing.deduction_type)}, {formatMoney(reversing.amount)}
             </Text>
             {reverseError && <Alert type="error" showIcon message={reverseError} />}
             <Input.TextArea

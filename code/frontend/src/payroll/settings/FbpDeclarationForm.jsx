@@ -20,6 +20,7 @@ import {
 import { SaveOutlined, CalendarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fbpService } from './fbpService.js';
+import { formatMoney, humanize } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -124,7 +125,7 @@ export function FbpDeclarationForm({
       key: 'kind',
       width: 120,
       render: (k) => (
-        <Tag color={k === 'EARNING' ? 'cyan' : 'orange'}>{k}</Tag>
+        <Tag color={k === 'EARNING' ? 'cyan' : 'orange'}>{humanize(k)}</Tag>
       ),
     },
     {
@@ -139,11 +140,11 @@ export function FbpDeclarationForm({
       ),
     },
     {
-      title: 'Max Limit (₹)',
+      title: 'Max Limit',
       dataIndex: 'lineAnnualAmount',
       key: 'lineAnnualAmount',
       width: 160,
-      render: (val) => (val != null ? `₹${val}` : 'No limit'),
+      render: (val) => (val != null ? formatMoney(val) : 'No limit'),
     },
     {
       title: 'Declared Annual Amount (₹)',

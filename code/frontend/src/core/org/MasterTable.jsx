@@ -17,7 +17,7 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
-import { toTitleCase } from '@shared/ui/format.js';
+import { formatDate, toTitleCase } from '@shared/ui/format.js';
 import { invalidateMasters } from '../employee/employeeSlice.js';
 
 const { Title, Text } = Typography;
@@ -231,7 +231,7 @@ export function MasterTable({ title, service }) {
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 180,
-      render: (date) => (date ? new Date(date).toLocaleDateString() : '—'),
+      render: (date) => formatDate(date),
     },
   ];
 

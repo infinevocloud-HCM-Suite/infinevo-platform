@@ -31,6 +31,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
+import { formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
 import { payrunService } from './payrunService.js';
 import { startPolling, stopPolling, setRun } from './payrunSlice.js';
 import { RunEmployees } from './RunEmployees.jsx';
@@ -64,6 +65,22 @@ export function isPaidOnAllowed(day, run) {
   return !(periodStart && day.isBefore(dayjs(periodStart), 'day'));
 }
 
+// A load that failed because the run is not there, as against one that failed for any other reason
+// (network, 403, 500) - only the first is "not found" (D-83). The shared client sets `status`/`code`.
+export function isNotFound(err) {
+  return err?.status === 404 || err?.code === 'NOT_FOUND';
+}
+
+// Why the worker gave up on a FAILED run (`pay_run.failure_reason`, W-29.2 §3), in either key style.
+export function failureReasonOf(run) {
+  return run?.failure_reason || run?.failureReason || null;
+}
+
+// Who approved: the name the reply carries. Never the raw login id (D-79).
+function approverOf(run) {
+  return run?.approved_by_name || run?.approvedByName || null;
+}
+
 export function RunPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -81,6 +98,8 @@ export function RunPage() {
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [paidOn, setPaidOn] = useState(null);
   const [payNotice, setPayNotice] = useState(null);
+  // The error of the last read, kept whole so a 404 can be told from every other failure (D-83).
+  const [loadError, setLoadError] = useState(null);
 
   const run = runFromStore || localRun;
 
@@ -90,8 +109,10 @@ export function RunPage() {
       const data = await payrunService.get(id);
       dispatch(setRun(data));
       setLocalRun(data);
+      setLoadError(null);
       return data;
     } catch (err) {
+      setLoadError(err || {});
       setActionError(err?.message || 'Failed to load pay run');
     } finally {
       setLoading(false);
@@ -163,15 +184,32 @@ export function RunPage() {
   }
 
   if (!run) {
+    const notFound = !loadError || isNotFound(loadError);
+    const retry = () => {
+      setLoading(true);
+      setActionError(null);
+      fetchRun();
+    };
     return (
       <div style={{ padding: 24 }}>
         <Alert
-          message="Pay run not found"
-          description={actionError || 'The requested pay run does not exist.'}
+          message={notFound ? 'Pay run not found' : 'Could not load the pay run'}
+          description={
+            notFound
+              ? 'The requested pay run does not exist.'
+              : loadError?.message || 'Something went wrong'
+          }
           type="error"
           showIcon
           action={
-            <Button onClick={() => navigate('/payroll/runs')}>Back to runs</Button>
+            <Space>
+              {!notFound && (
+                <Button type="primary" icon={<ReloadOutlined />} onClick={retry}>
+                  Retry
+                </Button>
+              )}
+              <Button onClick={() => navigate('/payroll/runs')}>Back to runs</Button>
+            </Space>
           }
         />
       </div>
@@ -204,6 +242,8 @@ export function RunPage() {
   const totalDeductions = run.total_deductions !== undefined ? run.total_deductions : run.totalDeductions;
   const totalNet = run.total_net_pay !== undefined ? run.total_net_pay : run.totalNetPay;
   const isComputed = status === 'COMPUTED' || status === 'APPROVED' || status === 'PAID';
+  const failureReason = status === 'FAILED' ? failureReasonOf(run) : null;
+  const approver = approverOf(run);
 
   return (
     <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
@@ -230,7 +270,7 @@ export function RunPage() {
             Runs
           </Button>
           <Title level={3} style={{ margin: 0 }}>
-            Pay Run — {run.period}
+            Pay Run — {formatMonth(run.period)}
           </Title>
           <Tag color={STATUS_COLOR_MAP[status] || 'default'} style={{ fontSize: 14, padding: '4px 10px' }}>
             {status}
@@ -332,6 +372,16 @@ export function RunPage() {
         </Space>
       </div>
 
+      {status === 'FAILED' && (
+        <Alert
+          message="Computation failed"
+          description={failureReason || 'The server did not record a reason.'}
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
       {actionError && (
         <Alert
           message="Action Failed"
@@ -385,7 +435,7 @@ export function RunPage() {
 
       {isComputing && (
         <Card style={{ marginBottom: 24, background: '#f6ffed', borderColor: '#b7eb8f' }}>
-          <Space direction="vertical" orientation="left" style={{ width: '100%' }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong>
                 Computation in progress (Attempt {computeAttempt})
@@ -405,9 +455,9 @@ export function RunPage() {
 
       <Card style={{ marginBottom: 24 }}>
         <Descriptions column={{ xs: 1, sm: 2, md: 4 }} bordered size="small">
-          <Descriptions.Item label="Period">{run.period}</Descriptions.Item>
+          <Descriptions.Item label="Period">{formatMonth(run.period)}</Descriptions.Item>
           <Descriptions.Item label="Pay Date">
-            {run.pay_date || run.payDate || '-'}
+            {formatDate(run.pay_date || run.payDate)}
           </Descriptions.Item>
           <Descriptions.Item label="Included Employees">
             <Text strong style={{ color: '#52c41a' }}>
@@ -421,11 +471,11 @@ export function RunPage() {
           </Descriptions.Item>
           {run.approved_at && (
             <Descriptions.Item label="Approved">
-              {dayjs(run.approved_at).format('YYYY-MM-DD HH:mm')}
-              {run.approved_by ? ` by ${run.approved_by}` : ''}
+              {formatDate(run.approved_at)}
+              {approver ? ` by ${approver}` : ''}
             </Descriptions.Item>
           )}
-          {run.paid_on && <Descriptions.Item label="Paid On">{run.paid_on}</Descriptions.Item>}
+          {run.paid_on && <Descriptions.Item label="Paid On">{formatDate(run.paid_on)}</Descriptions.Item>}
           {run.notes && (
             <Descriptions.Item label="Notes" span={4}>
               {run.notes}
@@ -439,9 +489,7 @@ export function RunPage() {
               <Card type="inner" style={{ textAlign: 'center' }}>
                 <Statistic
                   title="Total Gross"
-                  value={totalGross !== undefined && totalGross !== null ? Number(totalGross) : 0}
-                  precision={2}
-                  prefix="₹"
+                  value={formatMoney(totalGross)}
                   valueStyle={{ color: '#1677ff' }}
                 />
               </Card>
@@ -450,9 +498,7 @@ export function RunPage() {
               <Card type="inner" style={{ textAlign: 'center' }}>
                 <Statistic
                   title="Total Deductions"
-                  value={totalDeductions !== undefined && totalDeductions !== null ? Number(totalDeductions) : 0}
-                  precision={2}
-                  prefix="₹"
+                  value={formatMoney(totalDeductions)}
                   valueStyle={{ color: '#ff4d4f' }}
                 />
               </Card>
@@ -461,9 +507,7 @@ export function RunPage() {
               <Card type="inner" style={{ textAlign: 'center' }}>
                 <Statistic
                   title="Total Net Pay"
-                  value={totalNet !== undefined && totalNet !== null ? Number(totalNet) : 0}
-                  precision={2}
-                  prefix="₹"
+                  value={formatMoney(totalNet)}
                   valueStyle={{ color: '#52c41a', fontWeight: 'bold' }}
                 />
               </Card>

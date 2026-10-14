@@ -25,6 +25,7 @@ import { useDispatch } from 'react-redux';
 import { payScheduleService } from './payScheduleService.js';
 import { lopPolicyService } from './lopPolicyService.js';
 import { setPaySchedule, setLopPolicy } from './settingsSlice.js';
+import { formatDate } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -505,16 +506,16 @@ export function PayScheduleScreen() {
               column={{ xs: 1, sm: 2, md: 4 }}
             >
               <Descriptions.Item label="Period Start">
-                <Text strong>{previewData.start}</Text>
+                <Text strong>{formatDate(previewData.start)}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Period End">
-                <Text strong>{previewData.end}</Text>
+                <Text strong>{formatDate(previewData.end)}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Input Cut-Off Date">
-                <Text type="warning">{previewData.cutoff_date}</Text>
+                <Text type="warning">{formatDate(previewData.cutoff_date)}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Pay Date">
-                <Text type="success">{previewData.pay_date}</Text>
+                <Text type="success">{formatDate(previewData.pay_date)}</Text>
               </Descriptions.Item>
             </Descriptions>
           </div>

@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { Card, Table, Tag } from 'antd';
 import { STATUS_COLOR, STATUS_LABEL } from '../timesheet/weekGrid.js';
+import { formatDate } from '@shared/ui/format.js';
 
 /** `me.timesheets` (W-48.6 §5): this week and last; hours as sent. */
 export function TimesheetsCard({ timesheets }) {
@@ -15,7 +16,7 @@ export function TimesheetsCard({ timesheets }) {
       title: 'Week',
       key: 'week',
       render: (_, r) => (
-        <Link to={`/hrms/timesheets/week/${r.week.week_start}`}>{`${r.label} (${r.week.week_start})`}</Link>
+        <Link to={`/hrms/timesheets/week/${r.week.week_start}`}>{`${r.label} (${formatDate(r.week.week_start)})`}</Link>
       ),
     },
     {

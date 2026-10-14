@@ -27,7 +27,7 @@ public class TaxDeclarationPanelProvider implements PortalPanelProvider {
         return new PanelDescriptor(
                 "taxDeclaration",
                 "Tax declaration",
-                5,
+                6,
                 "/api/v1/me/tax-declaration",
                 "payroll.tax_declaration.read_own");
     }

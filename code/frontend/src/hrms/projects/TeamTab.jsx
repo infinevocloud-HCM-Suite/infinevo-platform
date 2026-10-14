@@ -4,6 +4,7 @@ import { Alert, Button, DatePicker, Popconfirm, Space, Table } from 'antd';
 import dayjs from 'dayjs';
 import { EmployeePicker } from './EmployeePicker.jsx';
 import { errorMessage, projectService } from './projectService.js';
+import { formatDate } from '@shared/ui/format.js';
 
 /** Project team (W-48.1 §5): assignments with names; assign and remove need `canManage`. */
 export function TeamTab({ projectId, assignments, canManage, onChange }) {
@@ -46,11 +47,11 @@ export function TeamTab({ projectId, assignments, canManage, onChange }) {
       dataIndex: 'employee_name',
       render: (v, r) => v || r.employee_id,
     },
-    { title: 'Assigned on', dataIndex: 'assigned_on', render: (v) => v || '-' },
+    { title: 'Assigned on', dataIndex: 'assigned_on', render: (v) => formatDate(v) },
   ];
   if (canManage) {
     columns.push({
-      title: '',
+      title: 'Actions',
       key: 'remove',
       render: (_, r) => (
         <Popconfirm title="Remove from the team?" onConfirm={() => remove(r.employee_id)}>

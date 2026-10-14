@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { NotEntitled, useCan } from '@shell/screens';
 import { requestService } from './requestService.js';
 import { FMT, MAX_RANGE_DAYS, STATUS_COLOR, presets, spanDays } from './range.js';
+import { formatDate, formatMoney, formatMonth, humanize, statusLabel } from '@shared/ui/format.js';
 
 /** HR: everyone's overtime requests for a range (W-68 §5). Amount shown as sent. */
 export function OvertimeLog() {
@@ -65,16 +66,16 @@ export function OvertimeLog() {
       key: 'employee',
       render: (_, r) => r.employeeName || r.employeeId,
     },
-    { title: 'Date', dataIndex: 'overtimeDate', key: 'date' },
+    { title: 'Date', dataIndex: 'overtimeDate', key: 'date', render: (d) => formatDate(d) },
     { title: 'Hours', dataIndex: 'hours', key: 'hours' },
-    { title: 'Amount', dataIndex: 'amount', key: 'amount' },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', render: (v) => formatMoney(v) },
     {
       title: 'Status',
       key: 'status',
-      render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{r.status}</Tag>,
+      render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{statusLabel(r.status)}</Tag>,
     },
-    { title: 'Source', dataIndex: 'source', key: 'source' },
-    { title: 'Posted period', dataIndex: 'postedPeriod', key: 'postedPeriod' },
+    { title: 'Source', dataIndex: 'source', key: 'source', render: (v) => humanize(v) },
+    { title: 'Posted period', dataIndex: 'postedPeriod', key: 'postedPeriod', render: (v) => formatMonth(v) },
   ];
 
   return (

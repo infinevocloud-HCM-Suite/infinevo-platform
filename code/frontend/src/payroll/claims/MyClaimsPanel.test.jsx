@@ -73,8 +73,8 @@ describe('MyClaimsPanel (W-47.4 §7)', () => {
     renderPanel();
 
     expect(await screen.findByText('Fuel')).toBeDefined();
-    expect(screen.getByText('2,000.00')).toBeDefined();
-    expect(screen.getByText('1,500.00')).toBeDefined();
+    expect(screen.getByText('₹ 2,000.00')).toBeDefined();
+    expect(screen.getByText('₹ 1,500.00')).toBeDefined();
     expect(screen.getByText('Approved', { selector: '.ant-tag' })).toBeDefined();
     expect(screen.getByText('Part approved')).toBeDefined();
     expect(screen.getByRole('button', { name: /new claim/i })).toBeDefined();
@@ -85,8 +85,8 @@ describe('MyClaimsPanel (W-47.4 §7)', () => {
     const reversedReason = screen.getByText('Late return of equipment');
     expect(reversedReason.closest('del')).not.toBeNull();
     expect(screen.getByText('Broken laptop screen').closest('del')).toBeNull();
-    expect(screen.getByText('250.50').closest('del')).not.toBeNull();
-    expect(screen.getByTestId('reversed-on').textContent).toContain('2026-09-28');
+    expect(screen.getByText('₹ 250.50').closest('del')).not.toBeNull();
+    expect(screen.getByTestId('reversed-on').textContent).toContain('28 Sep 2026');
   });
 
   it('opens a claim from its row with getOwn', async () => {

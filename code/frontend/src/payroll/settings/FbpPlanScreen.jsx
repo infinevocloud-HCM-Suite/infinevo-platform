@@ -30,6 +30,7 @@ import dayjs from 'dayjs';
 import { useDispatch } from 'react-redux';
 import { fbpService } from './fbpService.js';
 import { setFbpPlan } from './settingsSlice.js';
+import { formatMoney, humanize } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -152,7 +153,7 @@ export function FbpPlanScreen() {
       dataIndex: 'kind',
       key: 'kind',
       render: (k) => (
-        <Tag color={k === 'EARNING' ? 'cyan' : 'orange'}>{k}</Tag>
+        <Tag color={k === 'EARNING' ? 'cyan' : 'orange'}>{humanize(k)}</Tag>
       ),
     },
     {
@@ -168,10 +169,10 @@ export function FbpPlanScreen() {
       render: (n) => <Text strong>{n}</Text>,
     },
     {
-      title: 'Max Limit (₹)',
+      title: 'Max Limit',
       dataIndex: 'maxLimit',
       key: 'maxLimit',
-      render: (limit) => (limit != null ? `₹${limit}` : 'No limit'),
+      render: (limit) => (limit != null ? formatMoney(limit) : 'No limit'),
     },
   ];
 

@@ -131,7 +131,7 @@ export function PayslipPage() {
   const totals = payslip.totals || {};
 
   return (
-    <Space orientation="vertical" size="large" style={{ width: '100%', padding: token.paddingLG }} data-testid="payslip-page">
+    <Space direction="vertical" size="large" style={{ width: '100%', padding: token.paddingLG }} data-testid="payslip-page">
       {back}
 
       <Card style={{ borderRadius: token.borderRadiusLG }}>

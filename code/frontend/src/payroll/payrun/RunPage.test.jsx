@@ -8,6 +8,7 @@ import { RunPage, isPaidOnAllowed } from './RunPage.jsx';
 import payrunReducer from './payrunSlice.js';
 import { payrunService } from './payrunService.js';
 import * as useCanModule from '@shell/screens';
+import { formatMoney } from '@shared/ui/format.js';
 
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn(),
@@ -82,7 +83,7 @@ describe('RunPage component (W-47.2 §7)', () => {
       const { unmount } = renderRunPage(`run-${s.status}`);
 
       await waitFor(() => {
-        expect(screen.getByText(`Pay Run — 2026-10`)).toBeDefined();
+        expect(screen.getByText(`Pay Run — Oct 2026`)).toBeDefined();
       });
 
       const lockBtn = screen.getByRole('button', { name: /lock/i });
@@ -135,7 +136,7 @@ describe('RunPage component (W-47.2 §7)', () => {
     renderRunPage('run-stale');
 
     await waitFor(() => {
-      expect(screen.getByText('Pay Run — 2026-10')).toBeDefined();
+      expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
     });
 
     const computeBtn = screen.getByRole('button', { name: /compute/i });
@@ -225,13 +226,167 @@ describe('RunPage component (W-47.2 §7)', () => {
     for (const status of ['COMPUTED', 'APPROVED']) {
       payrunService.get.mockResolvedValueOnce({ id: `run-perm-${status}`, period: '2026-10', status });
       const { unmount } = renderRunPage(`run-perm-${status}`);
-      await screen.findByText('Pay Run — 2026-10');
+      await screen.findByText('Pay Run — Oct 2026');
 
       expect(screen.getByRole('button', { name: /approve/i }).hasAttribute('disabled')).toBe(true);
       expect(screen.getByRole('button', { name: /pay$/i }).hasAttribute('disabled')).toBe(true);
       unmount();
     }
   });
+});
+
+describe('RunPage load errors and failure reason (D-83)', () => {
+  let store;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    store = configureStore({ reducer: { payrun: payrunReducer } });
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    payrunService.employees.mockResolvedValue({ content: [], totalElements: 0 });
+  });
+
+  const renderAt = (runId) =>
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={[`/payroll/runs/${runId}`]}>
+          <Routes>
+            <Route path="/payroll/runs/:id" element={<RunPage />} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+
+  it('shows the failure reason of a FAILED run', async () => {
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-f',
+      period: '2026-10',
+      status: 'FAILED',
+      failure_reason: 'No pay schedule for 2026-10',
+    });
+    renderAt('run-f');
+    expect(await screen.findByText('Computation failed')).toBeDefined();
+    expect(screen.getByText('No pay schedule for 2026-10')).toBeDefined();
+  });
+
+  it('reads failureReason in camel case too, and says so when there is none', async () => {
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-f2',
+      period: '2026-10',
+      status: 'FAILED',
+      failureReason: 'Worker timed out',
+    });
+    const { unmount } = renderAt('run-f2');
+    expect(await screen.findByText('Worker timed out')).toBeDefined();
+    unmount();
+
+    payrunService.get.mockResolvedValueOnce({ id: 'run-f3', period: '2026-10', status: 'FAILED' });
+    renderAt('run-f3');
+    expect(await screen.findByText('The server did not record a reason.')).toBeDefined();
+  });
+
+  it('shows no failure banner for a run that has not failed', async () => {
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-ok',
+      period: '2026-10',
+      status: 'COMPUTED',
+      failure_reason: 'stale text from an earlier attempt',
+    });
+    renderAt('run-ok');
+    await screen.findByText('Pay Run — Oct 2026');
+    expect(screen.queryByText('Computation failed')).toBeNull();
+    expect(screen.queryByText('stale text from an earlier attempt')).toBeNull();
+  });
+
+  it('shows run totals as exact rupee amounts', async () => {
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-t',
+      period: '2026-10',
+      status: 'COMPUTED',
+      total_gross: '12345678901234567.89',
+      total_deductions: '1000.5',
+      total_net_pay: null,
+    });
+    const { container } = renderAt('run-t');
+    await screen.findByText('Total Gross');
+    const values = [...container.querySelectorAll('.ant-statistic-content')].map((n) => n.textContent);
+    expect(values).toEqual([formatMoney('12345678901234567.89'), '₹ 1,000.50', '—']);
+    // The amount is the decimal the server sent, not a float that lost digits.
+    expect(values[0]).toContain('67.89');
+  });
+
+  it('a 404 reads "Pay run not found" with no Retry', async () => {
+    payrunService.get.mockRejectedValueOnce({ status: 404, code: 'NOT_FOUND', message: 'Pay run x not found' });
+    renderAt('run-404');
+    expect(await screen.findByText('Pay run not found')).toBeDefined();
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+  });
+
+  it.each([
+    ['a 500', { status: 500, code: 'INTERNAL', message: 'Database unavailable' }],
+    ['a 403', { status: 403, code: 'FORBIDDEN', message: 'You do not have access to pay runs' }],
+    ['a network error', { code: 'INTERNAL', message: 'Something went wrong' }],
+  ])('%s shows the server message and a Retry that reloads', async (_n, err) => {
+    payrunService.get
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce({ id: 'run-e', period: '2026-10', status: 'DRAFT' });
+    renderAt('run-e');
+    expect(await screen.findByText('Could not load the pay run')).toBeDefined();
+    expect(screen.queryByText('Pay run not found')).toBeNull();
+    expect(screen.getByText(err.message)).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByText('Pay Run — Oct 2026')).toBeDefined();
+    expect(payrunService.get).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('RunPage for a finance login (D-82)', () => {
+  let store;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    store = configureStore({ reducer: { payrun: payrunReducer } });
+    // Finance: payroll.run.read and payroll.run.approve, no payroll.run.execute, no core.employee.read.
+    vi.spyOn(useCanModule, 'useCan').mockImplementation(
+      (a) => a === 'payroll.run.read' || a === 'payroll.run.approve'
+    );
+  });
+
+  it('names each employee from the run reply, without asking core', async () => {
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-fin',
+      period: '2026-10',
+      status: 'APPROVED',
+      approved_at: '2026-10-28T10:00:00Z',
+      approved_by: 'a1b2',
+      approved_by_name: 'Fiona Finance',
+    });
+    payrunService.employees.mockResolvedValue({
+      content: [
+        { id: 'r1', employee_id: 'e1', employee_number: 'E01', employee_name: 'Alice Smith', inclusion_status: 'INCLUDED' },
+        { id: 'r2', employee_id: 'e2', employee_number: 'E02', employee_name: 'Bob Jones', inclusion_status: 'INCLUDED' },
+      ],
+      totalElements: 2,
+    });
+    payrunService.employeeNames.mockRejectedValue({ status: 403, code: 'FORBIDDEN' });
+
+    renderAt('run-fin');
+    expect(await screen.findByText('Alice Smith')).toBeDefined();
+    expect(screen.getByText('Bob Jones')).toBeDefined();
+    expect(screen.getByText(/by Fiona Finance/)).toBeDefined();
+    expect(payrunService.employeeNames).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /lock/i }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: /cancel/i }).hasAttribute('disabled')).toBe(true);
+  });
+
+  const renderAt = (runId) =>
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={[`/payroll/runs/${runId}`]}>
+          <Routes>
+            <Route path="/payroll/runs/:id" element={<RunPage />} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
 });
 
 describe('isPaidOnAllowed (W-36.2 §4)', () => {

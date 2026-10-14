@@ -1,14 +1,11 @@
 import PropTypes from 'prop-types';
 import { Table, Tag, Button, Space, Popconfirm } from 'antd';
+import { formatDateTime as sharedFormatDateTime } from '@shared/ui/format.js';
+import { StatusTag } from '@shared/ui/StatusTag.jsx';
 
+/** Kept for callers that import it from here; the shared helper does the work (D-78). */
 export function formatDateTime(isoString) {
-  if (!isoString) return '—';
-  try {
-    const d = new Date(isoString);
-    return isNaN(d.getTime()) ? isoString : d.toLocaleString();
-  } catch {
-    return isoString;
-  }
+  return sharedFormatDateTime(isoString);
 }
 
 export function getInvitationStatusTag(status) {
@@ -24,7 +21,7 @@ export function getInvitationStatusTag(status) {
     case 'EXPIRED':
       return <Tag color="warning">Expired</Tag>;
     default:
-      return <Tag>{status || 'Unknown'}</Tag>;
+      return <StatusTag status={status} />;
   }
 }
 

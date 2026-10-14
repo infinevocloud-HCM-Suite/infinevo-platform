@@ -7,6 +7,7 @@ import {
   FileTextOutlined,
   DollarOutlined,
   ClockCircleOutlined,
+  WalletOutlined,
   AppstoreOutlined,
 } from '@ant-design/icons';
 import { portalService } from './portalService.js';
@@ -26,6 +27,7 @@ const PANEL_ICONS = {
   payslips: <DollarOutlined />,
   timesheet: <ClockCircleOutlined />,
   taxDeclaration: <FileTextOutlined />,
+  claims: <WalletOutlined />,
 };
 
 const PANEL_COMPONENTS = {
@@ -154,7 +156,8 @@ export function PortalLayout() {
         </Space>
       ),
       children: Component ? (
-        <div style={{ marginTop: token.marginMD }}>
+        // The tab bar already leaves marginMD below it; a second margin here doubled the gap (D-56).
+        <div>
           <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
             <Component
               panel={panel}

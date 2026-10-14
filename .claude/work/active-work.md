@@ -6,6 +6,36 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-13 — Phase 4 of the screen audit on `main` (`D-84`–`D-87`); the `e2e` job is blocking
+
+| Fix | What |
+|---|---|
+| `D-84` | Attendance settings: a failed load shows the error with Retry and no form, so Save cannot overwrite; "My days" loads the current month on its own |
+| `D-85` | Tenant detail: NotFound only for a 404, other errors show the message with Retry; tenant list has an error state (`shared/ui/LoadError.jsx`) |
+| `D-86` | Leave types offer Days only; DRAFT reads "Draft"; employee leave history mounts at `/employees/:id/leave`, linked from the employee page |
+| `D-87` | Portal tabs ordered 1–7, Claims has an icon; tests guard both |
+| CI | `e2e` job blocking since its first green run (`6a303fb5`): a screen that stops opening cannot reach `main` |
+
+- Built by Claude on `dev-claude-p4`, one independent read, CI green.
+- **The screen audit (`D-64`–`D-93`) is closed.** Open defects: `D-25` (proof-of-investment screens, needs `W-47`), `D-95`, Sayeed's `D-43`–`D-58` not yet fixed, Krushna's §9.4 items. Left from Phases 3–4 are listed in their tracker rows.
+- **Branches:** `dev-claude-p3` and `dev-claude-p4` can be deleted; every `dev-<name>` resets to `main`.
+
+## 2026-10-13 — Phase 3 of the screen audit on `main` (`D-78`–`D-83`, `D-53`, `D-56`, `D-58`)
+
+| Fix | What |
+|---|---|
+| `D-78` | `shared/ui/format.js` + `StatusTag.jsx`: dates "1 Apr 2026", money "₹ 1,234.00", months "Apr 2026", status in words, applied across core, hrms and payroll; "Actions" on every untitled column |
+| `D-79`/`D-80` | Every reply with a person id carries the name, one batch per page (`EmployeeService.displayNames`, new `ActorNameService` for Keycloak logins on pay runs); `EmployeePicker` searches as you type; Allocations and My Leave paged |
+| `D-81` | Project errors show the server message |
+| `D-82` | Finance sees names in pay runs (`employee_name` on run rows — finance has no `core.employee.read`, so the client lookup answered 403); off-cycle create gated on `payroll.run.execute`; claims filter hidden without employee read |
+| `D-83` | FAILED pay run shows `failure_reason`; only a 404 reads "not found", other errors show the message with Retry |
+| `D-53`/`D-56`/`D-58` | antd `Space` has no `orientation` prop — it was silently ignored, so profile groups rendered side by side one letter per line and the edit panel fell outside the card. `direction` everywhere; `MyProfile` on a Row/Col grid; double tab gap removed; balance cards equal height with a meter |
+
+- Built by Claude on `dev-claude-p3`, one independent read, CI green. The e2e suite gained `checkSqueezedText` (text in a box under 48 px wide or wrapped past four lines fails the walk).
+- **Left for later:** raw reference ids on `ClaimDetail`/`InstanceDetail`; off-cycle compute reply without names; `DeductionList`/`DeductionGrid` employee picker still reads `/v1/employees`; documents looked up per row in leave lists; `MyRequests` on `/me` reads the default page only.
+- **Open:** `D-84`–`D-87` (Phase 4), `D-25`, Sayeed's `D-43`–`D-58` except `D-52`/`D-53`/`D-55`/`D-56`/`D-58`, Krushna's §9.4 items. Make the `e2e` job blocking once a run is green.
+- **Branches:** `dev-claude-p3` can be deleted.
+
 ## 2026-10-13 — Devashish's `D-14` and `D-24` on `main`; proof-of-investment screens held back
 
 | Fix | What |

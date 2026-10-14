@@ -21,6 +21,7 @@ import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { PolicyForm } from './PolicyForm.jsx';
+import { formatDate, humanize } from '@shared/ui/format.js';
 
 const { Title } = Typography;
 
@@ -157,7 +158,7 @@ export function LeaveTypes() {
       title: 'Unit',
       dataIndex: 'unit',
       key: 'unit',
-      render: (unit) => <Tag>{unit || 'DAYS'}</Tag>,
+      render: (unit) => <Tag>{humanize(unit || 'DAYS')}</Tag>,
     },
     {
       title: 'Half-Day',
@@ -170,7 +171,7 @@ export function LeaveTypes() {
       key: 'validity',
       render: (_, record) => {
         if (!record.validFrom && !record.validTo) return 'Permanent';
-        return `${record.validFrom || ''} to ${record.validTo || 'Present'}`;
+        return `${record.validFrom ? formatDate(record.validFrom) : 'Always'} to ${record.validTo ? formatDate(record.validTo) : 'Present'}`;
       },
     },
     {
@@ -182,7 +183,7 @@ export function LeaveTypes() {
         }
         const p = record.policy;
         return (
-          <Space orientation="vertical" size={2}>
+          <Space direction="vertical" size={2}>
             <span>{p.annualDays} days/yr</span>
             <Tag color={p.exceedBalanceMode === 'markAsLOP' ? 'red' : 'blue'}>
               {EXCEED_BALANCE_LABELS[p.exceedBalanceMode || 'noLimit'] || p.exceedBalanceMode}
@@ -287,10 +288,8 @@ export function LeaveTypes() {
             <Col span={12}>
               <Form.Item name="unit" label="Unit" rules={[{ required: true }]}>
                 <Select
-                  options={[
-                    { value: 'DAYS', label: 'Days' },
-                    { value: 'HOURS', label: 'Hours' },
-                  ]}
+                  // LeaveUnit has DAYS only; the server refuses HOURS (D-86).
+                  options={[{ value: 'DAYS', label: 'Days' }]}
                 />
               </Form.Item>
             </Col>

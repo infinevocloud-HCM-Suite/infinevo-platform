@@ -15,18 +15,10 @@ import { useCan, useHasModule, NotEntitled } from '@shell/screens';
 import { setupService } from './setupService.js';
 import { stepLinks, stepActions } from './stepLinks.js';
 import { SkipStepModal } from './SkipStepModal.jsx';
+import { formatDateTime } from '@shared/ui/format.js';
 
 const { Title, Text, Paragraph } = Typography;
 
-function formatDateTime(isoString) {
-  if (!isoString) return '';
-  try {
-    const d = new Date(isoString);
-    return isNaN(d.getTime()) ? isoString : d.toLocaleString();
-  } catch {
-    return isoString;
-  }
-}
 
 // W-73.9: a step the country template filled reads "Pre-filled — review" until someone saves it.
 // It still counts as completed in the progress figures.

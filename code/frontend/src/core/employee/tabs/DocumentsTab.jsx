@@ -30,6 +30,7 @@ import {
   ACCEPTED_DOCUMENT_TYPES,
 } from '../../document/documentService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { formatDateTime } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -160,7 +161,7 @@ export function DocumentsTab({ employeeId }) {
       title: 'Uploaded at',
       dataIndex: 'uploadedAt',
       key: 'uploadedAt',
-      render: (at) => (at ? new Date(at).toLocaleString() : '—'),
+      render: (at) => formatDateTime(at),
     },
     {
       title: 'Actions',

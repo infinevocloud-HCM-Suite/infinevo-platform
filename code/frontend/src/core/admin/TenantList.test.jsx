@@ -60,7 +60,7 @@ describe('TenantList', () => {
     expect(await screen.findByText('Acme')).toBeDefined();
     const acme = rowOf('Acme');
     expect(within(acme).getByText('PAYROLL')).toBeDefined();
-    expect(within(acme).getByText('ACTIVE')).toBeDefined();
+    expect(within(acme).getByText('Active')).toBeDefined();
   });
 
   it('tags the Infinevo row "platform" and gives it no actions', async () => {
@@ -97,5 +97,18 @@ describe('TenantList', () => {
     await screen.findByText('Acme');
     fireEvent.click(screen.getByRole('button', { name: /new tenant/i }));
     expect(mockNavigate).toHaveBeenCalledWith('/admin/tenants/new');
+  });
+
+  it('a failed load shows the error with Retry and no rows; Retry lists them (D-85)', async () => {
+    tenantService.list.mockReset();
+    tenantService.list
+      .mockRejectedValueOnce(Object.assign(new Error('Gateway timeout'), { status: 504 }))
+      .mockResolvedValue(rows);
+    render(<MemoryRouter><TenantList /></MemoryRouter>);
+    expect(await screen.findByText('Gateway timeout')).toBeDefined();
+    expect(screen.queryByRole('table')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByText('Acme')).toBeDefined();
+    expect(tenantService.list).toHaveBeenCalledTimes(2);
   });
 });

@@ -12,6 +12,7 @@ import {
   mondayOf,
   responseTotal,
 } from '../timesheet/weekGrid.js';
+import { formatDate, formatDateTime, statusLabel } from '@shared/ui/format.js';
 
 const { RangePicker } = DatePicker;
 
@@ -89,7 +90,7 @@ export function ReviewPage() {
 
   const columns = [
     { title: 'Employee', key: 'employee', render: (_, r) => r.employee_name || r.employee_id },
-    { title: 'Week', dataIndex: 'week_start_date', key: 'week' },
+    { title: 'Week', dataIndex: 'week_start_date', key: 'week', render: (d) => formatDate(d) },
     {
       title: 'Total hours',
       key: 'total',
@@ -99,7 +100,7 @@ export function ReviewPage() {
     {
       title: 'Status',
       key: 'status',
-      render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{STATUS_LABEL[r.status] || r.status}</Tag>,
+      render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{STATUS_LABEL[r.status] || statusLabel(r.status)}</Tag>,
     },
     {
       title: 'Projects',
@@ -108,7 +109,7 @@ export function ReviewPage() {
         <Space wrap>
           {(r.projects || []).map((p) => (
             <Tag key={p.id} color={STATUS_COLOR[p.status]}>
-              {p.project_name || p.project_id}: {STATUS_LABEL[p.status] || p.status}
+              {p.project_name || p.project_id}: {STATUS_LABEL[p.status] || statusLabel(p.status)}
             </Tag>
           ))}
         </Space>
@@ -117,7 +118,7 @@ export function ReviewPage() {
     {
       title: 'Submitted at',
       key: 'submitted',
-      render: (_, r) => (r.submitted_at ? dayjs(r.submitted_at).format('YYYY-MM-DD HH:mm') : ''),
+      render: (_, r) => formatDateTime(r.submitted_at),
     },
   ];
 

@@ -272,4 +272,36 @@ class TaxDeclarationRulesTest {
             TenantContext.clear();
         }
     }
+
+    @Test
+    @DisplayName("D-79: the header names its employee, so the officer's view never shows the bare id")
+    void headerCarriesEmployeeName() {
+        EmployeeInvestmentDeclarationRepository declRepo = Mockito.mock(EmployeeInvestmentDeclarationRepository.class);
+        TaxDeclarationWindowService windowService = Mockito.mock(TaxDeclarationWindowService.class);
+        com.infinevo.core.employee.EmployeeService employeeService =
+                Mockito.mock(com.infinevo.core.employee.EmployeeService.class);
+        TaxDeclarationService service = new TaxDeclarationServiceImpl(
+                declRepo,
+                windowService,
+                employeeService,
+                Mockito.mock(com.infinevo.payroll.taxdeclaration.housing.HraRuleReader.class));
+
+        TenantContext.set(TENANT_ID);
+        try {
+            Mockito.when(declRepo.findByTenantIdAndEmployeeIdAndFinancialYear(TENANT_ID, EMPLOYEE_ID, FY))
+                    .thenReturn(Optional.of(new EmployeeInvestmentDeclaration(TENANT_ID, EMPLOYEE_ID, FY, "NEW")));
+            Mockito.when(windowService.findOrCreateDefault(TENANT_ID, FY))
+                    .thenReturn(new IncomeTaxDeclarationWindow(TENANT_ID, FY, opens, closes, "NEW", true, true));
+            Mockito.when(employeeService.displayNames(java.util.Set.of(EMPLOYEE_ID)))
+                    .thenReturn(java.util.Map.of(EMPLOYEE_ID, "Asha Rao"));
+
+            com.infinevo.payroll.taxdeclaration.dto.TaxDeclarationResponse header = service.read(EMPLOYEE_ID, FY);
+
+            assertThat(header.employeeId()).isEqualTo(EMPLOYEE_ID);
+            assertThat(header.employeeName()).isEqualTo("Asha Rao");
+            Mockito.verify(employeeService, Mockito.times(1)).displayNames(java.util.Set.of(EMPLOYEE_ID));
+        } finally {
+            TenantContext.clear();
+        }
+    }
 }

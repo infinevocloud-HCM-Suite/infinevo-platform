@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { reviewService } from './reviewService.js';
 import { STATUS_COLOR, STATUS_LABEL, formatHundredths } from '../timesheet/weekGrid.js';
 import { dayTotals, gridColumns, sumRows, taskRows } from './reviewGrid.js';
+import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 /** One week, read-only (W-48.3 §5): project and task rows, Mon to Sun, totals, rejection reasons. */
 export function WeekView() {
@@ -35,16 +36,16 @@ export function WeekView() {
       <Descriptions size="small" column={3} style={{ marginBottom: 16 }}>
         <Descriptions.Item label="Employee">{sheet.employee_name || sheet.employee_id}</Descriptions.Item>
         <Descriptions.Item label="Week">
-          {sheet.week_start_date} to {sheet.week_end_date}
+          {formatDate(sheet.week_start_date)} to {formatDate(sheet.week_end_date)}
         </Descriptions.Item>
         <Descriptions.Item label="Status">
-          <Tag color={STATUS_COLOR[sheet.status]}>{STATUS_LABEL[sheet.status] || sheet.status}</Tag>
+          <Tag color={STATUS_COLOR[sheet.status]}>{STATUS_LABEL[sheet.status] || statusLabel(sheet.status)}</Tag>
         </Descriptions.Item>
       </Descriptions>
       <Space wrap style={{ marginBottom: 16 }}>
         {(sheet.projects || []).map((p) => (
           <Tag key={p.id} color={STATUS_COLOR[p.status]}>
-            {p.project_name || p.project_id}: {STATUS_LABEL[p.status] || p.status}
+            {p.project_name || p.project_id}: {STATUS_LABEL[p.status] || statusLabel(p.status)}
           </Tag>
         ))}
       </Space>

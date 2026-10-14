@@ -21,6 +21,7 @@ import {
   selectTaxItemsRegime,
 } from './taxSlice';
 import { readError, rowsNamedIn } from './apiError';
+import { formatMoney } from '@shared/ui/format.js';
 
 const { Text, Paragraph } = Typography;
 
@@ -46,7 +47,7 @@ const isAmount = (value) => {
   const text = String(value ?? '').trim();
   return text !== '' && Number.isFinite(Number(text)) && Number(text) >= 0;
 };
-const formatRupees = (value) => `₹ ${Number(value).toLocaleString('en-IN')}`;
+const formatRupees = (value) => formatMoney(value);
 const humanise = (code) =>
   String(code || 'OTHER')
     .split('_')
@@ -511,7 +512,7 @@ export function DeductionsSection({ fy, editable, onRefresh, regime }) {
       },
     },
     {
-      title: '',
+      title: 'Actions',
       key: 'actions',
       width: 50,
       render: (_, __, index) => (
@@ -579,7 +580,7 @@ export function DeductionsSection({ fy, editable, onRefresh, regime }) {
       },
     },
     {
-      title: '',
+      title: 'Actions',
       key: 'actions',
       width: 50,
       render: (_, __, index) => (
@@ -676,7 +677,7 @@ export function DeductionsSection({ fy, editable, onRefresh, regime }) {
       },
     },
     {
-      title: '',
+      title: 'Actions',
       key: 'actions',
       width: 50,
       render: (_, row, index) => (

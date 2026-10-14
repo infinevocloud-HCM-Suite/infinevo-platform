@@ -62,7 +62,7 @@ describe('Allocations component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
-    employeeService.list.mockResolvedValue(mockEmployees);
+    employeeService.list.mockResolvedValue({ content: mockEmployees, totalElements: 1 });
     leaveTypeService.list.mockResolvedValue(mockTypes);
     leaveBalanceService.forEmployee.mockResolvedValue(mockBalances);
   });
@@ -76,6 +76,26 @@ describe('Allocations component', () => {
       expect(screen.getByRole('button', { name: /Allocate/i })).toBeDefined();
       expect(screen.getByRole('button', { name: /Run Accrual As Of/i })).toBeDefined();
     });
+  });
+
+  it('pages employees on the server and searches there, never asking for 1,000 (D-80)', async () => {
+    render(<Allocations />);
+
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeDefined();
+    });
+    expect(employeeService.list).toHaveBeenCalledWith({ q: undefined, page: 0, size: 15 });
+
+    const search = screen.getByLabelText('Search employees');
+    fireEvent.change(search, { target: { value: 'Jo' } });
+    fireEvent.keyDown(search, { key: 'Enter', code: 'Enter', keyCode: 13 });
+
+    await waitFor(() => {
+      expect(employeeService.list).toHaveBeenCalledWith({ q: 'Jo', page: 0, size: 15 });
+    });
+    for (const [params] of employeeService.list.mock.calls) {
+      expect(params.size).toBeLessThanOrEqual(20);
+    }
   });
 
   it('opens allocate modal and submits the four fields', async () => {

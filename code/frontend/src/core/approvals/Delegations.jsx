@@ -17,6 +17,7 @@ import {
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { EMPTY, formatDate } from '@shared/ui/format.js';
 import { delegationService } from './delegationService.js';
 import { useEmployeeSearch } from './useEmployeeSearch.js';
 
@@ -128,28 +129,27 @@ export function Delegations({ me: propMe, form: externalForm }) {
   const columns = [
     {
       title: 'Delegator',
-      dataIndex: 'delegatorEmployeeId',
-      key: 'delegatorEmployeeId',
+      key: 'delegator',
       width: 180,
-      render: (id) => <Text type="secondary">{id || 'Me'}</Text>,
+      // D-79: the reply names both people beside their ids; an id is never shown.
+      render: (_, record) => <Text type="secondary">{record.delegatorEmployeeName || EMPTY}</Text>,
     },
     {
       title: 'Delegate Colleague',
-      dataIndex: 'delegateEmployeeId',
-      key: 'delegateEmployeeId',
-      render: (id) => <Text strong>{id}</Text>,
+      key: 'delegate',
+      render: (_, record) => <Text strong>{record.delegateEmployeeName || EMPTY}</Text>,
     },
     {
       title: 'Valid From',
       key: 'validFrom',
       width: 140,
-      render: (_, record) => record.from || record.startsOn || '—',
+      render: (_, record) => formatDate(record.from || record.startsOn),
     },
     {
       title: 'Valid To',
       key: 'validTo',
       width: 140,
-      render: (_, record) => record.to || record.endsOn || '—',
+      render: (_, record) => formatDate(record.to || record.endsOn),
     },
     {
       title: 'Flow Types',

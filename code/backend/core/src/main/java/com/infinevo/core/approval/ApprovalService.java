@@ -435,7 +435,30 @@ public class ApprovalService {
     private ApprovalInstanceDetailResponse toDetail(UUID tenantId, ApprovalInstance instance) {
         List<ApprovalStep> steps =
                 stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instance.getId());
-        return ApprovalInstanceDetailResponse.from(instance, steps);
+        return ApprovalInstanceDetailResponse.from(instance, steps, peopleNames(instance, steps));
+    }
+
+    /**
+     * D-79: the display names of everyone an instance and its steps name - the subject employee, each
+     * assignee and whoever a step was delegated, escalated or reassigned from - in one
+     * {@code displayNames} read, never one per step.
+     */
+    private Map<UUID, String> peopleNames(ApprovalInstance instance, List<ApprovalStep> steps) {
+        java.util.Set<UUID> ids = new java.util.HashSet<>();
+        if (instance.getSubjectEmployeeId() != null) {
+            ids.add(instance.getSubjectEmployeeId());
+        }
+        for (ApprovalStep step : steps) {
+            java.util.stream.Stream.of(
+                            step.getAssigneeEmployeeId(),
+                            step.getDelegatedFromEmployeeId(),
+                            step.getEscalatedFromEmployeeId(),
+                            step.getReassignedFromEmployeeId())
+                    .filter(Objects::nonNull)
+                    .forEach(ids::add);
+        }
+        Map<UUID, String> names = ids.isEmpty() ? Collections.emptyMap() : employeeService.displayNames(ids);
+        return names != null ? names : Collections.emptyMap();
     }
 
     /**
@@ -449,14 +472,8 @@ public class ApprovalService {
                 .findByTenantIdAndId(tenantId, instanceId)
                 .orElseThrow(() -> new NoSuchElementException("Approval instance not found: " + instanceId));
         List<ApprovalStep> steps = stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instanceId);
-        // D-71: one lookup for the trail, not one per step, as the inbox names its subjects.
-        List<UUID> assigneeIds = steps.stream()
-                .map(ApprovalStep::getAssigneeEmployeeId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<UUID, String> assigneeNames =
-                assigneeIds.isEmpty() ? Collections.emptyMap() : employeeService.displayNames(assigneeIds);
+        // D-71, D-79: one lookup for the trail, not one per step, as the inbox names its subjects.
+        Map<UUID, String> names = peopleNames(instance, steps);
         return new ApprovalHistoryResponse(
                 instance.getId(),
                 instance.getFlowType(),
@@ -464,14 +481,11 @@ public class ApprovalService {
                 instance.getSubjectTable(),
                 instance.getSubjectId(),
                 instance.getSubjectEmployeeId(),
+                ApprovalStepResponse.nameOf(names, instance.getSubjectEmployeeId()),
                 instance.getCreatedAt(),
                 instance.getCompletedAt(),
                 steps.stream()
-                        .map(step -> ApprovalHistoryResponse.ApprovalHistoryStepResponse.from(
-                                step,
-                                step.getAssigneeEmployeeId() == null
-                                        ? null
-                                        : assigneeNames.get(step.getAssigneeEmployeeId())))
+                        .map(step -> ApprovalHistoryResponse.ApprovalHistoryStepResponse.from(step, names))
                         .toList());
     }
 

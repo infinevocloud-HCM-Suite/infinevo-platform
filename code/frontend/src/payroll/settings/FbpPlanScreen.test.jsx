@@ -81,7 +81,7 @@ describe('FbpPlanScreen (W-47.1b §7)', () => {
     expect(screen.getByTestId('fbp-enabled-switch').getAttribute('aria-checked')).toBe('true');
     expect(screen.getByDisplayValue('2026-04-01')).toBeDefined();
     expect(screen.getByDisplayValue('2026-04-30')).toBeDefined();
-    expect(screen.getByText('₹25000')).toBeDefined();
+    expect(screen.getByText('₹ 25,000.00')).toBeDefined();
   });
 
   it('D-67: a locked plan reads as Locked and offers Unlock', async () => {

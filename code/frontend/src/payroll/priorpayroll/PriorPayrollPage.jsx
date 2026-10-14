@@ -13,21 +13,16 @@ import {
   Descriptions,
 } from 'antd';
 import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
 import { priorPayrollService } from './priorPayrollService';
 import { MidYearBanner } from './MidYearBanner';
 import { currentFy, fyOptions } from '../tax/financialYear';
+import { formatDateTime, formatMoney, formatMonth, statusLabel } from '@shared/ui/format.js';
 
 const { Title } = Typography;
 
-const formatCurrency = (val) =>
-  val != null
-    ? Number(val).toLocaleString('en-IN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-    : '0.00';
+// Amounts go through the shared helper: rupee sign, Indian grouping, no float (D-78).
+const formatCurrency = (val) => formatMoney(val);
 
 const fileKey = (f) => (f ? `${f.name}:${f.size}:${f.lastModified}` : '');
 
@@ -207,7 +202,7 @@ export function PriorPayrollPage() {
       title: 'Date',
       dataIndex: 'startedAt',
       key: 'startedAt',
-      render: (v) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : ''),
+      render: (v) => formatDateTime(v),
     },
     {
       title: 'Dry run',
@@ -236,7 +231,7 @@ export function PriorPayrollPage() {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (s) => <Tag color={STATUS_TAG_COLOR[s] || 'default'}>{s}</Tag>,
+      render: (s) => <Tag color={STATUS_TAG_COLOR[s] || 'default'}>{statusLabel(s)}</Tag>,
     },
   ];
 
@@ -250,6 +245,7 @@ export function PriorPayrollPage() {
       title: 'Period',
       dataIndex: 'period',
       key: 'period',
+      render: (v) => formatMonth(v),
     },
     {
       title: 'Gross',
@@ -313,7 +309,7 @@ export function PriorPayrollPage() {
     <div style={{ padding: 24 }}>
       <MidYearBanner key={bannerKey} fy={fy} />
 
-      <Space orientation="horizontal" align="center" style={{ marginBottom: 16 }}>
+      <Space align="center" style={{ marginBottom: 16 }}>
         <Title level={2} style={{ margin: 0 }}>
           Prior payroll
         </Title>

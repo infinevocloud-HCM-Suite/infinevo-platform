@@ -213,7 +213,7 @@ export function DeductionGrid({ open, onClose, onPosted }) {
       ),
     },
     {
-      title: '',
+      title: 'Actions',
       key: 'remove',
       width: 50,
       render: (_, line) => (

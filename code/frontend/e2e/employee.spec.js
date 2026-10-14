@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { defineRoleSuite } from './fixtures/roleSuite.js';
 import { ROLES } from './fixtures/roles.js';
-import { UUID_RE, expectNoErrorScreen, findErrorScreen, screenshotScreen, waitForSettled } from './fixtures/helpers.js';
+import { UUID_RE, checkSqueezedText, expectNoErrorScreen, findErrorScreen, screenshotScreen, waitForSettled } from './fixtures/helpers.js';
 
 const ROLE = 'employee';
 
@@ -33,6 +33,7 @@ test.describe(`${ROLE} portal (${ROLES[ROLE].username})`, () => {
 
       const error = await findErrorScreen(page);
       expect.soft(error, `tab "${label}" (${page.url()}) shows ${error}`).toBeNull();
+      await checkSqueezedText(page, `/me tab "${label}"`);
       await screenshotScreen(page, ROLE, `me-${panelId}`);
 
       if (panelId === 'profile') {

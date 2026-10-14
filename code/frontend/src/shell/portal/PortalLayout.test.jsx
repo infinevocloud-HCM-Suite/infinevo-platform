@@ -4,6 +4,8 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { PortalLayout } from './PortalLayout.jsx';
 import { portalService } from './portalService.js';
 import { timesheetService } from '../../hrms/timesheet/timesheetService.js';
+import { portalPanels as hrmsPortalPanels } from '../../hrms/index.js';
+import { portalPanels as payrollPortalPanels } from '../../payroll/index.js';
 
 describe('PortalLayout component (W-25 §7)', () => {
   beforeEach(() => {
@@ -238,3 +240,45 @@ describe('PortalLayout component (W-25 §7)', () => {
   });
 });
 
+describe('PortalLayout panel icons (D-87)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('gives every panel the list can carry its own icon, never the fallback', async () => {
+    const coreCodes = ['profile', 'leave', 'documents', 'payslips'];
+    const moduleCodes = [...hrmsPortalPanels, ...payrollPortalPanels].map((p) => p.code);
+    const codes = [...coreCodes, ...moduleCodes];
+    expect(moduleCodes).toEqual(expect.arrayContaining(['timesheet', 'taxDeclaration', 'claims']));
+
+    vi.spyOn(portalService, 'getPanels').mockResolvedValue(
+      codes.map((code, i) => ({ code, title: `Panel ${code}`, displayOrder: i + 1, endpoint: '/x', requiredAction: null }))
+    );
+    vi.spyOn(portalService, 'getProfile').mockResolvedValue({
+      id: 'emp-3',
+      employeeNumber: 'EMP003',
+      firstName: 'Icon',
+      lastName: 'Check',
+      status: 'ACTIVE',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/me']}>
+        <Routes>
+          <Route path="/me" element={<PortalLayout />} />
+          <Route path="/me/:panelId" element={<PortalLayout />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Employee Self-Service')).toBeDefined();
+    });
+
+    for (const code of codes) {
+      const tab = screen.getByRole('tab', { name: new RegExp(`panel ${code}`, 'i') });
+      expect(tab.querySelector('.anticon'), `${code} has an icon`).not.toBeNull();
+      expect(tab.querySelector('.anticon-appstore'), `${code} uses the fallback icon`).toBeNull();
+    }
+  });
+});

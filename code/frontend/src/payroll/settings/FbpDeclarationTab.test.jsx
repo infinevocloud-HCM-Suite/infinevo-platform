@@ -92,8 +92,8 @@ describe('FbpDeclarationTab (W-47.1b §7)', () => {
       expect(screen.getByText('Fuel Allowance')).toBeDefined();
     });
     expect(screen.getByText('FUEL_ALLOW')).toBeDefined();
-    expect(screen.getByText('₹50000')).toBeDefined();
-    expect(screen.getByText('₹20000')).toBeDefined();
+    expect(screen.getByText('₹ 50,000.00')).toBeDefined();
+    expect(screen.getByText('₹ 20,000.00')).toBeDefined();
     // Pool, declared and unallocated come from `summary`.
     expect(screen.getByText('70,000')).toBeDefined();
     expect(screen.getByText('40,000')).toBeDefined();

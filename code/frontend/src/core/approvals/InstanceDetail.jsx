@@ -19,11 +19,17 @@ import {
 import { ArrowLeftOutlined, SwapOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { EMPTY, formatDate, formatMoney } from '@shared/ui/format.js';
 import { approvalService } from './approvalService.js';
 import { useEmployeeSearch } from './useEmployeeSearch.js';
 import { getItemRoute } from './itemRoutes.js';
 
 const { Title } = Typography;
+
+/** A person as the reply names them (D-79); the id alone is never shown. */
+function personName(name) {
+  return name || EMPTY;
+}
 
 const STATUS_TAGS = {
   PENDING: 'gold',
@@ -113,10 +119,9 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
       width: 180,
     },
     {
-      title: 'Assignee Employee ID',
-      dataIndex: 'assigneeEmployeeId',
-      key: 'assigneeEmployeeId',
-      render: (id) => id || '—',
+      title: 'Assignee',
+      key: 'assignee',
+      render: (_, step) => personName(step.assigneeEmployeeName),
     },
     {
       title: 'Decision',
@@ -134,21 +139,21 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
       title: 'Comment',
       dataIndex: 'comment',
       key: 'comment',
-      render: (comment) => comment || '—',
+      render: (comment) => comment || EMPTY,
     },
     {
       title: 'Approved Amount',
       dataIndex: 'approvedAmount',
       key: 'approvedAmount',
       width: 150,
-      render: (amt) => (amt !== null && amt !== undefined ? `INR ${amt}` : '—'),
+      render: (amt) => formatMoney(amt),
     },
     {
       title: 'Decided At',
       dataIndex: 'decidedAt',
       key: 'decidedAt',
       width: 180,
-      render: (date) => (date ? new Date(date).toLocaleString() : '—'),
+      render: (date) => formatDate(date),
     },
   ];
 
@@ -203,8 +208,8 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
                 {instance.status}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Subject Employee ID">
-              {instance.subjectEmployeeId || '—'}
+            <Descriptions.Item label="Employee">
+              {personName(instance.subjectEmployeeName)}
             </Descriptions.Item>
             <Descriptions.Item label="Subject Reference">
               {instance.subjectTable ? (
@@ -225,10 +230,10 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
               )}
             </Descriptions.Item>
             <Descriptions.Item label="Started At">
-              {instance.startedAt ? new Date(instance.startedAt).toLocaleString() : '—'}
+              {formatDate(instance.startedAt)}
             </Descriptions.Item>
             <Descriptions.Item label="Completed At">
-              {instance.completedAt ? new Date(instance.completedAt).toLocaleString() : '—'}
+              {formatDate(instance.completedAt)}
             </Descriptions.Item>
           </Descriptions>
 
@@ -272,18 +277,18 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
                       <strong>{label}</strong>
                       {reason ? ` — ${reason}` : ''}
                       <div style={{ color: '#888', fontSize: 12 }}>
-                        {time ? new Date(time).toLocaleString() : ''}
-                        {event.reassignedFromEmployeeId || event.fromEmployeeId
-                          ? ` • From: ${event.reassignedFromEmployeeId || event.fromEmployeeId}`
+                        {time ? formatDate(time) : ''}
+                        {event.reassignedFromEmployeeId
+                          ? ` • From: ${personName(event.reassignedFromEmployeeName)}`
                           : ''}
-                        {event.assigneeEmployeeId || event.toEmployeeId
-                          ? ` • Assignee: ${event.assigneeEmployeeId || event.toEmployeeId}`
+                        {event.assigneeEmployeeId
+                          ? ` • Assignee: ${personName(event.assigneeName || event.assigneeEmployeeName)}`
                           : ''}
                         {event.delegatedFromEmployeeId
-                          ? ` • Delegated from: ${event.delegatedFromEmployeeId}`
+                          ? ` • Delegated from: ${personName(event.delegatedFromEmployeeName)}`
                           : ''}
                         {event.escalatedFromEmployeeId
-                          ? ` • Escalated from: ${event.escalatedFromEmployeeId}`
+                          ? ` • Escalated from: ${personName(event.escalatedFromEmployeeName)}`
                           : ''}
                       </div>
                     </div>

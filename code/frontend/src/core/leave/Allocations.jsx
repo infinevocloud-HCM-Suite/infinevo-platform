@@ -12,6 +12,7 @@ import {
   DatePicker,
   Row,
   Col,
+  Input,
 } from 'antd';
 import { PlusOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -21,6 +22,11 @@ import { leaveTypeService } from './leaveTypeService.js';
 import { leaveBalanceService } from './leaveBalanceService.js';
 import { employeeService } from '../employee/employeeService.js';
 import { companyProfileService } from '../settings/companyProfileService.js';
+import { EMPTY, formatDate } from '@shared/ui/format.js';
+import { EmployeePicker } from './EmployeePicker.jsx';
+
+/** Employees per page of the allocations table; balances are read for this page only (D-80). */
+export const ALLOCATIONS_PAGE_SIZE = 15;
 
 const { Title, Text } = Typography;
 
@@ -50,7 +56,11 @@ export function Allocations() {
   const [leaveYearFromTenant, setLeaveYearFromTenant] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // D-80: the table pages employees on the server and searches them there; it used to ask for 1,000
+  // and get the first 100, so everyone past them could not be seen or allocated.
   const [employees, setEmployees] = useState([]);
+  const [employeePage, setEmployeePage] = useState({ current: 1, pageSize: ALLOCATIONS_PAGE_SIZE, total: 0 });
+  const [employeeQuery, setEmployeeQuery] = useState('');
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [balancesByEmployee, setBalancesByEmployee] = useState({});
 
@@ -65,28 +75,39 @@ export function Allocations() {
   const [accrualAsOf, setAccrualAsOf] = useState(dayjs());
   const [accruing, setAccruing] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [empData, typeData, profile] = await Promise.all([
-        employeeService.list({ size: 1000 }),
-        leaveTypeService.list(),
-        companyProfileService.get().catch(() => null),
-      ]);
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      leaveTypeService.list().catch(() => []),
+      companyProfileService.get().catch(() => null),
+    ]).then(([typeData, profile]) => {
+      if (!live) return;
       const month = Number(profile?.leaveYearStartMonth);
       const known = month >= 1 && month <= 12;
       setLeaveYearStartMonth(known ? month : DEFAULT_LEAVE_YEAR_START_MONTH);
       setLeaveYearFromTenant(known);
+      setLeaveTypes(Array.isArray(typeData) ? typeData : []);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
+  const loadData = useCallback(async (page = 1, pageSize = ALLOCATIONS_PAGE_SIZE) => {
+    setLoading(true);
+    try {
+      const empData = await employeeService.list({
+        q: employeeQuery || undefined,
+        page: page - 1,
+        size: pageSize,
+      });
       const empList = Array.isArray(empData)
         ? empData
         : empData?.content || [];
-      const typeList = Array.isArray(typeData) ? typeData : [];
-
       setEmployees(empList);
-      setLeaveTypes(typeList);
+      setEmployeePage({ current: page, pageSize, total: empData?.totalElements ?? empList.length });
 
-      // Load balances for all active employees for this year
+      // Balances for this page's employees only, for the year
       const asOf = `${selectedYear}-12-31`;
       const balanceEntries = await Promise.all(
         empList.map(async (emp) => {
@@ -104,11 +125,13 @@ export function Allocations() {
     } finally {
       setLoading(false);
     }
-  }, [selectedYear]);
+  }, [selectedYear, employeeQuery]);
 
   useEffect(() => {
-    loadData();
+    loadData(1, ALLOCATIONS_PAGE_SIZE);
   }, [loadData]);
+
+  const reloadPage = () => loadData(employeePage.current, employeePage.pageSize);
 
   const handleOpenAllocate = () => {
     allocateForm.resetFields();
@@ -132,7 +155,7 @@ export function Allocations() {
       await leaveBalanceService.allocate(payload);
       await successMsg('Leave allocated successfully');
       setAllocateModalOpen(false);
-      loadData();
+      reloadPage();
     } catch (err) {
       await errorMsg(err);
     } finally {
@@ -147,7 +170,7 @@ export function Allocations() {
       const res = await leaveBalanceService.accrue(asOfStr);
       await successMsg(`Accrual completed. Rows updated: ${res?.accruedCount ?? 0}`);
       setAccrualModalOpen(false);
-      loadData();
+      reloadPage();
     } catch (err) {
       await errorMsg(err);
     } finally {
@@ -167,9 +190,9 @@ export function Allocations() {
       width: 220,
       render: (_, emp) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{`${emp.firstName || ''} ${emp.lastName || ''}`.trim()}</Text>
-          <Text orientation="horizontal" type="secondary" style={{ fontSize: 12 }}>
-            {emp.employeeNumber || emp.id}
+          <Text strong>{`${emp.firstName || ''} ${emp.lastName || ''}`.trim() || EMPTY}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {emp.employeeNumber || EMPTY}
           </Text>
         </Space>
       ),
@@ -209,7 +232,7 @@ export function Allocations() {
         title: 'Carry Forward Expires',
         dataIndex: 'carryForwardExpiresOn',
         key: 'carryForwardExpiresOn',
-        render: (d) => d || '-',
+        render: (d) => formatDate(d),
       },
     ];
 
@@ -263,13 +286,22 @@ export function Allocations() {
         </Col>
       </Row>
 
+      <Input.Search
+        allowClear
+        placeholder="Search employee by name or number"
+        aria-label="Search employees"
+        style={{ maxWidth: 360, marginBottom: 16 }}
+        onSearch={(q) => setEmployeeQuery((q || '').trim())}
+      />
+
       <Table
         rowKey="id"
         columns={columns}
         dataSource={employees}
         loading={loading}
         expandable={{ expandedRowRender }}
-        pagination={{ pageSize: 15 }}
+        pagination={{ ...employeePage, showSizeChanger: false }}
+        onChange={(p) => loadData(p.current, p.pageSize)}
         scroll={{ x: 'max-content' }}
       />
 
@@ -291,15 +323,7 @@ export function Allocations() {
             label="Employee"
             rules={[{ required: true, message: 'Please select an employee' }]}
           >
-            <Select
-              placeholder="Select employee"
-              showSearch
-              optionFilterProp="label"
-              options={employees.map((e) => ({
-                value: e.id,
-                label: `${e.firstName || ''} ${e.lastName || ''} (${e.employeeNumber || e.id})`.trim(),
-              }))}
-            />
+            <EmployeePicker placeholder="Search employee" />
           </Form.Item>
 
           <Form.Item

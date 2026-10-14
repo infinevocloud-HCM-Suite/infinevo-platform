@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { Card, Col, Descriptions, Row, Typography } from 'antd';
-import { formatAmount } from '../claims/claimLabels.js';
+import { formatMoney } from '@shared/ui/format.js';
 import { label } from './financialYear.js';
 
 const { Text } = Typography;
@@ -12,9 +12,9 @@ const TILES = [
   { key: 'tds', title: 'TDS', employer: false },
 ];
 
-/** A zero is the true answer and shows as `0.00`, never a dash (W-47.5 §5, DEBT-028). */
+/** A zero is the true answer and shows as `₹ 0.00`, never a dash (W-47.5 §5, DEBT-028). */
 function amount(value) {
-  return formatAmount(value ?? '0');
+  return formatMoney(value ?? '0');
 }
 
 /** The four statutory tiles, summed by W-37 over PAID runs in the year (W-47.5 §5). */

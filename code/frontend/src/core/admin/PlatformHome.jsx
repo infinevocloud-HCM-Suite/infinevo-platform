@@ -19,6 +19,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { errorMsg, successMsg } from '@shared/ui/msgHelper.js';
 import { tenantService } from './tenantService.js';
 import { STATUS_COLORS } from './platform.js';
+import { formatDate, statusLabel, statusTag } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -26,10 +27,6 @@ const INVITATION_TAGS = {
   PENDING: { color: 'blue', label: 'Pending' },
   EXPIRED: { color: 'red', label: 'Expired' },
 };
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString() : '';
-}
 
 /**
  * `/admin`, the platform staff's home page (W-73.2 §5), built from `GET /v1/tenants/summary` alone:
@@ -158,7 +155,7 @@ export function PlatformHome() {
       dataIndex: 'invitationStatus',
       key: 'invitationStatus',
       render: (status) => {
-        const tag = INVITATION_TAGS[status] || { color: 'default', label: status };
+        const tag = INVITATION_TAGS[status] || statusTag(status);
         return <Tag color={tag.color}>{tag.label}</Tag>;
       },
     },
@@ -166,7 +163,7 @@ export function PlatformHome() {
       title: 'Expires',
       dataIndex: 'expiresAt',
       key: 'expiresAt',
-      render: formatDate,
+      render: (value) => formatDate(value),
     },
     {
       title: 'Actions',
@@ -197,9 +194,9 @@ export function PlatformHome() {
       dataIndex: 'status',
       key: 'status',
       render: (status) =>
-        status ? <Tag color={STATUS_COLORS[status] || 'default'}>{status}</Tag> : <Text type="secondary">—</Text>,
+        status ? <Tag color={STATUS_COLORS[status] || 'default'}>{statusLabel(status)}</Tag> : <Text type="secondary">—</Text>,
     },
-    { title: 'Created', dataIndex: 'createdAt', key: 'createdAt', render: formatDate },
+    { title: 'Created', dataIndex: 'createdAt', key: 'createdAt', render: (value) => formatDate(value) },
   ];
 
   return (

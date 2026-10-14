@@ -3,6 +3,7 @@ import { Alert, Card, DatePicker, Select, Space, Table, Tag } from 'antd';
 import dayjs from 'dayjs';
 import { attendanceService } from './attendanceService.js';
 import { hmm, timeOf } from './format.js';
+import { EMPTY, formatDate, humanize } from '@shared/ui/format.js';
 
 export const MAX_RANGE_DAYS = 31;
 const FMT = 'YYYY-MM-DD';
@@ -79,15 +80,15 @@ export function AttendanceLog() {
       key: 'employee',
       render: (_, r) => r.employeeName || r.employeeId,
     },
-    { title: 'Date', dataIndex: 'attendanceDate', key: 'date' },
+    { title: 'Date', dataIndex: 'attendanceDate', key: 'date', render: (d) => formatDate(d) },
     { title: 'In', key: 'in', render: (_, r) => timeOf(r.clockInAt) },
     { title: 'Out', key: 'out', render: (_, r) => timeOf(r.clockOutAt) },
     { title: 'Worked', key: 'worked', render: (_, r) => hmm(r.workedMinutes) },
-    { title: 'Origin', dataIndex: 'origin', key: 'origin' },
+    { title: 'Origin', dataIndex: 'origin', key: 'origin', render: (o) => humanize(o) },
     {
       title: 'Voided',
       key: 'voided',
-      render: (_, r) => (r.voidedAt ? <Tag color="red">{r.voidReason || 'VOIDED'}</Tag> : null),
+      render: (_, r) => (r.voidedAt ? <Tag color="red">{r.voidReason || 'Voided'}</Tag> : EMPTY),
     },
   ];
 

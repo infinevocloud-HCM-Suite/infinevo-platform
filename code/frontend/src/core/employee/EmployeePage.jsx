@@ -1,7 +1,6 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import dayjs from 'dayjs';
 import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, Popconfirm, Skeleton, theme } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -9,6 +8,7 @@ import {
   DeleteOutlined,
   CheckCircleOutlined,
   MailOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import { useCan, useModuleEmployeeTabs } from '@shell/screens';
 import { employeeService } from './employeeService.js';
@@ -18,6 +18,7 @@ import { employeeTabs } from './employeeTabs.jsx';
 import { TerminateModal } from './TerminateModal.jsx';
 import { employeeInvitationService } from '../invitation/employeeInvitationService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -40,6 +41,8 @@ export function EmployeePage() {
   const canReadOrg = useCan('core.org.read');
   const canInvite = useCan('core.employee.create');
   const canReadDocuments = useCan('core.document.read');
+  // D-86: the employee's leave and LOP history, mounted beneath /employees.
+  const canReadLeave = useCan('core.leave.read');
   // D-66: tabs the modules contribute (Salary, FBP, Tax declaration...), already gated by the shell
   // on the module the tenant holds and the action the user holds.
   const moduleTabs = useModuleEmployeeTabs();
@@ -244,7 +247,7 @@ export function EmployeePage() {
             <div>
               <Space align="center" size="small">
                 <Title level={4} style={{ margin: 0 }}>{fullName}</Title>
-                <Tag color={statusColorMap[employee.status] || 'default'}>{employee.status}</Tag>
+                <Tag color={statusColorMap[employee.status] || 'default'}>{statusLabel(employee.status)}</Tag>
                 {(!access || access?.state === 'NONE') && (
                   <>
                     <Tag id="tag-access">No access</Tag>
@@ -258,7 +261,7 @@ export function EmployeePage() {
                 {access?.state === 'INVITED' && (
                   <>
                     <Tag color="processing" id="tag-access">
-                      {`Invited, expires ${dayjs(access.expiresAt).format('DD MMM YYYY')}`}
+                      {`Invited, expires ${formatDate(access.expiresAt)}`}
                     </Tag>
                     {canInvite && (
                       <>
@@ -296,6 +299,16 @@ export function EmployeePage() {
 
           {/* Action buttons */}
           <Space size="small">
+            {canReadLeave && (
+              <Button
+                icon={<CalendarOutlined />}
+                onClick={() => navigate(`/employees/${id}/leave`)}
+                id="btn-employee-leave"
+              >
+                Leave
+              </Button>
+            )}
+
             {canInvite && employee.status === 'ACTIVE' && (!access || access.state === 'NONE') && (
               <Button
                 icon={<MailOutlined />}

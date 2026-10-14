@@ -29,6 +29,7 @@ function renderAt(route, { actions = ['payroll.tax_declaration.read'] } = {}) {
 describe('OfficerDeclarationView', () => {
   const sampleHeader = {
     employee_id: EMPLOYEE_ID,
+    employee_name: 'Asha Rao',
     financial_year: '2026-2027',
     tax_regime: 'NEW',
     status: 'SUBMITTED',
@@ -59,12 +60,15 @@ describe('OfficerDeclarationView', () => {
 
     expect(declarationService.headerOf).toHaveBeenCalledWith(EMPLOYEE_ID, '2026-27');
     await waitFor(() => {
-      expect(screen.getByText(EMPLOYEE_ID)).toBeTruthy();
+      expect(screen.getByText('Asha Rao')).toBeTruthy();
       expect(screen.getByText('SUBMITTED')).toBeTruthy();
+      expect(screen.getByText('10 Apr 2026')).toBeTruthy();
       expect(screen.getByText('New Regime (Sec 115BAC)')).toBeTruthy();
       expect(screen.getByText('Locked')).toBeTruthy();
     });
     expect(screen.getByTestId('officer-employee-link').getAttribute('href')).toBe(`/employees/${EMPLOYEE_ID}`);
+    // D-79: the employee is named, the id is never printed.
+    expect(screen.queryByText(EMPLOYEE_ID)).toBeNull();
   });
 
   it('has no free-text employee box and never sends an id that is not a UUID', () => {

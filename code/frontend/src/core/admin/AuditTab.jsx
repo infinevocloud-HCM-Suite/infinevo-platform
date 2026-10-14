@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Form, Input, DatePicker, Button, Table, Typography, Space, theme } from 'antd';
 import { errorMsg } from '@shared/ui/msgHelper.js';
 import { auditService } from './auditService.js';
+import { EMPTY, formatDateTime, humanize } from '@shared/ui/format.js';
 
 const PAGE_SIZE = 20;
 
@@ -60,17 +61,17 @@ export function AuditTab({ enabled }) {
       title: 'When',
       dataIndex: 'occurredAt',
       key: 'occurredAt',
-      render: (value) => (value ? new Date(value).toLocaleString() : ''),
+      render: (value) => formatDateTime(value),
     },
     { title: 'Actor', dataIndex: 'actorLabel', key: 'actorLabel' },
-    { title: 'Operation', dataIndex: 'operation', key: 'operation' },
+    { title: 'Operation', dataIndex: 'operation', key: 'operation', render: (op) => humanize(op) },
     { title: 'Entity', dataIndex: 'entityTable', key: 'entityTable' },
     { title: 'Entity id', dataIndex: 'entityId', key: 'entityId' },
     {
       title: 'Changed',
       dataIndex: 'changedColumns',
       key: 'changedColumns',
-      render: (cols) => (cols || []).join(', '),
+      render: (cols) => (cols || []).join(', ') || EMPTY,
     },
   ];
 

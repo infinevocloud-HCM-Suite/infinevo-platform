@@ -83,7 +83,7 @@ describe('LinesDrawer component (W-47.2 §7)', () => {
     // Verify individual line details
     expect(screen.getByText('BASIC')).toBeDefined();
     expect(screen.getByText('Basic Pay')).toBeDefined();
-    expect(screen.getByText('50000.00')).toBeDefined();
+    expect(screen.getByText('₹ 50,000.00')).toBeDefined();
 
     expect(screen.getByText('HRA')).toBeDefined();
     expect(screen.getByText('PF_EMP')).toBeDefined();
@@ -134,7 +134,7 @@ describe('LinesDrawer component (W-47.2 §7)', () => {
     });
 
     // 50000 + 20000 = 70000: client must not compute or display client-side sum "70000"
-    expect(screen.queryByText('70000.00')).toBeNull();
+    expect(screen.queryByText('₹ 70,000.00')).toBeNull();
     expect(screen.queryByText('Total Earnings')).toBeNull();
   });
 });

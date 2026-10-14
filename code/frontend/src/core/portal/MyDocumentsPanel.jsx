@@ -4,6 +4,7 @@ import { FileTextOutlined, DownloadOutlined } from '@ant-design/icons';
 import { portalService } from '@shell/portal/portalService.js';
 import { documentService, labelText } from '../document/documentService.js';
 import { errorMsg } from '@shared/ui/msgHelper.js';
+import { EMPTY, formatDate, humanize } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -89,13 +90,13 @@ export function MyDocumentsPanel() {
       title: 'Kind',
       dataIndex: 'kind',
       key: 'kind',
-      render: (kind) => (kind ? <Tag>{kind}</Tag> : '—'),
+      render: (kind) => (kind ? <Tag>{humanize(kind)}</Tag> : EMPTY),
     },
     {
       title: 'Uploaded',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (date) => (date ? new Date(date).toLocaleDateString() : '—'),
+      render: (date) => formatDate(date),
     },
     {
       title: 'Actions',

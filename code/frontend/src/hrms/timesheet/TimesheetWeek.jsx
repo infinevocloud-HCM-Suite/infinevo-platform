@@ -45,6 +45,7 @@ import {
   validate,
   weekDates,
 } from './weekGrid.js';
+import { statusLabel } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
@@ -388,7 +389,7 @@ function WeekGrid({ weekStart }) {
           <span>{projectName(row.projectId)}</span>
           {statuses[row.projectId] && (
             <Tag color={STATUS_COLOR[statuses[row.projectId].status]}>
-              {STATUS_LABEL[statuses[row.projectId].status] || statuses[row.projectId].status}
+              {STATUS_LABEL[statuses[row.projectId].status] || statusLabel(statuses[row.projectId].status)}
             </Tag>
           )}
         </Space>
@@ -404,7 +405,7 @@ function WeekGrid({ weekStart }) {
   ];
   if (anyEditable) {
     columns.push({
-      title: '',
+      title: 'Actions',
       key: 'remove',
       render: (_, row) =>
         isEditable(row.projectId) ? (

@@ -24,6 +24,7 @@ import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { leaveImportService } from './leaveImportService.js';
 import { documentService } from '../document/documentService.js';
+import { EMPTY, formatDateTime, statusTag } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -160,14 +161,14 @@ export function LeaveImport() {
       title: 'Run ID',
       dataIndex: 'id',
       key: 'id',
-      render: (id) => <Text code>{id ? id.substring(0, 8) : '-'}</Text>,
+      render: (id) => (id ? <Text code>{id.substring(0, 8)}</Text> : EMPTY),
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
       render: (status) => {
-        const conf = STATUS_TAGS[status] || { color: 'default', label: status };
+        const conf = STATUS_TAGS[status] || statusTag(status);
         return <Tag color={conf.color}>{conf.label}</Tag>;
       },
     },
@@ -195,7 +196,7 @@ export function LeaveImport() {
       title: 'Started At',
       dataIndex: 'startedAt',
       key: 'startedAt',
-      render: (dt) => (dt ? dayjs(dt).format('YYYY-MM-DD HH:mm:ss') : '-'),
+      render: (dt) => formatDateTime(dt),
     },
   ];
 

@@ -52,7 +52,8 @@ describe('MyDocumentsPanel (W-73.5 §2)', () => {
 
     expect(await screen.findByText('passport.pdf')).toBeDefined();
     expect(screen.getByText('ID proof')).toBeDefined();
-    expect(screen.getByText('EMPLOYEE_DOCUMENT')).toBeDefined();
+    expect(screen.getByText('Employee document')).toBeDefined();
+    expect(screen.getByText('7 Oct 2026')).toBeDefined();
     expect(screen.getByTestId('panel-documents')).toBeDefined();
 
     fireEvent.click(document.getElementById('btn-download-doc-7'));

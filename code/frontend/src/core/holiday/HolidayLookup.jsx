@@ -19,6 +19,7 @@ import { useCan, NotEntitled } from '@shell/screens';
 import { errorMsg } from '@shared/ui/msgHelper.js';
 import { holidayService } from './holidayService.js';
 import { workLocationService } from '../org/workLocationService.js';
+import { formatDate } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -85,11 +86,11 @@ export function HolidayLookup() {
       render: (_, record) => {
         if (!record.from) return '—';
         if (!record.to || record.from === record.to) {
-          return <Text strong>{record.from}</Text>;
+          return <Text strong>{formatDate(record.from)}</Text>;
         }
         return (
           <Text strong>
-            {record.from} <Text type="secondary">to</Text> {record.to}
+            {formatDate(record.from)} <Text type="secondary">to</Text> {formatDate(record.to)}
           </Text>
         );
       },

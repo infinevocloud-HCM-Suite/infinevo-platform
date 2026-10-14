@@ -32,6 +32,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ptService } from './ptService.js';
+import { formatMoney, humanize } from '@shared/ui/format.js';
 
 const { Text } = Typography;
 
@@ -185,22 +186,22 @@ export function ProfessionalTaxScreen() {
 
   const slabColumns = [
     {
-      title: 'From Amount (₹)',
+      title: 'From Amount',
       dataIndex: 'from_amount',
       key: 'from_amount',
-      render: (val) => (val != null ? `₹${val}` : '₹0'),
+      render: (val) => formatMoney(val ?? 0),
     },
     {
-      title: 'To Amount (₹)',
+      title: 'To Amount',
       dataIndex: 'to_amount',
       key: 'to_amount',
-      render: (val) => (val != null ? `₹${val}` : 'And above'),
+      render: (val) => (val != null ? formatMoney(val) : 'And above'),
     },
     {
-      title: 'Tax Amount (₹)',
+      title: 'Tax Amount',
       dataIndex: 'amount',
       key: 'amount',
-      render: (val) => <Text strong>{val != null ? `₹${val}` : '₹0'}</Text>,
+      render: (val) => <Text strong>{formatMoney(val ?? 0)}</Text>,
     },
     {
       title: 'Female Exempt',
@@ -242,7 +243,7 @@ export function ProfessionalTaxScreen() {
               color={st.source === 'OVERRIDE' ? 'purple' : 'blue'}
               data-testid={`pt-source-tag-${st.state_code}`}
             >
-              {st.source || 'REFERENCE'}
+              {humanize(st.source || 'REFERENCE')}
             </Tag>
             {st.registration_number && (
               <Text type="secondary" style={{ fontSize: 13 }}>
@@ -550,7 +551,7 @@ export function ProfessionalTaxScreen() {
               <Card key={h.id || idx} size="small" data-testid={`pt-history-entry-${idx}`}>
                 <Row justify="space-between" align="middle">
                   <Col>
-                    <Tag color={h.operation === 'OVERRIDE_RESET' ? 'orange' : 'blue'}>{h.operation}</Tag>
+                    <Tag color={h.operation === 'OVERRIDE_RESET' ? 'orange' : 'blue'}>{humanize(h.operation)}</Tag>
                   </Col>
                   <Col>
                     <Text type="secondary">

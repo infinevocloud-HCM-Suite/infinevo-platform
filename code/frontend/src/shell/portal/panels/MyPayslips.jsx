@@ -51,7 +51,7 @@ export function MyPayslips() {
       render: (netPay) => formatMoney(netPay),
     },
     {
-      title: '',
+      title: 'Actions',
       key: 'view',
       align: 'right',
       render: (_, row) => (

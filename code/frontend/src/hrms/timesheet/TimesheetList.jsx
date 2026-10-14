@@ -14,6 +14,7 @@ import {
   mondayOf,
   responseTotal,
 } from './weekGrid.js';
+import { statusLabel } from '@shared/ui/format.js';
 
 const { Title } = Typography;
 
@@ -85,7 +86,7 @@ export function TimesheetList() {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => <Tag color={STATUS_COLOR[status]}>{STATUS_LABEL[status] || status}</Tag>,
+      render: (status) => <Tag color={STATUS_COLOR[status]}>{STATUS_LABEL[status] || statusLabel(status)}</Tag>,
     },
     {
       title: 'Projects',
@@ -94,7 +95,7 @@ export function TimesheetList() {
         <Space size={4} wrap>
           {(row.projects || []).map((p) => (
             <Tag key={p.project_id} color={STATUS_COLOR[p.status]}>
-              {projectNames[p.project_id] || 'Project'}: {STATUS_LABEL[p.status] || p.status}
+              {projectNames[p.project_id] || 'Project'}: {STATUS_LABEL[p.status] || statusLabel(p.status)}
             </Tag>
           ))}
         </Space>

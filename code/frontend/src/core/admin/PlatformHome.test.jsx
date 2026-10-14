@@ -74,7 +74,7 @@ describe('PlatformHome', () => {
     expect(within(initech).getByText('boss@initech.example')).toBeDefined();
     expect(within(initech).getByText('Expired')).toBeDefined();
     expect(screen.getByRole('link', { name: 'Acme' }).getAttribute('href')).toBe('/admin/tenants/t-acme');
-    expect(within(screen.getByText('Globex').closest('tr')).getByText('SUSPENDED')).toBeDefined();
+    expect(within(screen.getByText('Globex').closest('tr')).getByText('Suspended')).toBeDefined();
   });
 
   it('Resend calls the service for that tenant, confirms and reloads', async () => {

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Tag, Button, Space, Typography, Card, theme } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { errorMsg } from '@shared/ui/msgHelper.js';
+import { LoadError } from '@shared/ui/LoadError.jsx';
 import { tenantService } from './tenantService.js';
 import { isPlatformTenant, STATUS_COLORS } from './platform.js';
+import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 const { Title } = Typography;
 
@@ -32,24 +33,35 @@ export function TenantList() {
   const { token } = theme.useToken();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  // A failed read shows an error with Retry and no rows, never an empty list (D-85).
+  const [loadError, setLoadError] = useState(null);
+  const alive = useRef(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
     tenantService
       .list()
       .then((res) => {
-        if (!cancelled) setRows(Array.isArray(res) ? res : []);
+        if (alive.current) setRows(Array.isArray(res) ? res : []);
       })
       .catch((err) => {
-        if (!cancelled) errorMsg(err);
+        if (!alive.current) return;
+        setRows([]);
+        setLoadError(err || new Error('Could not load tenants'));
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (alive.current) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    alive.current = true;
+    load();
+    return () => {
+      alive.current = false;
+    };
+  }, [load]);
 
   const columns = [
     {
@@ -67,7 +79,7 @@ export function TenantList() {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => <Tag color={STATUS_COLORS[status] || 'default'}>{status}</Tag>,
+      render: (status) => <Tag color={STATUS_COLORS[status] || 'default'}>{statusLabel(status)}</Tag>,
     },
     {
       title: 'Modules',
@@ -93,7 +105,7 @@ export function TenantList() {
       title: 'Created',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (value) => (value ? new Date(value).toLocaleDateString() : ''),
+      render: (value) => formatDate(value),
     },
     {
       title: 'Actions',
@@ -121,13 +133,17 @@ export function TenantList() {
           New tenant
         </Button>
       </Space>
-      <Table
-        rowKey="tenant_id"
-        columns={columns}
-        dataSource={rows}
-        loading={loading}
-        pagination={false}
-      />
+      {loadError ? (
+        <LoadError title="Could not load tenants" error={loadError} onRetry={load} />
+      ) : (
+        <Table
+          rowKey="tenant_id"
+          columns={columns}
+          dataSource={rows}
+          loading={loading}
+          pagination={false}
+        />
+      )}
     </Card>
   );
 }

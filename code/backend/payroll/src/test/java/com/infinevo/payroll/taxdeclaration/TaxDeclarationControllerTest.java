@@ -57,6 +57,7 @@ class TaxDeclarationControllerTest {
     private final TaxDeclarationResponse sampleResponse = new TaxDeclarationResponse(
             declarationId,
             employeeId,
+            "Asha Rao",
             fy,
             "NEW",
             DeclarationStatus.DRAFT,
