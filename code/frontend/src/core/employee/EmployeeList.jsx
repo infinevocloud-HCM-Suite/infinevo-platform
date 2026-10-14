@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, Modal, theme } from 'antd';
-import { PlusOutlined, UserOutlined, UploadOutlined, MailOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, UploadOutlined, MailOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { employeeService } from './employeeService.js';
@@ -26,6 +26,7 @@ export function EmployeeList() {
 
   const canCreate = useCan('core.employee.create');
   const canDelete = useCan('core.employee.delete');
+  const canExport = useCan('core.employee.export');
 
   const masters = useSelector((state) => state.employee?.masters || {});
   const mastersLoadedAt = useSelector((state) => state.employee?.loadedAt);
@@ -38,6 +39,7 @@ export function EmployeeList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState(undefined);
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
   // Load masters once per session
@@ -107,6 +109,25 @@ export function EmployeeList() {
     });
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await employeeService.export({
+        ...(statusFilter ? { status: statusFilter } : {}),
+      });
+      if (res?.url) {
+        employeeService.downloadFile(res.url, res.fileName || 'employees.xlsx');
+        await successMsg('Export downloaded', `Exported ${res.rowCount || 0} employees.`);
+      } else {
+        throw new Error('Export link not returned by server');
+      }
+    } catch (err) {
+      await errorMsg(err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const columns = [
     {
       title: 'Emp ID',
@@ -174,24 +195,36 @@ export function EmployeeList() {
     <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: token.marginLG }}>
         <Title level={4} style={{ margin: 0 }}>Employees</Title>
-        {canCreate && (
-          <Space wrap>
-            <Button icon={<MailOutlined />} onClick={handleInviteAll} id="btn-invite-all">
-              Invite all without access
-            </Button>
-            <Button icon={<UploadOutlined />} onClick={() => navigate('/employees/import')} id="btn-import-employees">
-              Import
-            </Button>
+        <Space wrap>
+          {canExport && (
             <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => navigate('/employees/new')}
-              id="btn-new-employee"
+              icon={<DownloadOutlined />}
+              onClick={handleExport}
+              loading={exporting}
+              id="btn-export-employees"
             >
-              New Employee
+              Export
             </Button>
-          </Space>
-        )}
+          )}
+          {canCreate && (
+            <>
+              <Button icon={<MailOutlined />} onClick={handleInviteAll} id="btn-invite-all">
+                Invite all without access
+              </Button>
+              <Button icon={<UploadOutlined />} onClick={() => navigate('/employees/import')} id="btn-import-employees">
+                Import
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => navigate('/employees/new')}
+                id="btn-new-employee"
+              >
+                New Employee
+              </Button>
+            </>
+          )}
+        </Space>
       </div>
 
       <div style={{ display: 'flex', gap: token.margin, flexWrap: 'wrap', marginBottom: token.marginLG, alignItems: 'center' }}>

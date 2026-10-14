@@ -296,6 +296,31 @@ class AuditWriterTest {
     }
 
     @Test
+    @DisplayName("Row carries user email as actorLabel when email claim is present in JWT")
+    void buildRowCarriesEmailActorLabel() {
+        TenantContext.set(TENANT);
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject(SUBJECT)
+                .claim("email", "krushna@infinevo.local")
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
+
+        AuditLog row = AuditWriter.buildRow(new AuditWriter.AuditChange(
+                "UPDATE",
+                "core",
+                "tenant",
+                TENANT.toString(),
+                List.of("name"),
+                Map.of("name", "Acme"),
+                Map.of("name", "Acme Ltd")));
+
+        assertThat(row.getTenantId()).isEqualTo(TENANT);
+        assertThat(row.getActorLabel()).isEqualTo("krushna@infinevo.local");
+        assertThat(row.getActorUserId()).isEqualTo(UUID.fromString(SUBJECT));
+    }
+
+    @Test
     @DisplayName("An unbound tenant fails the write loudly rather than dropping the row (spec section 9)")
     void unboundTenantFailsLoudly() {
         assertThatThrownBy(() -> AuditWriter.buildRow(new AuditWriter.AuditChange(
