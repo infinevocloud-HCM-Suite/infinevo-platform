@@ -55,24 +55,24 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 | Id | Status | Date | Note |
 |---|---|---|---|
-| K-05 | Pass | 2026-10-13 | 5 new hires NH-1 to NH-5 created and verified |
-| K-05a | Pass | 2026-10-13 | Duplicate work email/PAN refusal verified (400) |
-| K-05b | Pass | 2026-10-13 | Lowercase name auto-capitalized to Ritu Anand |
-| K-06 | Pass | 2026-10-13 | Invitations sent for NH-1 to NH-5, manager role granted to NH-1 |
-| K-07 | Pass | 2026-10-13 | Sahmad manager confirmed as Krushna Sonalkar |
-| H-01 | Ready | | |
-| H-02 | Blocked | | |
-| H-03 | Blocked | | |
-| H-04 | Blocked | | |
-| H-05 | Blocked | | |
-| H-06 | Blocked | | |
-| L-01 | Blocked | | |
-| L-02 | Blocked | | |
-| L-03 | Blocked | | |
-| L-04 | Blocked | | |
-| L-05 | Blocked | | needs E-03 |
-| L-06 | Blocked | | |
-| L-07 | Blocked | | needs E-03a |
+| K-05 | Pass | 2026-10-14 | |
+| K-05a | Pass | 2026-10-14 | |
+| K-05b | Pass | 2026-10-14 | |
+| K-06 | Fail | 2026-10-14 | The HR role has no option to assign roles to employees |
+| K-07 | Pass | 2026-10-14 | |
+| H-01 | Pass | 2026-10-14 | |
+| H-02 | Fail | 2026-10-14 | Missing delete/remove button for uploaded documents |
+| H-03 | Pass | 2026-10-14 | |
+| H-04 | Pass | 2026-10-14 | |
+| H-05 | Pass | 2026-10-14 | |
+| H-06 | Pass | 2026-10-14 | |
+| L-01 | Fail | 2026-10-14 | Missing past-booking limit input field in Policy Settings |
+| L-02 | Pass | 2026-10-14 | Saved with manual date 2026-01-01 (known exception D-55) |
+| L-03 | Pass | 2026-10-14 | |
+| L-04 | Pass | 2026-10-14 | |
+| L-05 | Pass | 2026-10-14 | Approved at Level 1 (Manager) |
+| L-06 | Pass | 2026-10-14 | Fully approved at Level 2 (HR) |
+| L-07 | Blocked | 2026-10-14 | Defer: request not visible in inbox (needs E-03a) |
 | L-08 | Blocked | | |
 | L-09 | Blocked | | |
 | L-10 | Blocked | | |
@@ -154,4 +154,6 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 | # | Date | Tester | Step | Role | URL | What happened | Expected | Founder no. |
 |---|---|---|---|---|---|---|---|---|
-| | | | | | | | | |
+| 1 | 2026-10-14 | Krushna | K-06 | HR | /employees/:id | The HR role has no option to assign roles to employees | HR should be able to assign the Manager role to NH-1 | |
+| 2 | 2026-10-14 | Krushna | H-02 | HR | /employees/:id | If an incorrect document is uploaded by mistake, there is no Delete or Remove option in the actions menu to remove it | Uploaded document should have a Delete / Remove option in actions column | |
+| 3 | 2026-10-14 | Krushna | L-01 | HR | /leave/types | In Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form | Policy form should have an input field for past-booking limit days | |
