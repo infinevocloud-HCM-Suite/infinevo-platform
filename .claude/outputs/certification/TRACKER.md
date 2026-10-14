@@ -8,7 +8,7 @@ Status values: `Blocked` `Ready` `Pass` `Fail` `Exception`. Update your own rows
 |---|---|---|---|---|
 | P0 Environment: worker fixed, seeded Oct pay run deleted, four logins work | Founder | – | Ready | |
 | P1 Setup: K-00…K-07x | Karmaveer | P0 | Pass | 2026-10-13 |
-| P2 People and payroll config: K-05, K-06, M-01…M-05 | Krushna, Mohit | P1 | Ready | |
+| P2 People and payroll config: K-05, K-06, M-01…M-05 | Krushna, Mohit | P1 | Pass | 2026-10-13 |
 | J1 October pay run may start: L-06, L-09, T-03, T-04, T-06, E-07, E-08a, E-09, S-02, P-01…P-03 | Mohit | P2 | Blocked | |
 | J2 Reconciliation: M-14 paid | all | J1 | Blocked | |
 
