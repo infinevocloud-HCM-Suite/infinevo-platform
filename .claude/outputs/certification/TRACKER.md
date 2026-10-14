@@ -140,7 +140,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | E-06a | Blocked | | needs T-05 |
 | E-07 | Blocked | | |
 | E-08 | Fail | 2026-10-14 | No FBP (Flexible Benefit Plan) tab or panel exists on /me portal |
-| E-08a | Blocked | | needs M-04 |
+| E-08a | Fail | 2026-10-14 | Chapter VI-A item dropdown only offers 80CCD(2), preventing selection of 80C and 80D |
 | E-08b | Exception | | D-25 |
 | E-09 | Fail | 2026-10-14 | Component dropdown in New Claim drawer has no data to select, blocking claim submission |
 | E-10 | Blocked | | J2 |
@@ -158,4 +158,5 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | | 2026-10-14 | Sahmad | E-02 | employee | /me | No options given on UI to upload or delete documents (/me documents is download-only) | Option to upload a PDF, view/open it, and delete it with dialog closure | |
 | | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | |
 | | 2026-10-14 | Sahmad | E-08 | employee | /me | No FBP (Flexible Benefit Plan) tab or panel exists on Employee Portal (/me) to declare Meal/Fuel allowances | FBP declaration tab available on /me to declare benefits within plan caps | |
+| | 2026-10-14 | Sahmad | E-08a | employee | /me (tax declaration) | In Chapter VI-A Deductions, item dropdown only offers Section 80CCD(2); 80C and 80D items cannot be selected | Dropdown displays statutory Chapter VI-A items (80C, 80D, etc.) under Old Regime | |
 | | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | |

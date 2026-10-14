@@ -433,6 +433,13 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
 - **Expected:** An "FBP" tab should be available on the `/me` portal allowing employees to declare flexible benefits within company plan caps per step E-08.
 - **Status:** Open.
 
+#### BUG-D5-026 (E-08a): Section 6A Item Dropdown Only Offers 80CCD(2) in Tax Declarations
+- **Found:** 2026-10-14, Certification Stage E-08a (`/me` Tax Declaration FY 2026-27, Deductions & 80C panel)
+- **Error / Issue:** When entering Chapter VI-A deductions, the "Item" dropdown only displays a single option: `NPS, employer contribution (80CCD(2))`. Statutory deductions such as Section 80C (PPF, ELSS, Life Insurance) and Section 80D (Health Insurance) do not appear in the dropdown. As a workaround to proceed with testing ₹1,75,000 in declarations, amounts had to be entered under the 80CCD(2) item.
+- **Root Cause / Technical Context:** `Section6AItemReader.activeItems(regime)` filters by `is_allowed_in_new_regime = true` when the declaration is in the New Regime (where 80CCD(2) is the only allowed Section 6A deduction). If the declaration is still in the New Regime, or if switching to Old Regime fails to trigger a cache invalidation / re-fetch of the full statutory catalogue from the server, employees cannot select 80C or 80D items.
+- **Expected:** Under the Old Tax Regime, all 13 active Section 6A deduction categories (80C, 80CCC, 80CCD(1), 80CCD(1B), 80CCD(2), 80D, etc.) should be listed and selectable in the dropdown.
+- **Status:** Open.
+
 ---
 
 ## 1. Stream A — Foundation
