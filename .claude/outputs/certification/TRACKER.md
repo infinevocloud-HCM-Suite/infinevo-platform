@@ -95,16 +95,16 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 | Id | Status | Date | Note |
 |---|---|---|---|
-| M-01 | Blocked | | |
-| M-02 | Blocked | | |
-| M-03 | Blocked | | |
-| M-04 | Blocked | | |
-| M-05 | Blocked | | |
-| S-01 | Blocked | | |
-| S-02 | Blocked | | needs K-05 |
-| S-03 | Blocked | | |
-| S-04 | Blocked | | |
-| S-05 | Blocked | | |
+| M-01 | Pass | 2026-10-13 | Monthly pay schedule set to last working day, Oct 2026 |
+| M-02 | Pass | 2026-10-13 | FBP enabled, Meal ₹2,200/mo, Fuel ₹1,000/mo, Oct window open |
+| M-03 | Pass | 2026-10-13 | Karnataka and Maharashtra PT slabs active |
+| M-04 | Pass | 2026-10-13 | FY 2026-27 tax declaration window open through 2026-11-30 |
+| M-05 | Pass | 2026-10-13 | EPF 12/12, ESI 0.75/3.25 confirmed as seeded |
+| S-01 | Pass | 2026-10-13 | Shift Allowance custom component created |
+| S-02 | Pass | 2026-10-13 | CTC structures assigned to 5 new hires (NH-1..NH-5) |
+| S-03 | Pass | 2026-10-13 | NH-2 (EMP0046) ESI eligible confirmed |
+| S-04 | Pass | 2026-10-13 | Sahmad ITC-0044 salary revision created (+10% hike, effective 2026-10-01) |
+| S-05 | Fail | 2026-10-13 | Upload fails: requires action core.document.upload |
 | P-01 | Blocked | | |
 | P-02 | Blocked | | |
 | P-03 | Blocked | | needs E-09 |
@@ -155,4 +155,4 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 | # | Date | Tester | Step | Role | URL | What happened | Expected | Founder no. |
 |---|---|---|---|---|---|---|---|---|
-| | | | | | | | | |
+| 1 | 2026-10-13 | Mohit | S-05 | payroll-officer | /payroll/prior-payroll | Upload prior payroll CSV fails with "Not permitted: requires action 'core.document.upload'" | Role payroll-officer should hold core.document.upload or prior payroll import should allow payroll-officer | |

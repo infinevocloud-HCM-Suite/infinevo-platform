@@ -1,0 +1,1073 @@
+[
+  {
+    "id": 1,
+    "departmentCode": "IT001",
+    "departmentId": "0374750273",
+    "description": "software department",
+    "name": "IT dept",
+    "status": 1,
+    "organizationId": 10
+  },
+  {
+    "id": 2,
+    "departmentCode": "102",
+    "departmentId": "0024928995",
+    "description": "software development",
+    "name": "software",
+    "status": 0,
+    "organizationId": 10
+  },
+  {
+    "id": 3,
+    "departmentCode": "HR001",
+    "departmentId": "0593843075",
+    "description": "Handles all HR activities",
+    "name": "Human Resources",
+    "status": 1,
+    "organizationId": 10
+  },
+  {
+    "id": 4,
+    "departmentCode": "IT001",
+    "departmentId": "0238797126",
+    "description": "Manages technical infrastructure",
+    "name": "Information Technology",
+    "status": 1,
+    "organizationId": 10
+  },
+  {
+    "id": 5,
+    "departmentCode": "HR001",
+    "departmentId": "0087376004",
+    "description": "Handles all HR activities",
+    "name": "Human Resources",
+    "status": 1,
+    "organizationId": 11
+  },
+  {
+    "id": 6,
+    "departmentCode": "IT001",
+    "departmentId": "0133492380",
+    "description": "Manages technical infrastructure",
+    "name": "Information Technology",
+    "status": 1,
+    "organizationId": 11
+  },
+  {
+    "id": 7,
+    "departmentCode": "HR001",
+    "departmentId": "0356853313",
+    "description": "Handles all HR activities",
+    "name": "Human Resources",
+    "status": 1,
+    "organizationId": 17
+  },
+  {
+    "id": 8,
+    "departmentCode": "IT001",
+    "departmentId": "0477607898",
+    "description": "Manages technical infrastructure",
+    "name": "Information Technology",
+    "status": 1,
+    "organizationId": 17
+  },
+  {
+    "id": 9,
+    "departmentCode": "101",
+    "departmentId": "0682022732",
+    "description": "software department",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 16
+  },
+  {
+    "id": 10,
+    "departmentCode": "102",
+    "departmentId": "0996585736",
+    "description": "Electrical department for company",
+    "name": "Electrical",
+    "status": 1,
+    "organizationId": 16
+  },
+  {
+    "id": 11,
+    "departmentCode": "IT001",
+    "departmentId": "0996790674",
+    "description": "software development",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 24
+  },
+  {
+    "id": 12,
+    "departmentCode": "HR001",
+    "departmentId": "0225317652",
+    "description": "Handles all HR activities",
+    "name": "Human Resources",
+    "status": 1,
+    "organizationId": 24
+  },
+  {
+    "id": 13,
+    "departmentCode": "IT001",
+    "departmentId": "0464045159",
+    "description": "Manages technical infrastructure",
+    "name": "Information Technology",
+    "status": 1,
+    "organizationId": 24
+  },
+  {
+    "id": 14,
+    "departmentCode": "202",
+    "departmentId": "0490441857",
+    "description": "mechanical",
+    "name": "Mechanical",
+    "status": 1,
+    "organizationId": 16
+  },
+  {
+    "id": 15,
+    "departmentCode": "IT001",
+    "departmentId": "0847382941",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 30
+  },
+  {
+    "id": 16,
+    "departmentCode": "876",
+    "departmentId": "0289122385",
+    "description": "electrical ",
+    "name": "Electrical",
+    "status": 1,
+    "organizationId": 34
+  },
+  {
+    "id": 17,
+    "departmentCode": "8765",
+    "departmentId": "0164991081",
+    "description": "meacganical",
+    "name": "Mechanical",
+    "status": 1,
+    "organizationId": 34
+  },
+  {
+    "id": 18,
+    "departmentCode": "101",
+    "departmentId": "0402877787",
+    "description": "Software Developer",
+    "name": "Software Developer",
+    "status": 1,
+    "organizationId": 36
+  },
+  {
+    "id": 19,
+    "departmentCode": "IT001",
+    "departmentId": "0914658519",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 37
+  },
+  {
+    "id": 20,
+    "departmentCode": "PD001",
+    "departmentId": "0016765375",
+    "description": "",
+    "name": "Product Development",
+    "status": 1,
+    "organizationId": 37
+  },
+  {
+    "id": 21,
+    "departmentCode": "JDE001",
+    "departmentId": "0350575378",
+    "description": "",
+    "name": "JDE CNC",
+    "status": 1,
+    "organizationId": 37
+  },
+  {
+    "id": 22,
+    "departmentCode": "007",
+    "departmentId": "0541454783",
+    "description": "SS DS MD SD S",
+    "name": "IT",
+    "status": 0,
+    "organizationId": 39
+  },
+  {
+    "id": 23,
+    "departmentCode": "IT78",
+    "departmentId": "0205087615",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 40
+  },
+  {
+    "id": 24,
+    "departmentCode": "M007",
+    "departmentId": "0480094003",
+    "description": "dgvsjgfsgvdvd",
+    "name": "Microfinance",
+    "status": 1,
+    "organizationId": 39
+  },
+  {
+    "id": 25,
+    "departmentCode": "001",
+    "departmentId": "0217419981",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 46
+  },
+  {
+    "id": 26,
+    "departmentCode": "001",
+    "departmentId": "0569843076",
+    "description": "",
+    "name": "DEV.",
+    "status": 1,
+    "organizationId": 50
+  },
+  {
+    "id": 27,
+    "departmentCode": "002",
+    "departmentId": "0603149649",
+    "description": "",
+    "name": "Sr. Dev.",
+    "status": 1,
+    "organizationId": 46
+  },
+  {
+    "id": 28,
+    "departmentCode": "222",
+    "departmentId": "0015863849",
+    "description": "Software application",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 51
+  },
+  {
+    "id": 29,
+    "departmentCode": "P0123",
+    "departmentId": "0799091837",
+    "description": "gfchgsvhdvsvd",
+    "name": "Politics",
+    "status": 1,
+    "organizationId": 53
+  },
+  {
+    "id": 30,
+    "departmentCode": "01",
+    "departmentId": "0661967359",
+    "description": "Finance Advisor",
+    "name": "Finance",
+    "status": 1,
+    "organizationId": 52
+  },
+  {
+    "id": 31,
+    "departmentCode": "Eng10",
+    "departmentId": "0332281304",
+    "description": "dfghjk",
+    "name": "Engineering",
+    "status": 1,
+    "organizationId": 53
+  },
+  {
+    "id": 32,
+    "departmentCode": "001",
+    "departmentId": "0998069779",
+    "description": "",
+    "name": "manager",
+    "status": 1,
+    "organizationId": 55
+  },
+  {
+    "id": 33,
+    "departmentCode": "001",
+    "departmentId": "0375563196",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 60
+  },
+  {
+    "id": 34,
+    "departmentCode": "001",
+    "departmentId": "0214343772",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 61
+  },
+  {
+    "id": 35,
+    "departmentCode": "001",
+    "departmentId": "0551208930",
+    "description": "",
+    "name": "DEV.",
+    "status": 1,
+    "organizationId": 62
+  },
+  {
+    "id": 36,
+    "departmentCode": "001",
+    "departmentId": "0880267582",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 65
+  },
+  {
+    "id": 37,
+    "departmentCode": "001",
+    "departmentId": "0193423978",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 66
+  },
+  {
+    "id": 38,
+    "departmentCode": "001",
+    "departmentId": "0815508488",
+    "description": "",
+    "name": "DEV.",
+    "status": 1,
+    "organizationId": 70
+  },
+  {
+    "id": 39,
+    "departmentCode": "001",
+    "departmentId": "0528457377",
+    "description": "",
+    "name": "DEV.",
+    "status": 1,
+    "organizationId": 72
+  },
+  {
+    "id": 40,
+    "departmentCode": "01",
+    "departmentId": "0859171922",
+    "description": "Development",
+    "name": "Development",
+    "status": 1,
+    "organizationId": 82
+  },
+  {
+    "id": 41,
+    "departmentCode": "001",
+    "departmentId": "0076678338",
+    "description": "",
+    "name": "DEV.",
+    "status": 1,
+    "organizationId": 91
+  },
+  {
+    "id": 42,
+    "departmentCode": "112",
+    "departmentId": "0153249676",
+    "description": " full-stack drone technology dept providing actionable intelligence from aerial data.",
+    "name": "Aurospace dpt1",
+    "status": 1,
+    "organizationId": 93
+  },
+  {
+    "id": 43,
+    "departmentCode": "202",
+    "departmentId": "0251199521",
+    "description": "Software developer",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 94
+  },
+  {
+    "id": 44,
+    "departmentCode": "C101",
+    "departmentId": "0492401293",
+    "description": "computer",
+    "name": "Computer",
+    "status": 1,
+    "organizationId": 56
+  },
+  {
+    "id": 45,
+    "departmentCode": "Du101",
+    "departmentId": "0841237439",
+    "description": "",
+    "name": "Dutch",
+    "status": 1,
+    "organizationId": 96
+  },
+  {
+    "id": 46,
+    "departmentCode": "001",
+    "departmentId": "0297737440",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 95
+  },
+  {
+    "id": 47,
+    "departmentCode": "103",
+    "departmentId": "0863130511",
+    "description": "Software Engineer",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 97
+  },
+  {
+    "id": 48,
+    "departmentCode": "321",
+    "departmentId": "0533829815",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 98
+  },
+  {
+    "id": 49,
+    "departmentCode": "IV102",
+    "departmentId": "0572284038",
+    "description": "fghb",
+    "name": "Inventory",
+    "status": 1,
+    "organizationId": 99
+  },
+  {
+    "id": 50,
+    "departmentCode": "Management",
+    "departmentId": "0041448244",
+    "description": "",
+    "name": "Management",
+    "status": 1,
+    "organizationId": 91
+  },
+  {
+    "id": 51,
+    "departmentCode": "001",
+    "departmentId": "0615608249",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 101
+  },
+  {
+    "id": 52,
+    "departmentCode": "001",
+    "departmentId": "0086706341",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 102
+  },
+  {
+    "id": 53,
+    "departmentCode": "001",
+    "departmentId": "0019334809",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 103
+  },
+  {
+    "id": 54,
+    "departmentCode": "d101",
+    "departmentId": "0212956989",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 104
+  },
+  {
+    "id": 55,
+    "departmentCode": "760",
+    "departmentId": "0494107754",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 105
+  },
+  {
+    "id": 56,
+    "departmentCode": "001",
+    "departmentId": "0260083501",
+    "description": "",
+    "name": "prod",
+    "status": 1,
+    "organizationId": 106
+  },
+  {
+    "id": 57,
+    "departmentCode": "0012",
+    "departmentId": "0118151693",
+    "description": "This is the department",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 107
+  },
+  {
+    "id": 58,
+    "departmentCode": "011",
+    "departmentId": "0136834371",
+    "description": "",
+    "name": "developer",
+    "status": 1,
+    "organizationId": 108
+  },
+  {
+    "id": 59,
+    "departmentCode": "001",
+    "departmentId": "0259805559",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 109
+  },
+  {
+    "id": 60,
+    "departmentCode": "001",
+    "departmentId": "0223187386",
+    "description": "",
+    "name": "OIC Developer",
+    "status": 1,
+    "organizationId": 111
+  },
+  {
+    "id": 61,
+    "departmentCode": "002",
+    "departmentId": "0082490929",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 112
+  },
+  {
+    "id": 62,
+    "departmentCode": "IT001",
+    "departmentId": "0192534153",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 113
+  },
+  {
+    "id": 63,
+    "departmentCode": "001",
+    "departmentId": "0186240942",
+    "description": "",
+    "name": "SDE",
+    "status": 1,
+    "organizationId": 115
+  },
+  {
+    "id": 64,
+    "departmentCode": "SD567",
+    "departmentId": "0144606474",
+    "description": "ZXCVBNMN",
+    "name": "QWERTY",
+    "status": 1,
+    "organizationId": 116
+  },
+  {
+    "id": 65,
+    "departmentCode": "SD567",
+    "departmentId": "0337675913",
+    "description": "DOES THE MARKETING WORK",
+    "name": "MARKETING TEAM",
+    "status": 1,
+    "organizationId": 116
+  },
+  {
+    "id": 66,
+    "departmentCode": "hr1234",
+    "departmentId": "0353487971",
+    "description": "hr",
+    "name": "hr",
+    "status": 1,
+    "organizationId": 117
+  },
+  {
+    "id": 67,
+    "departmentCode": "hr",
+    "departmentId": "0139227397",
+    "description": "rty",
+    "name": "developer",
+    "status": 1,
+    "organizationId": 118
+  },
+  {
+    "id": 68,
+    "departmentCode": "8890",
+    "departmentId": "0351005083",
+    "description": "",
+    "name": "Technical",
+    "status": 1,
+    "organizationId": 119
+  },
+  {
+    "id": 69,
+    "departmentCode": "001",
+    "departmentId": "0315544785",
+    "description": "",
+    "name": "DEV.",
+    "status": 1,
+    "organizationId": 121
+  },
+  {
+    "id": 70,
+    "departmentCode": "90",
+    "departmentId": "0621302002",
+    "description": "",
+    "name": "Technical",
+    "status": 1,
+    "organizationId": 122
+  },
+  {
+    "id": 71,
+    "departmentCode": "001",
+    "departmentId": "0265783904",
+    "description": "",
+    "name": "SD",
+    "status": 1,
+    "organizationId": 123
+  },
+  {
+    "id": 72,
+    "departmentCode": "005",
+    "departmentId": "0562223961",
+    "description": "",
+    "name": "HR",
+    "status": 1,
+    "organizationId": 125
+  },
+  {
+    "id": 73,
+    "departmentCode": "002",
+    "departmentId": "0679346064",
+    "description": "",
+    "name": "Technical",
+    "status": 1,
+    "organizationId": 126
+  },
+  {
+    "id": 74,
+    "departmentCode": "23",
+    "departmentId": "0118362493",
+    "description": "",
+    "name": "Technical",
+    "status": 1,
+    "organizationId": 128
+  },
+  {
+    "id": 75,
+    "departmentCode": "DEV",
+    "departmentId": "0776664680",
+    "description": "Devlopment work",
+    "name": "Development",
+    "status": 1,
+    "organizationId": 129
+  },
+  {
+    "id": 76,
+    "departmentCode": "001",
+    "departmentId": "0586305302",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 130
+  },
+  {
+    "id": 77,
+    "departmentCode": "001",
+    "departmentId": "0492068154",
+    "description": "",
+    "name": "SDE",
+    "status": 1,
+    "organizationId": 131
+  },
+  {
+    "id": 78,
+    "departmentCode": "07",
+    "departmentId": "0726112630",
+    "description": "Developer",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 120
+  },
+  {
+    "id": 79,
+    "departmentCode": "dev",
+    "departmentId": "0216152129",
+    "description": "Developer",
+    "name": "Developer",
+    "status": 1,
+    "organizationId": 132
+  },
+  {
+    "id": 80,
+    "departmentCode": "09",
+    "departmentId": "0657038422",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 133
+  },
+  {
+    "id": 81,
+    "departmentCode": "0987",
+    "departmentId": "0440307498",
+    "description": "HR DEPT",
+    "name": "HR DEPARTMENT",
+    "status": 1,
+    "organizationId": 147
+  },
+  {
+    "id": 82,
+    "departmentCode": "zxcv",
+    "departmentId": "0356726658",
+    "description": "sdfg",
+    "name": "sdfg",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 83,
+    "departmentCode": "001",
+    "departmentId": "0074913206",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 146
+  },
+  {
+    "id": 84,
+    "departmentCode": "asdf",
+    "departmentId": "0295358130",
+    "description": "",
+    "name": "Admin",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 85,
+    "departmentCode": "9787",
+    "departmentId": "0037032826",
+    "description": "",
+    "name": "Sale And Purchase",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 86,
+    "departmentCode": "C01",
+    "departmentId": "0271981869",
+    "description": "PWD",
+    "name": "Public works Department ",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 87,
+    "departmentCode": "d1",
+    "departmentId": "0684446080",
+    "description": "Info tech",
+    "name": "IT",
+    "status": 0,
+    "organizationId": 149
+  },
+  {
+    "id": 88,
+    "departmentCode": "HR",
+    "departmentId": "0685912724",
+    "description": "",
+    "name": "Human Resources",
+    "status": 1,
+    "organizationId": 149
+  },
+  {
+    "id": 89,
+    "departmentCode": "IT",
+    "departmentId": "0043702823",
+    "description": "",
+    "name": "Information Technology",
+    "status": 1,
+    "organizationId": 149
+  },
+  {
+    "id": 90,
+    "departmentCode": "DEV",
+    "departmentId": "0204019538",
+    "description": "",
+    "name": "Software Development",
+    "status": 1,
+    "organizationId": 149
+  },
+  {
+    "id": 91,
+    "departmentCode": "TS",
+    "departmentId": "0378629046",
+    "description": "",
+    "name": "Technical Support",
+    "status": 1,
+    "organizationId": 149
+  },
+  {
+    "id": 92,
+    "departmentCode": "PM",
+    "departmentId": "0753319381",
+    "description": "",
+    "name": "Project Management",
+    "status": 1,
+    "organizationId": 149
+  },
+  {
+    "id": 93,
+    "departmentCode": "ADM",
+    "departmentId": "0362951900",
+    "description": "",
+    "name": "Administration",
+    "status": 1,
+    "organizationId": 149
+  },
+  {
+    "id": 94,
+    "departmentCode": "FIN",
+    "departmentId": "0956246378",
+    "description": "",
+    "name": "Finance & Accounts",
+    "status": 1,
+    "organizationId": 149
+  },
+  {
+    "id": 95,
+    "departmentCode": "9787",
+    "departmentId": "0070350744",
+    "description": "",
+    "name": "Electrical Engineer",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 96,
+    "departmentCode": "PW1",
+    "departmentId": "0914282481",
+    "description": "",
+    "name": "Public Work Department",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 97,
+    "departmentCode": "M1",
+    "departmentId": "0174668029",
+    "description": "",
+    "name": "Management ",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 98,
+    "departmentCode": "D1",
+    "departmentId": "0305128889",
+    "description": "",
+    "name": "Director",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 99,
+    "departmentCode": "IT001",
+    "departmentId": "0797320524",
+    "description": "",
+    "name": "IT",
+    "status": 1,
+    "organizationId": 150
+  },
+  {
+    "id": 100,
+    "departmentCode": "003",
+    "departmentId": "0562192377",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 151
+  },
+  {
+    "id": 101,
+    "departmentCode": "003",
+    "departmentId": "0170232280",
+    "description": "",
+    "name": "DEV",
+    "status": 1,
+    "organizationId": 152
+  },
+  {
+    "id": 102,
+    "departmentCode": "E1",
+    "departmentId": "0794825622",
+    "description": "",
+    "name": "Education",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 103,
+    "departmentCode": "A1",
+    "departmentId": "0643524712",
+    "description": "",
+    "name": "Accountant",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 104,
+    "departmentCode": "L1",
+    "departmentId": "0882170402",
+    "description": "",
+    "name": "Legal Affairs",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 105,
+    "departmentCode": "R1",
+    "departmentId": "0264153376",
+    "description": "",
+    "name": "Retail & Store Management",
+    "status": 1,
+    "organizationId": 148
+  },
+  {
+    "id": 106,
+    "departmentCode": "sdfgh",
+    "departmentId": "0102265057",
+    "description": "xcvbn",
+    "name": "SALES MANAGER",
+    "status": 1,
+    "organizationId": 153
+  },
+  {
+    "id": 107,
+    "departmentCode": "002",
+    "departmentId": "0710306787",
+    "description": "asdfghj",
+    "name": "sales",
+    "status": 1,
+    "organizationId": 158
+  },
+  {
+    "id": 108,
+    "departmentCode": "FGH",
+    "departmentId": "0703014042",
+    "description": "MNBV",
+    "name": "IT SUPPORT",
+    "status": 1,
+    "organizationId": 160
+  },
+  {
+    "id": 109,
+    "departmentCode": "007",
+    "departmentId": "0259116849",
+    "description": "MNBVC",
+    "name": "HR",
+    "status": 1,
+    "organizationId": 161
+  },
+  {
+    "id": 110,
+    "departmentCode": "ertyu",
+    "departmentId": "0773995476",
+    "description": ",mnbvc",
+    "name": "SDE",
+    "status": 1,
+    "organizationId": 162
+  },
+  {
+    "id": 111,
+    "departmentCode": "LKJHG",
+    "departmentId": "0185374769",
+    "description": "KJHGF",
+    "name": "sales manager",
+    "status": 1,
+    "organizationId": 172
+  },
+  {
+    "id": 112,
+    "departmentCode": "Soft213",
+    "departmentId": "0680840634",
+    "description": "Developer",
+    "name": "Software",
+    "status": 1,
+    "organizationId": 173
+  },
+  {
+    "id": 113,
+    "departmentCode": "DEV0932",
+    "departmentId": "0087547222",
+    "description": "Dev DEp",
+    "name": "Developement",
+    "status": 1,
+    "organizationId": 174
+  },
+  {
+    "id": 114,
+    "departmentCode": "jhvbn",
+    "departmentId": "0256654110",
+    "description": "werkjh",
+    "name": "Sales department",
+    "status": 1,
+    "organizationId": 175
+  },
+  {
+    "id": 115,
+    "departmentCode": "01",
+    "departmentId": "0724304578",
+    "description": "Development",
+    "name": "Development",
+    "status": 1,
+    "organizationId": 176
+  },
+  {
+    "id": 116,
+    "departmentCode": "CVB",
+    "departmentId": "0311737007",
+    "description": "MNBOIUY",
+    "name": "SDE",
+    "status": 1,
+    "organizationId": 177
+  },
+  {
+    "id": 117,
+    "departmentCode": "888",
+    "departmentId": "0496891091",
+    "description": "MNBUIOK",
+    "name": "SALES MANAGER",
+    "status": 1,
+    "organizationId": 179
+  },
+  {
+    "id": 118,
+    "departmentCode": "999",
+    "departmentId": "0193054125",
+    "description": " BVTY",
+    "name": "HR",
+    "status": 1,
+    "organizationId": 180
+  },
+  {
+    "id": 119,
+    "departmentCode": "YUI",
+    "departmentId": "0596898324",
+    "description": "LKJ",
+    "name": "HR",
+    "status": 1,
+    "organizationId": 181
+  }
+]
