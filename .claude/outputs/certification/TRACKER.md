@@ -107,7 +107,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | P-01 | Pass | 2026-10-14 | Shift Allowance ₹3,000 scheduled for Sahmad (ITC-0044) for Oct 2026 |
 | P-02 | Pass | 2026-10-14 | Ad-hoc deduction ₹500 posted for Sahmad (ITC-0044) for Oct 2026 |
 | P-03 | Blocked | | needs E-09 |
-| P-04 | Blocked | | needs E-08a |
+| P-04 | Pass | 2026-10-14 | Sahmad FY 2026-27 declaration verified in read-only review mode (Submitted) |
 | M-10 | Blocked | | J1 |
 | M-11 | Blocked | | |
 | M-12 | Blocked | | |
