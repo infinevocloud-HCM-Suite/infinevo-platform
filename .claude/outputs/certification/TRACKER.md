@@ -139,7 +139,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | E-06 | Pass | 2026-10-14 | Overtime 18 Oct 3h saved and pending; view requires date range filter (known D-47) |
 | E-06a | Pass | 2026-10-14 | Cert Project and assigned tasks listed on /hrms/my-work |
 | E-07 | Pass | 2026-10-14 | Week of 2026-10-12 timesheet submitted with 40h on Cert Project; locked for edit |
-| E-08 | Fail | 2026-10-14 | FBP tab not visible on /me portal; employee cannot declare flexible benefits (BUG-D5-025) |
+| E-08 | Ready | 2026-10-14 | Fixed in code (BUG-D5-025): FbpPanelProvider registered on /me with FbpDeclarationTab self-service; ready for verification on deployment |
 | E-08a | Pass | 2026-10-14 | HRA ₹1.8L and VI-A ₹1.75L declared; submitted successfully; status changed to Submitted |
 | E-08b | Exception | | D-25 |
 | E-09 | Fail | 2026-10-14 | Component dropdown in New Claim drawer has no data to select, blocking claim submission |
@@ -156,5 +156,5 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 |---|---|---|---|---|---|---|---|---|
 | | 2026-10-14 | Sahmad | E-01 | employee | /welcome, /me | Reporting manager missing on Welcome page and profile | Reporting manager name displayed beside department and designation | BUG-D5-021 |
 | | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | BUG-D5-023 |
-| | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab is missing from employee portal; no panel exists for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | BUG-D5-025 |
+| | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab was missing from employee portal; no panel existed for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | BUG-D5-025 (Resolved in code) |
 | | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | BUG-D5-024 |

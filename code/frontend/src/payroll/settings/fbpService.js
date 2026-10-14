@@ -26,6 +26,17 @@ export const fbpService = {
     return res.data?.data ?? res.data;
   },
 
+  async readOwn() {
+    const res = await apiClient.get('/v1/me/fbp-declaration');
+    return res.data?.data ?? res.data;
+  },
+
+  async declareOwn(payload) {
+    const body = Array.isArray(payload) ? { lines: payload } : payload;
+    const res = await apiClient.put('/v1/me/fbp-declaration', body);
+    return res.data?.data ?? res.data;
+  },
+
   async declaration(employeeId, asOf) {
     const res = await apiClient.get(`/v1/payroll/employees/${employeeId}/fbp-declaration`, {
       params: asOf ? { asOf } : undefined,

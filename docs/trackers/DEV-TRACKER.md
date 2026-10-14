@@ -447,9 +447,17 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
 
 #### BUG-D5-025 (E-08): Missing FBP (Flexible Benefit Plan) Tab on Employee Portal (/me)
 - **Found:** 2026-10-14, Certification Stage E-08 (`/me`)
-- **Error / Issue:** No FBP or Flexible Benefits tab/panel exists on the Employee Self-Service portal (`/me`). In the implementation, `FbpDeclarationTab` is only mapped as an employee tab on `/employees/:id` (accessible to HR/Payroll administrators), leaving employees with no UI screen to view, allocate, or declare their Meal, Fuel, and flexible allowances.
+- **Error / Issue:** No FBP or Flexible Benefits tab/panel exists on the Employee Self-Service portal (`/me`). In the implementation, `FbpDeclarationTab` was only mapped as an employee tab on `/employees/:id` (accessible to HR/Payroll administrators), leaving employees with no UI screen to view, allocate, or declare their Meal, Fuel, and flexible allowances.
 - **Expected:** An "FBP" tab should be available on the `/me` portal allowing employees to declare flexible benefits within company plan caps per step E-08.
-- **Status:** Open.
+- **Root Cause & Fix Applied:**
+  1. **Backend Panel Provider**: Created `FbpPanelProvider.java` in `com.infinevo.payroll.portal` implementing `PortalPanelProvider` with `code="fbp"`, `module=PlatformModule.PAYROLL`, `displayOrder=8`, `endpoint="/api/v1/me/fbp-declaration"`, and `requiredAction="payroll.fbp.read_own"`.
+  2. **Panel Order Verification**: Updated `PortalPanelOrderTest.java` in `app` module verifying display order `[profile, leave, documents, payslips, timesheet, taxDeclaration, claims, fbp]`.
+  3. **Frontend API Client**: Added `readOwn()` (`GET /api/v1/me/fbp-declaration`) and `declareOwn(payload)` (`PUT /api/v1/me/fbp-declaration`) in `fbpService.js` and expanded unit tests in `fbpService.test.js`.
+  4. **Self-Service Support in FbpDeclarationTab**: Updated `FbpDeclarationTab.jsx` to recognize self-service portal mode when `employeeId` is omitted, checking `payroll.fbp.read_own` and `payroll.fbp.declare_own` permissions and delegating to `FbpDeclarationForm` with `isOwn={true}`.
+  5. **Window Closed & Self-Service Form Handling**: Updated `FbpDeclarationForm.jsx` to fetch via `readOwn()` and save via `declareOwn()`, display a warning Alert and disable editing/saving when `windowOpen === false`, hide admin date picker in self-service mode, and show monthly equivalent amounts (`≈ ₹X / mo`) beside annual inputs.
+  6. **Shell & Portal Registration**: Registered `{ code: 'fbp', component: FbpDeclarationTab }` under `portalPanels` in `code/frontend/src/payroll/index.js`, and added `fbp: <GiftOutlined />` to `PANEL_ICONS` in `PortalLayout.jsx`.
+  7. **Automated Test Coverage**: Added self-service test scenarios in `FbpDeclarationTab.test.jsx` covering read_own, declare_own, and closed window states; verified `PortalLayout.test.jsx` and `fbpService.test.js` all pass (27/27 green).
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 ---
 

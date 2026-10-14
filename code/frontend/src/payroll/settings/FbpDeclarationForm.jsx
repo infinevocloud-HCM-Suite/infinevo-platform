@@ -29,6 +29,7 @@ export function FbpDeclarationForm({
   asOf: initialAsOf,
   canManage = true,
   onSaved,
+  isOwn = !employeeId,
 }) {
   const { token } = theme.useToken();
 
@@ -42,12 +43,14 @@ export function FbpDeclarationForm({
   const [lines, setLines] = useState([]);
 
   const loadDeclaration = useCallback(async (date) => {
-    if (!employeeId) return;
+    if (!isOwn && !employeeId) return;
     setLoading(true);
     setError404(null);
     setErrorOther(null);
     try {
-      const data = await fbpService.declaration(employeeId, date);
+      const data = isOwn
+        ? await fbpService.readOwn()
+        : await fbpService.declaration(employeeId, date);
       setDeclaration(data);
 
       // FbpDeclarationLineResponse field names (D-67). The line's own annual amount is its ceiling.
@@ -72,7 +75,7 @@ export function FbpDeclarationForm({
     } finally {
       setLoading(false);
     }
-  }, [employeeId]);
+  }, [employeeId, isOwn]);
 
   useEffect(() => {
     loadDeclaration(asOf);
@@ -101,7 +104,9 @@ export function FbpDeclarationForm({
       }));
 
       const payload = { lines: payloadLines };
-      const res = await fbpService.setDeclaration(employeeId, payload);
+      const res = isOwn
+        ? await fbpService.declareOwn(payload)
+        : await fbpService.setDeclaration(employeeId, payload);
       message.success('FBP declaration saved successfully');
       setDeclaration(res);
       if (onSaved) onSaved(res);
@@ -110,6 +115,9 @@ export function FbpDeclarationForm({
         const msg = err.response?.data?.message || 'No salary version found in force for this date';
         setError404(msg);
         message.error(msg);
+      } else if (err.response?.status === 409 || err.status === 409) {
+        const msg = err.response?.data?.message || 'Declaration window is closed';
+        message.error(msg);
       } else {
         message.error(err.response?.data?.message || err.message || 'Failed to save declaration');
       }
@@ -117,6 +125,9 @@ export function FbpDeclarationForm({
       setSaving(false);
     }
   };
+
+  const isWindowClosed = isOwn && declaration && declaration.windowOpen === false;
+  const isEditable = canManage && !isWindowClosed;
 
   const columns = [
     {
@@ -152,15 +163,20 @@ export function FbpDeclarationForm({
       key: 'annualAmount',
       width: 220,
       render: (val, record, idx) => (
-        <InputNumber
-          min={0}
-          max={record.lineAnnualAmount != null ? Number(record.lineAnnualAmount) : undefined}
-          style={{ width: '100%' }}
-          value={val}
-          onChange={(newVal) => handleAmountChange(idx, newVal)}
-          disabled={!canManage}
-          data-testid={`fbp-line-amount-${record.componentId || idx}`}
-        />
+        <Space direction="vertical" style={{ width: '100%' }} size={2}>
+          <InputNumber
+            min={0}
+            max={record.lineAnnualAmount != null ? Number(record.lineAnnualAmount) : undefined}
+            style={{ width: '100%' }}
+            value={val}
+            onChange={(newVal) => handleAmountChange(idx, newVal)}
+            disabled={!isEditable}
+            data-testid={`fbp-line-amount-${record.componentId || idx}`}
+          />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            ≈ {formatMoney((val || 0) / 12)} / mo
+          </Text>
+        </Space>
       ),
     },
   ];
@@ -175,21 +191,34 @@ export function FbpDeclarationForm({
               <span>Flexible Benefit Plan Declaration</span>
             </Space>
           </Col>
-          <Col>
-            <Space align="center">
-              <Text type="secondary">As Of Date:</Text>
-              <DatePicker
-                value={asOf ? dayjs(asOf) : null}
-                onChange={(date) => {
-                  if (date) setAsOf(date.format('YYYY-MM-DD'));
-                }}
-                data-testid="fbp-asof-picker"
-              />
-            </Space>
-          </Col>
+          {!isOwn && (
+            <Col>
+              <Space align="center">
+                <Text type="secondary">As Of Date:</Text>
+                <DatePicker
+                  value={asOf ? dayjs(asOf) : null}
+                  onChange={(date) => {
+                    if (date) setAsOf(date.format('YYYY-MM-DD'));
+                  }}
+                  data-testid="fbp-asof-picker"
+                />
+              </Space>
+            </Col>
+          )}
         </Row>
       }
     >
+      {isWindowClosed && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Declaration Window Closed"
+          description="The Flexible Benefit Plan declaration window is currently closed. You can view your allocated amounts, but changes cannot be submitted."
+          style={{ marginBottom: 16 }}
+          data-testid="fbp-window-closed-alert"
+        />
+      )}
+
       {error404 && (
         <Alert
           type="error"
@@ -268,7 +297,7 @@ export function FbpDeclarationForm({
             data-testid="fbp-declaration-table"
           />
 
-          {canManage && lines.length > 0 && (
+          {isEditable && lines.length > 0 && (
             <div style={{ marginTop: 24, textAlign: 'right' }}>
               <Button
                 type="primary"
@@ -288,10 +317,11 @@ export function FbpDeclarationForm({
 }
 
 FbpDeclarationForm.propTypes = {
-  employeeId: PropTypes.string.isRequired,
+  employeeId: PropTypes.string,
   asOf: PropTypes.string,
   canManage: PropTypes.bool,
   onSaved: PropTypes.func,
+  isOwn: PropTypes.bool,
 };
 
 export default FbpDeclarationForm;

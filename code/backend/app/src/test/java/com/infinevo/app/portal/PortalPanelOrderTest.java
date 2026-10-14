@@ -9,6 +9,7 @@ import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.core.portal.ProfilePanelProvider;
 import com.infinevo.hrms.portal.TimesheetPanelProvider;
 import com.infinevo.payroll.portal.ClaimsPanelProvider;
+import com.infinevo.payroll.portal.FbpPanelProvider;
 import com.infinevo.payroll.portal.PayslipPanelProvider;
 import com.infinevo.payroll.portal.TaxDeclarationPanelProvider;
 import java.util.Comparator;
@@ -18,7 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * D-87: every portal panel carries its own display order, so the /me tab order is defined. Only {@code app}
+ * D-87, BUG-D5-025: every portal panel carries its own display order, so the /me tab order is defined. Only {@code app}
  * sees the providers of all three modules, so the check lives here.
  */
 class PortalPanelOrderTest {
@@ -30,7 +31,8 @@ class PortalPanelOrderTest {
             new PayslipPanelProvider(),
             new TimesheetPanelProvider(),
             new TaxDeclarationPanelProvider(),
-            new ClaimsPanelProvider());
+            new ClaimsPanelProvider(),
+            new FbpPanelProvider());
 
     private static List<PanelDescriptor> descriptors() {
         UUID employeeId = UUID.randomUUID();
@@ -46,13 +48,14 @@ class PortalPanelOrderTest {
     }
 
     @Test
-    @DisplayName("tabs run profile, leave, documents, payslips, timesheet, tax declaration, claims")
+    @DisplayName("tabs run profile, leave, documents, payslips, timesheet, tax declaration, claims, fbp")
     void tabOrderIsTheAgreedOne() {
         List<String> codes = descriptors().stream()
                 .sorted(Comparator.comparingInt(PanelDescriptor::displayOrder))
                 .map(PanelDescriptor::code)
                 .toList();
         assertThat(codes)
-                .containsExactly("profile", "leave", "documents", "payslips", "timesheet", "taxDeclaration", "claims");
+                .containsExactly(
+                        "profile", "leave", "documents", "payslips", "timesheet", "taxDeclaration", "claims", "fbp");
     }
 }
