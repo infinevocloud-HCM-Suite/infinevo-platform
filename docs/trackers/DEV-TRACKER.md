@@ -402,6 +402,37 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
   4. Non-destructively loaded extended section details (`dateOfBirth`, `maritalStatus`, `emergencyContactName`, addresses) via `Promise.allSettled([employeeService.section(id, 'personal'), employeeService.section(id, 'contact')])` without breaking mock expectations.
 - **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
+#### BUG-D5-021 (E-01): Missing Reporting Manager Field on Welcome Page & Employee Portal (/me)
+- **Found:** 2026-10-14, Certification Stage E-01 (`sahmad@infinevocloud.com`)
+- **Error / Issue:** No field exists to display the employee's Reporting Manager on the Welcome page (`/welcome`) or on the employee profile page (`/me`).
+- **Expected:** Name, designation, department, and reporting manager displayed as readable words (no UUIDs).
+- **Status:** Open.
+
+#### BUG-D5-022 (E-02): Missing Document Upload & Delete Actions on Employee Portal (/me/documents)
+- **Found:** 2026-10-14, Certification Stage E-02 (`/me` Documents tab)
+- **Error / Issue:** `MyDocumentsPanel.jsx` only supports viewing and downloading documents; no option/button is provided on the UI for employees to upload a new document (PDF) or delete an existing document.
+- **Expected:** Employee can upload a PDF document, open/preview it, and delete it per step E-02.
+- **Status:** Open.
+
+#### BUG-D5-023 (E-03a): Leave Application Throws Attachment Validation Error Despite Attaching Document
+- **Found:** 2026-10-14, Certification Stage E-03a (`/me/leave/apply`, applying Sick Leave SL on 2026-10-20)
+- **Error:** `Validation Error: Leave policy requires supporting documents to be attached (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b)`
+- **Symptom:** Even after attaching a supporting document via the upload component on the form, submitting the request fails with the exact same validation error.
+- **Root Cause:** In `LeaveRequestFields.jsx`, `<Upload>` inside `<Form.Item name="documentIds">` sets the field value to an object `{ file, fileList }` on change, overwriting the document UUID array, causing `documentIds` to not be serialized or sent properly to `POST /api/v1/leave/requests`.
+- **Status:** Open.
+
+#### BUG-D5-024 (E-09): Reimbursement Component Dropdown Empty in New Claim Drawer
+- **Found:** 2026-10-14, Certification Stage E-09 (`/me` Claims tab, New Claim drawer)
+- **Error / Issue:** In the "New Claim" drawer, the "Component" select dropdown is completely empty with no data to select. Because `reimbursement_id` is a mandatory field in the schema, the employee cannot submit any expense reimbursement claim.
+- **Expected:** Available reimbursement components (e.g. Internet, Travel, Medical) should be listed and selectable in the dropdown.
+- **Status:** Open.
+
+#### BUG-D5-025 (E-08): Missing FBP (Flexible Benefit Plan) Tab on Employee Portal (/me)
+- **Found:** 2026-10-14, Certification Stage E-08 (`/me`)
+- **Error / Issue:** No FBP or Flexible Benefits tab/panel exists on the Employee Self-Service portal (`/me`). In the implementation, `FbpDeclarationTab` is only mapped as an employee tab on `/employees/:id` (accessible to HR/Payroll administrators), leaving employees with no UI screen to view, allocate, or declare their Meal, Fuel, and flexible allowances.
+- **Expected:** An "FBP" tab should be available on the `/me` portal allowing employees to declare flexible benefits within company plan caps per step E-08.
+- **Status:** Open.
+
 ---
 
 ## 1. Stream A — Foundation

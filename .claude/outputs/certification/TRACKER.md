@@ -127,31 +127,35 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 | Id | Status | Date | Note |
 |---|---|---|---|
-| E-01 | Blocked | | |
-| E-02 | Blocked | | |
-| E-03 | Blocked | | |
-| E-03a | Blocked | | |
-| E-03b | Blocked | | |
+| E-01 | Fail | 2026-10-14 | No field to display reporting manager on Welcome page or /me profile |
+| E-02 | Fail | 2026-10-14 | No option on UI to upload or delete documents (/me documents is download-only) |
+| E-03 | Pass | 2026-10-14 | CL 15-16 Oct applied; pending with Krushna, 2 days reserved |
+| E-03a | Fail | 2026-10-14 | Validation error: Leave policy requires supporting documents to be attached even after attaching document |
+| E-03b | Pass | 2026-10-14 | EL 27 Oct applied and cancelled; balance restored |
 | E-03c | Blocked | | needs Y-01 |
 | E-04 | Blocked | | needs L-06 |
-| E-05 | Blocked | | |
-| E-05a | Blocked | | |
-| E-06 | Blocked | | |
+| E-05 | Pass | 2026-10-14 | Clock-in/out logged; missing clock-out flagged |
+| E-05a | Pass | 2026-10-14 | Regularization saved and pending; view requires date range filter (known D-47) |
+| E-06 | Pass | 2026-10-14 | Overtime 18 Oct 3h saved and pending; view requires date range filter (known D-47) |
 | E-06a | Blocked | | needs T-05 |
 | E-07 | Blocked | | |
-| E-08 | Blocked | | needs M-02 |
+| E-08 | Fail | 2026-10-14 | No FBP (Flexible Benefit Plan) tab or panel exists on /me portal |
 | E-08a | Blocked | | needs M-04 |
 | E-08b | Exception | | D-25 |
-| E-09 | Blocked | | |
+| E-09 | Fail | 2026-10-14 | Component dropdown in New Claim drawer has no data to select, blocking claim submission |
 | E-10 | Blocked | | J2 |
 | E-10a | Blocked | | |
 | E-11 | Blocked | | needs R-02 |
-| N-01 | Blocked | | |
-| N-02 | Blocked | | |
-| N-03 | Blocked | | |
+| N-01 | Pass | 2026-10-14 | All admin/staff URLs (/employees, /leave/requests, /payroll/runs, /admin) refused with 404 (routes unmounted) |
+| N-02 | Pass | 2026-10-14 | Direct colleague profile URL (/employees/<id>) refused with 404 |
+| N-03 | Pass | 2026-10-14 | Access to non-owned leave request refused with 404 |
 
 ## Defects
 
 | # | Date | Tester | Step | Role | URL | What happened | Expected | Founder no. |
 |---|---|---|---|---|---|---|---|---|
-| | | | | | | | | |
+| | 2026-10-14 | Sahmad | E-01 | employee | /me | No field/section to display reporting manager on Welcome page or /me profile | Manager name displayed as words beside department and designation | |
+| | 2026-10-14 | Sahmad | E-02 | employee | /me | No options given on UI to upload or delete documents (/me documents is download-only) | Option to upload a PDF, view/open it, and delete it with dialog closure | |
+| | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | |
+| | 2026-10-14 | Sahmad | E-08 | employee | /me | No FBP (Flexible Benefit Plan) tab or panel exists on Employee Portal (/me) to declare Meal/Fuel allowances | FBP declaration tab available on /me to declare benefits within plan caps | |
+| | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | |
