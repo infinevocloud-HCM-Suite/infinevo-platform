@@ -48,8 +48,8 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | K-26 | Pass | 2026-10-14 | Isolation Co suspended; locked out of module screens |
 | K-11 | Pass | 2026-10-14 | Actor column displays user email ID; audit entries verified with actor, time, and diffs |
 | K-12 | Pass | 2026-10-14 | Actor filter by email verified; displays filtered user actions |
-| K-13 | Ready | | J2 |
-| K-14 | Ready | | |
+| K-13 | Pass | 2026-10-14 | Notification emails received via Brevo from application@infinevocloud.com |
+| K-14 | Ready | | Direct Excel export button added to /employees |
 | N-01 | Pass | 2026-10-14 | /admin as tenant admin refused (403 / Not Entitled) |
 | N-02 | Pass | 2026-10-14 | Pay run compute refused without payroll-officer role |
 
