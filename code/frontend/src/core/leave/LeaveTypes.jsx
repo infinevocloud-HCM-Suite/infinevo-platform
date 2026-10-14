@@ -288,10 +288,8 @@ export function LeaveTypes() {
             <Col span={12}>
               <Form.Item name="unit" label="Unit" rules={[{ required: true }]}>
                 <Select
-                  options={[
-                    { value: 'DAYS', label: 'Days' },
-                    { value: 'HOURS', label: 'Hours' },
-                  ]}
+                  // LeaveUnit has DAYS only; the server refuses HOURS (D-86).
+                  options={[{ value: 'DAYS', label: 'Days' }]}
                 />
               </Form.Item>
             </Col>

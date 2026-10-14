@@ -695,13 +695,12 @@ jobs:
   # Scope: needs.scope.outputs.e2e - code/, infra/docker/ or this file. It does not
   # wait on `frontend` or `backend`: those lint and unit-test, this proves the running
   # product, and the two are independent evidence. A compile error fails here too, just
-  # later and louder (the image build), which is acceptable for a report-only job.
+  # later and louder (the image build), which is acceptable.
   #
-  # first iteration — the suite records what is broken; it becomes blocking once the
-  # role walks are green. `continue-on-error: true` at job level means a red e2e job
-  # does not change the run's conclusion, which is what check-done.mjs gate 8 reads -
-  # so a teething problem in the suite cannot hold a merge. Remove that line to make
-  # it blocking; nothing else needs to change.
+  # Blocking since 2026-10-13: the first green run was 6a303fb5 (38 passed, Phase 3).
+  # Before that the job was report-only (`continue-on-error: true`) while the role walks
+  # recorded what was broken. A red e2e job now fails the run, which is what
+  # check-done.mjs reads - a screen that stops opening cannot reach main.
   #
   # One runner, no matrix: the stack is nine containers and ~2 GB, and the suite is
   # pinned to one worker because the Vite dev server resets connections under parallel
@@ -715,7 +714,6 @@ jobs:
     needs: scope
     if: needs.scope.outputs.e2e == 'true'
     timeout-minutes: 40   # dev image builds ~10m, stack healthy ~3m, suite on one worker
-    continue-on-error: true
     env:
       COMPOSE: docker compose -f infra/docker/compose.yml
     steps:

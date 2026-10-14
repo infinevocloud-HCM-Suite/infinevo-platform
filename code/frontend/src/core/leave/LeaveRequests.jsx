@@ -23,6 +23,7 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 const STATUS_TAGS = {
+  DRAFT: { color: 'default', label: 'Draft' },
   SUBMITTED: { color: 'blue', label: 'Submitted' },
   PENDING: { color: 'gold', label: 'Pending Approval' },
   APPROVED: { color: 'green', label: 'Approved' },
@@ -200,6 +201,7 @@ export function LeaveRequests() {
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
+                { value: 'DRAFT', label: 'Draft' },
                 { value: 'PENDING', label: 'Pending Approval' },
                 { value: 'APPROVED', label: 'Approved' },
                 { value: 'REJECTED', label: 'Rejected' },

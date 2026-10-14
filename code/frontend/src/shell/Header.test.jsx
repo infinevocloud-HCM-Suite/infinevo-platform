@@ -10,6 +10,10 @@ import { apiClient } from '../shared/api/client.js';
 import impersonationReducer, { started } from '../core/admin/impersonationSlice.js';
 import { impersonationService } from '../core/admin/impersonationService.js';
 
+// A real sweetalert2 dialog arms timers that outlive the test file's jsdom window
+// ("window is not defined" after teardown); the header's messages are not asserted here.
+vi.mock('../shared/ui/msgHelper.js', () => ({ successMsg: vi.fn(), errorMsg: vi.fn(), formatCodeTitle: (c) => c }));
+
 /** The `/me` answer the header reads; the hook is stubbed so no request leaves the test. */
 function me(overrides = {}) {
   return vi.spyOn(meModule, 'useMe').mockReturnValue({

@@ -99,4 +99,20 @@ describe('LeaveTypes component', () => {
     });
     expect(leaveTypeService.create).not.toHaveBeenCalled();
   });
+
+  // D-86: LeaveUnit has DAYS only; the form must not offer Hours.
+  it('offers Days as the only unit', async () => {
+    render(<LeaveTypes />);
+    await waitFor(() => {
+      expect(screen.getByText('Casual Leave')).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Add Leave Type/i }));
+    const dialog = await screen.findByRole('dialog', { name: /Add Leave Type/i });
+    const unit = within(dialog).getByLabelText('Unit');
+    fireEvent.mouseDown(unit);
+    await waitFor(() => expect(document.querySelectorAll('.ant-select-item-option').length).toBeGreaterThan(0));
+    const options = [...document.querySelectorAll('.ant-select-item-option')].map((o) => o.textContent);
+    expect(options).toContain('Days');
+    expect(options).not.toContain('Hours');
+  });
 });

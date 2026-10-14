@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, InputNumber, Radio, Spin, Switch, Tag } from 'antd';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useCan } from '@shell/screens';
+import { LoadError } from '@shared/ui/LoadError.jsx';
 import { attendanceService } from './attendanceService.js';
 
 const hours = Yup.number().typeError('Enter hours').required('Required').min(0, 'At least 0').max(24, 'At most 24');
@@ -28,6 +29,9 @@ export function AttendanceSettings() {
   const canManage = useCan('core.attendance.manage');
   const [pref, setPref] = useState(null);
   const [error, setError] = useState(null);
+  // A failed read shows an error with Retry and no form: Save must never send defaults the server
+  // did not confirm over the tenant's real settings (D-84).
+  const [loadError, setLoadError] = useState(null);
   const [saved, setSaved] = useState(false);
 
   const formik = useFormik({
@@ -58,14 +62,27 @@ export function AttendanceSettings() {
     },
   });
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoadError(null);
     attendanceService
       .preferences()
       .then(setPref)
-      .catch((err) => setError(err?.message || 'Could not load settings'));
+      .catch((err) => setLoadError(err || new Error('Could not load settings')));
   }, []);
 
-  if (!pref && !error) {
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (!pref && loadError) {
+    return (
+      <Card title="Attendance settings">
+        <LoadError title="Could not load the attendance settings" error={loadError} onRetry={load} />
+      </Card>
+    );
+  }
+
+  if (!pref) {
     return (
       <Card>
         <Spin />

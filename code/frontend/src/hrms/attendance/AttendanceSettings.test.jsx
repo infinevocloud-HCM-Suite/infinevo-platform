@@ -55,4 +55,20 @@ describe('AttendanceSettings (W-48.4 §7)', () => {
     },
     T
   );
+
+  it(
+    'a failed load shows the error with Retry and no Save; Retry loads the form (D-84)',
+    async () => {
+      attendanceService.preferences.mockRejectedValueOnce(new Error('Server down'));
+      render(<AttendanceSettings />);
+      expect(await screen.findByText('Server down')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /save/i })).toBeNull();
+      expect(screen.queryByLabelText('Full-day minimum hours')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+      expect(await screen.findByRole('button', { name: /save/i })).toBeTruthy();
+      expect(attendanceService.preferences).toHaveBeenCalledTimes(2);
+      expect(attendanceService.savePreferences).not.toHaveBeenCalled();
+    },
+    T
+  );
 });

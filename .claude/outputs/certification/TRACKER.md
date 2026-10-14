@@ -7,37 +7,36 @@ Status values: `Blocked` `Ready` `Pass` `Fail` `Exception`. Update your own rows
 | Gate | Owner | Needs | Status | Date |
 |---|---|---|---|---|
 | P0 Environment: worker fixed, seeded Oct pay run deleted, four logins work | Founder | – | Ready | |
-| P1 Setup: K-00…K-07x | Karmaveer | P0 | Blocked | |
-| P2 People and payroll config: K-05, K-06, M-01…M-05 | Krushna, Mohit | P1 | Blocked | |
+| P1 Setup: K-00…K-07x | Karmaveer | P0 | Pass | 2026-10-13 |
+| P2 People and payroll config: K-05, K-06, M-01…M-05 | Krushna, Mohit | P1 | Ready | |
 | J1 October pay run may start: L-06, L-09, T-03, T-04, T-06, E-07, E-08a, E-09, S-02, P-01…P-03 | Mohit | P2 | Blocked | |
 | J2 Reconciliation: M-14 paid | all | J1 | Blocked | |
 
 ## Karmaveer — tenant admin
 
 Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
-
 | Id | Status | Date | Note |
 |---|---|---|---|
-| K-00 | Blocked | | |
-| K-01 | Blocked | | |
-| K-01a | Blocked | | |
-| K-01b | Blocked | | needs M-01, M-03 |
-| K-02 | Blocked | | |
-| K-02a | Blocked | | |
-| K-02b | Blocked | | |
-| K-02c | Blocked | | |
-| K-02d | Blocked | | |
-| K-03 | Blocked | | |
-| K-04 | Blocked | | |
-| K-05x | Blocked | | |
-| K-06x | Blocked | | |
-| K-07x | Blocked | | founder re-seeds if short |
-| K-08 | Blocked | | |
-| K-08a | Blocked | | |
-| K-09 | Blocked | | |
-| K-10 | Blocked | | needs K-05 |
-| K-10a | Blocked | | |
-| K-10b | Blocked | | |
+| K-00 | Pass | 2026-10-13 | Company name displayed, profile saved and verified on reload |
+| K-01 | Pass | 2026-10-13 | Checklist shows 8 steps with progress, pre-filled steps detected |
+| K-01a | Pass | 2026-10-13 | Prior payroll skipped with reason, progress updated |
+| K-01b | Pass | 2026-10-13 | All 8 steps done or skipped; setup progress reached 100% |
+| K-02 | Pass | 2026-10-13 | 5 departments (ENG, HR, FIN, SALES, OPS) verified |
+| K-02a | Pass | 2026-10-13 | 8 designations (CEO, VP, MGR, SSE, SE, HRBP, ACCT, EXEC) verified |
+| K-02b | Pass | 2026-10-13 | 3 work locations (BLR HQ filing address, Pune, Hyd) verified |
+| K-02c | Pass | 2026-10-13 | Quality department added; duplicate addition refused |
+| K-02d | Pass | 2026-10-13 | Pune Office postcode edited to 411002 and verified |
+| K-03 | Pass | 2026-10-13 | Default holiday calendar India 2026 and national holidays verified |
+| K-04 | Pass | 2026-10-13 | Approval rules for Leave, Reimbursement, Timesheet, OT, Regularisation verified |
+| K-05x | Pass | 2026-10-13 | CL 12, EL 18, SL 10 with policies verified |
+| K-06x | Pass | 2026-10-13 | LOP policy configured and verified |
+| K-07x | Pass | 2026-10-13 | 53 employees (ITC-0001..ITC-0053) verified with names, depts, desigs |
+| K-08 | Pass | 2026-10-13 | Krushna, Mohit, Sahmad user roles verified |
+| K-08a | Pass | 2026-10-13 | Invitations status verified |
+| K-09 | Pass | 2026-10-13 | Invited qa-extra and revoked invitation verified |
+| K-10 | Pass | 2026-10-13 | Custom Auditor role created, assigned to NH-5, restricted access verified |
+| K-10a | Pass | 2026-10-13 | Dropping last tenant-admin refused as expected |
+| K-10b | Pass | 2026-10-13 | NH-5 account disable and re-enable verified |
 | K-20 | Blocked | | staff.infinevo |
 | K-21 | Blocked | | staff.infinevo |
 | K-22 | Blocked | | |
@@ -49,19 +48,19 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | K-12 | Blocked | | J2 |
 | K-13 | Blocked | | J2 |
 | K-14 | Blocked | | |
-| N-01 | Blocked | | |
+| N-01 | Ready | | |
 | N-02 | Blocked | | |
 
 ## Krushna — HR + manager
 
 | Id | Status | Date | Note |
 |---|---|---|---|
-| K-05 | Blocked | | |
-| K-05a | Blocked | | |
-| K-05b | Blocked | | |
-| K-06 | Blocked | | |
-| K-07 | Blocked | | |
-| H-01 | Blocked | | |
+| K-05 | Pass | 2026-10-13 | 5 new hires NH-1 to NH-5 created and verified |
+| K-05a | Pass | 2026-10-13 | Duplicate work email/PAN refusal verified (400) |
+| K-05b | Pass | 2026-10-13 | Lowercase name auto-capitalized to Ritu Anand |
+| K-06 | Pass | 2026-10-13 | Invitations sent for NH-1 to NH-5, manager role granted to NH-1 |
+| K-07 | Pass | 2026-10-13 | Sahmad manager confirmed as Krushna Sonalkar |
+| H-01 | Ready | | |
 | H-02 | Blocked | | |
 | H-03 | Blocked | | |
 | H-04 | Blocked | | |

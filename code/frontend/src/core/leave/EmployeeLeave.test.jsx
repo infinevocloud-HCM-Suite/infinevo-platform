@@ -68,9 +68,9 @@ describe('EmployeeLeave component', () => {
 
   it('renders employee consumption ledger and monthly LOP metrics', async () => {
     render(
-      <MemoryRouter initialEntries={['/leave/employees/emp-1']}>
+      <MemoryRouter initialEntries={['/employees/emp-1/leave']}>
         <Routes>
-          <Route path="/leave/employees/:id" element={<EmployeeLeave />} />
+          <Route path="/employees/:id/leave" element={<EmployeeLeave />} />
         </Routes>
       </MemoryRouter>
     );

@@ -29,6 +29,7 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 const STATUS_TAGS = {
+  DRAFT: { color: 'default', label: 'Draft' },
   SUBMITTED: { color: 'blue', label: 'Submitted' },
   PENDING: { color: 'gold', label: 'Pending Approval' },
   APPROVED: { color: 'green', label: 'Approved' },
