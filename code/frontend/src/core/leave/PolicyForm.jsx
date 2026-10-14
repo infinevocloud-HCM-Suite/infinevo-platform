@@ -301,6 +301,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
               data-testid="past-booking-limit"
               min={0}
               max={365}
+              precision={0}
               style={{ width: '100%' }}
               placeholder="e.g. 15"
             />
