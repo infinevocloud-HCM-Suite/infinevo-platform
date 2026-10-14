@@ -443,7 +443,13 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
   2. Updated `SalaryComponentTemplateContributor.java` to inject `ReimbursementRepository` and seed reimbursements from the template payload.
   3. Updated `ClaimForm.jsx` to display an informative warning Alert when no components are available, disable the Select with a helpful placeholder, and disable the Submit button when `components.length === 0`.
   4. Added unit test in `ClaimForm.test.jsx`.
-- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
+- **Status:** **Resolved locally in `dev-sayeed`** (`91f0cf98`).
+
+#### BUG-D5-025 (E-08): Missing FBP (Flexible Benefit Plan) Tab on Employee Portal (/me)
+- **Found:** 2026-10-14, Certification Stage E-08 (`/me`)
+- **Error / Issue:** No FBP or Flexible Benefits tab/panel exists on the Employee Self-Service portal (`/me`). In the implementation, `FbpDeclarationTab` is only mapped as an employee tab on `/employees/:id` (accessible to HR/Payroll administrators), leaving employees with no UI screen to view, allocate, or declare their Meal, Fuel, and flexible allowances.
+- **Expected:** An "FBP" tab should be available on the `/me` portal allowing employees to declare flexible benefits within company plan caps per step E-08.
+- **Status:** Open.
 
 ---
 
