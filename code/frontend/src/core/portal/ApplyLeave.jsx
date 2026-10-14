@@ -8,7 +8,7 @@ import { useCan, NotEntitled } from '@shell/screens';
 import { portalService } from '@shell/portal/portalService.js';
 import { leaveTypeService } from '../leave/leaveTypeService.js';
 import { leaveRequestService } from '../leave/leaveRequestService.js';
-import { LeaveRequestFields } from '../leave/LeaveRequestFields.jsx';
+import { LeaveRequestFields, normalizeDocumentIds } from '../leave/LeaveRequestFields.jsx';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 const { Title } = Typography;
@@ -89,7 +89,7 @@ export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSucces
         isHalfDay: !!values.isHalfDay,
         halfDayPeriod: values.isHalfDay ? values.halfDayPeriod : null,
         reason: values.reason,
-        documentIds: values.documentIds || [],
+        documentIds: normalizeDocumentIds(values.documentIds),
         submit: submitNow,
       };
 

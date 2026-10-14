@@ -7,7 +7,14 @@ import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { employeeService } from '../employee/employeeService.js';
 import { approvalService } from '../approvals/approvalService.js';
+import { portalService } from '@shell/portal/portalService.js';
 import * as useCanModule from '@shell/screens';
+
+vi.mock('@shell/portal/portalService.js', () => ({
+  portalService: {
+    getProfile: vi.fn(),
+  },
+}));
 
 vi.mock('./leaveRequestService.js', () => ({
   leaveRequestService: {
@@ -128,6 +135,7 @@ describe('LeaveRequestDetail component', () => {
     leaveTypeService.get.mockResolvedValue(mockLeaveType);
     leaveTypeService.list.mockResolvedValue([mockLeaveType]);
     approvalService.history.mockResolvedValue(mockHistory);
+    portalService.getProfile.mockResolvedValue(null);
   });
 
   it('renders request details, employee, leave type and approval trail', async () => {
@@ -223,4 +231,60 @@ describe('LeaveRequestDetail component', () => {
     fireEvent.click(screen.getByRole('button', { name: /Back/i }));
     await waitFor(() => expect(screen.getByText('Approvals inbox')).toBeDefined());
   });
+
+  it('D-54: does NOT show Withdraw button when Admin/HR views a pending employee leave request', async () => {
+    const pendingReq = { ...mockRequest, status: 'PENDING', employeeId: 'emp-1' };
+    leaveRequestService.get.mockResolvedValue(pendingReq);
+    // Caller is admin or manager whose employeeId is not the applicant's emp-1
+    portalService.getProfile.mockResolvedValue({ id: 'emp-admin' });
+
+    render(
+      <MemoryRouter initialEntries={['/leave/requests/req-1']}>
+        <Routes>
+          <Route path="/leave/requests/:id" element={<LeaveRequestDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Charlie Brown (EMP009)')).toBeDefined();
+    });
+
+    expect(screen.queryByRole('button', { name: /Withdraw/i })).toBeNull();
+  });
+
+  it('D-54: shows Withdraw button when applicant views their own pending leave request', async () => {
+    const pendingReq = { ...mockRequest, status: 'PENDING', employeeId: 'emp-1' };
+    leaveRequestService.get.mockResolvedValue(pendingReq);
+    leaveRequestService.withdraw.mockResolvedValue({ id: 'req-1', status: 'WITHDRAWN' });
+    // Caller is the applicant employee (emp-1)
+    portalService.getProfile.mockResolvedValue({ id: 'emp-1' });
+
+    render(
+      <MemoryRouter initialEntries={['/leave/requests/req-1']}>
+        <Routes>
+          <Route path="/leave/requests/:id" element={<LeaveRequestDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Withdraw/i })).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Withdraw/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /Withdraw Leave Request/i })).toBeDefined();
+    });
+
+    // The modal's confirm button
+    const confirmBtn = document.querySelector('.ant-modal-footer button.ant-btn-dangerous');
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(leaveRequestService.withdraw).toHaveBeenCalledWith('req-1', '');
+    });
+  });
 });
+

@@ -4,7 +4,7 @@ import { Card, Form, Button, Space, Typography, Row, Col } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
-import { LeaveRequestFields } from './LeaveRequestFields.jsx';
+import { LeaveRequestFields, normalizeDocumentIds } from './LeaveRequestFields.jsx';
 import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 
@@ -44,7 +44,7 @@ export function RecordLeave() {
         isHalfDay: Boolean(values.isHalfDay),
         halfDayPeriod: values.isHalfDay ? values.halfDayPeriod : null,
         reason: values.reason,
-        documentIds: values.documentIds || [],
+        documentIds: normalizeDocumentIds(values.documentIds),
       };
 
       const res = await leaveRequestService.onBehalf(payload);

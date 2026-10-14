@@ -133,6 +133,15 @@ export function ClaimForm({ open, onClose, onSubmitted }) {
                 {submitError && (
                   <Alert type="error" showIcon message={submitError} style={{ marginBottom: 16 }} />
                 )}
+                {!loadingComponents && components.length === 0 && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    data-testid="no-components-warning"
+                    message="No reimbursement components are available for claims. Please contact your administrator."
+                    style={{ marginBottom: 16 }}
+                  />
+                )}
                 <Form.Item
                   label="Component"
                   required
@@ -142,11 +151,16 @@ export function ClaimForm({ open, onClose, onSubmitted }) {
                   <Select
                     aria-label="Component"
                     loading={loadingComponents}
-                    placeholder="Choose a component"
+                    placeholder={
+                      !loadingComponents && components.length === 0
+                        ? 'No components available'
+                        : 'Choose a component'
+                    }
                     value={values.reimbursement_id}
                     options={components.map((c) => ({ value: c.id, label: c.name }))}
                     onChange={(v) => setFieldValue('reimbursement_id', v)}
                     onBlur={() => setFieldTouched('reimbursement_id', true)}
+                    disabled={components.length === 0}
                   />
                 </Form.Item>
                 <Form.Item
@@ -212,7 +226,12 @@ export function ClaimForm({ open, onClose, onSubmitted }) {
                   />
                 </Form.Item>
                 <Space>
-                  <Button type="primary" htmlType="submit" loading={isSubmitting} disabled={isSubmitting}>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={isSubmitting}
+                    disabled={isSubmitting || components.length === 0}
+                  >
                     Submit claim
                   </Button>
                   <Button onClick={onClose} disabled={isSubmitting}>

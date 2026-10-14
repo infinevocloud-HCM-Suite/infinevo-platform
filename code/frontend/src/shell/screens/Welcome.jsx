@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link, useNavigate } from 'react-router-dom';
-import { Avatar, Button, Card, Col, List, Progress, Row, Space, Typography, theme } from 'antd';
+import { Avatar, Button, Card, Col, Descriptions, List, Progress, Row, Space, Typography, theme } from 'antd';
 import { apiClient } from '../../shared/api/client.js';
 import { portalService } from '../portal/portalService.js';
 import { useNavigation } from '../navigation/useNavigation.js';
@@ -103,6 +103,8 @@ StaffCard.propTypes = {
  */
 function EmployeeCard() {
   const [hasPayslips, setHasPayslips] = useState(false);
+  const [jobInfo, setJobInfo] = useState(null);
+
   useEffect(() => {
     let live = true;
     portalService
@@ -111,17 +113,44 @@ function EmployeeCard() {
         if (live) setHasPayslips(Array.isArray(panels) && panels.some((panel) => panel?.code === 'payslips'));
       })
       .catch(() => {});
+    portalService
+      .getJobSummary()
+      .then((summary) => {
+        if (live && summary) setJobInfo(summary);
+      })
+      .catch(() => {});
     return () => {
       live = false;
     };
   }, []);
+
   const links = [
     { key: 'profile', label: 'Check your personal and contact details', to: '/me/profile' },
     hasPayslips ? { key: 'payslips', label: 'Your payslips appear here', to: '/me/payslips' } : null,
     { key: 'leave', label: 'Apply for leave here', to: '/me/leave/apply' },
   ].filter(Boolean);
+
+  const hasJobDetails = jobInfo && (jobInfo.department || jobInfo.designation || jobInfo.manager);
+
   return (
     <Card title="Complete your profile" data-testid="welcome-card-employee">
+      {hasJobDetails ? (
+        <Descriptions
+          size="small"
+          column={1}
+          bordered={false}
+          style={{ marginBottom: 16 }}
+          data-testid="welcome-employee-job-summary"
+        >
+          {jobInfo.department ? (
+            <Descriptions.Item label="Department">{jobInfo.department}</Descriptions.Item>
+          ) : null}
+          {jobInfo.designation ? (
+            <Descriptions.Item label="Designation">{jobInfo.designation}</Descriptions.Item>
+          ) : null}
+          <Descriptions.Item label="Reporting manager">{jobInfo.manager || '—'}</Descriptions.Item>
+        </Descriptions>
+      ) : null}
       <List
         dataSource={links}
         renderItem={(link) => (

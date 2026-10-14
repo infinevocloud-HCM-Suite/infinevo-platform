@@ -49,6 +49,45 @@ export const portalService = {
   },
 
   /**
+   * The caller's primary reporting manager name, or null if unassigned / refused (D-77, BUG-D5-021).
+   * Reads GET /api/v1/employees/{id}/reporting-line. Returns the manager's name as readable words.
+   *
+   * @param {string} employeeId the employee's id
+   * @returns {Promise<string|null>}
+   */
+  async getReportingManager(employeeId) {
+    if (!employeeId) return null;
+    try {
+      const res = await apiClient.get(`/v1/employees/${encodeURIComponent(employeeId)}/reporting-line`);
+      const lines = res?.data !== undefined ? res.data : res;
+      if (!Array.isArray(lines) || lines.length === 0) return null;
+      const primary = lines.find((line) => line?.kind === 'PRIMARY') || lines[0];
+      return primary?.managerName || null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Summary of the caller's job details for welcome / portal headers (E-01):
+   * department, designation, and reporting manager as readable names.
+   */
+  async getJobSummary() {
+    try {
+      const [employee, orgNames] = await Promise.all([this.getProfile(), this.getOrgNames()]);
+      if (!employee?.id) return null;
+      const managerName = await this.getReportingManager(employee.id);
+      return {
+        department: (employee.departmentId && orgNames?.departments?.[employee.departmentId]) || null,
+        designation: (employee.designationId && orgNames?.designations?.[employee.designationId]) || null,
+        manager: managerName,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * The caller's leave requests, newest first, as a Spring page (`content`, `totalElements`).
    * D-80: `params` ({ page, size }) asks for a given page; without it the server's default page.
    */

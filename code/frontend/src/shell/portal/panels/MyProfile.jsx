@@ -11,6 +11,7 @@ const { Title, Text } = Typography;
 export function MyProfile({ actions }) {
   const [employee, setEmployee] = useState(null);
   const [orgNames, setOrgNames] = useState({});
+  const [managerName, setManagerName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { token } = theme.useToken();
@@ -23,6 +24,10 @@ export function MyProfile({ actions }) {
       const [data, names] = await Promise.all([portalService.getProfile(), portalService.getOrgNames()]);
       setEmployee(data);
       setOrgNames(names);
+      if (data?.id) {
+        const mgr = await portalService.getReportingManager(data.id);
+        setManagerName(mgr);
+      }
     } catch (err) {
       setError(err?.response?.data?.message || err.message || 'Failed to load profile');
     } finally {
@@ -120,6 +125,7 @@ export function MyProfile({ actions }) {
               <Descriptions.Item label="Designation">
                 {nameOf(orgNames.designations, employee.designationId)}
               </Descriptions.Item>
+              <Descriptions.Item label="Reporting manager">{text(managerName)}</Descriptions.Item>
               <Descriptions.Item label="Work location">
                 {nameOf(orgNames.workLocations, employee.workLocationId)}
               </Descriptions.Item>
