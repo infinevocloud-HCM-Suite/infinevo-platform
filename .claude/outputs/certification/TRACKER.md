@@ -104,8 +104,8 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | S-03 | Pass | 2026-10-13 | NH-2 (EMP0046) ESI eligible confirmed |
 | S-04 | Pass | 2026-10-13 | Sahmad ITC-0044 salary revision created (+10% hike, effective 2026-10-01) |
 | S-05 | Fail | 2026-10-13 | Upload fails: requires action core.document.upload |
-| P-01 | Blocked | | |
-| P-02 | Blocked | | |
+| P-01 | Pass | 2026-10-14 | Shift Allowance ₹3,000 scheduled for Sahmad (ITC-0044) for Oct 2026 |
+| P-02 | Pass | 2026-10-14 | Ad-hoc deduction ₹500 posted for Sahmad (ITC-0044) for Oct 2026 |
 | P-03 | Blocked | | needs E-09 |
 | P-04 | Blocked | | needs E-08a |
 | M-10 | Blocked | | J1 |
@@ -120,8 +120,8 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | R-02 | Blocked | | |
 | R-03 | Blocked | | |
 | R-04 | Blocked | | |
-| N-01 | Blocked | | |
-| N-02 | Blocked | | |
+| N-01 | Pass | 2026-10-14 | Unentitled URLs (/leave/types) refused with 404 |
+| N-02 | Pass | 2026-10-14 | /admin URL refused with 404 |
 
 ## Sahmad — employee
 
