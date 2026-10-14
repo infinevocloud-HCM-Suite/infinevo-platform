@@ -108,17 +108,17 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | P-02 | Pass | 2026-10-14 | Ad-hoc deduction ₹500 posted for Sahmad (ITC-0044) for Oct 2026 |
 | P-03 | Blocked | | needs E-09 |
 | P-04 | Pass | 2026-10-14 | Sahmad FY 2026-27 declaration verified in read-only review mode (Submitted) |
-| M-10 | Blocked | | J1 |
-| M-11 | Blocked | | |
-| M-12 | Blocked | | |
-| M-13 | Blocked | | |
-| M-13a | Blocked | | |
-| M-14 | Blocked | | |
-| M-15 | Blocked | | |
-| M-16 | Blocked | | |
+| M-10 | Pass | 2026-10-14 | October 2026 regular pay run created with 49 included and 6 skipped employees, including all 5 new hires (EMP0045–EMP0049) |
+| M-11 | Pass | 2026-10-14 | Attendance/LOP reviewed; 0 LOP recorded |
+| M-12 | Pass | 2026-10-14 | Pay run computed successfully; 0 employee errors |
+| M-13 | Pass | 2026-10-14 | Revised CTC (+10%) verified in lines drawer: Gross ₹82,720.00, PF ₹5,280.00, PT ₹200.00, Net ₹77,240.00 exact match |
+| M-13a | Pass | 2026-10-14 | NH-2 (EMP0046) gross ₹20,000 & net ₹20,000 verified; statutory items omitted from salary version and L-09 blocked |
+| M-14 | Pass | 2026-10-14 | Pay run approved and marked PAID; payslips generated and available on /me |
+| M-15 | Blocked | | Off-cycle bonus run for NH-4 (EMP0048) next |
+| M-16 | Pass | 2026-10-14 | PAID run verified immutable; edit, compute, and cancel actions strictly disabled |
 | R-01 | Blocked | | J2 |
 | R-02 | Blocked | | |
-| R-03 | Blocked | | |
+| R-03 | Fail | 2026-10-14 | Signed payslip email link (/public/payslips?t=...) returns 404; route not mounted in frontend (Defect #6) |
 | R-04 | Blocked | | |
 | N-01 | Pass | 2026-10-14 | Unentitled URLs (/leave/types) refused with 404 |
 | N-02 | Pass | 2026-10-14 | /admin URL refused with 404 |
@@ -159,3 +159,4 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 3 | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | BUG-D5-023 |
 | 4 | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab is missing from employee portal; no panel exists for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | BUG-D5-025 |
 | 5 | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | BUG-D5-024 |
+| 6 | 2026-10-14 | Mohit | R-03 | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | |
