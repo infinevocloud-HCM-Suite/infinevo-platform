@@ -83,8 +83,8 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | T-02 | Blocked | | needs E-05 |
 | T-03 | Blocked | | needs E-05a |
 | T-04 | Blocked | | needs E-06 |
-| T-05 | Blocked | | |
-| T-06 | Blocked | | needs E-07 |
+| T-05 | Pass | 2026-10-14 | Project Cert Project created with Sahmad and NH-1, two tasks |
+| T-06 | Ready | | needs E-07 (submitted) |
 | T-07 | Blocked | | |
 | T-08 | Blocked | | |
 | N-01 | Blocked | | |
@@ -127,20 +127,20 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 | Id | Status | Date | Note |
 |---|---|---|---|
-| E-01 | Fail | 2026-10-14 | No field to display reporting manager on Welcome page or /me profile |
-| E-02 | Fail | 2026-10-14 | No option on UI to upload or delete documents (/me documents is download-only) |
+| E-01 | Pass | 2026-10-14 | Name, designation, department, and reporting manager displayed as readable words on Welcome page and /me profile |
+| E-02 | Blocked | | needs H-02 |
 | E-03 | Pass | 2026-10-14 | CL 15-16 Oct applied; pending with Krushna, 2 days reserved |
 | E-03a | Fail | 2026-10-14 | Validation error: Leave policy requires supporting documents to be attached even after attaching document |
 | E-03b | Pass | 2026-10-14 | EL 27 Oct applied and cancelled; balance restored |
 | E-03c | Blocked | | needs Y-01 |
-| E-04 | Blocked | | needs L-06 |
+| E-04 | Pass | 2026-10-14 | CL approved by manager; balance updated and verified on /me/leave |
 | E-05 | Pass | 2026-10-14 | Clock-in/out logged; missing clock-out flagged |
 | E-05a | Pass | 2026-10-14 | Regularization saved and pending; view requires date range filter (known D-47) |
 | E-06 | Pass | 2026-10-14 | Overtime 18 Oct 3h saved and pending; view requires date range filter (known D-47) |
-| E-06a | Blocked | | needs T-05 |
-| E-07 | Blocked | | |
-| E-08 | Fail | 2026-10-14 | No FBP (Flexible Benefit Plan) tab or panel exists on /me portal |
-| E-08a | Fail | 2026-10-14 | Chapter VI-A item dropdown only offers 80CCD(2), preventing selection of 80C and 80D |
+| E-06a | Pass | 2026-10-14 | Cert Project and assigned tasks listed on /hrms/my-work |
+| E-07 | Pass | 2026-10-14 | Week of 2026-10-12 timesheet submitted with 40h on Cert Project; locked for edit |
+| E-08 | Blocked | | needs M-02 |
+| E-08a | Pass | 2026-10-14 | HRA ₹1.8L and VI-A ₹1.75L declared; submitted successfully; status changed to Submitted |
 | E-08b | Exception | | D-25 |
 | E-09 | Fail | 2026-10-14 | Component dropdown in New Claim drawer has no data to select, blocking claim submission |
 | E-10 | Blocked | | J2 |
@@ -154,9 +154,6 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 | # | Date | Tester | Step | Role | URL | What happened | Expected | Founder no. |
 |---|---|---|---|---|---|---|---|---|
-| | 2026-10-14 | Sahmad | E-01 | employee | /me | No field/section to display reporting manager on Welcome page or /me profile | Manager name displayed as words beside department and designation | |
-| | 2026-10-14 | Sahmad | E-02 | employee | /me | No options given on UI to upload or delete documents (/me documents is download-only) | Option to upload a PDF, view/open it, and delete it with dialog closure | |
-| | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | |
-| | 2026-10-14 | Sahmad | E-08 | employee | /me | No FBP (Flexible Benefit Plan) tab or panel exists on Employee Portal (/me) to declare Meal/Fuel allowances | FBP declaration tab available on /me to declare benefits within plan caps | |
-| | 2026-10-14 | Sahmad | E-08a | employee | /me (tax declaration) | In Chapter VI-A Deductions, item dropdown only offers Section 80CCD(2); 80C and 80D items cannot be selected | Dropdown displays statutory Chapter VI-A items (80C, 80D, etc.) under Old Regime | |
-| | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | |
+| | 2026-10-14 | Sahmad | E-01 | employee | /welcome, /me | Reporting manager missing on Welcome page and profile | Reporting manager name displayed beside department and designation | BUG-D5-021 |
+| | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | BUG-D5-023 |
+| | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | BUG-D5-024 |

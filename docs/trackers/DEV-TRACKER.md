@@ -406,39 +406,44 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
 - **Found:** 2026-10-14, Certification Stage E-01 (`sahmad@infinevocloud.com`)
 - **Error / Issue:** No field exists to display the employee's Reporting Manager on the Welcome page (`/welcome`) or on the employee profile page (`/me`).
 - **Expected:** Name, designation, department, and reporting manager displayed as readable words (no UUIDs).
-- **Status:** Open.
-
-#### BUG-D5-022 (E-02): Missing Document Upload & Delete Actions on Employee Portal (/me/documents)
-- **Found:** 2026-10-14, Certification Stage E-02 (`/me` Documents tab)
-- **Error / Issue:** `MyDocumentsPanel.jsx` only supports viewing and downloading documents; no option/button is provided on the UI for employees to upload a new document (PDF) or delete an existing document.
-- **Expected:** Employee can upload a PDF document, open/preview it, and delete it per step E-02.
-- **Status:** Open.
+- **Fix Applied:**
+  1. Added `getReportingManager(employeeId)` and `getJobSummary()` in `portalService.js` to query `/api/v1/employees/{id}/reporting-line` (gated by `core.org.read` which `employee` role holds) and extract primary manager name as readable words.
+  2. In `MyProfile.jsx`: Added `Reporting manager` to the "Job" `Descriptions` block beside `Department` and `Designation`, gracefully displaying `—` if unassigned or refused without throwing.
+  3. In `Welcome.jsx`: Added job summary block (`Descriptions`) in `EmployeeCard` rendering `Department`, `Designation`, and `Reporting manager` words.
+  4. Expanded unit tests in `MyProfile.test.jsx` and `Welcome.test.jsx`.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### BUG-D5-023 (E-03a): Leave Application Throws Attachment Validation Error Despite Attaching Document
 - **Found:** 2026-10-14, Certification Stage E-03a (`/me/leave/apply`, applying Sick Leave SL on 2026-10-20)
 - **Error:** `Validation Error: Leave policy requires supporting documents to be attached (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b)`
 - **Symptom:** Even after attaching a supporting document via the upload component on the form, submitting the request fails with the exact same validation error.
 - **Root Cause:** In `LeaveRequestFields.jsx`, `<Upload>` inside `<Form.Item name="documentIds">` sets the field value to an object `{ file, fileList }` on change, overwriting the document UUID array, causing `documentIds` to not be serialized or sent properly to `POST /api/v1/leave/requests`.
-- **Status:** Open.
+- **Fix Applied:**
+  1. Created and exported `normalizeDocumentIds` in `LeaveRequestFields.jsx` to reliably extract document UUID strings from raw strings, Ant Design `{ file, fileList }` wrappers, or file response objects.
+  2. Added `getValueFromEvent={normalizeDocumentIds}` on `<Form.Item name="documentIds">` in `LeaveRequestFields.jsx` so the form field holds `List<UUID>` strings.
+  3. Updated `handleCustomUpload` and `handleFileChange` to maintain the document ID array when files complete upload or are removed.
+  4. Updated `ApplyLeave.jsx` and `RecordLeave.jsx` to sanitize `documentIds: normalizeDocumentIds(values.documentIds)` in the submission payload.
+  5. Added unit test in `ApplyLeave.test.jsx`.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 #### BUG-D5-024 (E-09): Reimbursement Component Dropdown Empty in New Claim Drawer
 - **Found:** 2026-10-14, Certification Stage E-09 (`/me` Claims tab, New Claim drawer)
 - **Error / Issue:** In the "New Claim" drawer, the "Component" select dropdown is completely empty with no data to select. Because `reimbursement_id` is a mandatory field in the schema, the employee cannot submit any expense reimbursement claim.
 - **Expected:** Available reimbursement components (e.g. Internet, Travel, Medical) should be listed and selectable in the dropdown.
-- **Status:** Open.
-
-#### BUG-D5-025 (E-08): Missing FBP (Flexible Benefit Plan) Tab on Employee Portal (/me)
-- **Found:** 2026-10-14, Certification Stage E-08 (`/me`)
-- **Error / Issue:** No FBP or Flexible Benefits tab/panel exists on the Employee Self-Service portal (`/me`). In the implementation, `FbpDeclarationTab` is only mapped as an employee tab on `/employees/:id` (accessible to HR/Payroll administrators), leaving employees with no UI screen to view, allocate, or declare their Meal, Fuel, and flexible allowances.
-- **Expected:** An "FBP" tab should be available on the `/me` portal allowing employees to declare flexible benefits within company plan caps per step E-08.
-- **Status:** Open.
-
-#### BUG-D5-026 (E-08a): Section 6A Item Dropdown Only Offers 80CCD(2) in Tax Declarations
-- **Found:** 2026-10-14, Certification Stage E-08a (`/me` Tax Declaration FY 2026-27, Deductions & 80C panel)
-- **Error / Issue:** When entering Chapter VI-A deductions, the "Item" dropdown only displays a single option: `NPS, employer contribution (80CCD(2))`. Statutory deductions such as Section 80C (PPF, ELSS, Life Insurance) and Section 80D (Health Insurance) do not appear in the dropdown. As a workaround to proceed with testing ₹1,75,000 in declarations, amounts had to be entered under the 80CCD(2) item.
-- **Root Cause / Technical Context:** `Section6AItemReader.activeItems(regime)` filters by `is_allowed_in_new_regime = true` when the declaration is in the New Regime (where 80CCD(2) is the only allowed Section 6A deduction). If the declaration is still in the New Regime, or if switching to Old Regime fails to trigger a cache invalidation / re-fetch of the full statutory catalogue from the server, employees cannot select 80C or 80D items.
-- **Expected:** Under the Old Tax Regime, all 13 active Section 6A deduction categories (80C, 80CCC, 80CCD(1), 80CCD(1B), 80CCD(2), 80D, etc.) should be listed and selectable in the dropdown.
-- **Status:** Open.
+- **Root Cause:**
+  1. The India country template `salary_components` (`V162__country_template_in.sql` and `SalaryComponentTemplateContributor.java`) only seeded earnings and deductions, omitting standard reimbursement components (`INTERNET`, `TRAVEL`, `MEDICAL`, `FOOD`, `FUEL`).
+  2. Setup checklist step `SALARY_COMPONENTS` only checked earnings existence (`existsByTenantIdAndDeletedFalse`), so checklist marked components complete without prompting the admin to configure reimbursements.
+  3. Consequently, deployed tenants (including Infinevo Test Co) had 0 rows in `payroll.reimbursement`, causing `GET /api/v1/me/reimbursement-claims/components` to return empty list `[]`.
+  4. In `ClaimForm.jsx`, if components are empty, the Select showed "No data" with no warning or explanation, while the form allowed clicking submit which resulted in a validation error.
+- **Fix Applied:**
+  1. Created Flyway migration `V175__default_reimbursement_components.sql` to:
+     - Backfill standard reimbursement components (`INTERNET`, `TRAVEL`, `MEDICAL`, `FOOD`, `FUEL`) into `payroll.reimbursement` for all non-platform tenants in `core.tenant`.
+     - Create trigger `tenant_seed_reimbursements` on `core.tenant` AFTER INSERT to automatically seed default reimbursement components for newly created tenants.
+     - Update `reference.country_template`'s `salary_components` section for `IN` to include `"reimbursements": [...]`.
+  2. Updated `SalaryComponentTemplateContributor.java` to inject `ReimbursementRepository` and seed reimbursements from the template payload.
+  3. Updated `ClaimForm.jsx` to display an informative warning Alert when no components are available, disable the Select with a helpful placeholder, and disable the Submit button when `components.length === 0`.
+  4. Added unit test in `ClaimForm.test.jsx`.
+- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
 
 ---
 

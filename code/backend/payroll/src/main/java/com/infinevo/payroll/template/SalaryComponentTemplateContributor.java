@@ -8,6 +8,8 @@ import com.infinevo.payroll.component.DeductionRepository;
 import com.infinevo.payroll.component.Earning;
 import com.infinevo.payroll.component.EarningRepository;
 import com.infinevo.payroll.component.PercentageOf;
+import com.infinevo.payroll.component.Reimbursement;
+import com.infinevo.payroll.component.ReimbursementRepository;
 import com.infinevo.payroll.component.SalaryComponent;
 import com.infinevo.shared.entitlement.PlatformModule;
 import java.math.BigDecimal;
@@ -18,8 +20,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * The {@code salary_components} section of a country template (W-73.9): the common earnings, with their
- * named earning types (D-37), and the common non-statutory deductions. Written only for a tenant with no
- * earning and no deduction of its own; a code the tenant once used and deleted is left alone.
+ * named earning types (D-37), the common non-statutory deductions, and standard reimbursements. Written only
+ * for a tenant with no earning and no deduction of its own; a code the tenant once used and deleted is left alone.
  *
  * <p>Amounts are JSON strings, parsed to {@link BigDecimal}. Every row is active, in CTC and in the salary
  * structure, and shown on the payslip - the component drawer's defaults ({@code componentFields.js}).
@@ -35,11 +37,16 @@ public class SalaryComponentTemplateContributor implements TenantTemplateContrib
 
     private final EarningRepository earningRepository;
     private final DeductionRepository deductionRepository;
+    private final ReimbursementRepository reimbursementRepository;
 
     public SalaryComponentTemplateContributor(
-            EarningRepository earningRepository, DeductionRepository deductionRepository) {
+            EarningRepository earningRepository,
+            DeductionRepository deductionRepository,
+            ReimbursementRepository reimbursementRepository) {
         this.earningRepository = Objects.requireNonNull(earningRepository, "earningRepository must not be null");
         this.deductionRepository = Objects.requireNonNull(deductionRepository, "deductionRepository must not be null");
+        this.reimbursementRepository =
+                Objects.requireNonNull(reimbursementRepository, "reimbursementRepository must not be null");
     }
 
     @Override
@@ -93,6 +100,28 @@ public class SalaryComponentTemplateContributor implements TenantTemplateContrib
             deduction.setPreTax(PRE_TAX.equals(type));
             deduction.setRecurring(row.path("recurring").asBoolean(false));
             deductionRepository.save(deduction);
+            wrote = true;
+        }
+        for (JsonNode row : payload.path("reimbursements")) {
+            if (reimbursementRepository.existsByTenantIdAndCode(
+                    tenantId, row.path("code").asText())) {
+                continue;
+            }
+            Reimbursement reimbursement = new Reimbursement(tenantId, ACTOR);
+            common(reimbursement, row);
+            reimbursement.setReimbursementType(row.path("reimbursement_type").asText("GENERAL"));
+            if (row.hasNonNull("display_name")) {
+                reimbursement.setDisplayName(row.path("display_name").asText());
+            }
+            if (row.hasNonNull("max_limit")) {
+                reimbursement.setMaxLimit(new BigDecimal(row.path("max_limit").asText()));
+            }
+            reimbursement.setIncludedInCtc(row.path("is_included_in_ctc").asBoolean(false));
+            reimbursement.setIncludedInSalaryStructure(
+                    row.path("is_included_in_salary_structure").asBoolean(false));
+            reimbursement.setFbpComponent(row.path("is_fbp_component").asBoolean(false));
+            reimbursement.setOptIn(row.path("is_opt_in").asBoolean(false));
+            reimbursementRepository.save(reimbursement);
             wrote = true;
         }
         return wrote;

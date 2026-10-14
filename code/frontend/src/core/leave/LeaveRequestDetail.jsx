@@ -23,6 +23,7 @@ import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { employeeService } from '../employee/employeeService.js';
 import { approvalService } from '../approvals/approvalService.js';
+import { portalService } from '@shell/portal/portalService.js';
 import { formatDate } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;

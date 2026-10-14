@@ -121,6 +121,21 @@ describe('Welcome (W-73.8)', () => {
     expect(screen.queryByTestId('welcome-card-staff')).toBeNull();
   });
 
+  it('employee: displays department, designation and reporting manager on welcome card when available (E-01)', async () => {
+    me({ roles: ['employee'] });
+    vi.spyOn(portalService, 'getJobSummary').mockResolvedValue({
+      department: 'Engineering',
+      designation: 'Software Engineer',
+      manager: 'Krushna Sonalkar',
+    });
+    renderWelcome('/me');
+    expect(await screen.findByTestId('welcome-employee-job-summary')).toBeDefined();
+    expect(screen.getByText('Engineering')).toBeDefined();
+    expect(screen.getByText('Software Engineer')).toBeDefined();
+    expect(screen.getByText('Krushna Sonalkar')).toBeDefined();
+    expect(screen.getByText('Reporting manager')).toBeDefined();
+  });
+
   it('Go to my home marks the page seen and opens the home path', async () => {
     me({ roles: ['employee'], welcomeSeen: false });
     const mark = vi.spyOn(meModule, 'markWelcomeSeen').mockResolvedValue(undefined);
