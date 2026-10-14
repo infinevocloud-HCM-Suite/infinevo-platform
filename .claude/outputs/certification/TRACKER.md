@@ -46,8 +46,8 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | K-24 | Pass | 2026-10-14 | Act as Isolation Co with reason; banner shown, employees checked, stopped, audit trail verified |
 | K-25 | Pass | 2026-10-14 | HRMS module revoked from Isolation Co; HRMS menu removed |
 | K-26 | Pass | 2026-10-14 | Isolation Co suspended; locked out of module screens |
-| K-11 | Fail | 2026-10-14 | Actor column displays Keycloak UUID instead of user email; logged in Defects |
-| K-12 | Fail | 2026-10-14 | Actor column displays Keycloak UUID instead of user email; logged in Defects |
+| K-11 | Pass | 2026-10-14 | Actor column displays user email ID; audit entries verified with actor, time, and diffs |
+| K-12 | Pass | 2026-10-14 | Actor filter by email verified; displays filtered user actions |
 | K-13 | Ready | | J2 |
 | K-14 | Ready | | |
 | N-01 | Pass | 2026-10-14 | /admin as tenant admin refused (403 / Not Entitled) |
@@ -159,7 +159,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 3 | 2026-10-14 | Krushna | L-01 | HR | /leave/types | In Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form | Policy form should have an input field for past-booking limit days | |
 | 5 | 2026-10-14 | Krushna | L-10 | Manager | /approvals/delegations | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). | Manager role should hold core.approval.delegate to access /approvals/delegations and delegate approval authority during absence. | |
 | 1 | 2026-10-13 | Mohit | S-05 | payroll-officer | /payroll/prior-payroll | Upload prior payroll CSV fails with "Not permitted: requires action 'core.document.upload'" | Role payroll-officer should hold core.document.upload or prior payroll import should allow payroll-officer | |
-| 6 | 2026-10-14 | Karmaveer | K-11, K-12 | Tenant Admin | /audit | Actor column displays Keycloak user ID (UUID) instead of user email ID | Actor column displays user email ID | |
+| 6 | 2026-10-14 | Karmaveer | K-11, K-12 | Tenant Admin | /audit | Actor column displays Keycloak user ID (UUID) instead of user email ID | Actor column displays user email ID | Fixed (`ed707988`) |
 | | 2026-10-14 | Sahmad | E-01 | employee | /welcome, /me | Reporting manager missing on Welcome page and profile | Reporting manager name displayed beside department and designation | BUG-D5-021 |
 | | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | BUG-D5-023 |
 | | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | BUG-D5-024 |
