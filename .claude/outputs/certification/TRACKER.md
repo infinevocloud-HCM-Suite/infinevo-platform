@@ -51,7 +51,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | N-01 | Ready | | |
 | N-02 | Blocked | | |
 
-## Krushna — HR + manager
+## Krushna — HR + manager (`ksonalkarinfinevocloud@ooynib.com`, ITC-0045)
 
 | Id | Status | Date | Note |
 |---|---|---|---|
@@ -61,34 +61,34 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | K-06 | Fail | 2026-10-14 | The HR role has no option to assign roles to employees |
 | K-07 | Pass | 2026-10-14 | |
 | H-01 | Pass | 2026-10-14 | |
-| H-02 | Fail | 2026-10-14 | Missing delete/remove button for uploaded documents |
+| H-02 | Fail | 2026-10-14 | If an incorrect document is uploaded by mistake, there is no 'Delete' or 'Remove' option in the actions menu to remove it. |
 | H-03 | Pass | 2026-10-14 | |
 | H-04 | Pass | 2026-10-14 | |
 | H-05 | Pass | 2026-10-14 | |
 | H-06 | Pass | 2026-10-14 | |
-| L-01 | Fail | 2026-10-14 | Missing past-booking limit input field in Policy Settings |
+| L-01 | Fail | 2026-10-14 | In the Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form. |
 | L-02 | Pass | 2026-10-14 | Saved with manual date 2026-01-01 (known exception D-55) |
 | L-03 | Pass | 2026-10-14 | |
 | L-04 | Pass | 2026-10-14 | |
 | L-05 | Pass | 2026-10-14 | Approved at Level 1 (Manager) |
 | L-06 | Pass | 2026-10-14 | Fully approved at Level 2 (HR) |
 | L-07 | Blocked | 2026-10-14 | Defer: request not visible in inbox (needs E-03a) |
-| L-08 | Blocked | | |
-| L-09 | Blocked | | |
-| L-10 | Blocked | | |
-| L-11 | Exception | | D-43 |
-| Y-01 | Blocked | | |
-| Y-02 | Blocked | | |
-| T-01 | Blocked | | |
-| T-02 | Blocked | | needs E-05 |
-| T-03 | Blocked | | needs E-05a |
-| T-04 | Blocked | | needs E-06 |
-| T-05 | Blocked | | |
-| T-06 | Blocked | | needs E-07 |
-| T-07 | Blocked | | |
-| T-08 | Blocked | | |
-| N-01 | Blocked | | |
-| N-02 | Blocked | | |
+| L-08 | Fail | 2026-10-14 | On /leave/requests, the "Record Leave" button is missing, and accessing /leave/requests/new directly displays "Not Entitled". The HR role is missing the core.leave.manage permission required to record leave on behalf of employees. |
+| L-09 | Blocked | 2026-10-14 | Blocked by L-08 fail (cannot record leave on behalf or approve NH-2 request) |
+| L-10 | Fail | 2026-10-14 | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). |
+| L-11 | Pass | 2026-10-14 | Known exception D-43 behavior noted and documented; record system outcome. |
+| Y-01 | Pass | 2026-10-14 | Saved; default toggle switch is disabled when creating or editing a secondary calendar. |
+| Y-02 | Pass | 2026-10-14 | Lists all October 2026 holidays including the newly added restricted holiday on 31 Oct. |
+| T-01 | Fail | 2026-10-14 | In Attendance Settings (/hrms/attendance-settings), the input field for "Grace period duration" (e.g. grace 10 min) is missing from the form. Only hours calculation, minimum hours, and regularization limits are available. |
+| T-02 | Pass | 2026-10-14 | |
+| T-03 | Pass | 2026-10-14 | Regularisation approved; attendance log times corrected automatically. |
+| T-04 | Pass | 2026-10-14 | Approved; approved overtime is listed in HR overtime summary ready for payroll sync. |
+| T-05 | Pass | 2026-10-14 | Project saved; tasks visible on Sahmad and NH-1's /hrms/my-work dashboard. |
+| T-06 | Pass | 2026-10-14 | Timesheet approved; cumulative logged hours total 40 hours. |
+| T-07 | Pass | 2026-10-14 | Status transitions to REJECTED; NH-1 can view reason and reopen timesheet for editing. |
+| T-08 | Pass | 2026-10-14 | Dashboard metric counts match executed certification activities. |
+| N-01 | Pass | 2026-10-14 | Route not present in menu; application denies access with 403 Forbidden screen. |
+| N-02 | Pass | 2026-10-14 | Access refused with 403 Forbidden screen. |
 
 ## Mohit — payroll officer + finance
 
@@ -157,3 +157,6 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 1 | 2026-10-14 | Krushna | K-06 | HR | /employees/:id | The HR role has no option to assign roles to employees | HR should be able to assign the Manager role to NH-1 | |
 | 2 | 2026-10-14 | Krushna | H-02 | HR | /employees/:id | If an incorrect document is uploaded by mistake, there is no Delete or Remove option in the actions menu to remove it | Uploaded document should have a Delete / Remove option in actions column | |
 | 3 | 2026-10-14 | Krushna | L-01 | HR | /leave/types | In Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form | Policy form should have an input field for past-booking limit days | |
+| 4 | 2026-10-14 | Krushna | L-08 | HR | /leave/requests/new | On /leave/requests, the "Record Leave" button is missing, and accessing /leave/requests/new directly displays "Not Entitled". The HR role is missing the core.leave.manage permission required to record leave on behalf of employees. | HR role should have 'core.leave.manage' permission so the "Record Leave" button is visible and HR can record leave on behalf of employees. | |
+| 5 | 2026-10-14 | Krushna | L-10 | Manager | /approvals/delegations | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). | Manager role should hold core.approval.delegate to access /approvals/delegations and delegate approval authority during absence. | |
+| 6 | 2026-10-14 | Krushna | T-01 | HR | /hrms/attendance-settings | In Attendance Settings (/hrms/attendance-settings), the input field for "Grace period duration" (e.g. grace 10 min) is missing from the form. Only hours calculation, minimum hours, and regularization limits are available. | Attendance Settings form should have an input field to configure grace period duration (e.g. 10 min). | |

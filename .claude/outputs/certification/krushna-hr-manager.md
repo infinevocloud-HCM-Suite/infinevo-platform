@@ -1,4 +1,4 @@
-# Krushna — HR + manager plan (`ksonalkar@infinevocloud.com`, ITC-0042)
+# Krushna — HR + manager plan (`ksonalkarinfinevocloud@ooynib.com`, ITC-0045)
 
 Before you start: P1 is Pass in `TRACKER.md`. You act as HR on all screens and as manager for anyone reporting to you. Record every step in `TRACKER.md`; a Fail gets one row in its Defects section.
 
