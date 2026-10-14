@@ -151,4 +151,33 @@ describe('PolicyForm component', () => {
       );
     });
   });
+
+  it('renders past-booking limit field and submits its value', async () => {
+    leaveTypeService.savePolicy.mockResolvedValueOnce({ success: true });
+    const policyWithPastBooking = {
+      ...dummyLeaveType,
+      policy: {
+        ...dummyLeaveType.policy,
+        pastBookingLimitDays: 15,
+      },
+    };
+
+    render(<PolicyForm leaveType={policyWithPastBooking} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Past-Booking Limit/i)).toBeDefined();
+    });
+
+    const saveButton = screen.getByRole('button', { name: /Save Policy/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(leaveTypeService.savePolicy).toHaveBeenCalledWith(
+        'type-1',
+        expect.objectContaining({
+          pastBookingLimitDays: 15,
+        })
+      );
+    });
+  });
 });
