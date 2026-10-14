@@ -1,5 +1,7 @@
 package com.infinevo.shared.audit;
 
+import com.infinevo.shared.identity.UserAccount;
+import com.infinevo.shared.identity.UserAccountRepository;
 import com.infinevo.shared.tenant.TenantContext;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
@@ -7,10 +9,16 @@ import jakarta.persistence.criteria.Root;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,9 +37,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuditQueryService {
 
     private final AuditLogRepository repository;
+    private final UserAccountRepository userAccounts;
 
     public AuditQueryService(AuditLogRepository repository) {
-        this.repository = repository;
+        this(repository, (UserAccountRepository) null);
+    }
+
+    public AuditQueryService(AuditLogRepository repository, UserAccountRepository userAccounts) {
+        this.repository = Objects.requireNonNull(repository, "repository must not be null");
+        this.userAccounts = userAccounts;
+    }
+
+    @Autowired
+    public AuditQueryService(
+            AuditLogRepository repository, ObjectProvider<UserAccountRepository> userAccountsProvider) {
+        this(repository, userAccountsProvider != null ? userAccountsProvider.getIfAvailable() : null);
     }
 
     /** One audit row as the API returns it. The tenant is implicit and never echoed back. */
@@ -80,7 +100,30 @@ public class AuditQueryService {
             predicates.add(builder.equal(root.get("tenantId"), tenantId));
             equalIfPresent(builder, root, "entityTable", entityTable).ifPresent(predicates::add);
             equalIfPresent(builder, root, "entityId", entityId).ifPresent(predicates::add);
-            equalIfPresent(builder, root, "actorLabel", actor).ifPresent(predicates::add);
+            if (actor != null && !actor.isBlank()) {
+                String trimmedActor = actor.trim();
+                List<Predicate> actorPredicates = new ArrayList<>();
+                actorPredicates.add(builder.equal(root.get("actorLabel"), trimmedActor));
+                try {
+                    UUID actorUuid = UUID.fromString(trimmedActor);
+                    actorPredicates.add(builder.equal(root.get("actorUserId"), actorUuid));
+                } catch (IllegalArgumentException ignored) {
+                }
+                if (userAccounts != null) {
+                    userAccounts
+                            .findByTenantIdAndEmailIgnoreCase(tenantId, trimmedActor)
+                            .ifPresent(acc -> {
+                                if (acc.getKeycloakUserId() != null) {
+                                    actorPredicates.add(
+                                            builder.equal(root.get("actorUserId"), acc.getKeycloakUserId()));
+                                    actorPredicates.add(builder.equal(
+                                            root.get("actorLabel"),
+                                            acc.getKeycloakUserId().toString()));
+                                }
+                            });
+                }
+                predicates.add(builder.or(actorPredicates.toArray(new Predicate[0])));
+            }
             if (from != null) {
                 predicates.add(builder.greaterThanOrEqualTo(root.get("occurredAt"), from));
             }
@@ -89,7 +132,75 @@ public class AuditQueryService {
             }
             return builder.and(predicates.toArray(new Predicate[0]));
         };
-        return repository.findAll(specification, newestFirst(pageable)).map(AuditLogView::of);
+        Page<AuditLog> page = repository.findAll(specification, newestFirst(pageable));
+        return enrich(tenantId, page);
+    }
+
+    private Page<AuditLogView> enrich(UUID tenantId, Page<AuditLog> page) {
+        if (page.isEmpty() || userAccounts == null) {
+            return page.map(AuditLogView::of);
+        }
+        Set<UUID> userIdsToLookup = new HashSet<>();
+        for (AuditLog row : page.getContent()) {
+            if (row.getActorUserId() != null) {
+                userIdsToLookup.add(row.getActorUserId());
+            } else if (isUuid(row.getActorLabel())) {
+                try {
+                    userIdsToLookup.add(UUID.fromString(row.getActorLabel()));
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+        }
+        Map<UUID, String> emailByUserId = new HashMap<>();
+        if (!userIdsToLookup.isEmpty()) {
+            List<UserAccount> accounts = userAccounts.findByTenantIdAndKeycloakUserIdIn(tenantId, userIdsToLookup);
+            for (UserAccount acc : accounts) {
+                if (acc.getKeycloakUserId() != null
+                        && acc.getEmail() != null
+                        && !acc.getEmail().isBlank()) {
+                    emailByUserId.put(acc.getKeycloakUserId(), acc.getEmail());
+                }
+            }
+        }
+        return page.map(row -> {
+            AuditLogView view = AuditLogView.of(row);
+            UUID keycloakId = row.getActorUserId();
+            if (keycloakId == null && isUuid(row.getActorLabel())) {
+                try {
+                    keycloakId = UUID.fromString(row.getActorLabel());
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+            if (keycloakId != null && emailByUserId.containsKey(keycloakId)) {
+                String email = emailByUserId.get(keycloakId);
+                return new AuditLogView(
+                        view.id(),
+                        view.occurredAt(),
+                        view.actorUserId(),
+                        email,
+                        view.operation(),
+                        view.entitySchema(),
+                        view.entityTable(),
+                        view.entityId(),
+                        view.changedColumns(),
+                        view.oldValues(),
+                        view.newValues(),
+                        view.traceId());
+            }
+            return view;
+        });
+    }
+
+    private static boolean isUuid(String value) {
+        if (value == null || value.length() != 36) {
+            return false;
+        }
+        try {
+            UUID.fromString(value);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     /** Newest first unless the caller asked for an order of its own. */

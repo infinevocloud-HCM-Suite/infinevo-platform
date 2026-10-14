@@ -32,6 +32,9 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
      */
     List<UserAccount> findByTenantIdAndKeycloakUserIdIn(UUID tenantId, Collection<UUID> keycloakUserIds);
 
+    /** The profile row for this email in this tenant, case-insensitively. */
+    Optional<UserAccount> findByTenantIdAndEmailIgnoreCase(UUID tenantId, String email);
+
     /**
      * Whether the user dismissed the welcome page (W-73.8); null when there is no such row.
      *
