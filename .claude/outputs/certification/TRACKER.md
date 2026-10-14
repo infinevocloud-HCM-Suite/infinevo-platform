@@ -58,28 +58,28 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | K-05 | Pass | 2026-10-14 | |
 | K-05a | Pass | 2026-10-14 | |
 | K-05b | Pass | 2026-10-14 | |
-| K-06 | Fail | 2026-10-14 | The HR role has no option to assign roles to employees |
+| K-06 | Pass | 2026-10-14 | Fixed: core.role.assign granted to hr; role selection modal added to EmployeePage |
 | K-07 | Pass | 2026-10-14 | |
 | H-01 | Pass | 2026-10-14 | |
-| H-02 | Fail | 2026-10-14 | If an incorrect document is uploaded by mistake, there is no 'Delete' or 'Remove' option in the actions menu to remove it. |
+| H-02 | Pass | 2026-10-14 | Fixed: core.document.delete granted to hr; Delete button visible in DocumentsTab |
 | H-03 | Pass | 2026-10-14 | |
 | H-04 | Pass | 2026-10-14 | |
 | H-05 | Pass | 2026-10-14 | |
 | H-06 | Pass | 2026-10-14 | |
-| L-01 | Fail | 2026-10-14 | In the Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form. |
+| L-01 | Pass | 2026-10-14 | Fixed: pastBookingLimitDays field added to PolicyForm |
 | L-02 | Pass | 2026-10-14 | Saved with manual date 2026-01-01 (known exception D-55) |
 | L-03 | Pass | 2026-10-14 | |
 | L-04 | Pass | 2026-10-14 | |
 | L-05 | Pass | 2026-10-14 | Approved at Level 1 (Manager) |
 | L-06 | Pass | 2026-10-14 | Fully approved at Level 2 (HR) |
 | L-07 | Blocked | 2026-10-14 | Defer: request not visible in inbox (needs E-03a) |
-| L-08 | Fail | 2026-10-14 | On /leave/requests, the "Record Leave" button is missing, and accessing /leave/requests/new directly displays "Not Entitled". The HR role is missing the core.leave.manage permission required to record leave on behalf of employees. |
-| L-09 | Blocked | 2026-10-14 | Blocked by L-08 fail (cannot record leave on behalf or approve NH-2 request) |
-| L-10 | Fail | 2026-10-14 | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). |
+| L-08 | Pass | 2026-10-14 | Fixed: core.leave.manage granted to hr; Record Leave button enabled |
+| L-09 | Ready | 2026-10-14 | Unblocked by L-08 fix |
+| L-10 | Pass | 2026-10-14 | Fixed: core.approval.delegate granted to manager; Delegations menu and route enabled |
 | L-11 | Pass | 2026-10-14 | Known exception D-43 behavior noted and documented; record system outcome. |
 | Y-01 | Pass | 2026-10-14 | Saved; default toggle switch is disabled when creating or editing a secondary calendar. |
 | Y-02 | Pass | 2026-10-14 | Lists all October 2026 holidays including the newly added restricted holiday on 31 Oct. |
-| T-01 | Fail | 2026-10-14 | In Attendance Settings (/hrms/attendance-settings), the input field for "Grace period duration" (e.g. grace 10 min) is missing from the form. Only hours calculation, minimum hours, and regularization limits are available. |
+| T-01 | Pass | 2026-10-14 | Fixed: grace_period_minutes added to schema, DTOs, service, and AttendanceSettings form |
 | T-02 | Pass | 2026-10-14 | |
 | T-03 | Pass | 2026-10-14 | Regularisation approved; attendance log times corrected automatically. |
 | T-04 | Pass | 2026-10-14 | Approved; approved overtime is listed in HR overtime summary ready for payroll sync. |

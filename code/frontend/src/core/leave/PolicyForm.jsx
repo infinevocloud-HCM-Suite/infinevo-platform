@@ -79,6 +79,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         carryForwardExpiresAfterMonths: p.carryForwardExpiresAfterMonths,
         exceedBalanceMode: p.exceedBalanceMode || 'noLimit',
         exceedBalanceLimitDays: p.exceedBalanceLimitDays,
+        pastBookingLimitDays: p.pastBookingLimitDays ?? undefined,
         gender: p.gender || 'ALL',
         departmentIds: deptIds,
         designationIds: desigIds,
@@ -95,6 +96,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         resetFrequency: 'yearly',
         carryForwardEnabled: false,
         exceedBalanceMode: 'noLimit',
+        pastBookingLimitDays: undefined,
         gender: 'ALL',
         departmentIds: [],
         designationIds: [],
@@ -129,6 +131,8 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
           exceedBalanceMode: values.exceedBalanceMode,
           exceedBalanceLimitDays:
             values.exceedBalanceMode === 'yearEndLimit' ? values.exceedBalanceLimitDays : null,
+          pastBookingLimitDays:
+            values.pastBookingLimitDays != null ? values.pastBookingLimitDays : null,
           gender: values.gender && values.gender !== 'ALL' ? values.gender : null,
           eligibility,
         };
@@ -284,6 +288,24 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
             </Form.Item>
           </Col>
         )}
+      </Row>
+
+      <Row gutter={16}>
+        <Col span={12}>
+          <Form.Item
+            name="pastBookingLimitDays"
+            label="Past-Booking Limit (Days)"
+            extra="Maximum days in the past leave can be booked (leave empty for no limit)"
+          >
+            <InputNumber
+              data-testid="past-booking-limit"
+              min={0}
+              max={365}
+              style={{ width: '100%' }}
+              placeholder="e.g. 15"
+            />
+          </Form.Item>
+        </Col>
       </Row>
 
       <Divider />

@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, Popconfirm, Skeleton, theme } from 'antd';
+import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, Popconfirm, Skeleton, theme, Select, Form } from 'antd';
 import {
   ArrowLeftOutlined,
   StopOutlined,
@@ -9,6 +9,7 @@ import {
   CheckCircleOutlined,
   MailOutlined,
   CalendarOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useCan, useModuleEmployeeTabs } from '@shell/screens';
 import { employeeService } from './employeeService.js';
@@ -17,6 +18,8 @@ import { setMasters } from './employeeSlice.js';
 import { employeeTabs } from './employeeTabs.jsx';
 import { TerminateModal } from './TerminateModal.jsx';
 import { employeeInvitationService } from '../invitation/employeeInvitationService.js';
+import { roleService } from '../approvals/roleService.js';
+import { userService } from '../users/userService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { formatDate, statusLabel } from '@shared/ui/format.js';
 
@@ -41,6 +44,7 @@ export function EmployeePage() {
   const canReadOrg = useCan('core.org.read');
   const canInvite = useCan('core.employee.create');
   const canReadDocuments = useCan('core.document.read');
+  const canAssignRoles = useCan('core.role.assign');
   // D-86: the employee's leave and LOP history, mounted beneath /employees.
   const canReadLeave = useCan('core.leave.read');
   // D-66: tabs the modules contribute (Salary, FBP, Tax declaration...), already gated by the shell
@@ -53,6 +57,36 @@ export function EmployeePage() {
   const [employee, setEmployee] = useState(null);
   const [terminateModalOpen, setTerminateModalOpen] = useState(false);
   const [access, setAccess] = useState(null);
+  const [roles, setRoles] = useState([]);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [modalRoleIds, setModalRoleIds] = useState([]);
+  const [submittingRoles, setSubmittingRoles] = useState(false);
+
+  useEffect(() => {
+    if (!canAssignRoles) return;
+    roleService.list().then((res) => {
+      setRoles(Array.isArray(res) ? res : []);
+    }).catch(() => setRoles([]));
+  }, [canAssignRoles]);
+
+  const roleOptions = (roles || [])
+    .filter((r) => r.code !== 'platform-admin' && r.code !== 'employee')
+    .map((r) => ({
+      value: r.id,
+      label: r.name || r.code,
+    }));
+
+  const openRoleModal = () => {
+    if (access?.roles) {
+      const currentRoleIds = access.roles
+        .filter((r) => r.code !== 'platform-admin' && r.code !== 'employee')
+        .map((r) => r.id);
+      setModalRoleIds(currentRoleIds);
+    } else {
+      setModalRoleIds([]);
+    }
+    setRoleModalOpen(true);
+  };
 
   const loadEmployee = useCallback(async () => {
     setLoading(true);
@@ -93,6 +127,29 @@ export function EmployeePage() {
       await loadAccess();
     } catch (err) {
       await errorMsg(err);
+    }
+  };
+
+  const handleAssignRolesSubmit = async () => {
+    setSubmittingRoles(true);
+    try {
+      if (access?.state === 'ACTIVE' && access?.userAccountId) {
+        await userService.setRoles(access.userAccountId, modalRoleIds);
+        await successMsg('Roles updated', 'Employee roles have been updated.');
+      } else {
+        await employeeInvitationService.create({
+          employeeId: employee.id,
+          roleIds: modalRoleIds,
+        });
+        await successMsg('Invitation Sent', 'An invitation with assigned roles went to the work email.');
+      }
+      setRoleModalOpen(false);
+      setModalRoleIds([]);
+      await loadAccess();
+    } catch (err) {
+      await errorMsg(err);
+    } finally {
+      setSubmittingRoles(false);
     }
   };
 
@@ -252,9 +309,16 @@ export function EmployeePage() {
                   <>
                     <Tag id="tag-access">No access</Tag>
                     {canInvite && (
-                      <Button size="small" id="btn-invite-employee" onClick={handleInvite}>
-                        Invite
-                      </Button>
+                      <>
+                        <Button size="small" id="btn-invite-employee" onClick={handleInvite}>
+                          Invite
+                        </Button>
+                        {canAssignRoles && (
+                          <Button size="small" id="btn-invite-with-roles" onClick={openRoleModal}>
+                            Assign Roles & Invite
+                          </Button>
+                        )}
+                      </>
                     )}
                   </>
                 )}
@@ -288,6 +352,11 @@ export function EmployeePage() {
                     {(access.roles || []).map((r) => (
                       <Tag key={r.id}>{r.code}</Tag>
                     ))}
+                    {canAssignRoles && (
+                      <Button size="small" id="btn-assign-roles" onClick={openRoleModal}>
+                        Assign Roles
+                      </Button>
+                    )}
                   </>
                 )}
               </Space>
@@ -310,13 +379,24 @@ export function EmployeePage() {
             )}
 
             {canInvite && employee.status === 'ACTIVE' && (!access || access.state === 'NONE') && (
-              <Button
-                icon={<MailOutlined />}
-                onClick={handleInvite}
-                id="btn-send-employee-invitation"
-              >
-                Send Invitation
-              </Button>
+              <>
+                <Button
+                  icon={<MailOutlined />}
+                  onClick={handleInvite}
+                  id="btn-send-employee-invitation"
+                >
+                  Send Invitation
+                </Button>
+                {canAssignRoles && (
+                  <Button
+                    icon={<SafetyCertificateOutlined />}
+                    onClick={openRoleModal}
+                    id="btn-send-invitation-with-roles"
+                  >
+                    Assign Roles & Invite
+                  </Button>
+                )}
+              </>
             )}
 
             {canInvite && employee.status === 'ACTIVE' && access?.state === 'INVITED' && (
@@ -380,6 +460,38 @@ export function EmployeePage() {
           setTerminateModalOpen(false);
         }}
       />
+
+      <Modal
+        title={access?.state === 'ACTIVE' ? 'Assign Roles' : 'Assign Roles & Invite'}
+        open={roleModalOpen}
+        onCancel={() => setRoleModalOpen(false)}
+        onOk={handleAssignRolesSubmit}
+        confirmLoading={submittingRoles}
+        okText={access?.state === 'ACTIVE' ? 'Save Roles' : 'Send Invitation'}
+        destroyOnClose
+      >
+        <p style={{ marginBottom: 16 }}>
+          {access?.state === 'ACTIVE'
+            ? `Update roles assigned to ${fullName}:`
+            : `Invite ${fullName} (${employee?.workEmail || 'No work email'}) and grant additional roles:`}
+        </p>
+        <Form layout="vertical">
+          <Form.Item
+            label="Roles"
+            extra="The base 'employee' role is always granted upon acceptance. Select any additional roles (such as Manager)."
+          >
+            <Select
+              mode="multiple"
+              id="select-assign-roles"
+              placeholder="Select roles (e.g. Manager)"
+              value={modalRoleIds}
+              onChange={setModalRoleIds}
+              options={roleOptions}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

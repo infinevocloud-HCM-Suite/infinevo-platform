@@ -55,6 +55,9 @@ public class AttendancePreference {
     @Column(name = "allow_regularization_without_session", nullable = false)
     private boolean allowRegularizationWithoutSession = true;
 
+    @Column(name = "grace_period_minutes")
+    private Integer gracePeriodMinutes = 0;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -84,6 +87,26 @@ public class AttendancePreference {
         this.regularizationWindowDays = regularizationWindowDays;
         this.maxRegularizationsPerMonth = maxRegularizationsPerMonth;
         this.allowRegularizationWithoutSession = allowRegularizationWithoutSession;
+    }
+
+    public AttendancePreference(
+            UUID tenantId,
+            HoursCalculation hoursCalculation,
+            BigDecimal fullDayMinimumHours,
+            BigDecimal halfDayMinimumHours,
+            Integer regularizationWindowDays,
+            Integer maxRegularizationsPerMonth,
+            boolean allowRegularizationWithoutSession,
+            Integer gracePeriodMinutes) {
+        this(
+                tenantId,
+                hoursCalculation,
+                fullDayMinimumHours,
+                halfDayMinimumHours,
+                regularizationWindowDays,
+                maxRegularizationsPerMonth,
+                allowRegularizationWithoutSession);
+        this.gracePeriodMinutes = gracePeriodMinutes;
     }
 
     @PrePersist
@@ -173,6 +196,14 @@ public class AttendancePreference {
 
     public void setAllowRegularizationWithoutSession(boolean allowRegularizationWithoutSession) {
         this.allowRegularizationWithoutSession = allowRegularizationWithoutSession;
+    }
+
+    public Integer getGracePeriodMinutes() {
+        return gracePeriodMinutes;
+    }
+
+    public void setGracePeriodMinutes(Integer gracePeriodMinutes) {
+        this.gracePeriodMinutes = gracePeriodMinutes;
     }
 
     public Instant getCreatedAt() {

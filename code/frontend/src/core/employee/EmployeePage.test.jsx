@@ -29,6 +29,21 @@ vi.mock('../invitation/employeeInvitationService.js', () => ({
   },
 }));
 
+vi.mock('../approvals/roleService.js', () => ({
+  roleService: {
+    list: vi.fn().mockResolvedValue([
+      { id: 'role-mgr', code: 'manager', name: 'Manager' },
+      { id: 'role-emp', code: 'employee', name: 'Employee' },
+    ]),
+  },
+}));
+
+vi.mock('../users/userService.js', () => ({
+  userService: {
+    setRoles: vi.fn().mockResolvedValue({}),
+  },
+}));
+
 vi.mock('./orgMasterService.js', () => ({
   orgMasterService: {
     all: vi.fn().mockResolvedValue({ departments: {}, designations: {}, workLocations: {} }),
@@ -234,6 +249,16 @@ describe('EmployeePage component', () => {
         roleIds: [],
       })
     );
+  });
+
+  it('shows Assign Roles & Invite button when holding core.role.assign', async () => {
+    employeeService.get.mockResolvedValueOnce(ACTIVE_EMPLOYEE);
+    renderPage('emp-acc-1');
+
+    await waitFor(() => expect(document.getElementById('btn-invite-with-roles')).not.toBeNull());
+    expect(document.getElementById('btn-send-invitation-with-roles')).not.toBeNull();
+    fireEvent.click(document.getElementById('btn-invite-with-roles'));
+    await waitFor(() => expect(document.getElementById('select-assign-roles')).not.toBeNull());
   });
 
   it('shows Invited with the expiry date and a Resend button', async () => {

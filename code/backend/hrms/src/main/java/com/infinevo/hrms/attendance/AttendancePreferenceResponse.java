@@ -20,6 +20,7 @@ public record AttendancePreferenceResponse(
         Integer regularizationWindowDays,
         Integer maxRegularizationsPerMonth,
         boolean allowRegularizationWithoutSession,
+        Integer gracePeriodMinutes,
         boolean isDefault,
         Instant createdAt,
         Instant updatedAt) {
@@ -28,6 +29,34 @@ public record AttendancePreferenceResponse(
             BigDecimal.valueOf(9.00).setScale(2, RoundingMode.HALF_UP);
     public static final BigDecimal DEFAULT_HALF_DAY_HOURS =
             BigDecimal.valueOf(4.50).setScale(2, RoundingMode.HALF_UP);
+    public static final Integer DEFAULT_GRACE_PERIOD_MINUTES = 0;
+
+    public AttendancePreferenceResponse(
+            UUID id,
+            UUID tenantId,
+            HoursCalculation hoursCalculation,
+            BigDecimal fullDayMinimumHours,
+            BigDecimal halfDayMinimumHours,
+            Integer regularizationWindowDays,
+            Integer maxRegularizationsPerMonth,
+            boolean allowRegularizationWithoutSession,
+            boolean isDefault,
+            Instant createdAt,
+            Instant updatedAt) {
+        this(
+                id,
+                tenantId,
+                hoursCalculation,
+                fullDayMinimumHours,
+                halfDayMinimumHours,
+                regularizationWindowDays,
+                maxRegularizationsPerMonth,
+                allowRegularizationWithoutSession,
+                DEFAULT_GRACE_PERIOD_MINUTES,
+                isDefault,
+                createdAt,
+                updatedAt);
+    }
 
     public static AttendancePreferenceResponse from(AttendancePreference pref) {
         return new AttendancePreferenceResponse(
@@ -43,6 +72,7 @@ public record AttendancePreferenceResponse(
                 pref.getRegularizationWindowDays(),
                 pref.getMaxRegularizationsPerMonth(),
                 pref.isAllowRegularizationWithoutSession(),
+                pref.getGracePeriodMinutes() != null ? pref.getGracePeriodMinutes() : DEFAULT_GRACE_PERIOD_MINUTES,
                 false,
                 pref.getCreatedAt(),
                 pref.getUpdatedAt());
@@ -58,6 +88,7 @@ public record AttendancePreferenceResponse(
                 null,
                 null,
                 true,
+                DEFAULT_GRACE_PERIOD_MINUTES,
                 true,
                 null,
                 null);

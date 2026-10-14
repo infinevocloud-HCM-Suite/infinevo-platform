@@ -76,6 +76,7 @@ public final class HrmsProjectTestSchema {
                         "hrms/V143__timesheet_task_entry.sql",
                         "hrms/V144__timesheet_day_entry.sql",
                         "hrms/V121__attendance_preference.sql",
+                        "hrms/V176__attendance_preference_grace_period.sql",
                         "core/V030__attendance.sql",
                         "core/V033__tenant_locale_columns.sql",
                         "hrms/V123__clock_session.sql",

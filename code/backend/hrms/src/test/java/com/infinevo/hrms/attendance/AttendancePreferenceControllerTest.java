@@ -99,6 +99,38 @@ class AttendancePreferenceControllerTest {
     }
 
     @Test
+    @DisplayName("PUT /api/v1/hrms/attendance/preferences accepts gracePeriodMinutes")
+    void putPreferencesGracePeriodSucceeds() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        AttendancePreferenceRequest request = new AttendancePreferenceRequest(
+                HoursCalculation.FIRST_IN_LAST_OUT, BigDecimal.valueOf(9.00), BigDecimal.valueOf(4.50), 7, 5, true, 10);
+
+        AttendancePreferenceResponse response = new AttendancePreferenceResponse(
+                UUID.randomUUID(),
+                tenantId,
+                HoursCalculation.FIRST_IN_LAST_OUT,
+                BigDecimal.valueOf(9.00),
+                BigDecimal.valueOf(4.50),
+                7,
+                5,
+                true,
+                10,
+                false,
+                null,
+                null);
+
+        when(service.save(any(AttendancePreferenceRequest.class))).thenReturn(response);
+
+        mvc.perform(put("/api/v1/hrms/attendance/preferences")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gracePeriodMinutes").value(10));
+
+        verify(service).save(any(AttendancePreferenceRequest.class));
+    }
+
+    @Test
     @DisplayName("Validation failure in service throws IllegalArgumentException and returns 400 VALIDATION_FAILED")
     void validationErrorReturns400() throws Exception {
         when(service.save(any()))

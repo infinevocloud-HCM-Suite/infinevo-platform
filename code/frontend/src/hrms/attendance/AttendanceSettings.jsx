@@ -16,6 +16,7 @@ export const schema = Yup.object({
     const full = this.parent.fullDayMinimumHours;
     return v === undefined || v === null || full === undefined || full === null || v < full;
   }),
+  gracePeriodMinutes: whole.max(120, 'At most 120 minutes'),
   regularizationWindowDays: whole,
   maxRegularizationsPerMonth: whole,
   allowRegularizationWithoutSession: Yup.boolean(),
@@ -40,6 +41,7 @@ export function AttendanceSettings() {
       hoursCalculation: pref?.hoursCalculation || 'EVERY_SESSION',
       fullDayMinimumHours: pref?.fullDayMinimumHours != null ? Number(pref.fullDayMinimumHours) : 9,
       halfDayMinimumHours: pref?.halfDayMinimumHours != null ? Number(pref.halfDayMinimumHours) : 4.5,
+      gracePeriodMinutes: pref?.gracePeriodMinutes ?? null,
       regularizationWindowDays: pref?.regularizationWindowDays ?? null,
       maxRegularizationsPerMonth: pref?.maxRegularizationsPerMonth ?? null,
       allowRegularizationWithoutSession: pref?.allowRegularizationWithoutSession ?? true,
@@ -53,6 +55,7 @@ export function AttendanceSettings() {
           ...values,
           fullDayMinimumHours: two(values.fullDayMinimumHours),
           halfDayMinimumHours: two(values.halfDayMinimumHours),
+          gracePeriodMinutes: values.gracePeriodMinutes != null ? Number(values.gracePeriodMinutes) : 0,
         });
         setPref(next);
         setSaved(true);
@@ -133,6 +136,17 @@ export function AttendanceSettings() {
             step={0.25}
             value={formik.values.halfDayMinimumHours}
             onChange={setNum('halfDayMinimumHours')}
+          />
+        </Form.Item>
+        <Form.Item {...item('gracePeriodMinutes', 'Grace period duration (minutes)')}>
+          <InputNumber
+            aria-label="Grace period duration"
+            min={0}
+            max={120}
+            precision={0}
+            placeholder="e.g. 10"
+            value={formik.values.gracePeriodMinutes}
+            onChange={setNum('gracePeriodMinutes')}
           />
         </Form.Item>
         <Form.Item {...item('regularizationWindowDays', 'Regularization window (days)')}>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { configure, render, screen, fireEvent } from '@testing-library/react';
+import { configure, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AttendanceSettings } from './AttendanceSettings.jsx';
 import { attendanceService } from './attendanceService.js';
 import { useCan } from '@shell/screens';
@@ -68,6 +68,32 @@ describe('AttendanceSettings (W-48.4 §7)', () => {
       expect(await screen.findByRole('button', { name: /save/i })).toBeTruthy();
       expect(attendanceService.preferences).toHaveBeenCalledTimes(2);
       expect(attendanceService.savePreferences).not.toHaveBeenCalled();
+    },
+    T
+  );
+
+  it(
+    'renders grace period duration and sends it on save',
+    async () => {
+      attendanceService.savePreferences.mockResolvedValueOnce({
+        ...pref,
+        gracePeriodMinutes: 10,
+        isDefault: false,
+      });
+      render(<AttendanceSettings />);
+      expect(await screen.findByText('Using defaults')).toBeTruthy();
+      const grace = screen.getByLabelText('Grace period duration');
+      expect(grace).toBeTruthy();
+      fireEvent.change(grace, { target: { value: '10' } });
+      fireEvent.blur(grace);
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+      await waitFor(() => {
+        expect(attendanceService.savePreferences).toHaveBeenCalledWith(
+          expect.objectContaining({
+            gracePeriodMinutes: 10,
+          })
+        );
+      });
     },
     T
   );

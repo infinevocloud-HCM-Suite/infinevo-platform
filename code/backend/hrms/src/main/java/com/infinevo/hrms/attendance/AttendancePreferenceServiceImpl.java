@@ -44,6 +44,7 @@ public class AttendancePreferenceServiceImpl implements AttendancePreferenceServ
         boolean allowWithoutSession = request.allowRegularizationWithoutSession() != null
                 ? request.allowRegularizationWithoutSession()
                 : true;
+        Integer graceMinutes = request.gracePeriodMinutes() != null ? request.gracePeriodMinutes() : 0;
 
         AttendancePreference preference = repository
                 .findByTenantId(tenantId)
@@ -54,7 +55,8 @@ public class AttendancePreferenceServiceImpl implements AttendancePreferenceServ
                         halfDayHours,
                         request.regularizationWindowDays(),
                         request.maxRegularizationsPerMonth(),
-                        allowWithoutSession));
+                        allowWithoutSession,
+                        graceMinutes));
 
         preference.setHoursCalculation(request.hoursCalculation());
         preference.setFullDayMinimumHours(fullDayHours);
@@ -62,6 +64,7 @@ public class AttendancePreferenceServiceImpl implements AttendancePreferenceServ
         preference.setRegularizationWindowDays(request.regularizationWindowDays());
         preference.setMaxRegularizationsPerMonth(request.maxRegularizationsPerMonth());
         preference.setAllowRegularizationWithoutSession(allowWithoutSession);
+        preference.setGracePeriodMinutes(graceMinutes);
 
         AttendancePreference saved = repository.saveAndFlush(preference);
         return AttendancePreferenceResponse.from(saved);
@@ -99,6 +102,11 @@ public class AttendancePreferenceServiceImpl implements AttendancePreferenceServ
         if (request.maxRegularizationsPerMonth() != null) {
             if (request.maxRegularizationsPerMonth() < 1 || request.maxRegularizationsPerMonth() > 31) {
                 throw new IllegalArgumentException("maxRegularizationsPerMonth must be between 1 and 31 if specified");
+            }
+        }
+        if (request.gracePeriodMinutes() != null) {
+            if (request.gracePeriodMinutes() < 0 || request.gracePeriodMinutes() > 120) {
+                throw new IllegalArgumentException("gracePeriodMinutes must be between 0 and 120 if specified");
             }
         }
     }

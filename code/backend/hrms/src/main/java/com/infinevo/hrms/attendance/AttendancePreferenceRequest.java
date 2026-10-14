@@ -11,6 +11,7 @@ import java.math.BigDecimal;
  * @param regularizationWindowDays window in days within which regularizations can be raised (null = anytime)
  * @param maxRegularizationsPerMonth max regularization requests allowed per month (null = no limit)
  * @param allowRegularizationWithoutSession whether regularization is permitted on days with no recorded sessions
+ * @param gracePeriodMinutes grace period duration in minutes (null = 0)
  */
 public record AttendancePreferenceRequest(
         HoursCalculation hoursCalculation,
@@ -18,4 +19,23 @@ public record AttendancePreferenceRequest(
         BigDecimal halfDayMinimumHours,
         Integer regularizationWindowDays,
         Integer maxRegularizationsPerMonth,
-        Boolean allowRegularizationWithoutSession) {}
+        Boolean allowRegularizationWithoutSession,
+        Integer gracePeriodMinutes) {
+
+    public AttendancePreferenceRequest(
+            HoursCalculation hoursCalculation,
+            BigDecimal fullDayMinimumHours,
+            BigDecimal halfDayMinimumHours,
+            Integer regularizationWindowDays,
+            Integer maxRegularizationsPerMonth,
+            Boolean allowRegularizationWithoutSession) {
+        this(
+                hoursCalculation,
+                fullDayMinimumHours,
+                halfDayMinimumHours,
+                regularizationWindowDays,
+                maxRegularizationsPerMonth,
+                allowRegularizationWithoutSession,
+                null);
+    }
+}

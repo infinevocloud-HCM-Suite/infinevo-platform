@@ -333,6 +333,25 @@ class RoleCatalogueIT {
         }
     }
 
+    @Test
+    void certificationGrants_hrAndManagerHoldRequiredActions() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            List<String> hrActions = strings(
+                    conn,
+                    "SELECT ra.action_code FROM core.role_action ra JOIN core.role r ON r.id = ra.role_id "
+                            + "WHERE r.code = 'hr' AND r.tenant_id = '" + TENANT_A + "' ORDER BY ra.action_code");
+            assertThat(hrActions)
+                    .contains(
+                            "core.role.assign", "core.document.delete", "core.leave.manage", "core.approval.delegate");
+
+            List<String> managerActions = strings(
+                    conn,
+                    "SELECT ra.action_code FROM core.role_action ra JOIN core.role r ON r.id = ra.role_id "
+                            + "WHERE r.code = 'manager' AND r.tenant_id = '" + TENANT_A + "' ORDER BY ra.action_code");
+            assertThat(managerActions).contains("core.approval.delegate");
+        }
+    }
+
     // ── helpers
 
     private static Map<String, Integer> actionsPerSystemRole(Connection conn, UUID tenant) throws SQLException {
