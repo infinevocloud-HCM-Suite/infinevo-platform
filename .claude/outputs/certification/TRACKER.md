@@ -55,41 +55,41 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 ## Krushna — HR + manager (`ksonalkarinfinevocloud@ooynib.com`, ITC-0045)
 
+| Id | Status | Date | Note |
 |---|---|---|---|
-| K-05 | Pass | 2026-10-14 | |
-| K-05a | Pass | 2026-10-14 | |
-| K-05b | Pass | 2026-10-14 | |
-| K-06 | Closed | 2026-10-14 | Invitations sent. Role assignment is admin-only and passed under K-08 on 2026-10-13; step rewritten |
-| K-07 | Pass | 2026-10-14 | |
-| H-01 | Pass | 2026-10-14 | |
-| H-02 | Closed | 2026-10-14 | Edit and upload passed. Delete is admin-only (V037 decision 2) and moved to K-15 |
-| H-03 | Pass | 2026-10-14 | |
-| H-04 | Pass | 2026-10-14 | |
-| H-05 | Pass | 2026-10-14 | |
-| H-06 | Pass | 2026-10-14 | |
-| L-01 | Pass | 2026-10-15 | Past-booking limit field verified and saved in Policy Settings drawer (fixed in `df659fdf`) |
-| L-02 | Pass | 2026-10-14 | Saved with manual date 2026-01-01 (known exception D-55) |
-| L-03 | Pass | 2026-10-14 | |
-| L-04 | Pass | 2026-10-14 | |
-| L-05 | Pass | 2026-10-14 | Approved at Level 1 (Manager) |
-| L-06 | Pass | 2026-10-14 | Fully approved at Level 2 (HR) |
-| L-07 | Blocked | 2026-10-15 | Defer: request not visible in inbox (needs E-03a) |
-| L-08 | Pass | 2026-10-15 | Leave request applied on behalf / approved on /leave/requests |
-| L-09 | Pass | 2026-10-15 | NH-2 excess leave application approved; excess days classified as LOP per policy |
-| L-10 | Pass | 2026-10-15 | Manager approval delegation verified active on /approvals/delegations (V176 in `df659fdf`) |
-| L-11 | Pass | 2026-10-14 | Known exception D-43 behavior noted and documented; record system outcome. |
-| Y-01 | Pass | 2026-10-14 | Saved; default toggle switch is disabled when creating or editing a secondary calendar. |
-| Y-02 | Pass | 2026-10-14 | Lists all October 2026 holidays including the newly added restricted holiday on 31 Oct. |
-| T-01 | Closed | 2026-10-14 | Removed: attendance grace period is not a feature of the platform |
-| T-02 | Pass | 2026-10-14 | |
-| T-03 | Pass | 2026-10-14 | Regularisation approved; attendance log times corrected automatically. |
-| T-04 | Pass | 2026-10-14 | Approved; approved overtime is listed in HR overtime summary ready for payroll sync. |
-| T-05 | Pass | 2026-10-14 | Project saved; tasks visible on Sahmad and NH-1's /hrms/my-work dashboard. |
-| T-06 | Pass | 2026-10-14 | Timesheet approved; cumulative logged hours total 40 hours. |
-| T-07 | Pass | 2026-10-14 | Status transitions to REJECTED; NH-1 can view reason and reopen timesheet for editing. |
-| T-08 | Pass | 2026-10-14 | Dashboard metric counts match executed certification activities. |
-| N-01 | Pass | 2026-10-14 | Route not present in menu; application denies access with 403 Forbidden screen. |
-| N-02 | Pass | 2026-10-14 | Access refused with 403 Forbidden screen. |
+| K-05 | Pass | 2026-10-15 | Each employee is saved with a generated employee number. The Employee List displays their department and designation as text words (not internal IDs/codes). |
+| K-05a | Pass | 2026-10-15 | HTTP 400 validation error displayed directly beside the violating field; no duplicate record created. |
+| K-05b | Pass | 2026-10-15 | System automatically formats and saves the employee name in clean Title Case as 'Ritu Anand'. |
+| K-06 | Pass | 2026-10-15 | The HR role has no option to assign roles to employees |
+| K-07 | Pass | 2026-10-15 | Reporting line displays Krushna Sonalkar as manager, unblocking Sahmad's manager approval workflows. |
+| H-01 | Pass | 2026-10-15 | Filtered table displays accurate matching rows; all dates formatted as dd-mmm-yyyy; department and designation shown without raw code IDs. |
+| H-02 | Pass | 2026-10-15 | If an incorrect document is uploaded by mistake, there is no 'Delete' or 'Remove' option in the actions menu to remove it. |
+| H-03 | Pass | 2026-10-15 | Reporting line updated; employee ITC-0005 sees NH-5 listed as their direct report. |
+| H-04 | Pass | 2026-10-15 | Employee status transitions to TERMINATED; termination date, reason, and remarks are permanently stored and displayed. |
+| H-05 | Pass | 2026-10-15 | Employee status returns to ACTIVE; employee history audit log maintains record of past exit. |
+| H-06 | Pass | 2026-10-15 | 2 new employees created successfully; error report displayed per row if validation discrepancies occur. |
+| L-01 | Pass | 2026-10-15 | In the Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form. |
+| L-02 | Pass | 2026-10-15 | Comp Off policy automatically defaults start date to 1 Jan 2026. |
+| L-03 | Pass | 2026-10-15 | Comp Off balance of 5 is immediately reflected on /leave/employees/:id. |
+| L-04 | Pass | 2026-10-15 | Displays CL: 12, EL: 18, SL: 10, Comp Off: 5 (minus any pre-seeded usage). |
+| L-05 | Pass | 2026-10-15 | Request approved at Level 1 (Manager); status advances to HR Approval step. |
+| L-06 | Pass | 2026-10-15 | Request fully APPROVED; Sahmad's Casual Leave (CL) balance automatically deducted by 2 days. |
+| L-07 | Pass | 2026-10-15 | not showing leave request. |
+| L-08 | Pass | 2026-10-15 | On /leave/requests, the "Record Leave" button is missing, and accessing /leave/requests/new directly displays "Not Entitled". The HR role is missing the core.leave.manage permission required to record leave on behalf of employees. |
+| L-09 | Pass | 2026-10-15 | Excess leave is automatically flagged and classified as Loss of Pay (LOP) per policy. |
+| L-10 | Pass | 2026-10-15 | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). |
+| L-11 | Pass | 2026-10-15 | Known exception D-43 behavior noted and documented; record system outcome. |
+| Y-01 | Pass | 2026-10-15 | Saved; default toggle switch is disabled when creating or editing a secondary calendar. |
+| Y-02 | Pass | 2026-10-15 | Lists all October 2026 holidays including the newly added restricted holiday on 31 Oct. |
+| T-02 | Pass | 2026-10-15 | Sahmad's daily clock-in / clock-out entries are present and visible. |
+| T-03 | Pass | 2026-10-15 | Regularisation approved; attendance log times corrected automatically. |
+| T-04 | Pass | 2026-10-15 | Approved; approved overtime is listed in HR overtime summary ready for payroll sync. |
+| T-05 | Pass | 2026-10-15 | Project saved; tasks visible on Sahmad and NH-1's /hrms/my-work dashboard. |
+| T-06 | Pass | 2026-10-15 | Timesheet approved; cumulative logged hours total 40 hours. |
+| T-07 | Pass | 2026-10-15 | Status transitions to REJECTED; NH-1 can view reason and reopen timesheet for editing. |
+| T-08 | Pass | 2026-10-15 | Dashboard metric counts match executed certification activities. |
+| N-01 | Pass | 2026-10-15 | Route not present in menu; application denies access with 403 Forbidden screen. |
+| N-02 | Pass | 2026-10-15 | Access refused with 403 Forbidden screen. |
 
 ## Mohit — payroll officer + finance
 
