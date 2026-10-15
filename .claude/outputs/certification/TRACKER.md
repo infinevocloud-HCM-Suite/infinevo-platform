@@ -118,7 +118,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | M-15 | Fail | 2026-10-15 | Saving off-cycle pay inputs fails with "Not permitted: requires action 'core.pay_input.write'" (Defect #8) |
 | M-16 | Pass | 2026-10-14 | PAID run verified immutable; edit, compute, and cancel actions strictly disabled |
 | R-01 | Pass | 2026-10-15 | Total gross (₹40,92,720.00), deductions (₹12,280.00), net pay (₹40,80,440.00), included (49) & skipped (6) match pay run |
-| R-02 | Blocked | | |
+| R-02 | Fail | 2026-10-15 | Form 16 screen not mounted in frontend; no UI to generate statement or upload Part A ZIP (Defect #10) |
 | R-03 | Fail | 2026-10-14 | Signed payslip email link (/public/payslips?t=...) returns 404; route not mounted in frontend (Defect #7) |
 | R-04 | Fail | 2026-10-15 | Export to Excel / XLSX button missing from UI and backend lacks pay run export endpoint (Defect #9) |
 | N-01 | Pass | 2026-10-14 | Unentitled URLs (/leave/types) refused with 404 |
@@ -166,3 +166,4 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 7 | 2026-10-14 | Mohit | R-03 | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | |
 | 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | |
 | 9 | 2026-10-15 | Mohit | R-04 | payroll-officer | /payroll/runs/:id | Pay run detail screen has no "Export to Excel" / XLSX button and backend lacks export endpoint | Export to Excel / XLSX button provided on pay run page to download pay run line totals | |
+| 10 | 2026-10-15 | Mohit | R-02 | payroll-officer | /payroll/tax/form-16 | Form 16 screen not mounted in frontend (W-47 unbuilt); no UI available to generate Form 16 statement or upload Part A ZIP | UI screen provided to view/generate Form 16 statement and upload Part A TRACES ZIP | |
