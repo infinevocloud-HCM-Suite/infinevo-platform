@@ -1,5 +1,7 @@
 package com.infinevo.payroll.payrun;
 
+import com.infinevo.core.report.ReportColumn;
+import com.infinevo.core.report.XlsxStreamingWriter;
 import com.infinevo.payroll.payslip.PayRunPaymentRequest;
 import com.infinevo.payroll.schedule.NoPayScheduleException;
 import com.infinevo.shared.authz.RequiresAction;
@@ -8,15 +10,23 @@ import com.infinevo.shared.entitlement.RequiresModule;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.slf4j.MDC;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -88,6 +98,61 @@ public class PayRunController {
                 PageRequest.of(Math.max(0, page), clampSize(size), Sort.by(Sort.Direction.ASC, "createdAt", "id"));
         return ResponseEntity.ok(PayRunApiResponse.ok(
                 "Pay run employees retrieved successfully", payRunService.employees(id, inclusion, pageable)));
+    }
+
+    @GetMapping("/{id}/export")
+    @RequiresAction("payroll.run.read")
+    public ResponseEntity<byte[]> export(@PathVariable("id") UUID id) throws IOException {
+        PayRunResponse run = payRunService.get(id);
+        Page<EmployeePayRunResponse> employees = payRunService.employees(id, null, PageRequest.of(0, 5000));
+
+        List<ReportColumn> columns = List.of(
+                ReportColumn.text("employee_number", "Employee Number"),
+                ReportColumn.text("employee_name", "Employee Name"),
+                ReportColumn.text("inclusion_status", "Inclusion Status"),
+                ReportColumn.text("skip_reason", "Skip Reason"),
+                ReportColumn.text("paid_days", "Paid Days"),
+                ReportColumn.text("lop_days", "LOP Days"),
+                ReportColumn.text("gross_earnings", "Gross Earnings"),
+                ReportColumn.text("total_deductions", "Total Deductions"),
+                ReportColumn.text("total_reimbursements", "Total Reimbursements"),
+                ReportColumn.text("net_pay", "Net Pay"));
+
+        Stream<Map<String, Object>> rows = employees.getContent().stream().map(emp -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("employee_number", emp.employeeNumber() != null ? emp.employeeNumber() : "");
+            map.put("employee_name", emp.employeeName() != null ? emp.employeeName() : "");
+            map.put(
+                    "inclusion_status",
+                    emp.inclusionStatus() != null ? emp.inclusionStatus().name() : "");
+            map.put("skip_reason", emp.skipReason() != null ? emp.skipReason().name() : "");
+            map.put("paid_days", emp.paidDays() != null ? emp.paidDays().toPlainString() : "0");
+            map.put("lop_days", emp.lopDays() != null ? emp.lopDays().toPlainString() : "0");
+            map.put(
+                    "gross_earnings",
+                    emp.grossEarnings() != null ? emp.grossEarnings().toPlainString() : "0.00");
+            map.put(
+                    "total_deductions",
+                    emp.totalDeductions() != null ? emp.totalDeductions().toPlainString() : "0.00");
+            map.put(
+                    "total_reimbursements",
+                    emp.totalReimbursements() != null
+                            ? emp.totalReimbursements().toPlainString()
+                            : "0.00");
+            map.put("net_pay", emp.netPay() != null ? emp.netPay().toPlainString() : "0.00");
+            return map;
+        });
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        new XlsxStreamingWriter().write(columns, rows, baos);
+
+        String filename = "payrun-" + run.period() + ".xlsx";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                .contentType(
+                        MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(baos.toByteArray());
     }
 
     @PostMapping("/{id}/lock")

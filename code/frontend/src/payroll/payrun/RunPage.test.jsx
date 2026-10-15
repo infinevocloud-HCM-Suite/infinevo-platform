@@ -23,6 +23,7 @@ vi.mock('./payrunService.js', () => ({
     cancel: vi.fn(),
     approve: vi.fn(),
     pay: vi.fn(),
+    export: vi.fn().mockResolvedValue(new Blob(['fake-excel-content'])),
     employees: vi.fn().mockResolvedValue({ content: [], totalElements: 0 }),
     employeeNames: vi.fn().mockResolvedValue(new Map()),
     lines: vi.fn().mockResolvedValue({ lines: [] }),
@@ -375,6 +376,29 @@ describe('RunPage for a finance login (D-82)', () => {
     expect(payrunService.employeeNames).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /lock/i }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByRole('button', { name: /cancel/i }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('triggers pay run excel export on clicking Export to Excel button', async () => {
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-1',
+      period: '2026-10',
+      status: 'COMPUTED',
+      gross_earnings: 100000,
+      total_deductions: 5000,
+      net_pay: 95000,
+    });
+    payrunService.export.mockResolvedValueOnce(new Blob(['fake-excel-content']));
+
+    renderAt('run-1');
+
+    const exportBtn = await screen.findByTestId('export-payrun-button');
+    expect(exportBtn).toBeDefined();
+
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(payrunService.export).toHaveBeenCalledWith('run-1');
+    });
   });
 
   const renderAt = (runId) =>

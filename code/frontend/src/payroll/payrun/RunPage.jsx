@@ -28,6 +28,7 @@ import {
   ReloadOutlined,
   CheckCircleOutlined,
   DollarOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
@@ -98,6 +99,7 @@ export function RunPage() {
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [paidOn, setPaidOn] = useState(null);
   const [payNotice, setPayNotice] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
   // The error of the last read, kept whole so a 404 can be told from every other failure (D-83).
   const [loadError, setLoadError] = useState(null);
 
@@ -152,6 +154,25 @@ export function RunPage() {
       return null;
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      setExportLoading(true);
+      const blob = await payrunService.export(id);
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `payrun-${run?.period || 'export'}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setActionError(err?.message || 'Failed to export pay run');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -369,6 +390,15 @@ export function RunPage() {
               Cancel
             </Button>
           </Popconfirm>
+
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exportLoading}
+            onClick={handleExport}
+            data-testid="export-payrun-button"
+          >
+            Export to Excel
+          </Button>
         </Space>
       </div>
 

@@ -56,6 +56,18 @@ export const payrunService = {
   },
 
   /**
+   * Export pay run employee lines as an XLSX file (R-04).
+   * @param {string} id Payrun ID
+   * @returns {Promise<Blob>}
+   */
+  async export(id) {
+    const res = await apiClient.get(`${BASE_PATH}/${id}/export`, {
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
+  /**
    * List employees considered in this run, paged with optional inclusion filter.
    */
   async employees(id, params = {}) {
