@@ -31,7 +31,7 @@ vi.mock('@shell/AppShell', () => ({
 
 vi.mock('@core', () => ({
   publicRoutes: [
-    { path: '/invitations/accept', element: <div data-testid="public-page">Public Page</div> },
+    { path: '/invitations/accept', element: null },
   ],
 }));
 
