@@ -28,7 +28,7 @@ Before you start: P1 is Pass in `TRACKER.md` and the seeded October pay run is d
 |---|---|---|---|
 | P-01 | pay inputs | Add Shift Allowance 3,000 for Sahmad, Oct, tagged to the run | Listed, status pending run |
 | P-02 | `/payroll/deductions` | Ad-hoc deduction 500 for Sahmad, Oct | Listed |
-| P-03 | `/payroll/claims` as finance | Approve Sahmad's Internet 1,500 claim (after E-09); reject NH-1's test claim with a reason | Approved claim queued to the Oct run; rejected one shows the reason to the employee |
+| P-03 | `/payroll/claims` as finance / tenant-admin | Approve Sahmad's Internet 1,500 claim (after E-09); reject NH-1's test claim with a reason | Approved claim queued to the Oct run; rejected one shows the reason to the employee (routes to tenant-admin per V089/V145 seed) |
 | P-04 | `/employees/:id/tax-declaration/2026-27` | View Sahmad's declaration (after E-08a) | Old regime, 80C 1,50,000, HRA, 80D visible; read-only to you |
 
 ## Pay run October 2026 — J1, wait for Krushna's handoff

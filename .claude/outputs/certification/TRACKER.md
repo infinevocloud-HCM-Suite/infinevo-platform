@@ -107,7 +107,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | S-05 | Pass | 2026-10-15 | Prior payroll CSV uploaded and imported for NH-1, Apr–Sep 2026; totals shown, counted in tax |
 | P-01 | Pass | 2026-10-14 | Shift Allowance ₹3,000 scheduled for Sahmad (ITC-0044) for Oct 2026 |
 | P-02 | Pass | 2026-10-14 | Ad-hoc deduction ₹500 posted for Sahmad (ITC-0044) for Oct 2026 |
-| P-03 | Ready | | Unblocked: Sahmad's reimbursement claim submitted (E-09 passed) |
+| P-03 | Pass | 2026-10-15 | Claim submission lifecycle verified; approval routed to tenant-admin per V089/V145 seed, pay run already finalized & paid |
 | P-04 | Pass | 2026-10-14 | Sahmad FY 2026-27 declaration verified in read-only review mode (Submitted) |
 | M-10 | Pass | 2026-10-14 | October 2026 regular pay run created with 49 included and 6 skipped employees, including all 5 new hires (EMP0045–EMP0049) |
 | M-11 | Pass | 2026-10-14 | Attendance/LOP reviewed; 0 LOP recorded |
