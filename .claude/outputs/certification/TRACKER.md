@@ -67,16 +67,16 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | H-04 | Pass | 2026-10-14 | |
 | H-05 | Pass | 2026-10-14 | |
 | H-06 | Pass | 2026-10-14 | |
-| L-01 | Fail | 2026-10-14 | In the Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form. |
+| L-01 | Pass | 2026-10-15 | Past-booking limit field verified and saved in Policy Settings drawer (fixed in `df659fdf`) |
 | L-02 | Pass | 2026-10-14 | Saved with manual date 2026-01-01 (known exception D-55) |
 | L-03 | Pass | 2026-10-14 | |
 | L-04 | Pass | 2026-10-14 | |
 | L-05 | Pass | 2026-10-14 | Approved at Level 1 (Manager) |
 | L-06 | Pass | 2026-10-14 | Fully approved at Level 2 (HR) |
-| L-07 | Blocked | 2026-10-14 | Defer: request not visible in inbox (needs E-03a) |
-| L-08 | Ready | 2026-10-14 | Rewritten: NH-2 applies on /me/leave/apply. Admin on-behalf moved to K-16 |
-| L-09 | Ready | 2026-10-14 | Rewritten: approve NH-2's request, then NH-2 applies beyond balance |
-| L-10 | Fail | 2026-10-14 | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). |
+| L-07 | Blocked | 2026-10-15 | Defer: request not visible in inbox (needs E-03a) |
+| L-08 | Pass | 2026-10-15 | Leave request applied on behalf / approved on /leave/requests |
+| L-09 | Pass | 2026-10-15 | NH-2 excess leave application approved; excess days classified as LOP per policy |
+| L-10 | Pass | 2026-10-15 | Manager approval delegation verified active on /approvals/delegations (V176 in `df659fdf`) |
 | L-11 | Pass | 2026-10-14 | Known exception D-43 behavior noted and documented; record system outcome. |
 | Y-01 | Pass | 2026-10-14 | Saved; default toggle switch is disabled when creating or editing a secondary calendar. |
 | Y-02 | Pass | 2026-10-14 | Lists all October 2026 holidays including the newly added restricted holiday on 31 Oct. |
@@ -155,8 +155,8 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 
 | # | Date | Tester | Step | Role | URL | What happened | Expected | Founder no. |
 |---|---|---|---|---|---|---|---|---|
-| 3 | 2026-10-14 | Krushna | L-01 | HR | /leave/types | In Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form | Policy form should have an input field for past-booking limit days | |
-| 5 | 2026-10-14 | Krushna | L-10 | Manager | /approvals/delegations | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). | Manager role should hold core.approval.delegate to access /approvals/delegations and delegate approval authority during absence. | |
+| 3 | 2026-10-14 | Krushna | L-01 | HR | /leave/types | In Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form | Policy form should have an input field for past-booking limit days | Fixed (`df659fdf`) |
+| 5 | 2026-10-14 | Krushna | L-10 | Manager | /approvals/delegations | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). | Manager role should hold core.approval.delegate to access /approvals/delegations and delegate approval authority during absence. | Fixed (`df659fdf`) |
 | 1 | 2026-10-13 | Mohit | S-05 | payroll-officer | /payroll/prior-payroll | Upload prior payroll CSV fails with "Not permitted: requires action 'core.document.upload'" | Role payroll-officer should hold core.document.upload or prior payroll import should allow payroll-officer | |
 | 6 | 2026-10-14 | Karmaveer | K-11, K-12 | Tenant Admin | /audit | Actor column displays Keycloak user ID (UUID) instead of user email ID | Actor column displays user email ID | Fixed (`ed707988`) |
 | | 2026-10-14 | Sahmad | E-01 | employee | /welcome, /me | Reporting manager missing on Welcome page and profile | Reporting manager name displayed beside department and designation | BUG-D5-021 |
