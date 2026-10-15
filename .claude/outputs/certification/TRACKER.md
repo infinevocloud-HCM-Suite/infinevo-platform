@@ -146,7 +146,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | E-09 | Pass | 2026-10-15 | Reimbursement claim submitted successfully with component selected and receipt attached |
 | E-10 | Pass | 2026-10-15 | Oct 2026 payslip verified on /me/payslips: Gross ₹82,720.00, PF ₹5,280.00, PT ₹200.00, Net ₹77,240.00 exact match |
 | E-10a | Pass | 2026-10-15 | Unauthenticated signed payslip email link (/public/payslips?t=...) mounted and verified; renders Oct payslip with download/print without sign-in |
-| E-11 | Pass | 2026-10-15 | Form 16 self-service panel mounted on /me/taxDeclaration?tab=form-16 with TDS overview, TRACES Part A PDF download, and annual statement view (Defect #10 fixed, 04e8e9d8) |
+| E-11 | Ready | 2026-10-15 | Ready for re-test: Form 16 self-service panel mounted on /me/taxDeclaration?tab=form-16 (Defect #10 fixed on main, 04e8e9d8) |
 | N-01 | Pass | 2026-10-14 | All admin/staff URLs (/employees, /leave/requests, /payroll/runs, /admin) refused with 404 (routes unmounted) |
 | N-02 | Pass | 2026-10-14 | Direct colleague profile URL (/employees/<id>) refused with 404 |
 | N-03 | Pass | 2026-10-14 | Access to non-owned leave request refused with 404 |
