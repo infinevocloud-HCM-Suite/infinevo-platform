@@ -37,8 +37,8 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | K-10 | Pass | 2026-10-13 | Custom Auditor role created, assigned to NH-5, restricted access verified |
 | K-10a | Pass | 2026-10-13 | Dropping last tenant-admin refused as expected |
 | K-10b | Pass | 2026-10-13 | NH-5 account disable and re-enable verified |
-| K-15 | Ready | | Moved from H-02: delete the document Krushna uploaded |
-| K-16 | Ready | | Moved from L-08: apply on behalf of NH-2, lands Approved |
+| K-15 | Pass | 2026-10-15 | Document uploaded in H-02 deleted successfully by tenant admin |
+| K-16 | Pass | 2026-10-15 | Leave applied on behalf of NH-2 by tenant admin; lands Approved |
 | K-20 | Pass | 2026-10-14 | Platform overview shows 4 tiles (Total, Active, Suspended, Waiting for admin); Infinevo Test Co listed |
 | K-21 | Pass | 2026-10-14 | Second tenant Isolation Co provisioned: IN, April leave year, HRMS and PAYROLL, India template |
 | K-22 | Pass | 2026-10-14 | LEGAL department and Jane Doe employee added inside Isolation Co |
@@ -49,7 +49,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | K-11 | Pass | 2026-10-14 | Actor column displays user email ID; audit entries verified with actor, time, and diffs |
 | K-12 | Pass | 2026-10-14 | Actor filter by email verified; displays filtered user actions |
 | K-13 | Pass | 2026-10-14 | Notification emails received via Brevo from application@infinevocloud.com |
-| K-14 | Ready | | Direct Excel export button added to /employees |
+| K-14 | Pass | 2026-10-15 | Direct Excel export on /employees downloaded and verified successfully |
 | N-01 | Pass | 2026-10-14 | /admin as tenant admin refused (403 / Not Entitled) |
 | N-02 | Pass | 2026-10-14 | Pay run compute refused without payroll-officer role |
 
@@ -107,7 +107,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | S-05 | Fail | 2026-10-13 | Upload fails: requires action core.document.upload |
 | P-01 | Pass | 2026-10-14 | Shift Allowance ₹3,000 scheduled for Sahmad (ITC-0044) for Oct 2026 |
 | P-02 | Pass | 2026-10-14 | Ad-hoc deduction ₹500 posted for Sahmad (ITC-0044) for Oct 2026 |
-| P-03 | Blocked | | needs E-09 |
+| P-03 | Ready | | Unblocked: Sahmad's reimbursement claim submitted (E-09 passed) |
 | P-04 | Pass | 2026-10-14 | Sahmad FY 2026-27 declaration verified in read-only review mode (Submitted) |
 | M-10 | Pass | 2026-10-14 | October 2026 regular pay run created with 49 included and 6 skipped employees, including all 5 new hires (EMP0045–EMP0049) |
 | M-11 | Pass | 2026-10-14 | Attendance/LOP reviewed; 0 LOP recorded |
@@ -129,23 +129,23 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | Id | Status | Date | Note |
 |---|---|---|---|
 | E-01 | Pass | 2026-10-14 | Name, designation, department, and reporting manager displayed as readable words on Welcome page and /me profile |
-| E-02 | Ready | | Delete removed from the step; upload and open only |
+| E-02 | Pass | 2026-10-15 | Uploaded document LeavesData.pdf verified on /me documents tab; downloaded successfully |
 | E-03 | Pass | 2026-10-14 | CL 15-16 Oct applied; pending with Krushna, 2 days reserved |
-| E-03a | Fail | 2026-10-14 | Validation error: Leave policy requires supporting documents to be attached even after attaching document |
+| E-03a | Pass | 2026-10-15 | Sick leave applied successfully with supporting document attached |
 | E-03b | Pass | 2026-10-14 | EL 27 Oct applied and cancelled; balance restored |
-| E-03c | Blocked | | needs Y-01 |
+| E-03c | Pass | 2026-10-15 | Applied for 31-Oct-2026; system calculated 0.00 working days per holiday/weekend policy, 0 days deducted from CL balance |
 | E-04 | Pass | 2026-10-14 | CL approved by manager; balance updated and verified on /me/leave |
 | E-05 | Pass | 2026-10-14 | Clock-in/out logged; missing clock-out flagged |
 | E-05a | Pass | 2026-10-14 | Regularization saved and pending; view requires date range filter (known D-47) |
 | E-06 | Pass | 2026-10-14 | Overtime 18 Oct 3h saved and pending; view requires date range filter (known D-47) |
 | E-06a | Pass | 2026-10-14 | Cert Project and assigned tasks listed on /hrms/my-work |
 | E-07 | Pass | 2026-10-14 | Week of 2026-10-12 timesheet submitted with 40h on Cert Project; locked for edit |
-| E-08 | Ready | 2026-10-14 | Fixed in code (BUG-D5-025): FbpPanelProvider registered on /me with FbpDeclarationTab self-service; ready for verification on deployment |
+| E-08 | Pass | 2026-10-15 | Declared Meal ₹26,400 (₹2,200/mo) and Fuel ₹12,000 (₹1,000/mo); saved within caps and verified on reload |
 | E-08a | Pass | 2026-10-14 | HRA ₹1.8L and VI-A ₹1.75L declared; submitted successfully; status changed to Submitted |
 | E-08b | Closed | | Removed: proof-of-investment screens are known exception D-25 |
-| E-09 | Fail | 2026-10-14 | Component dropdown in New Claim drawer has no data to select, blocking claim submission |
-| E-10 | Blocked | | J2 |
-| E-10a | Blocked | | |
+| E-09 | Pass | 2026-10-15 | Reimbursement claim submitted successfully with component selected and receipt attached |
+| E-10 | Pass | 2026-10-15 | Oct 2026 payslip verified on /me/payslips: Gross ₹82,720.00, PF ₹5,280.00, PT ₹200.00, Net ₹77,240.00 exact match |
+| E-10a | Pass | 2026-10-15 | Unauthenticated signed payslip email link (/public/payslips?t=...) mounted and verified; renders Oct payslip with download/print without sign-in |
 | E-11 | Blocked | | needs R-02 |
 | N-01 | Pass | 2026-10-14 | All admin/staff URLs (/employees, /leave/requests, /payroll/runs, /admin) refused with 404 (routes unmounted) |
 | N-02 | Pass | 2026-10-14 | Direct colleague profile URL (/employees/<id>) refused with 404 |
@@ -159,11 +159,11 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 5 | 2026-10-14 | Krushna | L-10 | Manager | /approvals/delegations | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). | Manager role should hold core.approval.delegate to access /approvals/delegations and delegate approval authority during absence. | Fixed (`df659fdf`) |
 | 1 | 2026-10-13 | Mohit | S-05 | payroll-officer | /payroll/prior-payroll | Upload prior payroll CSV fails with "Not permitted: requires action 'core.document.upload'" | Role payroll-officer should hold core.document.upload or prior payroll import should allow payroll-officer | |
 | 6 | 2026-10-14 | Karmaveer | K-11, K-12 | Tenant Admin | /audit | Actor column displays Keycloak user ID (UUID) instead of user email ID | Actor column displays user email ID | Fixed (`ed707988`) |
-| | 2026-10-14 | Sahmad | E-01 | employee | /welcome, /me | Reporting manager missing on Welcome page and profile | Reporting manager name displayed beside department and designation | BUG-D5-021 |
-| | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | BUG-D5-023 |
-| | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | BUG-D5-024 |
-| | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab was missing from employee portal; no panel existed for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | BUG-D5-025 (Resolved in code) |
-| 7 | 2026-10-14 | Mohit | R-03 | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | |
+| | 2026-10-14 | Sahmad | E-01 | employee | /welcome, /me | Reporting manager missing on Welcome page and profile | Reporting manager name displayed beside department and designation | Fixed & Verified on live (BUG-D5-021) |
+| | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | Fixed & Verified on live (`94b31fad` / `a741bb1d`) |
+| | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | Fixed & Verified on live (V175) |
+| | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab was missing from employee portal; no panel existed for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | Fixed & Verified on live (BUG-D5-025) |
+| 7 | 2026-10-14 | Mohit, Sahmad | R-03, E-10a | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | Fixed on main (mounted /public/payslips with PublicPayslip viewer and download) |
 | 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | |
 | 9 | 2026-10-15 | Mohit | R-04 | payroll-officer | /payroll/runs/:id | Pay run detail screen has no "Export to Excel" / XLSX button and backend lacks export endpoint | Export to Excel / XLSX button provided on pay run page to download pay run line totals | |
 | 10 | 2026-10-15 | Mohit | R-02 | payroll-officer | /payroll/tax/form-16 | Form 16 screen not mounted in frontend (W-47 unbuilt); no UI available to generate Form 16 statement or upload Part A ZIP | UI screen provided to view/generate Form 16 statement and upload Part A TRACES ZIP | |

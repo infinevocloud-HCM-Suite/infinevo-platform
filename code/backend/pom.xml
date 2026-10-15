@@ -78,6 +78,7 @@
     <postgresql.version>42.7.12</postgresql.version>
     <netty.version>4.1.137.Final</netty.version>
     <jackson-bom.version>2.21.7</jackson-bom.version>
+    <commons-compress.version>1.28.0</commons-compress.version>
   </properties>
 
   <dependencyManagement>
@@ -104,11 +105,22 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
-      <!-- W-23.1: Excel export -->
+      <!-- W-23.1: Excel export & matching commons-compress (fixes NoSuchMethodError on ZipArchiveOutputStream) -->
       <dependency>
         <groupId>org.apache.poi</groupId>
         <artifactId>poi-ooxml</artifactId>
         <version>${poi.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math3</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-compress</artifactId>
+        <version>${commons-compress.version}</version>
       </dependency>
       <!-- W-52: ShedLock -->
       <dependency>

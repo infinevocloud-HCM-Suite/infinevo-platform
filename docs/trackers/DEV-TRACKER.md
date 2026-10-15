@@ -411,7 +411,7 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
   2. In `MyProfile.jsx`: Added `Reporting manager` to the "Job" `Descriptions` block beside `Department` and `Designation`, gracefully displaying `—` if unassigned or refused without throwing.
   3. In `Welcome.jsx`: Added job summary block (`Descriptions`) in `EmployeeCard` rendering `Department`, `Designation`, and `Reporting manager` words.
   4. Expanded unit tests in `MyProfile.test.jsx` and `Welcome.test.jsx`.
-- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
+- **Status:** **Verified & Passed on live server (2026-10-15)**: Reporting manager displayed on Welcome page and /me profile.
 
 #### BUG-D5-023 (E-03a): Leave Application Throws Attachment Validation Error Despite Attaching Document
 - **Found:** 2026-10-14, Certification Stage E-03a (`/me/leave/apply`, applying Sick Leave SL on 2026-10-20)
@@ -434,7 +434,7 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
      - Added form validation rule on `documentIds` to block submission while an upload is in progress (`status: 'uploading'`) or has failed (`status: 'error'`).
      - Maintained `normalizeDocumentIds` and form value synchronization.
   4. Ran full test suites: `DocumentGuardIT` (12/12 passed), `DocumentUploadIT` (5/5 passed), `EndpointGuardCoverageTest` (1/1 passed), and `ApplyLeave.test.jsx` (8/8 passed).
-- **Status:** **Resolved in `dev-sayeed`**.
+- **Status:** **Verified & Passed on live server (2026-10-15)**: Sick leave applied successfully with supporting document attached.
 
 #### BUG-D5-024 (E-09): Reimbursement Component Dropdown Empty in New Claim Drawer
 - **Found:** 2026-10-14, Certification Stage E-09 (`/me` Claims tab, New Claim drawer)
@@ -453,7 +453,7 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
   2. Updated `SalaryComponentTemplateContributor.java` to inject `ReimbursementRepository` and seed reimbursements from the template payload.
   3. Updated `ClaimForm.jsx` to display an informative warning Alert when no components are available, disable the Select with a helpful placeholder, and disable the Submit button when `components.length === 0`.
   4. Added unit test in `ClaimForm.test.jsx`.
-- **Status:** **Resolved locally in `dev-sayeed`** (`91f0cf98`).
+- **Status:** **Verified & Passed on live server (2026-10-15)**: Reimbursement components dropdown populated via V175 migration, claim submitted successfully with receipt attached.
 
 #### BUG-D5-025 (E-08): Missing FBP (Flexible Benefit Plan) Tab on Employee Portal (/me)
 - **Found:** 2026-10-14, Certification Stage E-08 (`/me`)
@@ -467,7 +467,7 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
   5. **Window Closed & Self-Service Form Handling**: Updated `FbpDeclarationForm.jsx` to fetch via `readOwn()` and save via `declareOwn()`, display a warning Alert and disable editing/saving when `windowOpen === false`, hide admin date picker in self-service mode, and show monthly equivalent amounts (`≈ ₹X / mo`) beside annual inputs.
   6. **Shell & Portal Registration**: Registered `{ code: 'fbp', component: FbpDeclarationTab }` under `portalPanels` in `code/frontend/src/payroll/index.js`, and added `fbp: <GiftOutlined />` to `PANEL_ICONS` in `PortalLayout.jsx`.
   7. **Automated Test Coverage**: Added self-service test scenarios in `FbpDeclarationTab.test.jsx` covering read_own, declare_own, and closed window states; verified `PortalLayout.test.jsx` and `fbpService.test.js` all pass (27/27 green).
-- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
+- **Status:** **Verified & Passed on live server (2026-10-15)**: FBP tab available on /me portal; Meal (₹26,400) and Fuel (₹12,000) declarations submitted and verified.
 
 ---
 
