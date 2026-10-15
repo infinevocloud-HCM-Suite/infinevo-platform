@@ -117,7 +117,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | M-14 | Pass | 2026-10-14 | Pay run approved and marked PAID; payslips generated and available on /me |
 | M-15 | Fail | 2026-10-15 | Saving off-cycle pay inputs fails with "Not permitted: requires action 'core.pay_input.write'" (Defect #8) |
 | M-16 | Pass | 2026-10-14 | PAID run verified immutable; edit, compute, and cancel actions strictly disabled |
-| R-01 | Blocked | | J2 |
+| R-01 | Pass | 2026-10-15 | Total gross (₹40,92,720.00), deductions (₹12,280.00), net pay (₹40,80,440.00), included (49) & skipped (6) match pay run |
 | R-02 | Blocked | | |
 | R-03 | Fail | 2026-10-14 | Signed payslip email link (/public/payslips?t=...) returns 404; route not mounted in frontend (Defect #7) |
 | R-04 | Fail | 2026-10-15 | Export to Excel / XLSX button missing from UI and backend lacks pay run export endpoint (Defect #9) |
