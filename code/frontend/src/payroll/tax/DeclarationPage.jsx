@@ -18,6 +18,7 @@ import {
   Radio,
   Switch,
   Divider,
+  Tabs,
 } from 'antd';
 import {
   FileTextOutlined,
@@ -29,6 +30,7 @@ import {
   AuditOutlined,
   DollarCircleOutlined,
   CalculatorOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { currentFy, fyOptions, formatFyDisplay } from './financialYear';
@@ -46,16 +48,20 @@ import { HousingSection } from './HousingSection';
 import { DeductionsSection } from './DeductionsSection';
 import { OtherIncomeSection } from './OtherIncomeSection';
 import { SummarySection } from './SummarySection';
+import { EmployeeForm16Panel } from '../form16/EmployeeForm16Panel';
 
 const { Title, Text, Paragraph } = Typography;
 
 const RELOAD_HEADER_CODES = ['ALREADY_SUBMITTED', 'NOT_EDITABLE', 'WINDOW_CLOSED', 'LOCKED', 'OFFICER_ENTERED'];
 
-export function DeclarationPage({ initialFy, renderSection }) {
+export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
   const dispatch = useDispatch();
   const sliceFy = useSelector(selectTaxFy);
   const header = useSelector(selectTaxHeader);
   const selectedFy = sliceFy || initialFy || currentFy();
+
+  const urlTab = typeof window !== 'undefined' ? new URLSearchParams(window.location?.search).get('tab') : null;
+  const [activeMainTab, setActiveMainTab] = useState(defaultTab || (urlTab === 'form-16' ? 'form-16' : 'declaration'));
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -272,10 +278,34 @@ export function DeclarationPage({ initialFy, renderSection }) {
     },
   ];
 
-  return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
-      <Card
-        title={
+  const handleTabChange = (key) => {
+    setActiveMainTab(key);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      try {
+        const url = new URL(window.location.href);
+        if (key === 'form-16') {
+          url.searchParams.set('tab', 'form-16');
+        } else {
+          url.searchParams.delete('tab');
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch {
+        // Ignore URL parsing errors in non-browser environments
+      }
+    }
+  };
+
+  const mainTabs = [
+    {
+      key: 'declaration',
+      label: (
+        <span data-testid="tab-declaration">
+          <FileTextOutlined /> Investment Declarations
+        </span>
+      ),
+      children: (
+        <Card
+          title={
           <Row justify="space-between" align="middle" wrap gutter={[12, 12]}>
             <Col>
               <Space align="center">
@@ -497,6 +527,28 @@ export function DeclarationPage({ initialFy, renderSection }) {
           )}
         </Spin>
       </Card>
+    ),
+  },
+  {
+    key: 'form-16',
+    label: (
+      <span data-testid="tab-form-16">
+        <SafetyCertificateOutlined /> Form 16 Certificates
+      </span>
+    ),
+    children: (
+      <EmployeeForm16Panel />
+    ),
+  },
+];
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
+      <Tabs
+        activeKey={activeMainTab}
+        onChange={handleTabChange}
+        items={mainTabs}
+      />
 
       {/* Regime Change Modal */}
       <Modal
@@ -546,6 +598,7 @@ export function DeclarationPage({ initialFy, renderSection }) {
 DeclarationPage.propTypes = {
   initialFy: PropTypes.string,
   renderSection: PropTypes.func,
+  defaultTab: PropTypes.string,
 };
 
 export default DeclarationPage;

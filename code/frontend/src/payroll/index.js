@@ -47,6 +47,9 @@ const OfficerDeclarationView = lazy(() =>
 const DeclarationPage = lazy(() =>
   import('./tax/DeclarationPage.jsx').then((m) => ({ default: m.DeclarationPage }))
 );
+const Form16Page = lazy(() =>
+  import('./form16/Form16Page.jsx').then((m) => ({ default: m.Form16Page }))
+);
 const PriorPayrollPage = lazy(() =>
   import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
 );
@@ -123,6 +126,21 @@ export const routes = [
   { path: '/payroll/claims', element: React.createElement(ClaimList) },
   { path: '/payroll/claims/:id', element: React.createElement(ClaimDetail) },
   { path: '/payroll/deductions', element: React.createElement(DeductionList) },
+  {
+    path: '/payroll/tax/form-16',
+    element: React.createElement(Form16Page),
+    mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
+  {
+    path: '/payroll/form-16',
+    element: React.createElement(Navigate, { to: '/payroll/tax/form-16', replace: true }),
+    mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
+  {
+    path: '/payroll/settings/form-16',
+    element: React.createElement(Navigate, { to: '/payroll/tax/form-16', replace: true }),
+    mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
 ];
 
 export const reducers = {

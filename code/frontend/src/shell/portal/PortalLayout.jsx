@@ -72,6 +72,8 @@ export function PortalLayout() {
   useEffect(() => {
     if (panelId === 'holidays') {
       navigate('/holidays', { replace: true });
+    } else if (panelId === 'tax' || panelId === 'form-16') {
+      navigate('/me/taxDeclaration?tab=form-16', { replace: true });
     }
   }, [panelId, navigate]);
 
@@ -128,7 +130,13 @@ export function PortalLayout() {
     ? panelId
     : panels[0]?.code;
 
-  if (panelId && panelId !== 'holidays' && !panels.some((p) => p.code === panelId)) {
+  if (
+    panelId &&
+    panelId !== 'holidays' &&
+    panelId !== 'tax' &&
+    panelId !== 'form-16' &&
+    !panels.some((p) => p.code === panelId)
+  ) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-panel-forbidden">
         <Card>

@@ -8,6 +8,7 @@ import {
   BankOutlined,
   GiftOutlined,
   FileDoneOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -43,6 +44,11 @@ export const SETTINGS_MENU_ITEMS = [
     key: '/payroll/settings/tax-declaration',
     icon: <FileDoneOutlined />,
     label: 'Tax declaration',
+  },
+  {
+    key: '/payroll/settings/form-16',
+    icon: <FileTextOutlined />,
+    label: 'Form 16',
   },
 ];
 

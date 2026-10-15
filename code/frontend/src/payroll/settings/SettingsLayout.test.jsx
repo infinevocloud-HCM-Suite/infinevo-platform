@@ -23,5 +23,6 @@ describe('SettingsLayout component (W-47.1b §5, §5a, §7)', () => {
     expect(screen.getByRole('menuitem', { name: /professional tax/i })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: /flexible benefit plan/i })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: /tax declaration/i })).toBeDefined();
+    expect(screen.getByRole('menuitem', { name: /form 16/i })).toBeDefined();
   });
 });
