@@ -244,6 +244,21 @@ class RoleCatalogueIT {
                 assertThat(holds(conn, tenant, "hr", "core.approval.delegate"))
                         .as("V176 grants delegate to manager only, not hr")
                         .isFalse();
+                assertThat(holds(conn, tenant, "payroll-officer", "core.document.upload"))
+                        .as("S-05 (V177): core.document.upload granted to payroll-officer")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "payroll-officer", "core.document.read"))
+                        .as("S-05 (V177): core.document.read granted to payroll-officer")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "payroll-officer", "core.pay_input.write"))
+                        .as("M-15 (V177): core.pay_input.write granted to payroll-officer")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "payroll-officer", "core.pay_input.read"))
+                        .as("M-15 (V177): core.pay_input.read granted to payroll-officer")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "hr", "core.leave.manage"))
+                        .as("L-08 (V177): core.leave.manage granted to hr")
+                        .isTrue();
             }
         }
     }

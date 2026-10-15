@@ -180,6 +180,22 @@ class DocumentGuardIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("payroll-officer: V177's grants - upload 201 and read 200 (prior payroll CSV import)")
+    void payrollOfficerUploadsAndReads() throws Exception {
+        UUID officerSub = UUID.randomUUID();
+        DocumentTestSchema.insertMember(tenant, officerSub, "payroll-officer");
+
+        String created = mvc.perform(as(officerSub, upload("prior-payroll.csv", PDF, "EMPLOYEE_DOCUMENT")))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        UUID id = UUID.fromString(json.readTree(created).get("id").asText());
+
+        mvc.perform(as(officerSub, get("/api/v1/documents/" + id))).andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("A user with no membership in the tenant never reaches the guard")
     void nonMemberIsRefusedAtTheEdge() throws Exception {
         UUID id = DocumentTestSchema.insertDocumentRow(tenant, DocumentKind.EMPLOYEE_DOCUMENT);
