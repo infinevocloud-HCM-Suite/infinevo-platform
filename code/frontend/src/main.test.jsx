@@ -35,6 +35,12 @@ vi.mock('@core', () => ({
   ],
 }));
 
+vi.mock('@payroll', () => ({
+  publicRoutes: [
+    { path: '/public/payslips', element: null },
+  ],
+}));
+
 describe('main.jsx bootstrap', () => {
   let container;
   let rootInstance;
@@ -66,6 +72,21 @@ describe('main.jsx bootstrap', () => {
 
   it('at /invitations/accept/ (trailing slash), the public page still renders without sign-in (D-62)', async () => {
     rootInstance = await bootstrap(container, '/invitations/accept/');
+
+    expect(keycloakAuth.initAuth).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();
+  });
+
+  it('at /public/payslips, initAuth is NOT called and the public page renders (Defect #7, E-10a)', async () => {
+    rootInstance = await bootstrap(container, '/public/payslips');
+
+    expect(keycloakAuth.initAuth).not.toHaveBeenCalled();
+    expect(apiClientModule.setTokenProvider).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();
+  });
+
+  it('at /public/payslips/ (trailing slash), the public page still renders without sign-in', async () => {
+    rootInstance = await bootstrap(container, '/public/payslips/');
 
     expect(keycloakAuth.initAuth).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();

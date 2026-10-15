@@ -145,7 +145,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | E-08b | Closed | | Removed: proof-of-investment screens are known exception D-25 |
 | E-09 | Pass | 2026-10-15 | Reimbursement claim submitted successfully with component selected and receipt attached |
 | E-10 | Pass | 2026-10-15 | Oct 2026 payslip verified on /me/payslips: Gross ₹82,720.00, PF ₹5,280.00, PT ₹200.00, Net ₹77,240.00 exact match |
-| E-10a | Fail | 2026-10-15 | Email link (/public/payslips?t=...) returns 404 (confirms Defect #7: public route unmounted) |
+| E-10a | Pass | 2026-10-15 | Unauthenticated signed payslip email link (/public/payslips?t=...) mounted and verified; renders Oct payslip with download/print without sign-in |
 | E-11 | Blocked | | needs R-02 |
 | N-01 | Pass | 2026-10-14 | All admin/staff URLs (/employees, /leave/requests, /payroll/runs, /admin) refused with 404 (routes unmounted) |
 | N-02 | Pass | 2026-10-14 | Direct colleague profile URL (/employees/<id>) refused with 404 |
@@ -163,7 +163,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | Fixed & Verified on live (`94b31fad` / `a741bb1d`) |
 | | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | Fixed & Verified on live (V175) |
 | | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab was missing from employee portal; no panel existed for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | Fixed & Verified on live (BUG-D5-025) |
-| 7 | 2026-10-14 | Mohit, Sahmad | R-03, E-10a | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | |
+| 7 | 2026-10-14 | Mohit, Sahmad | R-03, E-10a | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | Fixed on main (mounted /public/payslips with PublicPayslip viewer and download) |
 | 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | |
 | 9 | 2026-10-15 | Mohit | R-04 | payroll-officer | /payroll/runs/:id | Pay run detail screen has no "Export to Excel" / XLSX button and backend lacks export endpoint | Export to Excel / XLSX button provided on pay run page to download pay run line totals | |
 | 10 | 2026-10-15 | Mohit | R-02 | payroll-officer | /payroll/tax/form-16 | Form 16 screen not mounted in frontend (W-47 unbuilt); no UI available to generate Form 16 statement or upload Part A ZIP | UI screen provided to view/generate Form 16 statement and upload Part A TRACES ZIP | |

@@ -168,3 +168,13 @@ export const employeeTabs = [
       }),
   },
 ];
+
+const PublicPayslip = lazy(() =>
+  import('./payslip/PublicPayslip.jsx').then((m) => ({ default: m.PublicPayslip }))
+);
+
+// Anonymous public routes served without bearer authentication (W-36.2 §4 / Defect #7).
+export const publicRoutes = [
+  { path: '/public/payslips', element: React.createElement(PublicPayslip) },
+];
+

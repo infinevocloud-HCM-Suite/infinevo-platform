@@ -10,12 +10,18 @@ import { AppShell } from '@shell/AppShell';
 import { initAuth, getValidToken } from '@shell/auth/keycloak';
 import { theme } from '@shared/theme';
 import { setTokenProvider } from '@shared/api/client';
-import { publicRoutes } from '@core';
+import { publicRoutes as corePublicRoutes } from '@core';
+import { publicRoutes as payrollPublicRoutes } from '@payroll';
+
+export const publicRoutes = [
+  ...(Array.isArray(corePublicRoutes) ? corePublicRoutes : []),
+  ...(Array.isArray(payrollPublicRoutes) ? payrollPublicRoutes : []),
+];
 
 /**
  * Bootstrap entry point for the frontend application.
  *
- * For public paths (W-46.7 §5a, e.g. /invitations/accept), renders the public component
+ * For public paths (W-46.7 §5a, e.g. /invitations/accept, /public/payslips), renders the public component
  * directly inside ConfigProvider + BrowserRouter without calling initAuth(), Keycloak,
  * Redux store, or AppShell.
  *
@@ -27,7 +33,7 @@ export function bootstrap(
 ) {
   if (!rootElement) return null;
 
-  // A mail client may add a trailing slash; the invitation link must still skip sign-in (D-62).
+  // A mail client may add a trailing slash; the public link must still skip sign-in (D-62).
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   const publicRoute = Array.isArray(publicRoutes)
     ? publicRoutes.find((r) => r.path === path)
@@ -39,7 +45,9 @@ export function bootstrap(
       <React.StrictMode>
         <ConfigProvider theme={theme}>
           <BrowserRouter>
-            {publicRoute.element}
+            <React.Suspense fallback={null}>
+              {publicRoute.element}
+            </React.Suspense>
           </BrowserRouter>
         </ConfigProvider>
       </React.StrictMode>,
