@@ -9,8 +9,8 @@ Status values: `Blocked` `Ready` `Pass` `Fail` `Closed`. `Closed` means the step
 | P0 Environment: worker fixed, seeded Oct pay run deleted, four logins work | Founder | – | Ready | 2026-10-14 |
 | P1 Setup: K-00…K-07x | Karmaveer | P0 | Pass | 2026-10-13 |
 | P2 People and payroll config: K-05, K-06, M-01…M-05 | Krushna, Mohit | P1 | Pass | 2026-10-13 |
-| J1 October pay run may start: L-06, L-09, T-03, T-04, T-06, E-07, E-08a, E-09, S-02, P-01…P-03 | Mohit | P2 | Blocked | |
-| J2 Reconciliation: M-14 paid | all | J1 | Blocked | |
+| J1 October pay run may start: L-06, L-09, T-03, T-04, T-06, E-07, E-08a, E-09, S-02, P-01…P-03 | Mohit | P2 | Pass | 2026-10-14 |
+| J2 Reconciliation: M-14 paid | all | J1 | Pass | 2026-10-14 |
 
 ## Karmaveer — tenant admin
 
@@ -104,7 +104,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | S-02 | Pass | 2026-10-13 | CTC structures assigned to 5 new hires (NH-1..NH-5) |
 | S-03 | Pass | 2026-10-13 | NH-2 (EMP0046) ESI eligible confirmed |
 | S-04 | Pass | 2026-10-13 | Sahmad ITC-0044 salary revision created (+10% hike, effective 2026-10-01) |
-| S-05 | Fail | 2026-10-13 | Upload fails: requires action core.document.upload |
+| S-05 | Ready | 2026-10-15 | V177 granted core.document.upload & read to payroll-officer; ready for re-test |
 | P-01 | Pass | 2026-10-14 | Shift Allowance ₹3,000 scheduled for Sahmad (ITC-0044) for Oct 2026 |
 | P-02 | Pass | 2026-10-14 | Ad-hoc deduction ₹500 posted for Sahmad (ITC-0044) for Oct 2026 |
 | P-03 | Ready | | Unblocked: Sahmad's reimbursement claim submitted (E-09 passed) |
@@ -115,12 +115,12 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | M-13 | Pass | 2026-10-14 | Revised CTC (+10%) verified in lines drawer: Gross ₹82,720.00, PF ₹5,280.00, PT ₹200.00, Net ₹77,240.00 exact match |
 | M-13a | Pass | 2026-10-14 | NH-2 (EMP0046) gross ₹20,000 & net ₹20,000 verified; statutory items omitted from salary version and L-09 blocked |
 | M-14 | Pass | 2026-10-14 | Pay run approved and marked PAID; payslips generated and available on /me |
-| M-15 | Fail | 2026-10-15 | Saving off-cycle pay inputs fails with "Not permitted: requires action 'core.pay_input.write'" (Defect #8) |
+| M-15 | Ready | 2026-10-15 | V177 granted core.pay_input.write & read to payroll-officer; ready for re-test |
 | M-16 | Pass | 2026-10-14 | PAID run verified immutable; edit, compute, and cancel actions strictly disabled |
 | R-01 | Pass | 2026-10-15 | Total gross (₹40,92,720.00), deductions (₹12,280.00), net pay (₹40,80,440.00), included (49) & skipped (6) match pay run |
-| R-02 | Fail | 2026-10-15 | Form 16 screen not mounted in frontend; no UI to generate statement or upload Part A ZIP (Defect #10) |
-| R-03 | Fail | 2026-10-14 | Signed payslip email link (/public/payslips?t=...) returns 404; route not mounted in frontend (Defect #7) |
-| R-04 | Fail | 2026-10-15 | Export to Excel / XLSX button missing from UI and backend lacks pay run export endpoint (Defect #9) |
+| R-02 | Ready | 2026-10-15 | Form 16 screen (W-47) plan updated & approved; implementation in progress |
+| R-03 | Pass | 2026-10-15 | Signed payslip email link mounted at /public/payslips; renders Oct payslip with download/print without sign-in (Defect #7 fixed) |
+| R-04 | Pass | 2026-10-15 | Pay run detail screen /payroll/runs/:id includes "Export to Excel" button; backend GET /api/v1/payroll/payruns/:id/export streams XLSX (Defect #9 fixed) |
 | N-01 | Pass | 2026-10-14 | Unentitled URLs (/leave/types) refused with 404 |
 | N-02 | Pass | 2026-10-14 | /admin URL refused with 404 |
 
@@ -146,7 +146,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | E-09 | Pass | 2026-10-15 | Reimbursement claim submitted successfully with component selected and receipt attached |
 | E-10 | Pass | 2026-10-15 | Oct 2026 payslip verified on /me/payslips: Gross ₹82,720.00, PF ₹5,280.00, PT ₹200.00, Net ₹77,240.00 exact match |
 | E-10a | Pass | 2026-10-15 | Unauthenticated signed payslip email link (/public/payslips?t=...) mounted and verified; renders Oct payslip with download/print without sign-in |
-| E-11 | Blocked | | needs R-02 |
+| E-11 | Ready | 2026-10-15 | Form 16 self-service panel on /me planned with Defect #10 (W-47) |
 | N-01 | Pass | 2026-10-14 | All admin/staff URLs (/employees, /leave/requests, /payroll/runs, /admin) refused with 404 (routes unmounted) |
 | N-02 | Pass | 2026-10-14 | Direct colleague profile URL (/employees/<id>) refused with 404 |
 | N-03 | Pass | 2026-10-14 | Access to non-owned leave request refused with 404 |
@@ -157,13 +157,13 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 |---|---|---|---|---|---|---|---|---|
 | 3 | 2026-10-14 | Krushna | L-01 | HR | /leave/types | In Policy Settings drawer, the input field for "Past-booking limit" (pastBookingLimitDays) is missing from the form | Policy form should have an input field for past-booking limit days | Fixed (`df659fdf`) |
 | 5 | 2026-10-14 | Krushna | L-10 | Manager | /approvals/delegations | Manager role lacks core.approval.delegate permission. "Delegations" is missing under Approvals in the sidebar, and navigating directly to /approvals/delegations shows "Module Not Subscribed" (Not Entitled). | Manager role should hold core.approval.delegate to access /approvals/delegations and delegate approval authority during absence. | Fixed (`df659fdf`) |
-| 1 | 2026-10-13 | Mohit | S-05 | payroll-officer | /payroll/prior-payroll | Upload prior payroll CSV fails with "Not permitted: requires action 'core.document.upload'" | Role payroll-officer should hold core.document.upload or prior payroll import should allow payroll-officer | |
+| 1 | 2026-10-13 | Mohit | S-05 | payroll-officer | /payroll/prior-payroll | Upload prior payroll CSV fails with "Not permitted: requires action 'core.document.upload'" | Role payroll-officer should hold core.document.upload or prior payroll import should allow payroll-officer | Fixed on main (V177, adf10c3e) |
 | 6 | 2026-10-14 | Karmaveer | K-11, K-12 | Tenant Admin | /audit | Actor column displays Keycloak user ID (UUID) instead of user email ID | Actor column displays user email ID | Fixed (`ed707988`) |
 | | 2026-10-14 | Sahmad | E-01 | employee | /welcome, /me | Reporting manager missing on Welcome page and profile | Reporting manager name displayed beside department and designation | Fixed & Verified on live (BUG-D5-021) |
 | | 2026-10-14 | Sahmad | E-03a | employee | /me/leave/apply | Attaching document to SL application throws: "Leave policy requires supporting documents to be attached" (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b) | Attached documentId is sent in payload and leave application succeeds | Fixed & Verified on live (`94b31fad` / `a741bb1d`) |
 | | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | Fixed & Verified on live (V175) |
 | | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab was missing from employee portal; no panel existed for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | Fixed & Verified on live (BUG-D5-025) |
-| 7 | 2026-10-14 | Mohit, Sahmad | R-03, E-10a | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | Fixed on main (mounted /public/payslips with PublicPayslip viewer and download) |
-| 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | |
-| 9 | 2026-10-15 | Mohit | R-04 | payroll-officer | /payroll/runs/:id | Pay run detail screen has no "Export to Excel" / XLSX button and backend lacks export endpoint | Export to Excel / XLSX button provided on pay run page to download pay run line totals | |
-| 10 | 2026-10-15 | Mohit | R-02 | payroll-officer | /payroll/tax/form-16 | Form 16 screen not mounted in frontend (W-47 unbuilt); no UI available to generate Form 16 statement or upload Part A ZIP | UI screen provided to view/generate Form 16 statement and upload Part A TRACES ZIP | |
+| 7 | 2026-10-14 | Mohit, Sahmad | R-03, E-10a | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | Fixed on main (787b068e, 4f6deebe) |
+| 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | Fixed on main (V177) |
+| 9 | 2026-10-15 | Mohit | R-04 | payroll-officer | /payroll/runs/:id | Pay run detail screen has no "Export to Excel" / XLSX button and backend lacks export endpoint | Export to Excel / XLSX button provided on pay run page to download pay run line totals | Fixed on main (03c9700a) |
+| 10 | 2026-10-15 | Mohit | R-02 | payroll-officer | /payroll/tax/form-16 | Form 16 screen not mounted in frontend (W-47 unbuilt); no UI available to generate Form 16 statement or upload Part A ZIP | UI screen provided to view/generate Form 16 statement and upload Part A TRACES ZIP | In progress (Plan approved, W-47) |
