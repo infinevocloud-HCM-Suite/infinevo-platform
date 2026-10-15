@@ -37,8 +37,8 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | K-10 | Pass | 2026-10-13 | Custom Auditor role created, assigned to NH-5, restricted access verified |
 | K-10a | Pass | 2026-10-13 | Dropping last tenant-admin refused as expected |
 | K-10b | Pass | 2026-10-13 | NH-5 account disable and re-enable verified |
-| K-15 | Ready | | Moved from H-02: delete the document Krushna uploaded |
-| K-16 | Ready | | Moved from L-08: apply on behalf of NH-2, lands Approved |
+| K-15 | Pass | 2026-10-15 | Document uploaded in H-02 deleted successfully by tenant admin |
+| K-16 | Pass | 2026-10-15 | Leave applied on behalf of NH-2 by tenant admin; lands Approved |
 | K-20 | Pass | 2026-10-14 | Platform overview shows 4 tiles (Total, Active, Suspended, Waiting for admin); Infinevo Test Co listed |
 | K-21 | Pass | 2026-10-14 | Second tenant Isolation Co provisioned: IN, April leave year, HRMS and PAYROLL, India template |
 | K-22 | Pass | 2026-10-14 | LEGAL department and Jane Doe employee added inside Isolation Co |
