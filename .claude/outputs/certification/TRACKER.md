@@ -76,7 +76,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | L-06 | Pass | 2026-10-14 | Fully approved at Level 2 (HR) |
 | L-07 | Blocked | 2026-10-15 | Defer: request not visible in inbox (needs E-03a) |
 | L-08 | Pass | 2026-10-15 | Leave request applied on behalf / approved on /leave/requests |
-| L-09 | Blocked | 2026-10-15 | Excess leave application blocked |
+| L-09 | Pass | 2026-10-15 | NH-2 excess leave application approved; excess days classified as LOP per policy |
 | L-10 | Pass | 2026-10-15 | Manager approval delegation verified active on /approvals/delegations (V176 in `df659fdf`) |
 | L-11 | Pass | 2026-10-14 | Known exception D-43 behavior noted and documented; record system outcome. |
 | Y-01 | Pass | 2026-10-14 | Saved; default toggle switch is disabled when creating or editing a secondary calendar. |
