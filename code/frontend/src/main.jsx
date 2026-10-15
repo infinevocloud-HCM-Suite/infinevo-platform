@@ -39,7 +39,9 @@ export function bootstrap(
       <React.StrictMode>
         <ConfigProvider theme={theme}>
           <BrowserRouter>
-            {publicRoute.element}
+            <React.Suspense fallback={null}>
+              {publicRoute.element}
+            </React.Suspense>
           </BrowserRouter>
         </ConfigProvider>
       </React.StrictMode>,

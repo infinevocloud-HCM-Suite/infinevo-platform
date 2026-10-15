@@ -32,6 +32,7 @@ vi.mock('@shell/AppShell', () => ({
 vi.mock('@core', () => ({
   publicRoutes: [
     { path: '/invitations/accept', element: null },
+    { path: '/public/payslips', element: null },
   ],
 }));
 
@@ -58,6 +59,14 @@ describe('main.jsx bootstrap', () => {
 
   it('at /invitations/accept, initAuth is NOT called and the public page renders', async () => {
     rootInstance = await bootstrap(container, '/invitations/accept');
+
+    expect(keycloakAuth.initAuth).not.toHaveBeenCalled();
+    expect(apiClientModule.setTokenProvider).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="app-shell"]')).toBeNull();
+  });
+
+  it('at /public/payslips, initAuth is NOT called and the public payslip page renders', async () => {
+    rootInstance = await bootstrap(container, '/public/payslips');
 
     expect(keycloakAuth.initAuth).not.toHaveBeenCalled();
     expect(apiClientModule.setTokenProvider).not.toHaveBeenCalled();

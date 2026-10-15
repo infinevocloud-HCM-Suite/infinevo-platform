@@ -64,6 +64,9 @@ const UsersScreen = lazy(() =>
 const AcceptInvitation = lazy(() =>
   import('./invitation/AcceptInvitation.jsx').then((m) => ({ default: m.AcceptInvitation }))
 );
+const PublicPayslipPage = lazy(() =>
+  import('../payroll/payslip/PublicPayslipPage.jsx').then((m) => ({ default: m.PublicPayslipPage }))
+);
 
 const LeaveTypes = lazy(() =>
   import('./leave/LeaveTypes.jsx').then((m) => ({ default: m.LeaveTypes }))
@@ -165,6 +168,7 @@ export const routes = [
 
 export const publicRoutes = [
   { path: '/invitations/accept', element: React.createElement(AcceptInvitation) },
+  { path: '/public/payslips', element: React.createElement(PublicPayslipPage) },
 ];
 
 export const reducers = {
