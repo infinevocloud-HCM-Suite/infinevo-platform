@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.infinevo.shared.test.EnabledIfDockerAvailable;
 import com.infinevo.shared.test.PostgresTestContainerInitializer;
-import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -87,11 +86,10 @@ class PayrollOfficerPermissionsGrantIT {
     }
 
     private static void insertTenant(Connection conn, UUID tenantId, String name) throws SQLException {
-        try (CallableStatement cs = conn.prepareCall("CALL reference.provision_tenant(?, ?, ?)")) {
-            cs.setObject(1, tenantId);
-            cs.setString(2, name);
-            cs.setString(3, "UTC");
-            cs.execute();
+        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?)")) {
+            ps.setObject(1, tenantId);
+            ps.setString(2, name);
+            ps.executeUpdate();
         }
     }
 
