@@ -91,7 +91,8 @@ public class DocumentController {
                 "core.leave.apply",
                 "payroll.reimbursement_claim.submit_own",
                 "payroll.tax_declaration.submit",
-                "payroll.proof.submit_own"
+                "payroll.proof.submit_own",
+                "payroll.run.execute"
             })
     public ResponseEntity<DocumentResponse> upload(
             @RequestPart("file") MultipartFile file,
@@ -112,7 +113,9 @@ public class DocumentController {
     }
 
     private UUID validateUploadPermissionAndEmployee(DocumentKind kind, UUID requestedEmployeeId) {
-        if (permissionService == null || permissionService.holds("core.document.upload")) {
+        if (permissionService == null
+                || permissionService.holds("core.document.upload")
+                || permissionService.holds("payroll.run.execute")) {
             return requestedEmployeeId;
         }
 
