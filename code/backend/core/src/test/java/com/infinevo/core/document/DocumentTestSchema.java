@@ -164,6 +164,72 @@ final class DocumentTestSchema {
         }
     }
 
+    /**
+     * A member holding a custom role with exactly the action codes passed, for testing permissions in isolation.
+     */
+    static void insertMemberWithActions(UUID tenantId, UUID keycloakUserId, String... actionCodes) throws SQLException {
+        try (Connection conn = migrationConnection()) {
+            try (PreparedStatement ps =
+                    conn.prepareStatement("INSERT INTO core.user_tenant (tenant_id, user_id) VALUES (?, ?)")) {
+                ps.setObject(1, tenantId);
+                ps.setObject(2, keycloakUserId);
+                ps.executeUpdate();
+            }
+            UUID accountId;
+            try (PreparedStatement ps = conn.prepareStatement(
+                    """
+                    INSERT INTO core.user_account (tenant_id, keycloak_user_id, email, created_by, updated_by)
+                    VALUES (?, ?, ?, 'test', 'test')
+                    RETURNING id
+                    """)) {
+                ps.setObject(1, tenantId);
+                ps.setObject(2, keycloakUserId);
+                ps.setString(3, keycloakUserId + "@document.test");
+                try (ResultSet rs = ps.executeQuery()) {
+                    rs.next();
+                    accountId = rs.getObject(1, UUID.class);
+                }
+            }
+            UUID roleId;
+            try (PreparedStatement ps = conn.prepareStatement(
+                    """
+                    INSERT INTO core.role (tenant_id, code, name, is_system)
+                    VALUES (?, ?, ?, false)
+                    RETURNING id
+                    """)) {
+                ps.setObject(1, tenantId);
+                ps.setString(2, "custom-" + keycloakUserId);
+                ps.setString(3, "Custom " + keycloakUserId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    rs.next();
+                    roleId = rs.getObject(1, UUID.class);
+                }
+            }
+            for (String actionCode : actionCodes) {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        """
+                        INSERT INTO core.role_action (tenant_id, role_id, action_code)
+                        VALUES (?, ?, ?)
+                        """)) {
+                    ps.setObject(1, tenantId);
+                    ps.setObject(2, roleId);
+                    ps.setString(3, actionCode);
+                    ps.executeUpdate();
+                }
+            }
+            try (PreparedStatement ps = conn.prepareStatement(
+                    """
+                    INSERT INTO core.user_role (tenant_id, user_account_id, role_id)
+                    VALUES (?, ?, ?)
+                    """)) {
+                ps.setObject(1, tenantId);
+                ps.setObject(2, accountId);
+                ps.setObject(3, roleId);
+                ps.executeUpdate();
+            }
+        }
+    }
+
     /** Gives a member's {@code core.user_account} row a name, as the profile sync would (W-73.5). */
     static void nameMember(UUID tenantId, UUID keycloakUserId, String firstName, String lastName) throws SQLException {
         try (Connection conn = migrationConnection();

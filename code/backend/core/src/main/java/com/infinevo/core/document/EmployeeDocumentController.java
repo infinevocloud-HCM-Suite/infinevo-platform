@@ -25,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
  * naming its uploader ({@link EmployeeDocumentQuery}).
  *
  * <p><strong>Two codes, both required:</strong> {@code core.employee.read} on the annotation and
- * {@code core.document.read} through {@link PermissionService#require}. {@code payroll-officer} holds the
- * first and not the second ({@code V025__catalogue_correction.sql:187}, {@code V037__document.sql:94-98});
- * with the first alone it could read every employee's document names and labels. {@code @RequiresAction}
+ * {@code core.document.read} through {@link PermissionService#require}. Prior to {@code V177},
+ * {@code payroll-officer} held the first and not the second ({@code V025__catalogue_correction.sql:187},
+ * {@code V037__document.sql:94-98}); {@code V177} granted {@code core.document.read} to {@code payroll-officer}
+ * for prior payroll CSV documents. For any caller holding the first alone, it would otherwise read every
+ * employee's document names and labels without permission to read documents. {@code @RequiresAction}
  * takes one code plus alternatives, never two that must both hold, so the second is checked here — before
  * the employee is looked up, so a refusal says nothing about whether the employee exists.
  *

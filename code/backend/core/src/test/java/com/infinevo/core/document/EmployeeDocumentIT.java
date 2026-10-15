@@ -108,18 +108,31 @@ class EmployeeDocumentIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("payroll-officer holds core.employee.read but not core.document.read: 403 on the list")
-    void payrollOfficerCannotListDocuments() throws Exception {
+    @DisplayName("payroll-officer holds core.employee.read and core.document.read (V177): 200 on the list")
+    void payrollOfficerCanListDocuments() throws Exception {
         UUID officerSub = UUID.randomUUID();
         DocumentTestSchema.insertMember(tenant, officerSub, "payroll-officer");
         uploadOffer(adminSub);
 
         mvc.perform(as(officerSub, get("/api/v1/employees/" + employee + "/documents")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].fileName").value("offer.pdf"));
+    }
+
+    @Test
+    @DisplayName("caller holding core.employee.read but not core.document.read: 403 on the list")
+    void employeeReaderWithoutDocumentReadCannotListDocuments() throws Exception {
+        UUID readerSub = UUID.randomUUID();
+        DocumentTestSchema.insertMemberWithActions(tenant, readerSub, "core.employee.read");
+        uploadOffer(adminSub);
+
+        mvc.perform(as(readerSub, get("/api/v1/employees/" + employee + "/documents")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"))
                 .andExpect(jsonPath("$.message").value(containsString("core.document.read")));
         // Refused before the lookup: an unknown employee is the same 403, not a 404.
-        mvc.perform(as(officerSub, get("/api/v1/employees/" + UUID.randomUUID() + "/documents")))
+        mvc.perform(as(readerSub, get("/api/v1/employees/" + UUID.randomUUID() + "/documents")))
                 .andExpect(status().isForbidden());
     }
 
