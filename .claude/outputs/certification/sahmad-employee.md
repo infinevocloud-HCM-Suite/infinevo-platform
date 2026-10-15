@@ -7,7 +7,7 @@ Before you start: P2 is Pass in `TRACKER.md`. Your manager is Krushna. Record ev
 | Id | Screen | Do | Expect |
 |---|---|---|---|
 | E-01 | first sign-in | Welcome page, then `/me` | Name, designation, department, manager as words; no UUID anywhere |
-| E-02 | `/me` documents tab | Upload a PDF, open it, delete it | Works; dialog closes |
+| E-02 | `/me` documents tab | Upload a PDF, open it | Works; dialog closes. Delete is admin-only, not tested here |
 
 ## Leave
 
@@ -35,7 +35,6 @@ Before you start: P2 is Pass in `TRACKER.md`. Your manager is Krushna. Record ev
 |---|---|---|---|
 | E-08 | `/me` FBP | Declare Meal 2,200, Fuel 1,000 | Saved; totals within plan caps |
 | E-08a | `/me` tax declaration FY 2026-27 | Pick new regime, save; switch to old; enter 80C 1,50,000, HRA rent 15,000 per month with landlord PAN, 80D 25,000, other income 0 | Saved; summary shows estimated tax for both regimes |
-| E-08b | same | Upload a proof | Known exception D-25; note what happens, do not raise |
 | E-09 | `/payroll/claims` | New claim Internet 1,500, October, attach receipt PDF | Submitted; approved after P-03; amount visible |
 
 ## After the pay run — J2

@@ -245,8 +245,18 @@ public class AuditWriter {
             return new Actor(null, SYSTEM_ACTOR);
         }
         String subject = null;
+        String label = null;
         if (auth.getPrincipal() instanceof Jwt jwt) {
             subject = jwt.getSubject();
+            String email = jwt.getClaimAsString("email");
+            if (email != null && !email.isBlank()) {
+                label = email;
+            } else {
+                String username = jwt.getClaimAsString("preferred_username");
+                if (username != null && !username.isBlank()) {
+                    label = username;
+                }
+            }
         }
         if (subject == null || subject.isBlank()) {
             subject = auth.getName();
@@ -254,7 +264,10 @@ public class AuditWriter {
         if (subject == null || subject.isBlank()) {
             return new Actor(null, SYSTEM_ACTOR);
         }
-        return new Actor(parseUuidOrNull(subject), subject);
+        if (label == null || label.isBlank()) {
+            label = subject;
+        }
+        return new Actor(parseUuidOrNull(subject), label);
     }
 
     private static String resolveStaffIdentifier(ActingAs.Impersonation session) {

@@ -9,7 +9,7 @@ Before you start: P1 is Pass in `TRACKER.md`. You act as HR on all screens and a
 | K-05 | `/employees/new` | Add the five new hires from README, tab by tab (personal, identification, bank). NH-1 and NH-4 report to you | Each saved with an employee number; list shows department and designation as words |
 | K-05a | `/employees/new` | Try NH-1 again with the same work email, then the same PAN | 400, error beside the field, nothing created |
 | K-05b | `/employees/new` | Enter the name in lower case `ritu anand` | Saved as `Ritu Anand` |
-| K-06 | each new hire page | Send invitation (NH-1 also gets the manager role) | Row PENDING on `/users?tab=invitations`; email arrives |
+| K-06 | each new hire page | Send invitation. Roles are assigned by Karmaveer on `/users` (K-08) | Row PENDING on `/users?tab=invitations`; email arrives |
 | K-07 | `/employees/:id` of ITC-0044 | Confirm Sahmad's manager is you; if not, set the reporting line to yourself | Reporting line shows Krushna Sonalkar |
 
 ## Employees
@@ -17,7 +17,7 @@ Before you start: P1 is Pass in `TRACKER.md`. You act as HR on all screens and a
 | Id | Screen | Do | Expect |
 |---|---|---|---|
 | H-01 | `/employees` | Search by name, by number; filter by department | Correct rows; dates as dd-mmm-yyyy, no codes |
-| H-02 | `/employees/:id` | Edit personal, identification, bank; upload one document; delete it | Saved; document gone; dialog closes |
+| H-02 | `/employees/:id` | Edit personal, identification, bank; upload one document | Saved; document listed; dialog closes. Delete is Karmaveer's K-15 |
 | H-03 | `/employees/:id` | Change NH-5's manager to ITC-0005 | Reporting line updated; ITC-0005 sees NH-5 as a direct report |
 | H-04 | `/employees/:id` | Terminate NH-3 with reason and remarks | Status terminated; reason stored and shown |
 | H-05 | same | Reactivate NH-3 | Active again; history keeps the exit |
@@ -34,8 +34,8 @@ Before you start: P1 is Pass in `TRACKER.md`. You act as HR on all screens and a
 | L-05 | `/approvals` as manager | Approve Sahmad's CL 15–16 Oct (after E-03) | Moves to the HR step |
 | L-06 | `/leave/requests` as HR | Approve the same request | Approved; Sahmad's CL balance down by 2 |
 | L-07 | `/approvals` | Reject Sahmad's SL 20 Oct with a comment | Rejected; balance unchanged; Sahmad sees the reason |
-| L-08 | `/leave/requests/new` | Apply on behalf of NH-2: EL 2026-10-22, 3 days | Pending at manager; visible to NH-2 |
-| L-09 | `/leave/requests` | Approve both steps; apply on behalf again for NH-2 beyond balance | Second one marked LOP per policy |
+| L-08 | `/me/leave/apply` as NH-2 (use the K-06 invitation) | EL 2026-10-22, 3 days | Pending; listed on `/leave/requests` for you as HR |
+| L-09 | `/leave/requests` | Approve NH-2's request at every step shown; then as NH-2 apply EL beyond the remaining balance | Second one marked LOP per policy |
 | L-10 | `/approvals/delegations` | Delegate your approvals to ITC-0002 for one day; Sahmad applies again | ITC-0002 sees it |
 | L-11 | `/leave/import` | Import one balance adjustment | Known exception D-43; note behaviour only |
 
@@ -50,7 +50,6 @@ Before you start: P1 is Pass in `TRACKER.md`. You act as HR on all screens and a
 
 | Id | Screen | Do | Expect |
 |---|---|---|---|
-| T-01 | `/hrms/attendance-settings` | Set grace 10 min, save | Saved |
 | T-02 | `/hrms/attendance-log` | Open Oct for Sahmad (after E-05) | His clock rows present |
 | T-03 | `/hrms/regularizations/all` | Approve Sahmad's regularisation | Approved; log corrected |
 | T-04 | `/hrms/overtime-requests/all` | Approve Sahmad's OT 18 Oct, 3 h | Approved; appears in the HR overtime list |

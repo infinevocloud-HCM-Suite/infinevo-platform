@@ -35,6 +35,8 @@ P1 is Pass when K-00 to K-07x are Pass. Tell Krushna and Mohit.
 | K-10 | `/roles` | Create custom role `Auditor` with read-only employee and audit permissions; assign to NH-5 on `/users` (after K-05) | NH-5 sees Employees and Audit, nothing else |
 | K-10a | `/users` | Change your own roles to drop tenant-admin | Refused as the last tenant admin |
 | K-10b | `/users` | Disable NH-5's account, then re-enable | Cannot sign in while disabled |
+| K-15 | `/employees/:id` | After Krushna's H-02: delete the document she uploaded | Document gone; dialog closes. Delete is admin-only (V037 decision 2) |
+| K-16 | `/leave/requests/new` | Apply on behalf of NH-2: EL 2026-10-23, 1 day | Lands Approved at once; visible to NH-2; balance reduced |
 
 ## C. Platform level, as `staff.infinevo` (founder or you if you hold it)
 

@@ -238,6 +238,12 @@ class RoleCatalogueIT {
                 assertThat(holds(conn, tenant, "hr", "core.reporting_line.manage"))
                         .as("core.reporting_line.manage granted to hr")
                         .isTrue();
+                assertThat(holds(conn, tenant, "manager", "core.approval.delegate"))
+                        .as("L-10 (V176): core.approval.delegate granted to manager")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "hr", "core.approval.delegate"))
+                        .as("V176 grants delegate to manager only, not hr")
+                        .isFalse();
             }
         }
     }

@@ -24,6 +24,8 @@ vi.mock('react-router-dom', async () => {
 vi.mock('./employeeService.js', () => ({
   employeeService: {
     list: vi.fn(),
+    export: vi.fn(),
+    downloadFile: vi.fn(),
   },
 }));
 
@@ -226,5 +228,30 @@ describe('EmployeeList component', () => {
     await waitFor(() => expect(employeeService.list).toHaveBeenCalled());
     expect(document.getElementById('btn-invite-all')).toBeNull();
     expect(document.getElementById('btn-import-employees')).toBeNull();
+  });
+
+  it('Export button calls employeeService.export and downloadFile when clicked', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockImplementation((action) => {
+      if (action === 'core.employee.export') return true;
+      return false;
+    });
+    employeeService.export.mockResolvedValue({
+      url: '/api/v1/documents/download?t=signed-token',
+      fileName: 'employees-2026.xlsx',
+      rowCount: 53,
+    });
+
+    renderWithStore(<EmployeeList />);
+    await waitFor(() => expect(document.getElementById('btn-export-employees')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-export-employees'));
+
+    await waitFor(() => {
+      expect(employeeService.export).toHaveBeenCalled();
+      expect(employeeService.downloadFile).toHaveBeenCalledWith(
+        '/api/v1/documents/download?t=signed-token',
+        'employees-2026.xlsx'
+      );
+      expect(successMsg).toHaveBeenCalledWith('Export downloaded', expect.stringContaining('53'));
+    });
   });
 });
