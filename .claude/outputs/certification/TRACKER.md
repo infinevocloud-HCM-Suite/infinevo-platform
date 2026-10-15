@@ -118,7 +118,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | M-15 | Ready | 2026-10-15 | V177 granted core.pay_input.write & read to payroll-officer; ready for re-test |
 | M-16 | Pass | 2026-10-14 | PAID run verified immutable; edit, compute, and cancel actions strictly disabled |
 | R-01 | Pass | 2026-10-15 | Total gross (₹40,92,720.00), deductions (₹12,280.00), net pay (₹40,80,440.00), included (49) & skipped (6) match pay run |
-| R-02 | Ready | 2026-10-15 | Form 16 screen (W-47) plan updated & approved; implementation in progress |
+| R-02 | Pass | 2026-10-15 | Form 16 management screen mounted at /payroll/tax/form-16 (and aliases /payroll/form-16, /payroll/settings/form-16); generates Form 16 Part B statements, supports printing, and handles TRACES Part A ZIP uploads with signed PDF download links (Defect #10 fixed, 04e8e9d8) |
 | R-03 | Pass | 2026-10-15 | Signed payslip email link mounted at /public/payslips; renders Oct payslip with download/print without sign-in (Defect #7 fixed) |
 | R-04 | Pass | 2026-10-15 | Pay run detail screen /payroll/runs/:id includes "Export to Excel" button; backend GET /api/v1/payroll/payruns/:id/export streams XLSX (Defect #9 fixed) |
 | N-01 | Pass | 2026-10-14 | Unentitled URLs (/leave/types) refused with 404 |
@@ -146,7 +146,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | E-09 | Pass | 2026-10-15 | Reimbursement claim submitted successfully with component selected and receipt attached |
 | E-10 | Pass | 2026-10-15 | Oct 2026 payslip verified on /me/payslips: Gross ₹82,720.00, PF ₹5,280.00, PT ₹200.00, Net ₹77,240.00 exact match |
 | E-10a | Pass | 2026-10-15 | Unauthenticated signed payslip email link (/public/payslips?t=...) mounted and verified; renders Oct payslip with download/print without sign-in |
-| E-11 | Ready | 2026-10-15 | Form 16 self-service panel on /me planned with Defect #10 (W-47) |
+| E-11 | Pass | 2026-10-15 | Form 16 self-service panel mounted on /me/taxDeclaration?tab=form-16 with TDS overview, TRACES Part A PDF download, and annual statement view (Defect #10 fixed, 04e8e9d8) |
 | N-01 | Pass | 2026-10-14 | All admin/staff URLs (/employees, /leave/requests, /payroll/runs, /admin) refused with 404 (routes unmounted) |
 | N-02 | Pass | 2026-10-14 | Direct colleague profile URL (/employees/<id>) refused with 404 |
 | N-03 | Pass | 2026-10-14 | Access to non-owned leave request refused with 404 |
@@ -166,4 +166,4 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 7 | 2026-10-14 | Mohit, Sahmad | R-03, E-10a | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | Fixed on main (787b068e, 4f6deebe) |
 | 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | Fixed on main (V177) |
 | 9 | 2026-10-15 | Mohit | R-04 | payroll-officer | /payroll/runs/:id | Pay run detail screen has no "Export to Excel" / XLSX button and backend lacks export endpoint | Export to Excel / XLSX button provided on pay run page to download pay run line totals | Fixed on main (03c9700a) |
-| 10 | 2026-10-15 | Mohit | R-02 | payroll-officer | /payroll/tax/form-16 | Form 16 screen not mounted in frontend (W-47 unbuilt); no UI available to generate Form 16 statement or upload Part A ZIP | UI screen provided to view/generate Form 16 statement and upload Part A TRACES ZIP | In progress (Plan approved, W-47) |
+| 10 | 2026-10-15 | Mohit, Sahmad | R-02, E-11 | payroll-officer, employee | /payroll/tax/form-16, /me | Form 16 screen not mounted in frontend (W-47 unbuilt); no UI available to generate Form 16 statement or upload Part A ZIP | UI screen provided to view/generate Form 16 statement and upload Part A TRACES ZIP, plus employee self-service panel | Fixed on main (04e8e9d8) |
