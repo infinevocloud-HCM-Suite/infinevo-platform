@@ -120,7 +120,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | R-01 | Blocked | | J2 |
 | R-02 | Blocked | | |
 | R-03 | Fail | 2026-10-14 | Signed payslip email link (/public/payslips?t=...) returns 404; route not mounted in frontend (Defect #7) |
-| R-04 | Blocked | | |
+| R-04 | Fail | 2026-10-15 | Export to Excel / XLSX button missing from UI and backend lacks pay run export endpoint (Defect #9) |
 | N-01 | Pass | 2026-10-14 | Unentitled URLs (/leave/types) refused with 404 |
 | N-02 | Pass | 2026-10-14 | /admin URL refused with 404 |
 
@@ -165,3 +165,4 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab was missing from employee portal; no panel existed for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | BUG-D5-025 (Resolved in code) |
 | 7 | 2026-10-14 | Mohit | R-03 | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | |
 | 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | |
+| 9 | 2026-10-15 | Mohit | R-04 | payroll-officer | /payroll/runs/:id | Pay run detail screen has no "Export to Excel" / XLSX button and backend lacks export endpoint | Export to Excel / XLSX button provided on pay run page to download pay run line totals | |
