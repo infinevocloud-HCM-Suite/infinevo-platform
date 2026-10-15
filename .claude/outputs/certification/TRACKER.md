@@ -115,7 +115,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | M-13 | Pass | 2026-10-14 | Revised CTC (+10%) verified in lines drawer: Gross ₹82,720.00, PF ₹5,280.00, PT ₹200.00, Net ₹77,240.00 exact match |
 | M-13a | Pass | 2026-10-14 | NH-2 (EMP0046) gross ₹20,000 & net ₹20,000 verified; statutory items omitted from salary version and L-09 blocked |
 | M-14 | Pass | 2026-10-14 | Pay run approved and marked PAID; payslips generated and available on /me |
-| M-15 | Blocked | | Off-cycle bonus run for NH-4 (EMP0048) next |
+| M-15 | Fail | 2026-10-15 | Saving off-cycle pay inputs fails with "Not permitted: requires action 'core.pay_input.write'" (Defect #8) |
 | M-16 | Pass | 2026-10-14 | PAID run verified immutable; edit, compute, and cancel actions strictly disabled |
 | R-01 | Blocked | | J2 |
 | R-02 | Blocked | | |
@@ -164,3 +164,4 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | | 2026-10-14 | Sahmad | E-09 | employee | /me (claims) | In New Claim drawer, component dropdown is empty / has no data, blocking submission of reimbursement claim | Reimbursement components (e.g. Internet) selectable in dropdown | BUG-D5-024 |
 | | 2026-10-14 | Sahmad | E-08 | employee | /me | FBP tab was missing from employee portal; no panel existed for employee to declare flexible benefits | FBP tab/panel available on /me allowing Meal and Fuel declarations | BUG-D5-025 (Resolved in code) |
 | 7 | 2026-10-14 | Mohit | R-03 | employee | /public/payslips | Email notification "Download it" link opens /public/payslips?t=... which renders a 404 page (public route not mounted in frontend) | Opens unauthenticated public payslip viewer / downloads payslip without login | |
+| 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | |
