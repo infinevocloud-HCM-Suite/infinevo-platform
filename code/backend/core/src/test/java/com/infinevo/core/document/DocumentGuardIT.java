@@ -88,6 +88,39 @@ class DocumentGuardIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("employee with core.leave.apply: uploads LEAVE_ATTACHMENT pinned to caller's employee id")
+    void employeeCanUploadLeaveAttachment() throws Exception {
+        UUID me = DocumentTestSchema.insertEmployee(tenant, "ME-" + UUID.randomUUID());
+        owners.link(employeeSub, me);
+
+        String created = mvc.perform(as(employeeSub, upload("medical.pdf", PDF, "LEAVE_ATTACHMENT")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.fileName").value("medical.pdf"))
+                .andExpect(jsonPath("$.employeeId").value(me.toString()))
+                .andExpect(jsonPath("$.kind").value("LEAVE_ATTACHMENT"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        UUID docId = UUID.fromString(json.readTree(created).get("id").asText());
+        assertThat(DocumentTestSchema.readColumn(docId, "employee_id")).isEqualTo(me);
+    }
+
+    @Test
+    @DisplayName("employee cannot upload LEAVE_ATTACHMENT for another employee")
+    void employeeCannotUploadForColleague() throws Exception {
+        UUID me = DocumentTestSchema.insertEmployee(tenant, "ME-" + UUID.randomUUID());
+        UUID colleague = DocumentTestSchema.insertEmployee(tenant, "COL-" + UUID.randomUUID());
+        owners.link(employeeSub, me);
+
+        mvc.perform(as(
+                        employeeSub,
+                        upload("medical.pdf", PDF, "LEAVE_ATTACHMENT").param("employeeId", colleague.toString())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     @DisplayName(
             "employee: 403 on metadata, link and delete of a document with no employee_id - read_own never reaches one")
     void employeeCannotReadLinkOrDelete() throws Exception {

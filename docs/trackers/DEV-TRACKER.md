@@ -415,16 +415,26 @@ Sizes: D-33, D-35, D-36, D-37, D-41, D-42 are S; D-34, D-38, D-39, D-40, D-43, D
 
 #### BUG-D5-023 (E-03a): Leave Application Throws Attachment Validation Error Despite Attaching Document
 - **Found:** 2026-10-14, Certification Stage E-03a (`/me/leave/apply`, applying Sick Leave SL on 2026-10-20)
-- **Error:** `Validation Error: Leave policy requires supporting documents to be attached (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b)`
+- **Error:** `Validation Error: Leave policy requires supporting documents to be attached (Trace ID: 9dc26ed2-63de-4777-a198-bef4f71a4a2b, 3a660435-6b8c-4157-9ca7-9a80d8e4c667)`
 - **Symptom:** Even after attaching a supporting document via the upload component on the form, submitting the request fails with the exact same validation error.
-- **Root Cause:** In `LeaveRequestFields.jsx`, `<Upload>` inside `<Form.Item name="documentIds">` sets the field value to an object `{ file, fileList }` on change, overwriting the document UUID array, causing `documentIds` to not be serialized or sent properly to `POST /api/v1/leave/requests`.
+- **Root Cause:**
+  1. **Backend Document Upload Authorization**: `DocumentController.java:73` guarded `POST /api/v1/documents` solely with `@RequiresAction("core.document.upload")`. The `employee` role holds `core.document.read_own` and `core.leave.apply`, but **never** holds `core.document.upload` (which is restricted to `platform-admin`, `tenant-admin`, and `hr` per `V037__document.sql`). When an employee uploaded a supporting document for leave, the backend rejected the request with `403 Forbidden`.
+  2. **Frontend Upload Error Masking**: In `LeaveRequestFields.jsx`, `handleCustomUpload` caught the 403 error and forwarded it only to `onError(err)` without an alert or blocking notification, causing the document UUID to never be populated into the form. Submitting the form therefore sent `documentIds: []`, triggering `Leave policy requires supporting documents to be attached` from `LeaveRequestServiceImpl.java:565`.
 - **Fix Applied:**
-  1. Created and exported `normalizeDocumentIds` in `LeaveRequestFields.jsx` to reliably extract document UUID strings from raw strings, Ant Design `{ file, fileList }` wrappers, or file response objects.
-  2. Added `getValueFromEvent={normalizeDocumentIds}` on `<Form.Item name="documentIds">` in `LeaveRequestFields.jsx` so the form field holds `List<UUID>` strings.
-  3. Updated `handleCustomUpload` and `handleFileChange` to maintain the document ID array when files complete upload or are removed.
-  4. Updated `ApplyLeave.jsx` and `RecordLeave.jsx` to sanitize `documentIds: normalizeDocumentIds(values.documentIds)` in the submission payload.
-  5. Added unit test in `ApplyLeave.test.jsx`.
-- **Status:** **Resolved locally in `dev-sayeed`** (uncommitted).
+  1. Updated `DocumentController.java`:
+     - Added `anyOf` to `@RequiresAction` permitting self-service actions: `core.leave.apply`, `payroll.reimbursement_claim.submit_own`, `payroll.tax_declaration.submit`, and `payroll.proof.submit_own`.
+     - Injected `PermissionService` and `DocumentOwnerResolver`.
+     - Added `validateUploadPermissionAndEmployee`: If the caller lacks `core.document.upload`, verifies that the document kind matches their permitted action (e.g. `LEAVE_ATTACHMENT` requires `core.leave.apply`) and pins `employeeId` strictly to the authenticated caller's employee record. Refuses other kinds (`EMPLOYEE_DOCUMENT`, etc.) or colleague spoofing with `403 Forbidden`.
+  2. Added integration tests in `DocumentGuardIT.java`:
+     - `employeeCanUploadLeaveAttachment`: Verifies that an employee with `core.leave.apply` uploads `LEAVE_ATTACHMENT` and the document is stored with `employee_id` pinned to the caller.
+     - `employeeCannotUploadForColleague`: Verifies that an employee attempting to upload `LEAVE_ATTACHMENT` specifying a colleague's ID is refused with `403 Forbidden`.
+     - `employeeCannotUpload`: Still validates that `EMPLOYEE_DOCUMENT` upload by employees is refused with `403 Forbidden`.
+  3. Updated `LeaveRequestFields.jsx`:
+     - Added `message.error(...)` notification on upload failures so API errors are immediately visible.
+     - Added form validation rule on `documentIds` to block submission while an upload is in progress (`status: 'uploading'`) or has failed (`status: 'error'`).
+     - Maintained `normalizeDocumentIds` and form value synchronization.
+  4. Ran full test suites: `DocumentGuardIT` (12/12 passed), `DocumentUploadIT` (5/5 passed), `EndpointGuardCoverageTest` (1/1 passed), and `ApplyLeave.test.jsx` (8/8 passed).
+- **Status:** **Resolved in `dev-sayeed`**.
 
 #### BUG-D5-024 (E-09): Reimbursement Component Dropdown Empty in New Claim Drawer
 - **Found:** 2026-10-14, Certification Stage E-09 (`/me` Claims tab, New Claim drawer)

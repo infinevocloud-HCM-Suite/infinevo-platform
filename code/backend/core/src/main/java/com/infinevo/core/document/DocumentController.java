@@ -1,5 +1,8 @@
 package com.infinevo.core.document;
 
+import com.infinevo.shared.authz.NoEmployeeRecordException;
+import com.infinevo.shared.authz.PermissionDeniedException;
+import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
@@ -9,8 +12,10 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -56,9 +61,19 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final PermissionService permissionService;
+    private final DocumentOwnerResolver ownerResolver;
 
     public DocumentController(DocumentService documentService) {
+        this(documentService, null, null);
+    }
+
+    @Autowired
+    public DocumentController(
+            DocumentService documentService, PermissionService permissionService, DocumentOwnerResolver ownerResolver) {
         this.documentService = Objects.requireNonNull(documentService, "documentService must not be null");
+        this.permissionService = permissionService;
+        this.ownerResolver = ownerResolver;
     }
 
     /**
@@ -70,7 +85,14 @@ public class DocumentController {
      * document of their own making as a payslip.
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @RequiresAction("core.document.upload")
+    @RequiresAction(
+            value = "core.document.upload",
+            anyOf = {
+                "core.leave.apply",
+                "payroll.reimbursement_claim.submit_own",
+                "payroll.tax_declaration.submit",
+                "payroll.proof.submit_own"
+            })
     public ResponseEntity<DocumentResponse> upload(
             @RequestPart("file") MultipartFile file,
             @RequestParam("kind") DocumentKind kind,
@@ -81,11 +103,46 @@ public class DocumentController {
             throw new DocumentService.ValidationException(
                     Map.of("kind", kind + " is written by the platform and cannot be uploaded"));
         }
+        UUID targetEmployeeId = validateUploadPermissionAndEmployee(kind, employeeId);
         UUID id;
         try (InputStream content = file.getInputStream()) {
-            id = documentService.store(kind, employeeId, label, file.getOriginalFilename(), content);
+            id = documentService.store(kind, targetEmployeeId, label, file.getOriginalFilename(), content);
         }
         return ResponseEntity.created(URI.create("/api/v1/documents/" + id)).body(documentService.get(id));
+    }
+
+    private UUID validateUploadPermissionAndEmployee(DocumentKind kind, UUID requestedEmployeeId) {
+        if (permissionService == null || permissionService.holds("core.document.upload")) {
+            return requestedEmployeeId;
+        }
+
+        Optional<UUID> callerEmployee = ownerResolver != null ? ownerResolver.currentEmployeeId() : Optional.empty();
+
+        switch (kind) {
+            case LEAVE_ATTACHMENT -> {
+                if (!permissionService.holds("core.leave.apply")) {
+                    throw new PermissionDeniedException("core.leave.apply");
+                }
+            }
+            case REIMBURSEMENT_RECEIPT -> {
+                if (!permissionService.holds("payroll.reimbursement_claim.submit_own")) {
+                    throw new PermissionDeniedException("payroll.reimbursement_claim.submit_own");
+                }
+            }
+            case INVESTMENT_PROOF -> {
+                if (!permissionService.holds("payroll.tax_declaration.submit")
+                        && !permissionService.holds("payroll.proof.submit_own")) {
+                    throw new PermissionDeniedException("payroll.tax_declaration.submit");
+                }
+            }
+            default -> throw new PermissionDeniedException("core.document.upload");
+        }
+
+        UUID callerEmployeeId = callerEmployee.orElseThrow(NoEmployeeRecordException::new);
+        if (requestedEmployeeId != null && !requestedEmployeeId.equals(callerEmployeeId)) {
+            throw new PermissionDeniedException("core.document.upload");
+        }
+        return callerEmployeeId;
     }
 
     /** Soft delete — {@code 204}, and the row and the blob both stay. */
