@@ -9,6 +9,8 @@ vi.mock('./fbpService.js', () => ({
   fbpService: {
     declaration: vi.fn(),
     setDeclaration: vi.fn(),
+    readOwn: vi.fn(),
+    declareOwn: vi.fn(),
   },
 }));
 
@@ -28,6 +30,22 @@ function renderTab(employeeId = 'emp-123', canRead = true, canManage = true) {
     <MemoryRouter initialEntries={[`/employees/${employeeId}`]}>
       <Routes>
         <Route path="/employees/:id" element={<FbpDeclarationTab />} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+function renderSelfServiceTab(canReadOwn = true, canDeclareOwn = true) {
+  vi.spyOn(useCanModule, 'useCan').mockImplementation((action) => {
+    if (action === 'payroll.fbp.read_own') return canReadOwn;
+    if (action === 'payroll.fbp.declare_own') return canDeclareOwn;
+    return false;
+  });
+
+  return render(
+    <MemoryRouter initialEntries={['/me/fbp']}>
+      <Routes>
+        <Route path="/me/fbp" element={<FbpDeclarationTab />} />
       </Routes>
     </MemoryRouter>
   );
@@ -67,6 +85,7 @@ describe('FbpDeclarationTab (W-47.1b §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fbpService.declaration.mockResolvedValue(DECLARATION);
+    fbpService.readOwn.mockResolvedValue(DECLARATION);
   });
 
   it('renders NotEntitled when user lacks payroll.fbp.read', () => {
@@ -147,6 +166,53 @@ describe('FbpDeclarationTab (W-47.1b §7)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('fbp-404-error')).toBeDefined();
       expect(screen.getByText('No salary version found in force for this date')).toBeDefined();
+    });
+  });
+
+  it('self-service: renders NotEntitled when employee lacks payroll.fbp.read_own', () => {
+    renderSelfServiceTab(false, false);
+    expect(screen.getByText('Module Not Subscribed')).toBeDefined();
+  });
+
+  it('self-service: loads own declaration via readOwn and saves via declareOwn', async () => {
+    fbpService.declareOwn.mockResolvedValue(DECLARATION);
+
+    renderSelfServiceTab(true, true);
+
+    await waitFor(() => {
+      expect(fbpService.readOwn).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Flexible Benefit Plan Declaration')).toBeDefined();
+      expect(screen.getByText('Fuel Allowance')).toBeDefined();
+      expect(screen.getByTestId('save-fbp-declaration-button')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByTestId('save-fbp-declaration-button'));
+
+    await waitFor(() => {
+      expect(fbpService.declareOwn).toHaveBeenCalledTimes(1);
+    });
+
+    const [payload] = fbpService.declareOwn.mock.calls[0];
+    expect(payload.lines).toHaveLength(2);
+    expect(payload.lines[0]).toEqual({
+      kind: 'EARNING',
+      componentId: 'comp-fuel-1',
+      annualAmount: 30000,
+    });
+  });
+
+  it('self-service: displays closed alert and disables saving when window is closed', async () => {
+    fbpService.readOwn.mockResolvedValue({
+      ...DECLARATION,
+      windowOpen: false,
+    });
+
+    renderSelfServiceTab(true, true);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('fbp-window-closed-alert')).toBeDefined();
+      expect(screen.getByText('Declaration Window Closed')).toBeDefined();
+      expect(screen.queryByTestId('save-fbp-declaration-button')).toBeNull();
     });
   });
 });

@@ -9,6 +9,7 @@ import {
   ClockCircleOutlined,
   WalletOutlined,
   AppstoreOutlined,
+  GiftOutlined,
 } from '@ant-design/icons';
 import { portalService } from './portalService.js';
 import { MyProfile } from './panels/MyProfile.jsx';
@@ -28,6 +29,7 @@ const PANEL_ICONS = {
   timesheet: <ClockCircleOutlined />,
   taxDeclaration: <FileTextOutlined />,
   claims: <WalletOutlined />,
+  fbp: <GiftOutlined />,
 };
 
 const PANEL_COMPONENTS = {

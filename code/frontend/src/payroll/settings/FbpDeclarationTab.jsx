@@ -6,22 +6,25 @@ import { FbpDeclarationForm } from './FbpDeclarationForm.jsx';
 export function FbpDeclarationTab({ employeeId: propEmployeeId, employee }) {
   const params = useParams();
   const employeeId = propEmployeeId || employee?.id || params?.id || params?.employeeId;
+  const isOwn = !employeeId;
 
-  const canRead = useCan('payroll.fbp.read');
-  const canManage = useCan('payroll.salary.manage');
+  const canReadOwn = useCan('payroll.fbp.read_own');
+  const canDeclareOwn = useCan('payroll.fbp.declare_own');
+  const canReadAdmin = useCan('payroll.fbp.read');
+  const canManageAdmin = useCan('payroll.salary.manage');
+
+  const canRead = isOwn ? canReadOwn : canReadAdmin;
+  const canManage = isOwn ? canDeclareOwn : canManageAdmin;
 
   if (!canRead) {
     return <NotEntitled />;
-  }
-
-  if (!employeeId) {
-    return null;
   }
 
   return (
     <div style={{ width: '100%' }}>
       <FbpDeclarationForm
         employeeId={employeeId}
+        isOwn={isOwn}
         canManage={canManage}
       />
     </div>

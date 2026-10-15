@@ -137,6 +137,7 @@ export const reducers = {
 export const portalPanels = [
   { code: 'taxDeclaration', component: DeclarationPage },
   { code: 'claims', component: MyClaimsPanel },
+  { code: 'fbp', component: FbpDeclarationTab },
 ];
 
 // Employee page tabs exported for shell composition (W-47.1a §5, W-47.1b §5, §5a).

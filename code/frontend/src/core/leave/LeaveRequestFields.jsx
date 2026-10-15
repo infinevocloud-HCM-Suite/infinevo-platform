@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Form, Select, DatePicker, Switch, Input, Row, Col, Upload, Button } from 'antd';
+import { Form, Select, DatePicker, Switch, Input, Row, Col, Upload, Button, message } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import { documentService } from '../document/documentService.js';
 import { EmployeePicker } from './EmployeePicker.jsx';
@@ -51,6 +51,7 @@ export function LeaveRequestFields({
       }
     } catch (err) {
       onError(err);
+      message.error(err?.response?.data?.message || err?.message || 'Failed to upload supporting document');
     }
   };
 
@@ -150,6 +151,19 @@ export function LeaveRequestFields({
         label="Supporting Documents / Attachments"
         extra="Upload supporting documents (PDF, JPG, PNG) if required by the leave policy."
         getValueFromEvent={normalizeDocumentIds}
+        rules={[
+          {
+            validator: () => {
+              if (fileList.some((f) => f.status === 'uploading')) {
+                return Promise.reject(new Error('Please wait for the document to finish uploading.'));
+              }
+              if (fileList.some((f) => f.status === 'error')) {
+                return Promise.reject(new Error('Document upload failed. Please remove or re-upload the document.'));
+              }
+              return Promise.resolve();
+            },
+          },
+        ]}
       >
         <Upload
           fileList={fileList}

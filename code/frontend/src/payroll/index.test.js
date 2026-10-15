@@ -46,8 +46,8 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
     });
   });
 
-  it('offers the taxDeclaration and claims portal panels as components', () => {
-    expect(portalPanels.map((p) => p.code)).toEqual(['taxDeclaration', 'claims']);
+  it('offers the taxDeclaration, claims, and fbp portal panels as components', () => {
+    expect(portalPanels.map((p) => p.code)).toEqual(['taxDeclaration', 'claims', 'fbp']);
     portalPanels.forEach((p) => {
       expect(p.component).toBeTruthy();
       expect(p).not.toHaveProperty('element');

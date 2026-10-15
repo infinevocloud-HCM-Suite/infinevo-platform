@@ -96,4 +96,25 @@ describe('fbpService (W-47.1b §7)', () => {
     );
     expect(res).toEqual(mockRes);
   });
+
+  it('readOwn hits /v1/me/fbp-declaration (BUG-D5-025)', async () => {
+    const mockDecl = { totalPool: '100000', lines: [] };
+    apiClient.get.mockResolvedValueOnce({ data: mockDecl });
+
+    const res = await fbpService.readOwn();
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/me/fbp-declaration');
+    expect(res).toEqual(mockDecl);
+  });
+
+  it('declareOwn puts to /v1/me/fbp-declaration with lines payload (BUG-D5-025)', async () => {
+    const lines = [{ componentId: 'c1', annualAmount: 24000 }];
+    const mockRes = { totalPool: '100000', lines };
+    apiClient.put.mockResolvedValueOnce({ data: mockRes });
+
+    const res = await fbpService.declareOwn(lines);
+
+    expect(apiClient.put).toHaveBeenCalledWith('/v1/me/fbp-declaration', { lines });
+    expect(res).toEqual(mockRes);
+  });
 });
