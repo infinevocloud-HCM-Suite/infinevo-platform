@@ -26,7 +26,7 @@
 | #87 | `W-67` Migration rules | Employee deduplication rules, the leave authority decision, the timesheet data decision, duplicate entity resolution, the loss-of-pay reconciliation approach. **Written and agreed before a single row moves** | none (signed 2026-10-16) | `signed` founder · spec `W-67-migration-rules.md` |
 | #88 | `W-68.1` Migration engine — extract and staging | Pull from the two frozen MySQL databases into staging | `W-67` | `code done` mohit · extractors without hardcoded fallbacks, SSL read-only |
 | #89 | `W-68.2` Migration engine — transform and merge | Reshape and merge the two sources into one | `W-68.1` | `code done` mohit · 3-cohort merge transformer |
-| #90 | `W-68.3` Migration engine — load and restartability | Load into Postgres, and survive being restarted halfway | `W-68.2` | `code done` mohit (lead) · core & payroll loaders, Flyway `V177__migration_ledger.sql` |
+| #90 | `W-68.3` Migration engine — load and restartability | Load into Postgres, and survive being restarted halfway | `W-68.2` | `code done` mohit (lead) · core & payroll loaders, Flyway `V177__migration_ledger.sql` · krushna (loaders 3i–3k) |
 | #91 | `W-69` Document migration | Rewrite document references, copy the blobs, verify them | `W-21`, `W-68` | `code done` sayeed · `load_documents.py` with Cloudinary download, W-21 validation, Azure Blob upload |
 | #92 | `W-70` Reconciliation | Row counts, financial totals, per-employee comparison, and a **loss-of-pay mismatch log for finance** | `W-68` | `code done` krushna · `financial_reconciliation.py` (0.00 INR delta) & `lop_mismatch_generator.py` |
 | #93 | `W-71` Rehearsals | Rehearsal automation, result capture, repeat until boring | `W-70` | `code done` karma · `caj-data-migration-{env}` Bicep, Dockerfile, entrypoint, secret seeding, rehearsal log |
@@ -68,6 +68,19 @@ carried across — not what gets built.
 | Employee identity | The same person may exist in both systems with different identifiers. `W-67` decides the rule before `W-68` implements it |
 | An untested restore is not a backup | `W-62` in [INFRA-TRACKER.md](INFRA-TRACKER.md) must be genuinely `done` before cutover, not `code done` |
 | Rehearse until boring | `W-71` is not a formality. A cutover that has been rehearsed once has not been rehearsed |
+
+---
+
+## 5. Completed stream I workstreams on `core-migration-non-prod-data`
+
+| Workstream | Ticket / Task | Artifacts | Status |
+|---|---|---|---|
+| Leave & Holiday Loader | `W-68.3` Task 3i | `code/migration/loaders/load_leave.py` | `code done` · Rule R2 per-tenant split, 5 seeded codes + LEGACY, approval instances & steps, leave consumption ledger |
+| Timesheets Loader | `W-68.3` Task 3j | `code/migration/loaders/load_timesheets.py` | `code done` · 7 tables (projects, tasks, assignments, timesheets, day entries with `hours > 0` filter) |
+| Attendance Loader | `W-68.3` Task 3k | `code/migration/loaders/load_attendance.py` | `code done` · 3 tables (attendance, clock sessions, overtime requests, `source = 'CLOCK'`, `remarks = 'MIGRATED'`) |
+| Financial Reconciliation | `W-70` Task 1 | `code/migration/reconciliation/financial_reconciliation.py` | `code done` · 61-table row counts, Decimal 0.00 INR delta proof, JSON report, exit 1 on variance |
+| LOP Mismatch Generator | `W-70` Task 2 | `code/migration/reconciliation/lop_mismatch_generator.py` | `code done` · Decimal-only, deterministic uuid5, status preserved on conflict, filter variance > 0, Finance CSV export |
+| Reconciliation & Loader Tests | `W-70` Task 3 / `W-68` Task 4 | `code/migration/tests/test_reconciliation.py`, `tests/test_loaders_krushna.py` | `code done` · 7/7 pytest tests passed |
 
 ---
 
