@@ -55,13 +55,19 @@ run_step 3 "Merging Employees across 3 Cohorts" "transformers/merge_employees.py
 # 3. Loaders
 run_step 4 "Loading PostgreSQL Core Employees & Statutory Profiles" "loaders/load_postgres.py"
 run_step 5 "Loading Historical Payruns & Employee Payruns" "loaders/load_payruns.py"
-run_step 6 "Loading Leave Types, Policies, Allocations & Requests" "loaders/load_leave.py"
-run_step 7 "Loading Employee Documents & POI Proofs" "loaders/load_documents.py"
-run_step 8 "Provisioning Keycloak Users & Linking User Accounts" "loaders/load_keycloak.py"
+run_step 6 "Loading Salary, CTC Structures & Components" "loaders/load_salary.py"
+run_step 7 "Loading Statutory EPF, ESI & PT Overrides" "loaders/load_statutory.py"
+run_step 8 "Loading Income Tax Declarations & TDS" "loaders/load_tax.py"
+run_step 9 "Loading Leave Types, Policies, Allocations & Requests" "loaders/load_leave.py"
+run_step 10 "Loading Attendance & Clock Sessions" "loaders/load_attendance.py"
+run_step 11 "Loading Projects, Tasks & Timesheets" "loaders/load_timesheets.py"
+run_step 12 "Loading Claims & Deductions" "loaders/load_claims.py"
+run_step 13 "Loading Employee Documents & POI Proofs" "loaders/load_documents.py"
+run_step 14 "Provisioning Keycloak Users & Linking User Accounts" "loaders/load_keycloak.py"
 
 # 4. Reconciliation & Audit
-run_step 9 "Generating LOP Mismatch Audit Log" "reconciliation/lop_mismatch_generator.py"
-run_step 10 "Running Financial Reconciliation (0.00 INR Delta Proof)" "reconciliation/financial_reconciliation.py"
+run_step 15 "Generating LOP Mismatch Audit Log" "reconciliation/lop_mismatch_generator.py"
+run_step 16 "Running Financial Reconciliation (0.00 INR Delta Proof)" "reconciliation/financial_reconciliation.py"
 
 echo ""
 echo "================================================================="
