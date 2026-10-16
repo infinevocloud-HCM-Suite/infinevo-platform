@@ -49,4 +49,3 @@ code/migration/staging/*.log
 __pycache__/
 *.py[cod]
 *$py.class
-

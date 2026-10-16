@@ -27,7 +27,7 @@
 | #88 | `W-68.1` Migration engine — extract and staging | Pull from the two frozen MySQL databases into staging | `W-67` | `code done` mohit · extractors without hardcoded fallbacks, SSL read-only |
 | #89 | `W-68.2` Migration engine — transform and merge | Reshape and merge the two sources into one | `W-68.1` | `code done` mohit · 3-cohort merge transformer |
 | #90 | `W-68.3` Migration engine — load and restartability | Load into Postgres, and survive being restarted halfway | `W-68.2` | `code done` mohit (lead) · core & payroll loaders, Flyway `V177__migration_ledger.sql` · krushna (loaders 3i–3k) |
-| #91 | `W-69` Document migration | Rewrite document references, copy the blobs, verify them | `W-21`, `W-68` | `code done` sayeed · `load_documents.py` with Cloudinary download, W-21 validation, Azure Blob upload |
+| #91 | `W-69` Document migration | Rewrite document references, copy the blobs, verify them | `W-21`, `W-68` | `code done` sayeed · `load_documents.py` with Cloudinary download, W-21 validation, Azure Blob upload, tests passing |
 | #92 | `W-70` Reconciliation | Row counts, financial totals, per-employee comparison, and a **loss-of-pay mismatch log for finance** | `W-68` | `code done` krushna · `financial_reconciliation.py` (0.00 INR delta) & `lop_mismatch_generator.py` |
 | #93 | `W-71` Rehearsals | Rehearsal automation, result capture, repeat until boring | `W-70` | `code done` karma · `caj-data-migration-{env}` Bicep, Dockerfile, entrypoint, secret seeding, rehearsal log |
 | #94 | `W-72` Cutover | Freeze window, switch, smoke test, **rollback runbook** | `W-71`, `W-62` restore performed | `assigned` founder · runbook `W-72-cutover.md` 2026-10-16 |
