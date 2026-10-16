@@ -1,4 +1,4 @@
--- Migration: V178__migration_ledger.sql
+-- Migration: V177__migration_ledger.sql
 -- Schema: core
 -- Purpose: W-67 / W-68 / W-70 Data Migration Restartability Ledger & Loss-of-Pay Mismatch Audit Log
 --          Enforces tenant isolation and RLS on all migration tracking entities.
@@ -66,3 +66,11 @@ CREATE POLICY tenant_isolation ON core.lop_mismatch_log
 
 COMMENT ON TABLE core.lop_mismatch_log IS
     'W-70: tracks variances between HRMS unpaid leave days and Payroll historical LOP deductions for Finance sign-off';
+
+-- 3. Employee Organisation Reference Columns (W-68.3 Task 3)
+ALTER TABLE core.employee
+    ADD COLUMN designation_id   UUID REFERENCES core.designation(id),
+    ADD COLUMN work_location_id UUID REFERENCES core.work_location(id);
+
+CREATE INDEX idx_employee_tenant_designation ON core.employee (tenant_id, designation_id);
+CREATE INDEX idx_employee_tenant_work_location ON core.employee (tenant_id, work_location_id);
