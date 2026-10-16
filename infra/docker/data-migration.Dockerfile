@@ -17,7 +17,7 @@
 # All credentials are read from Azure Key Vault at runtime by the entrypoint
 # using the job's managed identity (id-migration-{env}).
 
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS runtime
 
 # Install system dependencies:
 # - default-mysql-server & default-mysql-client: embedded MariaDB sidecar for restoring .sql.gz dumps
@@ -46,8 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Non-root user: uid/gid 1000 infinevo (D-49).
 # Matches backend.Dockerfile and migration-runner.Dockerfile.
-RUN addgroup --gid 1000 infinevo && \
-    adduser --uid 1000 --gid 1000 --home /app --disabled-password --gecos "" infinevo
+RUN groupadd -g 1000 infinevo && \
+    useradd -u 1000 -g infinevo -d /app -m -s /bin/bash infinevo
 
 WORKDIR /app
 
