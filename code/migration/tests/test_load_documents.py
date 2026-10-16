@@ -8,10 +8,16 @@ Verifies:
   5. Idempotency: already migrated documents are skipped on second run
 """
 
+import os
+import sys
 import unittest
 import hashlib
 import uuid
 from unittest.mock import MagicMock, patch
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 from loaders.load_documents import (
     process_single_document,

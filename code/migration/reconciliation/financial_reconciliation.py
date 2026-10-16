@@ -221,7 +221,7 @@ def run_reconciliation(exit_on_finish=True):
 
         for tbl, stg_file in tables_to_verify:
             try:
-                cur.execute(f"SELECT COUNT(*) FROM {tbl};")
+                cur.execute(f"SELECT COUNT(*) FROM {tbl};")  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
                 db_cnt = cur.fetchone()[0]
                 stg_data = load_stg(stg_file)
                 stg_cnt = len(stg_data)

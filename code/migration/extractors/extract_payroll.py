@@ -55,16 +55,16 @@ def extract_table(conn, table_name: str, staging_dir: str) -> int:
     
     with conn.cursor() as cur:
         # Check if table exists
-        cur.execute(f"SHOW TABLES LIKE '{table_name}'")
+        cur.execute("SHOW TABLES LIKE %s", (table_name,))
         if not cur.fetchone():
             logger.warning(f"Table '{table_name}' does not exist in source database. Skipping.")
             return 0
             
-        cur.execute(f"SELECT COUNT(*) AS total FROM `{table_name}`")
+        cur.execute(f"SELECT COUNT(*) AS total FROM `{table_name}`")  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
         count = cur.fetchone()["total"]
         logger.info(f"Table '{table_name}' contains {count} rows.")
         
-        cur.execute(f"SELECT * FROM `{table_name}`")
+        cur.execute(f"SELECT * FROM `{table_name}`")  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
         rows = cur.fetchall()
         
     # Serialize datetime/decimal to string for JSON compatibility

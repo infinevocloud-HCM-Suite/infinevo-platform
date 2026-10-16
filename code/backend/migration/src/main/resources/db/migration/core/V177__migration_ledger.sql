@@ -69,8 +69,8 @@ COMMENT ON TABLE core.lop_mismatch_log IS
 
 -- 3. Employee Organisation Reference Columns (W-68.3 Task 3)
 ALTER TABLE core.employee
-    ADD COLUMN designation_id   UUID REFERENCES core.designation(id),
-    ADD COLUMN work_location_id UUID REFERENCES core.work_location(id);
+    ADD COLUMN IF NOT EXISTS designation_id   UUID REFERENCES core.designation(id),
+    ADD COLUMN IF NOT EXISTS work_location_id UUID REFERENCES core.work_location(id);
 
-CREATE INDEX idx_employee_tenant_designation ON core.employee (tenant_id, designation_id);
-CREATE INDEX idx_employee_tenant_work_location ON core.employee (tenant_id, work_location_id);
+CREATE INDEX IF NOT EXISTS idx_employee_tenant_designation ON core.employee (tenant_id, designation_id);
+CREATE INDEX IF NOT EXISTS idx_employee_tenant_work_location ON core.employee (tenant_id, work_location_id);
