@@ -86,11 +86,15 @@ def extract_table(conn, table_name: str, staging_dir: str) -> int:
     return len(rows)
 
 def main():
-    host = os.environ.get("LEGACY_HRMS_DB_HOST", "157.245.96.121")
+    host = os.environ.get("LEGACY_HRMS_DB_HOST")
     port = int(os.environ.get("LEGACY_HRMS_DB_PORT", "3306"))
-    database = os.environ.get("LEGACY_HRMS_DB_NAME", "hrmsNPDB")
-    user = os.environ.get("LEGACY_HRMS_DB_USER", "hrms_user")
-    password = os.environ.get("LEGACY_HRMS_DB_PASSWORD", "Str0ngP@ss!")
+    database = os.environ.get("LEGACY_HRMS_DB_NAME", "hrmstestdb")
+    user = os.environ.get("LEGACY_HRMS_DB_USER", "ro_migration_user")
+    password = os.environ.get("LEGACY_HRMS_DB_PASSWORD")
+    
+    if not host or not password:
+        logger.error("LEGACY_HRMS_DB_HOST and LEGACY_HRMS_DB_PASSWORD environment variables are required.")
+        sys.exit(1)
     
     staging_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "staging")
     os.makedirs(staging_dir, exist_ok=True)

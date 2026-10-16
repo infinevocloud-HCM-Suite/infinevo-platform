@@ -79,11 +79,15 @@ def extract_table(conn, table_name: str, staging_dir: str) -> int:
 
 def main():
     # Load parameters from environment
-    host = os.environ.get("LEGACY_PAYROLL_DB_HOST", "157.245.96.121")
+    host = os.environ.get("LEGACY_PAYROLL_DB_HOST")
     port = int(os.environ.get("LEGACY_PAYROLL_DB_PORT", "3306"))
     database = os.environ.get("LEGACY_PAYROLL_DB_NAME", "payroll_test_db")
-    user = os.environ.get("LEGACY_PAYROLL_DB_USER", "hrms_user")
-    password = os.environ.get("LEGACY_PAYROLL_DB_PASSWORD", "Str0ngP@ss!")
+    user = os.environ.get("LEGACY_PAYROLL_DB_USER", "ro_migration_user")
+    password = os.environ.get("LEGACY_PAYROLL_DB_PASSWORD")
+    
+    if not host or not password:
+        logger.error("LEGACY_PAYROLL_DB_HOST and LEGACY_PAYROLL_DB_PASSWORD environment variables are required.")
+        sys.exit(1)
     
     staging_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "staging")
     os.makedirs(staging_dir, exist_ok=True)

@@ -39,3 +39,7 @@ infra/docker/.env
 
 # Operator setup scripts
 infra/azure/seed_staff.py
+
+# Data migration staging dumps
+code/migration/staging/*.json
+
