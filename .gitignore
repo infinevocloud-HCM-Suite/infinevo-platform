@@ -42,4 +42,11 @@ infra/azure/seed_staff.py
 
 # Data migration staging dumps
 code/migration/staging/*.json
+code/migration/staging/*.csv
+code/migration/staging/*.log
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
 
