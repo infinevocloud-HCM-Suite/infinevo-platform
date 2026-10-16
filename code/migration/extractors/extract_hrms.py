@@ -60,6 +60,9 @@ def get_connection(host: str, port: int, user: str, password: str, database: str
     return conn
 
 def extract_table(conn, table_name: str, staging_dir: str) -> int:
+    if table_name not in TABLES_TO_EXTRACT:
+        raise ValueError(f"Table '{table_name}' is not in allowed extraction list")
+
     output_file = os.path.join(staging_dir, f"stg_hrms_{table_name}.json")
     logger.info(f"Extracting table '{table_name}'...")
     
@@ -69,11 +72,13 @@ def extract_table(conn, table_name: str, staging_dir: str) -> int:
             logger.warning(f"Table '{table_name}' does not exist in HRMS database. Skipping.")
             return 0
             
-        cur.execute(f"SELECT COUNT(*) AS total FROM `{table_name}`")  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        cur.execute(f"SELECT COUNT(*) AS total FROM `{table_name}`")
         count = cur.fetchone()["total"]
         logger.info(f"Table '{table_name}' contains {count} rows.")
         
-        cur.execute(f"SELECT * FROM `{table_name}`")  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        cur.execute(f"SELECT * FROM `{table_name}`")
         rows = cur.fetchall()
         
     def default_serializer(obj):

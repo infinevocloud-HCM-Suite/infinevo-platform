@@ -19,6 +19,7 @@ import logging
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import psycopg2
+from psycopg2 import sql
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("financial_reconciliation")
@@ -221,7 +222,14 @@ def run_reconciliation(exit_on_finish=True):
 
         for tbl, stg_file in tables_to_verify:
             try:
-                cur.execute(f"SELECT COUNT(*) FROM {tbl};")  # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                schema_name, table_name = tbl.split(".")
+                # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+                cur.execute(
+                    sql.SQL("SELECT COUNT(*) FROM {}.{}").format(
+                        sql.Identifier(schema_name),
+                        sql.Identifier(table_name)
+                    )
+                )
                 db_cnt = cur.fetchone()[0]
                 stg_data = load_stg(stg_file)
                 stg_cnt = len(stg_data)

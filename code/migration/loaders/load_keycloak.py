@@ -17,9 +17,7 @@ import uuid
 import hashlib
 import secrets
 import logging
-import urllib.request
-import urllib.parse
-import urllib.error
+import requests
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 import psycopg2
@@ -56,20 +54,20 @@ class KeycloakAdminClient:
 
         logger.info(f"Authenticating with Keycloak Admin at {self.base_url}...")
         token_url = f"{self.base_url}/realms/master/protocol/openid-connect/token"
-        data = urllib.parse.urlencode({
+        data = {
             "client_id": "admin-cli",
             "grant_type": "password",
             "username": self.admin_user,
             "password": self.admin_pw
-        }).encode("utf-8")
-        req = urllib.request.Request(token_url, data=data, method="POST")
+        }
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                res = json.loads(resp.read().decode("utf-8"))
-                self.token = res["access_token"]
-                expires_in = res.get("expires_in", 60)
-                self.token_expiry = now + timedelta(seconds=expires_in)
-                logger.info("Keycloak admin token acquired successfully.")
+            resp = requests.post(token_url, data=data, timeout=10)
+            resp.raise_for_status()
+            res = resp.json()
+            self.token = res["access_token"]
+            expires_in = res.get("expires_in", 60)
+            self.token_expiry = now + timedelta(seconds=expires_in)
+            logger.info("Keycloak admin token acquired successfully.")
         except Exception as e:
             logger.error(f"Failed to acquire Keycloak admin token: {e}")
             raise
@@ -81,20 +79,22 @@ class KeycloakAdminClient:
         first = 0
         max_batch = 100
         while True:
-            url = f"{self.base_url}/admin/realms/{self.realm}/users?first={first}&max={max_batch}"
-            req = urllib.request.Request(url, headers={"Authorization": f"Bearer {self.token}"})
+            url = f"{self.base_url}/admin/realms/{self.realm}/users"
+            headers = {"Authorization": f"Bearer {self.token}"}
+            params = {"first": first, "max": max_batch}
             try:
-                with urllib.request.urlopen(req, timeout=10) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                    batch = json.loads(resp.read().decode("utf-8"))
-                    if not batch:
-                        break
-                    for u in batch:
-                        em = u.get("email")
-                        if em:
-                            users_by_email[em.lower().strip()] = u["id"]
-                    first += len(batch)
-                    if len(batch) < max_batch:
-                        break
+                resp = requests.get(url, headers=headers, params=params, timeout=10)
+                resp.raise_for_status()
+                batch = resp.json()
+                if not batch:
+                    break
+                for u in batch:
+                    em = u.get("email")
+                    if em:
+                        users_by_email[em.lower().strip()] = u["id"]
+                first += len(batch)
+                if len(batch) < max_batch:
+                    break
             except Exception as e:
                 logger.error(f"Error fetching existing users: {e}")
                 raise
@@ -103,15 +103,17 @@ class KeycloakAdminClient:
 
     def find_user_by_email(self, email: str) -> Optional[str]:
         self._ensure_token()
-        clean = urllib.parse.quote(email.strip().lower())
-        url = f"{self.base_url}/admin/realms/{self.realm}/users?email={clean}&exact=true"
-        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {self.token}"})
+        clean = email.strip().lower()
+        url = f"{self.base_url}/admin/realms/{self.realm}/users"
+        headers = {"Authorization": f"Bearer {self.token}"}
+        params = {"email": clean, "exact": "true"}
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                res = json.loads(resp.read().decode("utf-8"))
-                if res and len(res) > 0:
-                    return res[0]["id"]
-                return None
+            resp = requests.get(url, headers=headers, params=params, timeout=10)
+            resp.raise_for_status()
+            res = resp.json()
+            if res and len(res) > 0:
+                return res[0]["id"]
+            return None
         except Exception as e:
             logger.warning(f"Error searching user {email}: {e}")
             return None
@@ -130,30 +132,29 @@ class KeycloakAdminClient:
             "emailVerified": True,
             "requiredActions": required_actions
         }
-        data = json.dumps(payload).encode("utf-8")
         url = f"{self.base_url}/admin/realms/{self.realm}/users"
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json"
-            },
-            method="POST"
-        )
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                location = resp.headers.get("Location")
-                if location:
-                    uid = location.rstrip("/").split("/")[-1]
-                    self.set_temporary_password(uid, DEFAULT_PASSWORD)
-                    return uid
-        except urllib.error.HTTPError as e:
-            if e.code == 409:
+            resp = requests.post(url, json=payload, headers=headers, timeout=10)
+            if resp.status_code == 409:
                 existing_id = self.find_user_by_email(clean_email)
                 if existing_id:
                     return existing_id
-            logger.error(f"HTTP error creating user {clean_email}: {e.code} {e.read().decode('utf-8', errors='ignore')}")
+            resp.raise_for_status()
+            location = resp.headers.get("Location")
+            if location:
+                uid = location.rstrip("/").split("/")[-1]
+                self.set_temporary_password(uid, DEFAULT_PASSWORD)
+                return uid
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 409:
+                existing_id = self.find_user_by_email(clean_email)
+                if existing_id:
+                    return existing_id
+            logger.error(f"HTTP error creating user {clean_email}: {e}")
             raise
         except Exception as e:
             logger.error(f"Error creating user {clean_email}: {e}")
@@ -173,19 +174,13 @@ class KeycloakAdminClient:
             "value": password,
             "temporary": True
         }
-        data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json"
-            },
-            method="PUT"
-        )
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                pass
+            resp = requests.put(url, json=payload, headers=headers, timeout=10)
+            resp.raise_for_status()
         except Exception as e:
             logger.warning(f"Could not set password for user {user_id}: {e}")
 
