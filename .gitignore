@@ -39,3 +39,7 @@ infra/docker/.env
 
 # Operator setup scripts
 infra/azure/seed_staff.py
+
+# Python
+__pycache__/
+*.py[cod]
