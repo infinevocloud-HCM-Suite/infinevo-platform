@@ -65,16 +65,16 @@ export function Form16Page() {
       const data = await form16Service.getStatement(selectedEmployeeId, selectedFy);
       setStatement(data);
     } catch (err) {
-      const status = err?.response?.status;
-      const apiCode = err?.response?.data?.code || err?.response?.data?.message;
-      if (status === 409 || apiCode === 'DEDUCTOR_NOT_SET') {
+      const status = err?.status || err?.response?.status;
+      const apiCode = err?.code || err?.response?.data?.code || err?.response?.data?.message;
+      if (status === 409 || apiCode === 'DEDUCTOR_NOT_SET' || apiCode === 'CONFLICT') {
         setStatementError({
           type: '409',
           message: 'Tax Deductor Details Incomplete',
           description:
             'Employer TAN, PAN, or TDS Circle is not configured. Please complete Deductor Settings in Payroll Settings before generating statements.',
         });
-      } else if (status === 404) {
+      } else if (status === 404 || apiCode === 'NOT_FOUND') {
         setStatementError({
           type: '404',
           message: 'No Active TDS Record Found',
