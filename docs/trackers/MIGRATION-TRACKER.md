@@ -28,7 +28,7 @@
 | #88 | `W-68.1` Migration engine — extract and staging | Pull from the two frozen MySQL databases into staging | `W-67` | `assigned` mohit · spec `W-68-migration-engine.md` Task 1, 2026-10-16 |
 | #89 | `W-68.2` Migration engine — transform and merge | Reshape and merge the two sources into one | `W-68.1` | `assigned` mohit · spec `W-68-migration-engine.md` Task 2, 2026-10-16 |
 | #90 | `W-68.3` Migration engine — load and restartability | Load into Postgres, and survive being restarted halfway | `W-68.2` | `assigned` mohit (lead; 3a–3d, 3g, Task 4) · karma 3e, 3f, 3h · krushna 3i–3k · sayeed 3l–3m · spec `W-68-migration-engine.md` 2026-10-16 |
-| #91 | `W-69` Document migration | Rewrite document references, copy the blobs, verify them | `W-21`, `W-68` | `assigned` sayeed · spec `W-69-document-migration.md` 2026-10-16 |
+| #91 | `W-69` Document migration | Rewrite document references, copy the blobs, verify them | `W-21`, `W-68` | `in-progress` sayeed · spec `W-69-document-migration.md` 2026-10-16 · loader upgraded with Azure Blob streaming & tests passing on branch `W-69-document-migration` |
 | #92 | `W-70` Reconciliation | Row counts, financial totals, per-employee comparison, and a **loss-of-pay mismatch log for finance** | `W-68` | `assigned` krushna · spec `W-70-reconciliation.md` 2026-10-16 |
 | #93 | `W-71` Rehearsals | Rehearsal automation, result capture, repeat until boring | `W-70` | `assigned` karma · spec `W-71-rehearsals.md` 2026-10-16 |
 | #94 | `W-72` Cutover | Freeze window, switch, smoke test, **rollback runbook** | `W-71`, `W-62` restore performed | `assigned` founder · runbook `W-72-cutover.md` 2026-10-16 |
