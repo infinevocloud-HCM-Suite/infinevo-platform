@@ -224,30 +224,21 @@ Because Key Vault network default action is `Deny`:
 4. Go to **Objects > Secrets** > View, create, or update the secret.
 5. **CRITICAL**: Return to **Networking** and set back to **"Disable public access"** > Click **Apply** to re-lock the vault.
 
-### 4.6 Triggering Database Migrations
+### 4.6 Triggering Database Migrations & Data Migration Jobs
 
-**There are two jobs and they do different things. Starting the wrong one reports
+**There are three jobs and they do different things. Starting the wrong one reports
 Succeeded and applies nothing — that was bug #138.**
 
 | Job | What it actually does |
 |---|---|
-| `caj-flyway-dev` | **Applies the Flyway migrations**, as `migration_user`. This is the migration job |
-| `caj-db-migration-dev` | Runs `provision.sh` (roles, schemas, grants) and the six private-path probes. Applies no migration script |
+| `caj-flyway-dev` | **Applies Flyway DDL/DML migrations**, as `migration_user`. |
+| `caj-db-migration-dev` | Runs `provision.sh` (roles, schemas, grants) and the six private-path probes. Applies no Flyway script. |
+| `caj-data-migration-dev` | Runs the legacy HRMS & Payroll **data migration stream** (extract, 3-cohort merge, PostgreSQL load, Keycloak provisioning, LOP mismatch generator, and 0.00 INR financial reconciliation). |
 
-To apply migrations:
-
-1. In `rg-infinevo-dev`, click **`caj-flyway-dev`** (Container Apps Job).
-2. Check its image tag is the release you mean. The job is created with a sentinel tag
-   that cannot be pulled, so a hand-started run fails at image pull unless the pipeline,
-   or you, has pointed it at a real `git-<sha>` image.
-3. Click **Start job**.
-4. In **Execution history**, open the new execution and read the log. A real run says
-   `Successfully applied N migration(s)`. `No migration necessary` means nothing was
-   applied — treat that as a result to explain, not as success.
-
-To provision roles and schemas, or to re-run the private-path probes, start
-`caj-db-migration-dev` instead. It must have been run once before the first Flyway run,
-because it is what creates `migration_user`.
+To run the legacy data migration:
+1. In `rg-infinevo-dev`, click **`caj-data-migration-dev`** (Container Apps Job).
+2. To run with a snapshot dump replay, click **Run with override** and pass environment variable `RUN_ID=<run_id>`. The job will download `hrms.sql.gz` and `payroll.sql.gz` from `migration-dumps/<run_id>/`, verify sha256 checksums, restore to an internal MariaDB sidecar, and execute the full ETL and reconciliation pipeline.
+3. To inspect execution results, check container execution logs and download the audit files uploaded to `migration-dumps/<run_id>/results/`.
 
 ---
 

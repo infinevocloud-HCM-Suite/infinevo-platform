@@ -97,6 +97,7 @@ resource keyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01
 var blobContributors = [
   { role: 'app', principalId: appPrincipalId }
   { role: 'worker', principalId: workerPrincipalId }
+  { role: 'migration', principalId: migrationPrincipalId }
 ]
 
 resource storageBlobDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for principal in (hasStorage ? blobContributors : []): {

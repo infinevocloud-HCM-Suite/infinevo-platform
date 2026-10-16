@@ -70,6 +70,7 @@ var containerNames = [
   'documents'
   'payslips'
   'proofs'
+  'migration-dumps'
 ]
 
 resource containers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = [for cName in containerNames: {

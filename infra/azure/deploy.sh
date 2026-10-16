@@ -430,6 +430,14 @@ az acr build \
   --file "infra/docker/migration-runner.Dockerfile" \
   "$REPO_ROOT" >/dev/null
 
+echo "Building data-migration:${RUNNER_TAG} in ${ACR_NAME} from infra/docker/data-migration.Dockerfile..."
+az acr build \
+  --registry "$ACR_NAME" \
+  --image "data-migration:${RUNNER_TAG}" \
+  --platform linux/amd64 \
+  --file "infra/docker/data-migration.Dockerfile" \
+  "$REPO_ROOT" >/dev/null
+
 # ── Run the in-VNet migration job and gate on it (W-51 section 3e) ───────────
 # This is what replaces the transient Postgres firewall rule that post-deploy-db.sh used to
 # open: provision.sh now runs from inside snet-cae, against a server whose public endpoint

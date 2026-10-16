@@ -588,7 +588,40 @@ module flywayJob 'modules/flyway-job.bicep' = {
   ]
 }
 
-// ── 10. Operational Alerting & Action Groups (W-61: PLAT-08) ─────────────────
+// ── 10. Data migration job (W-71 / W-68) ──────────────────────────────────────
+// Runs legacy HRMS & Payroll data extraction, 3-cohort merge, PostgreSQL load,
+// Keycloak user provisioning, LOP mismatch analysis, and financial reconciliation.
+// Uses caj-data-migration-{env} image crinfinevo.azurecr.io/data-migration:{tag}.
+module dataMigrationJob 'modules/data-migration-job.bicep' = {
+  name: 'deploy-data-migration-job-${environment}'
+  scope: envRg
+  params: {
+    environment: environment
+    location: location
+    environmentId: containerAppEnv.outputs.environmentId
+    acrLoginServer: registry.outputs.loginServer
+    runnerImageTag: empty(backendImageTag) ? 'latest' : backendImageTag
+    migrationIdentityId: managedIdentities.outputs.migrationIdentityId
+    migrationIdentityClientId: managedIdentities.outputs.migrationIdentityClientId
+    keyVaultName: keyVault.outputs.keyVaultName
+    storageAccountName: storage.outputs.storageAccountName
+    blobEndpoint: storage.outputs.primaryBlobEndpoint
+    postgresFqdn: postgres.outputs.fullyQualifiedDomainName
+    postgresDatabase: 'infinevo'
+    keycloakUrl: 'https://${containerApps.outputs.keycloakFqdn}'
+    tags: defaultTags
+  }
+  dependsOn: [
+    storageRbac
+    keyVaultRbac
+    acrRoleAssignment
+    postgresPrivateEndpoint
+    keyVaultPrivateEndpoint
+    storageBlobPrivateEndpoint
+  ]
+}
+
+// ── 11. Operational Alerting & Action Groups (W-61: PLAT-08) ─────────────────
 // Azure Monitor Action Group, Sev-1 pay run failure query, and Sev-2 platform metrics
 module alerting 'modules/alerting.bicep' = {
   name: 'deploy-alerting-${environment}'
@@ -631,6 +664,7 @@ output peSubnetId string = vnet.outputs.peSubnetId
 output migrationJobName string = dbMigrationJob.outputs.jobName
 // The pipeline's `migrate` stage starts this job by name and gates the release on it.
 output flywayJobName string = flywayJob.outputs.jobName
+output dataMigrationJobName string = dataMigrationJob.outputs.jobName
 output appInsightsName string = appInsights.outputs.appInsightsName
 output appInsightsId string = appInsights.outputs.appInsightsId
 output workbookName string = telemetryDashboard.outputs.workbookName
