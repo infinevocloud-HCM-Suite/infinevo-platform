@@ -11,6 +11,7 @@
 # and so changes neither. With --image-tag it declares that release instead.
 # ---------------------------------------------------------------------------
 set -euo pipefail
+export PYTHONIOENCODING=utf-8
 
 # Resolved from the script's own location so it runs from any working directory
 # (review F-15); post-deploy-db.sh already did this.
@@ -79,6 +80,7 @@ echo "Deploying principal object id: ${DEPLOYER_OID}"
 SHARED_RG="rg-infinevo-shared"
 VAULT_NAME="kv-infinevo-shared"
 ADMIN_USER="infinevo_admin"
+ACR_NAME="crinfinevo"
 
 # ── Front Door backend prefixes (W-51 section 2.5) ───────────────────────────
 # containerapps.bicep restricts every ingress to these addresses. The list is not stable -
@@ -283,6 +285,32 @@ else
   echo "Infrastructure-only deploy: no --image-tag, so no app changes image and no weight moves."
 fi
 
+# ── Build the migration runner and data migration images ─────────────────────
+# Built BEFORE az deployment sub create so Container Apps can resolve the image
+# tags (caj-db-migration-{env} and caj-data-migration-{env}) without failing on
+# manifest lookup (W-71 / W-54 F-7).
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+RUNNER_TAG="${IMAGE_TAG:-${LIVE_BACKEND_TAG:-latest}}"
+if az acr show --name "$ACR_NAME" >/dev/null 2>&1; then
+  echo "Building migration-runner:${RUNNER_TAG} in ${ACR_NAME} from infra/docker/migration-runner.Dockerfile..."
+  az acr build \
+    --registry "$ACR_NAME" \
+    --image "migration-runner:${RUNNER_TAG}" \
+    --platform linux/amd64 \
+    --file "infra/docker/migration-runner.Dockerfile" \
+    --no-logs \
+    "$REPO_ROOT" >/dev/null
+
+  echo "Building data-migration:${RUNNER_TAG} in ${ACR_NAME} from infra/docker/data-migration.Dockerfile..."
+  az acr build \
+    --registry "$ACR_NAME" \
+    --image "data-migration:${RUNNER_TAG}" \
+    --platform linux/amd64 \
+    --file "infra/docker/data-migration.Dockerfile" \
+    --no-logs \
+    "$REPO_ROOT" >/dev/null
+fi
+
 DEPLOY_NAME="infinevo-${ENV}-$(date +%Y%m%d%H%M%S)"
 echo "Executing subscription deployment: ${DEPLOY_NAME}..."
 
@@ -409,34 +437,6 @@ fi
 # an existing non-placeholder value is left alone.
 seed_canonical_secrets
 
-# ── Build the migration runner image ─────────────────────────────────────────
-# `az acr build` rather than a local `docker build`: the runner has to exist in crinfinevo
-# before the job can pull it, and CI has no Docker daemon. Built on every run because the
-# tag is `latest` - a stale image would run yesterday's probes against today's perimeter
-# and report OK for checks that no longer exist.
-#
-# The tag follows --image-tag when one was given, because main.bicep resolves
-# caj-db-migration-{env} to `migration-runner:${backendImageTag}` and falls back to
-# :latest only when the tag is empty (main.bicep:478, W-54 finding F-7). Building :latest
-# here while the job had been declared at :git-<sha> would leave the job pointing at an
-# image this run never produced.
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-RUNNER_TAG="${IMAGE_TAG:-${LIVE_BACKEND_TAG:-latest}}"
-echo "Building migration-runner:${RUNNER_TAG} in ${ACR_NAME} from infra/docker/migration-runner.Dockerfile..."
-az acr build \
-  --registry "$ACR_NAME" \
-  --image "migration-runner:${RUNNER_TAG}" \
-  --platform linux/amd64 \
-  --file "infra/docker/migration-runner.Dockerfile" \
-  "$REPO_ROOT" >/dev/null
-
-echo "Building data-migration:${RUNNER_TAG} in ${ACR_NAME} from infra/docker/data-migration.Dockerfile..."
-az acr build \
-  --registry "$ACR_NAME" \
-  --image "data-migration:${RUNNER_TAG}" \
-  --platform linux/amd64 \
-  --file "infra/docker/data-migration.Dockerfile" \
-  "$REPO_ROOT" >/dev/null
 
 # ── Run the in-VNet migration job and gate on it (W-51 section 3e) ───────────
 # This is what replaces the transient Postgres firewall rule that post-deploy-db.sh used to
