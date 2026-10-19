@@ -36,7 +36,9 @@ TABLES_TO_EXTRACT = [
     "employee_document",
     "holidays",
     "user_roles",
-    "user_action_mapping"
+    "user_action_mapping",
+    "notifications",
+    "timesheet_notifications"
 ]
 
 def get_connection(host: str, port: int, user: str, password: str, database: str):
