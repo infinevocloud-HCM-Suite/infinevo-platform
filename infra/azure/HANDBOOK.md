@@ -258,8 +258,18 @@ To run a legacy data migration rehearsal (W-71):
    variable `RUN_ID=<run_id>`.
 3. Read the execution log, then the results the job writes to `migration-dumps/<run_id>/results/`.
 
-The job's image, `data-migration:<tag>`, is built from the migration branch, not by the
-release pipeline. Its tag is `dataMigrationImageTag` in `parameters/dev.bicepparam`.
+The job's image, `data-migration:<tag>`, is built by hand, not by the release pipeline.
+Its tag is `dataMigrationImageTag` in `parameters/dev.bicepparam`, never `latest`. After
+changing `code/migration` or `infra/docker/data-migration.*`, build a new tag from `main`,
+set it in the parameter file, and run `deploy.sh`:
+
+```bash
+az acr build --registry crinfinevo --image data-migration:<new-tag> --platform linux/amd64 \
+  --file infra/docker/data-migration.Dockerfile .
+```
+
+Start a run with `RUN_ID`; without it the job stops. The dump checksum secret is
+required. Only reports, quarantine lists and the log are uploaded to `results/`.
 **Run `deploy.sh` from `main` only**, never from the migration branch: a stale branch's
 Bicep rolls the environment back to that branch's infrastructure.
 

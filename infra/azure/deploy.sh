@@ -296,6 +296,13 @@ FRONT_DOOR_HOST=$(az afd endpoint show \
   --query hostName -o tsv 2>/dev/null || true)
 if [[ -n "$FRONT_DOOR_HOST" ]]; then
   echo "Front Door: ${FRONT_DOOR_HOST} - the apps keep their Front Door settings."
+elif [[ "$CURRENT_IMAGES_JSON" != "{}" ]]; then
+  # The apps exist, so the endpoint does too: an empty answer is an expired token or an
+  # ARM error, not a first deployment. Going on would write the apps without their Front
+  # Door settings - the 2026-10-19 worker crash-loop. Stop, as deploy.yml does.
+  echo "FAIL: the apps in ${APP_RG} exist but Front Door endpoint ep-infinevo-${ENV} could not be read." >&2
+  echo "      Check:  az afd endpoint show -g ${SHARED_RG} --profile-name afd-infinevo-shared --endpoint-name ep-infinevo-${ENV}" >&2
+  exit 1
 else
   echo "Front Door endpoint ep-infinevo-${ENV} not found - first deployment; deploy.yml sets the Front Door settings."
 fi

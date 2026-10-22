@@ -211,5 +211,18 @@ class TestLoadDocuments(unittest.TestCase):
         self.assertIsNone(quarantine)
 
 
+class TestRunLoaderStorageGuard(unittest.TestCase):
+    """A real run with no storage must stop, not write rows for files it never uploaded."""
+
+    def test_real_run_without_storage_credentials_refuses(self):
+        from loaders import load_documents
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT_URL")}
+        with patch.dict(os.environ, env, clear=True):
+            with self.assertRaises(RuntimeError) as ctx:
+                load_documents.run_loader(dry_run=False, skip_db=False)
+        self.assertIn("refusing to write document rows", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

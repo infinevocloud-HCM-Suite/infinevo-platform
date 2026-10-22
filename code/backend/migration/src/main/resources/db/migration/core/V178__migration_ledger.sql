@@ -15,6 +15,10 @@ CREATE TABLE core.migration_ledger (
     tenant_id           UUID NOT NULL REFERENCES core.tenant(tenant_id) ON DELETE CASCADE,
     step_name           VARCHAR(64) NOT NULL,
     records_processed   INT NOT NULL DEFAULT 0,
+    records_skipped     INT NOT NULL DEFAULT 0,
+    -- sha256 of the staging input a step consumed; a DONE step with the same checksum is
+    -- not re-run (load_salary.py, load_statutory.py, load_tax.py)
+    input_checksum      VARCHAR(64) NULL,
     status              VARCHAR(32) NOT NULL, -- PENDING, IN_PROGRESS, COMPLETED, FAILED
     started_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     completed_at        TIMESTAMPTZ NULL,

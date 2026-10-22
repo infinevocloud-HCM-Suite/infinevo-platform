@@ -34,6 +34,7 @@ param brevoSmtpLogin = 'bc91dc001@smtp-brevo.com'
 param brevoSenderEmail = 'application@infinevocloud.com'
 
 // W-71: caj-data-migration-dev runs crinfinevo.azurecr.io/data-migration at this tag.
-// The image is built and pushed from the migration branch, never by main's pipeline.
+// Built by hand (HANDBOOK 4.6), never by the release pipeline. A fixed tag, never
+// 'latest' (W-71 Task 3, W-54 F-16): a rehearsal must name the image it ran.
 // Set to '' to leave the job out of the deployment.
-param dataMigrationImageTag = 'latest'
+param dataMigrationImageTag = '2026-10-22.1'

@@ -403,6 +403,16 @@ def run_loader(max_workers: int = 8, dry_run: bool = False, skip_db: bool = Fals
                     container_client.create_container()
             except Exception as e:
                 logger.info(f"Container client check/create notice: {e}")
+        elif not skip_db:
+            # A real run without storage would insert core.document rows with size 0 and a
+            # placeholder checksum, and the idempotency check would then skip those files on
+            # every later run, so they would never be uploaded (W-69: insert only after a
+            # verified upload). Stop instead.
+            raise RuntimeError(
+                "No Azure storage credentials (AZURE_STORAGE_ACCOUNT_URL or "
+                "AZURE_STORAGE_CONNECTION_STRING); refusing to write document rows without uploads. "
+                "Use --dry-run for a metadata-only pass."
+            )
         else:
             logger.warning("No Azure storage credentials found; running in metadata/dry-run mode")
 

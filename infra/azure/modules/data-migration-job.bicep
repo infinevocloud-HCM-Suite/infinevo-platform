@@ -114,6 +114,11 @@ resource dataMigrationJob 'Microsoft.App/jobs@2024-03-01' = {
             { name: 'KEYCLOAK_REALM', value: 'infinevo' }
             { name: 'KEYCLOAK_ADMIN_USER', value: 'admin' }
             { name: 'MIGRATION_CLIENT_ID', value: migrationIdentityClientId }
+            // load_documents.py reaches Blob through DefaultAzureCredential with the account
+            // URL; AZURE_CLIENT_ID names the user-assigned identity, as flyway-job.bicep does.
+            // Without these two it found no storage and wrote rows with no upload (W-69).
+            { name: 'AZURE_CLIENT_ID', value: migrationIdentityClientId }
+            { name: 'AZURE_STORAGE_ACCOUNT_URL', value: blobEndpoint }
           ]
         }
       ]

@@ -6,13 +6,12 @@
 #   2. Read required secrets from Key Vault (kv-infinevo-shared):
 #      - psql-migration-pw (PostgreSQL target password for migration_user)
 #      - keycloak-admin-pw (Keycloak Admin password)
-#      - legacy-hrms-db-pw & legacy-payroll-db-pw (if live connection)
-#      - legacy-dump-sha256 (if dump replay mode)
-#   3. Determine migration source route:
-#      - If RUN_ID is set: Download mysqldump archive from Azure Blob,
-#        verify sha256 checksum, start embedded MariaDB sidecar on 127.0.0.1:3306,
-#        restore hrmstestdb and payroll_test_db, and point extractors to localhost.
-#      - If RUN_ID is empty: Point extractors to remote legacy MySQL databases.
+#      - legacy-dump-sha256 (required)
+#   3. Source route (W-71 §3 - dump replay only, no live link):
+#      - RUN_ID set: download the mysqldump archives from Azure Blob, verify their
+#        sha256, start embedded MariaDB on 127.0.0.1:3306, restore hrmstestdb and
+#        payroll_test_db, and point the extractors at localhost.
+#      - RUN_ID empty: stop with an error.
 #   4. Export TARGET_DB_* and KEYCLOAK_* environment variables.
 #   5. Run the complete migration pipeline via /app/migration/run_all.sh.
 #   6. If RUN_ID is set: Upload staging logs and reconciliation reports to
@@ -104,10 +103,11 @@ if [[ -n "$RUN_ID" && -n "${STORAGE_ACCOUNT_NAME:-}" ]]; then
     --file /tmp/dumps/payroll.sql.gz \
     --auth-mode login >/dev/null
 
-  # Verify checksum if legacy-dump-sha256 is present
+  # Verify the dumps against legacy-dump-sha256 (W-71 Task 2 step 2). Required: a dump
+  # that was never checksummed is a dump nobody can say is the one that was taken.
   DUMP_SHA_SECRET=""
   if [[ -n "${KEY_VAULT_NAME:-}" ]]; then
-    DUMP_SHA_SECRET="$(read_secret legacy-dump-sha256 false)"
+    DUMP_SHA_SECRET="$(read_secret legacy-dump-sha256 true)"
   fi
   if [[ -n "$DUMP_SHA_SECRET" ]]; then
     echo "Verifying SHA256 checksums..."
@@ -146,8 +146,15 @@ if [[ -n "$RUN_ID" && -n "${STORAGE_ACCOUNT_NAME:-}" ]]; then
 
   echo "MariaDB is ready. Restoring databases..."
   mysql -h 127.0.0.1 -P 3306 -u root -e "CREATE DATABASE IF NOT EXISTS hrmstestdb; CREATE DATABASE IF NOT EXISTS payroll_test_db;"
-  gunzip -c /tmp/dumps/hrms.sql.gz | mysql -h 127.0.0.1 -P 3306 -u root hrmstestdb
-  gunzip -c /tmp/dumps/payroll.sql.gz | mysql -h 127.0.0.1 -P 3306 -u root payroll_test_db
+  # A MySQL 8 mysqldump names the utf8mb4_0900_* collations, which MariaDB does not have
+  # ("Unknown collation"). Rewrite them to utf8mb4_unicode_ci on the way in. Not yet
+  # proven against the real dump (W-71 §8): the first rehearsal is that proof.
+  restore_dump() {
+    gunzip -c "$1" | sed -E 's/utf8mb4_0900_[a-z_]+/utf8mb4_unicode_ci/g' \
+      | mysql -h 127.0.0.1 -P 3306 -u root "$2"
+  }
+  restore_dump /tmp/dumps/hrms.sql.gz hrmstestdb
+  restore_dump /tmp/dumps/payroll.sql.gz payroll_test_db
   echo "Database restore completed."
 
   export LEGACY_HRMS_DB_HOST="127.0.0.1"
@@ -163,22 +170,12 @@ if [[ -n "$RUN_ID" && -n "${STORAGE_ACCOUNT_NAME:-}" ]]; then
   export LEGACY_PAYROLL_DB_PASSWORD=""
 
 else
-  echo "--- Mode: Direct Connection to Legacy Databases ---"
-  if [[ -n "${KEY_VAULT_NAME:-}" ]]; then
-    LEGACY_HRMS_PW="$(read_secret legacy-hrms-db-pw true)"
-    LEGACY_PAYROLL_PW="$(read_secret legacy-payroll-db-pw true)"
-    export LEGACY_HRMS_DB_PASSWORD="$LEGACY_HRMS_PW"
-    export LEGACY_PAYROLL_DB_PASSWORD="$LEGACY_PAYROLL_PW"
-  fi
-  export LEGACY_HRMS_DB_HOST="${LEGACY_HRMS_DB_HOST:-64.227.128.119}"
-  export LEGACY_HRMS_DB_PORT="${LEGACY_HRMS_DB_PORT:-3306}"
-  export LEGACY_HRMS_DB_NAME="${LEGACY_HRMS_DB_NAME:-hrmstestdb}"
-  export LEGACY_HRMS_DB_USER="${LEGACY_HRMS_DB_USER:-ro_migration_user}"
-
-  export LEGACY_PAYROLL_DB_HOST="${LEGACY_PAYROLL_DB_HOST:-64.227.128.119}"
-  export LEGACY_PAYROLL_DB_PORT="${LEGACY_PAYROLL_DB_PORT:-3306}"
-  export LEGACY_PAYROLL_DB_NAME="${LEGACY_PAYROLL_DB_NAME:-payroll_test_db}"
-  export LEGACY_PAYROLL_DB_USER="${LEGACY_PAYROLL_DB_USER:-ro_migration_user}"
+  # W-71 §3 rejected the live link to the legacy MySQL servers; the job only replays a
+  # dump from Blob. Without RUN_ID there is no dump to replay, so stop rather than reach
+  # across the internet to a production database.
+  echo "ERROR: RUN_ID (or STORAGE_ACCOUNT_NAME) is not set. Start the job with 'Run with override' and RUN_ID=<run_id>," >&2
+  echo "       after uploading migration-dumps/<run_id>/hrms.sql.gz and payroll.sql.gz (HANDBOOK 4.6)." >&2
+  exit 1
 fi
 
 # ── 4. Target Database & Keycloak Configuration ──────────────────────────────
@@ -207,7 +204,10 @@ bash /app/migration/run_all.sh 2>&1 | tee "$LOG_FILE"
 # ── 6. Upload Rehearsal Artifacts to Blob (if in dump mode) ────────────────────
 if [[ -n "$RUN_ID" && -n "${STORAGE_ACCOUNT_NAME:-}" ]]; then
   echo "Uploading migration artifacts and logs to blob container 'migration-dumps/${RUN_ID}/results/'..."
-  for file in /app/migration/staging/*.json /app/migration/staging/*.csv "$LOG_FILE"; do
+  # Results only (W-71 Task 2 step 6). The raw stg_* extracts hold PAN, Aadhaar and bank
+  # details and never leave the container.
+  for file in /app/migration/staging/reconciliation_*.json /app/migration/staging/lop_mismatch_*.csv \
+              /app/migration/staging/stg_quarantined_*.json "$LOG_FILE"; do
     if [[ -f "$file" ]]; then
       fname="$(basename "$file")"
       az storage blob upload \
