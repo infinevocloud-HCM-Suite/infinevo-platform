@@ -40,7 +40,16 @@ public record PayslipResponse(
             @JsonProperty("name") String name,
             @JsonProperty("designation") String designation,
             @JsonProperty("department") String department,
-            @JsonProperty("date_of_joining") LocalDate dateOfJoining) {}
+            @JsonProperty("date_of_joining") LocalDate dateOfJoining,
+            @JsonProperty("status") String status,
+            @JsonProperty("pf_number") String pfNumber,
+            @JsonProperty("uan_number") String uanNumber) {
+
+        public EmployeeSummary(
+                UUID id, String number, String name, String designation, String department, LocalDate dateOfJoining) {
+            this(id, number, name, designation, department, dateOfJoining, null, null, null);
+        }
+    }
 
     public record DaysSummary(
             @JsonProperty("payable_days") BigDecimal payableDays,

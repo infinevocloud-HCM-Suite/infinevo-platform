@@ -135,6 +135,7 @@ public class PayslipReadIT extends AbstractIntegrationTest {
         assertThat(slip.run().payrunId()).isEqualTo(run.id());
         assertThat(slip.run().status()).isEqualTo("COMPUTED");
         assertThat(slip.totals().netPay()).isNotNull();
+        assertThat(slip.employee().status()).isEqualTo("ACTIVE");
 
         // Mark second employee as SKIPPED
         PayRunTestSchema.execute(

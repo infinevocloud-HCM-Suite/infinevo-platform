@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import PropTypes from 'prop-types';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { Button, Card, Descriptions, Result, Skeleton, Space, Table, Typography, theme } from 'antd';
-import { ArrowLeftOutlined, DollarOutlined } from '@ant-design/icons';
+import { Button, Card, Result, Skeleton, Space, Typography, theme } from 'antd';
+import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { portalService } from './portalService.js';
-import { EMPTY, formatDate, formatMoney } from '../../shared/ui/format.js';
+import { EMPTY, formatDate } from '../../shared/ui/format.js';
+import { PayslipDocument } from '../../payroll/payslip/PayslipDocument.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /**
  * A pay period as the server sends it ('2026-07', a YearMonth) shown as "Jul 2026".
@@ -21,51 +21,9 @@ export function formatPeriod(period) {
   return month.isValid() ? month.format('MMM YYYY') : period;
 }
 
-function show(value) {
-  return value === null || value === undefined || value === '' ? EMPTY : value;
-}
-
-const LINE_COLUMNS = [
-  { title: 'Component', dataIndex: 'name', key: 'name' },
-  {
-    title: 'Amount',
-    dataIndex: 'amount',
-    key: 'amount',
-    align: 'right',
-    render: (amount) => formatMoney(amount),
-  },
-];
-
-function PayslipLines({ title, lines, testId }) {
-  return (
-    <Card size="small" title={title} data-testid={testId}>
-      <Table
-        size="small"
-        rowKey={(line, index) => line.code || `${title}-${index}`}
-        columns={LINE_COLUMNS}
-        dataSource={lines || []}
-        pagination={false}
-        locale={{ emptyText: 'None' }}
-      />
-    </Card>
-  );
-}
-
-PayslipLines.propTypes = {
-  title: PropTypes.string.isRequired,
-  lines: PropTypes.arrayOf(
-    PropTypes.shape({
-      code: PropTypes.string,
-      name: PropTypes.string,
-      amount: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-    })
-  ),
-  testId: PropTypes.string.isRequired,
-};
-
 /**
- * One of the caller's paid payslips (D-74), read from GET /api/v1/me/payslips/{payrunId}.
- * Every field name below is PayslipResponse's @JsonProperty.
+ * One of the caller's paid payslips (D-74, D-102), read from GET /api/v1/me/payslips/{payrunId}.
+ * Renders the full legacy payslip document with print and download capability.
  */
 export function PayslipPage() {
   const { payrunId } = useParams();
@@ -97,6 +55,12 @@ export function PayslipPage() {
     </Button>
   );
 
+  const handlePrint = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
+
   if (loading) {
     return (
       <Card data-testid="payslip-loading">
@@ -126,63 +90,71 @@ export function PayslipPage() {
   }
 
   const run = payslip.run || {};
-  const employee = payslip.employee || {};
-  const days = payslip.days || {};
-  const totals = payslip.totals || {};
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', padding: token.paddingLG }} data-testid="payslip-page">
-      {back}
+    <div style={{ width: '100%', padding: token.paddingLG }} data-testid="payslip-page">
+      <style>
+        {`
+          @media print {
+            body {
+              background: #fff !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+            .print-container {
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              box-shadow: none !important;
+            }
+          }
+        `}
+      </style>
 
-      <Card style={{ borderRadius: token.borderRadiusLG }}>
-        <Space align="center" style={{ marginBottom: token.marginMD }}>
-          <DollarOutlined style={{ color: token.colorPrimary, fontSize: 24 }} />
-          <div>
-            <Title level={3} style={{ margin: 0 }}>
-              Payslip for {formatPeriod(run.period)}
-            </Title>
-            <Text type="secondary">{show(payslip.employer?.name)}</Text>
-          </div>
+      {/* Top Action Bar (hidden in print) */}
+      <div
+        className="no-print"
+        style={{
+          maxWidth: 900,
+          margin: '0 auto 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <Space>
+          {back}
+          <Button
+            type="primary"
+            icon={<PrinterOutlined />}
+            onClick={handlePrint}
+            data-testid="print-payslip-btn"
+          >
+            Download / Print PDF
+          </Button>
         </Space>
+        <Space>
+          {run.pay_date && (
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {formatDate(run.pay_date)}
+            </Text>
+          )}
+          {run.paid_on && (
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {formatDate(run.paid_on)}
+            </Text>
+          )}
+        </Space>
+      </div>
 
-        <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }}>
-          <Descriptions.Item label="Employee">{show(employee.name)}</Descriptions.Item>
-          <Descriptions.Item label="Employee #">{show(employee.number)}</Descriptions.Item>
-          <Descriptions.Item label="Designation">{show(employee.designation)}</Descriptions.Item>
-          <Descriptions.Item label="Department">{show(employee.department)}</Descriptions.Item>
-          <Descriptions.Item label="Pay date">{formatDate(run.pay_date)}</Descriptions.Item>
-          <Descriptions.Item label="Paid on">{formatDate(run.paid_on)}</Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      <Card size="small" title="Days" data-testid="payslip-days">
-        <Descriptions size="small" column={{ xs: 2, md: 4 }}>
-          <Descriptions.Item label="Payable days">{show(days.payable_days)}</Descriptions.Item>
-          <Descriptions.Item label="Paid days">{show(days.paid_days)}</Descriptions.Item>
-          <Descriptions.Item label="Loss of pay days">{show(days.lop_days)}</Descriptions.Item>
-          <Descriptions.Item label="Unpaid days">{show(days.unpaid_days)}</Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      <PayslipLines title="Earnings" lines={payslip.earnings} testId="payslip-earnings" />
-      <PayslipLines title="Deductions" lines={payslip.deductions} testId="payslip-deductions" />
-      <PayslipLines title="Reimbursements" lines={payslip.reimbursements} testId="payslip-reimbursements" />
-      <PayslipLines title="Benefits" lines={payslip.benefits} testId="payslip-benefits" />
-
-      <Card size="small" title="Totals" data-testid="payslip-totals">
-        <Descriptions bordered size="small" column={1}>
-          <Descriptions.Item label="Gross earnings">{formatMoney(totals.gross_earnings)}</Descriptions.Item>
-          <Descriptions.Item label="Total deductions">{formatMoney(totals.total_deductions)}</Descriptions.Item>
-          <Descriptions.Item label="Total reimbursements">
-            {formatMoney(totals.total_reimbursements)}
-          </Descriptions.Item>
-          <Descriptions.Item label="Total benefits">{formatMoney(totals.total_benefits)}</Descriptions.Item>
-          <Descriptions.Item label={<Text strong>Net pay</Text>}>
-            <Text strong>{formatMoney(totals.net_pay)}</Text>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-    </Space>
+      {/* Payslip Document */}
+      <div className="print-container" style={{ maxWidth: 900, margin: '0 auto' }}>
+        <PayslipDocument payslip={payslip} testIdPrefix="payslip" />
+      </div>
+    </div>
   );
 }
 

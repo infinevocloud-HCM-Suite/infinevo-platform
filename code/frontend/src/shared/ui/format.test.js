@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatDateTime, formatMoney, formatMonth, humanize, orEmpty, statusLabel, statusTag, toTitleCase } from './format.js';
+import { formatDate, formatDateTime, formatMoney, formatMonth, getAmountInWords, humanize, orEmpty, statusLabel, statusTag, toTitleCase } from './format.js';
 
 describe('formatDate', () => {
   it('shows an ISO date as day, short month and year', () => {
@@ -132,6 +132,25 @@ describe('orEmpty', () => {
     expect(orEmpty(0)).toBe(0);
     expect(orEmpty(null)).toBe('—');
     expect(orEmpty('  ')).toBe('—');
+  });
+});
+
+describe('getAmountInWords', () => {
+  it('converts numbers to Indian currency words format', () => {
+    expect(getAmountInWords(29133.33)).toBe('Twenty Nine Thousand One Hundred and Thirty Three Only');
+    expect(getAmountInWords('29133.33')).toBe('Twenty Nine Thousand One Hundred and Thirty Three Only');
+    expect(getAmountInWords(0)).toBe('Zero Only');
+    expect(getAmountInWords(100)).toBe('One Hundred Only');
+    expect(getAmountInWords(105)).toBe('One Hundred and Five Only');
+    expect(getAmountInWords(100000)).toBe('One Lakh Only');
+    expect(getAmountInWords(15000000)).toBe('One Crore Fifty Lakh Only');
+    expect(getAmountInWords(-500)).toBe('Minus Five Hundred Only');
+  });
+
+  it('handles null, undefined and invalid values gracefully', () => {
+    expect(getAmountInWords(null)).toBe('Zero Only');
+    expect(getAmountInWords(undefined)).toBe('Zero Only');
+    expect(getAmountInWords('invalid')).toBe('Zero Only');
   });
 });
 

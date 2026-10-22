@@ -194,3 +194,35 @@ export function orEmpty(value) {
   return isBlank(value) ? EMPTY : value;
 }
 
+/**
+ * Converts a numeric amount into words in the Indian numbering system:
+ * e.g. 29133.33 -> "Twenty Nine Thousand One Hundred and Thirty Three Only".
+ *
+ * @param {string|number|null|undefined} amount
+ * @returns {string}
+ */
+export function getAmountInWords(amount) {
+  if (amount === null || amount === undefined || amount === '' || isNaN(Number(amount))) return 'Zero Only';
+
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const num = Math.floor(Math.abs(Number(amount)));
+
+  if (num === 0) return 'Zero Only';
+
+  function convertToWords(n) {
+    if (n < 10) return ones[n];
+    if (n < 20) return teens[n - 10];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + convertToWords(n % 100) : '');
+    if (n < 100000) return convertToWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 !== 0 ? ' ' + convertToWords(n % 1000) : '');
+    if (n < 10000000) return convertToWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 !== 0 ? ' ' + convertToWords(n % 100000) : '');
+    return convertToWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 !== 0 ? ' ' + convertToWords(n % 10000000) : '');
+  }
+
+  const words = convertToWords(num);
+  return (Number(amount) < 0 ? 'Minus ' : '') + words + ' Only';
+}
+

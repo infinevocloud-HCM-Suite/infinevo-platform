@@ -11,6 +11,8 @@ import com.infinevo.payroll.payrun.LineKind;
 import com.infinevo.payroll.payrun.PayRun;
 import com.infinevo.payroll.payrun.PayRunRepository;
 import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.salary.EmployeeStatutoryProfile;
+import com.infinevo.payroll.salary.EmployeeStatutoryProfileRepository;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -19,7 +21,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,6 +42,23 @@ public class PayslipServiceImpl implements PayslipService {
     private final EmployeePayRunLineRepository lines;
     private final EmployeeService employeeService;
     private final JdbcTemplate jdbcTemplate;
+    private final EmployeeStatutoryProfileRepository statutoryProfiles;
+
+    @Autowired
+    public PayslipServiceImpl(
+            EmployeePayRunRepository employeePayRuns,
+            PayRunRepository payRuns,
+            EmployeePayRunLineRepository lines,
+            EmployeeService employeeService,
+            JdbcTemplate jdbcTemplate,
+            @Autowired(required = false) EmployeeStatutoryProfileRepository statutoryProfiles) {
+        this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
+        this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
+        this.lines = Objects.requireNonNull(lines, "lines must not be null");
+        this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
+        this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
+        this.statutoryProfiles = statutoryProfiles;
+    }
 
     public PayslipServiceImpl(
             EmployeePayRunRepository employeePayRuns,
@@ -45,11 +66,7 @@ public class PayslipServiceImpl implements PayslipService {
             EmployeePayRunLineRepository lines,
             EmployeeService employeeService,
             JdbcTemplate jdbcTemplate) {
-        this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
-        this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
-        this.lines = Objects.requireNonNull(lines, "lines must not be null");
-        this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
-        this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
+        this(employeePayRuns, payRuns, lines, employeeService, jdbcTemplate, null);
     }
 
     @Override
@@ -195,13 +212,29 @@ public class PayslipServiceImpl implements PayslipService {
 
         PayslipResponse.EmployerSummary employerSummary = new PayslipResponse.EmployerSummary(employerName);
 
+        String employeeStatus = employee.status() != null ? employee.status().name() : "ACTIVE";
+        String pfNumber = null;
+        String uanNumber = null;
+        if (statutoryProfiles != null) {
+            Optional<EmployeeStatutoryProfile> statOpt =
+                    statutoryProfiles.findByTenantIdAndEmployeeId(tenantId, employee.id());
+            if (statOpt.isPresent()) {
+                EmployeeStatutoryProfile stat = statOpt.get();
+                pfNumber = stat.getPfAccountNumber();
+                uanNumber = stat.getUan();
+            }
+        }
+
         PayslipResponse.EmployeeSummary employeeSummary = new PayslipResponse.EmployeeSummary(
                 employee.id(),
                 employee.employeeNumber(),
                 formatEmployeeName(employee),
                 designationName,
                 departmentName,
-                employee.dateOfJoining());
+                employee.dateOfJoining(),
+                employeeStatus,
+                pfNumber,
+                uanNumber);
 
         PayslipResponse.DaysSummary daysSummary = new PayslipResponse.DaysSummary(
                 scale2(employeePayRun.getPayableDays()),
