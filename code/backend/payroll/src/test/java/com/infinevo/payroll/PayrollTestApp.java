@@ -451,8 +451,7 @@ public class PayrollTestApp {
                                 rs.getObject("termination_date", LocalDate.class),
                                 rs.getString("status") == null
                                         ? null
-                                        : com.infinevo.core.employee.EmploymentStatus.valueOf(
-                                                rs.getString("status")),
+                                        : com.infinevo.core.employee.EmploymentStatus.valueOf(rs.getString("status")),
                                 rs.getString("work_email"),
                                 null,
                                 false,
