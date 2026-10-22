@@ -139,37 +139,37 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
                 </tr>
                 <tr>
                   <td style={{ color: '#666666' }}>Employee ID</td>
-                  <td>: {orEmpty(employee.number)}</td>
+                  <td>: <span>{orEmpty(employee.number)}</span></td>
                 </tr>
                 <tr>
                   <td style={{ color: '#666666' }}>Designation</td>
-                  <td>: {orEmpty(employee.designation)}</td>
+                  <td>: <span>{orEmpty(employee.designation)}</span></td>
                 </tr>
                 {employee.department && (
                   <tr>
                     <td style={{ color: '#666666' }}>Department</td>
-                    <td>: {employee.department}</td>
+                    <td>: <span>{employee.department}</span></td>
                   </tr>
                 )}
                 <tr>
                   <td style={{ color: '#666666' }}>Pay Period</td>
-                  <td>: {payPeriodText}</td>
+                  <td>: <span>{payPeriodText}</span></td>
                 </tr>
                 <tr>
                   <td style={{ color: '#666666' }}>Pay Date</td>
-                  <td>: {payDateText}</td>
+                  <td>: <span>{payDateText}</span></td>
                 </tr>
                 <tr>
                   <td style={{ color: '#666666' }}>Pay Days</td>
-                  <td>: {paidDaysVal}</td>
+                  <td>: <span>{paidDaysVal}</span></td>
                 </tr>
                 <tr>
                   <td style={{ color: '#666666' }}>LOP Days</td>
-                  <td>: {lopDaysVal}</td>
+                  <td>: <span>{lopDaysVal}</span></td>
                 </tr>
                 <tr>
                   <td style={{ color: '#666666' }}>LWP Days</td>
-                  <td>: {lwpDaysVal}</td>
+                  <td>: <span>{lwpDaysVal}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -208,15 +208,15 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
                     </tr>
                     <tr>
                       <td style={{ color: '#666666' }}>Date of Joining</td>
-                      <td>: {joiningDateText}</td>
+                      <td>: <span>{joiningDateText}</span></td>
                     </tr>
                     <tr>
                       <td style={{ color: '#666666' }}>PF No</td>
-                      <td>: {pfNoVal}</td>
+                      <td>: <span>{pfNoVal}</span></td>
                     </tr>
                     <tr>
                       <td style={{ color: '#666666' }}>UAN No</td>
-                      <td>: {uanNoVal}</td>
+                      <td>: <span>{uanNoVal}</span></td>
                     </tr>
                   </tbody>
                 </table>
@@ -456,7 +456,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
               <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#2e7d32', fontWeight: '600' }}>
                 Net Pay
               </div>
-              {formatMoney(totals.net_pay)}
+              <span>{formatMoney(totals.net_pay)}</span>
             </div>
           </div>
         </div>

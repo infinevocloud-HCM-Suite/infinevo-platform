@@ -126,6 +126,28 @@ public final class EmployeeTestSchema {
             ps.setString(2, "Globex Corporation");
             ps.executeUpdate();
         }
+        try (Connection conn = migrationConnection()) {
+            try (PreparedStatement ps = conn.prepareStatement("SELECT core.seed_system_roles(?)")) {
+                ps.setObject(1, TENANT_A);
+                ps.execute();
+                ps.setObject(1, TENANT_B);
+                ps.execute();
+            } catch (SQLException ex) {
+                if (tableExists(conn, "role")) {
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "INSERT INTO core.role (tenant_id, code, name, is_system) VALUES (?, ?, ?, true) ON CONFLICT DO NOTHING")) {
+                        for (UUID tenantId : new UUID[] {TENANT_A, TENANT_B}) {
+                            for (String role : new String[] {"employee", "hr", "manager", "tenant-admin"}) {
+                                ps.setObject(1, tenantId);
+                                ps.setString(2, role);
+                                ps.setString(3, role);
+                                ps.executeUpdate();
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /** Binds a user to a tenant in core.user_tenant. */
