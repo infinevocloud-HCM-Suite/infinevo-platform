@@ -72,7 +72,9 @@ public class ClockServiceImpl implements ClockService {
                 clockSessions.findByTenantIdAndEmployeeIdAndClockOutAtIsNullAndVoidedAtIsNull(tenantId, employee.id());
         if (openOpt.isPresent()) {
             ClockSession openSession = openOpt.get();
-            if (openSession.getAttendanceDate().equals(today)) {
+            boolean isOver24Hours =
+                    Duration.between(openSession.getClockInAt(), now).compareTo(Duration.ofHours(24)) > 0;
+            if (openSession.getAttendanceDate().equals(today) && !isOver24Hours) {
                 throw new ClockConflictException("Active session already open for today");
             }
             openSession.voidSession(VoidReason.NOT_CLOCKED_OUT, now, currentActor());

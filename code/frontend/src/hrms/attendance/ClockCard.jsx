@@ -37,6 +37,13 @@ export function ClockCard({ onDay }) {
 
   const open = today?.openSession;
 
+  // A session is stale if it started on an earlier date or has been open for > 24 hours (D-104).
+  const isStale = Boolean(
+    open &&
+      ((open.attendanceDate && today?.date && open.attendanceDate < today.date) ||
+        (open.clockInAt && now - new Date(open.clockInAt).getTime() > 24 * 60 * 60 * 1000))
+  );
+
   useEffect(() => {
     if (!open) return undefined;
     const id = setInterval(() => setNow(Date.now()), 30000);
@@ -47,7 +54,7 @@ export function ClockCard({ onDay }) {
     setBusy(true);
     setError(null);
     try {
-      if (open) {
+      if (open && !isStale) {
         const out = await attendanceService.clockOut();
         setDayStatus(out?.status || null);
       } else {
@@ -76,12 +83,31 @@ export function ClockCard({ onDay }) {
     <Card title={`Today${today?.date ? ` — ${formatDate(today.date)}` : ''}`}>
       <Space direction="vertical" style={{ width: '100%' }}>
         {error && <Alert type="error" message={error} showIcon />}
-        <Button type="primary" size="large" danger={!!open} loading={busy} onClick={act}>
-          {open ? 'Clock out' : 'Clock in'}
+        {isStale && (
+          <Alert
+            type="warning"
+            showIcon
+            message="Previous clock-in session expired (>24 hours)"
+            description={`Your previous session from ${formatDate(open.attendanceDate || open.clockInAt)} exceeded 24 hours and cannot be clocked out. Clicking "Clock in" will automatically close it (marked as Not Clocked Out) and start your new session for today. You can regularize that day's hours via Attendance Regularization.`}
+          />
+        )}
+        <Button
+          type="primary"
+          size="large"
+          danger={Boolean(open && !isStale)}
+          loading={busy}
+          onClick={act}
+        >
+          {open && !isStale ? 'Clock out' : 'Clock in'}
         </Button>
-        {open && (
+        {open && !isStale && (
           <Typography.Text>
             Clocked in at {timeOf(open.clockInAt)} · running {hmm(runningMinutes)}
+          </Typography.Text>
+        )}
+        {open && isStale && (
+          <Typography.Text type="secondary">
+            Previous session clocked in at {timeOf(open.clockInAt)} ({formatDate(open.attendanceDate || open.clockInAt)}) · exceeded 24h
           </Typography.Text>
         )}
         <Typography.Text strong>Worked today: {hmm(today?.workedMinutes ?? 0)}</Typography.Text>

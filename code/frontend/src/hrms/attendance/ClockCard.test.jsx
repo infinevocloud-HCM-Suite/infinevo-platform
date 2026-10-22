@@ -67,4 +67,58 @@ describe('ClockCard (W-48.4 §7)', () => {
     },
     T
   );
+
+  it(
+    'shows Clock in and warning alert when open session is > 24 hours old',
+    async () => {
+      const clockInAt = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+      const open = {
+        id: 's-old',
+        clockInAt,
+        clockOutAt: null,
+        workedMinutes: null,
+      };
+      attendanceService.today.mockResolvedValue({
+        ...empty,
+        openSession: open,
+        sessions: [open],
+      });
+      attendanceService.clockIn.mockResolvedValue({ id: 's-new', clockInAt: new Date().toISOString() });
+      render(<ClockCard />);
+
+      expect(await screen.findByRole('button', { name: /clock in/i })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /clock out/i })).toBeNull();
+      expect(screen.getByText(/exceeded 24 hours/i)).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: /clock in/i }));
+      expect(attendanceService.clockIn).toHaveBeenCalledTimes(1);
+      expect(attendanceService.clockOut).not.toHaveBeenCalled();
+    },
+    T
+  );
+
+  it(
+    'shows Clock in when open session is from an earlier date',
+    async () => {
+      const clockInAt = '2026-10-03T09:00:00Z';
+      const open = {
+        id: 's-yesterday',
+        attendanceDate: '2026-10-03',
+        clockInAt,
+        clockOutAt: null,
+      };
+      attendanceService.today.mockResolvedValue({
+        ...empty,
+        date: '2026-10-04',
+        openSession: open,
+        sessions: [],
+      });
+      render(<ClockCard />);
+
+      expect(await screen.findByRole('button', { name: /clock in/i })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /clock out/i })).toBeNull();
+    },
+    T
+  );
 });
+

@@ -137,6 +137,24 @@ class ClockServiceTest {
     }
 
     @Test
+    @DisplayName("Clock-in when open session is > 24 hours old auto-voids it and opens new session")
+    void clockIn_over24Hours_voidsStaleSession_andOpensNew() {
+        Instant inTime = clock.instant().minus(Duration.ofHours(24).plusSeconds(1));
+        ClockSession openOver24h =
+                new ClockSession(TENANT, EMPLOYEE, LocalDate.of(2026, 4, 15), inTime, SessionOrigin.CLOCK, "test");
+        when(clockSessions.findByTenantIdAndEmployeeIdAndClockOutAtIsNullAndVoidedAtIsNull(TENANT, EMPLOYEE))
+                .thenReturn(Optional.of(openOver24h));
+
+        ClockSessionResponse response = service.clockIn();
+
+        assertThat(openOver24h.getVoidReason()).isEqualTo(VoidReason.NOT_CLOCKED_OUT);
+        assertThat(openOver24h.getVoidedAt()).isEqualTo(clock.instant());
+        assertThat(response.attendanceDate()).isEqualTo(LocalDate.of(2026, 4, 15));
+        assertThat(response.clockInAt()).isEqualTo(clock.instant());
+        assertThat(response.voidedAt()).isNull();
+    }
+
+    @Test
     @DisplayName("Clock-out with no open session throws 409 Conflict")
     void clockOut_noOpenSession_throwsConflict() {
         when(clockSessions.findByTenantIdAndEmployeeIdAndClockOutAtIsNullAndVoidedAtIsNull(TENANT, EMPLOYEE))
