@@ -1,0 +1,44 @@
+# Migration configuration template (W-68 §3). NO SECRETS, NO DEFAULTS.
+# Every value comes from the environment (or Azure Key Vault in W-71). The scripts read
+# the variables directly; a missing one stops the run with exit code 2 naming it.
+# Only ports may be omitted (3306 for MySQL, 5432 for Postgres).
+
+source_databases:
+  # Legacy frozen databases, read-only session.
+  hrms:
+    host: "${LEGACY_HRMS_DB_HOST}"
+    port: "${LEGACY_HRMS_DB_PORT}"
+    database: "${LEGACY_HRMS_DB_NAME}"
+    user: "${LEGACY_HRMS_DB_USER}"
+    password: "${LEGACY_HRMS_DB_PASSWORD}"
+    charset: "utf8mb4"
+    read_only: true
+  payroll:
+    host: "${LEGACY_PAYROLL_DB_HOST}"
+    port: "${LEGACY_PAYROLL_DB_PORT}"
+    database: "${LEGACY_PAYROLL_DB_NAME}"
+    user: "${LEGACY_PAYROLL_DB_USER}"
+    password: "${LEGACY_PAYROLL_DB_PASSWORD}"
+    charset: "utf8mb4"
+    read_only: true
+
+target_database:
+  host: "${TARGET_DB_HOST}"
+  port: "${TARGET_DB_PORT}"
+  database: "${TARGET_DB_NAME}"
+  user: "${TARGET_DB_USER}"
+  password: "${TARGET_DB_PASSWORD}"
+  sslmode: "${TARGET_DB_SSLMODE}"
+
+target_keycloak:
+  base_url: "${KEYCLOAK_URL}"
+  realm: "${KEYCLOAK_REALM}"
+  admin_username: "${KEYCLOAK_ADMIN_USER}"
+  admin_password: "${KEYCLOAK_ADMIN_PW}"
+
+staging:
+  # JSON files; MIGRATION_STAGING_DIR overrides code/migration/staging (gitignored).
+  directory: "${MIGRATION_STAGING_DIR}"
+
+batch:
+  chunk_size: 500

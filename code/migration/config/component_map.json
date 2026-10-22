@@ -1,0 +1,11 @@
+{
+  "_readme": "W-68 3e load_salary. Legacy component name -> target code, where the upper-snake slug of the name would not be the code the tenant should get. Keys: a legacy Payroll organization id, or 'default' for every org. Sections: earnings, deductions, benefits, reimbursements (master names), variables (employee_variable_earnings.variableCode), fbp (employee_fbp_components.componentCode). Names match case-insensitively; codes are ^[A-Z0-9_]{1,32}$. A name not listed gets its slug. Build the entries from the dump: SELECT DISTINCT earningName FROM earnings etc.",
+  "default": {
+    "earnings": {},
+    "deductions": {},
+    "benefits": {},
+    "reimbursements": {},
+    "variables": {},
+    "fbp": {}
+  }
+}

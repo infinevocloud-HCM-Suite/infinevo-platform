@@ -39,3 +39,14 @@ infra/docker/.env
 
 # Operator setup scripts
 infra/azure/seed_staff.py
+
+# Migration extracts hold real personal data (PAN, Aadhaar). Never commit them.
+code/migration/staging/*
+!code/migration/staging/.gitkeep
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# pytest
+.pytest_cache/

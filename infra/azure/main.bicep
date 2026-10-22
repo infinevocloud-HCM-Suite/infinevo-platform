@@ -113,6 +113,12 @@ param keyVaultAllowedIpRules array = []
 @description('AzureFrontDoor.Backend IP prefixes (CIDR strings) allowed to reach Container Apps ingress. Empty at rest - deploy.sh resolves the service tag at deploy time, and an empty list means ingress denies everything (W-51 section 2.5)')
 param frontDoorBackendPrefixes array = []
 
+@description('Front Door endpoint hostname, bare. deploy.sh reads it from the live endpoint before the deployment so the container apps keep the Front Door settings deploy.yml also sets. Empty on a first deployment, when the endpoint does not exist yet.')
+param frontDoorHostName string = ''
+
+@description('Tag of crinfinevo.azurecr.io/data-migration for caj-data-migration-{env} (W-71). The image is built from the migration branch, not from main, so it has its own tag and never follows backendImageTag. Empty means the job is not deployed in this environment.')
+param dataMigrationImageTag string = ''
+
 var sharedRgName = 'rg-infinevo-shared'
 var envRgName = 'rg-infinevo-${environment}'
 
@@ -365,6 +371,7 @@ module containerApps 'modules/containerapps.bicep' = {
     trafficRevisions: containerAppTrafficRevisions
     brevoSmtpLogin: brevoSmtpLogin
     brevoSenderEmail: brevoSenderEmail
+    frontDoorHostName: frontDoorHostName
     tags: defaultTags
   }
   dependsOn: [
@@ -588,7 +595,46 @@ module flywayJob 'modules/flyway-job.bicep' = {
   ]
 }
 
-// ── 10. Operational Alerting & Action Groups (W-61: PLAT-08) ─────────────────
+// ── 10. Data migration job (W-71 / W-68) ──────────────────────────────────────
+// Runs the legacy HRMS and Payroll data migration from a dump in migration-dumps/.
+// The migration code stays on its own branch; only this job's shape lives on main.
+// Deployed only where dataMigrationImageTag is set, and never at backendImageTag:
+// main does not build data-migration, so following the release tag asks ACR for an
+// image that does not exist - the MANIFEST_UNKNOWN failure of 2026-10-19.
+module dataMigrationJob 'modules/data-migration-job.bicep' = if (!empty(dataMigrationImageTag)) {
+  name: 'deploy-data-migration-job-${environment}'
+  scope: envRg
+  params: {
+    environment: environment
+    location: location
+    environmentId: containerAppEnv.outputs.environmentId
+    acrLoginServer: registry.outputs.loginServer
+    runnerImageTag: dataMigrationImageTag
+    migrationIdentityId: managedIdentities.outputs.migrationIdentityId
+    migrationIdentityClientId: managedIdentities.outputs.migrationIdentityClientId
+    keyVaultName: keyVault.outputs.keyVaultName
+    storageAccountName: storage.outputs.storageAccountName
+    blobEndpoint: storage.outputs.primaryBlobEndpoint
+    postgresFqdn: postgres.outputs.fullyQualifiedDomainName
+    postgresDatabase: 'infinevo'
+    // Through Front Door with /auth, the route the app's KEYCLOAK_ADMIN_URL takes. Keycloak's
+    // ingress admits only Front Door addresses (containerapps.bicep, W-51 2.5), and the image
+    // serves under /auth (KC_HTTP_RELATIVE_PATH, keycloak.Dockerfile) - the bare app FQDN
+    // fails on both counts. The FQDN form is only a first-deployment fallback.
+    keycloakUrl: empty(frontDoorHostName) ? 'https://${containerApps.outputs.keycloakFqdn}/auth' : 'https://${frontDoorHostName}/auth'
+    tags: defaultTags
+  }
+  dependsOn: [
+    storageRbac
+    keyVaultRbac
+    acrRoleAssignment
+    postgresPrivateEndpoint
+    keyVaultPrivateEndpoint
+    storageBlobPrivateEndpoint
+  ]
+}
+
+// ── 11. Operational Alerting & Action Groups (W-61: PLAT-08) ─────────────────
 // Azure Monitor Action Group, Sev-1 pay run failure query, and Sev-2 platform metrics
 module alerting 'modules/alerting.bicep' = {
   name: 'deploy-alerting-${environment}'
@@ -631,6 +677,7 @@ output peSubnetId string = vnet.outputs.peSubnetId
 output migrationJobName string = dbMigrationJob.outputs.jobName
 // The pipeline's `migrate` stage starts this job by name and gates the release on it.
 output flywayJobName string = flywayJob.outputs.jobName
+output dataMigrationJobName string = dataMigrationJob.?outputs.?jobName ?? ''
 output appInsightsName string = appInsights.outputs.appInsightsName
 output appInsightsId string = appInsights.outputs.appInsightsId
 output workbookName string = telemetryDashboard.outputs.workbookName

@@ -93,10 +93,13 @@ resource keyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01
   }
 }]
 
-// ── Storage blob: Contributor for app and worker (3f rows 2, 5) ─────────────
+// ── Storage blob: Contributor for app, worker and migration (3f rows 2, 5; W-71) ──
+// migration: caj-data-migration-{env} reads dumps from migration-dumps/, writes its
+// results there, and copies legacy documents into documents/ (W-69).
 var blobContributors = [
   { role: 'app', principalId: appPrincipalId }
   { role: 'worker', principalId: workerPrincipalId }
+  { role: 'migration', principalId: migrationPrincipalId }
 ]
 
 resource storageBlobDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for principal in (hasStorage ? blobContributors : []): {
