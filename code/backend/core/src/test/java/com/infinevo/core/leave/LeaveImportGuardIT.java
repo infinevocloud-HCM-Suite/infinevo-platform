@@ -5,6 +5,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -129,7 +131,7 @@ class LeaveImportGuardIT extends AbstractIntegrationTest {
         // Get template -> passes guard, returns 200 OK text/csv with attachment header and sample CSV
         mvc.perform(as(hrSub, get("/api/v1/leave-imports/template")))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Type", containsString("text/csv")))
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
                 .andExpect(header().string("Content-Disposition", containsString("leave_import_sample_template.csv")))
                 .andExpect(content().string(containsString("employee_number,leave_type_code,days")));
     }
