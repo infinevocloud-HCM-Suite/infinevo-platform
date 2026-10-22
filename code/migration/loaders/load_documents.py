@@ -1,544 +1,448 @@
-"""
-Document Migration Loader (W-69 / Ticket #91)
-Migrates legacy documents to private Azure Blob Storage and PostgreSQL core.document:
-  - 205 HRMS Employee Documents (kind=EMPLOYEE_DOCUMENT)
-  - 73 Payroll POI Documents (kind=INVESTMENT_PROOF)
+"""W-69 — legacy files to the private Blob container, one core.document row per verified file.
 
-Architectural Rules & Decisions (W-21 / W-69):
-  - Container name: 'documents' (matching Azure storage Bicep definition)
-  - blob_path: {tenantId}/{employeeId}/{kind}/{docId} (W-21 spec §4)
-  - No public URLs stored in database (Incident 3 honoured)
-  - Raw files fetched from legacy Cloudinary URLs with 3x retry and back-off
-  - Real SHA-256 and byte sizes computed on-the-fly and verified post-upload
-  - Post-upload verification: download blob, re-verify sha256; delete on mismatch
-  - File size cap: 10 MB limit (files >10 MB quarantined)
-  - Content type validation: pdf, jpg, jpeg, png, xlsx, csv allowed
-  - Parallel streaming via concurrent.futures.ThreadPoolExecutor(max_workers=8)
-  - Restartability & Idempotency: skip if document already verified in core.document
-"""
+  HRMS employee_document.file_url               -> core.document EMPLOYEE_DOCUMENT (employee_id, label)
+  Payroll employee_poi_document.document_url     -> core.document INVESTMENT_PROOF
+                                                    + payroll.employee_proof_item_document
+  HRMS leave_documents.file_url                  -> core.document LEAVE_ATTACHMENT + core.leave_request_document
+  Payroll employee_reimbursement_request.attachment_url
+                                                 -> core.document REIMBURSEMENT_RECEIPT
+                                                    -> payroll.employee_reimbursement_request.document_id
+  Payroll employee_deduction.proof_url           -> core.document EMPLOYEE_DOCUMENT (label OTHER)
+                                                    -> payroll.employee_deduction.document_id
+  Payroll organization.fileUrl (logo)            -> core.document TENANT_LOGO -> core.tenant.logo_document_id
 
-import os
-import sys
-import json
-import uuid
+Kinds follow the core.document CHECK, which wins over the spec's names: the spec's
+CLAIM_ATTACHMENT is REIMBURSEMENT_RECEIPT (the kind ReimbursementClaimServiceImpl demands),
+and it has no DEDUCTION_PROOF - EmployeeDeductionServiceImpl.requireEmployeeDocument
+accepts only an EMPLOYEE_DOCUMENT of the same employee, so a deduction proof is one.
+
+Per file: GET the legacy URL (three tries with back-off; a 404 quarantines), refuse over
+10 MB or outside pdf/jpg/png/xlsx/csv or whose bytes do not start the way that type must
+(DocumentType.java signatures, so the app would accept it), sha256 + size, upload to
+documents/{tenantId}/{employeeId|tenant}/{kind}/{docId} (DocumentServiceImpl.blobPath),
+read it back and compare sha256 (mismatch: blob deleted, row quarantined), and only then
+write the row. A document whose row already carries a checksum is not downloaded again.
+A storage failure is not quarantined: it fails the tenant, so the next run retries it.
+
+A real run without storage credentials raises before touching anything: rows without
+uploads would be skipped as "done" by every later run.
+"""
+from __future__ import annotations
+
 import hashlib
 import logging
-import time
+import os
 import re
-from datetime import datetime, timezone
-from mimetypes import guess_type
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import sys
+import time
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+
 import requests
-import psycopg2
-from psycopg2.extras import execute_batch
 
-try:
-    from azure.storage.blob import BlobServiceClient, ContentSettings
-except ImportError:
-    BlobServiceClient = None
-    ContentSettings = None
+from common import db, staging
+from common.ids import child_id, det_id
+from common.idmap import IdMap
+from common.ledger import StepResult, run_per_tenant
+from common.legacy import text
+from common.quarantine import Quarantine
+from common.tenants import Tenant, Tenants
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("load_documents")
-
-NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+STEP = "load_documents"
 BLOB_CONTAINER = "documents"
-MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB cap per W-21 / W-69
-ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "xlsx", "csv"}
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+MAX_WORKERS = 8
+RETRIES = 3
+BACKOFF_SECONDS = 0.5
+TIMEOUT_SECONDS = 30
 
-# Document kind mapping
-DOC_KIND_MAP = {
-    "AADHAR_CARD": "EMPLOYEE_DOCUMENT",
-    "PAN_CARD": "EMPLOYEE_DOCUMENT",
-    "OFFER_LETTER": "EMPLOYEE_DOCUMENT",
-    "EXPERIENCE": "EMPLOYEE_DOCUMENT",
-    "EDUCATION": "EMPLOYEE_DOCUMENT",
-    "BANK_PASSBOOK": "EMPLOYEE_DOCUMENT",
-    "PHOTO": "EMPLOYEE_DOCUMENT",
-    "OTHER": "EMPLOYEE_DOCUMENT",
+HRMS_DOCS = "stg_hrms_employee_document.json"
+POI_DOCS = "stg_payroll_employee_poi_document.json"
+LEAVE_DOCS = "stg_hrms_leave_documents.json"
+CLAIMS = "stg_payroll_employee_reimbursement_request.json"
+DEDUCTIONS = "stg_payroll_employee_deduction.json"
+ORGS = "stg_payroll_organization.json"
+# The parents and id-map entries this step resolves come from the last four.
+INPUTS = [HRMS_DOCS, POI_DOCS, LEAVE_DOCS, CLAIMS, DEDUCTIONS, ORGS, "stg_payroll_employee_poi_item.json",
+          "stg_hrms_leave_requests.json", "stg_merged_employees.json", "stg_payroll_employee.json"]
+
+# extension -> (content type stored, leading bytes the file must have; None = text, no NUL)
+TYPES = {
+    "pdf": ("application/pdf", b"%PDF-"),
+    "jpg": ("image/jpeg", b"\xff\xd8\xff"),
+    "jpeg": ("image/jpeg", b"\xff\xd8\xff"),
+    "png": ("image/png", b"\x89PNG\r\n\x1a\n"),
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", b"PK\x03\x04"),
+    "csv": ("text/csv", None),
 }
+TEXT_SNIFF_BYTES = 8192
+
+# HRMS DocumentType -> core.document label (ID_PROOF, ADDRESS_PROOF, OFFER_LETTER, CONTRACT, CERTIFICATE, OTHER)
+LABELS = {
+    **dict.fromkeys(("AADHAR_CARD", "OTHER_IDENTIFICATION", "PAN_CARD", "EPIC_CARD", "OTHER_GOVERNMENT_ID",
+                     "PASSPORT"), "ID_PROOF"),
+    **dict.fromkeys(("RENT_AGREEMENT", "LIGHT_BILL", "BANK_STATEMENT", "OTHER_ADDRESS_PROOF"), "ADDRESS_PROOF"),
+    **dict.fromkeys(("TENTH_CERTIFICATE", "TWELFTH_CERTIFICATE_DIPLOMA", "DEGREE_CERTIFICATE",
+                     "POST_GRADUATION_CERTIFICATE", "OTHER_QUALIFICATION", "EXPERIENCE_LETTER",
+                     "RELIEVING_LETTER"), "CERTIFICATE"),
+    "APPOINTMENT_LETTER": "OFFER_LETTER",
+}
+# id-map key prefix per legacy table; documents go under "<system>.<legacy_table>.document"
+SYSTEM = {"employee_document": "hrms", "leave_documents": "hrms", "employee_poi_document": "payroll",
+          "employee_reimbursement_request": "payroll", "employee_deduction": "payroll", "organization": "payroll"}
+# Payroll POI uploads: .../upload/v<n>/<folder>/<employee UUID>/<file> (branch load_documents.py:156)
+POI_URL = re.compile(r"/upload/v\d+/([^/]+)/([^/]+)/")
+log = logging.getLogger(STEP)
 
 
-def get_conn():
-    """Target PostgreSQL connection with RLS context."""
-    return psycopg2.connect(
-        host=os.environ.get("TARGET_DB_HOST", "localhost"),
-        port=int(os.environ.get("TARGET_DB_PORT", "5432")),
-        dbname=os.environ.get("TARGET_DB_NAME", "infinevo"),
-        user=os.environ.get("TARGET_DB_USER", "migration_user"),
-        password=os.environ.get("TARGET_DB_PASSWORD", "local_migration_pw"),
-    )
+@dataclass
+class Job:
+    source: str          # legacy table, for the quarantine
+    legacy_id: object
+    tenant_id: str
+    doc_id: str
+    employee_id: str | None
+    kind: str
+    label: str | None
+    file_name: str
+    url: str
+    link: tuple = ()     # ("proof_item", id) | ("leave_request", id) | ("claim", id) | ("deduction", id) | ("logo",)
+
+    @property
+    def blob_path(self) -> str:
+        return f"{self.tenant_id}/{self.employee_id or 'tenant'}/{self.kind}/{self.doc_id}"
 
 
-def get_blob_service_client():
-    """Initialize Azure BlobServiceClient via connection string, account URL, or Azurite."""
-    if BlobServiceClient is None:
-        logger.warning("azure.storage.blob not available")
-        return None
+class TransferRefused(Exception):
+    """A file that goes to quarantine: reason code plus ids-only detail."""
+
+    def __init__(self, reason: str, **detail):
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = detail
+
+
+def container_client():
+    """The documents container: Azure with DefaultAzureCredential (AZURE_STORAGE_ACCOUNT_URL),
+    or Azurite / a connection string (AZURE_STORAGE_CONNECTION_STRING). No credentials: raise."""
+    from azure.storage.blob import BlobServiceClient
 
     conn_str = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
-    if conn_str:
-        return BlobServiceClient.from_connection_string(conn_str)
-
     account_url = os.environ.get("AZURE_STORAGE_ACCOUNT_URL")
-    if account_url:
+    if conn_str:
+        service = BlobServiceClient.from_connection_string(conn_str)
+    elif account_url:
+        from azure.identity import DefaultAzureCredential
+
+        service = BlobServiceClient(account_url, credential=DefaultAzureCredential())
+    else:
+        raise RuntimeError(
+            "No Azure storage credentials (AZURE_STORAGE_ACCOUNT_URL or AZURE_STORAGE_CONNECTION_STRING); "
+            "refusing to write document rows without uploads.")
+    container = service.get_container_client(BLOB_CONTAINER)
+    if conn_str:  # Azurite starts empty; in Azure the container is Bicep's (storage.bicep)
         try:
-            from azure.identity import DefaultAzureCredential
-            return BlobServiceClient(account_url, credential=DefaultAzureCredential())
-        except ImportError:
-            logger.warning("azure.identity not found; cannot use DefaultAzureCredential with account URL")
-            return None
-
-    return None
+            if not container.exists():
+                container.create_container()
+        except Exception as exc:  # noqa: BLE001 - the upload will report a real problem
+            log.info("container check: %s", type(exc).__name__)
+    return container
 
 
-def det_uuid(key: str) -> str:
-    """Deterministic UUIDv5 namespace mapping."""
-    return str(uuid.uuid5(NAMESPACE, key))
+def extension(file_name: str | None, url: str | None) -> str:
+    for candidate in (file_name, (url or "").split("?")[0]):
+        base = os.path.basename(candidate or "")
+        if "." in base:
+            return base.rsplit(".", 1)[1].lower()
+    return ""
 
 
-def infer_content_type(file_name: str, fallback="application/octet-stream") -> str:
-    ct, _ = guess_type(file_name)
-    return ct or fallback
-
-
-def get_file_extension(file_name: str) -> str:
-    if not file_name or "." not in file_name:
-        return ""
-    return file_name.rsplit(".", 1)[-1].lower()
-
-
-def fetch_file_with_retry(url: str, max_retries: int = 3, timeout: int = 30):
-    """
-    Downloads file from URL with up to max_retries attempts and exponential backoff.
-    Returns (bytes_content, error_reason)
-    """
-    for attempt in range(1, max_retries + 1):
+def fetch(url: str) -> bytes:
+    """The file's bytes; TransferRefused when it cannot or must not be had."""
+    reason, detail = "DOWNLOAD_FAILED", {}
+    for attempt in range(RETRIES):
+        if attempt:
+            time.sleep(BACKOFF_SECONDS * (2 ** (attempt - 1)))
         try:
-            resp = requests.get(url, timeout=timeout, stream=True)
-            if resp.status_code == 200:
-                content = resp.content
-                return content, None
-            elif resp.status_code == 404:
-                return None, f"HTTP 404 Not Found at legacy URL: {url}"
-            else:
-                if attempt == max_retries:
-                    return None, f"HTTP {resp.status_code} after {max_retries} attempts: {url}"
-        except Exception as ex:
-            if attempt == max_retries:
-                return None, f"Network exception after {max_retries} attempts: {str(ex)}"
-        time.sleep(0.5 * (2 ** (attempt - 1)))
-    return None, "Failed to download after retries"
-
-
-def upload_and_verify_blob(container_client, blob_path: str, content: bytes, content_type: str):
-    """
-    Uploads content to Azure Blob Storage and verifies SHA-256 checksum on read-back.
-    Returns (checksum_sha256, error_reason)
-    """
-    computed_sha = hashlib.sha256(content).hexdigest()
-    try:
-        blob_client = container_client.get_blob_client(blob_path)
-        c_settings = ContentSettings(content_type=content_type) if ContentSettings else None
-        blob_client.upload_blob(content, overwrite=True, content_settings=c_settings)
-
-        # Verification step: Read back from Blob and compare SHA-256
-        read_back_bytes = blob_client.download_blob().readall()
-        read_back_sha = hashlib.sha256(read_back_bytes).hexdigest()
-
-        if read_back_sha != computed_sha:
-            try:
-                blob_client.delete_blob()
-            except Exception:
-                pass
-            return None, f"Checksum verification mismatch: expected {computed_sha}, got {read_back_sha}"
-
-        return computed_sha, None
-    except Exception as ex:
-        return None, f"Blob upload error for {blob_path}: {str(ex)}"
-
-
-def process_single_document(doc_item, container_client, existing_checksums=None, dry_run: bool = False):
-    """
-    Worker function executed in parallel thread:
-      1. Validates extension and file metadata
-      2. Checks if already migrated (idempotency)
-      3. Downloads file with retry
-      4. Validates max size (10 MB cap)
-      5. Uploads and verifies blob in Azure Blob Storage
-      6. Returns (is_success, result_data, quarantine_reason)
-    """
-    doc_id = doc_item["doc_id"]
-    tid = doc_item["tenant_id"]
-    emp_uuid = doc_item["employee_id"]
-    kind = doc_item["kind"]
-    fname = doc_item["file_name"]
-    file_url = doc_item["file_url"]
-    ct = doc_item["content_type"]
-    blob_path = doc_item["blob_path"]
-
-    # 1. Validate file extension
-    ext = get_file_extension(fname)
-    if not ext and file_url:
-        ext = get_file_extension(file_url.split("?")[0])
-
-    if ext not in ALLOWED_EXTENSIONS:
-        return False, None, {
-            "source": doc_item["source"],
-            "legacy_id": doc_item["legacy_id"],
-            "file_name": fname,
-            "reason": f"File extension '{ext}' not in allowed list: {ALLOWED_EXTENSIONS}"
-        }
-
-    # 2. Check if already uploaded and verified (idempotency)
-    existing_sha = (existing_checksums or {}).get(blob_path)
-    if existing_sha and not existing_sha.startswith("placeholder") and not existing_sha.startswith("LEGACY:"):
-        return True, {
-            "doc_id": doc_id, "tenant_id": tid, "employee_id": emp_uuid,
-            "kind": kind, "file_name": fname, "content_type": ct,
-            "size_bytes": doc_item.get("existing_size", 0),
-            "blob_container": BLOB_CONTAINER, "blob_path": blob_path,
-            "checksum_sha256": existing_sha, "skipped_existing": True
-        }, None
-
-    if dry_run or container_client is None:
-        # Dry run or mock mode: compute deterministic placeholder
-        raw = f"DRY_RUN:{doc_item['legacy_id']}:{fname}".encode("utf-8")
-        dummy_sha = hashlib.sha256(raw).hexdigest()
-        return True, {
-            "doc_id": doc_id, "tenant_id": tid, "employee_id": emp_uuid,
-            "kind": kind, "file_name": fname, "content_type": ct,
-            "size_bytes": 0, "blob_container": BLOB_CONTAINER,
-            "blob_path": blob_path, "checksum_sha256": dummy_sha, "skipped_existing": False
-        }, None
-
-    # 3. Download from Cloudinary URL with retry
-    content, fetch_err = fetch_file_with_retry(file_url, max_retries=3, timeout=30)
-    if fetch_err:
-        return False, None, {
-            "source": doc_item["source"],
-            "legacy_id": doc_item["legacy_id"],
-            "file_name": fname,
-            "url": file_url,
-            "reason": fetch_err
-        }
-
-    size_bytes = len(content)
-
-    # 4. Enforce 10 MB limit
-    if size_bytes > MAX_FILE_SIZE_BYTES:
-        return False, None, {
-            "source": doc_item["source"],
-            "legacy_id": doc_item["legacy_id"],
-            "file_name": fname,
-            "size_bytes": size_bytes,
-            "reason": f"File size {size_bytes} bytes exceeds 10 MB limit ({MAX_FILE_SIZE_BYTES} bytes)"
-        }
-
-    # 5. Upload to Blob & verify read-back
-    verified_sha, upload_err = upload_and_verify_blob(container_client, blob_path, content, ct)
-    if upload_err:
-        return False, None, {
-            "source": doc_item["source"],
-            "legacy_id": doc_item["legacy_id"],
-            "file_name": fname,
-            "blob_path": blob_path,
-            "reason": upload_err
-        }
-
-    return True, {
-        "doc_id": doc_id,
-        "tenant_id": tid,
-        "employee_id": emp_uuid,
-        "kind": kind,
-        "file_name": fname,
-        "content_type": ct,
-        "size_bytes": size_bytes,
-        "blob_container": BLOB_CONTAINER,
-        "blob_path": blob_path,
-        "checksum_sha256": verified_sha,
-        "skipped_existing": False
-    }, None
-
-
-def run_loader(max_workers: int = 8, dry_run: bool = False, skip_db: bool = False):
-    """
-    Main loader orchestrator for W-69 Document Migration.
-    """
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    stg_dir = os.path.join(base_dir, "staging")
-
-    def load_stg(fname):
-        path = os.path.join(stg_dir, fname)
-        if not os.path.exists(path):
-            logger.warning(f"Staging file not found: {path}")
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-
-    hrms_docs = load_stg("stg_hrms_employee_document.json")
-    poi_docs = load_stg("stg_payroll_employee_poi_document.json")
-    merged_employees = load_stg("stg_merged_employees.json")
-    payroll_emps = load_stg("stg_payroll_employee.json")
-
-    # Build employee lookup tables
-    emp_by_hrms_id = {e["source_legacy_hrms_id"]: e for e in merged_employees if e.get("source_legacy_hrms_id")}
-    emp_by_payroll_id = {e["source_legacy_payroll_id"]: e for e in merged_employees if e.get("source_legacy_payroll_id")}
-
-    payroll_emp_uuid_to_merged = {}
-    for pe in payroll_emps:
-        payroll_emp_uuid = str(pe.get("employeeId") or "").strip()
-        payroll_int_id = pe.get("employee_id")
-        if not payroll_emp_uuid:
+            resp = requests.get(url, timeout=TIMEOUT_SECONDS, stream=True)
+        except requests.RequestException as exc:
+            reason, detail = "DOWNLOAD_FAILED", {"error": type(exc).__name__}
             continue
-        emp = emp_by_payroll_id.get(payroll_int_id)
-        if emp:
-            payroll_emp_uuid_to_merged[payroll_emp_uuid] = emp
-
-    logger.info(f"Loaded staging: {len(hrms_docs)} HRMS docs, {len(poi_docs)} POI docs")
-    logger.info(f"Mapped employees: {len(emp_by_hrms_id)} via HRMS ID, {len(emp_by_payroll_id)} via Payroll ID")
-
-    # Prepare document items for processing
-    pending_items = []
-    quarantined = []
-
-    # 1. HRMS Employee Documents (205 records)
-    for d in hrms_docs:
-        emp = emp_by_hrms_id.get(d.get("employee_id"))
-        if not emp:
-            quarantined.append({
-                "source": "HRMS",
-                "legacy_id": d.get("id"),
-                "employee_id": d.get("employee_id"),
-                "reason": "employee_id not found in merged employees"
-            })
-            continue
-
-        tid = emp["tenant_id"]
-        emp_uuid = emp["id"]
-        doc_id = det_uuid(f"{tid}:hrms_doc:{d['id']}")
-        raw_fname = d.get("file_name") or f"hrms_doc_{d['id']}.pdf"
-        fname = os.path.basename(raw_fname)
-        ct = d.get("file_type") or infer_content_type(fname)
-        kind = DOC_KIND_MAP.get(d.get("document_type"), "EMPLOYEE_DOCUMENT")
-        blob_path = f"{tid}/{emp_uuid}/{kind}/{doc_id}"
-        file_url = d.get("file_url")
-
-        if not file_url:
-            quarantined.append({
-                "source": "HRMS", "legacy_id": d["id"],
-                "reason": "Missing file_url in legacy record"
-            })
-            continue
-
-        pending_items.append({
-            "source": "HRMS",
-            "legacy_id": d["id"],
-            "doc_id": doc_id,
-            "tenant_id": tid,
-            "employee_id": emp_uuid,
-            "kind": kind,
-            "file_name": fname,
-            "content_type": ct,
-            "blob_path": blob_path,
-            "file_url": file_url
-        })
-
-    # 2. Payroll POI Documents (73 records)
-    for d in poi_docs:
-        doc_url = d.get("document_url") or ""
-        raw_fname = d.get("document_name") or f"poi_doc_{d['id']}.jpg"
-        fname = os.path.basename(raw_fname)
-        ct = infer_content_type(fname, "image/jpeg")
-
-        m = re.search(r'/upload/v\d+/([^/]+)/([^/]+)/', doc_url)
-        if not m:
-            quarantined.append({
-                "source": "POI",
-                "legacy_id": d["id"],
-                "reason": "Cannot parse Cloudinary URL pattern for payroll employeeId UUID"
-            })
-            continue
-
-        payroll_emp_uuid = m.group(2)
-        matched_emp = payroll_emp_uuid_to_merged.get(payroll_emp_uuid)
-        if not matched_emp:
-            quarantined.append({
-                "source": "POI",
-                "legacy_id": d["id"],
-                "payroll_emp_uuid": payroll_emp_uuid,
-                "reason": "payroll employeeId UUID not found in merged employees"
-            })
-            continue
-
-        tid = matched_emp["tenant_id"]
-        emp_uuid = matched_emp["id"]
-        doc_id = det_uuid(f"{tid}:poi_doc:{d['id']}")
-        blob_path = f"{tid}/{emp_uuid}/INVESTMENT_PROOF/{doc_id}"
-
-        pending_items.append({
-            "source": "POI",
-            "legacy_id": d["id"],
-            "doc_id": doc_id,
-            "tenant_id": tid,
-            "employee_id": emp_uuid,
-            "kind": "INVESTMENT_PROOF",
-            "file_name": fname,
-            "content_type": ct,
-            "blob_path": blob_path,
-            "file_url": doc_url
-        })
-
-    logger.info(f"Prepared {len(pending_items)} documents for upload ({len(quarantined)} pre-quarantined)")
-
-    # Initialize Azure Blob Storage Client & Container
-    blob_service = None
-    container_client = None
-    if not dry_run:
-        blob_service = get_blob_service_client()
-        if blob_service:
-            container_client = blob_service.get_container_client(BLOB_CONTAINER)
-            try:
-                if not container_client.exists():
-                    container_client.create_container()
-            except Exception as e:
-                logger.info(f"Container client check/create notice: {e}")
-        elif not skip_db:
-            # A real run without storage would insert core.document rows with size 0 and a
-            # placeholder checksum, and the idempotency check would then skip those files on
-            # every later run, so they would never be uploaded (W-69: insert only after a
-            # verified upload). Stop instead.
-            raise RuntimeError(
-                "No Azure storage credentials (AZURE_STORAGE_ACCOUNT_URL or "
-                "AZURE_STORAGE_CONNECTION_STRING); refusing to write document rows without uploads. "
-                "Use --dry-run for a metadata-only pass."
-            )
-        else:
-            logger.warning("No Azure storage credentials found; running in metadata/dry-run mode")
-
-    # Connect to DB and check existing checksums for idempotency
-    existing_checksums = {}
-    conn = None
-    cur = None
-    step_name = "load_documents"
-    ledger_id = str(uuid.uuid4())
-    started_at = datetime.now(timezone.utc)
-    anchor_tenant = list(emp_by_hrms_id.values())[0]["tenant_id"] if emp_by_hrms_id else "a0000000-0000-0000-0000-000000000001"
-
-    if not skip_db:
         try:
-            conn = get_conn()
-            conn.autocommit = False
-            cur = conn.cursor()
+            if resp.status_code == 404:
+                raise TransferRefused("NOT_FOUND", http_status=404)
+            if resp.status_code != 200:
+                reason, detail = "HTTP_ERROR", {"http_status": resp.status_code}
+                continue
+            buf = bytearray()
+            for chunk in resp.iter_content(chunk_size=65536):
+                buf += chunk
+                if len(buf) > MAX_FILE_SIZE_BYTES:
+                    raise TransferRefused("TOO_LARGE", max_bytes=MAX_FILE_SIZE_BYTES)
+            return bytes(buf)
+        finally:
+            resp.close()
+    raise TransferRefused(reason, **detail)
 
-            # Record ledger start
-            cur.execute(
-                "INSERT INTO core.migration_ledger (id, tenant_id, step_name, records_processed, status, started_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (ledger_id, anchor_tenant, step_name, 0, "RUNNING", started_at)
-            )
-            conn.commit()
 
-            # Fetch existing records to support fast idempotent resume
-            cur.execute("SELECT blob_path, checksum_sha256, size_bytes FROM core.document")
-            for r in cur.fetchall():
-                existing_checksums[r[0]] = r[1]
-        except Exception as e:
-            logger.warning(f"Database connection or ledger init error: {e}. Skipping DB writes.")
-            skip_db = True
+def transfer(job: Job, container) -> dict:
+    """Download, check, upload, verify; the core.document row for a verified file."""
+    ext = extension(job.file_name, job.url)
+    if ext not in TYPES:
+        raise TransferRefused("TYPE_NOT_ALLOWED", extension=ext[:10] or None)
+    content_type, signature = TYPES[ext]
+    content = fetch(job.url)
+    if not content or (signature is not None and not content.startswith(signature)) or \
+            (signature is None and b"\x00" in content[:TEXT_SNIFF_BYTES]):
+        raise TransferRefused("CONTENT_MISMATCH", extension=ext)
+    sha = hashlib.sha256(content).hexdigest()
 
-    # Multi-threaded download and upload execution
-    successful_docs = []
-    skipped_count = 0
+    from azure.storage.blob import ContentSettings
 
-    logger.info(f"Starting parallel document migration with {max_workers} worker threads...")
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                process_single_document,
-                item,
-                container_client,
-                existing_checksums,
-                dry_run
-            ): item for item in pending_items
-        }
-
-        for future in as_completed(futures):
-            item = futures[future]
-            try:
-                ok, result_data, q_reason = future.result()
-                if ok and result_data:
-                    if result_data.get("skipped_existing"):
-                        skipped_count += 1
-                    successful_docs.append(result_data)
-                elif q_reason:
-                    quarantined.append(q_reason)
-            except Exception as ex:
-                quarantined.append({
-                    "source": item.get("source"),
-                    "legacy_id": item.get("legacy_id"),
-                    "file_name": item.get("file_name"),
-                    "reason": f"Unhandled thread worker exception: {str(ex)}"
-                })
-
-    logger.info(f"Parallel migration completed: {len(successful_docs)} successful ({skipped_count} skipped/cached), {len(quarantined)} quarantined")
-
-    # Insert / Upsert into target database core.document
-    if not skip_db and cur and successful_docs:
-        doc_db_batch = [
-            (
-                d["doc_id"], d["tenant_id"], d["employee_id"], d["kind"],
-                d["file_name"], d["content_type"], d["size_bytes"],
-                d["blob_container"], d["blob_path"], d["checksum_sha256"], False
-            ) for d in successful_docs
-        ]
-
-        logger.info(f"Upserting {len(doc_db_batch)} rows into core.document...")
-        execute_batch(
-            cur,
-            """
-            INSERT INTO core.document
-                (id, tenant_id, employee_id, kind, file_name, content_type, size_bytes,
-                 blob_container, blob_path, checksum_sha256, is_deleted, created_by, updated_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-            ON CONFLICT (tenant_id, blob_path) DO UPDATE SET
-                file_name = EXCLUDED.file_name,
-                content_type = EXCLUDED.content_type,
-                size_bytes = EXCLUDED.size_bytes,
-                checksum_sha256 = EXCLUDED.checksum_sha256,
-                updated_at = CURRENT_TIMESTAMP
-            """,
-            doc_db_batch,
-            page_size=200
-        )
-        conn.commit()
-
-        # Update ledger status
-        cur.execute(
-            "UPDATE core.migration_ledger SET records_processed=%s, status=%s, completed_at=%s WHERE id=%s",
-            (len(successful_docs), "DONE", datetime.now(timezone.utc), ledger_id)
-        )
-        conn.commit()
-
-    if cur:
-        cur.close()
-    if conn:
-        conn.close()
-
-    # Save quarantine report to staging
-    quarantine_file = os.path.join(stg_dir, "stg_quarantined_documents.json")
-    with open(quarantine_file, "w", encoding="utf-8") as f:
-        json.dump(quarantined, f, indent=2)
-    logger.info(f"Saved {len(quarantined)} quarantined document entries to {quarantine_file}")
-
+    blob = container.get_blob_client(job.blob_path)
+    blob.upload_blob(content, overwrite=True, content_settings=ContentSettings(content_type=content_type))
+    if hashlib.sha256(blob.download_blob().readall()).hexdigest() != sha:
+        try:
+            blob.delete_blob()
+        finally:
+            raise TransferRefused("CHECKSUM_MISMATCH")
     return {
-        "total_attempted": len(pending_items),
-        "successful": len(successful_docs),
-        "skipped_existing": skipped_count,
-        "quarantined": len(quarantined)
+        "id": job.doc_id, "tenant_id": job.tenant_id, "employee_id": job.employee_id, "kind": job.kind,
+        "label": job.label, "file_name": job.file_name[:255], "content_type": content_type,
+        "size_bytes": len(content), "blob_container": BLOB_CONTAINER, "blob_path": job.blob_path,
+        "checksum_sha256": sha, "created_by": db.AUDIT_USER, "updated_by": db.AUDIT_USER,
     }
 
 
+def _file_name(name, url, fallback: str) -> str:
+    return os.path.basename(text(name) or "") or os.path.basename((url or "").split("?")[0]) or fallback
+
+
+def _ids(values) -> list[str]:
+    return sorted({str(v) for v in values if v})
+
+
+def run(conn=None) -> bool:
+    container = container_client()  # before anything else: no storage, no run
+    tenants = Tenants.load()
+    idmap = IdMap.load()
+    q = Quarantine(STEP)
+    jobs = defaultdict(list)  # tenant_id -> [Job]
+    pre_skipped = defaultdict(int)
+
+    def refuse(reason, source, lid, tid=None, **detail):
+        q.add(reason, source, lid, tid, **detail)
+        if tid:
+            pre_skipped[tid] += 1
+
+    def payroll_employee(uuid_ref):
+        emp = idmap.get("payroll.employee.uuid", uuid_ref)
+        return (emp, idmap.get("employee.tenant", emp)) if emp else (None, None)
+
+    # HRMS employee documents: the employee by HRMS id; HRMS data is the founder's (W-67 R5).
+    for d in staging.load(HRMS_DOCS):
+        emp = idmap.get("hrms.employee", d.get("employee_id"))
+        tid = idmap.get("employee.tenant", emp) if emp else (tenants.founder.tenant_id if tenants.founder else None)
+        if not emp:
+            refuse("EMPLOYEE_NOT_MIGRATED", "employee_document", d.get("id"), tid)
+            continue
+        if not text(d.get("file_url")):
+            refuse("NO_URL", "employee_document", d.get("id"), tid)
+            continue
+        jobs[tid].append(Job("employee_document", d.get("id"), tid, det_id(tid, "employee_document", d.get("id")),
+                             emp, "EMPLOYEE_DOCUMENT", LABELS.get(text(d.get("document_type")) or "", "OTHER"),
+                             _file_name(d.get("file_name"), d.get("file_url"), f"document-{d.get('id')}"),
+                             d.get("file_url")))
+
+    # Claim receipts and deduction proofs: the row's employee; the row itself must have loaded (checked in work).
+    for source, rows, url_key, name_key in (("employee_reimbursement_request", staging.load(CLAIMS),
+                                             "attachment_url", "attachment_file_name"),
+                                            ("employee_deduction", staging.load(DEDUCTIONS), "proof_url", None)):
+        for r in rows:
+            url = text(r.get(url_key))
+            if not url:
+                continue
+            emp, tid = payroll_employee(r.get("employee_id"))
+            if not emp:
+                refuse("EMPLOYEE_NOT_MIGRATED", source, r.get("id"))
+                continue
+            lid = r.get("id")
+            if source == "employee_reimbursement_request":
+                job = Job(source, lid, tid, det_id(tid, f"{source}.attachment", lid), emp, "REIMBURSEMENT_RECEIPT",
+                          None, _file_name(r.get(name_key), url, f"receipt-{lid}"), url,
+                          ("claim", idmap.get(f"payroll.{source}", lid) or det_id(tid, source, lid)))
+            else:
+                job = Job(source, lid, tid, det_id(tid, f"{source}.proof", lid), emp, "EMPLOYEE_DOCUMENT", "OTHER",
+                          _file_name(None, url, f"deduction-proof-{lid}"), url,
+                          ("deduction", idmap.get(f"payroll.{source}", lid) or det_id(tid, source, lid)))
+            jobs[tid].append(job)
+
+    # Organisation logos, for organisations that became tenants.
+    for o in staging.load(ORGS):
+        t = tenants.for_org(o.get("id"))
+        url = text(o.get("fileUrl"))
+        if t is None or not url:
+            continue
+        jobs[t.tenant_id].append(Job("organization", o.get("id"), t.tenant_id,
+                                     det_id(t.tenant_id, "organization.logo", o.get("id")), None, "TENANT_LOGO",
+                                     None, _file_name(o.get("fileName"), url, f"logo-{o.get('id')}"), url, ("logo",)))
+
+    poi_docs = staging.load(POI_DOCS)
+    leave_docs = staging.load(LEAVE_DOCS)
+
+    own = conn is None
+    conn = conn or db.connect()
+    try:
+        # POI: the proof item says whose it is. Find the loaded items, tenant by tenant (read only).
+        items = {}  # legacy poi_item_id -> (tenant_id, item_id, employee_id)
+        with conn.cursor() as cur:
+            cur.execute("SELECT tenant_id::text FROM core.tenant")
+            existing = {r[0] for r in cur.fetchall()}
+            live = [t for t in tenants.all() if t.tenant_id in existing]
+            legacy_items = {str(d.get("poi_item_id")) for d in poi_docs if d.get("poi_item_id") is not None}
+            for t in live:
+                db.set_tenant(cur, t.tenant_id)
+                cand = {}
+                for li in legacy_items:
+                    for c in (idmap.get("payroll.employee_poi_item", li), det_id(t.tenant_id, "employee_poi_item", li)):
+                        if c:
+                            cand[c] = li
+                cur.execute(
+                    "SELECT i.id::text, p.employee_id::text FROM payroll.employee_proof_item i "
+                    "JOIN payroll.employee_proof_of_investment p ON p.id = i.proof_id AND p.tenant_id = i.tenant_id "
+                    "WHERE i.tenant_id = %s AND i.id = ANY(%s::uuid[])", (t.tenant_id, list(cand)))
+                for item_id, emp in cur.fetchall():
+                    items[cand[item_id]] = (t.tenant_id, item_id, emp)
+        conn.rollback()
+
+        for d in poi_docs:
+            lid, url = d.get("id"), text(d.get("document_url"))
+            found = items.get(str(d.get("poi_item_id")))
+            if found:
+                tid, item_id, emp = found
+                link = ("proof_item", item_id)
+            else:
+                m = POI_URL.search(url or "")
+                emp, tid = payroll_employee(m.group(2)) if m else (None, None)
+                link = ()
+                if emp:
+                    # The document still belongs to the employee; only the link to the item is missing.
+                    q.add("LINK_SKIPPED_PROOF_ITEM_NOT_LOADED", "employee_poi_document", lid, tid,
+                          poi_item_id=d.get("poi_item_id"), note="document loaded without the proof item link")
+            if not emp:
+                refuse("EMPLOYEE_NOT_RESOLVED", "employee_poi_document", lid)
+                continue
+            if not url:
+                refuse("NO_URL", "employee_poi_document", lid, tid)
+                continue
+            jobs[tid].append(Job("employee_poi_document", lid, tid, det_id(tid, "employee_poi_document", lid), emp,
+                                 "INVESTMENT_PROOF", None, _file_name(d.get("document_name"), url, f"proof-{lid}"),
+                                 url, link))
+
+        def work(cur, t: Tenant) -> StepResult:
+            tid = t.tenant_id
+            mine = list(jobs.get(tid, []))
+            before = q.count(tid) - pre_skipped[tid]  # pre-work notes cancel out; pre-work refusals count
+
+            # Leave attachments (founder tenant): the leave request gives the employee.
+            if tenants.founder and tid == tenants.founder.tenant_id and leave_docs:
+                cand = {}
+                for d in leave_docs:
+                    li = d.get("leave_request_id")
+                    cand[str(d.get("id"))] = idmap.get("hrms.leave_requests", li) or det_id(tid, "leave_requests", li)
+                cur.execute("SELECT id::text, employee_id::text FROM core.leave_request "
+                            "WHERE tenant_id = %s AND id = ANY(%s::uuid[])", (tid, _ids(cand.values())))
+                loaded = dict(cur.fetchall())
+                for d in leave_docs:
+                    lid, lr = d.get("id"), cand[str(d.get("id"))]
+                    if lr not in loaded:
+                        q.add("PARENT_NOT_LOADED", "leave_documents", lid, tid, leave_request_id=d.get("leave_request_id"))
+                    elif not text(d.get("file_url")):
+                        q.add("NO_URL", "leave_documents", lid, tid)
+                    else:
+                        mine.append(Job("leave_documents", lid, tid, det_id(tid, "leave_documents", lid), loaded[lr],
+                                        "LEAVE_ATTACHMENT", None,
+                                        _file_name(d.get("file_name"), d.get("file_url"), f"leave-{lid}"),
+                                        d.get("file_url"), ("leave_request", lr)))
+
+            # Parents written by earlier steps must be there: employees, claims, deductions.
+            cur.execute("SELECT id::text FROM core.employee WHERE tenant_id = %s AND id = ANY(%s::uuid[])",
+                        (tid, _ids(j.employee_id for j in mine)))
+            employees = {r[0] for r in cur.fetchall()}
+            parents = {}
+            for kind, table in (("claim", "payroll.employee_reimbursement_request"),
+                                ("deduction", "payroll.employee_deduction")):
+                cur.execute(f"SELECT id::text FROM {table} WHERE tenant_id = %s AND id = ANY(%s::uuid[])",
+                            (tid, _ids(j.link[1] for j in mine if j.link[:1] == (kind,))))
+                parents[kind] = {r[0] for r in cur.fetchall()}
+            ready = []
+            for j in mine:
+                if j.employee_id and j.employee_id not in employees:
+                    q.add("EMPLOYEE_NOT_MIGRATED", j.source, j.legacy_id, tid)
+                elif j.link[:1] in (("claim",), ("deduction",)) and j.link[1] not in parents[j.link[0]]:
+                    q.add("PARENT_NOT_LOADED", j.source, j.legacy_id, tid)
+                else:
+                    ready.append(j)
+
+            # Idempotent by checksum: a row that already holds one is not fetched again.
+            cur.execute("SELECT id::text, checksum_sha256 FROM core.document WHERE tenant_id = %s", (tid,))
+            done = {i for i, c in cur.fetchall() if c and re.fullmatch(r"[0-9a-f]{64}", c)}
+            todo = [j for j in ready if j.doc_id not in done]
+
+            def one(j: Job):
+                try:
+                    return j, transfer(j, container), None
+                except TransferRefused as refused:
+                    return j, None, refused
+
+            rows = []
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+                for j, row, refused in pool.map(one, todo):
+                    if refused:
+                        q.add(refused.reason, j.source, j.legacy_id, tid, **refused.detail)
+                    else:
+                        rows.append(row)
+            db.upsert(cur, "core.document", rows, conflict=("tenant_id", "blob_path"), keep_on_update=("id",))
+            stored = done | {r["id"] for r in rows}
+
+            # Fill the links the parent loaders left empty.
+            linked = [j for j in ready if j.doc_id in stored]
+            for j in linked:
+                idmap.put(f"{SYSTEM[j.source]}.{j.source}.document", j.legacy_id, j.doc_id)
+            db.upsert(cur, "payroll.employee_proof_item_document",
+                      [{"id": child_id(j.doc_id, "proof_item"), "tenant_id": tid, "item_id": j.link[1],
+                        "document_id": j.doc_id, "created_by": db.AUDIT_USER}
+                       for j in linked if j.link[:1] == ("proof_item",)],
+                      conflict=("tenant_id", "item_id", "document_id"), keep_on_update=("id",))
+            db.upsert(cur, "core.leave_request_document",
+                      [{"id": child_id(j.doc_id, "leave_request"), "tenant_id": tid, "leave_request_id": j.link[1],
+                        "document_id": j.doc_id, "created_by": db.AUDIT_USER, "updated_by": db.AUDIT_USER}
+                       for j in linked if j.link[:1] == ("leave_request",)],
+                      conflict=("tenant_id", "leave_request_id", "document_id"), keep_on_update=("id", "updated_by"))
+            for kind, table in (("claim", "payroll.employee_reimbursement_request"),
+                                ("deduction", "payroll.employee_deduction")):
+                for j in linked:
+                    if j.link[:1] == (kind,):
+                        cur.execute(f"UPDATE {table} SET document_id = %s, updated_by = %s, updated_at = now() "
+                                    "WHERE tenant_id = %s AND id = %s AND document_id IS DISTINCT FROM %s",
+                                    (j.doc_id, db.AUDIT_USER, tid, j.link[1], j.doc_id))
+            for j in linked:
+                if j.link == ("logo",):
+                    cur.execute("UPDATE core.tenant SET logo_document_id = %s, updated_by = %s, updated_at = now() "
+                                "WHERE tenant_id = %s AND logo_document_id IS DISTINCT FROM %s",
+                                (j.doc_id, db.AUDIT_USER, tid, j.doc_id))
+            return StepResult(processed=len(linked), skipped=q.count(tid) - before)
+
+        summary = run_per_tenant(conn, STEP, tenants.all(), staging.checksum(INPUTS), work)
+    finally:
+        if own:
+            conn.close()
+    idmap.save()
+    q.write()
+    return summary.ok
+
+
 if __name__ == "__main__":
-    is_dry_run = "--dry-run" in sys.argv or "--metadata-only" in sys.argv
-    run_loader(max_workers=8, dry_run=is_dry_run)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    sys.exit(0 if run() else 1)

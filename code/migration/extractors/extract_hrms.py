@@ -1,133 +1,93 @@
 """
-HRMS MySQL Extractor (W-68.1)
-Extracts authoritative HRMS tables from legacy MySQL into local staging.
-Operates exclusively in READ-ONLY mode. Zero mutations on source databases.
+HRMS MySQL extractor (W-68.1).
+
+Copies every carried HRMS table (mapping .claude/outputs/2026-10-16-legacy-target-field-mapping.md
+§3, rows marked H) from the legacy MySQL database into staging/stg_hrms_<table>.json, in a
+read-only session. Configuration: LEGACY_HRMS_DB_HOST, _PORT (default 3306), _NAME, _USER,
+_PASSWORD. A missing variable exits 2.
+
+Table names follow Spring's default naming: @Table(name) if present, else the class name
+in snake_case. Entities are under legacy/HRMS_Backend/src/main/java/com/phegondev/
+usersmanagementsystem/entity/.
 """
+from __future__ import annotations
 
-import os
 import sys
-import json
-import logging
-from typing import Dict, Any, List
-import pymysql
+from pathlib import Path
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("extract_hrms")
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-TABLES_TO_EXTRACT = [
-    "ourusers",
-    "employee",
-    "personal",
-    "contact",
-    "identification",
-    "work",
-    "timesheets",
-    "timesheet",
-    "day_entry",
-    "task_entry",
-    "projects",
-    "tasks",
-    "assignments",
-    "leave_requests",
-    "leave_balances",
-    "leave_types",
-    "attendance",
-    "clock_sessions",
-    "employee_document",
-    "holidays",
-    "user_roles",
-    "user_action_mapping",
-    "notifications",
-    "timesheet_notifications"
-]
+from extractors.common_extract import run as _run  # noqa: E402
 
-def get_connection(host: str, port: int, user: str, password: str, database: str):
-    logger.info(f"Connecting to MySQL {host}:{port}/{database} (Read-Only session)...")
-    ssl_config = {"ssl": True} if host not in ("localhost", "127.0.0.1") else None
-    conn = pymysql.connect(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database=database,
-        charset="utf8mb4",
-        cursorclass=pymysql.cursors.DictCursor,
-        connect_timeout=10,
-        read_timeout=30,
-        write_timeout=30,
-        ssl=ssl_config
-    )
-    with conn.cursor() as cur:
-        cur.execute("SET SESSION TRANSACTION READ ONLY")
-    return conn
+SOURCE = "hrms"
 
-def extract_table(conn, table_name: str, staging_dir: str) -> int:
-    if table_name not in TABLES_TO_EXTRACT:
-        raise ValueError(f"Table '{table_name}' is not in allowed extraction list")
+# Every carried HRMS table plus the element-collection / join tables of carried entities.
+TABLES_TO_EXTRACT: tuple[str, ...] = (
+    # §3.2 Users and access
+    "ourusers",                  # OurUsers.java
+    "user_roles",                # OurUsers.java @JoinTable
+    "role",                      # useraccess/Role.java (role names for role_map.json)
+    # §3.3 Employee master (employee is the link table; report = reporting managers)
+    "employee",                  # Employee.java
+    "personal",                  # personal.java
+    "contact",                   # Contact.java
+    "identification",            # Identification.java
+    "work",                      # Work.java
+    "report",                    # Report.java
+    # §3.8 Leave, holidays, attendance
+    "leave_types",               # LeaveType.java
+    "leave_type_employee_ids",   # LeaveType.java @CollectionTable
+    "leave_balances",            # LeaveBalance.java
+    "leave_requests",            # LeaveRequests.java
+    "leave_manual_days",         # LeaveRequests.java @CollectionTable
+    "leave_selected_dates",      # LeaveRequests.java @CollectionTable
+    "leave_request_lop",         # LeaveRequests.java @CollectionTable
+    "leave_documents",           # LeaveDocument.java (file_data not extracted)
+    "employee_monthly_lop",      # EmployeeMonthlyLop.java
+    "holidays",                  # Holiday.java
+    "attendance",                # Attendance.java
+    "clock_sessions",            # ClockSession.java
+    "overtime_requests",         # OvertimeRequest.java
+    # §3.9 Timesheets, projects, tasks
+    "projects",                  # Project.java
+    "tasks",                     # Task.java
+    "assignments",               # Assignment.java
+    "timesheets",                # timesheet/Timesheets.java
+    "project_entry",             # timesheet/ProjectEntry.java
+    "task_entry",                # timesheet/TaskEntry.java
+    "day_entry",                 # timesheet/DayEntry.java
+    # §3.10 Documents
+    "employee_document",         # EmployeeDocument.java (document_content not extracted)
+    # §3.11 Notifications (W-68 Task 3m)
+    "notifications",             # Notification.java
+    "timesheet_notifications",   # timesheet/TimesheetsNotification.java
+)
 
-    output_file = os.path.join(staging_dir, f"stg_hrms_{table_name}.json")
-    logger.info(f"Extracting table '{table_name}'...")
-    
-    with conn.cursor() as cur:
-        cur.execute("SHOW TABLES LIKE %s", (table_name,))
-        if not cur.fetchone():
-            logger.warning(f"Table '{table_name}' does not exist in HRMS database. Skipping.")
-            return 0
-            
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-        cur.execute(f"SELECT COUNT(*) AS total FROM `{table_name}`")
-        count = cur.fetchone()["total"]
-        logger.info(f"Table '{table_name}' contains {count} rows.")
-        
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
-        cur.execute(f"SELECT * FROM `{table_name}`")
-        rows = cur.fetchall()
-        
-    def default_serializer(obj):
-        return str(obj)
+# §1 duplicate twins: counted in the summary, no file written (W-67 R2).
+COUNT_ONLY: tuple[str, ...] = (
+    "leave_request",             # LeaveRequest.java
+    "employee_leave_balances",   # EmployeeLeaveBalance.java
+    "timesheet",                 # Timesheet.java
+)
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(rows, f, default=default_serializer, indent=2)
-        
-    logger.info(f"Saved {len(rows)} records to '{output_file}'")
-    return len(rows)
+# Binary columns never extracted; the file URL is enough for W-69.
+EXCLUDED_COLUMNS: dict[str, tuple[str, ...]] = {
+    "employee_document": ("document_content",),
+    "leave_documents": ("file_data",),
+    # Secrets never reach staging (mapping §3.2: passwords dropped, Keycloak owns logins).
+    "ourusers": ("password", "blacklisted_token"),
+}
 
-def main():
-    host = os.environ.get("LEGACY_HRMS_DB_HOST")
-    port = int(os.environ.get("LEGACY_HRMS_DB_PORT", "3306"))
-    database = os.environ.get("LEGACY_HRMS_DB_NAME", "hrmstestdb")
-    user = os.environ.get("LEGACY_HRMS_DB_USER", "ro_migration_user")
-    password = os.environ.get("LEGACY_HRMS_DB_PASSWORD")
-    
-    if not host or not password:
-        logger.error("LEGACY_HRMS_DB_HOST and LEGACY_HRMS_DB_PASSWORD environment variables are required.")
-        sys.exit(1)
-    
-    staging_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "staging")
-    os.makedirs(staging_dir, exist_ok=True)
-    
-    logger.info("=== Starting HRMS MySQL Extraction (W-68.1) ===")
-    logger.info(f"Source: {host}:{port}/{database}")
-    logger.info(f"Staging Directory: {staging_dir}")
-    
-    try:
-        conn = get_connection(host, port, user, password, database)
-    except Exception as e:
-        logger.error(f"Failed to connect to source HRMS database: {e}")
-        sys.exit(1)
-        
-    summary = {}
-    try:
-        for tbl in TABLES_TO_EXTRACT:
-            summary[tbl] = extract_table(conn, tbl, staging_dir)
-    finally:
-        conn.close()
-        logger.info("HRMS MySQL connection closed.")
-        
-    logger.info("=== HRMS Extraction Completed Successfully ===")
-    logger.info("Summary of extracted tables:")
-    for tbl, count in summary.items():
-        logger.info(f" - {tbl}: {count} records")
+
+def run() -> dict:
+    return _run(SOURCE, "HRMS", TABLES_TO_EXTRACT, COUNT_ONLY, EXCLUDED_COLUMNS)
+
+
+def main() -> int:
+    run()
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

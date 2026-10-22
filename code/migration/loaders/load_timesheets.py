@@ -1,413 +1,265 @@
-"""
-Timesheet & Project Loader (Step 3j - W-68.3 / W-67 Rule R3)
-Loads into target PostgreSQL:
-  - hrms.project                 (projects from HRMS)
-  - hrms.task                    (tasks per project)
-  - hrms.assignment              (project employee assignments)
-  - hrms.timesheet               (weekly timesheets)
-  - hrms.timesheet_project_entry (project lines on timesheets)
-  - hrms.timesheet_task_entry    (task lines on project entries)
-  - hrms.timesheet_day_entry     (daily hours entries where hours > 0)
-Logs to core.migration_ledger
-"""
+"""3j — projects and timesheets, HRMS -> founder tenant (W-68 Task 3, W-67 R3, mapping §3.9, X-11).
 
-import os
-import sys
-import json
-import uuid
+  projects     -> hrms.project                  tasks       -> hrms.task
+  assignments  -> hrms.assignment               timesheets  -> hrms.timesheet
+  project_entry -> hrms.timesheet_project_entry task_entry  -> hrms.timesheet_task_entry
+  day_entry    -> hrms.timesheet_day_entry
+
+Column for column (the target was modelled on these tables). HRMS has no organisation column,
+so everything belongs to the founder tenant (W-67 R5). Migrated timesheets are history: status
+as it was, no pay input is raised from them (R3).
+
+Nothing is reshaped to fit a target rule: a week that does not start on a Monday, a second
+live timesheet for the same week, a second project of the same name, a value outside the
+target's enum all go to quarantine with a reason. Zero-hour day entries (the legacy grid saves
+every day of the week) carry no work and are counted, not loaded.
+"""
+from __future__ import annotations
+
 import logging
-from datetime import datetime, timezone, date
+import sys
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-import psycopg2
-from psycopg2.extras import execute_batch
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("load_timesheets")
+from common import db, staging
+from common.ids import det_id
+from common.idmap import IdMap
+from common.ledger import StepResult, run_per_tenant
+from common.legacy import text, to_date, to_timestamp
+from common.money import to_decimal
+from common.quarantine import Quarantine
+from common.tenants import Tenant, Tenants
 
-NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-FOUNDER_TENANT_ID = "a0000000-0000-0000-0000-000000000001"
+STEP = "load_timesheets"
+TABLES = ["projects", "tasks", "assignments", "timesheets", "project_entry", "task_entry", "day_entry"]
+INPUTS = [f"stg_hrms_{t}.json" for t in TABLES] + ["stg_merged_employees.json"]
+log = logging.getLogger(STEP)
 
-def get_conn():
-    return psycopg2.connect(
-        host=os.environ.get("TARGET_DB_HOST", "localhost"),
-        port=int(os.environ.get("TARGET_DB_PORT", "5432")),
-        dbname=os.environ.get("TARGET_DB_NAME", "infinevo"),
-        user=os.environ.get("TARGET_DB_USER", "migration_user"),
-        password=os.environ.get("TARGET_DB_PASSWORD", "local_migration_pw")
-    )
+# Target enums: code/backend/hrms/.../project/{Priority,ProjectStatus,TaskStatus}.java,
+# hrms.timesheet / timesheet_project_entry CHECK constraints.
+PRIORITY = {"LOW", "MEDIUM", "HIGH"}
+PROJECT_STATUS = {"STARTED", "COMPLETED"}
+TASK_STATUS = {"TODO", "IN_PROGRESS", "IN_REVIEW", "COMPLETED"}
+SHEET_STATUS = {"DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"}
+BUDGET_PLACES = Decimal("0.0001")  # hrms.project.budget NUMERIC(19,4)
 
-def det_uuid(namespace_key: str) -> str:
-    return str(uuid.uuid5(NAMESPACE, namespace_key))
 
-def parse_date(val):
-    if not val:
-        return None
-    s = str(val)[:10]
-    try:
-        return date.fromisoformat(s)
-    except Exception:
-        return None
+def enum(value, allowed: set[str]) -> str | None:
+    """'In Progress' -> 'IN_PROGRESS' when the target allows it, else None."""
+    s = (text(value) or "").upper().replace(" ", "_").replace("-", "_")
+    return s if s in allowed else None
 
-def run_loader():
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    stg = os.path.join(base, "staging")
 
-    def load_json(fname, default=None):
-        fpath = os.path.join(stg, fname)
-        if not os.path.exists(fpath):
-            return default if default is not None else []
-        with open(fpath, "r", encoding="utf-8") as f:
-            return json.load(f)
+def run(conn=None) -> bool:
+    tenants = Tenants.load()
+    idmap = IdMap.load()
+    q = Quarantine(STEP)
+    run_start = datetime.now(timezone.utc)
+    audit = {"created_by": db.AUDIT_USER, "updated_by": db.AUDIT_USER}
+    src = {t: sorted(staging.load(f"stg_hrms_{t}.json"), key=lambda r: int(r.get("id") or 0)) for t in TABLES}
+    log.info("not migrated (W-67 R3, older twin): stg_hrms_timesheet.json rows=%d",
+             len(staging.load("stg_hrms_timesheet.json")))
 
-    projects_raw     = load_json("stg_hrms_projects.json")
-    tasks_raw        = load_json("stg_hrms_tasks.json")
-    assignments_raw  = load_json("stg_hrms_assignments.json")
-    timesheets_raw   = load_json("stg_hrms_timesheets.json")
-    task_entry_raw   = load_json("stg_hrms_task_entry.json")
-    day_entry_raw    = load_json("stg_hrms_day_entry.json")
-    merged_employees = load_json("stg_merged_employees.json")
+    def work(cur, t: Tenant) -> StepResult:
+        tid = t.tenant_id
+        cur.execute("SELECT id FROM core.employee WHERE tenant_id = %s", (tid,))
+        loaded = {str(r[0]) for r in cur.fetchall()}
+        skipped = 0
 
-    logger.info(f"Staging loaded: {len(projects_raw)} projects, {len(tasks_raw)} tasks, "
-                f"{len(assignments_raw)} assignments, {len(timesheets_raw)} timesheets, "
-                f"{len(task_entry_raw)} task_entries, {len(day_entry_raw)} day_entries")
+        def emp(ref) -> str | None:
+            ref = text(ref)
+            if not ref:
+                return None
+            eid = idmap.get("hrms.emp_code", ref) or idmap.get("hrms.employee", ref)
+            return eid if eid in loaded else None
 
-    emp_by_hrms_id = {}
-    for e in merged_employees:
-        if e.get("source_legacy_hrms_id"):
-            emp_by_hrms_id[str(e["source_legacy_hrms_id"]).strip()] = e
-        if e.get("employee_number"):
-            emp_by_hrms_id[str(e["employee_number"]).strip()] = e
+        def drop(reason, table, legacy_id, **kw):
+            nonlocal skipped
+            q.add(reason, table, legacy_id, tid, **kw)
+            skipped += 1
 
-    tid = FOUNDER_TENANT_ID
+        # Projects (name unique per tenant, case-insensitive, among live projects)
+        projects, project_ids, names = [], {}, set()
+        for p in src["projects"]:
+            pid = p.get("id")
+            name = text(p.get("name"), 128)
+            priority, status = enum(p.get("priority"), PRIORITY), enum(p.get("status"), PROJECT_STATUS)
+            if not name:
+                drop("NO_NAME", "projects", pid); continue
+            if name.lower() in names:
+                drop("DUPLICATE_PROJECT_NAME", "projects", pid); continue
+            if priority is None:
+                drop("PRIORITY_UNMAPPED", "projects", pid, value=text(p.get("priority"))); continue
+            if status is None:
+                drop("STATUS_UNMAPPED", "projects", pid, value=text(p.get("status"))); continue
+            progress = p.get("progress")
+            progress = int(progress) if progress is not None else 0
+            if not 0 <= progress <= 100:
+                drop("PROGRESS_OUT_OF_RANGE", "projects", pid); continue
+            manager = emp(p.get("manager_id"))
+            if text(p.get("manager_id")) and manager is None:
+                q.add("MANAGER_NOT_FOUND", "projects", pid, tid, note="loaded without a manager")
+            names.add(name.lower())
+            project_ids[str(pid)] = det_id(tid, "projects", pid)
+            projects.append({"id": project_ids[str(pid)], "tenant_id": tid, "name": name,
+                             "category": text(p.get("category"), 64), "description": text(p.get("description")),
+                             "start_date": to_date(p.get("start_date")), "end_date": to_date(p.get("end_date")),
+                             "priority": priority, "status": status, "progress": progress,
+                             "budget": to_decimal(p.get("budget"), BUDGET_PLACES), "manager_employee_id": manager,
+                             "is_deleted": False, **audit})
+        db.upsert(cur, "hrms.project", projects)
 
-    conn = get_conn()
-    conn.autocommit = False
-    cur = conn.cursor()
+        # Tasks
+        tasks, task_ids = [], {}
+        for k in src["tasks"]:
+            kid = k.get("id")
+            project = project_ids.get(str(k.get("project_id")))
+            title = text(k.get("title"), 128)
+            priority, status = enum(k.get("priority"), PRIORITY), enum(k.get("status"), TASK_STATUS)
+            if project is None:
+                drop("PROJECT_NOT_LOADED", "tasks", kid); continue
+            if not title:
+                drop("NO_TITLE", "tasks", kid); continue
+            if priority is None:
+                drop("PRIORITY_UNMAPPED", "tasks", kid, value=text(k.get("priority"))); continue
+            if status is None:
+                drop("STATUS_UNMAPPED", "tasks", kid, value=text(k.get("status"))); continue
+            assignee = emp(k.get("assignee_id"))
+            if text(k.get("assignee_id")) and assignee is None:
+                q.add("ASSIGNEE_NOT_FOUND", "tasks", kid, tid, note="loaded unassigned")
+            est = k.get("estimated_hours")
+            task_ids[str(kid)] = (det_id(tid, "tasks", kid), project)
+            tasks.append({"id": task_ids[str(kid)][0], "tenant_id": tid, "project_id": project, "title": title,
+                          "description": text(k.get("description")), "assignee_employee_id": assignee,
+                          "due_date": to_date(k.get("due_date")), "priority": priority, "status": status,
+                          "estimated_hours": int(est) if est is not None else None, "is_deleted": False, **audit})
+        db.upsert(cur, "hrms.task", tasks)
 
-    step_name = "load_timesheets"
-    started_at = datetime.now(timezone.utc)
-    ledger_id = str(uuid.uuid4())
+        # Assignments (legacy records no date: assigned_on keeps the target default, the load date)
+        assigns, pairs = [], set()
+        for a in src["assignments"]:
+            aid = a.get("id")
+            project, employee = project_ids.get(str(a.get("project_id"))), emp(a.get("emp_id"))
+            if project is None:
+                drop("PROJECT_NOT_LOADED", "assignments", aid); continue
+            if employee is None:
+                drop("EMPLOYEE_NOT_FOUND", "assignments", aid); continue
+            if (project, employee) in pairs:
+                drop("DUPLICATE_ASSIGNMENT", "assignments", aid); continue
+            pairs.add((project, employee))
+            assigns.append({"id": det_id(tid, "assignments", aid), "tenant_id": tid, "project_id": project,
+                            "employee_id": employee, "is_deleted": False, **audit})
+        db.upsert(cur, "hrms.assignment", assigns)
 
-    try:
-        # ── Ledger: start ──────────────────────────────────────────────────────
-        cur.execute(
-            """
-            INSERT INTO core.migration_ledger (id, tenant_id, step_name, records_processed, status, started_at)
-            VALUES (%s, %s, %s, 0, 'RUNNING', %s)
-            """,
-            (ledger_id, tid, step_name, started_at)
-        )
-        conn.commit()
-
-        total = 0
-
-        # ── 1. Projects ────────────────────────────────────────────────────────
-        logger.info(f"Loading {len(projects_raw)} projects...")
-        proj_batch = []
-        proj_id_map = {}  # legacy_id -> target uuid
-        used_names = set()
-
-        for p in projects_raw:
-            raw_name = (p.get("name") or f"Project_{p['id']}").strip()
-            # Ensure unique name per tenant for non-deleted projects
-            base_name = raw_name
-            suffix = 1
-            while base_name.lower() in used_names:
-                base_name = f"{raw_name} ({suffix})"
-                suffix += 1
-            used_names.add(base_name.lower())
-
-            p_uuid = det_uuid(f"{tid}:project:{p['id']}")
-            proj_id_map[p["id"]] = p_uuid
-
-            mgr_emp = emp_by_hrms_id.get(str(p.get("manager_id") or "").strip())
-            mgr_uuid = mgr_emp["id"] if mgr_emp else None
-
-            s_date = parse_date(p.get("start_date"))
-            e_date = parse_date(p.get("end_date"))
-            priority = (p.get("priority") or "MEDIUM").strip().upper()
-            if priority not in ("LOW", "MEDIUM", "HIGH", "CRITICAL"):
-                priority = "MEDIUM"
-            status = (p.get("status") or "STARTED").strip().upper()
-            budget = Decimal(str(p["budget"])) if p.get("budget") is not None else None
-
-            proj_batch.append((
-                p_uuid, tid, base_name, p.get("category"),
-                p.get("description"), s_date, e_date,
-                priority, status, 0, budget, mgr_uuid, False
-            ))
-
-        if proj_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO hrms.project
-                    (id, tenant_id, name, category, description, start_date, end_date,
-                     priority, status, progress, budget, manager_employee_id, is_deleted,
-                     created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO UPDATE SET
-                    status = EXCLUDED.status, budget = EXCLUDED.budget, updated_at = CURRENT_TIMESTAMP
-                """, proj_batch, page_size=100)
-            conn.commit()
-            total += len(proj_batch)
-        logger.info(f"✓ {len(proj_batch)} projects inserted.")
-
-        # ── 2. Tasks ───────────────────────────────────────────────────────────
-        logger.info(f"Loading {len(tasks_raw)} tasks...")
-        task_batch = []
-        task_id_map = {}  # legacy_task_id -> (target uuid, project_uuid)
-
-        for t in tasks_raw:
-            p_uuid = proj_id_map.get(t.get("project_id"))
-            if not p_uuid:
-                continue
-            t_uuid = det_uuid(f"{tid}:task:{t['id']}")
-            task_id_map[t["id"]] = (t_uuid, p_uuid)
-
-            assignee_emp = emp_by_hrms_id.get(str(t.get("assignee_id") or "").strip())
-            assignee_uuid = assignee_emp["id"] if assignee_emp else None
-
-            priority = (t.get("priority") or "MEDIUM").strip().upper()
-            if priority not in ("LOW", "MEDIUM", "HIGH", "CRITICAL"):
-                priority = "MEDIUM"
-            status = (t.get("status") or "TODO").strip().upper()
-            due_date = parse_date(t.get("due_date"))
-            est_hours = int(t.get("estimated_hours") or 0)
-
-            task_batch.append((
-                t_uuid, tid, p_uuid, t.get("title") or f"Task_{t['id']}",
-                t.get("description"), assignee_uuid, due_date,
-                priority, status, est_hours, False
-            ))
-
-        if task_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO hrms.task
-                    (id, tenant_id, project_id, title, description, assignee_employee_id,
-                     due_date, priority, status, estimated_hours, is_deleted, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO UPDATE SET
-                    status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP
-                """, task_batch, page_size=100)
-            conn.commit()
-            total += len(task_batch)
-        logger.info(f"✓ {len(task_batch)} tasks inserted.")
-
-        # ── 3. Assignments ─────────────────────────────────────────────────────
-        logger.info(f"Loading {len(assignments_raw)} project assignments...")
-        assign_batch = []
-        assigned_pairs = set()
-
-        for a in assignments_raw:
-            p_uuid = proj_id_map.get(a.get("project_id"))
-            emp = emp_by_hrms_id.get(str(a.get("emp_id") or "").strip())
-            if not p_uuid or not emp:
-                continue
-            emp_uuid = emp["id"]
-            if (p_uuid, emp_uuid) in assigned_pairs:
-                continue
-            assigned_pairs.add((p_uuid, emp_uuid))
-
-            a_uuid = det_uuid(f"{tid}:assignment:{p_uuid}:{emp_uuid}")
-            assign_batch.append((a_uuid, tid, p_uuid, emp_uuid, date(2025, 10, 1), False))
-
-        if assign_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO hrms.assignment
-                    (id, tenant_id, project_id, employee_id, assigned_on, is_deleted, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO NOTHING
-                """, assign_batch, page_size=100)
-            conn.commit()
-            total += len(assign_batch)
-        logger.info(f"✓ {len(assign_batch)} project assignments inserted.")
-
-        # ── 4. Timesheets ──────────────────────────────────────────────────────
-        logger.info(f"Loading {len(timesheets_raw)} timesheets...")
-        ts_batch = []
-        ts_id_map = {}  # legacy_ts_id -> target uuid
-        seen_weeks = set()  # (employee_uuid, week_start_date) -> keep latest, cancel duplicates
-
-        STATUS_MAP = {
-            "APPROVED": "APPROVED", "SUBMITTED": "SUBMITTED",
-            "DRAFT": "DRAFT", "REJECTED": "REJECTED", "CANCELLED": "CANCELLED"
-        }
-
-        # Sort so we see entries in order
-        sorted_timesheets = sorted(timesheets_raw, key=lambda x: x.get("id", 0))
-
-        for ts in sorted_timesheets:
-            emp = emp_by_hrms_id.get(str(ts.get("employee_id") or "").strip())
-            if not emp:
-                continue
-            emp_uuid = emp["id"]
-
-            w_start = parse_date(ts.get("week_start_date"))
-            w_end = parse_date(ts.get("week_end_date"))
-            if not w_start or not w_end:
-                continue
-
-            # Ensure week starts on Monday
-            dow = w_start.isoweekday()
-            if dow != 1:
-                # Adjust to Monday of that week
-                from datetime import timedelta
-                w_start = w_start - timedelta(days=(dow - 1))
-                w_end = w_start + timedelta(days=6)
-
-            ts_uuid = det_uuid(f"{tid}:timesheet:{ts['id']}")
-            ts_id_map[ts["id"]] = ts_uuid
-
-            status = STATUS_MAP.get(str(ts.get("status") or "").strip().upper(), "SUBMITTED")
-            # If an active timesheet already exists for this week, mark duplicate as CANCELLED
-            if (emp_uuid, w_start) in seen_weeks and status != "CANCELLED":
-                status = "CANCELLED"
+        # Timesheets (one live sheet per employee per week, week Monday..Sunday)
+        sheets, sheet_ids, weeks = [], {}, set()
+        for s in src["timesheets"]:
+            sid = s.get("id")
+            employee = emp(s.get("employee_id"))
+            start, end = to_date(s.get("week_start_date")), to_date(s.get("week_end_date"))
+            status = enum(s.get("status"), SHEET_STATUS)
+            if employee is None:
+                drop("EMPLOYEE_NOT_FOUND", "timesheets", sid); continue
+            if start is None or end is None:
+                drop("NO_WEEK", "timesheets", sid); continue
+            if start.isoweekday() != 1:
+                drop("WEEK_NOT_MONDAY", "timesheets", sid); continue
+            if end != start + timedelta(days=6):
+                drop("WEEK_NOT_SEVEN_DAYS", "timesheets", sid); continue
+            if status is None:
+                drop("STATUS_UNMAPPED", "timesheets", sid, value=text(s.get("status"))); continue
             if status != "CANCELLED":
-                seen_weeks.add((emp_uuid, w_start))
+                if (employee, start) in weeks:
+                    drop("DUPLICATE_WEEK", "timesheets", sid); continue
+                weeks.add((employee, start))
+            sheet_ids[str(sid)] = det_id(tid, "timesheets", sid)
+            sheets.append({"id": sheet_ids[str(sid)], "tenant_id": tid, "employee_id": employee,
+                           "week_start_date": start, "week_end_date": end, "status": status,
+                           "submitted_at": to_timestamp(s.get("submitted_at")),
+                           "created_at": to_timestamp(s.get("created_at")) or run_start, **audit})
+        db.upsert(cur, "hrms.timesheet", sheets)
 
-            sub_at = parse_date(ts.get("submitted_at"))
-            ts_batch.append((ts_uuid, tid, emp_uuid, w_start, w_end, status, sub_at))
+        # Project lines
+        lines, line_ids, line_keys = [], {}, set()
+        for e in src["project_entry"]:
+            eid = e.get("id")
+            sheet, project = sheet_ids.get(str(e.get("timesheet_id"))), project_ids.get(str(e.get("project_id")))
+            status = enum(e.get("status"), SHEET_STATUS)
+            if sheet is None:
+                drop("TIMESHEET_NOT_LOADED", "project_entry", eid); continue
+            if project is None:
+                drop("PROJECT_NOT_LOADED", "project_entry", eid); continue
+            if status is None:
+                drop("STATUS_UNMAPPED", "project_entry", eid, value=text(e.get("status"))); continue
+            if (sheet, project) in line_keys:
+                drop("DUPLICATE_PROJECT_LINE", "project_entry", eid); continue
+            line_keys.add((sheet, project))
+            line_ids[str(eid)] = (det_id(tid, "project_entry", eid), project)
+            lines.append({"id": line_ids[str(eid)][0], "tenant_id": tid, "timesheet_id": sheet, "project_id": project,
+                          "status": status, "rejection_reason": text(e.get("rejection_reason"), 1000), **audit})
+        db.upsert(cur, "hrms.timesheet_project_entry", lines)
 
-        if ts_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO hrms.timesheet
-                    (id, tenant_id, employee_id, week_start_date, week_end_date, status, submitted_at,
-                     created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO UPDATE SET
-                    status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP
-                """, ts_batch, page_size=100)
-            conn.commit()
-            total += len(ts_batch)
-        logger.info(f"✓ {len(ts_batch)} timesheets inserted.")
+        # Task lines
+        task_lines, task_line_ids, task_keys = [], {}, set()
+        for e in src["task_entry"]:
+            eid = e.get("id")
+            line, task = line_ids.get(str(e.get("project_entry_id"))), task_ids.get(str(e.get("task_id")))
+            if line is None:
+                drop("PROJECT_LINE_NOT_LOADED", "task_entry", eid); continue
+            if task is None:
+                drop("TASK_NOT_LOADED", "task_entry", eid); continue
+            if task[1] != line[1]:
+                drop("TASK_NOT_IN_PROJECT", "task_entry", eid); continue
+            if (line[0], task[0]) in task_keys:
+                drop("DUPLICATE_TASK_LINE", "task_entry", eid); continue
+            task_keys.add((line[0], task[0]))
+            task_line_ids[str(eid)] = det_id(tid, "task_entry", eid)
+            task_lines.append({"id": task_line_ids[str(eid)], "tenant_id": tid, "project_entry_id": line[0],
+                               "task_id": task[0], **audit})
+        db.upsert(cur, "hrms.timesheet_task_entry", task_lines)
 
-        # ── 5. Timesheet Project & Task Entries ────────────────────────────────
-        logger.info("Loading timesheet project and task entries...")
-        pe_batch = []
-        te_batch = []
-        seen_tpe = set()
-        pe_id_map = {}  # legacy_project_entry_id -> target pe_uuid
+        # Day entries
+        days, day_keys, zero = [], set(), 0
+        for d in src["day_entry"]:
+            did = d.get("id")
+            task_line = task_line_ids.get(str(d.get("task_entry_id")))
+            work_date = to_date(d.get("date"))
+            hours = to_decimal(d.get("hours"))
+            if task_line is None:
+                drop("TASK_LINE_NOT_LOADED", "day_entry", did); continue
+            if work_date is None:
+                drop("NO_DATE", "day_entry", did); continue
+            if hours is None or hours == 0:
+                zero += 1; skipped += 1; continue
+            if not Decimal(0) < hours <= Decimal(24):
+                drop("HOURS_OUT_OF_RANGE", "day_entry", did); continue
+            if (task_line, work_date) in day_keys:
+                drop("DUPLICATE_DAY", "day_entry", did); continue
+            day_keys.add((task_line, work_date))
+            days.append({"id": det_id(tid, "day_entry", did), "tenant_id": tid, "task_entry_id": task_line,
+                         "work_date": work_date, "hours": hours, "description": text(d.get("description"), 500),
+                         **audit})
+        if zero:
+            q.add("ZERO_HOURS_NOT_LOADED", "day_entry", None, tid, rows=zero)
+        db.upsert(cur, "hrms.timesheet_day_entry", days)
 
-        # Map each task entry to its timesheet and project
-        for te in task_entry_raw:
-            pe_legacy_id = te.get("project_entry_id")
-            ts_uuid = ts_id_map.get(pe_legacy_id)
-            task_info = task_id_map.get(te.get("task_id"))
-            if not ts_uuid or not task_info:
-                # Fallback project if task_id not found
-                first_proj_uuid = list(proj_id_map.values())[0] if proj_id_map else None
-                task_uuid = det_uuid(f"{tid}:task:{te.get('task_id')}")
-                p_uuid = first_proj_uuid
-            else:
-                task_uuid, p_uuid = task_info
+        processed = sum(map(len, (projects, tasks, assigns, sheets, lines, task_lines, days)))
+        return StepResult(processed, skipped)
 
-            if not p_uuid:
-                continue
-
-            # Project entry
-            pe_uuid = det_uuid(f"{tid}:tpe:{ts_uuid}:{p_uuid}")
-            pe_id_map[pe_legacy_id] = pe_uuid
-
-            if (ts_uuid, p_uuid) not in seen_tpe:
-                seen_tpe.add((ts_uuid, p_uuid))
-                pe_batch.append((pe_uuid, tid, ts_uuid, p_uuid, "SUBMITTED", None))
-
-            # Task entry
-            te_uuid = det_uuid(f"{tid}:tte:{te['id']}")
-            te_batch.append((te_uuid, tid, pe_uuid, task_uuid))
-
-        if pe_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO hrms.timesheet_project_entry
-                    (id, tenant_id, timesheet_id, project_id, status, rejection_reason, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO NOTHING
-                """, pe_batch, page_size=100)
-            conn.commit()
-            total += len(pe_batch)
-
-        if te_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO hrms.timesheet_task_entry
-                    (id, tenant_id, project_entry_id, task_id, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO NOTHING
-                """, te_batch, page_size=100)
-            conn.commit()
-            total += len(te_batch)
-        logger.info(f"✓ {len(pe_batch)} project entries, {len(te_batch)} task entries inserted.")
-
-        # ── 6. Timesheet Day Entries (hours > 0 only) ──────────────────────────
-        logger.info(f"Loading day entries from {len(day_entry_raw)} raw rows...")
-        de_batch = []
-        seen_tde = set()
-
-        for de in day_entry_raw:
-            raw_hours = Decimal(str(de.get("hours") or 0))
-            if raw_hours <= 0 or raw_hours > 24:
-                continue
-
-            te_legacy_id = de.get("task_entry_id")
-            te_uuid = det_uuid(f"{tid}:tte:{te_legacy_id}")
-            w_date = parse_date(de.get("date"))
-            if not w_date:
-                continue
-
-            if (te_uuid, w_date) in seen_tde:
-                continue
-            seen_tde.add((te_uuid, w_date))
-
-            de_uuid = det_uuid(f"{tid}:tde:{de['id']}")
-            desc = (de.get("description") or "").strip() or None
-
-            de_batch.append((de_uuid, tid, te_uuid, w_date, raw_hours, desc))
-
-        if de_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO hrms.timesheet_day_entry
-                    (id, tenant_id, task_entry_id, work_date, hours, description, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO UPDATE SET
-                    hours = EXCLUDED.hours, description = EXCLUDED.description, updated_at = CURRENT_TIMESTAMP
-                """, de_batch, page_size=200)
-            conn.commit()
-            total += len(de_batch)
-        logger.info(f"✓ {len(de_batch)} day entries inserted (filtered hours > 0).")
-
-        # ── Ledger: complete ──────────────────────────────────────────────────
-        cur.execute(
-            """
-            UPDATE core.migration_ledger
-            SET records_processed = %s, status = %s, completed_at = %s
-            WHERE id = %s
-            """,
-            (total, "DONE", datetime.now(timezone.utc), ledger_id)
-        )
-        conn.commit()
-        logger.info(f"=== TIMESHEET LOAD COMPLETE — {total} total records ===")
-
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Timesheet load failed: {e}", exc_info=True)
-        cur.execute(
-            """
-            UPDATE core.migration_ledger
-            SET status = %s, error_message = %s, completed_at = %s
-            WHERE id = %s
-            """,
-            ("FAILED", str(e), datetime.now(timezone.utc), ledger_id)
-        )
-        conn.commit()
-        raise
+    founder = [tenants.founder] if tenants.founder else []
+    if not founder:
+        log.warning("no founder tenant in the org map: HRMS projects and timesheets have no tenant")
+    own = conn is None
+    conn = conn or db.connect()
+    try:
+        summary = run_per_tenant(conn, STEP, founder, staging.checksum(INPUTS), work)
     finally:
-        cur.close()
-        conn.close()
+        if own:
+            conn.close()
+    q.write()
+    return summary.ok
+
 
 if __name__ == "__main__":
-    run_loader()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    sys.exit(0 if run() else 1)

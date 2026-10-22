@@ -1,441 +1,281 @@
-"""
-Claims and Deductions Migration Loader (W-68 Task 3l / Ticket #90)
-Loads legacy reimbursement requests and deductions into target PostgreSQL:
-  - employee_reimbursement_request -> payroll.employee_reimbursement_request
-  - employee_deduction (salary_deduction) -> payroll.employee_deduction + core.pay_input
+"""3l — reimbursement claims and salary deductions (W-68 Task 3, mapping §3.6 rows 159-160).
 
-Rules and Architectural Constraints:
-  - W-68 Task 3l: All statuses loaded; document_id is NULL initially (linked by W-69).
-  - Decision X-14: Open claims/deductions carried; historical PAID/PROCESSED ones dropped.
-  - Deterministic UUIDs via uuid5(NAMESPACE, f"{tenant_id}:{table}:{legacy_id}")
-  - High precision Decimals for all amounts (no floats)
-  - RLS tenant isolation respected by setting app.current_tenant_id per tenant
-  - Full idempotency with ON CONFLICT DO UPDATE
-  - Quarantine missing parents with reasons in staging/stg_quarantined_claims.json
-  - Execution tracked in core.migration_ledger with step_name = 'load_claims'
-"""
+  employee_reimbursement_request -> payroll.employee_reimbursement_request
+  employee_deduction             -> payroll.employee_deduction (+ its core.pay_input ledger row)
 
-import os
-import sys
-import json
-import uuid
+Every status is carried (founder decision "carry all history", over X-14's "open only").
+document_id stays NULL here; load_documents (W-69) fills it after the verified upload, and a
+re-run of this step never clears it (keep_on_update).
+
+Claims. Legacy stores a claim's type as an enum (MEDICAL, TRAVEL, FOOD, INTERNET, FUEL,
+OTHER - EmployeeReimbursementRequest.java reimbursementType) and has no link to the
+reimbursement component master; the target needs reimbursement_id NOT NULL. The claim is
+matched to a legacy `reimbursements` master of its organisation whose type or name names
+the same thing ("Internet Reimbursement" for INTERNET), and that master's target id is
+read from the id-map key load_salary publishes ("payroll.reimbursements"). No matching
+master -> NO_MATCHING_COMPONENT; a match the salary step did not load -> COMPONENT_NOT_LOADED.
+Status PENDING -> SUBMITTED, APPROVED, REJECTED as is. payment_status (PAID, UNPAID,
+INPAYRUN) has no target column; no pay_input is written for a claim.
+
+Deductions. The target ledger needs a core.pay_input row for every deduction
+(pay_input_id NOT NULL), written the way EmployeeDeductionServiceImpl does it: kind
+AD_HOC_DEDUCTION, source_module 'payroll', source_ref 'employee_deduction:<id>'. Status is
+POSTED (the target has POSTED and REVERSED only). A deduction not yet taken (ACTIVE,
+INPAYRUN) posts to its own month or, when that month is locked, the next open one - as
+PayInputServiceImpl.nextOpenPeriod does. One already taken (PROCESSED) is not carried and is
+quarantined ALREADY_DEDUCTED_IN_LEGACY: its money is in the migrated pay run totals, and a
+POSTED pay_input would let a target pay run deduct it again. pay_input is append-only, so an
+existing row is never rewritten.
+"""
+from __future__ import annotations
+
 import logging
-from decimal import Decimal
-from datetime import datetime, timezone
-import psycopg2
-from psycopg2.extras import execute_batch
+import sys
+from collections import defaultdict
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("load_claims")
+from common import db, staging
+from common.ids import det_id
+from common.idmap import IdMap
+from common.ledger import StepResult, run_per_tenant
+from common.legacy import text, to_date, to_timestamp
+from common.money import to_money
+from common.quarantine import Quarantine
+from common.tenants import Tenant, Tenants
 
-NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+STEP = "load_claims"
+CLAIMS = "stg_payroll_employee_reimbursement_request.json"
+DEDUCTIONS = "stg_payroll_employee_deduction.json"
+MASTERS = "stg_payroll_reimbursements.json"
+# The id-map entries this step reads come from these files (employees, reimbursement masters).
+INPUTS = [CLAIMS, DEDUCTIONS, MASTERS, "stg_payroll_organization.json",
+          "stg_merged_employees.json", "stg_payroll_employee.json"]
+log = logging.getLogger(STEP)
 
-# Allowed deduction types per payroll.employee_deduction CHECK constraint
-VALID_DEDUCTION_TYPES = {
-    "ADVANCE_RECOVERY",
-    "LOAN_RECOVERY",
-    "DAMAGE",
-    "PENALTY",
-    "EXCESS_PAYMENT",
-    "OTHER"
-}
-
-# Status mapping for reimbursement requests
-# Legacy: PENDING, APPROVED, REJECTED
-# Target: SUBMITTED, APPROVED, REJECTED
-REIMB_STATUS_MAP = {
-    "PENDING": "SUBMITTED",
-    "SUBMITTED": "SUBMITTED",
-    "APPROVED": "APPROVED",
-    "REJECTED": "REJECTED"
-}
+CLAIM_STATUS = {"PENDING": "SUBMITTED", "SUBMITTED": "SUBMITTED", "APPROVED": "APPROVED", "REJECTED": "REJECTED"}
+DEDUCTION_TYPES = ("ADVANCE_RECOVERY", "LOAN_RECOVERY", "DAMAGE", "PENALTY", "EXCESS_PAYMENT", "OTHER")
+OPEN_DEDUCTION = {"ACTIVE", "INPAYRUN"}
+TAKEN_DEDUCTION = {"PROCESSED"}
+PAY_INPUT_SOURCE = "payroll"
+PAY_INPUT_REF = "employee_deduction:"
 
 
-def to_decimal(val, default="0.0000"):
-    """Convert number/string to 4-decimal scale Decimal without using float."""
-    if val is None or val == "":
-        return Decimal(default)
-    return Decimal(str(val)).quantize(Decimal("0.0001"))
-
-
-def det_uuid(key: str) -> str:
-    """Deterministic UUIDv5 namespace mapping."""
-    return str(uuid.uuid5(NAMESPACE, key))
-
-
-def get_conn():
-    """Target PostgreSQL connection."""
-    return psycopg2.connect(
-        host=os.environ.get("TARGET_DB_HOST", "localhost"),
-        port=int(os.environ.get("TARGET_DB_PORT", "5432")),
-        dbname=os.environ.get("TARGET_DB_NAME", "infinevo"),
-        user=os.environ.get("TARGET_DB_USER", "migration_user"),
-        password=os.environ.get("TARGET_DB_PASSWORD", "local_migration_pw"),
-    )
-
-
-def normalize_deduction_type(legacy_type: str) -> str:
-    """Maps legacy free-text deduction type to valid enum string."""
-    if not legacy_type:
-        return "OTHER"
-    upper = str(legacy_type).strip().upper().replace(" ", "_").replace("-", "_")
-    if upper in VALID_DEDUCTION_TYPES:
-        return upper
-    if "ADVANCE" in upper:
-        return "ADVANCE_RECOVERY"
-    if "LOAN" in upper:
-        return "LOAN_RECOVERY"
-    if "DAMAGE" in upper:
-        return "DAMAGE"
-    if "PENALTY" in upper or "FINE" in upper:
-        return "PENALTY"
-    if "EXCESS" in upper or "OVERPAY" in upper:
-        return "EXCESS_PAYMENT"
+def deduction_type(raw) -> str:
+    """Legacy free text -> the target's closed list; anything else is OTHER (reason keeps the words).
+    Same rules as the branch loader (load_claims.py normalize_deduction_type)."""
+    s = (text(raw) or "").upper().replace(" ", "_").replace("-", "_")
+    if s in DEDUCTION_TYPES:
+        return s
+    for word, code in (("ADVANCE", "ADVANCE_RECOVERY"), ("LOAN", "LOAN_RECOVERY"), ("DAMAGE", "DAMAGE"),
+                       ("PENALTY", "PENALTY"), ("FINE", "PENALTY"), ("EXCESS", "EXCESS_PAYMENT"),
+                       ("OVERPAY", "EXCESS_PAYMENT")):
+        if word in s:
+            return code
     return "OTHER"
 
 
-def format_period(month_val: str) -> str:
-    """Extracts YYYY-MM period format from date string or month string."""
-    if not month_val:
-        return datetime.now(timezone.utc).strftime("%Y-%m")
-    s = str(month_val).strip()
-    if len(s) >= 7 and s[4] == "-":
-        return s[:7]
-    return s[:7]
+def _period(value) -> str | None:
+    d = to_date(value)
+    return f"{d.year:04d}-{d.month:02d}" if d else None
 
 
-def transform_reimbursement_item(item, emp_by_payroll_id, emp_by_uuid, reimbursement_id_map):
-    """
-    Transforms one legacy employee_reimbursement_request row into target format.
-    Returns (is_success, row_tuple, quarantine_item)
-    """
-    legacy_id = item.get("id")
-    payroll_emp_key = str(item.get("employee_id") or item.get("employeeId") or "").strip()
-    payment_status = str(item.get("payment_status") or item.get("paymentStatus") or "UNPAID").upper()
-
-    # Decision X-14: Drop already PAID claims
-    if payment_status == "PAID":
-        return False, None, {
-            "source": "reimbursement", "legacy_id": legacy_id,
-            "reason": "Dropped historical PAID reimbursement per Decision X-14"
-        }
-
-    # Match employee
-    emp = emp_by_payroll_id.get(payroll_emp_key) or emp_by_uuid.get(payroll_emp_key)
-    if not emp:
-        return False, None, {
-            "source": "reimbursement", "legacy_id": legacy_id,
-            "employee_id": payroll_emp_key,
-            "reason": "employee_id not found in merged employees"
-        }
-
-    tid = emp["tenant_id"]
-    emp_uuid = emp["id"]
-    claim_id = det_uuid(f"{tid}:reimbursement_request:{legacy_id}")
-
-    reimb_type = str(item.get("reimbursement_type") or item.get("reimbursementType") or "GENERAL").upper()
-    reimb_comp_id = reimbursement_id_map.get((tid, reimb_type)) or det_uuid(f"{tid}:reimbursement:{reimb_type}")
-
-    requested_amt = to_decimal(item.get("requested_amount") or item.get("requestedAmount"))
-    if requested_amt <= Decimal("0"):
-        return False, None, {
-            "source": "reimbursement", "legacy_id": legacy_id,
-            "reason": "requested_amount must be greater than 0"
-        }
-
-    raw_approved_amt = item.get("approved_amount") or item.get("approvedAmount")
-    approved_amt = to_decimal(raw_approved_amt) if raw_approved_amt is not None else None
-
-    raw_bill_date = str(item.get("bill_date") or item.get("billDate") or "")[:10]
-    if not raw_bill_date or len(raw_bill_date) < 10:
-        raw_bill_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-    raw_status = str(item.get("status") or "PENDING").upper()
-    status = REIMB_STATUS_MAP.get(raw_status, "SUBMITTED")
-
-    desc = str(item.get("description") or "Migrated reimbursement claim")[:500]
-    remarks = item.get("remarks")
-    if remarks:
-        remarks = str(remarks)[:500]
-
-    return True, (
-        claim_id, tid, emp_uuid, reimb_comp_id,
-        requested_amt, approved_amt, raw_bill_date,
-        desc, None, status, remarks, None, None, None, None, None
-    ), None
+def _next_period(p: str) -> str:
+    y, m = int(p[:4]), int(p[5:])
+    return f"{y + (m == 12):04d}-{(m % 12) + 1:02d}"
 
 
-def transform_deduction_item(item, emp_by_payroll_id, emp_by_uuid):
-    """
-    Transforms one legacy employee_deduction (SalaryDeduction) row into target format.
-    Returns (is_success, (pay_input_tuple, deduction_tuple), quarantine_item)
-    """
-    legacy_id = item.get("id")
-    payroll_emp_key = str(item.get("employee_id") or item.get("employeeId") or "").strip()
-    raw_status = str(item.get("status") or "ACTIVE").upper()
-
-    # Decision X-14: Drop already PROCESSED deductions
-    if raw_status in ("PROCESSED", "PAID"):
-        return False, None, {
-            "source": "deduction", "legacy_id": legacy_id,
-            "reason": "Dropped historical PROCESSED deduction per Decision X-14"
-        }
-
-    # Match employee
-    emp = emp_by_payroll_id.get(payroll_emp_key) or emp_by_uuid.get(payroll_emp_key)
-    if not emp:
-        return False, None, {
-            "source": "deduction", "legacy_id": legacy_id,
-            "employee_id": payroll_emp_key,
-            "reason": "employee_id not found in merged employees"
-        }
-
-    tid = emp["tenant_id"]
-    emp_uuid = emp["id"]
-    deduction_id = det_uuid(f"{tid}:employee_deduction:{legacy_id}")
-    pay_input_id = det_uuid(f"{tid}:pay_input:deduction:{legacy_id}")
-
-    amount = to_decimal(item.get("deduction_amount") or item.get("deductionAmount") or item.get("amount"))
-    if amount <= Decimal("0"):
-        return False, None, {
-            "source": "deduction", "legacy_id": legacy_id,
-            "reason": "deduction_amount must be greater than 0"
-        }
-
-    period = format_period(item.get("deduction_month") or item.get("deductionMonth") or item.get("period"))
-    deduction_type = normalize_deduction_type(item.get("deduction_type") or item.get("deductionType"))
-    reason = str(item.get("reason") or "Migrated salary deduction")[:255]
-    remarks = item.get("remarks")
-    if remarks:
-        remarks = str(remarks)[:500]
-
-    # Target status: POSTED (since PROCESSED/REVERSED are filtered out)
-    status = "POSTED"
-
-    # Tuple for core.pay_input
-    pay_input_tuple = (
-        pay_input_id, tid, emp_uuid, period,
-        "AD_HOC_DEDUCTION", None, amount,
-        "PAYROLL", f"deduction:{legacy_id}", None
-    )
-
-    # Tuple for payroll.employee_deduction
-    deduction_tuple = (
-        deduction_id, tid, emp_uuid, period, deduction_type,
-        amount, reason, remarks, None, status, pay_input_id, period
-    )
-
-    return True, (pay_input_tuple, deduction_tuple), None
+def _norm(s) -> str:
+    return " ".join((text(s) or "").lower().replace("_", " ").split())
 
 
-def run_loader(dry_run: bool = False, skip_db: bool = False):
-    """
-    Main loader orchestrator for W-68 Task 3l (Claims & Deductions).
-    """
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    stg_dir = os.path.join(base_dir, "staging")
+def match_master(claim_type: str, masters: list[dict]) -> dict | None:
+    """The org's reimbursement master for a legacy claim type: one whose type or name is the
+    type word (with or without 'reimbursement'), else one that contains it. Lowest id wins."""
+    word = _norm(claim_type)
+    if not word:
+        return None
+    live = sorted((m for m in masters if not m.get("isDeleted")), key=lambda m: int(m.get("id") or 0))
+    names = [(m, {_norm(m.get("reimbursementType")), _norm(m.get("reimbursementName")),
+                  _norm(m.get("displayName"))} - {""}) for m in live]
+    for m, ns in names:
+        if any(n == word or n == f"{word} reimbursement" for n in ns):
+            return m
+    for m, ns in names:
+        if any(word in n.split() for n in ns):
+            return m
+    return None
 
-    def load_stg(fname):
-        path = os.path.join(stg_dir, fname)
-        if not os.path.exists(path):
-            logger.info(f"Staging file not found (will process 0 rows): {path}")
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
 
-    reimb_items = load_stg("stg_payroll_employee_reimbursement_request.json")
-    deduct_items = load_stg("stg_payroll_employee_deduction.json")
-    merged_employees = load_stg("stg_merged_employees.json")
-    payroll_emps = load_stg("stg_payroll_employee.json")
+def run(conn=None) -> bool:
+    tenants = Tenants.load()
+    idmap = IdMap.load()
+    q = Quarantine(STEP)
 
-    logger.info(f"Loaded: {len(reimb_items)} reimbursement requests, {len(deduct_items)} deductions")
+    org_by_code = {str(o.get("organizationId")): o.get("id")
+                   for o in staging.load("stg_payroll_organization.json") if o.get("organizationId")}
+    masters_by_org = defaultdict(list)
+    for m in staging.load(MASTERS):
+        masters_by_org[str(m.get("organizationId"))].append(m)
 
-    # Build employee lookup tables
-    emp_by_payroll_id = {}
-    emp_by_uuid = {}
+    def org_tenant(org_ref):
+        """Legacy claims carry organization.organizationId (a code); older rows the numeric id."""
+        legacy = org_by_code.get(str(org_ref), org_ref)
+        t = tenants.for_org(legacy)
+        return t.tenant_id if t else None
 
-    for e in merged_employees:
-        if e.get("id"):
-            emp_by_uuid[str(e["id"])] = e
-        if e.get("source_legacy_payroll_id"):
-            emp_by_payroll_id[str(e["source_legacy_payroll_id"])] = e
+    pre_skipped = defaultdict(int)  # refused before the tenant's transaction, counted in its ledger row
 
-    for pe in payroll_emps:
-        uuid_str = str(pe.get("employeeId") or "").strip()
-        int_id_str = str(pe.get("employee_id") or "").strip()
-        matched = emp_by_payroll_id.get(int_id_str)
-        if matched and uuid_str:
-            emp_by_uuid[uuid_str] = matched
+    def refuse(reason, table, lid, tid, **detail):
+        q.add(reason, table, lid, tid, **detail)
+        if tid:
+            pre_skipped[tid] += 1
 
-    reimbursement_id_map = {}
-    conn = None
-    cur = None
-    step_name = "load_claims"
-    ledger_id = str(uuid.uuid4())
-    started_at = datetime.now(timezone.utc)
-    anchor_tenant = list(emp_by_uuid.values())[0]["tenant_id"] if emp_by_uuid else "a0000000-0000-0000-0000-000000000001"
+    def place(table: str, r: dict):
+        """(tenant_id, employee_id) for a Payroll row keyed by the Keycloak/employee UUID, or None."""
+        emp = idmap.get("payroll.employee.uuid", r.get("employee_id"))
+        org_tid = org_tenant(r.get("organization_id"))
+        if not emp:
+            refuse("EMPLOYEE_NOT_MIGRATED", table, r.get("id"), org_tid)
+            return None
+        tid = idmap.get("employee.tenant", emp)
+        if org_tid is None:
+            refuse("ORG_NOT_MIGRATED", table, r.get("id"), tid)
+            return None
+        if org_tid != tid:
+            refuse("TENANT_MISMATCH", table, r.get("id"), tid)
+            return None
+        return tid, emp
 
-    if not skip_db and not dry_run:
-        try:
-            conn = get_conn()
-            conn.autocommit = False
-            cur = conn.cursor()
+    claims_by_tenant = defaultdict(list)
+    for r in staging.load(CLAIMS):
+        p = place("employee_reimbursement_request", r)
+        if p:
+            claims_by_tenant[p[0]].append((r, p[1]))
+    deds_by_tenant = defaultdict(list)
+    for r in staging.load(DEDUCTIONS):
+        p = place("employee_deduction", r)
+        if p:
+            deds_by_tenant[p[0]].append((r, p[1]))
 
-            # Record ledger start
-            cur.execute(
-                "INSERT INTO core.migration_ledger (id, tenant_id, step_name, records_processed, status, started_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (ledger_id, anchor_tenant, step_name, 0, "RUNNING", started_at)
+    def work(cur, t: Tenant) -> StepResult:
+        tid = t.tenant_id
+        audit = {"created_by": db.AUDIT_USER, "updated_by": db.AUDIT_USER}
+        before = q.count(tid) - pre_skipped[tid]
+
+        # ---- claims
+        cur.execute("SELECT id::text FROM payroll.reimbursement WHERE tenant_id = %s", (tid,))
+        loaded_masters = {r[0] for r in cur.fetchall()}
+        claims = []
+        for r, emp in claims_by_tenant.get(tid, []):
+            lid = r.get("id")
+            status = CLAIM_STATUS.get((text(r.get("status")) or "").upper())
+            requested = to_money(r.get("requested_amount"))
+            approved = to_money(r.get("approved_amount"))
+            bill_date = to_date(r.get("bill_date"))
+            master = match_master(r.get("reimbursement_type"), masters_by_org.get(t.legacy_org_id, []))
+            comp = None
+            if master is not None:
+                comp = idmap.get("payroll.reimbursements", master.get("id")) or \
+                    idmap.get("payroll.reimbursements", master.get("reimbursementId")) or \
+                    det_id(tid, "reimbursements", master.get("id"))
+            problem = (
+                "STATUS_UNMAPPED" if status is None else
+                "AMOUNT_NOT_POSITIVE" if requested is None or requested <= 0 else
+                "APPROVED_AMOUNT_NEGATIVE" if approved is not None and approved < 0 else
+                "NO_BILL_DATE" if bill_date is None else
+                "NO_MATCHING_COMPONENT" if master is None else
+                "COMPONENT_NOT_LOADED" if comp not in loaded_masters else None
             )
-            conn.commit()
+            if problem:
+                q.add(problem, "employee_reimbursement_request", lid, tid,
+                      status=text(r.get("status")) if problem == "STATUS_UNMAPPED" else None,
+                      reimbursement_type=text(r.get("reimbursement_type"))
+                      if problem in ("NO_MATCHING_COMPONENT", "COMPONENT_NOT_LOADED") else None)
+                continue
+            cid = det_id(tid, "employee_reimbursement_request", lid)
+            claims.append({
+                "id": cid, "tenant_id": tid, "employee_id": emp, "reimbursement_id": comp,
+                "requested_amount": requested, "approved_amount": approved, "bill_date": bill_date,
+                "description": text(r.get("description"), 500), "document_id": None, "status": status,
+                "remarks": text(r.get("remarks"), 500),
+                "approved_by": idmap.get("payroll.employee.uuid", r.get("approved_by")),
+                "approved_at": to_timestamp(r.get("approved_at")),
+                "created_at": to_timestamp(r.get("created_at")), **audit,
+            })
+            idmap.put("payroll.employee_reimbursement_request", lid, cid)
+        if any(c["created_at"] is None for c in claims):
+            for c in claims:
+                c.pop("created_at")  # one column set per statement; the default stamps the run
+        db.upsert(cur, "payroll.employee_reimbursement_request", claims, keep_on_update=("document_id",))
 
-            # Pre-load existing payroll.reimbursement component mappings
-            cur.execute("SELECT tenant_id, code, id FROM payroll.reimbursement WHERE is_deleted = false")
-            for r in cur.fetchall():
-                reimbursement_id_map[(str(r[0]), str(r[1]).upper())] = str(r[2])
-
-        except Exception as e:
-            logger.warning(f"Database connection error: {e}. Skipping DB writes.")
-            skip_db = True
-
-    # Transform Reimbursement Requests
-    reimb_batch = []
-    quarantined = []
-    dropped_paid = 0
-
-    for item in reimb_items:
-        ok, row, q = transform_reimbursement_item(item, emp_by_payroll_id, emp_by_uuid, reimbursement_id_map)
-        if ok and row:
-            reimb_batch.append(row)
-        elif q:
-            if "Decision X-14" in q.get("reason", ""):
-                dropped_paid += 1
+        # ---- deductions and their pay_input ledger rows
+        cur.execute("SELECT period FROM core.pay_input_period_lock WHERE tenant_id = %s AND run_ref IS NULL", (tid,))
+        locked = {r[0] for r in cur.fetchall()}
+        cur.execute("SELECT id::text, period FROM core.pay_input WHERE tenant_id = %s AND source_module = %s",
+                    (tid, PAY_INPUT_SOURCE))
+        existing_inputs = dict(cur.fetchall())
+        deds, inputs = [], []
+        for r, emp in deds_by_tenant.get(tid, []):
+            lid = r.get("id")
+            raw_status = (text(r.get("status")) or "").upper()
+            amount = to_money(r.get("deduction_amount"))
+            period = _period(r.get("deduction_month"))
+            reason = text(r.get("reason"), 255)
+            problem = (
+                "STATUS_UNMAPPED" if raw_status not in OPEN_DEDUCTION | TAKEN_DEDUCTION else
+                "AMOUNT_NOT_POSITIVE" if amount is None or amount <= 0 else
+                "NO_PERIOD" if period is None else
+                "NO_REASON" if reason is None else None
+            )
+            if problem:
+                q.add(problem, "employee_deduction", lid, tid,
+                      status=(raw_status or None) if problem == "STATUS_UNMAPPED" else None)
+                continue
+            did = det_id(tid, "employee_deduction", lid)
+            pid = det_id(tid, "employee_deduction.pay_input", lid)
+            if pid in existing_inputs:
+                posted = existing_inputs[pid]
             else:
-                quarantined.append(q)
+                posted = period
+                if raw_status in OPEN_DEDUCTION:
+                    while posted in locked:
+                        posted = _next_period(posted)
+                else:
+                    # Already taken in legacy (PROCESSED): the migrated pay run totals carry
+                    # it. A POSTED pay_input in any month - locked or not - could be taken a
+                    # second time by a target pay run, so it is never written.
+                    q.add("ALREADY_DEDUCTED_IN_LEGACY", "employee_deduction", lid, tid, period=period)
+                    continue
+                inputs.append({"id": pid, "tenant_id": tid, "employee_id": emp, "period": posted,
+                               "kind": "AD_HOC_DEDUCTION", "amount": amount, "source_module": PAY_INPUT_SOURCE,
+                               "source_ref": PAY_INPUT_REF + did, **audit})
+            deds.append({
+                "id": did, "tenant_id": tid, "employee_id": emp, "period": period,
+                "deduction_type": deduction_type(r.get("deduction_type")), "amount": amount,
+                "reason": reason, "remarks": text(r.get("remarks"), 500), "document_id": None,
+                "status": "POSTED", "pay_input_id": pid, "posted_period": posted,
+                "created_at": to_timestamp(r.get("created_at")), **audit,
+            })
+            idmap.put("payroll.employee_deduction", lid, did)
+        if any(d["created_at"] is None for d in deds):
+            for d in deds:
+                d.pop("created_at")
+        # Append-only ledger: new rows are inserted, an existing one is never rewritten.
+        db.upsert(cur, "core.pay_input", inputs)
+        db.upsert(cur, "payroll.employee_deduction", deds, keep_on_update=("document_id",))
+        return StepResult(processed=len(claims) + len(deds), skipped=q.count(tid) - before)
 
-    # Transform Deductions
-    pay_input_batch = []
-    deduction_batch = []
-
-    for item in deduct_items:
-        ok, row_pair, q = transform_deduction_item(item, emp_by_payroll_id, emp_by_uuid)
-        if ok and row_pair:
-            pay_input_batch.append(row_pair[0])
-            deduction_batch.append(row_pair[1])
-        elif q:
-            if "Decision X-14" in q.get("reason", ""):
-                dropped_paid += 1
-            else:
-                quarantined.append(q)
-
-    total_loaded = len(reimb_batch) + len(deduction_batch)
-    logger.info(
-        f"Transform complete: {len(reimb_batch)} claims, {len(deduction_batch)} deductions "
-        f"({dropped_paid} dropped historical paid, {len(quarantined)} quarantined)"
-    )
-
-    # Database Upserts
-    if not skip_db and cur and not dry_run:
-        try:
-            # 1. Upsert Reimbursement Claims
-            if reimb_batch:
-                logger.info(f"Upserting {len(reimb_batch)} rows into payroll.employee_reimbursement_request...")
-                execute_batch(
-                    cur,
-                    """
-                    INSERT INTO payroll.employee_reimbursement_request
-                        (id, tenant_id, employee_id, reimbursement_id, requested_amount,
-                         approved_amount, bill_date, description, document_id, status,
-                         remarks, approval_instance_id, pay_input_id, posted_period,
-                         approved_by, approved_at, created_by, updated_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        requested_amount = EXCLUDED.requested_amount,
-                        approved_amount = EXCLUDED.approved_amount,
-                        status = EXCLUDED.status,
-                        updated_at = CURRENT_TIMESTAMP
-                    """,
-                    reimb_batch,
-                    page_size=200
-                )
-
-            # 2. Upsert core.pay_input for deductions
-            if pay_input_batch:
-                logger.info(f"Upserting {len(pay_input_batch)} rows into core.pay_input...")
-                execute_batch(
-                    cur,
-                    """
-                    INSERT INTO core.pay_input
-                        (id, tenant_id, employee_id, period, kind, quantity, amount,
-                         source_module, source_ref, reverses_id, created_by, updated_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        amount = EXCLUDED.amount,
-                        updated_at = CURRENT_TIMESTAMP
-                    """,
-                    pay_input_batch,
-                    page_size=200
-                )
-
-            # 3. Upsert payroll.employee_deduction
-            if deduction_batch:
-                logger.info(f"Upserting {len(deduction_batch)} rows into payroll.employee_deduction...")
-                execute_batch(
-                    cur,
-                    """
-                    INSERT INTO payroll.employee_deduction
-                        (id, tenant_id, employee_id, period, deduction_type, amount,
-                         reason, remarks, document_id, status, pay_input_id, posted_period,
-                         created_by, updated_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        amount = EXCLUDED.amount,
-                        status = EXCLUDED.status,
-                        updated_at = CURRENT_TIMESTAMP
-                    """,
-                    deduction_batch,
-                    page_size=200
-                )
-
-            conn.commit()
-
-            # Update migration ledger
-            cur.execute(
-                "UPDATE core.migration_ledger SET records_processed=%s, status=%s, completed_at=%s WHERE id=%s",
-                (total_loaded, "DONE", datetime.now(timezone.utc), ledger_id)
-            )
-            conn.commit()
-            logger.info("Database load & ledger update complete")
-
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Failed to load claims to database: {e}", exc_info=True)
-            cur.execute(
-                "UPDATE core.migration_ledger SET status=%s, error_message=%s, completed_at=%s WHERE id=%s",
-                ("FAILED", str(e), datetime.now(timezone.utc), ledger_id)
-            )
-            conn.commit()
-            raise
-        finally:
-            cur.close()
+    own = conn is None
+    conn = conn or db.connect()
+    try:
+        summary = run_per_tenant(conn, STEP, tenants.all(), staging.checksum(INPUTS), work)
+    finally:
+        if own:
             conn.close()
-
-    # Save quarantine report to staging
-    quarantine_file = os.path.join(stg_dir, "stg_quarantined_claims.json")
-    with open(quarantine_file, "w", encoding="utf-8") as f:
-        json.dump(quarantined, f, indent=2)
-
-    logger.info(f"Saved {len(quarantined)} quarantined claims records to {quarantine_file}")
-
-    return {
-        "reimbursements_loaded": len(reimb_batch),
-        "deductions_loaded": len(deduction_batch),
-        "total_loaded": total_loaded,
-        "dropped_paid": dropped_paid,
-        "quarantined": len(quarantined)
-    }
+    idmap.save()
+    q.write()
+    return summary.ok
 
 
 if __name__ == "__main__":
-    is_dry_run = "--dry-run" in sys.argv
-    run_loader(dry_run=is_dry_run)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    sys.exit(0 if run() else 1)

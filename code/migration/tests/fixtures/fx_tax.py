@@ -1,0 +1,222 @@
+"""Tax declarations, TDS and proofs (3h). Invented values only; column names are the legacy
+Payroll MySQL ones (claimsanddeclarations/*.java, EmployeeITDeclaration/**.java, EmployeeTds.java).
+
+Financial year under test: 2025-2026 (legacy fiscal_year 2026; the test sets MIGRATION_FY).
+Founder org 148: declaration 1 (employee 1001, every child kind, a proof with six items and
+comments), declaration 2 (1002, no regime -> org default), declaration 3 (last year), 6 (status
+NOT_CREATED). Customer org 201: declaration 4 (1101, APPROVED), 5 (1198, never migrated).
+"""
+from . import CUSTOMER_ORG, FOUNDER_ORG
+
+T = "2025-06-01T10:00:00"
+
+
+def _decl(i, org, emp, fy, regime, status, **kw):
+    row = {"id": i, "organizationId": int(org), "employee_id": emp, "fiscal_year": fy,
+           "declaration_tax_year_start": "2025-04", "declaration_tax_year_end": "2026-03",
+           "current_tax_year_start": "2025-04", "current_tax_year_end": "2026-03", "tax_regime": regime,
+           "tax_regime_formatted": None, "is_multiple_tax_regimes_applicable": True, "is_lender_pan_mandatory": True,
+           "can_change_tax_regime": True, "can_allow_edit": True, "is_staying_in_rented_house": False,
+           "is_repaying_self_occupied_loan": False, "has_let_out_property": False, "status": status,
+           "status_formatted": None, "message_types": "INFO", "tax_plan_count": 0,
+           "created_time": T, "updated_time": "2025-07-01T10:00:00"}
+    row.update(kw)
+    return row
+
+
+def rows():
+    return {
+        "stg_payroll_IncomeTaxDeclaration.json": [
+            {"id": 1, "canTdsExceedAnnualLimit": False, "isItDeclarationLocked": False, "canChangeTaxRegimeIt": True,
+             "lastDateForItDeclaration": "2026-01-31", "sendMailOnEmployeeLevelItLockAndRelease": False,
+             "currentPayrun": None, "sendMailOnItDeclarationLock": True, "isPayscheduleConfigured": True,
+             "sendMailOnItDeclarationRelease": False, "isAnyReminderBeforeLockdateEnabled": False,
+             "isPanMandatoryForAnnualRentOverOneLakh": True, "organizationId": int(FOUNDER_ORG),
+             "default_tax_regime": "NEW"},
+            {"id": 2, "canTdsExceedAnnualLimit": False, "isItDeclarationLocked": True, "canChangeTaxRegimeIt": False,
+             "lastDateForItDeclaration": "2024-12-31", "sendMailOnEmployeeLevelItLockAndRelease": False,
+             "currentPayrun": None, "sendMailOnItDeclarationLock": False, "isPayscheduleConfigured": True,
+             "sendMailOnItDeclarationRelease": True, "isAnyReminderBeforeLockdateEnabled": False,
+             "isPanMandatoryForAnnualRentOverOneLakh": False, "organizationId": int(CUSTOMER_ORG),
+             "default_tax_regime": "OLD"},
+        ],
+        "stg_payroll_ProofOfInvestment.json": [
+            {"id": 1, "canChangeTaxRegimePoi": False, "isAttachmentMandatoryPoiForPortal": True,
+             "sendMailOnPoiRelease": False, "sendMailOnPoiLock": False, "isPoiLocked": False,
+             "isCommentsMandatoryForPoiApproval": True, "isAnyReminderBeforeLockdateEnabled": False,
+             "sendMailOnEmployeeLevelPoiLockAndRelease": False, "isAttachmentEnabledForPoi": True,
+             "canTdsExceedAnnualLimit": False, "lastDateForPoi": "2026-02-15", "canItOverrideInProofMode": False,
+             "monthFormatted": "January", "isPayscheduleConfigured": True, "monthToConsiderPoi": "january",
+             "isPanMandatoryForAnnualRentOverOneLakh": True, "organizationId": int(FOUNDER_ORG)},
+        ],
+        "stg_payroll_employee_investment_declaration.json": [
+            _decl(1, FOUNDER_ORG, 1001, 2026, "OLD", "SUBMITTED", is_staying_in_rented_house=True,
+                  is_repaying_self_occupied_loan=True, has_let_out_property=True),
+            _decl(2, FOUNDER_ORG, 1002, 2026, None, "DRAFT", can_allow_edit=False),
+            _decl(3, FOUNDER_ORG, 1003, 2025, "NEW", "SUBMITTED"),
+            _decl(4, CUSTOMER_ORG, 1101, 2026, "OLD", "APPROVED"),
+            _decl(5, CUSTOMER_ORG, 1198, 2026, "NEW", "DRAFT"),
+            _decl(6, FOUNDER_ORG, 1004, 2026, "NEW", "NOT_CREATED"),
+        ],
+        "stg_payroll_employee_inv_house_rent.json": [
+            {"id": 1, "declaration_id": 1, "from_month": "2025-04", "to_month": "2026-03", "address": "1 Rent Street",
+             "landlord_name": "Landlord One", "landlord_pan": "ABCDE1234F", "is_metro": True,
+             "amount_per_month": 25000.50, "currency": "INR", "item_id_external": "HR001",
+             "created_time": T, "updated_time": T},
+            {"id": 2, "declaration_id": 1, "from_month": "2026-03", "to_month": "2025-04", "address": "2 Rent Street",
+             "landlord_name": "Landlord Two", "landlord_pan": None, "is_metro": False, "amount_per_month": 100,
+             "currency": "INR", "item_id_external": None, "created_time": T, "updated_time": T},
+            {"id": 3, "declaration_id": 3, "from_month": "2024-04", "to_month": "2025-03", "address": "3 Old Street",
+             "landlord_name": "Landlord Three", "landlord_pan": None, "is_metro": False, "amount_per_month": 100,
+             "currency": "INR", "item_id_external": None, "created_time": T, "updated_time": T},
+            {"id": 4, "declaration_id": 4, "from_month": "2025-04", "to_month": "2026-03", "address": "4 Acme Road",
+             "landlord_name": "Landlord Four", "landlord_pan": "TOOLONGPAN12", "is_metro": False,
+             "amount_per_month": 15000, "currency": "INR", "item_id_external": None, "created_time": T,
+             "updated_time": T},
+        ],
+        "stg_payroll_employee_inv_home_loan.json": [
+            {"id": 1, "declaration_id": 1, "principal_paid": 100000.10, "interest_paid": 200000.20,
+             "lender_name": "Test Bank", "lender_pan": "BANKP1234Q", "item_id_external": None},
+            {"id": 2, "declaration_id": 1, "principal_paid": 1, "interest_paid": 1, "lender_name": None,
+             "lender_pan": None, "item_id_external": None},
+        ],
+        "stg_payroll_employee_inv_let_out_property.json": [
+            {"id": 1, "declaration_id": 1, "property_name": "Flat A", "address": "5 Lease Lane",
+             "net_income_loss": -50000.00, "item_id_external": None, "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_inv_let_out_property_detail.json": [
+            {"id": 1, "let_out_property_id": 1, "type": "annual_rent", "amount": 240000, "name_of_lender": None,
+             "pan_of_lender": None, "created_time": T, "updated_time": T},
+            {"id": 2, "let_out_property_id": 1, "type": "municipal_tax", "amount": 12000, "name_of_lender": None,
+             "pan_of_lender": None, "created_time": T, "updated_time": T},
+            {"id": 3, "let_out_property_id": 1, "type": "annual_rent", "amount": 1, "name_of_lender": None,
+             "pan_of_lender": None, "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_inv_other_income.json": [
+            {"id": 1, "declaration_id": 1, "type": "savings_interest", "type_formatted": "Savings interest",
+             "name": "SB interest", "amount": 5000.55, "declared_amount": 5000.55, "can_edit_in_portal": True,
+             "name_of_lender": None, "pan_of_lender": None, "item_id_external": None, "created_time": T,
+             "updated_time": T},
+            {"id": 2, "declaration_id": 1, "type": "crypto", "type_formatted": None, "name": "Coins", "amount": 1,
+             "declared_amount": 1, "can_edit_in_portal": True, "name_of_lender": None, "pan_of_lender": None,
+             "item_id_external": None, "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_inv_pre_tax_deduction.json": [
+            {"id": 1, "declaration_id": 1, "code_string": None, "category": None, "category_formatted": None,
+             "type": "epf", "type_formatted": None, "amount": 21600.000, "amount_formatted": None,
+             "investment_amount": 21600, "investment_amount_formatted": None, "created_time": T, "updated_time": T},
+            {"id": 2, "declaration_id": 1, "code_string": None, "category": None, "category_formatted": None,
+             "type": "pt", "type_formatted": None, "amount": 2400.000, "amount_formatted": None,
+             "investment_amount": 2400, "investment_amount_formatted": None, "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_inv_prev_employment.json": [
+            {"id": 1, "declaration_id": 1, "type": "income", "name": "Old Co", "type_formatted": None,
+             "amount": 300000, "declared_amount": 300000, "can_edit_in_portal": True, "item_id_external": None,
+             "created_time": T, "updated_time": T},
+            {"id": 2, "declaration_id": 1, "type": "income_tax", "name": "Old Co", "type_formatted": None,
+             "amount": 30000, "declared_amount": 30000, "can_edit_in_portal": True, "item_id_external": None,
+             "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_inv_section6a.json": [
+            {"id": 1, "declaration_id": 1, "section6a_item_id": 11, "category": "80C", "type": "ppf", "amount": 150000,
+             "category_formatted": "Section 80C", "type_formatted": "Public Provident Fund",
+             "item_id_external": None, "created_time": T, "updated_time": T},
+            {"id": 2, "declaration_id": 1, "section6a_item_id": 21, "category": "80d", "type": "health_insurance",
+             "amount": 25000, "category_formatted": "Section 80D", "type_formatted": None,
+             "item_id_external": None, "created_time": T, "updated_time": T},
+            {"id": 3, "declaration_id": 1, "section6a_item_id": 31, "category": "80ZZ", "type": "other",
+             "amount": 1, "category_formatted": None, "type_formatted": None, "item_id_external": None,
+             "created_time": T, "updated_time": T},
+            {"id": 4, "declaration_id": 4, "section6a_item_id": 11, "category": "Section 80C", "type": "ppf",
+             "amount": 50000, "category_formatted": None, "type_formatted": "Public Provident Fund",
+             "item_id_external": None, "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_inv_tax_summary.json": [
+            {"id": 1, "declaration_id": 1, "regime": "OLD", "tax_year_start": 2025, "tax_year_end": 2026,
+             "taxable_income": 1200000.555, "net_taxable_income": 900000.10, "tax_on_taxable_income": 92500.00,
+             "tax_ytd_amount": 30000, "tax_to_be_paid": 62500, "tds_through_payroll": 30000,
+             "tds_previous_employer": 0, "tds_other_income": 0, "other_sources_income": 5000.55,
+             "exemption_under_section10": 100000, "exemption_under_section6a": 175000,
+             "no_of_remaining_months": 9, "created_time": T, "updated_time": "2025-07-01T10:00:00"},
+            {"id": 2, "declaration_id": 1, "regime": "new", "tax_year_start": 2025, "tax_year_end": 2026,
+             "taxable_income": 1200000, "net_taxable_income": 1125000, "tax_on_taxable_income": 70000,
+             "tax_ytd_amount": 0, "tax_to_be_paid": 70000, "tds_through_payroll": 0, "tds_previous_employer": 0,
+             "tds_other_income": 0, "other_sources_income": 0, "exemption_under_section10": 0,
+             "exemption_under_section6a": 0, "no_of_remaining_months": 9, "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_tds.json": [
+            {"id": 1, "employee_id": "pay-uuid-1001", "organization_id": FOUNDER_ORG, "fiscal_year": 2026,
+             "tds_source_type": "DEFAULT_REGIME", "poi_id": None, "tax_regime": "NEW",
+             "annual_gross_salary": 1200000, "annual_taxable_income": 1125000, "final_annual_tax": 70000,
+             "effective_from_month": "april", "is_active": False, "created_at": "2025-04-05T10:00:00"},
+            {"id": 2, "employee_id": "pay-uuid-1001", "organization_id": FOUNDER_ORG, "fiscal_year": 2026,
+             "tds_source_type": "POI_BASED", "poi_id": 1, "tax_regime": "OLD",
+             "annual_gross_salary": 1200000.25, "annual_taxable_income": 900000.10, "final_annual_tax": 92500.45,
+             "effective_from_month": "january", "is_active": True, "created_at": "2026-01-05T10:00:00"},
+            {"id": 3, "employee_id": "pay-uuid-1002", "organization_id": FOUNDER_ORG, "fiscal_year": 2025,
+             "tds_source_type": "DEFAULT_REGIME", "poi_id": None, "tax_regime": "NEW",
+             "annual_gross_salary": 1, "annual_taxable_income": 1, "final_annual_tax": 0,
+             "effective_from_month": "april", "is_active": True, "created_at": T},
+            {"id": 4, "employee_id": "pay-uuid-1101", "organization_id": CUSTOMER_ORG, "fiscal_year": 2026,
+             "tds_source_type": "SALARY_REVISION", "poi_id": None, "tax_regime": "OLD",
+             "annual_gross_salary": 600000, "annual_taxable_income": 500000, "final_annual_tax": 12500,
+             "effective_from_month": "2025-09", "is_active": True, "created_at": T},
+            {"id": 5, "employee_id": "pay-uuid-1003", "organization_id": FOUNDER_ORG, "fiscal_year": 2026,
+             "tds_source_type": "DEFAULT_REGIME", "poi_id": None, "tax_regime": "NEW",
+             "annual_gross_salary": 1, "annual_taxable_income": 1, "final_annual_tax": 0,
+             "effective_from_month": "someday", "is_active": True, "created_at": T},
+        ],
+        "stg_payroll_employee_proof_of_investment.json": [
+            {"id": 1, "declaration_id": 1, "organization_id": int(FOUNDER_ORG), "employee_id": 1001,
+             "fiscal_year": 2026, "tax_regime_at_submission": "OLD", "status": "APPROVED", "submitted_by": "EMPLOYEE",
+             "submitted_date": "2026-01-10T10:00:00", "approved_by": "admin", "approved_date": "2026-01-20T10:00:00",
+             "considered_for_it": True, "considered_by": None, "considered_date": None, "final_annual_tax": 92500.45,
+             "tax_regime_at_consideration": "OLD", "created_time": "2026-01-02T10:00:00", "updated_time": T},
+            {"id": 2, "declaration_id": 4, "organization_id": int(CUSTOMER_ORG), "employee_id": 1101,
+             "fiscal_year": 2026, "tax_regime_at_submission": "OLD", "status": "COMPLETED", "submitted_by": None,
+             "submitted_date": None, "approved_by": None, "approved_date": None, "considered_for_it": False,
+             "considered_by": None, "considered_date": None, "final_annual_tax": None,
+             "tax_regime_at_consideration": None, "created_time": T, "updated_time": T},
+            {"id": 3, "declaration_id": 2, "organization_id": int(FOUNDER_ORG), "employee_id": 1002,
+             "fiscal_year": 2026, "tax_regime_at_submission": "NEW", "status": "DRAFT", "submitted_by": None,
+             "submitted_date": None, "approved_by": None, "approved_date": None, "considered_for_it": False,
+             "considered_by": None, "considered_date": None, "final_annual_tax": None,
+             "tax_regime_at_consideration": None, "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_poi_item.json": [
+            _item(1, 1, "HRA", 1, 300006.00, 300000.00, 290000.00, "APPROVED", "Rent receipts verified"),
+            _item(2, 1, "ppf", 11, 150000, 150000, 150000, "APPROVED"),
+            _item(3, 1, "LET_OUT_PROPERTY", 1, 252000, 0, 0, "SUBMITTED"),
+            _item(4, 1, "OTHER_INCOME_savings_interest", 1, 5000.55, 0, 0, "DRAFT"),
+            _item(5, 1, "PREV_EMPLOYMENT_income", 1, 300000, 300000, 0, "REJECTED"),
+            _item(6, 1, "elss", 99, 1, 0, 0, "DRAFT"),
+            _item(7, 3, "HRA", 1, 1, 0, 0, "DRAFT"),
+        ],
+        "stg_payroll_employee_poi_property_detail.json": [
+            {"id": 1, "poi_item_id": 3, "type": "annual_rent", "amount": 240000, "name_of_lender": None,
+             "pan_of_lender": None, "created_time": T, "updated_time": T},
+            {"id": 2, "poi_item_id": 3, "type": "loan_interest", "amount": 50000, "name_of_lender": "Test Bank",
+             "pan_of_lender": "BANKP1234Q", "created_time": T, "updated_time": T},
+            {"id": 3, "poi_item_id": 99, "type": "annual_rent", "amount": 1, "name_of_lender": None,
+             "pan_of_lender": None, "created_time": T, "updated_time": T},
+        ],
+        "stg_payroll_employee_poi_item_comment.json": [
+            {"id": 1, "poi_item_id": 1, "comment": "Uploaded the receipts", "commented_by_employee_id": 1001,
+             "commented_by_admin": None, "created_time": "2026-01-11T10:00:00", "response_to_comment_id": None},
+            {"id": 2, "poi_item_id": 1, "comment": "Verified", "commented_by_employee_id": None,
+             "commented_by_admin": "pay-uuid-1002", "created_time": "2026-01-12T10:00:00",
+             "response_to_comment_id": 1},
+            {"id": 3, "poi_item_id": 1, "comment": "Noted", "commented_by_employee_id": None,
+             "commented_by_admin": "admin-user-7", "created_time": "2026-01-13T10:00:00",
+             "response_to_comment_id": None},
+            {"id": 4, "poi_item_id": 3, "comment": "Lease attached", "commented_by_employee_id": 1001,
+             "commented_by_admin": None, "created_time": "2026-01-11T11:00:00", "response_to_comment_id": None},
+        ],
+    }
+
+
+def _item(i, poi, itype, ref, declared, actual, approved, status, comment=None):
+    return {"id": i, "poi_id": poi, "investment_type": itype, "section6a_item_id": ref, "declared_amount": declared,
+            "actual_amount": actual, "approved_amount": approved, "status": status, "admin_comment": comment,
+            "item_id_external": None, "created_time": T, "updated_time": T, "admin_adjusted": False,
+            "amount_adjusted_by": None, "amount_adjusted_date": None}

@@ -1,518 +1,775 @@
-"""
-Leave & Holiday Loader (Step 3i - W-68.3 / W-67 Rule R2)
-Loads into target PostgreSQL:
-  - core.holiday_calendar           (one default calendar per tenant)
-  - core.holiday                    (holidays from HRMS / Payroll)
-  - core.leave_type                 (5 seeded codes + LEGACY + legacy types)
-  - core.leave_policy               (policies per leave type)
-  - core.leave_allocation           (allocations split by leave type)
-  - core.leave_consumption          (consumption ledger from used balances & requests)
-  - core.approval_instance & step   (approval audit trails for HRMS requests)
-  - core.leave_request              (historical requests attached to LEGACY leave type)
-Logs to core.migration_ledger
-"""
+"""3i — leave, holidays and attendance preferences (W-68 Task 3, W-67 R2, mapping §3.8, X-01..X-04).
 
-import os
-import sys
-import json
-import uuid
+Founder tenant, from HRMS (the founder's leave authority; HRMS has no organisation column):
+  leave_types        -> core.leave_type + core.leave_policy. Five codes are always seeded for the
+                        fixed balance columns (ANNUAL, SICK, CASUAL, MATERNITY, PATERNITY) plus
+                        LEGACY; an HRMS type whose name is one of them fills that code, any other
+                        HRMS type gets its own code.
+  leave_balances     -> one row, five fixed columns -> up to five core.leave_allocation rows;
+                        used days -> core.leave_consumption (one row per type).
+  leave_requests     -> core.leave_request under the tenant's LEGACY type (the table has no type
+                        column, X-01; never "any active type"). hr_status wins over
+                        reporting_manager_status. Each request gets one core.approval_instance
+                        and two core.approval_step rows (manager, then HR) so who decided stays visible.
+  holidays           -> core.holiday in the tenant's default core.holiday_calendar.
+
+Every other tenant, from Payroll:
+  leave_type (+ leave_type_genders / _departments / _designations / _work_locations)
+                     -> core.leave_type + core.leave_policy + core.leave_policy_eligibility
+  employee_leave_allocation          -> core.leave_allocation
+  employee_leave_balance_consumption -> core.leave_consumption
+  holidays (+ holiday_locations)     -> core.holiday; a holiday limited to work locations goes into
+                        a calendar per location (core.holiday_calendar_location), which also
+                        holds the tenant-wide holidays, because the app reads one calendar per
+                        location and falls back to the default calendar.
+
+Every tenant, from Payroll:
+  attendance_preferences -> hrms.attendance_preference. The can_include_*_for_pay flags are not
+                        written to core.lop_policy: load_org owns that row (effective 1900-01-01,
+                        from paySchedule), and legacy never read either pair of flags. A difference
+                        is reported in quarantine as LOP_POLICY_KEPT_FROM_PAY_SCHEDULE.
+
+Leave year: legacy years are calendar years. Legacy year Y becomes the tenant leave year that
+starts in Y (core.tenant.leave_year_start_month, April by default): April Y - March Y+1, label
+"Y-YY"; a tenant starting in January keeps "Y".
+"""
+from __future__ import annotations
+
 import logging
-from datetime import datetime, timezone, date
-from decimal import Decimal
-import psycopg2
-from psycopg2.extras import execute_batch
+import re
+import sys
+from collections import Counter, defaultdict
+from datetime import date, datetime, timedelta, timezone
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("load_leave")
+from common import db, staging
+from common.ids import child_id, det_id, slug_code, unique_codes
+from common.idmap import IdMap
+from common.ledger import StepResult, run_per_tenant
+from common.legacy import text, to_date, to_timestamp, truthy
+from common.money import to_decimal
+from common.quarantine import Quarantine
+from common.tenants import Tenant, Tenants
 
-NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-FOUNDER_TENANT_ID = "a0000000-0000-0000-0000-000000000001"
+STEP = "load_leave"
+HRMS_INPUTS = ["stg_hrms_leave_types.json", "stg_hrms_leave_balances.json", "stg_hrms_leave_requests.json",
+               "stg_hrms_holidays.json"]
+PAYROLL_INPUTS = [
+    "stg_payroll_leave_type.json", "stg_payroll_leave_type_genders.json",
+    "stg_payroll_leave_type_departments.json", "stg_payroll_leave_type_designations.json",
+    "stg_payroll_leave_type_work_locations.json", "stg_payroll_employee_leave_allocation.json",
+    "stg_payroll_employee_leave_balance_consumption.json", "stg_payroll_holidays.json",
+    "stg_payroll_holiday_locations.json", "stg_payroll_attendance_preferences.json",
+]
+# The files the id-map entries this step reads were built from (id_map.json itself is not an input).
+REF_INPUTS = ["stg_merged_employees.json", "stg_payroll_department.json", "stg_payroll_designation.json",
+              "stg_payroll_workLocations.json"]
+INPUTS = HRMS_INPUTS + PAYROLL_INPUTS + REF_INPUTS
+log = logging.getLogger(STEP)
 
-def get_conn():
-    return psycopg2.connect(
-        host=os.environ.get("TARGET_DB_HOST", "localhost"),
-        port=int(os.environ.get("TARGET_DB_PORT", "5432")),
-        dbname=os.environ.get("TARGET_DB_NAME", "infinevo"),
-        user=os.environ.get("TARGET_DB_USER", "migration_user"),
-        password=os.environ.get("TARGET_DB_PASSWORD", "local_migration_pw")
-    )
+# HRMS leave_balances columns -> seeded code. Default annual days are the legacy entity's
+# own defaults (legacy/HRMS_Backend/.../entity/LeaveBalance.java: 24, 12, 8, 90, 10), used only
+# when HRMS leave_types has no type of that name.
+SEEDED = (("ANNUAL", "Annual Leave", "annual", 24), ("SICK", "Sick Leave", "sick", 12),
+          ("CASUAL", "Casual Leave", "casual", 8), ("MATERNITY", "Maternity Leave", "maternity", 90),
+          ("PATERNITY", "Paternity Leave", "paternity", 10))
+LEGACY_CODE, LEGACY_NAME = "LEGACY", "Legacy leave (type not recorded)"
+CLOSED_BY_MIGRATION = "Closed at migration: legacy recorded no decision at this step"
+SINCE_ALWAYS = date(1900, 1, 1)  # load_org's "no recorded start" date for core.lop_policy
+REQUEST_STATUS = {"APPROVED", "REJECTED", "PENDING"}
+_MONTHS = {m: i for i, m in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), start=1)}
+_DAYS = lambda v: to_decimal(v)  # noqa: E731 - days are NUMERIC(10,2) in the target
 
-def det_uuid(namespace_key: str) -> str:
-    return str(uuid.uuid5(NAMESPACE, namespace_key))
 
-def parse_date(val):
-    if not val:
+# ---------------------------------------------------------------- helpers
+
+def leave_year(year: int, start_month: int) -> tuple[str, date, date]:
+    """Legacy calendar year -> (label, first day, last day) of the tenant leave year starting in it."""
+    start = date(year, start_month, 1)
+    end = date(year + 1, start_month, 1) - timedelta(days=1)
+    label = str(year) if start_month == 1 else f"{year}-{(year + 1) % 100:02d}"
+    return label, start, end
+
+
+def legacy_year(v) -> int | None:
+    s = text(v)
+    if not s:
         return None
-    s = str(val)[:10]
-    try:
-        return date.fromisoformat(s)
-    except Exception:
+    m = re.match(r"^\s*(\d{4})", s)
+    return int(m.group(1)) if m else None
+
+
+def period_of(leave_month) -> str | None:
+    """Payroll leave_month 'September 2025' (frontend markLeaveAddEmploy.jsx:114), also 'Sep 2025',
+    '2025-09' -> 'YYYY-MM'."""
+    s = text(leave_month)
+    if not s:
         return None
+    m = re.match(r"^(\d{4})-(\d{1,2})", s)
+    if m and 1 <= int(m.group(2)) <= 12:
+        return f"{m.group(1)}-{int(m.group(2)):02d}"
+    m = re.match(r"^([A-Za-z]+)[\s,-]+(\d{4})$", s)
+    if m and m.group(1)[:3].lower() in _MONTHS:
+        return f"{m.group(2)}-{_MONTHS[m.group(1)[:3].lower()]:02d}"
+    return None
 
-def parse_bit(val):
-    """Convert MySQL BIT/b'\\x01' to bool."""
-    if val is None:
-        return False
-    if isinstance(val, bool):
-        return val
-    s = str(val)
-    return s in ("b'\\x01'", "b'\\x01'", "True", "1", "true")
 
-def run_loader():
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    stg = os.path.join(base, "staging")
+def hours_of(v):
+    """'08:30' or '8.5' -> Decimal hours, 2 places."""
+    s = text(v)
+    if not s:
+        return None
+    m = re.match(r"^(\d{1,2}):(\d{2})", s)
+    if m:
+        return to_decimal(int(m.group(1)) + to_decimal(m.group(2), None) / 60)
+    return to_decimal(s)
 
-    def load_json(fname, default=None):
-        fpath = os.path.join(stg, fname)
-        if not os.path.exists(fpath):
-            return default if default is not None else []
-        with open(fpath, "r", encoding="utf-8") as f:
-            return json.load(f)
 
-    leave_types_raw   = load_json("stg_hrms_leave_types.json")
-    leave_reqs_raw    = load_json("stg_hrms_leave_requests.json")
-    leave_bals_raw    = load_json("stg_hrms_leave_balances.json")
-    holidays_raw      = load_json("stg_hrms_holidays.json")
-    merged_employees  = load_json("stg_merged_employees.json")
+def int_or_none(v) -> int | None:
+    d = to_decimal(v, None)
+    return int(d) if d is not None else None
 
-    # Payroll leave staging if present
-    payroll_consumption = load_json("stg_payroll_employee_leave_balance_consumption.json", [])
 
-    logger.info(f"Staging loaded: {len(leave_types_raw)} leave_types, {len(leave_reqs_raw)} leave_requests, "
-                f"{len(leave_bals_raw)} leave_balances, {len(holidays_raw)} holidays, "
-                f"{len(payroll_consumption)} payroll consumption records")
+def _ts(v, fallback):
+    return to_timestamp(v) or fallback
 
-    emp_by_hrms_id = {}
-    emp_by_payroll_id = {}
-    for e in merged_employees:
-        if e.get("source_legacy_hrms_id"):
-            emp_by_hrms_id[str(e["source_legacy_hrms_id"]).strip()] = e
-        if e.get("employee_number"):
-            emp_by_hrms_id[str(e["employee_number"]).strip()] = e
-        if e.get("source_legacy_payroll_id"):
-            emp_by_payroll_id[str(e["source_legacy_payroll_id"]).strip()] = e
 
-    all_tenant_ids = sorted(list(set(e["tenant_id"] for e in merged_employees if e.get("tenant_id"))))
-    if FOUNDER_TENANT_ID not in all_tenant_ids:
-        all_tenant_ids.append(FOUNDER_TENANT_ID)
+def _approval_definition(cur, tenant_id: str, flow: str) -> str | None:
+    """The definition the app's ApprovalService.start would pick (the latest effective one)."""
+    cur.execute("SELECT id FROM core.approval_definition WHERE tenant_id = %s AND flow_type = %s AND is_active "
+                "ORDER BY effective_from DESC LIMIT 1", (tenant_id, flow))
+    row = cur.fetchone()
+    return str(row[0]) if row else None
 
-    logger.info(f"Total unique tenants to seed: {len(all_tenant_ids)}")
 
-    conn = get_conn()
-    conn.autocommit = False
-    cur = conn.cursor()
+def _primary_managers(cur, tenant_id: str) -> dict[str, str]:
+    cur.execute("SELECT employee_id, manager_id FROM core.reporting_line WHERE tenant_id = %s AND kind = 'PRIMARY' "
+                "AND effective_to IS NULL ORDER BY effective_from", (tenant_id,))
+    return {str(e): str(m) for e, m in cur.fetchall()}
 
-    step_name = "load_leave"
-    started_at = datetime.now(timezone.utc)
-    ledger_id = str(uuid.uuid4())
-    anchor_tenant = FOUNDER_TENANT_ID if FOUNDER_TENANT_ID in all_tenant_ids else all_tenant_ids[0]
 
-    try:
-        # ── Ledger: start ──────────────────────────────────────────────────────
-        cur.execute(
-            """
-            INSERT INTO core.migration_ledger (id, tenant_id, step_name, records_processed, status, started_at)
-            VALUES (%s, %s, %s, 0, 'RUNNING', %s)
-            """,
-            (ledger_id, anchor_tenant, step_name, started_at)
-        )
-        conn.commit()
+def _loaded_employees(cur, tenant_id: str) -> set[str]:
+    cur.execute("SELECT id FROM core.employee WHERE tenant_id = %s", (tenant_id,))
+    return {str(r[0]) for r in cur.fetchall()}
 
-        total = 0
 
-        # ── 1. Holiday Calendars (one default per tenant) ──────────────────────
-        logger.info(f"Creating default holiday calendars for {len(all_tenant_ids)} tenants...")
-        cal_batch = []
-        for tid in all_tenant_ids:
-            cal_id = det_uuid(f"{tid}:holiday_calendar:default")
-            cal_batch.append((cal_id, tid, "India Public Holidays 2026", True))
+# ---------------------------------------------------------------- run
 
-        execute_batch(cur,
-            """
-            INSERT INTO core.holiday_calendar (id, tenant_id, name, is_default, created_by, updated_by)
-            VALUES (%s, %s, %s, %s, 'system', 'system')
-            ON CONFLICT DO NOTHING
-            """, cal_batch, page_size=100)
-        conn.commit()
-        total += len(cal_batch)
+def run(conn=None) -> bool:
+    tenants = Tenants.load()
+    idmap = IdMap.load()
+    q = Quarantine(STEP)
+    run_start = datetime.now(timezone.utc)
+    audit = {"created_by": db.AUDIT_USER, "updated_by": db.AUDIT_USER}
 
-        # ── 2. Holidays ────────────────────────────────────────────────────────
-        logger.info(f"Loading {len(holidays_raw)} holidays for tenants...")
-        hol_batch = []
-        for tid in all_tenant_ids:
-            cal_id = det_uuid(f"{tid}:holiday_calendar:default")
-            for h in holidays_raw:
-                hol_id = det_uuid(f"{tid}:holiday:{h['id']}")
-                h_date = parse_date(h.get("date"))
-                if not h_date:
-                    continue
-                hol_batch.append((hol_id, tid, cal_id, h.get("name") or "Holiday", h_date, h_date, False))
+    h_types = staging.load("stg_hrms_leave_types.json")
+    h_bal = staging.load("stg_hrms_leave_balances.json")
+    h_req = staging.load("stg_hrms_leave_requests.json")
+    h_hol = staging.load("stg_hrms_holidays.json")
+    for twin in ("stg_hrms_leave_request.json", "stg_hrms_employee_leave_balances.json"):
+        log.info("not migrated (W-67 R2, superseded twin): %s rows=%d", twin, len(staging.load(twin)))
 
-        if hol_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO core.holiday (id, tenant_id, calendar_id, name, from_date, to_date, is_restricted,
-                                          created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT DO NOTHING
-                """, hol_batch, page_size=200)
-            conn.commit()
-            total += len(hol_batch)
-        logger.info(f"✓ {len(hol_batch)} holiday records processed.")
+    def by_org(name: str) -> dict[str, list[dict]]:
+        out = defaultdict(list)
+        for r in staging.load(name):
+            out[str(r.get("organizationId"))].append(r)
+        return out
 
-        # ── 3. Leave Types (Rule R2: 5 Seeded Codes + LEGACY for Founder Tenant) ───
-        logger.info("Loading leave types and policies...")
-        lt_batch = []
-        pol_batch = []
+    p_types = by_org("stg_payroll_leave_type.json")
+    p_hol = by_org("stg_payroll_holidays.json")
+    p_pref = by_org("stg_payroll_attendance_preferences.json")
+    elig_rows = {}
+    for dim, name, key in (("gender", "stg_payroll_leave_type_genders.json", "gender"),
+                           ("department", "stg_payroll_leave_type_departments.json", "department_id"),
+                           ("designation", "stg_payroll_leave_type_designations.json", "designation_id"),
+                           ("work_location", "stg_payroll_leave_type_work_locations.json", "work_location_id")):
+        d = defaultdict(list)
+        for r in staging.load(name):
+            d[str(r.get("leave_type_id"))].append(r.get(key))
+        elig_rows[dim] = d
+    hol_locs = defaultdict(list)
+    for r in staging.load("stg_payroll_holiday_locations.json"):
+        hol_locs[str(r.get("holiday_id"))].append(text(r.get("location")))
+    wl_rows = staging.load("stg_payroll_workLocations.json")
+    wl_by_uuid = {str(w["workLocationId"]): w.get("id") for w in wl_rows if w.get("workLocationId")}
+    wl_by_name = {(str(w.get("organizationId")), (text(w.get("workLocationName")) or "").lower()): w.get("id")
+                  for w in wl_rows}
 
-        # 5 Seeded codes per Rule R2:
-        SEEDED_LEAVE_TYPES = [
-            ("ANNUAL", "Annual Leave", Decimal("12.00")),
-            ("CASUAL", "Casual Leave", Decimal("12.00")),
-            ("SICK", "Sick Leave", Decimal("12.00")),
-            ("MATERNITY", "Maternity Leave", Decimal("180.00")),
-            ("PATERNITY", "Paternity Leave", Decimal("15.00")),
-            ("LEGACY", "Legacy leave (type not recorded)", Decimal("0.00"))
-        ]
+    # Payroll rows of organisations that are not tenants, and the founder's Payroll leave
+    live_orgs = set(tenants.by_org)
+    for name, groups in (("leave_type", p_types), ("holidays", p_hol), ("attendance_preferences", p_pref)):
+        for org, rows in groups.items():
+            if org not in live_orgs:
+                for r in rows:
+                    q.add("ORG_NOT_MIGRATED", name, r.get("id"), None, organization=org)
 
-        for tid in all_tenant_ids:
-            # Seed standard types
-            for code, name, default_days in SEEDED_LEAVE_TYPES:
-                lt_uuid = det_uuid(f"{tid}:leave_type:{code}")
-                pol_uuid = det_uuid(f"{tid}:leave_policy:{code}")
-                lt_batch.append((
-                    lt_uuid, tid, code, name,
-                    True, "DAYS", True, date(2024, 1, 1), None, True
-                ))
-                pol_batch.append((
-                    pol_uuid, tid, lt_uuid, default_days,
-                    False, None, None,
-                    False, None,
-                    False, None, None,
-                    False, None, None,
-                    False, False,
-                    "noLimit", None,
-                    False, None, None, date(2024, 1, 1)
-                ))
+    # Payroll allocation / consumption: tenant from the employee (organization_id there is the
+    # organisation's public UUID, not its id: EmployeeLeaveAllocationServiceImpl.java:246-249).
+    def pay_emp(ref) -> str | None:
+        return idmap.get("payroll.employee.uuid", ref)
 
-            # Also seed any extra types from staging for founder tenant
-            if tid == FOUNDER_TENANT_ID:
-                for lt in leave_types_raw:
-                    raw_name = (lt.get("name") or "").strip()
-                    code = raw_name.upper().replace(" ", "_")[:32]
-                    if code in [s[0] for s in SEEDED_LEAVE_TYPES]:
-                        continue
-                    lt_uuid = det_uuid(f"{tid}:leave_type:{lt['id']}")
-                    pol_uuid = det_uuid(f"{tid}:leave_policy:{lt['id']}")
-                    v_from = parse_date(lt.get("start_date")) or date(2024, 1, 1)
-                    v_to = parse_date(lt.get("end_date"))
-                    annual_days = Decimal(str(lt.get("default_days") or 12))
-                    lt_batch.append((
-                        lt_uuid, tid, code, raw_name or f"LeaveType_{lt['id']}",
-                        True, "DAYS", True, v_from, v_to, True
-                    ))
-                    pol_batch.append((
-                        pol_uuid, tid, lt_uuid, annual_days,
-                        False, None, None,
-                        False, None,
-                        False, None, None,
-                        False, None, None,
-                        False, False,
-                        "noLimit", None,
-                        False, None, None, v_from
-                    ))
-
-        execute_batch(cur,
-            """
-            INSERT INTO core.leave_type
-                (id, tenant_id, code, name, is_paid, unit, allow_half_day, valid_from, valid_to,
-                 is_active, created_by, updated_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-            ON CONFLICT (tenant_id, code) DO UPDATE SET
-                name = EXCLUDED.name, valid_to = EXCLUDED.valid_to, updated_at = CURRENT_TIMESTAMP
-            """, lt_batch, page_size=200)
-        conn.commit()
-        total += len(lt_batch)
-
-        execute_batch(cur,
-            """
-            INSERT INTO core.leave_policy
-                (id, tenant_id, leave_type_id, annual_days,
-                 accrual_enabled, accrual_frequency, accrual_units,
-                 reset_enabled, reset_frequency,
-                 carry_forward_enabled, carry_forward_cap, carry_forward_expires_after_months,
-                 requires_document, past_booking_limit_days, future_booking_limit_days,
-                 include_weekend, include_holiday,
-                 exceed_balance_mode, exceed_balance_limit_days,
-                 pro_rate_enabled, max_days_per_application, gender, effective_from,
-                 created_by, updated_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-            ON CONFLICT DO NOTHING
-            """, pol_batch, page_size=200)
-        conn.commit()
-        total += len(pol_batch)
-        logger.info(f"✓ {len(lt_batch)} leave types and {len(pol_batch)} policies inserted.")
-
-        # ── 4. Leave Allocations & Consumption (Rule R2: Split HRMS leave_balances) ───
-        logger.info(f"Loading {len(leave_bals_raw)} HRMS leave balances...")
-        alloc_batch = []
-        consump_batch = []
-        alloc_skip = 0
-
-        balance_cols = [
-            ("ANNUAL",     "annual_allotted",    "annual_used"),
-            ("CASUAL",     "casual_allotted",    "casual_used"),
-            ("SICK",       "sick_allotted",      "sick_used"),
-            ("MATERNITY",  "maternity_allotted",  "maternity_used"),
-            ("PATERNITY",  "paternity_allotted",  "paternity_used"),
-        ]
-
-        for bal in leave_bals_raw:
-            emp_id_str = str(bal.get("employee_id") or "").strip()
-            emp = emp_by_hrms_id.get(emp_id_str)
-            if not emp:
-                alloc_skip += 1
+    p_alloc, p_cons = defaultdict(list), defaultdict(list)
+    for name, target in (("stg_payroll_employee_leave_allocation.json", p_alloc),
+                         ("stg_payroll_employee_leave_balance_consumption.json", p_cons)):
+        legacy_table = name[len("stg_payroll_"):-len(".json")]
+        for r in staging.load(name):
+            eid = pay_emp(r.get("employee_id"))
+            tid = idmap.get("employee.tenant", eid) if eid else None
+            if not tid:
+                q.add("EMPLOYEE_NOT_FOUND", legacy_table, r.get("id"))
                 continue
-            tid = emp["tenant_id"]
-            emp_uuid = emp["id"]
-            year = int(bal.get("year") or 2025)
-            yr_start = date(year, 1, 1)
-            yr_end = date(year, 12, 31)
-            leave_year_str = f"{year}-{year}"
+            target[tid].append(r)
 
-            for code, allotted_col, used_col in balance_cols:
-                allotted = Decimal(str(bal.get(allotted_col) or 0))
-                used = Decimal(str(bal.get(used_col) or 0))
-                if allotted == 0 and used == 0:
+    def hrms_emp(ref, loaded: set[str]) -> str | None:
+        ref = text(ref)
+        if not ref:
+            return None
+        eid = idmap.get("hrms.emp_code", ref) or idmap.get("hrms.employee", ref)
+        return eid if eid in loaded else None
+
+    # ------------------------------------------------------------ shared writers
+
+    def ensure_default_calendar(cur, tid: str) -> str:
+        cur.execute("SELECT id FROM core.holiday_calendar WHERE tenant_id = %s AND is_default", (tid,))
+        row = cur.fetchone()
+        if row:
+            return str(row[0])
+        cal = det_id(tid, "holiday_calendar", "default")
+        db.upsert(cur, "core.holiday_calendar", [{"id": cal, "tenant_id": tid, "name": "Holidays",
+                                                  "is_default": True, **audit}])
+        return cal
+
+    def write_types(cur, tid: str, types: list[dict]) -> dict[str, str]:
+        """Upsert core.leave_type on (tenant_id, code); return {code: stored id}."""
+        db.upsert(cur, "core.leave_type", types, conflict=("tenant_id", "code"), keep_on_update=("id",))
+        cur.execute("SELECT code, id FROM core.leave_type WHERE tenant_id = %s", (tid,))
+        return {c: str(i) for c, i in cur.fetchall()}
+
+    def policy_row(tid, pid, type_id, annual, effective_from, created_at, **kw):
+        row = {"id": pid, "tenant_id": tid, "leave_type_id": type_id, "annual_days": annual,
+               "accrual_enabled": None, "accrual_frequency": None, "accrual_units": None,
+               "reset_enabled": None, "reset_frequency": None, "carry_forward_enabled": None,
+               "carry_forward_cap": None, "requires_document": False, "past_booking_limit_days": None,
+               "future_booking_limit_days": None, "include_weekend": None, "include_holiday": None,
+               "exceed_balance_mode": "markAsLOP", "exceed_balance_limit_days": None,
+               "pro_rate_enabled": None, "max_days_per_application": None, "gender": None,
+               "effective_from": effective_from, "created_at": created_at, **audit}
+        row.update(kw)
+        return row
+
+    def approval(tid, flow_def, subject_table, subject_id, emp, status, started, completed, steps, label):
+        """One approval_instance and its steps; steps = [(kind, assignee, decision, comment, decided_at)].
+
+        The app's queue is every step with no decision (ApprovalStepRepository.findPendingForAssigneeOrUnassigned),
+        so a step legacy never decided, in a request that is already decided, is closed with the outcome,
+        as the app closes the open steps of a rejected instance (ApprovalService.decide)."""
+        if status != "PENDING":
+            steps = [(k, a, d, c, at) if d else (k, a, status, CLOSED_BY_MIGRATION, completed)
+                     for k, a, d, c, at in steps]
+        inst_id = det_id(tid, f"approval_instance.{subject_table}", subject_id)
+        inst = {"id": inst_id, "tenant_id": tid, "flow_type": label, "definition_id": flow_def,
+                "subject_table": subject_table, "subject_id": subject_id, "subject_employee_id": emp,
+                "status": status, "started_at": started, "completed_at": completed,
+                "created_at": started, **audit}
+        step_rows = [{"id": child_id(inst_id, f"step{i}"), "tenant_id": tid, "instance_id": inst_id,
+                      "step_index": i, "approver_kind": kind, "assignee_employee_id": assignee,
+                      "decision": decision, "comment": comment, "decided_at": decided_at,
+                      "created_at": started, **audit}
+                     for i, (kind, assignee, decision, comment, decided_at) in enumerate(steps)]
+        return inst_id, inst, step_rows
+
+    # ------------------------------------------------------------ founder: HRMS
+
+    def founder_leave(cur, t: Tenant, start_month: int, loaded: set[str]) -> StepResult:
+        tid = t.tenant_id
+        done = skipped = 0
+
+        # Earliest leave date in the data: valid_from for the seeded and LEGACY types.
+        starts = [leave_year(y, start_month)[1] for y in (legacy_year(b.get("year")) for b in h_bal) if y]
+        starts += [d for d in (to_date(r.get("from_date")) for r in h_req) if d]
+        earliest = min(starts) if starts else SINCE_ALWAYS
+
+        # Leave types: seeded codes first, HRMS types fill a seeded code by name or get their own.
+        by_seed, extra = {}, []
+        for lt in h_types:
+            name = text(lt.get("name"), 128)
+            if not name:
+                q.add("NO_NAME", "leave_types", lt.get("id"), tid); skipped += 1
+                continue
+            slug = slug_code(name)
+            code = next((c for c, *_ in SEEDED if slug in (c, f"{c}_LEAVE") and c not in by_seed), None)
+            if code:
+                by_seed[code] = lt
+            else:
+                extra.append(lt)
+        codes = unique_codes([c for c, *_ in SEEDED] + [LEGACY_CODE] + [text(lt["name"]) for lt in extra], 32)
+        extra_codes = codes[len(SEEDED) + 1:]
+
+        types, policies = [], []
+        for code, name, _col, default_days in SEEDED:
+            lt = by_seed.get(code)
+            vf = (to_date(lt.get("start_date")) if lt else None) or earliest
+            types.append({"id": det_id(tid, "hrms.leave_type", code), "tenant_id": tid, "code": code,
+                          "name": text(lt.get("name"), 128) if lt else name, "is_paid": True, "unit": "DAYS",
+                          "allow_half_day": True, "valid_from": vf,
+                          "valid_to": to_date(lt.get("end_date")) if lt else None, "is_active": True,
+                          "created_at": _ts(lt.get("created_at") if lt else None, run_start), **audit})
+            policies.append((code, vf, _DAYS(lt.get("default_days")) if lt else _DAYS(default_days),
+                             truthy(lt.get("leave_carried_forward")) if lt else None,
+                             _ts(lt.get("created_at") if lt else None, run_start)))
+        # LEGACY: holds the requests HRMS recorded without a type (X-01). Paid, so no migrated
+        # request can raise loss of pay (W-67 R4); inactive, so nobody applies for it again.
+        types.append({"id": det_id(tid, "hrms.leave_type", LEGACY_CODE), "tenant_id": tid, "code": LEGACY_CODE,
+                      "name": LEGACY_NAME, "is_paid": True, "unit": "DAYS", "allow_half_day": True,
+                      "valid_from": earliest, "valid_to": None, "is_active": False, "created_at": run_start,
+                      **audit})
+        policies.append((LEGACY_CODE, earliest, _DAYS(0), None, run_start))
+        for lt, code in zip(extra, extra_codes):
+            vf = to_date(lt.get("start_date")) or earliest
+            types.append({"id": det_id(tid, "hrms.leave_type", code), "tenant_id": tid, "code": code,
+                          "name": text(lt.get("name"), 128), "is_paid": True, "unit": "DAYS",
+                          "allow_half_day": True, "valid_from": vf, "valid_to": to_date(lt.get("end_date")),
+                          "is_active": True, "created_at": _ts(lt.get("created_at"), run_start), **audit})
+            policies.append((code, vf, _DAYS(lt.get("default_days")) or _DAYS(0),
+                             truthy(lt.get("leave_carried_forward")), _ts(lt.get("created_at"), run_start)))
+        type_ids = write_types(cur, tid, types)
+        # HRMS turned days beyond the balance into loss of pay (LeaveRequests.lopAllocation): markAsLOP.
+        pol_ids, pol_rows = {}, []
+        for code, vf, annual, cf, created in policies:
+            pid = det_id(tid, "hrms.leave_policy", code)
+            pol_ids[code] = pid
+            pol_rows.append(policy_row(tid, pid, type_ids[code], annual, vf, created, carry_forward_enabled=cf))
+        db.upsert(cur, "core.leave_policy", pol_rows)
+        done += len(types) + len(pol_rows)
+
+        # Balances: five fixed columns -> allocation per type; used -> consumption.
+        allocs, cons, seen = [], [], set()
+        for b in h_bal:
+            eid = hrms_emp(b.get("employee_id"), loaded)
+            year = legacy_year(b.get("year"))
+            if eid is None:
+                q.add("EMPLOYEE_NOT_FOUND", "leave_balances", b.get("id"), tid); skipped += 1
+                continue
+            if year is None:
+                q.add("NO_YEAR", "leave_balances", b.get("id"), tid); skipped += 1
+                continue
+            if (eid, year) in seen:
+                q.add("DUPLICATE_BALANCE_YEAR", "leave_balances", b.get("id"), tid, year=year); skipped += 1
+                continue
+            seen.add((eid, year))
+            label, ys, ye = leave_year(year, start_month)
+            for code, _n, col, _d in SEEDED:
+                allotted = _DAYS(b.get(f"{col}_allotted")) or _DAYS(0)
+                used = _DAYS(b.get(f"{col}_used")) or _DAYS(0)
+                if not allotted and not used:
                     continue
-
-                lt_uuid = det_uuid(f"{tid}:leave_type:{code}")
-                pol_uuid = det_uuid(f"{tid}:leave_policy:{code}")
-                alloc_uuid = det_uuid(f"{tid}:{emp_uuid}:alloc:{code}:{year}")
-                accrued = allotted - used
-
-                alloc_batch.append((
-                    alloc_uuid, tid, emp_uuid, lt_uuid,
-                    leave_year_str, yr_start, yr_end,
-                    allotted, accrued,
-                    Decimal("0.00"), None,
-                    Decimal("1.0000"), None, None,
-                    pol_uuid
-                ))
-
+                aid = det_id(tid, f"leave_balances.{code}", b.get("id"))
+                allocs.append({"id": aid, "tenant_id": tid, "employee_id": eid, "leave_type_id": type_ids[code],
+                               "leave_year": label, "year_start_date": ys, "year_end_date": ye,
+                               "entitlement_days": allotted, "policy_id": pol_ids[code], **audit})
                 if used > 0:
-                    consump_uuid = det_uuid(f"{tid}:{alloc_uuid}:consumption:{year}")
-                    consump_batch.append((
-                        consump_uuid, tid, emp_uuid, alloc_uuid, None,
-                        used, date(year, 12, 31), f"{year}-12", None,
-                        f"Legacy {code} leave consumption"
-                    ))
+                    # HRMS kept a count, not dates: the consumption is dated the first day of its year.
+                    cons.append({"id": child_id(aid, "used"), "tenant_id": tid, "employee_id": eid,
+                                 "allocation_id": aid, "consumed_days": used, "consumed_on": ys,
+                                 "period": ys.strftime("%Y-%m"),
+                                 "reason": "Used days from HRMS leave_balances (no dates recorded)", **audit})
+        db.upsert(cur, "core.leave_allocation", allocs, conflict=("tenant_id", "employee_id", "leave_type_id",
+                                                                  "leave_year"), keep_on_update=("id",))
+        db.upsert(cur, "core.leave_consumption", cons)
+        done += len(allocs) + len(cons)
 
-        if alloc_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO core.leave_allocation
-                    (id, tenant_id, employee_id, leave_type_id, leave_year, year_start_date, year_end_date,
-                     entitlement_days, accrued_days, carried_forward_days, carry_forward_expires_on,
-                     pro_rate_factor, last_accrued_on, last_reset_on, policy_id, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (tenant_id, employee_id, leave_type_id, leave_year) DO UPDATE SET
-                    entitlement_days = EXCLUDED.entitlement_days,
-                    accrued_days = EXCLUDED.accrued_days,
-                    updated_at = CURRENT_TIMESTAMP
-                """, alloc_batch, page_size=200)
-            conn.commit()
-            total += len(alloc_batch)
-
-        if consump_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO core.leave_consumption
-                    (id, tenant_id, employee_id, allocation_id, leave_request_id,
-                     consumed_days, consumed_on, period, reverses_id, reason, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO NOTHING
-                """, consump_batch, page_size=200)
-            conn.commit()
-            total += len(consump_batch)
-
-        logger.info(f"✓ {len(alloc_batch)} leave allocations, {len(consump_batch)} consumption rows inserted.")
-
-        # ── 5. Leave Requests & Two-Step Approvals (Rule R2: Map to LEGACY type) ───
-        logger.info(f"Loading {len(leave_reqs_raw)} leave requests and approvals...")
-
-        # Pre-seed approval definitions if needed
-        for tid in all_tenant_ids:
-            try:
-                cur.execute("SELECT core.seed_approval_definitions(%s)", (tid,))
-                conn.commit()
-            except Exception:
-                conn.rollback()
-
-        # Cache approval definition id for LEAVE per tenant
-        appr_def_by_tenant = {}
-        for tid in all_tenant_ids:
-            cur.execute(
-                "SELECT id FROM core.approval_definition WHERE tenant_id = %s AND flow_type = 'LEAVE' "
-                "ORDER BY effective_from DESC LIMIT 1",
-                (tid,)
-            )
-            row = cur.fetchone()
-            if row:
-                appr_def_by_tenant[tid] = row[0]
-
-        STATUS_MAP = {
-            "APPROVED": "APPROVED", "APPROV": "APPROVED",
-            "REJECTED": "REJECTED", "REJECT": "REJECTED",
-            "PENDING":  "PENDING",  "CANCELLED": "CANCELLED",
-            "WITHDRAWN": "WITHDRAWN", "DRAFT": "DRAFT"
-        }
-
-        req_batch = []
-        appr_inst_batch = []
-        appr_step_batch = []
-        req_skip = 0
-
-        for req in leave_reqs_raw:
-            emp_id_str = str(req.get("employee_id") or "").strip()
-            emp = emp_by_hrms_id.get(emp_id_str)
-            if not emp:
-                req_skip += 1
+        # Requests under LEGACY, each with an approval instance (manager step, HR step).
+        flow_def = _approval_definition(cur, tid, "LEAVE")
+        managers = _primary_managers(cur, tid)
+        reqs, insts, steps, approved = [], [], [], defaultdict(list)
+        for r in sorted(h_req, key=lambda x: int(x.get("id") or 0)):
+            rid = r.get("id")
+            eid = hrms_emp(r.get("employee_id"), loaded)
+            frm, to = to_date(r.get("from_date")), to_date(r.get("to_date"))
+            if eid is None:
+                q.add("EMPLOYEE_NOT_FOUND", "leave_requests", rid, tid); skipped += 1
                 continue
-            tid = emp["tenant_id"]
-            emp_uuid = emp["id"]
-
-            from_date = parse_date(req.get("from_date"))
-            to_date = parse_date(req.get("to_date"))
-            if not from_date or not to_date:
-                req_skip += 1
+            if frm is None or to is None or to < frm:
+                q.add("BAD_DATES", "leave_requests", rid, tid); skipped += 1
                 continue
-            if to_date < from_date:
-                to_date = from_date
+            mgr = (text(r.get("reporting_manager_status")) or "PENDING").upper()
+            hr = (text(r.get("hr_status")) or "PENDING").upper()
+            if mgr not in REQUEST_STATUS or hr not in REQUEST_STATUS:
+                q.add("STATUS_UNMAPPED", "leave_requests", rid, tid, manager=mgr, hr=hr); skipped += 1
+                continue
+            status = hr  # W-67 R2: hr_status wins over reporting_manager_status
+            half = bool(truthy(r.get("is_half_day"), False))
+            period = None
+            if half:
+                p = (text(r.get("half_day_period")) or "").lower()
+                period = "first" if p.startswith(("first", "1")) else "second" if p.startswith(("second", "2")) else None
+                if period is None:
+                    q.add("HALF_DAY_PERIOD_UNMAPPED", "leave_requests", rid, tid); skipped += 1
+                    continue
+            days = _DAYS(r.get("total_days"))
+            if days is None or days < 0:
+                q.add("BAD_TOTAL_DAYS", "leave_requests", rid, tid); skipped += 1
+                continue
+            if status == "APPROVED":
+                if any(frm <= e and s <= to for s, e in approved[eid]):
+                    q.add("APPROVED_OVERLAP", "leave_requests", rid, tid,
+                          note="overlaps an earlier approved request of the same employee"); skipped += 1
+                    continue
+                approved[eid].append((frm, to))
+            req_id = det_id(tid, "leave_requests", rid)
+            created = _ts(r.get("created_date"), run_start)
+            mgr_at, hr_at = to_timestamp(r.get("reporting_manager_updated_at")), to_timestamp(r.get("hr_updated_at"))
+            decided = (hr_at or mgr_at) if status != "PENDING" else None
+            inst_id = None
+            if flow_def:
+                inst_id, inst, st = approval(
+                    tid, flow_def, "leave_request", req_id, eid, status, created, decided,
+                    [("REPORTING_MANAGER", managers.get(eid), mgr if mgr != "PENDING" else None,
+                      text(r.get("reporting_manager_comment"), 1000), mgr_at if mgr != "PENDING" else None),
+                     ("ROLE", None, hr if hr != "PENDING" else None,
+                      text(r.get("hr_comment"), 1000), hr_at if hr != "PENDING" else None)], "LEAVE")
+                insts.append(inst)
+                steps += st
+            else:
+                q.add("NO_APPROVAL_DEFINITION", "leave_requests", rid, tid, note="loaded without approval history")
+            reqs.append({"id": req_id, "tenant_id": tid, "employee_id": eid, "leave_type_id": type_ids[LEGACY_CODE],
+                         "from_date": frm, "to_date": to, "is_half_day": half, "half_day_period": period,
+                         "working_days": days, "reason": text(r.get("reason")), "status": status,
+                         "approval_instance_id": inst_id, "on_behalf": False, "decided_at": decided,
+                         "created_at": created, **audit})
+        db.upsert(cur, "core.approval_instance", insts)
+        db.upsert(cur, "core.approval_step", steps)
+        db.upsert(cur, "core.leave_request", reqs)
+        done += len(reqs) + len(insts) + len(steps)
 
-            is_half = parse_bit(req.get("is_half_day"))
-            half_per = req.get("half_day_period") if is_half else None
-            if half_per and half_per not in ("first", "second"):
-                half_per = "first"
-            if not is_half:
-                half_per = None
+        # Holidays into the default calendar
+        hols = []
+        for h in h_hol:
+            name, d = text(h.get("name"), 128), to_date(h.get("date"))
+            if not name or d is None:
+                q.add("NO_NAME" if not name else "NO_DATE", "holidays", h.get("id"), tid); skipped += 1
+                continue
+            hols.append((h.get("id"), name, d))
+        if hols:
+            cal = ensure_default_calendar(cur, tid)
+            rows = [{"id": det_id(tid, "hrms.holidays", hid), "tenant_id": tid, "calendar_id": cal, "name": name,
+                     "from_date": d, "to_date": d, "is_restricted": False, "description": None, **audit}
+                    for hid, name, d in hols]
+            db.upsert(cur, "core.holiday", rows)
+            done += len(rows)
 
-            raw_hr = str(req.get("hr_status") or "").strip().upper()
-            raw_mgr = str(req.get("reporting_manager_status") or "").strip().upper()
+        # Payroll's own leave rows for the founder's organisation are not carried (W-67 R2).
+        for legacy_table, n in (("leave_type", len(p_types.get(t.legacy_org_id, []))),
+                                ("employee_leave_allocation", len(p_alloc.get(tid, []))),
+                                ("employee_leave_balance_consumption", len(p_cons.get(tid, []))),
+                                ("holidays", len(p_hol.get(t.legacy_org_id, [])))):
+            if n:
+                q.add("FOUNDER_LEAVE_FROM_HRMS", legacy_table, None, tid, rows=n)
+                skipped += n
+        return StepResult(done, skipped)
 
-            # Rule R2: hr_status wins over reporting_manager_status
-            final_status = STATUS_MAP.get(raw_hr) or STATUS_MAP.get(raw_mgr) or "PENDING"
-            mgr_decision = STATUS_MAP.get(raw_mgr, "PENDING")
-            hr_decision = STATUS_MAP.get(raw_hr, "PENDING")
+    # ------------------------------------------------------------ other tenants: Payroll
 
-            working_days = Decimal(str(req.get("total_days") or ("0.50" if is_half else "1.00")))
-            decided_at = parse_date(req.get("hr_updated_at")) or parse_date(req.get("updated_at"))
+    def payroll_leave(cur, t: Tenant, start_month: int, loaded: set[str]) -> StepResult:
+        tid, org = t.tenant_id, t.legacy_org_id
+        done = skipped = 0
+        allocs_in = p_alloc.get(tid, [])
 
-            # Rule R2: Always attach HRMS requests to seeded LEGACY leave type
-            lt_uuid = det_uuid(f"{tid}:leave_type:LEGACY")
-            req_uuid = det_uuid(f"{tid}:leave_request:{req['id']}")
-            appr_inst_uuid = det_uuid(f"{tid}:approval_instance:leave:{req['id']}")
+        # Leave types and policies
+        alloc_by_type = defaultdict(list)
+        for a in allocs_in:
+            alloc_by_type[(text(a.get("leave_type")) or "").lower()].append(a)
+        accepted = []
+        for lt in p_types.get(org, []):
+            lid = lt.get("id")
+            name = text(lt.get("name"), 128)
+            kind = (text(lt.get("type")) or "").lower()
+            unit = (text(lt.get("unit")) or "").lower()
+            if not name:
+                q.add("NO_NAME", "leave_type", lid, tid); skipped += 1
+                continue
+            if kind not in ("paid", "unpaid"):
+                q.add("LEAVE_KIND_UNMAPPED", "leave_type", lid, tid, value=kind); skipped += 1
+                continue
+            if unit not in ("day_based", "days", "day"):
+                q.add("UNIT_UNMAPPED", "leave_type", lid, tid, value=unit); skipped += 1
+                continue
+            vf = to_date(lt.get("validity_from"))
+            if vf is None:
+                # No validity start recorded: the start of the earliest leave year it was allocated in.
+                years = [y for y in (legacy_year(a.get("year")) for a in alloc_by_type[name.lower()]) if y]
+                vf = leave_year(min(years), start_month)[1] if years else None
+            if vf is None:
+                q.add("NO_VALID_FROM", "leave_type", lid, tid); skipped += 1
+                continue
+            accepted.append((lt, name, kind, vf))
+        codes = unique_codes([text(lt.get("code")) or name for lt, name, _k, _v in accepted], 32)
+        types = [{"id": det_id(tid, "leave_type", lt.get("id")), "tenant_id": tid, "code": code, "name": name,
+                  "is_paid": kind == "paid", "unit": "DAYS", "allow_half_day": bool(truthy(lt.get("allow_half_day"), False)),
+                  "valid_from": vf, "valid_to": to_date(lt.get("validity_to")),
+                  "is_active": (text(lt.get("status")) or "active").lower() == "active", **audit}
+                 for (lt, name, kind, vf), code in zip(accepted, codes)]
+        type_ids = write_types(cur, tid, types) if types else {}
+        by_name, pol_by_type, pol_rows, elig = {}, {}, [], []
+        for (lt, name, _k, vf), code in zip(accepted, codes):
+            lid = lt.get("id")
+            type_id = type_ids[code]
+            by_name[name.lower()] = type_id
+            if text(lt.get("code")):
+                by_name.setdefault(text(lt.get("code")).lower(), type_id)
+            freq = (text(lt.get("accrual_frequency")) or "").lower() or None
+            if freq not in (None, "monthly", "yearly"):
+                q.add("ACCRUAL_FREQUENCY_UNMAPPED", "leave_type", lid, tid, value=freq, note="loaded as none")
+                freq = None
+            reset = text(lt.get("reset_frequency"))
+            reset = {"yearly": "yearly", "monthly": "monthly", "quarterly": "quarterly",
+                     "halfyearly": "halfYearly", "half_yearly": "halfYearly"}.get((reset or "").lower())
+            units = to_decimal(lt.get("accrual_units"))
+            # annual_days has no Payroll column (entitlement was typed per employee): the accrual
+            # it implies, else the entitlement most of its allocations carry, else 0.
+            accrual_on = bool(truthy(lt.get("accrual_is_enabled"), False))
+            if accrual_on and units is not None and freq:
+                annual = to_decimal(units * (12 if freq == "monthly" else 1))
+            else:
+                common = Counter(_DAYS(a.get("annual_days")) for a in alloc_by_type[name.lower()]
+                                 if _DAYS(a.get("annual_days")) is not None).most_common()
+                annual = max(v for v, n in common if n == common[0][1]) if common else _DAYS(0)
+            # Exceed balance: disabled meant the balance could not go below zero -> yearEndLimit 0.
+            mode = text(lt.get("exceed_balance_mode"))
+            if not truthy(lt.get("exceed_balance_is_enabled"), False) or mode == "yearEndLimit":
+                mode, limit = "yearEndLimit", _DAYS(0)
+            elif mode in ("noLimit", "markAsLOP"):
+                limit = None
+            else:
+                q.add("EXCEED_MODE_UNMAPPED", "leave_type", lid, tid, value=mode, note="loaded as noLimit")
+                mode, limit = "noLimit", None
+            genders = {(text(g) or "").upper() for g in elig_rows["gender"].get(str(lid), []) if text(g)}
+            max_app = to_decimal(lt.get("max_leave_per_application"))
+            pid = det_id(tid, "leave_type.policy", lid)
+            pol_by_type[type_id] = pid
+            pol_rows.append(policy_row(
+                tid, pid, type_id, annual, vf, run_start,
+                accrual_enabled=accrual_on, accrual_frequency=freq, accrual_units=units,
+                reset_enabled=truthy(lt.get("reset_is_enabled")), reset_frequency=reset,
+                carry_forward_enabled=truthy(lt.get("carry_forward_is_enabled")),
+                carry_forward_cap=to_decimal(lt.get("carry_forward_units")),
+                past_booking_limit_days=int_or_none(lt.get("past_booking_limit_days")),
+                future_booking_limit_days=int_or_none(lt.get("future_booking_limit_days")),
+                include_weekend=truthy(lt.get("include_weekend_is_enabled")),
+                include_holiday=truthy(lt.get("include_holiday_is_enabled")),
+                exceed_balance_mode=mode, exceed_balance_limit_days=limit,
+                pro_rate_enabled=truthy(lt.get("pro_rate_is_enabled")),
+                max_days_per_application=max_app if max_app is not None and max_app > 0 else None,
+                gender=next(iter(genders)) if len(genders) == 1 else None))
+            for dim, key, wl in (("department", "payroll.department.uuid", False),
+                                 ("designation", "payroll.designation.uuid", False),
+                                 ("work_location", "payroll.workLocations", True)):
+                for ref in elig_rows[dim].get(str(lid), []):
+                    value = idmap.get(key, wl_by_uuid.get(str(ref)) if wl else ref)
+                    if value is None:
+                        q.add(f"{dim.upper()}_NOT_FOUND", f"leave_type_{dim}s", lid, tid); skipped += 1
+                        continue
+                    elig.append({"id": det_id(tid, f"leave_policy_eligibility.{dim}", f"{lid}:{ref}"),
+                                 "tenant_id": tid, "policy_id": pid, "dimension": dim, "value_id": value, **audit})
+        db.upsert(cur, "core.leave_policy", pol_rows)
+        # On the deterministic id: every other column is the natural key, so a conflict on that key
+        # would leave nothing to compare and touch updated_at on every run.
+        elig = list({e["id"]: e for e in elig}.values())  # a value listed twice in legacy
+        db.upsert(cur, "core.leave_policy_eligibility", elig)
+        done += len(types) + len(pol_rows) + len(elig)
 
-            def_id = appr_def_by_tenant.get(tid)
-            if def_id:
-                appr_inst_batch.append((
-                    appr_inst_uuid, tid, "LEAVE", def_id,
-                    "core.leave_request", req_uuid, emp_uuid,
-                    final_status, decided_at
-                ))
-                # Step 0: Reporting Manager
-                step0_id = det_uuid(f"{appr_inst_uuid}:step:0")
-                appr_step_batch.append((
-                    step0_id, tid, appr_inst_uuid, 0,
-                    "REPORTING_MANAGER", None, mgr_decision,
-                    req.get("reporting_manager_comment"), None, decided_at
-                ))
-                # Step 1: HR Role
-                step1_id = det_uuid(f"{appr_inst_uuid}:step:1")
-                appr_step_batch.append((
-                    step1_id, tid, appr_inst_uuid, 1,
-                    "ROLE", None, hr_decision,
-                    req.get("hr_comment"), None, decided_at
-                ))
+        # Allocations
+        allocs, alloc_key, legacy_alloc = [], {}, {}
+        for a in sorted(allocs_in, key=lambda x: int(x.get("id") or 0)):
+            aid_legacy = a.get("id")
+            eid = pay_emp(a.get("employee_id"))
+            type_id = by_name.get((text(a.get("leave_type")) or "").lower())
+            year = legacy_year(a.get("year"))
+            if eid not in loaded:
+                q.add("EMPLOYEE_NOT_LOADED", "employee_leave_allocation", aid_legacy, tid); skipped += 1
+                continue
+            if type_id is None:
+                q.add("LEAVE_TYPE_NOT_FOUND", "employee_leave_allocation", aid_legacy, tid); skipped += 1
+                continue
+            if year is None:
+                q.add("NO_YEAR", "employee_leave_allocation", aid_legacy, tid); skipped += 1
+                continue
+            entitlement = _DAYS(a.get("annual_days"))
+            if entitlement is None:
+                q.add("NO_ANNUAL_DAYS", "employee_leave_allocation", aid_legacy, tid); skipped += 1
+                continue
+            key = (eid, type_id, year)
+            if key in alloc_key:
+                q.add("DUPLICATE_ALLOCATION", "employee_leave_allocation", aid_legacy, tid); skipped += 1
+                continue
+            label, ys, ye = leave_year(year, start_month)
+            new_id = det_id(tid, "employee_leave_allocation", aid_legacy)
+            alloc_key[key] = new_id
+            legacy_alloc[str(aid_legacy)] = new_id
+            allocs.append({"id": new_id, "tenant_id": tid, "employee_id": eid, "leave_type_id": type_id,
+                           "leave_year": label, "year_start_date": ys, "year_end_date": ye,
+                           "entitlement_days": entitlement,
+                           "carried_forward_days": _DAYS(a.get("carried_forward_days")) or _DAYS(0),
+                           "carry_forward_expires_on": to_date(a.get("expiration_date")),
+                           "policy_id": pol_by_type[type_id], "created_at": _ts(a.get("created_at"), run_start),
+                           **audit})
+        db.upsert(cur, "core.leave_allocation", allocs, conflict=("tenant_id", "employee_id", "leave_type_id",
+                                                                  "leave_year"), keep_on_update=("id",))
+        if allocs:
+            # A row already stored under the same natural key keeps its id; point at that one.
+            cur.execute("SELECT employee_id, leave_type_id, leave_year, id FROM core.leave_allocation "
+                        "WHERE tenant_id = %s", (tid,))
+            stored = {(str(e), str(lt), y): str(i) for e, lt, y, i in cur.fetchall()}
+            real = {a["id"]: stored[(a["employee_id"], a["leave_type_id"], a["leave_year"])] for a in allocs}
+            alloc_key = {k: real[v] for k, v in alloc_key.items()}
+            legacy_alloc = {k: real[v] for k, v in legacy_alloc.items()}
+        done += len(allocs)
 
-            req_batch.append((
-                req_uuid, tid, emp_uuid, lt_uuid,
-                from_date, to_date, is_half, half_per,
-                working_days, req.get("reason"), final_status,
-                appr_inst_uuid if def_id else None,
-                False, decided_at
-            ))
+        alloc_owner = {v: k[0] for k, v in alloc_key.items()}
 
-        if appr_inst_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO core.approval_instance
-                    (id, tenant_id, flow_type, definition_id, subject_table, subject_id,
-                     subject_employee_id, status, completed_at, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO UPDATE SET
-                    status = EXCLUDED.status, completed_at = EXCLUDED.completed_at
-                """, appr_inst_batch, page_size=100)
-            conn.commit()
-            total += len(appr_inst_batch)
+        # Consumption (allocation.consumed_days is the sum of these rows in legacy:
+        # EmployeeLeaveAllocationServiceImpl.java:494-505, so it is not loaded separately).
+        cons = []
+        for c in p_cons.get(tid, []):
+            cid = c.get("id")
+            eid = pay_emp(c.get("employee_id"))
+            if eid not in loaded:
+                q.add("EMPLOYEE_NOT_LOADED", "employee_leave_balance_consumption", cid, tid); skipped += 1
+                continue
+            alloc = legacy_alloc.get(str(c.get("allocation_id")))
+            if alloc is not None and alloc_owner.get(alloc) != eid:
+                alloc = None
+            if alloc is None:
+                type_id = by_name.get((text(c.get("leave_type")) or "").lower())
+                alloc = alloc_key.get((eid, type_id, legacy_year(c.get("year"))))
+            if alloc is None:
+                q.add("ALLOCATION_NOT_FOUND", "employee_leave_balance_consumption", cid, tid); skipped += 1
+                continue
+            days = _DAYS(c.get("consumed_days"))
+            if not days or days <= 0:
+                q.add("ZERO_DAYS", "employee_leave_balance_consumption", cid, tid,
+                      note="loss-of-pay only row; LOP history comes from pay runs (W-67 R4)"); skipped += 1
+                continue
+            period = period_of(c.get("leave_month"))
+            if period is None:
+                q.add("BAD_LEAVE_MONTH", "employee_leave_balance_consumption", cid, tid); skipped += 1
+                continue
+            y, m = (int(x) for x in period.split("-"))
+            cons.append({"id": det_id(tid, "employee_leave_balance_consumption", cid), "tenant_id": tid,
+                         "employee_id": eid, "allocation_id": alloc, "consumed_days": days,
+                         "consumed_on": date(y, m, 1), "period": period, "reason": text(c.get("reason"), 500),
+                         "created_at": _ts(c.get("created_at"), run_start), **audit})
+        db.upsert(cur, "core.leave_consumption", cons)
+        done += len(cons)
 
-        if appr_step_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO core.approval_step
-                    (id, tenant_id, instance_id, step_index, approver_kind, assignee_employee_id,
-                     decision, comment, approved_amount, decided_at, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO UPDATE SET
-                    decision = EXCLUDED.decision, comment = EXCLUDED.comment, decided_at = EXCLUDED.decided_at
-                """, appr_step_batch, page_size=200)
-            conn.commit()
-            total += len(appr_step_batch)
+        # Holidays: tenant-wide ones in the default calendar; location-limited ones in a calendar
+        # per location that also holds the tenant-wide ones.
+        general, per_loc = [], defaultdict(list)
+        cur.execute("SELECT id, name FROM core.work_location WHERE tenant_id = %s", (tid,))
+        loc_names = {str(i): n for i, n in cur.fetchall()}
+        for h in p_hol.get(org, []):
+            hid = h.get("id")
+            name, frm, to = text(h.get("name"), 128), to_date(h.get("from_date")), to_date(h.get("to_date"))
+            if not truthy(h.get("status"), True):
+                q.add("HOLIDAY_INACTIVE", "holidays", hid, tid); skipped += 1
+                continue
+            if not name or frm is None or to is None or to < frm:
+                q.add("NO_NAME" if not name else "BAD_DATES", "holidays", hid, tid); skipped += 1
+                continue
+            refs = [r for r in hol_locs.get(str(hid), []) if r]
+            locs = []
+            for ref in refs:
+                legacy_id = wl_by_uuid.get(ref) or wl_by_name.get((org, ref.lower()))
+                loc = idmap.get("payroll.workLocations", legacy_id)
+                if loc in loc_names:
+                    locs.append(loc)
+            if refs and len(locs) != len(refs):
+                q.add("LOCATION_NOT_FOUND", "holiday_locations", hid, tid); skipped += 1
+                continue
+            row = (hid, name, frm, to, text(h.get("description"), 500), bool(truthy(h.get("is_restricted_holiday"), False)))
+            if locs:
+                for loc in locs:
+                    per_loc[loc].append(row)
+            else:
+                general.append(row)
+        if general or per_loc:
+            default_cal = ensure_default_calendar(cur, tid)
+            cals, links, rows = [], [], []
 
-        if req_batch:
-            execute_batch(cur,
-                """
-                INSERT INTO core.leave_request
-                    (id, tenant_id, employee_id, leave_type_id, from_date, to_date,
-                     is_half_day, half_day_period, working_days, reason, status,
-                     approval_instance_id, on_behalf, decided_at, created_by, updated_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'system', 'system')
-                ON CONFLICT (id) DO UPDATE SET
-                    status = EXCLUDED.status, working_days = EXCLUDED.working_days, decided_at = EXCLUDED.decided_at
-                """, req_batch, page_size=100)
-            conn.commit()
-            total += len(req_batch)
+            def put(cal, hs, suffix):
+                for hid, name, frm, to, desc, restricted in hs:
+                    rows.append({"id": det_id(tid, "holidays", f"{hid}{suffix}"), "tenant_id": tid,
+                                 "calendar_id": cal, "name": name, "from_date": frm, "to_date": to,
+                                 "is_restricted": restricted, "description": desc, **audit})
+            put(default_cal, general, "")
+            for loc in sorted(per_loc):
+                cal = det_id(tid, "holiday_calendar.location", loc)
+                cals.append({"id": cal, "tenant_id": tid, "name": f"{loc_names[loc]} holidays"[:128],
+                             "is_default": False, **audit})
+                links.append({"id": det_id(tid, "holiday_calendar_location", loc), "tenant_id": tid,
+                              "calendar_id": cal, "work_location_id": loc, **audit})
+                put(cal, general + per_loc[loc], f"@{loc}")
+            db.upsert(cur, "core.holiday_calendar", cals)
+            db.upsert(cur, "core.holiday_calendar_location", links, conflict=("tenant_id", "work_location_id"),
+                      keep_on_update=("id",))
+            db.upsert(cur, "core.holiday", rows)
+            done += len(cals) + len(links) + len(rows)
+        return StepResult(done, skipped)
 
-        logger.info(f"✓ {len(req_batch)} leave requests with approval audit steps inserted ({req_skip} skipped).")
+    # ------------------------------------------------------------ every tenant: attendance preferences
 
-        # ── Ledger: complete ──────────────────────────────────────────────────
-        cur.execute(
-            """
-            UPDATE core.migration_ledger
-            SET records_processed = %s, status = %s, completed_at = %s
-            WHERE id = %s
-            """,
-            (total, "DONE", datetime.now(timezone.utc), ledger_id)
-        )
-        conn.commit()
-        logger.info(f"=== LEAVE & HOLIDAY LOAD COMPLETE — {total} total records ===")
+    def attendance_pref(cur, t: Tenant) -> StepResult:
+        tid = t.tenant_id
+        rows = sorted(p_pref.get(t.legacy_org_id, []), key=lambda x: int(x.get("id") or 0))
+        if not rows:
+            return StepResult()
+        skipped = 0
+        for extra in rows[1:]:
+            q.add("SECOND_ATTENDANCE_PREFERENCE", "attendance_preferences", extra.get("id"), tid); skipped += 1
+        p = rows[0]
+        full, half = hours_of(p.get("full_day_minimum_hours")), hours_of(p.get("half_day_minimum_hours"))
+        if full is None or half is None or not (0 < half < full <= 24):
+            q.add("MINIMUM_HOURS_INVALID", "attendance_preferences", p.get("id"), tid)
+            return StepResult(0, skipped + 1)
+        db.upsert(cur, "hrms.attendance_preference", [{
+            "id": det_id(tid, "attendance_preferences", p.get("id")), "tenant_id": tid,
+            "hours_calculation": "FIRST_IN_LAST_OUT" if truthy(p.get("calculation_on_firstin_lastout"), False)
+            else "EVERY_SESSION",
+            "full_day_minimum_hours": full, "half_day_minimum_hours": half,
+            "regularization_window_days": int_or_none(p.get("request_days_buffer")),
+            "max_regularizations_per_month": int_or_none(p.get("maximum_requests_allowed")),
+            "allow_regularization_without_session": bool(truthy(p.get("can_create_new_entries"), True)),
+            **audit}], conflict=("tenant_id",), keep_on_update=("id",))
+        cur.execute("SELECT holidays_payable, weekends_payable FROM core.lop_policy WHERE tenant_id = %s "
+                    "AND effective_from = %s", (tid, SINCE_ALWAYS))
+        lop = cur.fetchone()
+        wanted = (truthy(p.get("can_include_holidays_for_pay")), truthy(p.get("can_include_weekends_for_pay")))
+        if lop is None or tuple(lop) != wanted:
+            q.add("LOP_POLICY_KEPT_FROM_PAY_SCHEDULE", "attendance_preferences", p.get("id"), tid,
+                  note="core.lop_policy is load_org's (paySchedule); legacy read neither flag pair")
+        return StepResult(1, skipped)
 
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Load failed: {e}", exc_info=True)
-        cur.execute(
-            """
-            UPDATE core.migration_ledger
-            SET status = %s, error_message = %s, completed_at = %s
-            WHERE id = %s
-            """,
-            ("FAILED", str(e), datetime.now(timezone.utc), ledger_id)
-        )
-        conn.commit()
-        raise
+    def work(cur, t: Tenant) -> StepResult:
+        tid = t.tenant_id
+        cur.execute("SELECT leave_year_start_month FROM core.tenant WHERE tenant_id = %s", (tid,))
+        row = cur.fetchone()
+        start_month = int(row[0]) if row and row[0] and 1 <= int(row[0]) <= 12 else 4
+        loaded = _loaded_employees(cur, tid)
+        res = founder_leave(cur, t, start_month, loaded) if t.founder else payroll_leave(cur, t, start_month, loaded)
+        pref = attendance_pref(cur, t)
+        return StepResult(res.processed + pref.processed, res.skipped + pref.skipped)
+
+    own = conn is None
+    conn = conn or db.connect()
+    try:
+        summary = run_per_tenant(conn, STEP, tenants.all(), staging.checksum(INPUTS), work)
     finally:
-        cur.close()
-        conn.close()
+        if own:
+            conn.close()
+    q.write()
+    return summary.ok
+
 
 if __name__ == "__main__":
-    run_loader()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    sys.exit(0 if run() else 1)

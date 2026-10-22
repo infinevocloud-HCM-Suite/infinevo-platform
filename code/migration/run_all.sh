@@ -1,76 +1,60 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# run_all.sh — Complete Data Migration Pipeline Execution (W-68, W-69, W-70, W-71)
+# run_all.sh — the whole legacy data migration, in W-68 §3 order (W-68 to W-70).
 #
-# Executes the migration stream end-to-end:
-#   1. Extract HRMS legacy tables (22 tables)
-#   2. Extract Payroll legacy tables (11 tables)
-#   3. Merge 3 cohorts into unified employees
-#   4. Load PostgreSQL core schema & statutory profile
-#   5. Load historical payruns & employee payrun lines
-#   6. Load leave calendar, policies, allocations, and requests
-#   7. Load employee documents and POI proofs into core.document
-#   8. Provision users in Keycloak & link user accounts
-#   9. Generate LOP mismatch audit log (W-70)
-#  10. Run financial reconciliation audit (0.00 INR delta check)
+#   extract   HRMS and Payroll MySQL -> staging/*.json (and staging/organisations.md)
+#   transform merge employees across the two systems -> stg_merged_employees.json, id_map.json
+#   load      tenant, org, employees, users, salary, statutory, payruns, tax, leave,
+#             timesheets, attendance, claims, notifications, documents (W-69)
+#   reconcile LOP mismatch log and financial reconciliation (W-70)
 #
-# Fails fast on any error (set -euo pipefail).
+# Every loader ledgers itself in core.migration_ledger per tenant and skips a tenant whose
+# input is unchanged, so a re-run after a failure resumes rather than repeats.
+# Stops at the first failed step (set -euo pipefail); a loader exits 1 if any tenant failed.
+# Configuration is environment only (config/config.example.yaml lists the variables).
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
+export PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 
 echo "================================================================="
-echo " Infinevo Data Migration Pipeline — Full Run"
-echo " Started at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-echo " Base Directory: ${SCRIPT_DIR}"
+echo " Infinevo data migration - started $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo "================================================================="
 
+STEP_NO=0
 run_step() {
-  local step_num="$1"
-  local step_name="$2"
-  local script_path="$3"
-
+  local label="$1" module="$2"
+  STEP_NO=$((STEP_NO + 1))
   echo ""
-  echo ">>> [Step ${step_num}] ${step_name}..."
-  local start_time
-  start_time="$(date +%s)"
-
-  "$PYTHON_BIN" "${SCRIPT_DIR}/${script_path}"
-
-  local end_time
-  end_time="$(date +%s)"
-  local duration=$(( end_time - start_time ))
-  echo ">>> [Step ${step_num}] COMPLETED in ${duration}s"
+  echo ">>> [${STEP_NO}] ${label} (${module})"
+  local start; start="$(date +%s)"
+  "$PYTHON_BIN" -m "$module"
+  echo ">>> [${STEP_NO}] done in $(( $(date +%s) - start ))s"
 }
 
-# 1. Extractors
-run_step 1 "Extracting Legacy HRMS MySQL Tables" "extractors/extract_hrms.py"
-run_step 2 "Extracting Legacy Payroll MySQL Tables" "extractors/extract_payroll.py"
-
-# 2. Transformer
-run_step 3 "Merging Employees across 3 Cohorts" "transformers/merge_employees.py"
-
-# 3. Loaders
-run_step 4 "Loading PostgreSQL Core Employees & Statutory Profiles" "loaders/load_postgres.py"
-run_step 5 "Loading Historical Payruns & Employee Payruns" "loaders/load_payruns.py"
-run_step 6 "Loading Salary, CTC Structures & Components" "loaders/load_salary.py"
-run_step 7 "Loading Statutory EPF, ESI & PT Overrides" "loaders/load_statutory.py"
-run_step 8 "Loading Income Tax Declarations & TDS" "loaders/load_tax.py"
-run_step 9 "Loading Leave Types, Policies, Allocations & Requests" "loaders/load_leave.py"
-run_step 10 "Loading Attendance & Clock Sessions" "loaders/load_attendance.py"
-run_step 11 "Loading Projects, Tasks & Timesheets" "loaders/load_timesheets.py"
-run_step 12 "Loading Claims & Deductions" "loaders/load_claims.py"
-run_step 13 "Loading Employee Documents & POI Proofs" "loaders/load_documents.py"
-run_step 14 "Provisioning Keycloak Users & Linking User Accounts" "loaders/load_keycloak.py"
-
-# 4. Reconciliation & Audit
-run_step 15 "Generating LOP Mismatch Audit Log" "reconciliation/lop_mismatch_generator.py"
-run_step 16 "Running Financial Reconciliation (0.00 INR Delta Proof)" "reconciliation/financial_reconciliation.py"
+run_step "Extract HRMS"                         extractors.extract_hrms
+run_step "Extract Payroll"                      extractors.extract_payroll
+run_step "Merge employees (3 cohorts)"          transformers.merge_employees
+run_step "Tenants and subscriptions"            loaders.load_tenant
+run_step "Departments, designations, locations, pay schedule, tax deductor" loaders.load_org
+run_step "Employees and details, reporting lines" loaders.load_employees
+run_step "Users, roles, invitations"            loaders.load_users
+run_step "Salary components and CTC"            loaders.load_salary
+run_step "EPF, ESI, professional tax"           loaders.load_statutory
+run_step "Pay runs and prior payroll"           loaders.load_payruns
+run_step "Tax declarations, proofs, TDS"        loaders.load_tax
+run_step "Leave, holidays"                      loaders.load_leave
+run_step "Projects, tasks, timesheets"          loaders.load_timesheets
+run_step "Attendance, clock sessions, overtime" loaders.load_attendance
+run_step "Claims and deductions"                loaders.load_claims
+run_step "Notifications"                        loaders.load_notifications
+run_step "Documents (W-69)"                     loaders.load_documents
+run_step "LOP mismatch log (W-70)"              reconciliation.lop_mismatch_generator
+run_step "Financial reconciliation (W-70)"      reconciliation.financial_reconciliation
 
 echo ""
 echo "================================================================="
-echo " Data Migration Pipeline COMPLETED SUCCESSFULLY"
-echo " Finished at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+echo " Data migration completed $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo "================================================================="

@@ -1,45 +1,44 @@
-# Migration Configuration Template (NO SECRETS)
-# Secrets must be injected via environment variables or fetched from Azure Key Vault (W-56).
+# Migration configuration template (W-68 §3). NO SECRETS, NO DEFAULTS.
+# Every value comes from the environment (or Azure Key Vault in W-71). The scripts read
+# the variables directly; a missing one stops the run with exit code 2 naming it.
+# Only ports may be omitted (3306 for MySQL, 5432 for Postgres).
 
 source_databases:
-  # Legacy Production Databases on 64.227.128.119 (Frozen 2026-09-13 snapshot)
+  # Legacy frozen databases, read-only session.
   hrms:
-    host: "${LEGACY_HRMS_DB_HOST:-64.227.128.119}"
-    port: 3306
-    database: "${LEGACY_HRMS_DB_NAME:-hrmstestdb}"
-    user: "${LEGACY_HRMS_DB_USER:-ro_migration_user}"
+    host: "${LEGACY_HRMS_DB_HOST}"
+    port: "${LEGACY_HRMS_DB_PORT}"
+    database: "${LEGACY_HRMS_DB_NAME}"
+    user: "${LEGACY_HRMS_DB_USER}"
     password: "${LEGACY_HRMS_DB_PASSWORD}"
     charset: "utf8mb4"
     read_only: true
   payroll:
-    host: "${LEGACY_PAYROLL_DB_HOST:-64.227.128.119}"
-    port: 3306
-    database: "${LEGACY_PAYROLL_DB_NAME:-payroll_test_db}"
-    user: "${LEGACY_PAYROLL_DB_USER:-ro_migration_user}"
+    host: "${LEGACY_PAYROLL_DB_HOST}"
+    port: "${LEGACY_PAYROLL_DB_PORT}"
+    database: "${LEGACY_PAYROLL_DB_NAME}"
+    user: "${LEGACY_PAYROLL_DB_USER}"
     password: "${LEGACY_PAYROLL_DB_PASSWORD}"
     charset: "utf8mb4"
     read_only: true
 
 target_database:
-  # Local Docker: localhost:5432 / Cloud: psql-infinevo-{env}.postgres.database.azure.com
-  host: "${TARGET_DB_HOST:-localhost}"
-  port: 5432
-  database: "${TARGET_DB_NAME:-infinevo}"
-  user: "${TARGET_DB_USER:-migration_user}"
-  password: "${TARGET_DB_PASSWORD:-local_migration_pw}"
-  sslmode: "${TARGET_DB_SSLMODE:-prefer}"
+  host: "${TARGET_DB_HOST}"
+  port: "${TARGET_DB_PORT}"
+  database: "${TARGET_DB_NAME}"
+  user: "${TARGET_DB_USER}"
+  password: "${TARGET_DB_PASSWORD}"
+  sslmode: "${TARGET_DB_SSLMODE}"
 
 target_keycloak:
-  # Local Docker: http://localhost:8081 / Cloud: ca-infinevo-{env}-keycloak
-  base_url: "${KEYCLOAK_BASE_URL:-http://localhost:8081}"
-  realm: "infinevo"
-  client_id: "${KEYCLOAK_CLIENT_ID:-infinevo-web}"
-  admin_username: "${KEYCLOAK_ADMIN_USER:-admin}"
-  admin_password: "${KEYCLOAK_ADMIN_PASSWORD:-local_keycloak_pw}"
+  base_url: "${KEYCLOAK_URL}"
+  realm: "${KEYCLOAK_REALM}"
+  admin_username: "${KEYCLOAK_ADMIN_USER}"
+  admin_password: "${KEYCLOAK_ADMIN_PW}"
 
 staging:
-  storage_type: "duckdb" # or "parquet"
-  staging_db_path: "code/migration/staging/staging.duckdb"
+  # JSON files; MIGRATION_STAGING_DIR overrides code/migration/staging (gitignored).
+  directory: "${MIGRATION_STAGING_DIR}"
 
 batch:
   chunk_size: 500

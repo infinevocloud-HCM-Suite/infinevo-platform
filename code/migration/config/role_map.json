@@ -1,0 +1,26 @@
+{
+  "_comment": "Legacy role name (trimmed, lower-case) -> target core.role.code. Target codes are the seven system roles core.seed_system_roles creates for every tenant (V158__platform_tenant_role_scope.sql:58-67). platform-admin is never granted from inside a tenant (InvitationServiceImpl.java:51-52), so no legacy role maps to it. A legacy name not listed here sends the grant to quarantine as ROLE_UNMAPPED; add the name here and re-run.",
+  "hrms": {
+    "_source": "HRMS role.role_name, seeded by RoleServiceImpl.java:178-223; read in ActionServiceImpl.java:304-309",
+    "admin": "tenant-admin",
+    "hr": "hr",
+    "reporting manager": "manager",
+    "manager": "manager",
+    "supervisor": "manager",
+    "user": "employee",
+    "employee": "employee"
+  },
+  "payroll": {
+    "_source": "Payroll organizationRole.roleName / organizationUserRoleMapping.roleName / userInvitations.userRole. 'admin' is created per organisation (OrganizationServiceImpl.java:209-214), 'Super Admin' is the owner's invitation (UserInvitationServiceImpl.java:440), HR is looked up by name (CompanyUserServiceImpl.java:848), ADMIN / HR / payroll_admin are the realm roles the controllers check (hasRole)",
+    "admin": "tenant-admin",
+    "super admin": "tenant-admin",
+    "superadmin": "tenant-admin",
+    "hr": "hr",
+    "payroll_admin": "payroll-officer",
+    "payroll admin": "payroll-officer",
+    "payroll officer": "payroll-officer",
+    "manager": "manager",
+    "finance": "finance",
+    "employee": "employee"
+  }
+}

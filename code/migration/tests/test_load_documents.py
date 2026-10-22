@@ -1,228 +1,252 @@
-"""
-Unit Tests for W-69 Document Migration Loader (Task 2)
-Verifies:
-  1. Valid HRMS & POI documents upload to documents/{tenantId}/{employeeId}/{kind}/{docId}
-  2. size_bytes and checksum_sha256 calculation and read-back verification
-  3. HTTP 404 Cloudinary download failures land in quarantine
-  4. Files > 10 MB limit land in quarantine and are not uploaded
-  5. Idempotency: already migrated documents are skipped on second run
-"""
-
-import os
-import sys
-import unittest
+"""W-69 load_documents against a real migrated Postgres, with Cloudinary and Azure Blob faked
+(no network). The fake HTTP layer serves each fixture URL; the fake container keeps blobs in
+memory and reads them back the way BlobClient.download_blob().readall() does."""
 import hashlib
+import json
+import threading
 import uuid
-from unittest.mock import MagicMock, patch
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+import pytest
 
-from loaders.load_documents import (
-    process_single_document,
-    BLOB_CONTAINER,
-    MAX_FILE_SIZE_BYTES,
-    get_file_extension
-)
+from common.ids import det_id
+from tests.fixtures import CUSTOMER_TENANT, FOUNDER_TENANT
+from tests.pipeline import BASE, run_step, run_steps
+from tests.test_load_claims import _setup as claims_setup
+
+STEP = "loaders.load_documents"
+MB = 1024 * 1024
+PNG = b"\x89PNG\r\n\x1a\n"
+JPG = b"\xff\xd8\xff\xe0"
 
 
-class MockBlobClient:
-    def __init__(self, blob_path, storage_dict):
-        self.blob_path = blob_path
-        self.storage_dict = storage_dict
+def body(url: str) -> bytes:
+    name = url.rsplit("/", 1)[1]
+    if name == "huge.pdf":
+        return b"%PDF-" + b"0" * (11 * MB)
+    if name == "fake.pdf":
+        return b"hello, I am not a PDF"
+    prefix = {"pdf": b"%PDF-1.4 ", "png": PNG, "jpg": JPG}[name.rsplit(".", 1)[1]]
+    return prefix + url.encode()
 
-    def upload_blob(self, content, overwrite=True, content_settings=None):
-        self.storage_dict[self.blob_path] = content
+
+class FakeResponse:
+    def __init__(self, status: int, content: bytes = b""):
+        self.status_code = status
+        self._content = content
+
+    def iter_content(self, chunk_size=65536):
+        for i in range(0, len(self._content), chunk_size):
+            yield self._content[i:i + chunk_size]
+
+    def close(self):
+        pass
+
+
+class FakeHttp:
+    """requests.get stand-in: photo.jpg is gone (404), offer.pdf fails once (503)."""
+
+    def __init__(self):
+        self.calls = []
+        self._lock = threading.Lock()
+
+    def get(self, url, timeout=None, stream=False):
+        assert timeout and stream
+        with self._lock:
+            self.calls.append(url)
+            first = self.calls.count(url) == 1
+        name = url.rsplit("/", 1)[1]
+        if name == "photo.jpg":
+            return FakeResponse(404)
+        if name == "offer.pdf" and first:
+            return FakeResponse(503)
+        return FakeResponse(200, body(url))
+
+
+class FakeBlob:
+    def __init__(self, store, path, corrupt):
+        self.store, self.path, self.corrupt = store, path, corrupt
+
+    def upload_blob(self, data, overwrite=False, content_settings=None):
+        assert overwrite
+        self.store[self.path] = (bytes(data), content_settings.content_type)
 
     def download_blob(self):
-        content = self.storage_dict.get(self.blob_path, b"")
-        mock_stream = MagicMock()
-        mock_stream.readall.return_value = content
-        return mock_stream
+        data = self.store[self.path][0]
+        data = data + b"!" if self.corrupt else data
+
+        class _Stream:
+            def readall(self_inner):
+                return data
+        return _Stream()
 
     def delete_blob(self):
-        if self.blob_path in self.storage_dict:
-            del self.storage_dict[self.blob_path]
+        self.store.pop(self.path, None)
 
 
-class MockContainerClient:
-    def __init__(self):
+class FakeContainer:
+    def __init__(self, corrupt=False):
         self.blobs = {}
+        self.corrupt = corrupt
 
-    def get_blob_client(self, blob_path):
-        return MockBlobClient(blob_path, self.blobs)
-
-
-class TestLoadDocuments(unittest.TestCase):
-    def setUp(self):
-        self.tenant_id = "11111111-1111-1111-1111-111111111111"
-        self.employee_id = "22222222-2222-2222-2222-222222222222"
-        self.doc_id = "33333333-3333-3333-3333-333333333333"
-        self.container_client = MockContainerClient()
-
-    def test_successful_document_upload_and_verification(self):
-        """Scenario 1 & 2: Valid document downloads, uploads to Blob, and verifies checksum/size."""
-        content = b"PDF-1.4 Mock valid document content for testing"
-        expected_sha = hashlib.sha256(content).hexdigest()
-        blob_path = f"{self.tenant_id}/{self.employee_id}/EMPLOYEE_DOCUMENT/{self.doc_id}"
-
-        doc_item = {
-            "source": "HRMS",
-            "legacy_id": 1,
-            "doc_id": self.doc_id,
-            "tenant_id": self.tenant_id,
-            "employee_id": self.employee_id,
-            "kind": "EMPLOYEE_DOCUMENT",
-            "file_name": "passport.pdf",
-            "content_type": "application/pdf",
-            "blob_path": blob_path,
-            "file_url": "https://res.cloudinary.com/dthv5gvff/image/upload/v1/passport.pdf"
-        }
-
-        with patch("loaders.load_documents.fetch_file_with_retry") as mock_fetch:
-            mock_fetch.return_value = (content, None)
-            ok, result, quarantine = process_single_document(
-                doc_item, self.container_client, existing_checksums={}, dry_run=False
-            )
-
-        self.assertTrue(ok)
-        self.assertIsNone(quarantine)
-        self.assertEqual(result["checksum_sha256"], expected_sha)
-        self.assertEqual(result["size_bytes"], len(content))
-        self.assertEqual(result["blob_container"], BLOB_CONTAINER)
-        self.assertEqual(result["blob_path"], blob_path)
-        self.assertIn(blob_path, self.container_client.blobs)
-        self.assertEqual(self.container_client.blobs[blob_path], content)
-
-    def test_http_404_lands_in_quarantine(self):
-        """Scenario 3: A 404 Cloudinary download error is quarantined, does not fail run."""
-        blob_path = f"{self.tenant_id}/{self.employee_id}/EMPLOYEE_DOCUMENT/{self.doc_id}"
-        doc_item = {
-            "source": "HRMS",
-            "legacy_id": 99,
-            "doc_id": self.doc_id,
-            "tenant_id": self.tenant_id,
-            "employee_id": self.employee_id,
-            "kind": "EMPLOYEE_DOCUMENT",
-            "file_name": "missing_doc.pdf",
-            "content_type": "application/pdf",
-            "blob_path": blob_path,
-            "file_url": "https://res.cloudinary.com/dthv5gvff/image/upload/v1/missing_doc.pdf"
-        }
-
-        with patch("loaders.load_documents.fetch_file_with_retry") as mock_fetch:
-            mock_fetch.return_value = (None, "HTTP 404 Not Found at legacy URL")
-            ok, result, quarantine = process_single_document(
-                doc_item, self.container_client, existing_checksums={}, dry_run=False
-            )
-
-        self.assertFalse(ok)
-        self.assertIsNone(result)
-        self.assertIsNotNone(quarantine)
-        self.assertEqual(quarantine["legacy_id"], 99)
-        self.assertIn("404", quarantine["reason"])
-        self.assertNotIn(blob_path, self.container_client.blobs)
-
-    def test_file_over_10mb_is_quarantined(self):
-        """Scenario 4: An 11 MB fixture is quarantined and not uploaded to Blob."""
-        # 11 MB
-        oversized_content = b"X" * (MAX_FILE_SIZE_BYTES + 1024 * 1024)
-        blob_path = f"{self.tenant_id}/{self.employee_id}/EMPLOYEE_DOCUMENT/{self.doc_id}"
-        doc_item = {
-            "source": "HRMS",
-            "legacy_id": 101,
-            "doc_id": self.doc_id,
-            "tenant_id": self.tenant_id,
-            "employee_id": self.employee_id,
-            "kind": "EMPLOYEE_DOCUMENT",
-            "file_name": "huge_scan.pdf",
-            "content_type": "application/pdf",
-            "blob_path": blob_path,
-            "file_url": "https://res.cloudinary.com/dthv5gvff/image/upload/v1/huge_scan.pdf"
-        }
-
-        with patch("loaders.load_documents.fetch_file_with_retry") as mock_fetch:
-            mock_fetch.return_value = (oversized_content, None)
-            ok, result, quarantine = process_single_document(
-                doc_item, self.container_client, existing_checksums={}, dry_run=False
-            )
-
-        self.assertFalse(ok)
-        self.assertIsNone(result)
-        self.assertIsNotNone(quarantine)
-        self.assertIn("10 MB limit", quarantine["reason"])
-        self.assertNotIn(blob_path, self.container_client.blobs)
-
-    def test_disallowed_extension_is_quarantined(self):
-        """Scenario: File extension outside pdf/jpg/jpeg/png/xlsx/csv is quarantined."""
-        blob_path = f"{self.tenant_id}/{self.employee_id}/EMPLOYEE_DOCUMENT/{self.doc_id}"
-        doc_item = {
-            "source": "HRMS",
-            "legacy_id": 102,
-            "doc_id": self.doc_id,
-            "tenant_id": self.tenant_id,
-            "employee_id": self.employee_id,
-            "kind": "EMPLOYEE_DOCUMENT",
-            "file_name": "script.exe",
-            "content_type": "application/x-msdownload",
-            "blob_path": blob_path,
-            "file_url": "https://res.cloudinary.com/dthv5gvff/image/upload/v1/script.exe"
-        }
-
-        ok, result, quarantine = process_single_document(
-            doc_item, self.container_client, existing_checksums={}, dry_run=False
-        )
-        self.assertFalse(ok)
-        self.assertIsNone(result)
-        self.assertIn("not in allowed list", quarantine["reason"])
-
-    def test_idempotent_skip_on_second_run(self):
-        """Scenario 5: Re-running skips documents that have already been verified in core.document."""
-        blob_path = f"{self.tenant_id}/{self.employee_id}/INVESTMENT_PROOF/{self.doc_id}"
-        existing_sha = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-
-        doc_item = {
-            "source": "POI",
-            "legacy_id": 50,
-            "doc_id": self.doc_id,
-            "tenant_id": self.tenant_id,
-            "employee_id": self.employee_id,
-            "kind": "INVESTMENT_PROOF",
-            "file_name": "rent_receipt.jpg",
-            "content_type": "image/jpeg",
-            "blob_path": blob_path,
-            "file_url": "https://res.cloudinary.com/dbsu0ghks/image/upload/v1/rent_receipt.jpg",
-            "existing_size": 24500
-        }
-
-        existing_checksums = {blob_path: existing_sha}
-
-        with patch("loaders.load_documents.fetch_file_with_retry") as mock_fetch:
-            ok, result, quarantine = process_single_document(
-                doc_item, self.container_client, existing_checksums=existing_checksums, dry_run=False
-            )
-            # Should NOT make any network call
-            mock_fetch.assert_not_called()
-
-        self.assertTrue(ok)
-        self.assertTrue(result["skipped_existing"])
-        self.assertEqual(result["checksum_sha256"], existing_sha)
-        self.assertIsNone(quarantine)
+    def get_blob_client(self, path):
+        return FakeBlob(self.blobs, path, self.corrupt)
 
 
-class TestRunLoaderStorageGuard(unittest.TestCase):
-    """A real run with no storage must stop, not write rows for files it never uploaded."""
+@pytest.fixture
+def storage(monkeypatch):
+    from loaders import load_documents
 
-    def test_real_run_without_storage_credentials_refuses(self):
-        from loaders import load_documents
-        env = {k: v for k, v in os.environ.items()
-               if k not in ("AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT_URL")}
-        with patch.dict(os.environ, env, clear=True):
-            with self.assertRaises(RuntimeError) as ctx:
-                load_documents.run_loader(dry_run=False, skip_db=False)
-        self.assertIn("refusing to write document rows", str(ctx.exception))
+    http, container = FakeHttp(), FakeContainer()
+    monkeypatch.setattr(load_documents.requests, "get", http.get)
+    monkeypatch.setattr(load_documents, "container_client", lambda: container)
+    monkeypatch.setattr(load_documents, "BACKOFF_SECONDS", 0)
+    return http, container
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _prepare(staging_dir, query):
+    """Organisation logo, then base + claims (with their masters), then the parents the
+    tax and leave steps would have loaded: one proof item (customer) and one leave request (founder)."""
+    orgs_path = staging_dir / "stg_payroll_organization.json"
+    orgs = json.loads(orgs_path.read_text(encoding="utf-8"))
+    for o in orgs:
+        if o["id"] == 201:
+            o["fileUrl"] = "https://res.cloudinary.com/demo/image/upload/v1700000000/logos/acme.png"
+            o["fileName"] = "acme.png"
+    orgs_path.write_text(json.dumps(orgs), encoding="utf-8")
+    claims_setup(staging_dir, query)          # runs the base steps and seeds component masters
+    run_step("loaders.load_claims")
+
+    c001 = query("SELECT id::text FROM core.employee WHERE employee_number = 'C001'")[0][0]
+    decl, proof = str(uuid.uuid4()), str(uuid.uuid4())
+    query("INSERT INTO payroll.employee_investment_declaration (id, tenant_id, employee_id, financial_year, tax_regime) "
+          "VALUES (%s, %s, %s, '2024-25', 'NEW')", (decl, CUSTOMER_TENANT, c001))
+    query("INSERT INTO payroll.employee_proof_of_investment (id, tenant_id, employee_id, declaration_id, financial_year) "
+          "VALUES (%s, %s, %s, %s, '2024-25')", (proof, CUSTOMER_TENANT, c001, decl))
+    query("INSERT INTO payroll.employee_proof_item (id, tenant_id, proof_id, source_kind, source_line_id, description, "
+          "declared_amount) VALUES (%s, %s, %s, 'HOUSE_RENT', %s, 'Rent', 1000)",
+          (det_id(CUSTOMER_TENANT, "employee_poi_item", 502), CUSTOMER_TENANT, proof, str(uuid.uuid4())))
+
+    e001 = query("SELECT id::text FROM core.employee WHERE employee_number = 'E001'")[0][0]
+    lt = str(uuid.uuid4())
+    query("INSERT INTO core.leave_type (id, tenant_id, code, name, is_paid, unit, allow_half_day, valid_from) "
+          "VALUES (%s, %s, 'LEGACY', 'Legacy', true, 'DAYS', false, '2020-01-01')", (lt, FOUNDER_TENANT))
+    query("INSERT INTO core.leave_request (id, tenant_id, employee_id, leave_type_id, from_date, to_date, working_days, "
+          "status) VALUES (%s, %s, %s, %s, '2024-06-10', '2024-06-10', 1, 'APPROVED')",
+          (det_id(FOUNDER_TENANT, "leave_requests", 1), FOUNDER_TENANT, e001, lt))
+
+
+def _quarantine(staging_dir):
+    return json.loads((staging_dir / "stg_quarantined_load_documents.json").read_text(encoding="utf-8"))
+
+
+def test_files_uploaded_verified_and_linked(legacy_fixture, query, storage):
+    http, container = storage
+    _prepare(legacy_fixture, query)
+    run_step(STEP)
+
+    docs = query("SELECT id::text, tenant_id::text, employee_id::text, kind, label, file_name, content_type, "
+                 "size_bytes, blob_container, blob_path, checksum_sha256 FROM core.document")
+    assert sorted(d[5] for d in docs) == sorted(["aadhar.pdf", "degree.png", "offer.pdf", "rent.jpg", "lic.pdf",
+                                                 "medical.pdf", "bill-1.pdf", "bill-4.png", "proof-11.pdf",
+                                                 "acme.png"])
+    assert len(container.blobs) == len(docs) == 10
+    for d in docs:
+        doc_id, tid, emp, kind, _, _, ctype, size, cont, path, sha = d
+        assert cont == "documents" and path == f"{tid}/{emp or 'tenant'}/{kind}/{doc_id}"
+        data, blob_type = container.blobs[path]
+        assert size == len(data) and sha == hashlib.sha256(data).hexdigest() and blob_type == ctype
+        assert "cloudinary" not in path and "http" not in d[5]          # no URL stored (Incident 3)
+    by_name = {d[5]: d for d in docs}
+    assert by_name["aadhar.pdf"][3:5] == ("EMPLOYEE_DOCUMENT", "ID_PROOF")
+    assert by_name["degree.png"][3:5] == ("EMPLOYEE_DOCUMENT", "CERTIFICATE")
+    assert by_name["offer.pdf"][3:5] == ("EMPLOYEE_DOCUMENT", "OFFER_LETTER")      # after one 503
+    assert by_name["degree.png"][6] == "image/png" and by_name["rent.jpg"][6] == "image/jpeg"
+    assert by_name["rent.jpg"][3] == "INVESTMENT_PROOF" and by_name["rent.jpg"][1] == FOUNDER_TENANT
+    assert by_name["proof-11.pdf"][3:5] == ("EMPLOYEE_DOCUMENT", "OTHER")
+    assert by_name["acme.png"][1:5] == (CUSTOMER_TENANT, None, "TENANT_LOGO", None)
+
+    # links the parent loaders left empty
+    assert query("SELECT c.description, d.file_name, d.kind FROM payroll.employee_reimbursement_request c "
+                 "JOIN core.document d ON d.id = c.document_id ORDER BY 1") == [
+        ("Claim 1", "bill-1.pdf", "REIMBURSEMENT_RECEIPT"), ("Claim 4", "bill-4.png", "REIMBURSEMENT_RECEIPT")]
+    assert query("SELECT d.file_name, d.employee_id = x.employee_id FROM payroll.employee_deduction x "
+                 "JOIN core.document d ON d.id = x.document_id") == [("proof-11.pdf", True)]
+    assert query("SELECT d.file_name, l.tenant_id::text FROM payroll.employee_proof_item_document l "
+                 "JOIN core.document d ON d.id = l.document_id") == [("lic.pdf", CUSTOMER_TENANT)]
+    assert query("SELECT d.file_name FROM core.leave_request_document l JOIN core.document d ON d.id = l.document_id") \
+        == [("medical.pdf",)]
+    assert query("SELECT d.file_name FROM core.tenant t JOIN core.document d ON d.id = t.logo_document_id") \
+        == [("acme.png",)]
+
+    q = _quarantine(legacy_fixture)
+    got = {(i["legacy_table"], i["legacy_id"]): i["reason"] for i in q}
+    assert got == {
+        ("employee_document", 4): "NOT_FOUND", ("employee_document", 5): "TOO_LARGE",
+        ("employee_document", 6): "TYPE_NOT_ALLOWED", ("employee_document", 7): "EMPLOYEE_NOT_MIGRATED",
+        ("employee_document", 8): "CONTENT_MISMATCH", ("employee_poi_document", 3): "EMPLOYEE_NOT_RESOLVED",
+        ("employee_poi_document", 1): "LINK_SKIPPED_PROOF_ITEM_NOT_LOADED", ("leave_documents", 2): "PARENT_NOT_LOADED",
+    }
+    text = json.dumps(q)
+    assert "://" not in text and ".pdf" not in text and "cloudinary" not in text   # ids and reasons only
+    assert not any("huge.pdf" in p or "run.exe" in p for p in container.blobs)
+    assert not any(u.endswith(("run.exe", "x.pdf", "pan.pdf")) for u in http.calls)  # refused before any GET
+
+    ledger = {r[0]: r[1:] for r in query("SELECT tenant_id::text, status, records_processed, records_skipped "
+                                         "FROM core.migration_ledger WHERE step_name = 'load_documents'")}
+    # founder: HRMS 4, 5, 6, 7, 8 and leave 2 skipped; the unlinked POI note is not a skip
+    assert ledger == {FOUNDER_TENANT: ("DONE", 7, 6), CUSTOMER_TENANT: ("DONE", 3, 0)}
+
+
+def test_second_run_downloads_nothing_and_changes_nothing(legacy_fixture, query, storage):
+    http, container = storage
+    _prepare(legacy_fixture, query)
+    run_step(STEP)
+    tables = ["core.document", "payroll.employee_reimbursement_request", "payroll.employee_deduction",
+              "core.leave_request_document", "core.tenant"]
+    snap = lambda: ({t: query(f"SELECT count(*), max(updated_at) FROM {t}")[0] for t in tables},  # noqa: E731
+                    query("SELECT count(*) FROM payroll.employee_proof_item_document")[0][0], dict(container.blobs))
+    before, calls = snap(), len(http.calls)
+    run_step(STEP)                                        # ledger: both tenants skipped
+    query("DELETE FROM core.migration_ledger WHERE step_name = 'load_documents'")
+    run_step(STEP)                                        # forced: rows hold checksums, nothing fetched
+    assert snap() == before
+    fetched_again = http.calls[calls:]
+    assert all(u.rsplit("/", 1)[1] in ("photo.jpg", "huge.pdf", "fake.pdf") for u in fetched_again)
+    assert query("SELECT count(*) FROM core.migration_ledger WHERE step_name = 'load_documents' "
+                 "AND status = 'DONE'")[0][0] == 2
+
+
+def test_checksum_mismatch_deletes_the_blob(legacy_fixture, query, storage, monkeypatch):
+    from loaders import load_documents
+
+    corrupt = FakeContainer(corrupt=True)
+    monkeypatch.setattr(load_documents, "container_client", lambda: corrupt)
+    run_steps(BASE)
+    run_step(STEP)
+    assert query("SELECT count(*) FROM core.document")[0][0] == 0
+    assert corrupt.blobs == {}
+    reasons = {i["reason"] for i in _quarantine(legacy_fixture)}
+    assert "CHECKSUM_MISMATCH" in reasons
+
+
+def test_storage_failure_fails_the_tenant_not_the_file(legacy_fixture, query, storage, monkeypatch):
+    from loaders import load_documents
+
+    class Down(FakeContainer):
+        def get_blob_client(self, path):
+            raise ConnectionError("storage unreachable")
+
+    monkeypatch.setattr(load_documents, "container_client", lambda: Down())
+    run_steps(BASE)
+    assert load_documents.run() is False
+    assert query("SELECT count(*) FROM core.document")[0][0] == 0
+    assert ("FAILED",) in query("SELECT status FROM core.migration_ledger WHERE step_name = 'load_documents'")
+
+
+def test_real_run_without_storage_credentials_refuses(staging_dir, monkeypatch):
+    from loaders import load_documents
+
+    monkeypatch.delenv("AZURE_STORAGE_CONNECTION_STRING", raising=False)
+    monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_URL", raising=False)
+    with pytest.raises(RuntimeError, match="refusing to write document rows"):
+        load_documents.run()

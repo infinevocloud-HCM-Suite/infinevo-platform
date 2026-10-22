@@ -1,258 +1,144 @@
-"""
-Loss-of-Pay (LOP) Mismatch Log Generator (W-70 Task 2)
-Computes variance between HRMS recorded leave requests and Payroll processed LOP deductions.
-Inserts discrepancies (where variance_days > 0) into core.lop_mismatch_log for Finance sign-off.
-- Uses deterministic uuid5 IDs for idempotency.
-- ON CONFLICT DO UPDATE preserves existing status (never resets APPROVED_BY_FINANCE).
-- Strictly uses Python Decimal (no floating point conversions).
-- Exports CSV to staging/lop_mismatch_<tenant>.csv for Finance review.
-"""
+"""W-70 Task 2 — loss-of-pay mismatch log for finance (W-67 R4).
 
-import os
-import sys
-import json
-import uuid
+Per employee per pay period, compares:
+  HRMS    employee_monthly_lop.lop_days       - the unpaid days HRMS sent to payroll
+  Payroll employee_payruns.totalNoOfLeaves    - the leave days the pay run deducted for,
+          employee_payruns.LOP                - the amount it deducted (perDayPay x days)
+Only periods where the two day counts differ go to core.lop_mismatch_log; matching
+periods are counted. A variance is a finding for finance, never a correction (R4).
+
+Idempotent: id = uuid5(namespace, "tenant_id:employee_number:pay_period"); a re-run updates
+the day and deduction columns and never touches status, so a row finance approved stays
+approved. Writes staging/lop_mismatch_<tenant>.csv for finance (no email - the CSV is
+uploaded with the rehearsal results) and staging/lop_summary_<tenant>.json for W-70 Task 1.
+"""
+from __future__ import annotations
+
 import csv
+import json
 import logging
-from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime, timezone
+import sys
+import uuid
 from collections import defaultdict
-import psycopg2
-from psycopg2.extras import execute_batch
+from decimal import Decimal
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("lop_mismatch_generator")
+from common import db, staging
+from common.ids import NAMESPACE
+from common.idmap import IdMap
+from common.ledger import StepResult, run_per_tenant
+from common.legacy import text, to_date
+from common.money import to_days, to_money
+from common.quarantine import Quarantine
+from common.tenants import Tenant, Tenants
 
-NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+STEP = "lop_mismatch"
+INPUTS = ["stg_hrms_employee_monthly_lop.json", "stg_payroll_employee_payruns.json",
+          "stg_payroll_payruns.json", "stg_merged_employees.json"]
+ZERO_DAYS = Decimal("0.0")
+ZERO_MONEY = Decimal("0.00")
+log = logging.getLogger(STEP)
 
-def get_pg_connection():
-    host = os.environ.get("TARGET_DB_HOST", "localhost")
-    port = int(os.environ.get("TARGET_DB_PORT", "5432"))
-    database = os.environ.get("TARGET_DB_NAME", "infinevo")
-    user = os.environ.get("TARGET_DB_USER", "migration_user")
-    password = os.environ.get("TARGET_DB_PASSWORD", "local_migration_pw")
-    
-    return psycopg2.connect(
-        host=host,
-        port=port,
-        dbname=database,
-        user=user,
-        password=password
-    )
 
-def to_decimal(val, decimals=1):
-    if val is None or val == "":
-        val = 0
-    d = Decimal(str(val))
-    if decimals == 1:
-        return d.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-    elif decimals == 2:
-        return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return d
+def row_id(tenant_id: str, employee_number: str, period: str) -> str:
+    return str(uuid.uuid5(NAMESPACE, f"{tenant_id}:{employee_number}:{period}"))
 
-def run_generator():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    staging_dir = os.path.join(base_dir, "staging")
-    
-    logger.info("=== Starting LOP Mismatch Log Generation (W-70 Task 2) ===")
-    
-    def load_stg(fname, default=None):
-        fpath = os.path.join(staging_dir, fname)
-        if not os.path.exists(fpath):
-            return default if default is not None else []
-        with open(fpath, "r", encoding="utf-8") as f:
-            return json.load(f)
 
-    merged_employees = load_stg("stg_merged_employees.json")
-    emp_payruns = load_stg("stg_payroll_employee_payruns.json")
-    payruns = load_stg("stg_payroll_payruns.json")
-    leave_requests = load_stg("stg_hrms_leave_requests.json")
+def collect(idmap: IdMap, q: Quarantine):
+    """{tenant: {(employee_id, period): {"hrms": days, "payroll": days, "deduction": money}}}"""
+    data = defaultdict(lambda: defaultdict(lambda: {"hrms": ZERO_DAYS, "payroll": ZERO_DAYS, "deduction": ZERO_MONEY}))
 
-    # Map payrun id -> pay_period (YYYY-MM)
-    payrun_periods = {}
-    for pr in payruns:
-        pr_id = pr.get("id") or pr.get("payrunId")
-        start_date = pr.get("payPeriodStartDate")
-        if pr_id and start_date and len(str(start_date)) >= 7:
-            payrun_periods[str(pr_id)] = str(start_date)[:7]
-
-    emp_by_num = {}
-    for e in merged_employees:
-        if e.get("employee_number"):
-            emp_by_num[str(e["employee_number"]).strip()] = e
-
-    # 1. Aggregate Payroll LOP by (employee_number, work_email, tenant_id, pay_period)
-    payroll_lop = defaultdict(lambda: {"payroll_lop_days": Decimal("0.0"), "payroll_deduction": Decimal("0.00")})
-    
-    for ep in emp_payruns:
-        pr_id = str(ep.get("payrunId") or "")
-        pay_period = payrun_periods.get(pr_id)
-        if not pay_period:
+    for r in staging.load("stg_hrms_employee_monthly_lop.json"):
+        ref = text(r.get("employee_id"))
+        emp = idmap.get("hrms.emp_code", ref) or idmap.get("hrms.employee", ref)
+        year, month = r.get("year"), r.get("month")
+        if emp is None:
+            q.add("NO_EMPLOYEE", "employee_monthly_lop", r.get("id"))
             continue
-            
-        emp_num = str(ep.get("employeeNumber") or "").strip()
-        emp_record = emp_by_num.get(emp_num)
-        
-        work_email = emp_record.get("work_email") if emp_record else "unknown@infinevocloud.com"
-        tenant_id = emp_record.get("tenant_id") if emp_record else "a0000000-0000-0000-0000-000000000001"
-        emp_number = emp_record.get("employee_number") if emp_record else (emp_num or f"PAY-{ep.get('id')}")
-        
-        raw_lop = ep.get("LOP") or ep.get("lwp_days") or 0
-        raw_ded = ep.get("lwp_amount") or 0
-        
-        lop_days = to_decimal(raw_lop, 1)
-        deduction = to_decimal(raw_ded, 2)
-        
-        key = (emp_number, work_email, tenant_id, pay_period)
-        payroll_lop[key]["payroll_lop_days"] += lop_days
-        payroll_lop[key]["payroll_deduction"] += deduction
-
-    # 2. Aggregate HRMS Unpaid / LOP Leave Requests by (employee, pay_period)
-    hrms_lop = defaultdict(lambda: Decimal("0.0"))
-    for lr in leave_requests:
-        from_date = lr.get("from_date")
-        if not from_date or len(str(from_date)) < 7:
+        if not year or not month:
+            q.add("NO_PERIOD", "employee_monthly_lop", r.get("id"))
             continue
-        pay_period = str(from_date)[:7]
-        
-        emp_id = str(lr.get("employee_id") or "").strip()
-        emp_record = emp_by_num.get(emp_id)
-        
-        work_email = emp_record.get("work_email") if emp_record else "unknown@infinevocloud.com"
-        tenant_id = emp_record.get("tenant_id") if emp_record else "a0000000-0000-0000-0000-000000000001"
-        emp_number = emp_record.get("employee_number") if emp_record else (emp_id or "HRMS-UNKNOWN")
-        
-        days = to_decimal(lr.get("total_days") or 0, 1)
-        key = (emp_number, work_email, tenant_id, pay_period)
-        hrms_lop[key] += days
+        tenant = idmap.get("employee.tenant", emp)
+        data[tenant][(emp, f"{int(year):04d}-{int(month):02d}")]["hrms"] += to_days(r.get("lop_days")) or ZERO_DAYS
 
-    # 3. Compute Mismatches (Filter strictly to variance_days > 0)
-    all_keys = set(payroll_lop.keys()).union(set(hrms_lop.keys()))
-    mismatch_rows = []
-    csv_rows_by_tenant = defaultdict(list)
-    matching_count = 0
-    
-    for key in sorted(all_keys):
-        emp_number, work_email, tenant_id, pay_period = key
-        p_info = payroll_lop.get(key, {"payroll_lop_days": Decimal("0.0"), "payroll_deduction": Decimal("0.00")})
-        p_days = p_info["payroll_lop_days"]
-        p_ded = p_info["payroll_deduction"]
-        h_days = hrms_lop.get(key, Decimal("0.0"))
-        
-        variance = (h_days - p_days).copy_abs()
-        
-        if variance > Decimal("0.0"):
-            # Task 2: Deterministic uuid5 for idempotency
-            row_id = str(uuid.uuid5(NAMESPACE, f"{tenant_id}:{emp_number}:{pay_period}"))
-            mismatch_rows.append((
-                row_id,
-                tenant_id,
-                emp_number,
-                work_email,
-                pay_period,
-                h_days,
-                p_days,
-                variance,
-                p_ded,
-                "PENDING_FINANCE_SIGN_OFF"
-            ))
-            csv_rows_by_tenant[tenant_id].append({
-                "employee_number": emp_number,
-                "work_email": work_email,
-                "pay_period": pay_period,
-                "hrms_unpaid_days": str(h_days),
-                "payroll_lop_days": str(p_days),
-                "variance_days": str(variance),
-                "payroll_processed_deduction": str(p_ded),
-                "status": "PENDING_FINANCE_SIGN_OFF"
-            })
-        else:
-            matching_count += 1
+    payruns = {}
+    for p in staging.load("stg_payroll_payruns.json"):
+        start = to_date(p.get("payPeriodStartDate"))
+        if start is None:
+            continue
+        period = f"{start.year:04d}-{start.month:02d}"
+        payruns[("id", str(p.get("id")))] = period
+        if p.get("payrunId"):
+            payruns[("uuid", str(p.get("payrunId")))] = period
 
-    logger.info(f"Identified {len(mismatch_rows)} variance rows (>0 days) and {matching_count} matching rows.")
-    
-    # 4. Insert into core.lop_mismatch_log with ON CONFLICT DO UPDATE (Preserving status)
-    conn = get_pg_connection()
-    conn.autocommit = False
-    cur = conn.cursor()
-    
-    ledger_id = str(uuid.uuid4())
-    started_at = datetime.now(timezone.utc)
-    tenant_id_primary = "a0000000-0000-0000-0000-000000000001"
-    
+    for e in staging.load("stg_payroll_employee_payruns.json"):
+        period = payruns.get(("id", str(e.get("payrun_ref_id")))) or payruns.get(("uuid", str(e.get("payrunId"))))
+        emp = idmap.get("payroll.employee.uuid", e.get("employeeId")) or idmap.get("payroll.employee", e.get("employee_ref_id"))
+        if period is None:
+            q.add("NO_PAYRUN", "employee_payruns", e.get("id"))
+            continue
+        if emp is None:
+            q.add("NO_EMPLOYEE", "employee_payruns", e.get("id"))
+            continue
+        tenant = idmap.get("employee.tenant", emp)
+        cell = data[tenant][(emp, period)]
+        cell["payroll"] += to_days(e.get("totalNoOfLeaves")) or ZERO_DAYS
+        cell["deduction"] += to_money(e.get("LOP")) or ZERO_MONEY
+    return data
+
+
+def run(conn=None) -> bool:
+    tenants = Tenants.load()
+    idmap = IdMap.load()
+    q = Quarantine(STEP)
+    data = collect(idmap, q)
+
+    def work(cur, t: Tenant) -> StepResult:
+        tid = t.tenant_id
+        cells = data.get(tid, {})
+        cur.execute("SELECT id::text, employee_number, coalesce(work_email, '') FROM core.employee WHERE tenant_id = %s",
+                    (tid,))
+        emps = {i: (num, mail) for i, num, mail in cur.fetchall()}
+        rows, matching, skipped = [], 0, 0
+        for (emp, period), v in sorted(cells.items()):
+            if emp not in emps:
+                q.add("EMPLOYEE_NOT_LOADED", "lop", None, tid, period=period)
+                skipped += 1
+                continue
+            variance = abs(v["hrms"] - v["payroll"])
+            if variance == ZERO_DAYS:
+                matching += 1
+                continue
+            num, mail = emps[emp]
+            rows.append({"id": row_id(tid, num, period), "tenant_id": tid, "employee_number": num,
+                         "work_email": mail, "pay_period": period, "hrms_unpaid_days": v["hrms"],
+                         "payroll_lop_days": v["payroll"], "variance_days": variance,
+                         "payroll_processed_deduction": v["deduction"]})
+        db.upsert(cur, "core.lop_mismatch_log", rows)  # status is not sent, so never overwritten
+
+        cur.execute("SELECT employee_number, pay_period, hrms_unpaid_days, payroll_lop_days, variance_days, "
+                    "payroll_processed_deduction, status FROM core.lop_mismatch_log WHERE tenant_id = %s "
+                    "ORDER BY pay_period, employee_number", (tid,))
+        logged = cur.fetchall()
+        with open(staging.stg_path(f"lop_mismatch_{tid}.csv"), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["employee_number", "pay_period", "hrms_unpaid_days", "payroll_lop_days", "variance_days",
+                        "payroll_processed_deduction", "status"])
+            w.writerows([[str(c) for c in r] for r in logged])
+        staging.write(f"lop_summary_{tid}.json", {"mismatches": len(rows), "matching": matching,
+                                                   "logged_total": len(logged)})
+        return StepResult(processed=len(rows), skipped=skipped)
+
+    own = conn is None
+    conn = conn or db.connect()
     try:
-        # Record start in migration_ledger
-        cur.execute(
-            """
-            INSERT INTO core.migration_ledger (id, tenant_id, step_name, records_processed, status, started_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            (ledger_id, tenant_id_primary, "lop_mismatch", 0, "RUNNING", started_at)
-        )
-        conn.commit()
-        
-        if mismatch_rows:
-            execute_batch(
-                cur,
-                """
-                INSERT INTO core.lop_mismatch_log (
-                    id, tenant_id, employee_number, work_email, pay_period,
-                    hrms_unpaid_days, payroll_lop_days, variance_days,
-                    payroll_processed_deduction, status
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    hrms_unpaid_days = EXCLUDED.hrms_unpaid_days,
-                    payroll_lop_days = EXCLUDED.payroll_lop_days,
-                    variance_days = EXCLUDED.variance_days,
-                    payroll_processed_deduction = EXCLUDED.payroll_processed_deduction
-                """,
-                mismatch_rows,
-                page_size=200
-            )
-            conn.commit()
-            
-        completed_at = datetime.now(timezone.utc)
-        cur.execute(
-            """
-            UPDATE core.migration_ledger
-            SET records_processed = %s, status = %s, completed_at = %s
-            WHERE id = %s
-            """,
-            (len(mismatch_rows), "DONE", completed_at, ledger_id)
-        )
-        conn.commit()
-        logger.info(f"✓ Saved {len(mismatch_rows)} LOP Mismatch entries to core.lop_mismatch_log.")
-
-        # 5. Export CSV per tenant for Finance review
-        for tid, rows in csv_rows_by_tenant.items():
-            csv_path = os.path.join(staging_dir, f"lop_mismatch_{tid}.csv")
-            fieldnames = [
-                "employee_number", "work_email", "pay_period",
-                "hrms_unpaid_days", "payroll_lop_days", "variance_days",
-                "payroll_processed_deduction", "status"
-            ]
-            with open(csv_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
-            logger.info(f"✓ Exported Finance review CSV to {csv_path}")
-        
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"LOP Mismatch generation failed: {e}", exc_info=True)
-        cur.execute(
-            """
-            UPDATE core.migration_ledger
-            SET status = %s, error_message = %s, completed_at = %s
-            WHERE id = %s
-            """,
-            ("FAILED", str(e), datetime.now(timezone.utc), ledger_id)
-        )
-        conn.commit()
-        raise
+        summary = run_per_tenant(conn, STEP, tenants.all(), staging.checksum(INPUTS), work)
     finally:
-        cur.close()
-        conn.close()
+        if own:
+            conn.close()
+    q.write()
+    return summary.ok
+
 
 if __name__ == "__main__":
-    run_generator()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    sys.exit(0 if run() else 1)

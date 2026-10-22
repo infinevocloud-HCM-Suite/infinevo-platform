@@ -1,241 +1,152 @@
-"""
-Unit Tests for Claims and Deductions Loader (W-68 Task 3l)
-Verifies:
-  1. Open reimbursement requests transform to payroll.employee_reimbursement_request with SUBMITTED status and Decimal precision
-  2. Historical PAID reimbursements are dropped per Decision X-14
-  3. Claims with unknown employee are quarantined with reason
-  4. Open salary deductions transform to payroll.employee_deduction and core.pay_input with normalized deduction types
-  5. Historical PROCESSED deductions are dropped per Decision X-14
-  6. Zero or negative amounts are rejected and quarantined
-  7. Deductions type normalization covers all valid enum values
-  8. Full run_loader executes cleanly in dry-run mode
-"""
-
-import os
-import sys
-import unittest
+"""3l load_claims against a real migrated Postgres (W-68 Task 4)."""
+import json
+import uuid
 from decimal import Decimal
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+from tests.fixtures import CUSTOMER_ORG, CUSTOMER_TENANT, FOUNDER_ORG, FOUNDER_TENANT
+from tests.pipeline import BASE, run_base_and, run_step, run_steps
 
-from loaders.load_claims import (
-    to_decimal,
-    det_uuid,
-    normalize_deduction_type,
-    format_period,
-    transform_reimbursement_item,
-    transform_deduction_item,
-    run_loader,
-    VALID_DEDUCTION_TYPES
-)
+STEP = "loaders.load_claims"
+TABLES = ["payroll.employee_reimbursement_request", "payroll.employee_deduction", "core.pay_input"]
 
-
-class TestLoadClaims(unittest.TestCase):
-    def setUp(self):
-        self.tenant_id = "11111111-1111-1111-1111-111111111111"
-        self.employee_id = "22222222-2222-2222-2222-222222222222"
-        self.reimbursement_comp_id = "44444444-4444-4444-4444-444444444444"
-
-        self.mock_emp = {
-            "id": self.employee_id,
-            "tenant_id": self.tenant_id,
-            "source_legacy_payroll_id": "1001"
-        }
-        self.emp_by_payroll_id = {"1001": self.mock_emp}
-        self.emp_by_uuid = {"emp-uuid-1": self.mock_emp}
-        self.reimb_map = {(self.tenant_id, "TRAVEL"): self.reimbursement_comp_id}
-
-    def test_to_decimal_precision(self):
-        """Verifies Decimal conversion avoids floats and enforces 4 decimal places."""
-        d = to_decimal("1500.5")
-        self.assertIsInstance(d, Decimal)
-        self.assertEqual(d, Decimal("1500.5000"))
-
-        d2 = to_decimal(2000)
-        self.assertEqual(d2, Decimal("2000.0000"))
-
-    def test_deduction_type_normalization(self):
-        """Verifies mapping of various legacy strings to valid closed enum types."""
-        self.assertEqual(normalize_deduction_type("Advance Payment"), "ADVANCE_RECOVERY")
-        self.assertEqual(normalize_deduction_type("Company Loan"), "LOAN_RECOVERY")
-        self.assertEqual(normalize_deduction_type("Asset Damage"), "DAMAGE")
-        self.assertEqual(normalize_deduction_type("Late fine penalty"), "PENALTY")
-        self.assertEqual(normalize_deduction_type("Salary Overpayment Excess"), "EXCESS_PAYMENT")
-        self.assertEqual(normalize_deduction_type("Miscellaneous deduction"), "OTHER")
-        self.assertEqual(normalize_deduction_type(""), "OTHER")
-
-        for dt in VALID_DEDUCTION_TYPES:
-            self.assertEqual(normalize_deduction_type(dt), dt)
-
-    def test_format_period(self):
-        """Verifies period formatting to YYYY-MM."""
-        self.assertEqual(format_period("2026-10-01"), "2026-10")
-        self.assertEqual(format_period("2026-10"), "2026-10")
-
-    def test_transform_open_reimbursement_claim(self):
-        """Scenario 1: Open reimbursement request transforms into target tuple."""
-        raw_item = {
-            "id": 10,
-            "employee_id": "1001",
-            "reimbursement_type": "TRAVEL",
-            "requested_amount": "2500.00",
-            "approved_amount": "2000.00",
-            "bill_date": "2026-10-05",
-            "description": "Travel expenses for onsite visit",
-            "status": "PENDING",
-            "payment_status": "UNPAID"
-        }
-
-        ok, row, q = transform_reimbursement_item(
-            raw_item, self.emp_by_payroll_id, self.emp_by_uuid, self.reimb_map
-        )
-
-        self.assertTrue(ok)
-        self.assertIsNone(q)
-        self.assertIsNotNone(row)
-
-        claim_id, tid, emp_id, comp_id, req_amt, app_amt, b_date, desc, doc_id, status, remarks = row[:11]
-        self.assertEqual(tid, self.tenant_id)
-        self.assertEqual(emp_id, self.employee_id)
-        self.assertEqual(comp_id, self.reimbursement_comp_id)
-        self.assertEqual(req_amt, Decimal("2500.0000"))
-        self.assertEqual(app_amt, Decimal("2000.0000"))
-        self.assertEqual(b_date, "2026-10-05")
-        self.assertEqual(status, "SUBMITTED")  # PENDING mapped to SUBMITTED
-        self.assertIsNone(doc_id)  # document_id is NULL until W-69
-
-    def test_drop_paid_reimbursement_claim(self):
-        """Scenario 2: Historical PAID reimbursement claim is dropped per Decision X-14."""
-        raw_item = {
-            "id": 11,
-            "employee_id": "1001",
-            "reimbursement_type": "FOOD",
-            "requested_amount": "500.00",
-            "payment_status": "PAID"
-        }
-
-        ok, row, q = transform_reimbursement_item(
-            raw_item, self.emp_by_payroll_id, self.emp_by_uuid, self.reimb_map
-        )
-
-        self.assertFalse(ok)
-        self.assertIsNone(row)
-        self.assertIsNotNone(q)
-        self.assertIn("Decision X-14", q["reason"])
-
-    def test_quarantine_reimbursement_unknown_employee(self):
-        """Scenario 3: Claim for unmapped employee lands in quarantine."""
-        raw_item = {
-            "id": 12,
-            "employee_id": "UNKNOWN-999",
-            "requested_amount": "100.00",
-            "payment_status": "UNPAID"
-        }
-
-        ok, row, q = transform_reimbursement_item(
-            raw_item, self.emp_by_payroll_id, self.emp_by_uuid, self.reimb_map
-        )
-
-        self.assertFalse(ok)
-        self.assertIsNone(row)
-        self.assertIsNotNone(q)
-        self.assertIn("not found in merged employees", q["reason"])
-
-    def test_transform_open_deduction(self):
-        """Scenario 4: Open salary deduction transforms into pay_input and employee_deduction tuples."""
-        raw_item = {
-            "id": 20,
-            "employee_id": "1001",
-            "deduction_amount": "750.00",
-            "deduction_month": "2026-10-01",
-            "deduction_type": "Travel advance repayment",
-            "reason": "Monthly recovery",
-            "status": "ACTIVE"
-        }
-
-        ok, row_pair, q = transform_deduction_item(
-            raw_item, self.emp_by_payroll_id, self.emp_by_uuid
-        )
-
-        self.assertTrue(ok)
-        self.assertIsNone(q)
-        self.assertIsNotNone(row_pair)
-
-        pay_input, deduction = row_pair
-
-        # Verify core.pay_input tuple
-        pi_id, pi_tid, pi_eid, pi_period, pi_kind, pi_qty, pi_amt, pi_mod, pi_ref, pi_rev = pay_input
-        self.assertEqual(pi_tid, self.tenant_id)
-        self.assertEqual(pi_eid, self.employee_id)
-        self.assertEqual(pi_period, "2026-10")
-        self.assertEqual(pi_kind, "AD_HOC_DEDUCTION")
-        self.assertEqual(pi_amt, Decimal("750.0000"))
-        self.assertEqual(pi_mod, "PAYROLL")
-        self.assertEqual(pi_ref, "deduction:20")
-
-        # Verify payroll.employee_deduction tuple
-        d_id, d_tid, d_eid, d_period, d_type, d_amt, d_reason, d_rem, d_doc, d_status, d_pi_id, d_post_period = deduction
-        self.assertEqual(d_tid, self.tenant_id)
-        self.assertEqual(d_eid, self.employee_id)
-        self.assertEqual(d_period, "2026-10")
-        self.assertEqual(d_type, "ADVANCE_RECOVERY")
-        self.assertEqual(d_amt, Decimal("750.0000"))
-        self.assertEqual(d_status, "POSTED")
-        self.assertEqual(d_pi_id, pi_id)  # references pay_input_id
-        self.assertIsNone(d_doc)
-
-    def test_drop_processed_deduction(self):
-        """Scenario 5: Historical PROCESSED deduction is dropped per Decision X-14."""
-        raw_item = {
-            "id": 21,
-            "employee_id": "1001",
-            "deduction_amount": "500.00",
-            "status": "PROCESSED"
-        }
-
-        ok, row_pair, q = transform_deduction_item(
-            raw_item, self.emp_by_payroll_id, self.emp_by_uuid
-        )
-
-        self.assertFalse(ok)
-        self.assertIsNone(row_pair)
-        self.assertIsNotNone(q)
-        self.assertIn("Decision X-14", q["reason"])
-
-    def test_quarantine_invalid_amounts(self):
-        """Scenario 6: Amounts <= 0 are rejected and quarantined."""
-        raw_claim = {
-            "id": 13,
-            "employee_id": "1001",
-            "requested_amount": "0.00",
-            "payment_status": "UNPAID"
-        }
-        ok, row, q = transform_reimbursement_item(
-            raw_claim, self.emp_by_payroll_id, self.emp_by_uuid, self.reimb_map
-        )
-        self.assertFalse(ok)
-        self.assertIn("greater than 0", q["reason"])
-
-        raw_deduct = {
-            "id": 22,
-            "employee_id": "1001",
-            "deduction_amount": "-50.00",
-            "status": "ACTIVE"
-        }
-        ok, row_pair, q = transform_deduction_item(
-            raw_deduct, self.emp_by_payroll_id, self.emp_by_uuid
-        )
-        self.assertFalse(ok)
-        self.assertIn("greater than 0", q["reason"])
-
-    def test_run_loader_dry_run(self):
-        """Scenario 7: Full loader executes cleanly in dry-run mode."""
-        res = run_loader(dry_run=True, skip_db=True)
-        self.assertIn("total_loaded", res)
-        self.assertIn("quarantined", res)
+# Legacy reimbursement masters (load_salary's input) and the target rows it would have made.
+MASTERS = [
+    {"id": 901, "reimbursementId": "R-901", "reimbursementName": "Internet Reimbursement",
+     "reimbursementType": "Internet Reimbursement", "displayName": "Internet", "isDeleted": False,
+     "organizationId": int(FOUNDER_ORG)},
+    {"id": 902, "reimbursementId": "R-902", "reimbursementName": "Fuel Reimbursement",
+     "reimbursementType": "Fuel Reimbursement", "displayName": "Fuel", "isDeleted": False,
+     "organizationId": int(FOUNDER_ORG)},
+    {"id": 903, "reimbursementId": "R-903", "reimbursementName": "Internet Reimbursement",
+     "reimbursementType": "Internet Reimbursement", "displayName": "Internet", "isDeleted": False,
+     "organizationId": int(CUSTOMER_ORG)},
+    # matches claim 9 (FOOD) but is never loaded: COMPONENT_NOT_LOADED
+    {"id": 904, "reimbursementId": "R-904", "reimbursementName": "Food Reimbursement",
+     "reimbursementType": "Food Reimbursement", "displayName": "Food", "isDeleted": False,
+     "organizationId": int(FOUNDER_ORG)},
+]
+LOADED = {901: FOUNDER_TENANT, 902: FOUNDER_TENANT, 903: CUSTOMER_TENANT}
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _setup(staging_dir, query) -> dict:
+    """Base steps, then the masters and period locks a real run would already have."""
+    run_steps(BASE)
+    (staging_dir / "stg_payroll_reimbursements.json").write_text(json.dumps(MASTERS), encoding="utf-8")
+    idmap_path = staging_dir / "id_map.json"
+    idmap = json.loads(idmap_path.read_text(encoding="utf-8"))
+    ids = {}
+    for legacy, tid in LOADED.items():
+        rid = str(uuid.uuid4())
+        ids[legacy] = rid
+        query("INSERT INTO payroll.reimbursement (id, tenant_id, code, name, reimbursement_type) "
+              "VALUES (%s, %s, %s, %s, %s)", (rid, tid, f"R{legacy}", f"Master {legacy}", "INTERNET"))
+        idmap.setdefault("payroll.reimbursements", {})[str(legacy)] = rid
+    idmap_path.write_text(json.dumps(idmap), encoding="utf-8")
+    # 2024-03 is closed for the founder (deduction 14, already taken, must not move);
+    # 2024-07 is closed for the customer (deduction 13, still open, moves to 2024-08).
+    query("INSERT INTO core.pay_input_period_lock (tenant_id, period, locked_by) VALUES (%s, '2024-03', 'test')",
+          (FOUNDER_TENANT,))
+    query("INSERT INTO core.pay_input_period_lock (tenant_id, period, locked_by) VALUES (%s, '2024-07', 'test')",
+          (CUSTOMER_TENANT,))
+    return ids
+
+
+def _quarantine(staging_dir):
+    return json.loads((staging_dir / "stg_quarantined_load_claims.json").read_text(encoding="utf-8"))
+
+
+def test_claims_loaded_and_mapped(legacy_fixture, query):
+    masters = _setup(legacy_fixture, query)
+    run_step(STEP)
+    rows = {r[0]: r[1:] for r in query(
+        "SELECT e.employee_number, c.tenant_id::text, c.reimbursement_id::text, c.requested_amount, "
+        "c.approved_amount, c.status, c.bill_date::text, c.document_id, c.approved_by IS NOT NULL, "
+        "c.created_at = '2024-05-11T09:15:00+05:30'::timestamptz, c.created_by "
+        "FROM payroll.employee_reimbursement_request c JOIN core.employee e ON e.id = c.employee_id")}
+    assert set(rows) == {"E001", "E002", "C001"}
+    e1, e2, c1 = rows["E001"], rows["E002"], rows["C001"]
+    assert e1[0] == FOUNDER_TENANT and e1[1] == masters[901] and e1[2] == Decimal("1500.5000")
+    assert e1[3] is None and e1[4] == "SUBMITTED" and e1[5] == "2024-05-10" and e1[6] is None
+    assert e1[8] is True and e1[9] == "migration"     # legacy created_at kept, audit user
+    assert e2[1] == masters[902] and e2[3] == Decimal("1999.9900") and e2[4] == "APPROVED" and e2[7] is True
+    assert c1[0] == CUSTOMER_TENANT and c1[1] == masters[903] and c1[4] == "APPROVED"
+    q = _quarantine(legacy_fixture)
+    claims_q = {i["legacy_id"]: i["reason"] for i in q if i["legacy_table"] == "employee_reimbursement_request"}
+    assert claims_q == {3: "NO_MATCHING_COMPONENT", 5: "EMPLOYEE_NOT_MIGRATED", 6: "AMOUNT_NOT_POSITIVE",
+                        7: "STATUS_UNMAPPED", 8: "TENANT_MISMATCH", 9: "COMPONENT_NOT_LOADED"}
+    assert "@" not in json.dumps(q) and "Claim" not in json.dumps(q)   # ids and codes only
+    # the id-map carries the claims for load_documents
+    idmap = json.loads((legacy_fixture / "id_map.json").read_text(encoding="utf-8"))
+    assert set(idmap["payroll.employee_reimbursement_request"]) == {"1", "2", "4"}
+
+
+def test_deductions_post_to_the_ledger(legacy_fixture, query):
+    _setup(legacy_fixture, query)
+    run_step(STEP)
+    rows = {r[0]: r[1:] for r in query(
+        "SELECT e.employee_number, d.deduction_type, d.amount, d.period, d.posted_period, d.status, "
+        "p.kind, p.amount, p.period, p.source_module, p.source_ref = 'employee_deduction:' || d.id "
+        "FROM payroll.employee_deduction d JOIN core.employee e ON e.id = d.employee_id "
+        "JOIN core.pay_input p ON p.id = d.pay_input_id")}
+    assert set(rows) == {"E001", "C002"}  # E002's deduction was already taken in legacy
+    assert rows["E001"] == ("ADVANCE_RECOVERY", Decimal("2500.7500"), "2024-06", "2024-06", "POSTED",
+                            "AD_HOC_DEDUCTION", Decimal("2500.7500"), "2024-06", "payroll", True)
+    # open deduction in a locked month moves to the next open one, as the app does
+    assert rows["C002"][:5] == ("OTHER", Decimal("499.9900"), "2024-07", "2024-08", "POSTED")
+    assert rows["C002"][7] == "2024-08"
+    q = {i["legacy_id"]: i["reason"] for i in _quarantine(legacy_fixture) if i["legacy_table"] == "employee_deduction"}
+    # already taken in legacy (PROCESSED) is never re-posted, locked month or not
+    assert q == {12: "ALREADY_DEDUCTED_IN_LEGACY", 14: "ALREADY_DEDUCTED_IN_LEGACY",
+                 15: "AMOUNT_NOT_POSITIVE", 16: "NO_PERIOD"}
+
+
+def test_tenant_isolation_and_ledger(legacy_fixture, query):
+    _setup(legacy_fixture, query)
+    run_step(STEP)
+    for table, founder, customer in (("payroll.employee_reimbursement_request", 2, 1),
+                                     ("payroll.employee_deduction", 1, 1), ("core.pay_input", 1, 1)):
+        got = dict(query(f"SELECT tenant_id::text, count(*) FROM {table} GROUP BY 1"))
+        assert got == {FOUNDER_TENANT: founder, CUSTOMER_TENANT: customer}, table
+    # no row points at an employee of another tenant
+    assert query("SELECT count(*) FROM payroll.employee_reimbursement_request c JOIN core.employee e "
+                 "ON e.id = c.employee_id WHERE e.tenant_id <> c.tenant_id")[0][0] == 0
+    ledger = dict(query("SELECT tenant_id::text, records_skipped FROM core.migration_ledger "
+                        "WHERE step_name = 'load_claims' AND status = 'DONE'"))
+    # founder: claims 3, 5 (org 148), 6, 7, 8 (employee in founder), 9 and deductions 12, 14, 15, 16
+    assert ledger == {FOUNDER_TENANT: 10, CUSTOMER_TENANT: 0}
+
+
+def test_without_masters_every_claim_is_quarantined(legacy_fixture, query):
+    run_base_and(STEP)
+    assert query("SELECT count(*) FROM payroll.employee_reimbursement_request")[0][0] == 0
+    # 11 and 13 load; 12 and 14 were already taken in legacy and are never re-posted
+    assert query("SELECT count(*) FROM payroll.employee_deduction")[0][0] == 2
+    reasons = {i["reason"] for i in _quarantine(legacy_fixture) if i["legacy_table"] == "employee_reimbursement_request"}
+    assert "NO_MATCHING_COMPONENT" in reasons
+
+
+def test_second_run_is_a_no_op(legacy_fixture, query):
+    _setup(legacy_fixture, query)
+    run_step(STEP)
+    before = {t: query(f"SELECT count(*), max(updated_at) FROM {t}")[0] for t in TABLES}
+    run_step(STEP)                     # unchanged inputs: the ledger skips both tenants
+    assert {t: query(f"SELECT count(*), max(updated_at) FROM {t}")[0] for t in TABLES} == before
+    query("DELETE FROM core.migration_ledger WHERE step_name = 'load_claims'")
+    run_step(STEP)                     # forced: every upsert finds nothing to change
+    assert {t: query(f"SELECT count(*), max(updated_at) FROM {t}")[0] for t in TABLES} == before
+    assert dict(query("SELECT tenant_id::text, count(*) FROM core.migration_ledger "
+                      "WHERE step_name = 'load_claims' AND status = 'DONE' GROUP BY 1")) ==         {FOUNDER_TENANT: 1, CUSTOMER_TENANT: 1}
+
+
+def test_rerun_keeps_the_document_w69_attached(legacy_fixture, query):
+    _setup(legacy_fixture, query)
+    run_step(STEP)
+    doc = str(uuid.uuid4())
+    query("INSERT INTO core.document (id, tenant_id, kind, file_name, content_type, size_bytes, blob_container, "
+          "blob_path, checksum_sha256) VALUES (%s, %s, 'REIMBURSEMENT_RECEIPT', 'r.pdf', 'application/pdf', 1, "
+          "'documents', %s, %s)", (doc, FOUNDER_TENANT, f"{FOUNDER_TENANT}/x/REIMBURSEMENT_RECEIPT/{doc}", "0" * 64))
+    query("UPDATE payroll.employee_reimbursement_request SET document_id = %s WHERE description = 'Claim 1'", (doc,))
+    query("DELETE FROM core.migration_ledger WHERE step_name = 'load_claims'")
+    run_step(STEP)
+    assert query("SELECT document_id::text FROM payroll.employee_reimbursement_request "
+                 "WHERE description = 'Claim 1'") == [(doc,)]

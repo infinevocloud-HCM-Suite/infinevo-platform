@@ -1,454 +1,349 @@
-"""
-Statutory Settings Loader (Step 3f - W-68.3 / Ticket #90)
-Loads into target PostgreSQL:
-  - payroll.epf_setting (provident fund settings per tenant)
-  - payroll.esi_setting (state insurance settings per tenant)
-  - payroll.org_pt_override (professional tax overrides where slabs differ from national reference)
-  - payroll.org_pt_override_slab (custom slabs for overrides)
+"""3f — statutory settings (W-68 Task 3, mapping §3.5).
 
-Rules & Invariants:
-  - One epf_setting and esi_setting row per tenant (ON CONFLICT (tenant_id) DO UPDATE).
-  - Write PT override slabs ONLY where the slabs differ from reference.pt_slab for that state.
-  - Deterministic UUIDv5 namespace mapping.
-  - Strict Decimal arithmetic only (no floats).
-  - RLS tenant isolation respected (app.current_tenant_id).
-  - Tracks execution in core.migration_ledger.
-"""
+  epf                                   -> payroll.epf_setting (one row per tenant)
+  esi                                   -> payroll.esi_setting (one row per tenant)
+  professionalTax + slabRateConfiguration + slabDetail (+ slabDeductionMonths) + org_pt_override
+                                        -> payroll.org_pt_override + payroll.org_pt_override_slab,
+                                           only for a state whose slabs differ from reference.pt_slab
 
-import os
-import sys
+Professional tax. The legacy showed an org the master slabs of a state unless org_pt_override held
+its own (ProfessionalTaxServiceImpl.java:851-870: the override's slabs replace the master's). The
+older professionalTax / slabRateConfiguration / slabDetail tables hold per-org slabs too. Per state:
+the override's slabs when it has any, else the professionalTax slabs (the active rate
+configuration's when there is one). Those are compared with the current reference.pt_slab rows of
+the state - the target's equivalent of the legacy master - and written only when they differ.
+
+Rates. The legacy stored contribution rates as text: '12_actual', 'restrict_15000', '0.75%'. The
+leading number is the rate (parseContributionRate, editESI.js:91-104); text with no number keeps the
+target default, which is the statutory rate. 'restrict...' sets the wage-ceiling restriction
+(editEPF.js:109-121).
+"""
+from __future__ import annotations
+
 import json
-import uuid
-import hashlib
 import logging
-from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime, timezone
-import psycopg2
-from psycopg2.extras import execute_batch
+import re
+import sys
+from collections import defaultdict
+from decimal import Decimal
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("load_statutory")
+from common import db, staging
+from common.ids import child_id, det_id
+from common.ledger import StepResult, run_per_tenant
+from common.legacy import text, to_date, to_timestamp, truthy
+from common.money import to_decimal, to_money
+from common.quarantine import Quarantine
+from common.tenants import Tenant, Tenants
 
-NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-FOUNDER_TENANT_ID = "a0000000-0000-0000-0000-000000000001"
-
-
-def to_decimal(val, decimals=4):
-    """Convert value to Decimal without float casting."""
-    if val is None or val == "":
-        d = Decimal("0")
-    else:
-        d = Decimal(str(val))
-    if decimals == 4:
-        return d.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-    elif decimals == 2:
-        return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return d
-
-
-def det_uuid(namespace_key: str) -> str:
-    """Generate deterministic UUIDv5."""
-    return str(uuid.uuid5(NAMESPACE, namespace_key))
+STEP = "load_statutory"
+INPUTS = [
+    "stg_payroll_epf.json", "stg_payroll_esi.json", "stg_payroll_professionalTax.json",
+    "stg_payroll_slabRateConfiguration.json", "stg_payroll_slabDetail.json",
+    "stg_payroll_slabDeductionMonths.json", "stg_payroll_org_pt_override.json",
+    # org_pt_override.organization_id is the organisation's string organizationId
+    "stg_payroll_organization.json",
+]
+RATE = Decimal("0.0001")
+log = logging.getLogger(STEP)
+_MONTHS = {m: i for i, m in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), start=1)}
 
 
-def get_pg_connection():
-    """Target PostgreSQL connection."""
-    return psycopg2.connect(
-        host=os.environ.get("TARGET_DB_HOST", "localhost"),
-        port=int(os.environ.get("TARGET_DB_PORT", "5432")),
-        dbname=os.environ.get("TARGET_DB_NAME", "infinevo"),
-        user=os.environ.get("TARGET_DB_USER", "migration_user"),
-        password=os.environ.get("TARGET_DB_PASSWORD", "local_migration_pw"),
-    )
+def _rate(v) -> Decimal | None:
+    if v is None:
+        return None
+    m = re.match(r"^\s*(\d+(?:\.\d+)?)", str(v))
+    return to_decimal(m.group(1), RATE) if m else None
 
 
-def compute_files_checksum(file_paths):
-    """Computes combined sha256 checksum across staging input files."""
-    hasher = hashlib.sha256()
-    for p in sorted(file_paths):
-        if os.path.exists(p):
-            with open(p, "rb") as f:
-                while chunk := f.read(65536):
-                    if isinstance(chunk, str):
-                        chunk = chunk.encode("utf-8")
-                    hasher.update(chunk)
-    return hasher.hexdigest()
+def _restricted(v) -> bool:
+    return "restrict" in (text(v) or "").lower()
 
 
-def slabs_differ_from_reference(configured_slabs, ref_slabs):
-    """
-    Compares configured PT slabs against reference.pt_slab.
-    Returns True if configured slabs differ from standard reference.
-    """
-    if not ref_slabs:
-        # If no standard slabs exist in reference for this state, any configured slab is an override
-        return bool(configured_slabs)
-
-    if len(configured_slabs) != len(ref_slabs):
-        return True
-
-    # Compare sorted by from_amount
-    cfg_sorted = sorted(configured_slabs, key=lambda s: s["from_amount"])
-    ref_sorted = sorted(ref_slabs, key=lambda s: s["from_amount"])
-
-    for c, r in zip(cfg_sorted, ref_sorted):
-        if c["from_amount"] != r["from_amount"]:
-            return True
-        if c.get("to_amount") != r.get("to_amount"):
-            return True
-        if c["amount"] != r["amount"]:
-            return True
-
-    return False
+def _cycle(v) -> str | None:
+    """DeductionCycle has MONTHLY only. None when the legacy says something else."""
+    s = (text(v) or "monthly").lower()
+    return "MONTHLY" if s == "monthly" else None
 
 
-def run_loader(dry_run: bool = False, skip_db: bool = False):
-    """
-    Executes statutory migration loader (Task 3f).
-    """
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    stg_dir = os.path.join(base_dir, "staging")
-    cfg_dir = os.path.join(base_dir, "config")
+def _latest(rows: list[dict]) -> tuple[dict | None, list[dict]]:
+    rows = sorted(rows, key=lambda r: int(r.get("id") or 0))
+    return (rows[-1], rows[:-1]) if rows else (None, [])
 
-    def load_stg(fname, default=None):
-        path = os.path.join(stg_dir, fname)
-        if not os.path.exists(path):
-            return default if default is not None else []
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
 
-    # 1. Load staging data
-    stg_epf = load_stg("stg_payroll_epf.json")
-    stg_esi = load_stg("stg_payroll_esi.json")
-    stg_pt = load_stg("stg_payroll_professionalTax.json")
-    stg_pt_slabs = load_stg("stg_payroll_slabDetail.json")
-    stg_slab_configs = load_stg("stg_payroll_slabRateConfiguration.json")
-    stg_org_pt = load_stg("stg_payroll_org_pt_override.json")
-
-    org_map_file = os.path.join(cfg_dir, "org_mapping.json")
-    org_map = {}
-    if os.path.exists(org_map_file):
-        with open(org_map_file, "r", encoding="utf-8") as f:
-            org_map = json.load(f)
-
-    def resolve_tenant(item):
-        org_id = str(item.get("organizationId") or item.get("organization_id") or "")
-        if org_id in org_map:
-            return org_map[org_id].get("tenant_id", FOUNDER_TENANT_ID)
-        return FOUNDER_TENANT_ID
-
-    input_files = [
-        os.path.join(stg_dir, "stg_payroll_epf.json"),
-        os.path.join(stg_dir, "stg_payroll_esi.json"),
-        os.path.join(stg_dir, "stg_payroll_professionalTax.json"),
-        os.path.join(stg_dir, "stg_payroll_slabDetail.json"),
-    ]
-    current_checksum = compute_files_checksum(input_files)
-
-    step_name = "load_statutory"
-    started_at = datetime.now(timezone.utc)
-    ledger_id = str(uuid.uuid4())
-    quarantined = []
-
-    conn = None
-    cur = None
-    ref_pt_slabs = {}  # state_code -> list of {from_amount, to_amount, amount}
-
-    if not skip_db and not dry_run:
-        try:
-            conn = get_pg_connection()
-            conn.autocommit = False
-            cur = conn.cursor()
-
-            # Check if step already DONE with same checksum
-            cur.execute(
-                """
-                SELECT id FROM core.migration_ledger
-                WHERE step_name = %s AND status = 'DONE' AND input_checksum = %s
-                ORDER BY completed_at DESC LIMIT 1
-                """,
-                (step_name, current_checksum)
-            )
-            done_row = cur.fetchone()
-            if done_row and not os.environ.get("FORCE_RELOAD"):
-                logger.info(f"Step '{step_name}' already DONE with matching checksum ({current_checksum[:8]}...). Skipping execution.")
-                cur.close()
-                conn.close()
-                return {"status": "SKIPPED", "reason": "CHECKSUM_MATCH"}
-
-            # Record running
-            cur.execute(
-                """
-                INSERT INTO core.migration_ledger (id, tenant_id, step_name, records_processed, status, started_at, input_checksum)
-                VALUES (%s, %s, %s, 0, 'RUNNING', %s, %s)
-                """,
-                (ledger_id, FOUNDER_TENANT_ID, step_name, started_at, current_checksum)
-            )
-            conn.commit()
-
-            # Pre-fetch national reference PT slabs for comparison
-            cur.execute("""
-                SELECT state_code, from_amount, to_amount, amount, sort_order
-                FROM reference.pt_slab
-                ORDER BY state_code, sort_order
-            """)
-            for row in cur.fetchall():
-                sc = str(row[0]).strip().upper()
-                ref_pt_slabs.setdefault(sc, []).append({
-                    "from_amount": to_decimal(row[1]),
-                    "to_amount": to_decimal(row[2]) if row[2] is not None else None,
-                    "amount": to_decimal(row[3]),
-                    "sort_order": int(row[4])
-                })
-
-        except Exception as e:
-            logger.warning(f"Database connection error or ref table fetch failed: {e}. Skipping DB writes.")
-            skip_db = True
-
-    # ── 1. Transform EPF Settings (One row per tenant) ─────────────────────────
-    epf_by_tenant = {}
-    for ep in stg_epf:
-        tid = resolve_tenant(ep)
-        epf_id = det_uuid(f"{tid}:epf_setting")
-        is_enabled = bool(ep.get("isEpfEnabled", ep.get("is_enabled", True)))
-        reg_num = ep.get("epfNumber") or ep.get("registration_number")
-        reg_date = str(ep.get("registrationDate") or ep.get("registration_date") or "")[:10] or None
-
-        emp_rate = to_decimal(ep.get("employeeContributionRate") or ep.get("employee_rate") or 12)
-        empr_rate = to_decimal(ep.get("employerContributionRate") or ep.get("employer_rate") or 12)
-        eps_rate = to_decimal(ep.get("epsRate") or ep.get("eps_rate") or 8.33)
-        edli_rate = to_decimal(ep.get("edliRate") or ep.get("edli_rate") or 0.50)
-        admin_rate = to_decimal(ep.get("adminChargeRate") or ep.get("admin_charge_rate") or 0.50)
-        wage_ceiling = to_decimal(ep.get("wageCeiling") or ep.get("wage_ceiling") or 15000)
-
-        epf_by_tenant[tid] = (
-            epf_id, tid, is_enabled, reg_num, reg_date, "MONTHLY",
-            emp_rate, empr_rate, eps_rate, edli_rate, admin_rate, wage_ceiling,
-            bool(ep.get("restrictEmployeeToCeiling", ep.get("restrict_employee_to_ceiling", False))),
-            bool(ep.get("restrictEmployerToCeiling", ep.get("restrict_employer_to_ceiling", False))),
-            bool(ep.get("prorateRestrictedWage", ep.get("prorate_restricted_wage", False))),
-            bool(ep.get("considerEarnedWage", ep.get("consider_earned_wage", True))),
-            int(ep.get("epsSeniorAge", ep.get("eps_senior_age", 58))),
-            bool(ep.get("includeEmployerInCtc", ep.get("include_employer_in_ctc", False))),
-            bool(ep.get("includeEdliAdminInCtc", ep.get("include_edli_admin_in_ctc", False))),
-            bool(ep.get("includeEmployerInStructure", ep.get("include_employer_in_structure", False))),
-            bool(ep.get("includeEdliAdminInStructure", ep.get("include_edli_admin_in_structure", False))),
-            bool(ep.get("abryScheme", ep.get("abry_scheme", False)))
-        )
-
-    # ── 2. Transform ESI Settings (One row per tenant) ─────────────────────────
-    esi_by_tenant = {}
-    for es in stg_esi:
-        tid = resolve_tenant(es)
-        esi_id = det_uuid(f"{tid}:esi_setting")
-        is_enabled = bool(es.get("isEsiEnabled", es.get("is_enabled", True)))
-        reg_num = es.get("esiNumber") or es.get("registration_number")
-        reg_date = str(es.get("registrationDate") or es.get("registration_date") or "")[:10] or None
-
-        emp_rate = to_decimal(es.get("employeeContributionRate") or es.get("employee_rate") or 0.75)
-        empr_rate = to_decimal(es.get("employerContributionRate") or es.get("employer_rate") or 3.25)
-        wage_ceiling = to_decimal(es.get("wageCeiling") or es.get("wage_ceiling") or 21000)
-
-        esi_by_tenant[tid] = (
-            esi_id, tid, is_enabled, reg_num, reg_date, "MONTHLY",
-            emp_rate, empr_rate, wage_ceiling,
-            bool(es.get("includeEmployerInCtc", es.get("include_employer_in_ctc", False))),
-            bool(es.get("includeInStructure", es.get("include_in_structure", False)))
-        )
-
-    # ── 3. Transform Professional Tax Overrides & Slabs ────────────────────────
-    # Group configured slabs by pt header / state
-    slabs_by_config = {}
-    for sd in stg_pt_slabs:
-        cid = str(sd.get("slabRateConfigurationId") or sd.get("slab_rate_configuration_id") or sd.get("pt_id") or "")
-        slabs_by_config.setdefault(cid, []).append(sd)
-
-    pt_override_batch = []
-    pt_override_slab_batch = []
-    skipped_identical_count = 0
-
-    for pt in stg_pt:
-        tid = resolve_tenant(pt)
-        legacy_pt_id = str(pt.get("id"))
-        state_code = str(pt.get("state") or pt.get("stateCode") or pt.get("state_code") or "KA").strip().upper()[:10]
-        reg_num = pt.get("registrationNumber") or pt.get("ptNumber") or pt.get("registration_number")
-        eff_from = str(pt.get("effectiveFrom") or pt.get("effective_from") or "2024-04-01")[:10]
-
-        # Gather configured slabs for this PT setup
-        child_slabs_raw = slabs_by_config.get(legacy_pt_id, [])
-        configured_slabs = []
-        for idx, cs in enumerate(child_slabs_raw, start=1):
-            f_amt = to_decimal(cs.get("startRange") or cs.get("from_amount") or 0)
-            t_raw = cs.get("endRange") or cs.get("to_amount")
-            t_amt = to_decimal(t_raw) if t_raw is not None and str(t_raw).strip() != "" and str(t_raw) != "0" else None
-            amt = to_decimal(cs.get("monthlyTax") or cs.get("amount") or 0)
-            configured_slabs.append({
-                "from_amount": f_amt,
-                "to_amount": t_amt,
-                "amount": amt,
-                "is_female_exempt": bool(cs.get("isFemaleExempt", cs.get("is_female_exempt", False))),
-                "deduction_months": cs.get("deductionMonths", cs.get("deduction_months")),
-                "sort_order": int(cs.get("sortOrder", cs.get("sort_order", idx)))
-            })
-
-        # Check against reference.pt_slab
-        ref_slabs = ref_pt_slabs.get(state_code, [])
-        if not slabs_differ_from_reference(configured_slabs, ref_slabs):
-            logger.info(f"PT slabs for tenant {tid[:8]} state {state_code} match national reference; skipping override per W-68 rule.")
-            skipped_identical_count += 1
+def _months(values) -> str | None:
+    """Legacy month list (numbers or names) -> target '2,3' (PtSlabDto.formatMonths); every month
+    or none -> NULL. Raises ValueError on a month it cannot read."""
+    out = set()
+    for v in values or []:
+        s = str(v).strip().lower()
+        if not s:
             continue
+        if s.isdigit() and 1 <= int(s) <= 12:
+            out.add(int(s))
+        elif s[:3] in _MONTHS:
+            out.add(_MONTHS[s[:3]])
+        else:
+            raise ValueError(s)
+    if not out or len(out) == 12:
+        return None
+    return ",".join(str(m) for m in sorted(out))
 
-        # Slabs differ: create override header and slabs
-        override_id = det_uuid(f"{tid}:org_pt_override:{state_code}")
-        pt_override_batch.append((
-            override_id, tid, state_code, reg_num, eff_from
-        ))
 
-        for slab in configured_slabs:
-            slab_id = det_uuid(f"{tid}:org_pt_override_slab:{state_code}:{slab['sort_order']}")
-            pt_override_slab_batch.append((
-                slab_id, tid, override_id, slab["from_amount"], slab["to_amount"],
-                slab["amount"], slab["is_female_exempt"], slab["deduction_months"], slab["sort_order"]
-            ))
+def _slab(start, end, pay, female, months) -> tuple:
+    return (to_money(start) or Decimal("0.00"), to_money(end), to_money(pay) or Decimal("0.00"),
+            bool(truthy(female, False)), _months(months))
 
-    total_records = (
-        len(epf_by_tenant) + len(esi_by_tenant) +
-        len(pt_override_batch) + len(pt_override_slab_batch)
-    )
 
-    logger.info(
-        f"Transform complete: {len(epf_by_tenant)} EPF settings, {len(esi_by_tenant)} ESI settings, "
-        f"{len(pt_override_batch)} PT overrides ({len(pt_override_slab_batch)} custom slabs, "
-        f"{skipped_identical_count} identical to reference skipped). Total records: {total_records}"
-    )
+def _sorted(slabs: list[tuple]) -> list[tuple]:
+    return sorted(slabs, key=lambda s: (s[0], s[4] or "", s[2]))
 
-    # ── Database Writes ────────────────────────────────────────────────────────
-    if not skip_db and cur and not dry_run:
-        try:
-            # Set RLS session
-            cur.execute("SET LOCAL app.current_tenant_id = %s", (FOUNDER_TENANT_ID,))
 
-            # 1. Upsert payroll.epf_setting
-            if epf_by_tenant:
-                logger.info(f"Upserting {len(epf_by_tenant)} rows into payroll.epf_setting...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.epf_setting (
-                        id, tenant_id, is_enabled, registration_number, registration_date, deduction_cycle,
-                        employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, wage_ceiling,
-                        restrict_employee_to_ceiling, restrict_employer_to_ceiling, prorate_restricted_wage,
-                        consider_earned_wage, eps_senior_age, include_employer_in_ctc, include_edli_admin_in_ctc,
-                        include_employer_in_structure, include_edli_admin_in_structure, abry_scheme,
-                        created_by, updated_by
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s,
-                        %s, %s, %s, %s,
-                        %s, %s, %s,
-                        'migration', 'migration'
-                    )
-                    ON CONFLICT (tenant_id) DO UPDATE SET
-                        is_enabled = EXCLUDED.is_enabled,
-                        registration_number = EXCLUDED.registration_number,
-                        employee_rate = EXCLUDED.employee_rate,
-                        employer_rate = EXCLUDED.employer_rate,
-                        wage_ceiling = EXCLUDED.wage_ceiling,
-                        updated_at = CURRENT_TIMESTAMP
-                """, list(epf_by_tenant.values()), page_size=100)
+def run(conn=None) -> bool:
+    tenants = Tenants.load()
+    q = Quarantine(STEP)
 
-            # 2. Upsert payroll.esi_setting
-            if esi_by_tenant:
-                logger.info(f"Upserting {len(esi_by_tenant)} rows into payroll.esi_setting...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.esi_setting (
-                        id, tenant_id, is_enabled, registration_number, registration_date, deduction_cycle,
-                        employee_rate, employer_rate, wage_ceiling, include_employer_in_ctc,
-                        include_in_structure, created_by, updated_by
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s,
-                        %s, 'migration', 'migration'
-                    )
-                    ON CONFLICT (tenant_id) DO UPDATE SET
-                        is_enabled = EXCLUDED.is_enabled,
-                        registration_number = EXCLUDED.registration_number,
-                        employee_rate = EXCLUDED.employee_rate,
-                        employer_rate = EXCLUDED.employer_rate,
-                        wage_ceiling = EXCLUDED.wage_ceiling,
-                        updated_at = CURRENT_TIMESTAMP
-                """, list(esi_by_tenant.values()), page_size=100)
+    def by_org(rows, key="organizationId"):
+        out = defaultdict(list)
+        for r in rows:
+            out[str(r.get(key))].append(r)
+        return out
 
-            # 3. Upsert payroll.org_pt_override
-            if pt_override_batch:
-                logger.info(f"Upserting {len(pt_override_batch)} rows into payroll.org_pt_override...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.org_pt_override (
-                        id, tenant_id, state_code, registration_number, effective_from,
-                        created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, state_code) DO UPDATE SET
-                        registration_number = EXCLUDED.registration_number,
-                        effective_from = EXCLUDED.effective_from,
-                        updated_at = CURRENT_TIMESTAMP
-                """, pt_override_batch, page_size=100)
+    epf = by_org(staging.load("stg_payroll_epf.json"))
+    esi = by_org(staging.load("stg_payroll_esi.json"))
+    pts = by_org(staging.load("stg_payroll_professionalTax.json"))
+    configs = defaultdict(list)
+    for c in staging.load("stg_payroll_slabRateConfiguration.json"):
+        configs[str(c.get("professionalTaxId"))].append(c)
+    slabs_by_pt, slabs_by_cfg = defaultdict(list), defaultdict(list)
+    for s in staging.load("stg_payroll_slabDetail.json"):
+        if s.get("slabRateConfigId") is not None:
+            slabs_by_cfg[str(s.get("slabRateConfigId"))].append(s)
+        if s.get("professionalTaxId") is not None:
+            slabs_by_pt[str(s.get("professionalTaxId"))].append(s)
+    months = defaultdict(list)
+    for m in staging.load("stg_payroll_slabDeductionMonths.json"):
+        months[str(m.get("slabId"))].append(m.get("deductionMonth"))
+    # org_pt_override.organization_id holds Organization.organizationId (a string), not the numeric
+    # id every other table joins on (OrgPTOverride.java:21-22, ProfessionalTaxServiceImpl.java:248).
+    org_by_string = {str(o.get("organizationId")): str(o.get("id"))
+                     for o in staging.load("stg_payroll_organization.json") if o.get("organizationId")}
+    org_ids = {str(o.get("id")) for o in staging.load("stg_payroll_organization.json")}
+    overrides = defaultdict(list)
+    for o in staging.load("stg_payroll_org_pt_override.json"):
+        raw = str(o.get("organization_id"))
+        org = org_by_string.get(raw) or (raw if raw in org_ids else None)
+        if org is None or tenants.for_org(org) is None:
+            q.add("ORG_NOT_MIGRATED", "org_pt_override", o.get("id"), organization_id=raw)
+            continue
+        overrides[org].append(o)
+    for name, rows in (("epf", epf), ("esi", esi), ("professionalTax", pts)):
+        for org, rs in rows.items():
+            if tenants.for_org(org) is None:
+                for r in rs:
+                    q.add("ORG_NOT_MIGRATED", name, r.get("id"), organization_id=org)
 
-            # 4. Upsert payroll.org_pt_override_slab
-            if pt_override_slab_batch:
-                logger.info(f"Upserting {len(pt_override_slab_batch)} rows into payroll.org_pt_override_slab...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.org_pt_override_slab (
-                        id, tenant_id, override_id, from_amount, to_amount, amount,
-                        is_female_exempt, deduction_months, sort_order,
-                        created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        from_amount = EXCLUDED.from_amount,
-                        to_amount = EXCLUDED.to_amount,
-                        amount = EXCLUDED.amount,
-                        updated_at = CURRENT_TIMESTAMP
-                """, pt_override_slab_batch, page_size=200)
+    def work(cur, t: Tenant) -> StepResult:
+        tid, org = t.tenant_id, t.legacy_org_id
+        audit = {"created_by": db.AUDIT_USER, "updated_by": db.AUDIT_USER}
+        res = StepResult()
 
-            conn.commit()
+        # ---------------- EPF
+        e, dupes = _latest(epf.get(org, []))
+        for d in dupes:
+            q.add("SECOND_SETTING_ROW", "epf", d.get("id"), tid, kept=e.get("id")); res.skipped += 1
+        if e:
+            cycle = _cycle(e.get("deductionCycle"))
+            if cycle is None:
+                q.add("DEDUCTION_CYCLE_UNMAPPED", "epf", e.get("id"), tid, value=text(e.get("deductionCycle"), 32))
+                res.skipped += 1
+            else:
+                edli_ctc = bool(truthy(e.get("isEdliIncludedCtc"), False))
+                admin_ctc = bool(truthy(e.get("isAdminChargesIncludedCtc"), False))
+                edli_ss = bool(truthy(e.get("isEdliIncludedSalaryStructure"), False))
+                admin_ss = bool(truthy(e.get("isAdminChargesIncludedSalaryStructure"), False))
+                row = {
+                    "id": det_id(tid, "epf", e.get("id")), "tenant_id": tid,
+                    "is_enabled": bool(truthy(e.get("isActive"), False)),
+                    "registration_number": text(e.get("registrationNumber"), 32),
+                    "registration_date": to_date(e.get("registrationDate")),
+                    "deduction_cycle": cycle,
+                    "employee_rate": _rate(e.get("epfEmployeeContribution")),
+                    "employer_rate": _rate(e.get("epfEmployerContribution")),
+                    "eps_rate": _rate(e.get("epsEmployerContribution")),
+                    "edli_rate": _rate(e.get("edliEmployerContribution")),
+                    "admin_charge_rate": _rate(e.get("epfAdminChargesEmployerContribution")),
+                    "restrict_employee_to_ceiling": bool(truthy(e.get("isEmployeeRestrictedBasicEnabled"), False))
+                    or _restricted(e.get("epfEmployeeContribution")),
+                    "restrict_employer_to_ceiling": bool(truthy(e.get("isEmployerRestrictedBasicEnabled"), False))
+                    or _restricted(e.get("epfEmployerContribution")),
+                    "prorate_restricted_wage": bool(truthy(e.get("canProRateRestrictedBasic"), False)),
+                    "consider_earned_wage": bool(truthy(e.get("considerEarnedSalaryForEpf"), True)),
+                    "eps_senior_age": e.get("epsSeniorCategoryAge") if str(e.get("epsSeniorCategoryAge") or "").isdigit() else None,
+                    "include_employer_in_ctc": bool(truthy(e.get("isEmployerContributionIncludedCtc"), False)),
+                    "include_edli_in_ctc": edli_ctc, "include_admin_in_ctc": admin_ctc,
+                    # the pre-V153 combined flags: on only when both halves are on
+                    "include_edli_admin_in_ctc": edli_ctc and admin_ctc,
+                    "include_employer_in_structure": bool(truthy(e.get("isEmployerContributionIncludedSalaryStructure"), False)),
+                    "include_edli_in_structure": edli_ss, "include_admin_in_structure": admin_ss,
+                    "include_edli_admin_in_structure": edli_ss and admin_ss,
+                    "abry_scheme": bool(truthy(e.get("isEligibleForAbryScheme"), False)),
+                    **audit,
+                }
+                # A rate the legacy text does not state keeps the target's statutory default.
+                row = {k: v for k, v in row.items()
+                       if not (v is None and k in ("employee_rate", "employer_rate", "eps_rate", "edli_rate",
+                                                   "admin_charge_rate", "eps_senior_age"))}
+                db.upsert(cur, "payroll.epf_setting", [row], conflict=("tenant_id",), keep_on_update=("id",))
+                res.processed += 1
 
-            # Update migration ledger
-            cur.execute("""
-                UPDATE core.migration_ledger
-                SET records_processed = %s, records_skipped = %s, status = 'DONE', completed_at = %s
-                WHERE id = %s
-            """, (total_records, len(quarantined), datetime.now(timezone.utc), ledger_id))
-            conn.commit()
-            logger.info(f"Step '{step_name}' successfully loaded {total_records} records.")
+        # ---------------- ESI
+        s, dupes = _latest(esi.get(org, []))
+        for d in dupes:
+            q.add("SECOND_SETTING_ROW", "esi", d.get("id"), tid, kept=s.get("id")); res.skipped += 1
+        if s:
+            cycle = _cycle(s.get("deductionCycle"))
+            if cycle is None:
+                q.add("DEDUCTION_CYCLE_UNMAPPED", "esi", s.get("id"), tid, value=text(s.get("deductionCycle"), 32))
+                res.skipped += 1
+            else:
+                in_ctc = truthy(s.get("canEnableEmployerEsiInCtc"))
+                if in_ctc is None:
+                    in_ctc = truthy(s.get("isIncludedInCtc"), False)
+                row = {
+                    "id": det_id(tid, "esi", s.get("id")), "tenant_id": tid,
+                    "is_enabled": bool(truthy(s.get("isActive"), False)),
+                    "registration_number": text(s.get("registrationNumber"), 32),
+                    "registration_date": to_date(s.get("registrationDate")),
+                    "deduction_cycle": cycle,
+                    "employee_rate": _rate(s.get("employeeContribution")),
+                    "employer_rate": _rate(s.get("employerContribution")),
+                    "include_employer_in_ctc": bool(in_ctc),
+                    "include_in_structure": bool(truthy(s.get("isIncludedInSalaryStructure"), False)),
+                    **audit,
+                }
+                row = {k: v for k, v in row.items() if not (v is None and k in ("employee_rate", "employer_rate"))}
+                db.upsert(cur, "payroll.esi_setting", [row], conflict=("tenant_id",), keep_on_update=("id",))
+                res.processed += 1
 
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Failed to load statutory data: {e}", exc_info=True)
-            cur.execute("""
-                UPDATE core.migration_ledger
-                SET status = 'FAILED', error_message = %s, completed_at = %s
-                WHERE id = %s
-            """, (str(e), datetime.now(timezone.utc), ledger_id))
-            conn.commit()
-            raise
-        finally:
-            cur.close()
+        # ---------------- Professional tax
+        cur.execute("SELECT lower(name), code FROM reference.state")
+        state_by_name = dict(cur.fetchall())
+        cur.execute("SELECT state_code FROM reference.pt_state")
+        pt_states = {r[0] for r in cur.fetchall()}
+        cur.execute("SELECT state_code, from_amount, to_amount, amount, is_female_exempt, deduction_months "
+                    "FROM reference.pt_slab WHERE effective_to IS NULL ORDER BY state_code, sort_order")
+        reference = defaultdict(list)
+        for sc, fr, to, amt, fem, mon in cur.fetchall():
+            reference[sc].append((to_money(fr), to_money(to), to_money(amt), bool(fem), mon or None))
+
+        def state_code(v) -> str | None:
+            s_ = text(v)
+            if not s_:
+                return None
+            if s_.upper() in pt_states:
+                return s_.upper()
+            code = state_by_name.get(s_.lower())
+            return code if code in pt_states else None
+
+        cand = {}  # state code -> candidate
+        for p in sorted(pts.get(org, []), key=lambda r: int(r.get("id") or 0)):
+            sc = state_code(p.get("stateCode")) or state_code(p.get("state"))
+            if sc is None:
+                q.add("PT_STATE_UNKNOWN", "professionalTax", p.get("id"), tid, state=text(p.get("state"), 64))
+                res.skipped += 1
+                continue
+            if sc in cand:
+                q.add("SECOND_PT_FOR_STATE", "professionalTax", p.get("id"), tid, state_code=sc)
+                res.skipped += 1
+                continue
+            active = [c for c in configs.get(str(p.get("id")), []) if truthy(c.get("isActive"), False)]
+            active.sort(key=lambda c: (str(to_date(c.get("effectiveFrom")) or ""), int(c.get("id") or 0)))
+            if active:
+                cfg = active[-1]
+                rows = slabs_by_cfg.get(str(cfg.get("id")), [])
+                eff = to_date(cfg.get("effectiveFrom")) or to_date(p.get("effectiveFrom"))
+            else:
+                own = slabs_by_pt.get(str(p.get("id")), [])
+                rows = [r for r in own if r.get("slabRateConfigId") is None] or own
+                eff = to_date(p.get("effectiveFrom"))
+            try:
+                slabs = [_slab(r.get("startAmount"), r.get("endAmount"), r.get("payAmount"),
+                               r.get("isFemaleExempted"), months.get(str(r.get("id")), [])) for r in rows]
+            except ValueError:
+                q.add("PT_MONTH_UNREADABLE", "professionalTax", p.get("id"), tid, state_code=sc)
+                res.skipped += 1
+                continue
+            cand[sc] = {"table": "professionalTax", "legacy_id": p.get("id"), "effective_from": eff,
+                        "registration_number": text(p.get("registrationNumber"), 32), "slabs": slabs}
+
+        for o in sorted(overrides.get(org, []), key=lambda r: int(r.get("id") or 0)):
+            sc = state_code(o.get("state"))
+            if sc is None:
+                q.add("PT_STATE_UNKNOWN", "org_pt_override", o.get("id"), tid, state=text(o.get("state"), 64))
+                res.skipped += 1
+                continue
+            js = o.get("overrideJson")
+            if isinstance(js, str):
+                js = json.loads(js) if js.strip() else None
+            c = cand.get(sc, {"slabs": [], "registration_number": None, "effective_from": None})
+            eff = to_date(o.get("effectiveFrom"))
+            if eff is None and o.get("changedAt"):  # the legacy applied an override from when it was saved
+                eff = to_timestamp(o.get("changedAt")).date()
+            if js:
+                try:
+                    slabs = [_slab(j.get("startAmount"), j.get("endAmount"), j.get("payAmount"),
+                                   j.get("isFemaleExempted"), j.get("deductionMonths")) for j in js]
+                except ValueError:
+                    q.add("PT_MONTH_UNREADABLE", "org_pt_override", o.get("id"), tid, state_code=sc)
+                    res.skipped += 1
+                    continue
+                c = {**c, "slabs": slabs, "effective_from": eff or c.get("effective_from")}
+            c = {**c, "table": "org_pt_override", "legacy_id": o.get("id"),
+                 "registration_number": text(o.get("registrationNumber"), 32) or c.get("registration_number")}
+            cand[sc] = c
+
+        for sc in sorted(cand):
+            c = cand[sc]
+            if not c["slabs"] or _sorted(c["slabs"]) == _sorted(reference.get(sc, [])):
+                q.add("PT_MATCHES_REFERENCE", c["table"], c["legacy_id"], tid, state_code=sc,
+                      registration_number_dropped=bool(c.get("registration_number")) or None)
+                res.skipped += 1
+                continue
+            if c.get("effective_from") is None:
+                q.add("PT_NO_EFFECTIVE_FROM", c["table"], c["legacy_id"], tid, state_code=sc)
+                res.skipped += 1
+                continue
+            oid = det_id(tid, "org_pt_override", sc)
+            db.upsert(cur, "payroll.org_pt_override", [{
+                "id": oid, "tenant_id": tid, "state_code": sc, "registration_number": c.get("registration_number"),
+                "effective_from": c["effective_from"], **audit,
+            }], conflict=("tenant_id", "state_code"), keep_on_update=("id",))
+            cur.execute("SELECT id::text FROM payroll.org_pt_override WHERE tenant_id = %s AND state_code = %s",
+                        (tid, sc))
+            oid = cur.fetchone()[0]
+            slab_rows = [{
+                "id": child_id(oid, f"slab:{n}"), "tenant_id": tid, "override_id": oid,
+                "from_amount": fr, "to_amount": to, "amount": amt, "is_female_exempt": fem,
+                "deduction_months": mon, "sort_order": n, **audit,
+            } for n, (fr, to, amt, fem, mon) in enumerate(_sorted(c["slabs"]), start=1)]
+            db.upsert(cur, "payroll.org_pt_override_slab", slab_rows)
+            cur.execute("DELETE FROM payroll.org_pt_override_slab WHERE override_id = %s AND NOT (id = ANY(%s::uuid[]))",
+                        (oid, [r["id"] for r in slab_rows]))
+            res.processed += 1 + len(slab_rows)
+        return res
+
+    own = conn is None
+    conn = conn or db.connect()
+    try:
+        summary = run_per_tenant(conn, STEP, tenants.all(), staging.checksum(INPUTS), work)
+    finally:
+        if own:
             conn.close()
-
-    # Save quarantine report
-    quarantine_file = os.path.join(stg_dir, "stg_quarantined_statutory.json")
-    with open(quarantine_file, "w", encoding="utf-8") as f:
-        json.dump(quarantined, f, indent=2)
-
-    return {
-        "epf_settings_loaded": len(epf_by_tenant),
-        "esi_settings_loaded": len(esi_by_tenant),
-        "pt_overrides_loaded": len(pt_override_batch),
-        "pt_override_slabs_loaded": len(pt_override_slab_batch),
-        "skipped_identical_count": skipped_identical_count,
-        "total_records": total_records,
-        "quarantined": len(quarantined)
-    }
+    q.write()
+    return summary.ok
 
 
 if __name__ == "__main__":
-    is_dry_run = "--dry-run" in sys.argv
-    run_loader(dry_run=is_dry_run)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    sys.exit(0 if run() else 1)

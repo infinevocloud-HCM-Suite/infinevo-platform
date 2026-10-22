@@ -1,863 +1,737 @@
-"""
-Income Tax & Investment Declarations Loader (Step 3h - W-68.3 / Ticket #90)
-Loads into target PostgreSQL:
-  - payroll.income_tax_declaration (tenant declaration window)
-  - payroll.employee_investment_declaration (employee annual declaration)
-  - 9 child investment tables:
-      - payroll.employee_inv_house_rent
-      - payroll.employee_inv_home_loan
-      - payroll.employee_inv_let_out_property
-      - payroll.employee_inv_let_out_property_line
-      - payroll.employee_inv_section6a
-      - payroll.employee_inv_pre_tax_deduction
-      - payroll.employee_inv_prev_employment
-      - payroll.employee_inv_other_income
-      - payroll.employee_inv_tax_summary
-  - payroll.employee_tds (annual tax projection/records)
-  - payroll.employee_proof_of_investment
-  - payroll.employee_proof_item
+"""3h - income-tax declarations, TDS and proofs, current financial year only
+(W-68 Task 3, mapping §3.7, decisions X-07 and X-08).
 
-Rules & Invariants:
-  - Current financial year only: fiscal_year = FY of the run date, parameter MIGRATION_FY.
-  - Deterministic UUIDv5 namespace mapping.
-  - Strict Decimal arithmetic only (no float).
-  - RLS tenant isolation respected (app.current_tenant_id).
-  - Tracks execution in core.migration_ledger.
-"""
+  IncomeTaxDeclaration + ProofOfInvestment       -> payroll.income_tax_declaration (one per tenant)
+  employee_investment_declaration                -> payroll.employee_investment_declaration
+  employee_inv_house_rent, _home_loan, _let_out_property (+ _detail), _other_income,
+  _pre_tax_deduction, _prev_employment, _section6a, _tax_summary
+                                                 -> the nine payroll.employee_inv_* tables
+  employee_tds                                   -> payroll.employee_tds
+  employee_proof_of_investment, employee_poi_item, employee_poi_item_comment,
+  employee_poi_property_detail                   -> payroll.employee_proof_of_investment,
+                                                    employee_proof_item, employee_proof_item_comment,
+                                                    employee_inv_let_out_property_line
+  employee_poi_document is W-69's: documents become core.document there, and
+  payroll.employee_proof_item_document links them through the id-map key
+  payroll.employee_poi_item written here.
 
-import os
-import sys
-import json
-import uuid
+Financial year: the FY of the run date, or MIGRATION_FY ("2025-26" or "2025-2026"). The
+target writes "YYYY-YYYY" (CHECK on employee_tds.financial_year); legacy stores the FY's
+end year as an integer (userInvestmentDeclaration.js:15-29: fiscalYear = fiscalYearEnd).
+Rows of other years are quarantined NOT_CURRENT_FY (their children go with them).
+"""
+from __future__ import annotations
+
+import calendar
 import hashlib
 import logging
-from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime, timezone
-import psycopg2
-from psycopg2.extras import execute_batch
+import os
+import re
+import sys
+from collections import defaultdict
+from datetime import date
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("load_tax")
+from common import db, staging
+from common.ids import child_id, det_id
+from common.idmap import IdMap
+from common.ledger import StepResult, run_per_tenant
+from common.legacy import text, to_date, to_timestamp, truthy
+from common.money import money_or_zero, to_money
+from common.quarantine import Quarantine
+from common.tenants import Tenant, Tenants
 
-NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-FOUNDER_TENANT_ID = "a0000000-0000-0000-0000-000000000001"
+STEP = "load_tax"
+INPUTS = ["stg_payroll_IncomeTaxDeclaration.json", "stg_payroll_ProofOfInvestment.json",
+          "stg_payroll_employee_investment_declaration.json", "stg_payroll_employee_inv_house_rent.json",
+          "stg_payroll_employee_inv_home_loan.json", "stg_payroll_employee_inv_let_out_property.json",
+          "stg_payroll_employee_inv_let_out_property_detail.json", "stg_payroll_employee_inv_other_income.json",
+          "stg_payroll_employee_inv_pre_tax_deduction.json", "stg_payroll_employee_inv_prev_employment.json",
+          "stg_payroll_employee_inv_section6a.json", "stg_payroll_employee_inv_tax_summary.json",
+          "stg_payroll_employee_tds.json", "stg_payroll_employee_proof_of_investment.json",
+          "stg_payroll_employee_poi_item.json", "stg_payroll_employee_poi_item_comment.json",
+          "stg_payroll_employee_poi_property_detail.json",
+          # id-map sources (merge + load_employees)
+          "stg_merged_employees.json", "stg_payroll_employee.json"]
+log = logging.getLogger(STEP)
+AUDIT = {"created_by": db.AUDIT_USER, "updated_by": db.AUDIT_USER}
 
+REGIMES = ("OLD", "NEW")
+# Legacy declaration status: DRAFT at creation, SUBMITTED, APPROVED when the proof is approved
+# (EmployeeInvestmentDeclarationServiceImpl.java:237, EmployeeProofOfInvestmentServiceImpl.java:1278,1815).
+# The target keeps DRAFT/SUBMITTED; approval lives on the proof.
+DECL_STATUS = {"DRAFT": "DRAFT", "SUBMITTED": "SUBMITTED", "APPROVED": "SUBMITTED"}
+# employee_proof_of_investment.status is a PayRunStatus (EmployeeProofOfInvestment.java:48-50)
+POI_STATUS = {"DRAFT": "DRAFT", "SUBMITTED": "SUBMITTED", "APPROVAL_PENDING": "SUBMITTED",
+              "APPROVED": "APPROVED", "REJECTED": "REJECTED"}
+ITEM_STATUS = {"DRAFT": "PENDING", "READY": "PENDING", "SUBMITTED": "PENDING", "APPROVAL_PENDING": "PENDING",
+               "APPROVED": "APPROVED", "COMPLETED": "APPROVED", "REJECTED": "DISALLOWED"}
+# Lower-case type values the legacy screens send (userInvestmentDeclaration.js:322-365, 1024-1160)
+OTHER_INCOME_KIND = {"OTHER_INCOME": "OTHER", "OTHER": "OTHER", "SAVINGS_INTEREST": "SAVINGS_INTEREST",
+                     "FD_INTEREST": "FD_INTEREST", "NSC_INTEREST": "NSC_INTEREST"}
+PREV_EMP_KIND = {"INCOME": "INCOME", "INCOME_TAX": "INCOME_TAX_DEDUCTED",
+                 "INCOME_TAX_DEDUCTED": "INCOME_TAX_DEDUCTED", "PROFESSIONAL_TAX": "PROFESSIONAL_TAX",
+                 "EMPLOYEE_PF": "EMPLOYEE_PF", "LEAVE_ENCASHMENT": "LEAVE_ENCASHMENT"}
+PRE_TAX_KIND = {"EPF": "EMPLOYEE_PF", "PF": "EMPLOYEE_PF", "EMPLOYEE_PF": "EMPLOYEE_PF", "VPF": "VPF",
+                "PT": "PROFESSIONAL_TAX", "PROFESSIONAL_TAX": "PROFESSIONAL_TAX", "NPS": "NPS_EMPLOYEE",
+                "NPS_EMPLOYEE": "NPS_EMPLOYEE"}
+LINE_TYPE = {"ANNUAL_RENT": "ANNUAL_RENT", "MUNICIPAL_TAX": "MUNICIPAL_TAX", "MUNICIPAL_TAXES": "MUNICIPAL_TAX",
+             "LOAN_INTEREST": "LOAN_INTEREST", "INTEREST_ON_LOAN": "LOAN_INTEREST", "INTEREST": "LOAN_INTEREST"}
+# employee_tds.tds_source_type (enumeration/TdsSourceType.java): all three are computed from
+# the declaration or the default regime; none is an officer's manual figure.
+TDS_SOURCE = {"POI_BASED": "DECLARATION", "DEFAULT_REGIME": "DECLARATION", "SALARY_REVISION": "DECLARATION"}
 
-def to_decimal(val, decimals=4):
-    """Convert value to Decimal without float casting."""
-    if val is None or val == "":
-        d = Decimal("0")
-    else:
-        d = Decimal(str(val))
-    if decimals == 4:
-        return d.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-    elif decimals == 2:
-        return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return d
-
-
-def det_uuid(namespace_key: str) -> str:
-    """Generate deterministic UUIDv5."""
-    return str(uuid.uuid5(NAMESPACE, namespace_key))
-
-
-def get_pg_connection():
-    """Target PostgreSQL connection."""
-    return psycopg2.connect(
-        host=os.environ.get("TARGET_DB_HOST", "localhost"),
-        port=int(os.environ.get("TARGET_DB_PORT", "5432")),
-        dbname=os.environ.get("TARGET_DB_NAME", "infinevo"),
-        user=os.environ.get("TARGET_DB_USER", "migration_user"),
-        password=os.environ.get("TARGET_DB_PASSWORD", "local_migration_pw"),
-    )
-
-
-def compute_files_checksum(file_paths):
-    """Computes combined sha256 checksum across staging input files."""
-    hasher = hashlib.sha256()
-    for p in sorted(file_paths):
-        if os.path.exists(p):
-            with open(p, "rb") as f:
-                while chunk := f.read(65536):
-                    if isinstance(chunk, str):
-                        chunk = chunk.encode("utf-8")
-                    hasher.update(chunk)
-    return hasher.hexdigest()
-
-
-def get_current_fy():
-    """Returns the current financial year in format 'YYYY-YYYY'."""
-    fy_env = os.environ.get("MIGRATION_FY")
-    if fy_env:
-        return fy_env.strip()
-    now = datetime.now(timezone.utc)
-    # Indian FY starts in April (month >= 4)
-    if now.month >= 4:
-        return f"{now.year}-{now.year + 1}"
-    else:
-        return f"{now.year - 1}-{now.year}"
+_MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_name) if m}
+_MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_abbr) if m})
 
 
-def run_loader(dry_run: bool = False, skip_db: bool = False):
-    """
-    Executes income tax & investment declarations migration loader (Task 3h).
-    """
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    stg_dir = os.path.join(base_dir, "staging")
-    cfg_dir = os.path.join(base_dir, "config")
+def _norm(v) -> str:
+    return re.sub(r"[\s\-]+", "_", (text(v) or "").upper())
 
-    def load_stg(fname, default=None):
-        path = os.path.join(stg_dir, fname)
-        if not os.path.exists(path):
-            return default if default is not None else []
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
 
-    # 1. Load staging data
-    stg_window = load_stg("stg_payroll_IncomeTaxDeclaration.json")
-    stg_declarations = load_stg("stg_payroll_employee_investment_declaration.json")
-    stg_house_rent = load_stg("stg_payroll_employee_inv_house_rent.json")
-    stg_home_loan = load_stg("stg_payroll_employee_inv_home_loan.json")
-    stg_let_out = load_stg("stg_payroll_employee_inv_let_out_property.json")
-    stg_let_out_detail = load_stg("stg_payroll_employee_inv_let_out_property_detail.json")
-    stg_sec6a = load_stg("stg_payroll_employee_inv_section6a.json")
-    stg_pre_tax = load_stg("stg_payroll_employee_inv_pre_tax_deduction.json")
-    stg_prev_emp = load_stg("stg_payroll_employee_inv_prev_employment.json")
-    stg_other_inc = load_stg("stg_payroll_employee_inv_other_income.json")
-    stg_tax_summary = load_stg("stg_payroll_employee_inv_tax_summary.json")
-    stg_emp_tds = load_stg("stg_payroll_employee_tds.json")
-    stg_poi = load_stg("stg_payroll_ProofOfInvestment.json")
-    stg_emp_poi = load_stg("stg_payroll_employee_proof_of_investment.json")
-    stg_poi_items = load_stg("stg_payroll_employee_poi_item.json")
-    merged_employees = load_stg("stg_merged_employees.json")
+class FY:
+    def __init__(self, start_year: int):
+        self.start, self.end = start_year, start_year + 1
+        self.label = f"{self.start}-{self.end}"
+        self.opens, self.closes = date(self.start, 4, 1), date(self.end, 3, 31)
 
-    org_map_file = os.path.join(cfg_dir, "org_mapping.json")
-    org_map = {}
-    if os.path.exists(org_map_file):
-        with open(org_map_file, "r", encoding="utf-8") as f:
-            org_map = json.load(f)
+    def month(self, m: int) -> date:
+        """First day of month m inside this FY (April..December in the start year)."""
+        return date(self.start if m >= 4 else self.end, m, 1)
 
-    # Build employee lookup tables
-    emp_by_payroll_id = {}
-    for e in merged_employees:
-        if e.get("source_legacy_payroll_id"):
-            emp_by_payroll_id[str(e["source_legacy_payroll_id"]).strip()] = e
-        if e.get("id"):
-            emp_by_payroll_id[str(e["id"]).strip()] = e
 
-    current_fy = get_current_fy()
-    logger.info(f"Target Financial Year for tax migration: {current_fy}")
+def current_fy(today: date | None = None) -> FY:
+    raw = (os.environ.get("MIGRATION_FY") or "").strip()
+    if raw:
+        m = re.fullmatch(r"(\d{4})-(\d{2}|\d{4})", raw)
+        if not m:
+            raise ValueError(f"MIGRATION_FY={raw!r}: expected YYYY-YY or YYYY-YYYY")
+        start = int(m.group(1))
+        end = int(m.group(2)) if len(m.group(2)) == 4 else (start // 100) * 100 + int(m.group(2))
+        if end != start + 1:
+            raise ValueError(f"MIGRATION_FY={raw!r}: the end year must follow the start year")
+        return FY(start)
+    t = today or date.today()
+    return FY(t.year if t.month >= 4 else t.year - 1)
 
-    def resolve_tenant(item):
-        org_id = str(item.get("organizationId") or item.get("organization_id") or "")
-        if org_id in org_map:
-            return org_map[org_id].get("tenant_id", FOUNDER_TENANT_ID)
-        return FOUNDER_TENANT_ID
 
-    input_files = [
-        os.path.join(stg_dir, "stg_payroll_IncomeTaxDeclaration.json"),
-        os.path.join(stg_dir, "stg_payroll_employee_investment_declaration.json"),
-        os.path.join(stg_dir, "stg_payroll_employee_inv_house_rent.json"),
-        os.path.join(stg_dir, "stg_payroll_employee_tds.json"),
-    ]
-    current_checksum = compute_files_checksum(input_files)
+def _month(v) -> date | None:
+    """'2025-04' or a full date -> first day of that month."""
+    s = text(v)
+    if not s:
+        return None
+    d = to_date(s + "-01") if re.fullmatch(r"\d{4}-\d{2}", s) else to_date(s)
+    return d.replace(day=1) if d else None
 
-    step_name = "load_tax"
-    started_at = datetime.now(timezone.utc)
-    ledger_id = str(uuid.uuid4())
-    quarantined = []
 
-    conn = None
-    cur = None
-    section6a_item_master = {}  # code/id -> uuid
+def _fy_period(v, fy: FY) -> str | None:
+    """employee_tds.effective_from_month: a month name ('march', ProofOfInvestment.monthToConsiderPoi,
+    DefaultTdsCreationServiceImpl.java:234-257) or 'YYYY-MM' -> 'YYYY-MM' inside the FY."""
+    s = text(v)
+    if not s:
+        return None
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        return s if 1 <= int(s[5:]) <= 12 else None
+    n = _MONTHS.get(s.lower()) or (int(s) if s.isdigit() and 1 <= int(s) <= 12 else None)
+    if not n:
+        return None
+    d = fy.month(n)
+    return f"{d.year:04d}-{d.month:02d}"
 
-    if not skip_db and not dry_run:
-        try:
-            conn = get_pg_connection()
-            conn.autocommit = False
-            cur = conn.cursor()
 
-            # Check if step already DONE with same checksum
-            cur.execute(
-                """
-                SELECT id FROM core.migration_ledger
-                WHERE step_name = %s AND status = 'DONE' AND input_checksum = %s
-                ORDER BY completed_at DESC LIMIT 1
-                """,
-                (step_name, current_checksum)
-            )
-            done_row = cur.fetchone()
-            if done_row and not os.environ.get("FORCE_RELOAD"):
-                logger.info(f"Step '{step_name}' already DONE with matching checksum ({current_checksum[:8]}...). Skipping execution.")
-                cur.close()
-                conn.close()
-                return {"status": "SKIPPED", "reason": "CHECKSUM_MATCH"}
+def run(conn=None) -> bool:
+    tenants = Tenants.load()
+    idmap = IdMap.load()
+    q = Quarantine(STEP)
+    fy = current_fy()
+    log.info("financial year %s", fy.label)
+    plan: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
 
-            # Record running in migration ledger
-            cur.execute(
-                """
-                INSERT INTO core.migration_ledger (id, tenant_id, step_name, records_processed, status, started_at, input_checksum)
-                VALUES (%s, %s, %s, 0, 'RUNNING', %s, %s)
-                """,
-                (ledger_id, FOUNDER_TENANT_ID, step_name, started_at, current_checksum)
-            )
-            conn.commit()
+    def emp_of(legacy_emp, tid, table, lid, by_uuid=False) -> str | None:
+        eid = (idmap.get("payroll.employee.uuid", legacy_emp) if by_uuid else None) or \
+            idmap.get("payroll.employee", legacy_emp)
+        if eid is None:
+            q.add("EMPLOYEE_NOT_MIGRATED", table, lid, tid, employee_ref=legacy_emp)
+            return None
+        owner = idmap.get("employee.tenant", eid)
+        if owner and owner != tid:
+            q.add("EMPLOYEE_TENANT_MISMATCH", table, lid, tid, employee_ref=legacy_emp)
+            return None
+        return eid
 
-            # Pre-load reference.section6a_item_master
-            cur.execute("SELECT id, section_code FROM reference.section6a_item_master")
-            for r in cur.fetchall():
-                section6a_item_master[str(r[1]).strip().upper()] = str(r[0])
-                section6a_item_master[str(r[0])] = str(r[0])
+    def pan(v, table, lid, tid) -> str | None:
+        s = (text(v) or "").upper().replace(" ", "")
+        if not s:
+            return None
+        if len(s) != 10:  # VARCHAR(10); a malformed PAN is dropped, never cut
+            q.add("PAN_DROPPED_NOT_10_CHARS", table, lid, tid)
+            return None
+        return s
 
-        except Exception as e:
-            logger.warning(f"Database connection error: {e}. Skipping DB writes.")
-            skip_db = True
+    def audit(row: dict, created) -> dict:
+        ts = to_timestamp(created)
+        out = {**row, **AUDIT}
+        if ts:
+            out["created_at"] = ts
+        return out
 
-    # ── 1. Tenant Declaration Window (payroll.income_tax_declaration) ──────────
-    window_batch = []
-    seen_windows = set()
-    for w in stg_window:
-        tid = resolve_tenant(w)
-        fy = str(w.get("financialYear") or w.get("financial_year") or current_fy).strip()
-        if fy != current_fy:
+    # ---- tenant declaration window -------------------------------------------------------
+    itd_by_org = {str(r.get("organizationId")): r for r in staging.load("stg_payroll_IncomeTaxDeclaration.json")}
+    poi_cfg_by_org = {str(r.get("organizationId")): r for r in staging.load("stg_payroll_ProofOfInvestment.json")}
+    default_regime: dict[str, str] = {}
+    for org in sorted(set(itd_by_org) | set(poi_cfg_by_org)):
+        t = tenants.for_org(org)
+        src = itd_by_org.get(org) or {}
+        poi = poi_cfg_by_org.get(org) or {}
+        if t is None:
+            q.add("ORG_NOT_MIGRATED", "IncomeTaxDeclaration", src.get("id") or poi.get("id"), organization=org)
             continue
-        if (tid, fy) in seen_windows:
+        tid = t.tenant_id
+        regime = _norm(src.get("default_tax_regime"))
+        regime = regime if regime in REGIMES else "NEW"
+        if _norm(src.get("default_tax_regime")) in REGIMES:
+            default_regime[tid] = regime
+        closes = to_date(src.get("lastDateForItDeclaration"))
+        if closes is None or closes < fy.opens:
+            closes = fy.closes  # no usable lock date for this FY: the window runs to the FY end
+        poi_month = _MONTHS.get((text(poi.get("monthToConsiderPoi")) or "").lower())
+        poi_opens = fy.month(poi_month) if poi_month else None
+        poi_due = to_date(poi.get("lastDateForPoi"))
+        if poi_opens and poi_due and poi_due < poi_opens:
+            q.add("POI_DUE_BEFORE_OPEN", "ProofOfInvestment", poi.get("id"), tid)
+            poi_opens = None
+        plan[tid]["itd"].append({
+            "id": det_id(tid, "income_tax_declaration", fy.label), "tenant_id": tid, "financial_year": fy.label,
+            "window_opens_on": fy.opens, "window_closes_on": closes,
+            "is_locked": bool(truthy(src.get("isItDeclarationLocked"), False)), "default_tax_regime": regime,
+            "can_change_tax_regime": bool(truthy(src.get("canChangeTaxRegimeIt"), True)),
+            "pan_required_for_rent_over_threshold": bool(truthy(
+                src.get("isPanMandatoryForAnnualRentOverOneLakh",
+                        poi.get("isPanMandatoryForAnnualRentOverOneLakh")), True)),
+            "notify_on_lock": bool(truthy(src.get("sendMailOnItDeclarationLock"), False)),
+            "notify_on_release": bool(truthy(src.get("sendMailOnItDeclarationRelease"), False)),
+            "poi_opens_on": poi_opens, "poi_due_date": poi_due,
+            "poi_locked": bool(truthy(poi.get("isPoiLocked"), False)),
+            "poi_attachment_mandatory": bool(truthy(poi.get("isAttachmentMandatoryPoiForPortal"), True)),
+            "poi_comment_mandatory": bool(truthy(poi.get("isCommentsMandatoryForPoiApproval"), False)),
+            **AUDIT})
+
+    # ---- employee declarations -----------------------------------------------------------
+    decls: dict[str, dict] = {}         # legacy declaration id -> {tid, id, employee_id}
+    other_fy: set[str] = set()          # legacy declarations of another year: children follow silently
+    by_emp: dict[tuple, dict] = {}
+    for d in sorted(staging.load("stg_payroll_employee_investment_declaration.json"), key=lambda r: int(r["id"])):
+        lid = d["id"]
+        t = tenants.for_org(d.get("organizationId"))
+        if t is None:
+            q.add("ORG_NOT_MIGRATED", "employee_investment_declaration", lid, organization=d.get("organizationId"))
+            other_fy.add(str(lid))
             continue
-        seen_windows.add((tid, fy))
-
-        win_id = det_uuid(f"{tid}:income_tax_declaration:{fy}")
-        opens_on = str(w.get("windowOpensOn") or w.get("window_opens_on") or f"{fy[:4]}-04-01")[:10]
-        closes_on = str(w.get("windowClosesOn") or w.get("window_closes_on") or f"{fy[-4:]}-03-31")[:10]
-        regime = str(w.get("defaultTaxRegime") or w.get("default_tax_regime") or "NEW").upper()
-        if regime not in ("OLD", "NEW"):
-            regime = "NEW"
-
-        window_batch.append((
-            win_id, tid, fy, opens_on, closes_on,
-            bool(w.get("isLocked", False)),
-            regime,
-            bool(w.get("canChangeTaxRegime", True)),
-            bool(w.get("panRequiredForRentOverThreshold", True)),
-            bool(w.get("notifyOnLock", False)),
-            bool(w.get("notifyOnRelease", False))
-        ))
-
-    # Ensure anchor tenant has window for current FY
-    if (FOUNDER_TENANT_ID, current_fy) not in seen_windows:
-        win_id = det_uuid(f"{FOUNDER_TENANT_ID}:income_tax_declaration:{current_fy}")
-        window_batch.append((
-            win_id, FOUNDER_TENANT_ID, current_fy,
-            f"{current_fy[:4]}-04-01", f"{current_fy[-4:]}-03-31",
-            False, "NEW", True, True, False, False
-        ))
-
-    # ── 2. Employee Investment Declarations ────────────────────────────────────
-    decl_batch = []
-    decl_id_map = {}  # legacy_id -> target_id
-    decl_by_emp_fy = {}  # (tid, emp_uuid, fy) -> target_id
-
-    for d in stg_declarations:
-        legacy_id = str(d.get("id"))
-        emp_key = str(d.get("employee_id") or d.get("employeeId") or "").strip()
-        matched_emp = emp_by_payroll_id.get(emp_key)
-        if not matched_emp:
-            quarantined.append({
-                "source": "employee_investment_declaration",
-                "legacy_id": legacy_id,
-                "employee_id": emp_key,
-                "reason": "MISSING_EMPLOYEE_PARENT"
-            })
+        tid = t.tenant_id
+        if d.get("fiscal_year") is None or int(d["fiscal_year"]) != fy.end:
+            q.add("NOT_CURRENT_FY", "employee_investment_declaration", lid, tid, fiscal_year=d.get("fiscal_year"))
+            other_fy.add(str(lid))
             continue
-
-        fy = str(d.get("financialYear") or d.get("financial_year") or current_fy).strip()
-        # Specification: Current financial year only
-        if fy != current_fy:
+        eid = emp_of(d.get("employee_id"), tid, "employee_investment_declaration", lid)
+        if eid is None:
             continue
+        status = DECL_STATUS.get(_norm(d.get("status")))
+        if status is None:
+            q.add("DECLARATION_STATUS_UNMAPPED", "employee_investment_declaration", lid, tid, status=d.get("status"))
+            continue
+        regime = _norm(d.get("tax_regime"))
+        if regime not in REGIMES:
+            regime = default_regime.get(tid)  # the org default the legacy app applied
+        if regime is None:
+            q.add("NO_TAX_REGIME", "employee_investment_declaration", lid, tid)
+            continue
+        key = (tid, eid)
+        if key in by_emp:  # uk (tenant, employee, FY): the newest legacy row wins
+            prev = by_emp.pop(key)
+            decls.pop(prev["legacy"])
+            q.add("DUPLICATE_DECLARATION", "employee_investment_declaration", prev["legacy"], tid, kept=lid)
+        target = det_id(tid, "employee_investment_declaration", lid)
+        row = audit({"id": target, "tenant_id": tid, "employee_id": eid, "financial_year": fy.label,
+                     "tax_regime": regime, "status": status,
+                     "is_staying_in_rented_house": bool(truthy(d.get("is_staying_in_rented_house"), False)),
+                     "is_repaying_self_occupied_loan": bool(truthy(d.get("is_repaying_self_occupied_loan"), False)),
+                     "has_let_out_property": bool(truthy(d.get("has_let_out_property"), False)),
+                     "is_locked": not truthy(d.get("can_allow_edit"), True),
+                     "submitted_at": to_timestamp(d.get("updated_time")) if status == "SUBMITTED" else None},
+                    d.get("created_time"))
+        by_emp[key] = {"legacy": str(lid), "row": row}
+        decls[str(lid)] = {"tid": tid, "id": target, "employee_id": eid}
+    for v in by_emp.values():
+        plan[v["row"]["tenant_id"]]["decl"].append(v["row"])
+        idmap.put("payroll.employee_investment_declaration", v["legacy"], v["row"]["id"])
 
-        tid = matched_emp.get("tenant_id") or resolve_tenant(d)
-        emp_uuid = matched_emp["id"]
-
-        decl_target_id = det_uuid(f"{tid}:employee_investment_declaration:{legacy_id}")
-        decl_id_map[legacy_id] = decl_target_id
-        decl_by_emp_fy[(tid, emp_uuid, fy)] = decl_target_id
-
-        regime = str(d.get("taxRegime") or d.get("tax_regime") or "NEW").upper()
-        if regime not in ("OLD", "NEW"):
-            regime = "NEW"
-
-        status = str(d.get("status") or "DRAFT").upper()
-        if status not in ("DRAFT", "SUBMITTED"):
-            status = "DRAFT"
-
-        decl_batch.append((
-            decl_target_id, tid, emp_uuid, fy, regime, status,
-            bool(d.get("isStayingInRentedHouse", d.get("is_staying_in_rented_house", False))),
-            bool(d.get("isRepayingSelfOccupiedLoan", d.get("is_repaying_self_occupied_loan", False))),
-            bool(d.get("hasLetOutProperty", d.get("has_let_out_property", False))),
-            bool(d.get("isLocked", d.get("is_locked", False))),
-            datetime.now(timezone.utc) if status == "SUBMITTED" else None,
-            None
-        ))
-
-    # ── 3. Child Investment Declarations (9 tables) ───────────────────────────
-    # Helper to resolve declaration_id
-    def resolve_decl_id(item):
-        raw_decl_id = str(item.get("declaration_id") or item.get("declarationId") or "")
-        if raw_decl_id in decl_id_map:
-            return decl_id_map[raw_decl_id]
-        emp_key = str(item.get("employee_id") or item.get("employeeId") or "").strip()
-        matched = emp_by_payroll_id.get(emp_key)
-        if matched:
-            tid = matched.get("tenant_id", FOUNDER_TENANT_ID)
-            return decl_by_emp_fy.get((tid, matched["id"], current_fy))
+    def parent(row, table, col="declaration_id") -> dict | None:
+        ref = str(row.get(col))
+        if ref in decls:
+            return decls[ref]
+        if ref not in other_fy:
+            q.add("DECLARATION_NOT_LOADED", table, row.get("id"), declaration_ref=row.get(col))
         return None
 
-    # a. House Rent
-    house_rent_batch = []
-    for hr in stg_house_rent:
-        decl_id = resolve_decl_id(hr)
-        if not decl_id:
+    def money_ok(v, table, lid, tid, what) -> object:
+        m = money_or_zero(v)
+        if m < 0:
+            q.add("NEGATIVE_AMOUNT", table, lid, tid, field=what)
+            return None
+        return m
+
+    # ---- house rent ----------------------------------------------------------------------
+    rent_ids: dict[str, dict] = {}
+    for r in staging.load("stg_payroll_employee_inv_house_rent.json"):
+        p = parent(r, "employee_inv_house_rent")
+        if not p:
             continue
-        tid = resolve_tenant(hr)
-        hr_id = det_uuid(f"{tid}:house_rent:{hr.get('id', uuid.uuid4())}")
-        from_m = str(hr.get("fromMonth") or hr.get("from_month") or f"{current_fy[:4]}-04-01")[:10]
-        to_m = str(hr.get("toMonth") or hr.get("to_month") or f"{current_fy[-4:]}-03-31")[:10]
-        amt = to_decimal(hr.get("amountPerMonth") or hr.get("amount_per_month") or hr.get("rentAmount") or 0)
-        house_rent_batch.append((
-            hr_id, tid, decl_id, from_m, to_m,
-            str(hr.get("address") or "Rented accommodation")[:1000],
-            str(hr.get("landlordName") or hr.get("landlord_name") or "Landlord")[:150],
-            hr.get("landlordPan") or hr.get("landlord_pan"),
-            bool(hr.get("isMetro", hr.get("is_metro", False))),
-            amt
-        ))
-
-    # b. Home Loan
-    home_loan_batch = []
-    for hl in stg_home_loan:
-        decl_id = resolve_decl_id(hl)
-        if not decl_id:
+        tid, lid = p["tid"], r["id"]
+        frm, to = _month(r.get("from_month")), _month(r.get("to_month"))
+        if frm is None or to is None or frm > to:
+            q.add("HOUSE_RENT_BAD_MONTHS", "employee_inv_house_rent", lid, tid)
             continue
-        tid = resolve_tenant(hl)
-        hl_id = det_uuid(f"{tid}:home_loan:{hl.get('id', uuid.uuid4())}")
-        prin = to_decimal(hl.get("principalPaid") or hl.get("principal_paid") or 0)
-        intr = to_decimal(hl.get("interestPaid") or hl.get("interest_paid") or 0)
-        sanct = str(hl.get("loanSanctionedOn") or hl.get("loan_sanctioned_on") or "")[:10] or None
-        home_loan_batch.append((
-            hl_id, tid, decl_id,
-            str(hl.get("lenderName") or hl.get("lender_name") or "Bank")[:150],
-            hl.get("lenderPan") or hl.get("lender_pan"),
-            prin, intr,
-            bool(hl.get("isFirstTimeBuyer", hl.get("is_first_time_buyer", False))),
-            sanct
-        ))
-
-    # c. Let Out Property & Property Lines
-    let_out_batch = []
-    let_out_lines_batch = []
-    for lp in stg_let_out:
-        decl_id = resolve_decl_id(lp)
-        if not decl_id:
+        if not text(r.get("address")) or not text(r.get("landlord_name")):
+            q.add("HOUSE_RENT_NO_ADDRESS_OR_LANDLORD", "employee_inv_house_rent", lid, tid)
             continue
-        tid = resolve_tenant(lp)
-        lp_id = det_uuid(f"{tid}:let_out:{lp.get('id', uuid.uuid4())}")
-        net_inc = to_decimal(lp.get("netIncomeLoss") or lp.get("net_income_loss") or 0)
-        let_out_batch.append((
-            lp_id, tid, decl_id,
-            str(lp.get("propertyName") or lp.get("property_name") or "Property")[:150],
-            str(lp.get("address") or "")[:1000] or None,
-            net_inc
-        ))
-
-    for lod in stg_let_out_detail:
-        raw_prop_id = str(lod.get("property_id") or lod.get("propertyId") or "")
-        tid = resolve_tenant(lod)
-        prop_uuid = det_uuid(f"{tid}:let_out:{raw_prop_id}")
-        decl_id = resolve_decl_id(lod) or det_uuid(f"{tid}:employee_investment_declaration:1")
-        line_type = str(lod.get("lineType") or lod.get("line_type") or "ANNUAL_RENT").upper()
-        if line_type not in ('ANNUAL_RENT', 'MUNICIPAL_TAX', 'LOAN_INTEREST'):
-            line_type = 'ANNUAL_RENT'
-        amt = to_decimal(lod.get("amount") or 0)
-        line_id = det_uuid(f"{tid}:let_out_line:{prop_uuid}:{line_type}")
-        let_out_lines_batch.append((
-            line_id, tid, decl_id, prop_uuid, line_type, amt,
-            lod.get("lenderName") or lod.get("lender_name"),
-            lod.get("lenderPan") or lod.get("lender_pan")
-        ))
-
-    # d. Section 6A Lines
-    sec6a_batch = []
-    for s6 in stg_sec6a:
-        decl_id = resolve_decl_id(s6)
-        if not decl_id:
+        amount = money_ok(r.get("amount_per_month"), "employee_inv_house_rent", lid, tid, "amount_per_month")
+        if amount is None:
             continue
-        tid = resolve_tenant(s6)
-        code_key = str(s6.get("sectionCode") or s6.get("section_code") or s6.get("code") or "80C").strip().upper()
-        item_id = section6a_item_master.get(code_key) or det_uuid(f"section6a_item:{code_key}")
-        s6_id = det_uuid(f"{tid}:sec6a:{s6.get('id', uuid.uuid4())}")
-        amt = to_decimal(s6.get("amount") or 0)
-        desc = str(s6.get("description") or f"Investment under {code_key}")[:150]
-        sec6a_batch.append((
-            s6_id, tid, decl_id, item_id, desc, amt
-        ))
+        target = det_id(tid, "employee_inv_house_rent", lid)
+        rent_ids[str(lid)] = {"id": target, "decl": p["id"], "landlord": text(r.get("landlord_name"), 150)}
+        plan[tid]["rent"].append(audit({
+            "id": target, "tenant_id": tid, "declaration_id": p["id"], "from_month": frm, "to_month": to,
+            "address": text(r.get("address"), 1000), "landlord_name": text(r.get("landlord_name"), 150),
+            "landlord_pan": pan(r.get("landlord_pan"), "employee_inv_house_rent", lid, tid),
+            "is_metro": bool(truthy(r.get("is_metro"), False)), "amount_per_month": amount}, r.get("created_time")))
 
-    # e. Pre-tax Deductions
-    pre_tax_batch = []
-    seen_pre_tax = set()
-    for pt in stg_pre_tax:
-        decl_id = resolve_decl_id(pt)
-        if not decl_id:
+    # ---- home loan -----------------------------------------------------------------------
+    loan_ids: dict[str, dict] = {}
+    for r in staging.load("stg_payroll_employee_inv_home_loan.json"):
+        p = parent(r, "employee_inv_home_loan")
+        if not p:
             continue
-        tid = resolve_tenant(pt)
-        kind = str(pt.get("kind") or pt.get("type") or "EMPLOYEE_PF").upper()
-        if kind not in ('EMPLOYEE_PF', 'VPF', 'PROFESSIONAL_TAX', 'NPS_EMPLOYEE'):
-            kind = 'EMPLOYEE_PF'
-        if (tid, decl_id, kind) in seen_pre_tax:
+        tid, lid = p["tid"], r["id"]
+        if not text(r.get("lender_name")):
+            q.add("HOME_LOAN_NO_LENDER", "employee_inv_home_loan", lid, tid)
             continue
-        seen_pre_tax.add((tid, decl_id, kind))
-        pt_id = det_uuid(f"{tid}:pre_tax:{decl_id}:{kind}")
-        amt = to_decimal(pt.get("amount") or 0)
-        pre_tax_batch.append((
-            pt_id, tid, decl_id, kind, amt
-        ))
-
-    # f. Previous Employment
-    prev_emp_batch = []
-    seen_prev_emp = set()
-    for pe in stg_prev_emp:
-        decl_id = resolve_decl_id(pe)
-        if not decl_id:
+        principal = money_ok(r.get("principal_paid"), "employee_inv_home_loan", lid, tid, "principal_paid")
+        interest = money_ok(r.get("interest_paid"), "employee_inv_home_loan", lid, tid, "interest_paid")
+        if principal is None or interest is None:
             continue
-        tid = resolve_tenant(pe)
-        kind = str(pe.get("kind") or "INCOME").upper()
-        if kind not in ('INCOME', 'INCOME_TAX_DEDUCTED', 'PROFESSIONAL_TAX', 'EMPLOYEE_PF', 'LEAVE_ENCASHMENT'):
-            kind = 'INCOME'
-        if (tid, decl_id, kind) in seen_prev_emp:
+        target = det_id(tid, "employee_inv_home_loan", lid)
+        loan_ids[str(lid)] = {"id": target, "decl": p["id"], "lender": text(r.get("lender_name"), 150)}
+        plan[tid]["loan"].append({
+            "id": target, "tenant_id": tid, "declaration_id": p["id"], "lender_name": text(r.get("lender_name"), 150),
+            "lender_pan": pan(r.get("lender_pan"), "employee_inv_home_loan", lid, tid),
+            "principal_paid": principal, "interest_paid": interest, **AUDIT})
+
+    # ---- let-out property and its lines --------------------------------------------------
+    props: dict[str, dict] = {}
+    for r in staging.load("stg_payroll_employee_inv_let_out_property.json"):
+        p = parent(r, "employee_inv_let_out_property")
+        if not p:
             continue
-        seen_prev_emp.add((tid, decl_id, kind))
-        pe_id = det_uuid(f"{tid}:prev_emp:{decl_id}:{kind}")
-        amt = to_decimal(pe.get("amount") or 0)
-        entered_by = str(pe.get("enteredBy") or pe.get("entered_by") or "EMPLOYEE").upper()
-        if entered_by not in ('EMPLOYEE', 'OFFICER'):
-            entered_by = 'EMPLOYEE'
-        prev_emp_batch.append((
-            pe_id, tid, decl_id, kind, amt,
-            str(pe.get("employerName") or pe.get("employer_name") or "Previous Employer")[:150],
-            pe.get("employerTan") or pe.get("employer_tan"),
-            entered_by
-        ))
-
-    # g. Other Income
-    other_inc_batch = []
-    seen_other_inc = set()
-    for oi in stg_other_inc:
-        decl_id = resolve_decl_id(oi)
-        if not decl_id:
+        tid, lid = p["tid"], r["id"]
+        if not text(r.get("property_name")):
+            q.add("LET_OUT_NO_NAME", "employee_inv_let_out_property", lid, tid)
             continue
-        tid = resolve_tenant(oi)
-        kind = str(oi.get("kind") or "SAVINGS_INTEREST").upper()
-        if kind not in ('SAVINGS_INTEREST', 'FD_INTEREST', 'NSC_INTEREST', 'OTHER'):
-            kind = 'OTHER'
-        if (tid, decl_id, kind) in seen_other_inc:
+        target = det_id(tid, "employee_inv_let_out_property", lid)
+        props[str(lid)] = {"id": target, "tid": tid, "decl": p["id"], "lines": {}}
+        plan[tid]["prop"].append(audit({
+            "id": target, "tenant_id": tid, "declaration_id": p["id"],
+            "property_name": text(r.get("property_name"), 150), "address": text(r.get("address"), 1000),
+            "net_income_loss": money_or_zero(r.get("net_income_loss"))}, r.get("created_time")))
+
+    def add_line(r, table, prop_ref):
+        prop = props.get(str(prop_ref))
+        if prop is None:
+            q.add("PROPERTY_NOT_LOADED", table, r.get("id"), property_ref=prop_ref)
+            return
+        tid, lid = prop["tid"], r["id"]
+        line_type = LINE_TYPE.get(_norm(r.get("type")))
+        if line_type is None:
+            q.add("LET_OUT_LINE_TYPE_UNMAPPED", table, lid, tid, type=r.get("type"))
+            return
+        if line_type in prop["lines"]:
+            if table == "employee_poi_property_detail":
+                # a copy of the declared line, made when the proof was opened
+                # (EmployeeProofOfInvestmentServiceImpl.java:812-823): already loaded
+                return
+            q.add("DUPLICATE_PROPERTY_LINE", table, lid, tid, kept=prop["lines"][line_type]["legacy"])
+            return
+        amount = money_ok(r.get("amount"), table, lid, tid, "amount")
+        if amount is None:
+            return
+        target = det_id(tid, table, lid)
+        prop["lines"][line_type] = {"id": target, "legacy": lid, "amount": amount}
+        plan[tid]["prop_line"].append(audit({
+            "id": target, "tenant_id": tid, "declaration_id": prop["decl"], "property_id": prop["id"],
+            "line_type": line_type, "amount": amount, "lender_name": text(r.get("name_of_lender"), 150),
+            "lender_pan": pan(r.get("pan_of_lender"), table, lid, tid)}, r.get("created_time")))
+
+    for r in sorted(staging.load("stg_payroll_employee_inv_let_out_property_detail.json"), key=lambda x: int(x["id"])):
+        add_line(r, "employee_inv_let_out_property_detail", r.get("let_out_property_id"))
+
+    # ---- per-kind tables (one row per declaration per kind) ------------------------------
+    def kinded(stg, table, kinds, key, build):
+        seen: dict[tuple, object] = {}
+        out: dict[str, dict] = {}
+        for r in sorted(staging.load(stg), key=lambda x: int(x["id"])):
+            p = parent(r, table)
+            if not p:
+                continue
+            tid, lid = p["tid"], r["id"]
+            kind = kinds.get(_norm(r.get(key)))
+            if kind is None:
+                q.add("KIND_UNMAPPED", table, lid, tid, type=r.get(key))
+                continue
+            if (p["id"], kind) in seen:
+                q.add("DUPLICATE_KIND", table, lid, tid, kind=kind, kept=seen[(p["id"], kind)])
+                continue
+            amount = money_ok(r.get("amount"), table, lid, tid, "amount")
+            if amount is None:
+                continue
+            seen[(p["id"], kind)] = lid
+            target = det_id(tid, table, lid)
+            out[str(lid)] = {"id": target, "decl": p["id"], "kind": kind}
+            plan[tid][table].append(audit({"id": target, "tenant_id": tid, "declaration_id": p["id"], "kind": kind,
+                                           "amount": amount, **build(r)}, r.get("created_time")))
+        return out
+
+    kinded("stg_payroll_employee_inv_other_income.json", "employee_inv_other_income", OTHER_INCOME_KIND, "type",
+           lambda r: {"description": text(r.get("name") or r.get("type_formatted"), 150)})
+    kinded("stg_payroll_employee_inv_pre_tax_deduction.json", "employee_inv_pre_tax_deduction", PRE_TAX_KIND,
+           "type", lambda r: {})
+    prev_ids = kinded("stg_payroll_employee_inv_prev_employment.json", "employee_inv_prev_employment",
+                      PREV_EMP_KIND, "type",
+                      lambda r: {"employer_name": text(r.get("name"), 150), "employer_tan": None,
+                                 # legacy has no author column; declarations are entered in the portal
+                                 "entered_by": "EMPLOYEE"})
+
+    # ---- section 6A (section code resolved against reference.section6a_item_master in work) --
+    sec6a_rows: list[dict] = []
+    for r in staging.load("stg_payroll_employee_inv_section6a.json"):
+        p = parent(r, "employee_inv_section6a")
+        if not p:
             continue
-        seen_other_inc.add((tid, decl_id, kind))
-        oi_id = det_uuid(f"{tid}:other_inc:{decl_id}:{kind}")
-        amt = to_decimal(oi.get("amount") or 0)
-        other_inc_batch.append((
-            oi_id, tid, decl_id, kind,
-            str(oi.get("description") or f"Income from {kind}")[:150],
-            amt
-        ))
-
-    # h. Annual Tax Summary
-    tax_summary_batch = []
-    seen_summary = set()
-    for ts in stg_tax_summary:
-        decl_id = resolve_decl_id(ts)
-        if not decl_id:
+        tid, lid = p["tid"], r["id"]
+        amount = money_ok(r.get("amount"), "employee_inv_section6a", lid, tid, "amount")
+        if amount is None:
             continue
-        tid = resolve_tenant(ts)
-        regime = str(ts.get("regime") or "NEW").upper()
-        if regime not in ("OLD", "NEW"):
-            regime = "NEW"
-        if (tid, decl_id, regime) in seen_summary:
+        code = re.sub(r"^SECTION", "", re.sub(r"\s+", "", (text(r.get("category")) or "").upper()))
+        sec6a_rows.append({"legacy": r, "tid": tid, "decl": p["id"], "code": code, "amount": amount,
+                           "id": det_id(tid, "employee_inv_section6a", lid)})
+
+    # ---- tax summary ---------------------------------------------------------------------
+    seen_regime: dict[tuple, object] = {}
+    for r in sorted(staging.load("stg_payroll_employee_inv_tax_summary.json"), key=lambda x: int(x["id"]),
+                    reverse=True):
+        p = parent(r, "employee_inv_tax_summary")
+        if not p:
             continue
-        seen_summary.add((tid, decl_id, regime))
-        ts_id = det_uuid(f"{tid}:tax_summary:{decl_id}:{regime}")
-        tax_summary_batch.append((
-            ts_id, tid, decl_id, regime,
-            to_decimal(ts.get("taxableIncome") or ts.get("taxable_income")),
-            to_decimal(ts.get("netTaxableIncome") or ts.get("net_taxable_income")),
-            to_decimal(ts.get("taxOnTaxableIncome") or ts.get("tax_on_taxable_income")),
-            to_decimal(ts.get("taxYtdAmount") or ts.get("tax_ytd_amount")),
-            to_decimal(ts.get("taxToBePaid") or ts.get("tax_to_be_paid")),
-            to_decimal(ts.get("tdsThroughPayroll") or ts.get("tds_through_payroll")),
-            to_decimal(ts.get("tdsPreviousEmployer") or ts.get("tds_previous_employer")),
-            to_decimal(ts.get("tdsOtherIncome") or ts.get("tds_other_income")),
-            to_decimal(ts.get("otherSourcesIncome") or ts.get("other_sources_income")),
-            to_decimal(ts.get("exemptionUnderSection10") or ts.get("exemption_under_section10")),
-            to_decimal(ts.get("exemptionUnderSection6a") or ts.get("exemption_under_section6a")),
-            int(ts.get("remainingMonths") or ts.get("remaining_months") or 12),
-            datetime.now(timezone.utc)
-        ))
-
-    # ── 4. Annual Employee TDS Records (payroll.employee_tds) ──────────────────
-    tds_batch = []
-    seen_tds = set()
-    for tds in stg_emp_tds:
-        emp_key = str(tds.get("employee_id") or tds.get("employeeId") or "").strip()
-        matched_emp = emp_by_payroll_id.get(emp_key)
-        if not matched_emp:
+        tid, lid = p["tid"], r["id"]
+        regime = _norm(r.get("regime"))
+        if regime not in REGIMES:
+            q.add("REGIME_UNMAPPED", "employee_inv_tax_summary", lid, tid, regime=r.get("regime"))
             continue
-
-        fy = str(tds.get("financialYear") or tds.get("financial_year") or current_fy).strip()
-        if fy != current_fy:
+        if (p["id"], regime) in seen_regime:
+            q.add("DUPLICATE_KIND", "employee_inv_tax_summary", lid, tid, kept=seen_regime[(p["id"], regime)])
             continue
+        seen_regime[(p["id"], regime)] = lid
+        months = r.get("no_of_remaining_months")
+        plan[tid]["summary"].append(audit({
+            "id": det_id(tid, "employee_inv_tax_summary", lid), "tenant_id": tid, "declaration_id": p["id"],
+            "regime": regime, **{c: to_money(r.get(c)) for c in (
+                "taxable_income", "net_taxable_income", "tax_on_taxable_income", "tax_ytd_amount", "tax_to_be_paid",
+                "tds_through_payroll", "tds_previous_employer", "tds_other_income", "other_sources_income",
+                "exemption_under_section10")},
+            "exemption_under_section6a": to_money(r.get("exemption_under_section6a")),
+            "remaining_months": int(months) if months is not None else None,
+            "computed_at": to_timestamp(r.get("updated_time") or r.get("created_time"))}, r.get("created_time")))
 
-        tid = matched_emp.get("tenant_id") or resolve_tenant(tds)
-        emp_uuid = matched_emp["id"]
-
-        if (tid, emp_uuid, fy) in seen_tds:
+    # ---- proofs of investment ------------------------------------------------------------
+    pois: dict[str, dict] = {}
+    poi_by_decl: dict[str, dict] = {}
+    for r in sorted(staging.load("stg_payroll_employee_proof_of_investment.json"), key=lambda x: int(x["id"])):
+        lid = r["id"]
+        if r.get("fiscal_year") is not None and int(r["fiscal_year"]) != fy.end:
+            t = tenants.for_org(r.get("organization_id"))
+            q.add("NOT_CURRENT_FY", "employee_proof_of_investment", lid, t.tenant_id if t else None,
+                  fiscal_year=r.get("fiscal_year"))
             continue
-        seen_tds.add((tid, emp_uuid, fy))
-
-        tds_id = det_uuid(f"{tid}:employee_tds:{tds.get('id', uuid.uuid4())}")
-        regime = str(tds.get("regime") or "NEW").upper()
-        if regime not in ("OLD", "NEW"):
-            regime = "NEW"
-        source = str(tds.get("source") or "DECLARATION").upper()
-        if source not in ("DECLARATION", "OFFICER"):
-            source = "DECLARATION"
-
-        decl_id = decl_by_emp_fy.get((tid, emp_uuid, fy))
-        eff_period = str(tds.get("effectiveFromPeriod") or tds.get("effective_from_period") or f"{fy[:4]}-04")[:7]
-
-        tds_batch.append((
-            tds_id, tid, emp_uuid, fy, regime, source, decl_id,
-            to_decimal(tds.get("annualGross") or tds.get("annual_gross") or 0),
-            to_decimal(tds.get("annualTaxableIncome") or tds.get("annual_taxable_income") or 0),
-            to_decimal(tds.get("annualTax") or tds.get("annual_tax") or 0),
-            eff_period, True, None, "Migrated TDS record"
-        ))
-
-    # ── 5. Proof of Investment & Items (payroll.employee_proof_*) ─────────────
-    proof_batch = []
-    proof_id_map = {}
-    proof_items_batch = []
-
-    combined_poi = stg_poi + stg_emp_poi
-    for p in combined_poi:
-        decl_id = resolve_decl_id(p)
-        if not decl_id:
+        p = parent(r, "employee_proof_of_investment")
+        if not p:
             continue
-        tid = resolve_tenant(p)
-        legacy_id = str(p.get("id"))
-        proof_id = det_uuid(f"{tid}:proof_of_investment:{legacy_id}")
-        proof_id_map[legacy_id] = proof_id
-
-        emp_key = str(p.get("employee_id") or p.get("employeeId") or "").strip()
-        emp_uuid = emp_by_payroll_id[emp_key]["id"] if emp_key in emp_by_payroll_id else det_uuid(f"{tid}:emp:1")
-
-        raw_st = str(p.get("status") or "DRAFT").upper()
-        status = raw_st if raw_st in ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED') else 'DRAFT'
-
-        proof_batch.append((
-            proof_id, tid, emp_uuid, decl_id, current_fy, status,
-            None, p.get("reviewerNote") or p.get("reviewer_note"),
-            datetime.now(timezone.utc) if status != 'DRAFT' else None,
-            datetime.now(timezone.utc) if status in ('APPROVED', 'REJECTED') else None
-        ))
-
-    for pi in stg_poi_items:
-        proof_legacy_id = str(pi.get("proof_id") or pi.get("proofId") or "")
-        proof_uuid = proof_id_map.get(proof_legacy_id)
-        if not proof_uuid:
+        tid = p["tid"]
+        eid = emp_of(r.get("employee_id"), tid, "employee_proof_of_investment", lid)
+        if eid is None:
             continue
-        tid = resolve_tenant(pi)
-        pi_id = det_uuid(f"{tid}:proof_item:{pi.get('id', uuid.uuid4())}")
+        status = POI_STATUS.get(_norm(r.get("status")))
+        if status is None:
+            q.add("POI_STATUS_UNMAPPED", "employee_proof_of_investment", lid, tid, status=r.get("status"))
+            continue
+        if p["id"] in poi_by_decl:  # uk (tenant, declaration): newest legacy row wins
+            old = poi_by_decl[p["id"]]
+            q.add("DUPLICATE_POI", "employee_proof_of_investment", old["legacy"], tid, kept=lid)
+            pois.pop(old["legacy"])
+        target = det_id(tid, "employee_proof_of_investment", lid)
+        entry = {"legacy": str(lid), "id": target, "tid": tid, "decl": p["id"], "employee_id": eid,
+                 "row": audit({"id": target, "tenant_id": tid, "employee_id": eid, "declaration_id": p["id"],
+                               "financial_year": fy.label, "status": status, "approval_instance_id": None,
+                               "reviewer_note": None, "submitted_at": to_timestamp(r.get("submitted_date")),
+                               "decided_at": to_timestamp(r.get("approved_date"))
+                               if status in ("APPROVED", "REJECTED") else None}, r.get("created_time"))}
+        poi_by_decl[p["id"]] = entry
+        pois[str(lid)] = entry
+    for e in pois.values():
+        plan[e["tid"]]["poi"].append(e["row"])
+        idmap.put("payroll.employee_proof_of_investment", e["legacy"], e["id"])
 
-        kind = str(pi.get("sourceKind") or pi.get("source_kind") or "SECTION_6A").upper()
-        if kind not in ('HOUSE_RENT', 'HOME_LOAN_PRINCIPAL', 'HOME_LOAN_INTEREST', 'LET_OUT_PROPERTY', 'SECTION_6A', 'PREV_EMPLOYMENT'):
-            kind = 'SECTION_6A'
+    # proof-side property lines first: a property line the declaration lacked becomes a line
+    items_raw = {str(r["id"]): r for r in staging.load("stg_payroll_employee_poi_item.json")}
+    for r in sorted(staging.load("stg_payroll_employee_poi_property_detail.json"), key=lambda x: int(x["id"])):
+        item = items_raw.get(str(r.get("poi_item_id")))
+        if item is None or str(item.get("poi_id")) not in pois or _norm(item.get("investment_type")) != "LET_OUT_PROPERTY":
+            q.add("PROOF_ITEM_NOT_LOADED", "employee_poi_property_detail", r.get("id"), poi_item_ref=r.get("poi_item_id"))
+            continue
+        # the item's section6a_item_id is the let-out property id (EmployeeProofOfInvestmentServiceImpl.java:806-808)
+        add_line(r, "employee_poi_property_detail", item.get("section6a_item_id"))
 
-        source_line_id = det_uuid(f"{tid}:proof_line:{pi.get('sourceLineId') or pi.get('source_line_id', uuid.uuid4())}")
-        status = str(pi.get("status") or "PENDING").upper()
-        if status not in ('PENDING', 'APPROVED', 'DISALLOWED', 'RETURNED'):
-            status = 'PENDING'
+    # poi items are resolved in work(): SECTION_6A lines need the section6a ids decided there
+    def work(cur, t: Tenant) -> StepResult:
+        tid = t.tenant_id
+        p = plan.get(tid) or defaultdict(list)
+        cur.execute("SELECT upper(section_code), id::text FROM reference.section6a_item_master WHERE is_active")
+        masters = dict(cur.fetchall())
+        sec_by_decl: dict[tuple, list[dict]] = defaultdict(list)
+        sec6a = []
+        for s in sec6a_rows:
+            if s["tid"] != tid:
+                continue
+            r = s["legacy"]
+            master = masters.get(s["code"])
+            if master is None:
+                q.add("SECTION6A_CODE_UNMAPPED", "employee_inv_section6a", r["id"], tid, category=r.get("category"))
+                continue
+            desc = text(r.get("type_formatted") or r.get("type") or s["code"], 150)
+            sec6a.append(audit({"id": s["id"], "tenant_id": tid, "declaration_id": s["decl"],
+                                "section6a_item_id": master, "description": desc, "amount": s["amount"]},
+                               r.get("created_time")))
+            sec_by_decl[(s["decl"], str(r.get("section6a_item_id")))].append(
+                {"id": s["id"], "type": _norm(r.get("type")), "description": desc})
 
-        decl_amt = to_decimal(pi.get("declaredAmount") or pi.get("declared_amount") or 0)
-        claim_amt = to_decimal(pi.get("claimedAmount") or pi.get("claimed_amount")) if pi.get("claimedAmount") is not None else decl_amt
-        appr_amt = to_decimal(pi.get("approvedAmount") or pi.get("approved_amount")) if pi.get("approvedAmount") is not None else None
+        items, item_map = _proof_items(tid, pois, items_raw, rent_ids, loan_ids, props, prev_ids, sec_by_decl, q)
+        comments = _comments(tid, item_map, idmap, q)
+        for lid, target in item_map.items():
+            idmap.put("payroll.employee_poi_item", lid, target)
 
-        proof_items_batch.append((
-            pi_id, tid, proof_uuid, kind, source_line_id,
-            str(pi.get("description") or "Proof documentation item")[:150],
-            decl_amt, claim_amt, appr_amt, status,
-            pi.get("employeeNote") or pi.get("employee_note"),
-            pi.get("reviewerNote") or pi.get("reviewer_note")
-        ))
+        tds = _tds(tid, fy, tenants, pois, decls, idmap, emp_of, q)
+        for table, key in (("payroll.income_tax_declaration", "itd"),
+                           ("payroll.employee_investment_declaration", "decl"),
+                           ("payroll.employee_inv_house_rent", "rent"), ("payroll.employee_inv_home_loan", "loan"),
+                           ("payroll.employee_inv_let_out_property", "prop"),
+                           ("payroll.employee_inv_let_out_property_line", "prop_line"),
+                           ("payroll.employee_inv_other_income", "employee_inv_other_income"),
+                           ("payroll.employee_inv_pre_tax_deduction", "employee_inv_pre_tax_deduction"),
+                           ("payroll.employee_inv_prev_employment", "employee_inv_prev_employment"),
+                           ("payroll.employee_inv_section6a", None), ("payroll.employee_inv_tax_summary", "summary"),
+                           ("payroll.employee_proof_of_investment", "poi"), ("payroll.employee_proof_item", None),
+                           ("payroll.employee_proof_item_comment", None), ("payroll.employee_tds", None)):
+            rows = {"payroll.employee_inv_section6a": sec6a, "payroll.employee_proof_item": items,
+                    "payroll.employee_proof_item_comment": comments, "payroll.employee_tds": tds}.get(table) \
+                if key is None else p[key]
+            _upsert_grouped(cur, table, rows)
+        processed = sum(len(v) for v in p.values()) + len(sec6a) + len(items) + len(comments) + len(tds)
+        return StepResult(processed=processed, skipped=q.count(tid))
 
-    total_records = (
-        len(window_batch) + len(decl_batch) + len(house_rent_batch) + len(home_loan_batch) +
-        len(let_out_batch) + len(let_out_lines_batch) + len(sec6a_batch) + len(pre_tax_batch) +
-        len(prev_emp_batch) + len(other_inc_batch) + len(tax_summary_batch) + len(tds_batch) +
-        len(proof_batch) + len(proof_items_batch)
-    )
-
-    logger.info(
-        f"Transform complete: {len(window_batch)} windows, {len(decl_batch)} declarations, "
-        f"{len(tds_batch)} TDS records, {len(proof_batch)} proofs ({len(quarantined)} quarantined). "
-        f"Total records: {total_records}"
-    )
-
-    # ── Database Writes ────────────────────────────────────────────────────────
-    if not skip_db and cur and not dry_run:
-        try:
-            # Set RLS session
-            cur.execute("SET LOCAL app.current_tenant_id = %s", (FOUNDER_TENANT_ID,))
-
-            # 1. Upsert payroll.income_tax_declaration
-            if window_batch:
-                logger.info(f"Upserting {len(window_batch)} rows into payroll.income_tax_declaration...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.income_tax_declaration (
-                        id, tenant_id, financial_year, window_opens_on, window_closes_on,
-                        is_locked, default_tax_regime, can_change_tax_regime,
-                        pan_required_for_rent_over_threshold, notify_on_lock, notify_on_release,
-                        created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, financial_year) DO UPDATE SET
-                        is_locked = EXCLUDED.is_locked,
-                        default_tax_regime = EXCLUDED.default_tax_regime,
-                        updated_at = CURRENT_TIMESTAMP
-                """, window_batch, page_size=100)
-
-            # 2. Upsert payroll.employee_investment_declaration
-            if decl_batch:
-                logger.info(f"Upserting {len(decl_batch)} rows into payroll.employee_investment_declaration...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_investment_declaration (
-                        id, tenant_id, employee_id, financial_year, tax_regime, status,
-                        is_staying_in_rented_house, is_repaying_self_occupied_loan, has_let_out_property,
-                        is_locked, submitted_at, locked_at, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, employee_id, financial_year) DO UPDATE SET
-                        tax_regime = EXCLUDED.tax_regime,
-                        status = EXCLUDED.status,
-                        is_staying_in_rented_house = EXCLUDED.is_staying_in_rented_house,
-                        updated_at = CURRENT_TIMESTAMP
-                """, decl_batch, page_size=200)
-
-            # 3. Upsert House Rent
-            if house_rent_batch:
-                logger.info(f"Upserting {len(house_rent_batch)} rows into payroll.employee_inv_house_rent...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_house_rent (
-                        id, tenant_id, declaration_id, from_month, to_month, address,
-                        landlord_name, landlord_pan, is_metro, amount_per_month, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        amount_per_month = EXCLUDED.amount_per_month,
-                        updated_at = CURRENT_TIMESTAMP
-                """, house_rent_batch, page_size=200)
-
-            # 4. Upsert Home Loan
-            if home_loan_batch:
-                logger.info(f"Upserting {len(home_loan_batch)} rows into payroll.employee_inv_home_loan...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_home_loan (
-                        id, tenant_id, declaration_id, lender_name, lender_pan, principal_paid,
-                        interest_paid, is_first_time_buyer, loan_sanctioned_on, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        principal_paid = EXCLUDED.principal_paid,
-                        interest_paid = EXCLUDED.interest_paid,
-                        updated_at = CURRENT_TIMESTAMP
-                """, home_loan_batch, page_size=200)
-
-            # 5. Upsert Let Out Property & Lines
-            if let_out_batch:
-                logger.info(f"Upserting {len(let_out_batch)} rows into payroll.employee_inv_let_out_property...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_let_out_property (
-                        id, tenant_id, declaration_id, property_name, address, net_income_loss,
-                        created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        net_income_loss = EXCLUDED.net_income_loss,
-                        updated_at = CURRENT_TIMESTAMP
-                """, let_out_batch, page_size=200)
-
-            if let_out_lines_batch:
-                logger.info(f"Upserting {len(let_out_lines_batch)} rows into payroll.employee_inv_let_out_property_line...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_let_out_property_line (
-                        id, tenant_id, declaration_id, property_id, line_type, amount,
-                        lender_name, lender_pan, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, property_id, line_type) DO UPDATE SET
-                        amount = EXCLUDED.amount,
-                        updated_at = CURRENT_TIMESTAMP
-                """, let_out_lines_batch, page_size=200)
-
-            # 6. Upsert Section 6A
-            if sec6a_batch:
-                logger.info(f"Upserting {len(sec6a_batch)} rows into payroll.employee_inv_section6a...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_section6a (
-                        id, tenant_id, declaration_id, section6a_item_id, description, amount,
-                        created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        amount = EXCLUDED.amount,
-                        updated_at = CURRENT_TIMESTAMP
-                """, sec6a_batch, page_size=200)
-
-            # 7. Upsert Pre-tax Deductions
-            if pre_tax_batch:
-                logger.info(f"Upserting {len(pre_tax_batch)} rows into payroll.employee_inv_pre_tax_deduction...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_pre_tax_deduction (
-                        id, tenant_id, declaration_id, kind, amount, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, declaration_id, kind) DO UPDATE SET
-                        amount = EXCLUDED.amount,
-                        updated_at = CURRENT_TIMESTAMP
-                """, pre_tax_batch, page_size=200)
-
-            # 8. Upsert Previous Employment
-            if prev_emp_batch:
-                logger.info(f"Upserting {len(prev_emp_batch)} rows into payroll.employee_inv_prev_employment...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_prev_employment (
-                        id, tenant_id, declaration_id, kind, amount, employer_name, employer_tan,
-                        entered_by, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, declaration_id, kind) DO UPDATE SET
-                        amount = EXCLUDED.amount,
-                        employer_name = EXCLUDED.employer_name,
-                        updated_at = CURRENT_TIMESTAMP
-                """, prev_emp_batch, page_size=200)
-
-            # 9. Upsert Other Income
-            if other_inc_batch:
-                logger.info(f"Upserting {len(other_inc_batch)} rows into payroll.employee_inv_other_income...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_other_income (
-                        id, tenant_id, declaration_id, kind, description, amount,
-                        created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, declaration_id, kind) DO UPDATE SET
-                        amount = EXCLUDED.amount,
-                        updated_at = CURRENT_TIMESTAMP
-                """, other_inc_batch, page_size=200)
-
-            # 10. Upsert Tax Summary
-            if tax_summary_batch:
-                logger.info(f"Upserting {len(tax_summary_batch)} rows into payroll.employee_inv_tax_summary...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_inv_tax_summary (
-                        id, tenant_id, declaration_id, regime, taxable_income, net_taxable_income,
-                        tax_on_taxable_income, tax_ytd_amount, tax_to_be_paid, tds_through_payroll,
-                        tds_previous_employer, tds_other_income, other_sources_income,
-                        exemption_under_section10, exemption_under_section6a, remaining_months,
-                        computed_at, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, declaration_id, regime) DO UPDATE SET
-                        net_taxable_income = EXCLUDED.net_taxable_income,
-                        tax_to_be_paid = EXCLUDED.tax_to_be_paid,
-                        updated_at = CURRENT_TIMESTAMP
-                """, tax_summary_batch, page_size=200)
-
-            # 11. Upsert Employee TDS
-            if tds_batch:
-                logger.info(f"Upserting {len(tds_batch)} rows into payroll.employee_tds...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_tds (
-                        id, tenant_id, employee_id, financial_year, regime, source, declaration_id,
-                        annual_gross, annual_taxable_income, annual_tax, effective_from_period,
-                        is_active, superseded_at, note, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (id) DO UPDATE SET
-                        annual_gross = EXCLUDED.annual_gross,
-                        annual_taxable_income = EXCLUDED.annual_taxable_income,
-                        annual_tax = EXCLUDED.annual_tax,
-                        updated_at = clock_timestamp()
-                """, tds_batch, page_size=200)
-
-            # 12. Upsert Proof of Investment
-            if proof_batch:
-                logger.info(f"Upserting {len(proof_batch)} rows into payroll.employee_proof_of_investment...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_proof_of_investment (
-                        id, tenant_id, employee_id, declaration_id, financial_year, status,
-                        approval_instance_id, reviewer_note, submitted_at, decided_at,
-                        created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, declaration_id) DO UPDATE SET
-                        status = EXCLUDED.status,
-                        reviewer_note = EXCLUDED.reviewer_note,
-                        updated_at = CURRENT_TIMESTAMP
-                """, proof_batch, page_size=100)
-
-            # 13. Upsert Proof Items
-            if proof_items_batch:
-                logger.info(f"Upserting {len(proof_items_batch)} rows into payroll.employee_proof_item...")
-                execute_batch(cur, """
-                    INSERT INTO payroll.employee_proof_item (
-                        id, tenant_id, proof_id, source_kind, source_line_id, description,
-                        declared_amount, claimed_amount, approved_amount, status,
-                        employee_note, reviewer_note, created_by, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'migration', 'migration')
-                    ON CONFLICT (tenant_id, proof_id, source_kind, source_line_id) DO UPDATE SET
-                        claimed_amount = EXCLUDED.claimed_amount,
-                        approved_amount = EXCLUDED.approved_amount,
-                        status = EXCLUDED.status,
-                        updated_at = CURRENT_TIMESTAMP
-                """, proof_items_batch, page_size=200)
-
-            conn.commit()
-
-            # Update migration ledger
-            cur.execute("""
-                UPDATE core.migration_ledger
-                SET records_processed = %s, records_skipped = %s, status = 'DONE', completed_at = %s
-                WHERE id = %s
-            """, (total_records, len(quarantined), datetime.now(timezone.utc), ledger_id))
-            conn.commit()
-            logger.info(f"Step '{step_name}' successfully loaded {total_records} records.")
-
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Failed to load tax data: {e}", exc_info=True)
-            cur.execute("""
-                UPDATE core.migration_ledger
-                SET status = 'FAILED', error_message = %s, completed_at = %s
-                WHERE id = %s
-            """, (str(e), datetime.now(timezone.utc), ledger_id))
-            conn.commit()
-            raise
-        finally:
-            cur.close()
+    checksum = hashlib.sha256((staging.checksum(INPUTS) + ":" + fy.label).encode()).hexdigest()
+    own = conn is None
+    conn = conn or db.connect()
+    try:
+        summary = run_per_tenant(conn, STEP, tenants.all(), checksum, work)
+    finally:
+        if own:
             conn.close()
+    idmap.save()
+    q.write()
+    return summary.ok
 
-    # Save quarantine report
-    quarantine_file = os.path.join(stg_dir, "stg_quarantined_tax.json")
-    with open(quarantine_file, "w", encoding="utf-8") as f:
-        json.dump(quarantined, f, indent=2)
 
-    return {
-        "windows_loaded": len(window_batch),
-        "declarations_loaded": len(decl_batch),
-        "house_rent_loaded": len(house_rent_batch),
-        "tds_loaded": len(tds_batch),
-        "proofs_loaded": len(proof_batch),
-        "proof_items_loaded": len(proof_items_batch),
-        "total_records": total_records,
-        "quarantined": len(quarantined)
-    }
+def _proof_items(tid, pois, items_raw, rent_ids, loan_ids, props, prev_ids, sec_by_decl, q):
+    """employee_poi_item -> employee_proof_item. Each target item points at one declaration
+    line of its proof's declaration (ProofSourceReader.java:55-107). Legacy items carry that
+    line's legacy id in section6a_item_id for every kind but Section 6A, where it is the master
+    id (EmployeeProofOfInvestmentServiceImpl.java:682-900)."""
+    out, item_map, seen = [], {}, set()
+    poi_of = {e["legacy"]: e for e in pois.values() if e["tid"] == tid}
+    for r in sorted(items_raw.values(), key=lambda x: int(x["id"])):
+        poi = poi_of.get(str(r.get("poi_id")))
+        if poi is None:
+            continue
+        lid, decl = r["id"], poi["decl"]
+        status = ITEM_STATUS.get(_norm(r.get("status")))
+        if status is None:
+            q.add("PROOF_ITEM_STATUS_UNMAPPED", "employee_poi_item", lid, tid, status=r.get("status"))
+            continue
+        itype, ref = _norm(r.get("investment_type")), str(r.get("section6a_item_id"))
+        targets: list[tuple[str, str, str, object]] = []  # (kind, source_line_id, description, declared)
+        if itype == "HRA":
+            src = rent_ids.get(ref)
+            if src and src["decl"] == decl:
+                targets.append(("HOUSE_RENT", src["id"], f"House rent paid to {src['landlord']}", None))
+        elif itype in ("HOME_LOAN_PRINCIPAL", "HOME_LOAN_INTEREST"):
+            src = loan_ids.get(ref)
+            if src and src["decl"] == decl:
+                part = "principal" if itype.endswith("PRINCIPAL") else "interest"
+                targets.append((itype, src["id"], f"Home loan {part}, {src['lender']}", None))
+        elif itype == "LET_OUT_PROPERTY":
+            prop = props.get(ref)
+            if prop and prop["decl"] == decl:
+                lines = sorted(prop["lines"].items())
+                if len(lines) > 1 and (money_or_zero(r.get("actual_amount")) or money_or_zero(r.get("approved_amount"))):
+                    # one legacy amount cannot be split across the target's per-line items
+                    q.add("PROOF_LET_OUT_AMOUNT_NOT_SPLITTABLE", "employee_poi_item", lid, tid)
+                    continue
+                for line_type, line in lines:
+                    targets.append(("LET_OUT_PROPERTY", line["id"], f"Let-out property, {line_type}",
+                                    line["amount"] if len(lines) > 1 else None))
+        elif itype.startswith("PREV_EMPLOYMENT_"):
+            src = prev_ids.get(ref)
+            if src and src["decl"] == decl:
+                targets.append(("PREV_EMPLOYMENT", src["id"], f"Previous employment, {src['kind']}", None))
+        elif itype.startswith("OTHER_INCOME_") or itype.startswith("PRE_TAX_"):
+            q.add("PROOF_KIND_NOT_IN_TARGET", "employee_poi_item", lid, tid, investment_type=itype)
+            continue
+        else:
+            cands = sec_by_decl.get((decl, ref), [])
+            match = [c for c in cands if c["type"] == itype] or cands
+            if match:
+                targets.append(("SECTION_6A", match[0]["id"], match[0]["description"], None))
+        if not targets:
+            q.add("PROOF_SOURCE_NOT_FOUND", "employee_poi_item", lid, tid, investment_type=itype)
+            continue
+        split = len(targets) > 1
+        for n, (kind, source, desc, declared) in enumerate(targets):
+            if (poi["id"], kind, source) in seen:
+                q.add("DUPLICATE_PROOF_ITEM", "employee_poi_item", lid, tid)
+                continue
+            seen.add((poi["id"], kind, source))
+            dec = declared if split else money_or_zero(r.get("declared_amount"))
+            claimed = None if split else to_money(r.get("actual_amount"))
+            approved = None if split or status == "PENDING" else to_money(r.get("approved_amount"))
+            if any(v is not None and v < 0 for v in (dec, claimed, approved)):
+                q.add("NEGATIVE_AMOUNT", "employee_poi_item", lid, tid)
+                continue
+            target = det_id(tid, "employee_poi_item", lid) if n == 0 else child_id(det_id(tid, "employee_poi_item", lid), source)
+            if n == 0:
+                item_map[str(lid)] = target
+            row = {"id": target, "tenant_id": tid, "proof_id": poi["id"], "source_kind": kind,
+                   "source_line_id": source, "description": text(desc, 150) or kind, "declared_amount": dec,
+                   "claimed_amount": claimed, "approved_amount": approved, "status": status,
+                   "employee_note": None, "reviewer_note": text(r.get("admin_comment"), 1000), **AUDIT}
+            ts = to_timestamp(r.get("created_time"))
+            if ts:
+                row["created_at"] = ts
+            out.append(row)
+    return out, item_map
+
+
+def _comments(tid, item_map, idmap, q):
+    """employee_poi_item_comment -> employee_proof_item_comment. The author must be an
+    employee: an admin comment whose commented_by_admin is not an employee id is quarantined.
+    Threading (response_to_comment_id) has no target column and is dropped."""
+    out = []
+    for r in staging.load("stg_payroll_employee_poi_item_comment.json"):
+        item = item_map.get(str(r.get("poi_item_id")))
+        if item is None:
+            continue
+        lid = r["id"]
+        if r.get("commented_by_employee_id") not in (None, ""):
+            author, role = idmap.get("payroll.employee", r.get("commented_by_employee_id")), "EMPLOYEE"
+        else:
+            ref = r.get("commented_by_admin")
+            author = idmap.get("payroll.employee.uuid", ref) or idmap.get("payroll.employee", ref)
+            role = "REVIEWER"
+        if author is None or idmap.get("employee.tenant", author) not in (None, tid):
+            q.add("COMMENT_AUTHOR_NOT_EMPLOYEE", "employee_poi_item_comment", lid, tid, role=role)
+            continue
+        body = text(r.get("comment"), 1000)
+        if not body:
+            q.add("COMMENT_EMPTY", "employee_poi_item_comment", lid, tid)
+            continue
+        row = {"id": det_id(tid, "employee_poi_item_comment", lid), "tenant_id": tid, "item_id": item,
+               "author_employee_id": author, "author_role": role, "body": body,
+               "created_by": db.AUDIT_USER}  # comments are immutable: no updated_* columns
+        ts = to_timestamp(r.get("created_time"))
+        if ts:
+            row["created_at"] = ts
+        out.append(row)
+    return out
+
+
+def _tds(tid, fy, tenants, pois, decls, idmap, emp_of, q):
+    """employee_tds -> payroll.employee_tds. One active row per employee per FY
+    (uk_employee_tds_tenant_employee_fy_active); an older active row becomes inactive,
+    superseded when the next row was created (CHECK is_active = (superseded_at IS NULL))."""
+    decl_by_emp = {(d["tid"], d["employee_id"]): d["id"] for d in decls.values()}
+    poi_decl = {e["legacy"]: e["decl"] for e in pois.values()}
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for r in sorted(staging.load("stg_payroll_employee_tds.json"), key=lambda x: int(x["id"])):
+        t = tenants.for_org(r.get("organization_id"))
+        if t is None or t.tenant_id != tid:
+            continue
+        lid = r["id"]
+        if r.get("fiscal_year") is None or int(r["fiscal_year"]) != fy.end:
+            q.add("NOT_CURRENT_FY", "employee_tds", lid, tid, fiscal_year=r.get("fiscal_year"))
+            continue
+        eid = emp_of(r.get("employee_id"), tid, "employee_tds", lid, by_uuid=True)
+        if eid is None:
+            continue
+        regime = _norm(r.get("tax_regime"))
+        source = TDS_SOURCE.get(_norm(r.get("tds_source_type")))
+        period = _fy_period(r.get("effective_from_month"), fy)
+        amounts = [to_money(r.get(c)) for c in ("annual_gross_salary", "annual_taxable_income", "final_annual_tax")]
+        if regime not in REGIMES or source is None or period is None:
+            q.add("TDS_UNMAPPED", "employee_tds", lid, tid, regime=r.get("tax_regime"),
+                  source=r.get("tds_source_type"), effective_from=r.get("effective_from_month"))
+            continue
+        if any(a is None or a < 0 for a in amounts):
+            q.add("TDS_AMOUNT_INVALID", "employee_tds", lid, tid)
+            continue
+        decl = poi_decl.get(str(r.get("poi_id"))) or decl_by_emp.get((tid, eid))
+        groups[eid].append({"legacy": r, "row": {
+            "id": det_id(tid, "employee_tds", lid), "tenant_id": tid, "employee_id": eid,
+            "financial_year": fy.label, "regime": regime, "source": source, "declaration_id": decl,
+            "annual_gross": amounts[0], "annual_taxable_income": amounts[1], "annual_tax": amounts[2],
+            "effective_from_period": period, "is_active": False, "superseded_at": None, "note": None, **AUDIT}})
+    out = []
+    for eid, rows in groups.items():
+        active = [x for x in rows if truthy(x["legacy"].get("is_active"), True)]
+        keep = active[-1] if active else None
+        for i, x in enumerate(rows):
+            row = x["row"]
+            created = to_timestamp(x["legacy"].get("created_at"))
+            if x is keep:
+                row["is_active"] = True
+            else:
+                later = [to_timestamp(y["legacy"].get("created_at")) for y in rows[i + 1:]]
+                row["superseded_at"] = next((ts for ts in later if ts), None) or created
+                if row["superseded_at"] is None:
+                    q.add("TDS_NO_SUPERSEDED_TIME", "employee_tds", x["legacy"]["id"], tid)
+                    continue
+            if created:
+                row["created_at"] = created
+            idmap.put("payroll.employee_tds", x["legacy"]["id"], row["id"])
+            out.append(row)
+    return out
+
+
+def _upsert_grouped(cur, table: str, rows: list[dict]) -> None:
+    """Rows with and without a legacy created_at go in separate statements (one key set each)."""
+    for cols in sorted({tuple(r.keys()) for r in rows}):
+        db.upsert(cur, table, [r for r in rows if tuple(r.keys()) == cols])
 
 
 if __name__ == "__main__":
-    is_dry_run = "--dry-run" in sys.argv
-    run_loader(dry_run=is_dry_run)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    sys.exit(0 if run() else 1)

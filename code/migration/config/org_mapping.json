@@ -2,7 +2,8 @@
   "148": {
     "tenant_id": "a0000000-0000-0000-0000-000000000001",
     "name": "Infinevocloud Technology Solutions",
-    "country_code": "IN"
+    "country_code": "IN",
+    "founder": true
   },
   "1": {
     "tenant_id": "e0db96cc-b07e-52f1-9095-92267ff85498",
