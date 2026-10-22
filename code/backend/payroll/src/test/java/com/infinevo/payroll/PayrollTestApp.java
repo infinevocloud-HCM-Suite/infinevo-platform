@@ -387,65 +387,102 @@ public class PayrollTestApp {
                 UUID tenantId = TenantContext.require();
                 try (Connection conn = dataSource.getConnection()) {
                     conn.setAutoCommit(false);
-                    try (PreparedStatement ps = conn.prepareStatement(
-                            "SELECT id, employee_number, first_name, last_name, gender, work_email, date_of_joining, "
-                                    + "termination_date, status, work_location_id FROM core.employee "
-                                    + "WHERE id = ? AND tenant_id = ? AND is_deleted = false")) {
-                        ps.setObject(1, id);
-                        ps.setObject(2, tenantId);
-                        try (ResultSet rs = ps.executeQuery()) {
-                            if (!rs.next()) {
-                                throw new EmployeeService.NotFoundException(id);
+                    PreparedStatement ps = null;
+                    ResultSet rs = null;
+                    boolean hasLocationCol = true;
+                    try {
+                        String sqlWithLocation =
+                                "SELECT id, employee_number, first_name, last_name, gender, work_email, date_of_joining, "
+                                        + "termination_date, status, work_location_id FROM core.employee "
+                                        + "WHERE id = ? AND tenant_id = ? AND is_deleted = false";
+                        try {
+                            ps = conn.prepareStatement(sqlWithLocation);
+                            ps.setObject(1, id);
+                            ps.setObject(2, tenantId);
+                            rs = ps.executeQuery();
+                        } catch (SQLException ex) {
+                            if (ps != null) {
+                                try {
+                                    ps.close();
+                                } catch (SQLException ignored) {
+                                }
                             }
-                            java.sql.Date dojSql = rs.getDate("date_of_joining");
-                            LocalDate doj = dojSql != null ? dojSql.toLocalDate() : LocalDate.of(2024, 1, 1);
-                            UUID workLocationId = null;
+                            hasLocationCol = false;
+                            String sqlWithoutLocation =
+                                    "SELECT id, employee_number, first_name, last_name, gender, work_email, date_of_joining, "
+                                            + "termination_date, status FROM core.employee "
+                                            + "WHERE id = ? AND tenant_id = ? AND is_deleted = false";
+                            ps = conn.prepareStatement(sqlWithoutLocation);
+                            ps.setObject(1, id);
+                            ps.setObject(2, tenantId);
+                            rs = ps.executeQuery();
+                        }
+                        if (!rs.next()) {
+                            throw new EmployeeService.NotFoundException(id);
+                        }
+                        java.sql.Date dojSql = rs.getDate("date_of_joining");
+                        LocalDate doj = dojSql != null ? dojSql.toLocalDate() : LocalDate.of(2024, 1, 1);
+                        UUID workLocationId = null;
+                        if (hasLocationCol) {
                             try {
                                 workLocationId = rs.getObject("work_location_id", UUID.class);
                             } catch (SQLException ignored) {
                             }
-                            String gender = "MALE";
-                            try {
-                                String g = rs.getString("gender");
-                                if (g != null && !g.isBlank()) {
-                                    gender = g;
-                                }
-                            } catch (SQLException ignored) {
-                            }
-                            EmployeeResponse response = new EmployeeResponse(
-                                    id,
-                                    tenantId,
-                                    rs.getString("employee_number"),
-                                    rs.getString("first_name"),
-                                    null,
-                                    rs.getString("last_name"),
-                                    gender,
-                                    // The real dates and status, as EmployeeServiceImpl.get returns them:
-                                    // an off-cycle run (W-30.2) tests employment against the period.
-                                    doj,
-                                    rs.getObject("termination_date", LocalDate.class),
-                                    rs.getString("status") == null
-                                            ? null
-                                            : com.infinevo.core.employee.EmploymentStatus.valueOf(
-                                                    rs.getString("status")),
-                                    rs.getString("work_email"),
-                                    null,
-                                    false,
-                                    null,
-                                    null,
-                                    null,
-                                    workLocationId,
-                                    Instant.now(),
-                                    Instant.now());
-                            conn.commit();
-                            return response;
                         }
+                        String gender = "MALE";
+                        try {
+                            String g = rs.getString("gender");
+                            if (g != null && !g.isBlank()) {
+                                gender = g;
+                            }
+                        } catch (SQLException ignored) {
+                        }
+                        EmployeeResponse response = new EmployeeResponse(
+                                id,
+                                tenantId,
+                                rs.getString("employee_number"),
+                                rs.getString("first_name"),
+                                null,
+                                rs.getString("last_name"),
+                                gender,
+                                // The real dates and status, as EmployeeServiceImpl.get returns them:
+                                // an off-cycle run (W-30.2) tests employment against the period.
+                                doj,
+                                rs.getObject("termination_date", LocalDate.class),
+                                rs.getString("status") == null
+                                        ? null
+                                        : com.infinevo.core.employee.EmploymentStatus.valueOf(
+                                                rs.getString("status")),
+                                rs.getString("work_email"),
+                                null,
+                                false,
+                                null,
+                                null,
+                                null,
+                                workLocationId,
+                                Instant.now(),
+                                Instant.now());
+                        conn.commit();
+                        return response;
                     } catch (SQLException | RuntimeException e) {
                         try {
                             conn.rollback();
                         } catch (SQLException ignored) {
                         }
                         throw e;
+                    } finally {
+                        if (rs != null) {
+                            try {
+                                rs.close();
+                            } catch (SQLException ignored) {
+                            }
+                        }
+                        if (ps != null) {
+                            try {
+                                ps.close();
+                            } catch (SQLException ignored) {
+                            }
+                        }
                     }
                 } catch (SQLException e) {
                     throw new RuntimeException(e);

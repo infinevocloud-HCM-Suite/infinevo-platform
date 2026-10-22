@@ -60,6 +60,18 @@ public final class TaxDeclarationTestSchema {
                         "db/migration/core/V173__employee_termination_reason.sql"); // BUG-D4-20 columns the Employee
                 // entity maps
             }
+            if (!tableExists(conn, "core", "department")) {
+                executeResource(conn, "db/migration/core/V011__department.sql");
+            }
+            if (!tableExists(conn, "core", "designation")) {
+                executeResource(conn, "db/migration/core/V012__designation.sql");
+            }
+            if (!tableExists(conn, "core", "work_location")) {
+                executeResource(conn, "db/migration/core/V013__work_location.sql");
+            }
+            if (!columnExists(conn, "core", "employee", "work_location_id")) {
+                executeResource(conn, "db/migration/core/V014__employee_org_columns.sql");
+            }
             if (!tableExists(conn, "core", "employee_personal")) {
                 executeResource(conn, "db/migration/core/V015__employee_personal.sql");
             }
