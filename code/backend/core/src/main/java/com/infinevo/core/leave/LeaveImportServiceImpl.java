@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,12 +41,13 @@ public class LeaveImportServiceImpl implements LeaveImportService {
     private final LeaveImportAllocationHelper allocationHelper;
     private final LeaveTypeRepository leaveTypeRepository;
 
+    @Autowired
     public LeaveImportServiceImpl(
             DocumentService documentService,
             LeaveImportLogRepository importLogRepository,
             LeaveImportRowValidator rowValidator,
             LeaveImportAllocationHelper allocationHelper,
-            LeaveTypeRepository leaveTypeRepository) {
+            @Autowired(required = false) LeaveTypeRepository leaveTypeRepository) {
         this.documentService = Objects.requireNonNull(documentService, "documentService must not be null");
         this.importLogRepository = Objects.requireNonNull(importLogRepository, "importLogRepository must not be null");
         this.rowValidator = Objects.requireNonNull(rowValidator, "rowValidator must not be null");

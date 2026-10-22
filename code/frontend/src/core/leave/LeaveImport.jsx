@@ -300,7 +300,7 @@ export function LeaveImport() {
                 {fileName ? `Selected: ${fileName}` : 'Click or drag file to this area to upload'}
               </p>
               <p className="ant-upload-hint">
-                Supports single .xlsx or .csv balance sheets. Use the Download Sample Template button above for the required format.
+                Supports single .xlsx or .csv balance sheets. Use the sample template above for the required format.
               </p>
             </Dragger>
           </div>

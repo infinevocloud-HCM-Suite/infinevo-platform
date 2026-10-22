@@ -166,7 +166,7 @@ describe('LeaveImport component', () => {
       expect(screen.getByText('Bulk Leave Import')).toBeDefined();
     });
 
-    const downloadBtn = screen.getByRole('button', { name: /Download Sample Template/i });
+    const downloadBtn = screen.getByRole('button', { name: /^Download Sample Template$/i });
     expect(downloadBtn).toBeDefined();
 
     fireEvent.click(downloadBtn);

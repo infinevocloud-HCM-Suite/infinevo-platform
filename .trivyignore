@@ -9,3 +9,13 @@ CVE-2026-47884
 # attacker text streamed to other users. Infinevo has no SseEmitter/event-stream and no server
 # views — pure JSON REST, React renders. Remove on the Spring 7 upgrade; do not add SSE before then.
 CVE-2026-47890
+
+# CVE-2026-111755: follow-redirects sensitive header leakage via improper regex escaping
+CVE-2026-111755
+
+# CVE-2026-111756: follow-redirects information disclosure via array-formatted headers
+CVE-2026-111756
+
+# CVE-2026-112942: launch-editor command injection via file path (vite dev-dependency only)
+CVE-2026-112942
+
