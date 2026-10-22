@@ -244,7 +244,7 @@ class Check:
                 and self.dropped.reason(step, table, r.get("id")) is None]
 
     def actual(self, table: str) -> int:
-        self.cur.execute(f"SELECT count(*) FROM {table} WHERE tenant_id = %s AND created_by = %s",
+        self.cur.execute(db.on_table("SELECT count(*) FROM {} WHERE tenant_id = %s AND created_by = %s", table),
                          (self.tid, db.AUDIT_USER))
         return self.cur.fetchone()[0]
 

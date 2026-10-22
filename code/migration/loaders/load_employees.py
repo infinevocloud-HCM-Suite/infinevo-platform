@@ -55,7 +55,8 @@ def _by_name_or_create(cur, table: str, tenant_id: str, name: str | None, cache:
     key = name.strip().lower()
     if key in cache:
         return cache[key]
-    cur.execute(f"SELECT id FROM {table} WHERE tenant_id = %s AND lower(name) = %s ORDER BY code LIMIT 1",
+    cur.execute(db.on_table("SELECT id FROM {} WHERE tenant_id = %s AND lower(name) = %s ORDER BY code LIMIT 1",
+                            table),
                 (tenant_id, key))
     row = cur.fetchone()
     if row:
@@ -64,7 +65,7 @@ def _by_name_or_create(cur, table: str, tenant_id: str, name: str | None, cache:
     base = slug_code(name)
     code, n = base, 2
     while True:
-        cur.execute(f"SELECT 1 FROM {table} WHERE tenant_id = %s AND code = %s", (tenant_id, code))
+        cur.execute(db.on_table("SELECT 1 FROM {} WHERE tenant_id = %s AND code = %s", table), (tenant_id, code))
         if not cur.fetchone():
             break
         code = f"{base[:46]}_{n}"

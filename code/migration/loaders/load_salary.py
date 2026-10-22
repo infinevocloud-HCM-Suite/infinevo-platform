@@ -252,7 +252,7 @@ def run(conn=None) -> bool:
                       if (c := _mapped(cmap, org, kind, text(r.get(spec["name"]))))}
             codes = _assign_codes(good, spec["name"], mapped)
             table = spec["table"]
-            cur.execute(f"SELECT code, id FROM {table} WHERE tenant_id = %s", (tid,))
+            cur.execute(db.on_table("SELECT code, id FROM {} WHERE tenant_id = %s", table), (tid,))
             existing = {c: str(i) for c, i in cur.fetchall()}
             stored_for = {}  # code -> id the row will have
             for r in good:
@@ -270,7 +270,7 @@ def run(conn=None) -> bool:
             if payload:
                 db.upsert(cur, table, payload, conflict=("tenant_id", "code"), keep_on_update=("id",))
                 res.processed += len(payload)
-            cur.execute(f"SELECT code, id FROM {table} WHERE tenant_id = %s", (tid,))
+            cur.execute(db.on_table("SELECT code, id FROM {} WHERE tenant_id = %s", table), (tid,))
             stored = {c: str(i) for c, i in cur.fetchall()}
             comp[kind], comp_by_uuid[kind], comp_by_code[kind] = {}, {}, stored
             for r in good:

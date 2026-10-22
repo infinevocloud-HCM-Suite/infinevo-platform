@@ -47,7 +47,7 @@ def _upsert_coded(cur, table: str, tenant_id: str, rows: list[dict]) -> dict[str
     if not rows:
         return {}
     db.upsert(cur, table, rows, conflict=("tenant_id", "code"), keep_on_update=("id",))
-    cur.execute(f"SELECT code, id FROM {table} WHERE tenant_id = %s", (tenant_id,))
+    cur.execute(db.on_table("SELECT code, id FROM {} WHERE tenant_id = %s", table), (tenant_id,))
     return {code: str(i) for code, i in cur.fetchall()}
 
 

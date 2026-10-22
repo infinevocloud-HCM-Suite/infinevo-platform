@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import psycopg2
 import psycopg2.extras
+from psycopg2 import sql
 
 from .env import optional, require
 
@@ -22,6 +23,12 @@ def connect():
     )
     conn.autocommit = False
     return conn
+
+
+def on_table(template: str, qualified: str) -> sql.Composed:
+    """template with its one {} filled by schema.table, quoted as identifiers - never
+    pasted in as text."""
+    return sql.SQL(template).format(sql.Identifier(*qualified.split(".")))
 
 
 def set_tenant(cur, tenant_id: str) -> None:

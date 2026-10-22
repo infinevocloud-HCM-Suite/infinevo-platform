@@ -373,7 +373,7 @@ def run(conn=None) -> bool:
             parents = {}
             for kind, table in (("claim", "payroll.employee_reimbursement_request"),
                                 ("deduction", "payroll.employee_deduction")):
-                cur.execute(f"SELECT id::text FROM {table} WHERE tenant_id = %s AND id = ANY(%s::uuid[])",
+                cur.execute(db.on_table("SELECT id::text FROM {} WHERE tenant_id = %s AND id = ANY(%s::uuid[])", table),
                             (tid, _ids(j.link[1] for j in mine if j.link[:1] == (kind,))))
                 parents[kind] = {r[0] for r in cur.fetchall()}
             ready = []

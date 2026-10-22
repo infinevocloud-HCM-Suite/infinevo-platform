@@ -104,6 +104,11 @@ def _actual_name(cur, table: str) -> str | None:
     return table if table in found else found[0]
 
 
+def _quote(name: str) -> str:
+    """A MySQL identifier, backtick-quoted with any backtick inside doubled."""
+    return "`" + name.replace("`", "``") + "`"
+
+
 def _select_list(cur, actual: str, excluded: set[str]) -> str:
     """`*`, or every column by name except the excluded (binary) ones."""
     if not excluded:
@@ -115,7 +120,7 @@ def _select_list(cur, actual: str, excluded: set[str]) -> str:
         (actual,),
     )
     cols = [r[0] for r in cur.fetchall() if r[0].lower() not in drop]
-    return ", ".join(f"`{c}`" for c in cols)
+    return ", ".join(_quote(c) for c in cols)
 
 
 def count_table(conn, table: str) -> int | None:
@@ -124,8 +129,8 @@ def count_table(conn, table: str) -> int | None:
         if actual is None:
             return None
         # Name comes from information_schema, never from input.
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
-        cur.execute(f"SELECT COUNT(*) FROM `{actual}`")
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        cur.execute("SELECT COUNT(*) FROM " + _quote(actual))
         return int(cur.fetchone()[0])
 
 
@@ -137,8 +142,8 @@ def extract_table(conn, source: str, table: str, excluded: set[str], log) -> int
             return None
         cols = _select_list(cur, actual, excluded)
         # Names come from information_schema, never from input.
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query
-        cur.execute(f"SELECT {cols} FROM `{actual}`")
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+        cur.execute(f"SELECT {cols} FROM {_quote(actual)}")
         names = [d[0] for d in cur.description]
         types = [d[1] for d in cur.description]
         rows = [
