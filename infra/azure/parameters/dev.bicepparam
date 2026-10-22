@@ -37,4 +37,4 @@ param brevoSenderEmail = 'application@infinevocloud.com'
 // Built by hand (HANDBOOK 4.6), never by the release pipeline. A fixed tag, never
 // 'latest' (W-71 Task 3, W-54 F-16): a rehearsal must name the image it ran.
 // Set to '' to leave the job out of the deployment.
-param dataMigrationImageTag = '2026-10-22.1'
+param dataMigrationImageTag = '2026-10-22.2'
