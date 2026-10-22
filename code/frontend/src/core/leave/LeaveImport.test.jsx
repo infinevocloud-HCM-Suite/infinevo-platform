@@ -10,6 +10,7 @@ vi.mock('./leaveImportService.js', () => ({
     start: vi.fn(),
     get: vi.fn(),
     history: vi.fn(),
+    downloadTemplate: vi.fn(),
   },
 }));
 
@@ -150,5 +151,29 @@ describe('LeaveImport component', () => {
     expect(leaveImportService.get).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();
+  });
+
+  it('renders Download Sample Template button and triggers file download on click', async () => {
+    leaveImportService.downloadTemplate.mockResolvedValueOnce(
+      'employee_number,leave_type_code,days\nEMP-001,SL,12.00\n'
+    );
+    window.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+    window.URL.revokeObjectURL = vi.fn();
+
+    render(<LeaveImport />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Bulk Leave Import')).toBeDefined();
+    });
+
+    const downloadBtn = screen.getByRole('button', { name: /Download Sample Template/i });
+    expect(downloadBtn).toBeDefined();
+
+    fireEvent.click(downloadBtn);
+
+    await waitFor(() => {
+      expect(leaveImportService.downloadTemplate).toHaveBeenCalled();
+      expect(window.URL.createObjectURL).toHaveBeenCalled();
+    });
   });
 });

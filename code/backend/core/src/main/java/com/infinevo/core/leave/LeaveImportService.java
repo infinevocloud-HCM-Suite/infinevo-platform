@@ -42,4 +42,13 @@ public interface LeaveImportService {
     default Page<LeaveImportResultResponse> listImports(Pageable pageable) {
         return listImports(TenantContext.require(), pageable);
     }
+
+    /**
+     * Generates a sample CSV template with column headers and sample records.
+     */
+    String getSampleTemplate(UUID tenantId);
+
+    default String getSampleTemplate() {
+        return getSampleTemplate(TenantContext.require());
+    }
 }

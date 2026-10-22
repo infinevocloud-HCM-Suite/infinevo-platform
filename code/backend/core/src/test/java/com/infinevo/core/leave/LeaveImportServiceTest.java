@@ -442,4 +442,36 @@ class LeaveImportServiceTest {
         assertThat(report).contains("\"'=HYPERLINK(");
         assertThat(report).doesNotContain("\n=HYPERLINK(").doesNotContain(",=HYPERLINK(");
     }
+
+    @Test
+    @DisplayName("getSampleTemplate returns standard CSV headers and sample records")
+    void getSampleTemplateReturnsStandardCsv() {
+        String csv = service.getSampleTemplate(tenantId);
+        assertThat(csv).isNotNull();
+        assertThat(csv).startsWith("employee_number,leave_type_code,days\n");
+        assertThat(csv).contains("EMP-001,SL,12.00\n");
+        assertThat(csv).contains("EMP-001,CL,8.00\n");
+    }
+
+    @Test
+    @DisplayName("getSampleTemplate uses tenant active leave types when leaveTypeRepository is injected")
+    void getSampleTemplateUsesTenantActiveLeaveTypes() {
+        LeaveTypeRepository leaveTypeRepo = mock(LeaveTypeRepository.class);
+        LeaveType annual = mock(LeaveType.class);
+        when(annual.isActive()).thenReturn(true);
+        when(annual.getCode()).thenReturn("AL");
+        LeaveType casual = mock(LeaveType.class);
+        when(casual.isActive()).thenReturn(true);
+        when(casual.getCode()).thenReturn("CAS");
+
+        when(leaveTypeRepo.findByTenantIdOrderByCodeAsc(tenantId)).thenReturn(List.of(annual, casual));
+
+        LeaveImportServiceImpl serviceWithRepo = new LeaveImportServiceImpl(
+                documentService, importLogRepository, rowValidator, allocationHelper, leaveTypeRepo);
+
+        String csv = serviceWithRepo.getSampleTemplate(tenantId);
+        assertThat(csv).startsWith("employee_number,leave_type_code,days\n");
+        assertThat(csv).contains("EMP-001,AL,12.00\n");
+        assertThat(csv).contains("EMP-001,CAS,8.00\n");
+    }
 }

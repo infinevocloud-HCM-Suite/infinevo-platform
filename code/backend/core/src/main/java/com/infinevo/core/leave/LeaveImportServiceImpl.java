@@ -38,16 +38,27 @@ public class LeaveImportServiceImpl implements LeaveImportService {
     private final LeaveImportLogRepository importLogRepository;
     private final LeaveImportRowValidator rowValidator;
     private final LeaveImportAllocationHelper allocationHelper;
+    private final LeaveTypeRepository leaveTypeRepository;
+
+    public LeaveImportServiceImpl(
+            DocumentService documentService,
+            LeaveImportLogRepository importLogRepository,
+            LeaveImportRowValidator rowValidator,
+            LeaveImportAllocationHelper allocationHelper,
+            LeaveTypeRepository leaveTypeRepository) {
+        this.documentService = Objects.requireNonNull(documentService, "documentService must not be null");
+        this.importLogRepository = Objects.requireNonNull(importLogRepository, "importLogRepository must not be null");
+        this.rowValidator = Objects.requireNonNull(rowValidator, "rowValidator must not be null");
+        this.allocationHelper = Objects.requireNonNull(allocationHelper, "allocationHelper must not be null");
+        this.leaveTypeRepository = leaveTypeRepository;
+    }
 
     public LeaveImportServiceImpl(
             DocumentService documentService,
             LeaveImportLogRepository importLogRepository,
             LeaveImportRowValidator rowValidator,
             LeaveImportAllocationHelper allocationHelper) {
-        this.documentService = Objects.requireNonNull(documentService, "documentService must not be null");
-        this.importLogRepository = Objects.requireNonNull(importLogRepository, "importLogRepository must not be null");
-        this.rowValidator = Objects.requireNonNull(rowValidator, "rowValidator must not be null");
-        this.allocationHelper = Objects.requireNonNull(allocationHelper, "allocationHelper must not be null");
+        this(documentService, importLogRepository, rowValidator, allocationHelper, null);
     }
 
     @Override
@@ -283,6 +294,35 @@ public class LeaveImportServiceImpl implements LeaveImportService {
         return importLogRepository
                 .findByTenantIdOrderByStartedAtDesc(tenantId, pageable)
                 .map(LeaveImportResultResponse::from);
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public String getSampleTemplate(UUID tenantId) {
+        String code1 = "SL";
+        String code2 = "CL";
+        if (leaveTypeRepository != null && tenantId != null) {
+            try {
+                List<LeaveType> activeTypes = leaveTypeRepository.findByTenantIdOrderByCodeAsc(tenantId).stream()
+                        .filter(LeaveType::isActive)
+                        .toList();
+                if (!activeTypes.isEmpty()) {
+                    code1 = activeTypes.get(0).getCode();
+                    if (activeTypes.size() > 1) {
+                        code2 = activeTypes.get(1).getCode();
+                    } else {
+                        code2 = code1;
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Unable to load tenant leave types for sample template, using defaults", e);
+            }
+        }
+        return "employee_number,leave_type_code,days\n"
+                + "EMP-001," + code1 + ",12.00\n"
+                + "EMP-001," + code2 + ",8.00\n"
+                + "EMP-002," + code1 + ",10.50\n"
+                + "EMP-002," + code2 + ",8.00\n";
     }
 
     private boolean isHeaderRow(String line) {

@@ -18,6 +18,7 @@ import {
   InboxOutlined,
   PlayCircleOutlined,
   HistoryOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
@@ -44,6 +45,7 @@ export function LeaveImport() {
   const [documentId, setDocumentId] = useState(null);
   const [fileName, setFileName] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
   // Active / Last Import Run
   const [currentImport, setCurrentImport] = useState(null);
@@ -92,6 +94,27 @@ export function LeaveImport() {
       await errorMsg(err);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDownloadSample = async () => {
+    setDownloadingTemplate(true);
+    try {
+      const text = await leaveImportService.downloadTemplate();
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'leave_import_sample_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      await successMsg('Sample template downloaded successfully');
+    } catch (err) {
+      await errorMsg(err);
+    } finally {
+      setDownloadingTemplate(false);
     }
   };
 
@@ -213,7 +236,19 @@ export function LeaveImport() {
         </Text>
 
         {/* Upload & Configuration Card */}
-        <Card type="inner" title="Import Configuration">
+        <Card
+          type="inner"
+          title="Import Configuration"
+          extra={
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadSample}
+              loading={downloadingTemplate}
+            >
+              Download Sample Template
+            </Button>
+          }
+        >
           <Row gutter={24} align="middle">
             <Col xs={24} sm={12} md={6}>
               <Text strong>Leave Year:</Text>
@@ -267,7 +302,7 @@ export function LeaveImport() {
                 {fileName ? `Selected: ${fileName}` : 'Click or drag file to this area to upload'}
               </p>
               <p className="ant-upload-hint">
-                Supports single .xlsx or .csv balance sheets.
+                Supports single .xlsx or .csv balance sheets. Use "Download Sample Template" above for the required format.
               </p>
             </Dragger>
           </div>

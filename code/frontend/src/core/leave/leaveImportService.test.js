@@ -43,4 +43,16 @@ describe('leaveImportService', () => {
     });
     expect(res).toEqual({ content: [{ id: 'import-1' }], totalElements: 1 });
   });
+
+  it('calls downloadTemplate on /v1/leave-imports/template with responseType text', async () => {
+    const csvData = 'employee_number,leave_type_code,days\nEMP-001,SL,12.00\n';
+    apiClient.get.mockResolvedValueOnce({
+      data: csvData,
+    });
+    const res = await leaveImportService.downloadTemplate();
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/leave-imports/template', {
+      responseType: 'text',
+    });
+    expect(res).toBe(csvData);
+  });
 });

@@ -10,7 +10,9 @@ import java.util.UUID;
 import org.slf4j.MDC;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -43,6 +45,17 @@ public class LeaveImportController {
             throw new IllegalArgumentException("documentId and leaveYear must be provided");
         }
         return leaveImportService.importLeaves(tenantId, request.documentId(), request.leaveYear(), request.dryRun());
+    }
+
+    @GetMapping("/api/v1/leave-imports/template")
+    @RequiresAction("core.leave_balance.manage")
+    public ResponseEntity<String> downloadSampleTemplate() {
+        UUID tenantId = TenantContext.require();
+        String csv = leaveImportService.getSampleTemplate(tenantId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=leave_import_sample_template.csv")
+                .body(csv);
     }
 
     @GetMapping("/api/v1/leave-imports/{id}")

@@ -106,6 +106,15 @@ class LeaveImportGuardIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("GET /api/v1/leave-imports/template without core.leave_balance.manage returns 403 FORBIDDEN")
+    void templateRefusedWithoutManagePermission() throws Exception {
+        mvc.perform(as(employeeSub, get("/api/v1/leave-imports/template")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value(containsString("core.leave_balance.manage")));
+    }
+
+    @Test
     @DisplayName("HR user holding core.leave_balance.manage passes guard on listing and detail endpoints")
     void hrUserPassesGuard() throws Exception {
         // List imports -> passes guard, returns 200 OK
@@ -116,6 +125,13 @@ class LeaveImportGuardIT extends AbstractIntegrationTest {
         // Get single import -> passes guard, reaches service, returns 404 (not found) for random UUID
         UUID missingId = UUID.randomUUID();
         mvc.perform(as(hrSub, get("/api/v1/leave-imports/" + missingId))).andExpect(status().isNotFound());
+
+        // Get template -> passes guard, returns 200 OK text/csv with attachment header and sample CSV
+        mvc.perform(as(hrSub, get("/api/v1/leave-imports/template")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", containsString("text/csv")))
+                .andExpect(header().string("Content-Disposition", containsString("leave_import_sample_template.csv")))
+                .andExpect(content().string(containsString("employee_number,leave_type_code,days")));
     }
 
     @Test

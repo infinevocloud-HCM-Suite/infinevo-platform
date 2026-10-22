@@ -17,4 +17,9 @@ export const leaveImportService = {
     });
     return res?.data !== undefined ? res.data : res;
   },
+
+  async downloadTemplate() {
+    const res = await apiClient.get('/v1/leave-imports/template', { responseType: 'text' });
+    return res?.data !== undefined ? res.data : res;
+  },
 };
