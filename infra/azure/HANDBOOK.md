@@ -233,6 +233,7 @@ Succeeded and applies nothing — that was bug #138.**
 |---|---|
 | `caj-flyway-dev` | **Applies the Flyway migrations**, as `migration_user`. This is the migration job |
 | `caj-db-migration-dev` | Runs `provision.sh` (roles, schemas, grants) and the six private-path probes. Applies no migration script |
+| `caj-data-migration-dev` | Moves **legacy HRMS and Payroll data** into the platform from a dump (W-71). Not a schema job — it applies no Flyway script |
 
 To apply migrations:
 
@@ -248,6 +249,19 @@ To apply migrations:
 To provision roles and schemas, or to re-run the private-path probes, start
 `caj-db-migration-dev` instead. It must have been run once before the first Flyway run,
 because it is what creates `migration_user`.
+
+To run a legacy data migration rehearsal (W-71):
+
+1. Upload `hrms.sql.gz` and `payroll.sql.gz` to `migration-dumps/<run_id>/` and set
+   `legacy-dump-sha256` in Key Vault (W-71 §5 steps 1–3).
+2. Click **`caj-data-migration-dev`** > **Run with override**, and add the environment
+   variable `RUN_ID=<run_id>`.
+3. Read the execution log, then the results the job writes to `migration-dumps/<run_id>/results/`.
+
+The job's image, `data-migration:<tag>`, is built from the migration branch, not by the
+release pipeline. Its tag is `dataMigrationImageTag` in `parameters/dev.bicepparam`.
+**Run `deploy.sh` from `main` only**, never from the migration branch: a stale branch's
+Bicep rolls the environment back to that branch's infrastructure.
 
 ---
 

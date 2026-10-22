@@ -70,6 +70,9 @@ var containerNames = [
   'documents'
   'payslips'
   'proofs'
+  // W-71: legacy MySQL dumps and each rehearsal's results, read and written by
+  // caj-data-migration-{env}. Already present on dev since 2026-10-19.
+  'migration-dumps'
 ]
 
 resource containers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = [for cName in containerNames: {

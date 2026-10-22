@@ -1,0 +1,45 @@
+# Migration Configuration Template (NO SECRETS)
+# Secrets must be injected via environment variables or fetched from Azure Key Vault (W-56).
+
+source_databases:
+  # Legacy Production Databases on 64.227.128.119 (Frozen 2026-09-13 snapshot)
+  hrms:
+    host: "${LEGACY_HRMS_DB_HOST:-64.227.128.119}"
+    port: 3306
+    database: "${LEGACY_HRMS_DB_NAME:-hrmstestdb}"
+    user: "${LEGACY_HRMS_DB_USER:-ro_migration_user}"
+    password: "${LEGACY_HRMS_DB_PASSWORD}"
+    charset: "utf8mb4"
+    read_only: true
+  payroll:
+    host: "${LEGACY_PAYROLL_DB_HOST:-64.227.128.119}"
+    port: 3306
+    database: "${LEGACY_PAYROLL_DB_NAME:-payroll_test_db}"
+    user: "${LEGACY_PAYROLL_DB_USER:-ro_migration_user}"
+    password: "${LEGACY_PAYROLL_DB_PASSWORD}"
+    charset: "utf8mb4"
+    read_only: true
+
+target_database:
+  # Local Docker: localhost:5432 / Cloud: psql-infinevo-{env}.postgres.database.azure.com
+  host: "${TARGET_DB_HOST:-localhost}"
+  port: 5432
+  database: "${TARGET_DB_NAME:-infinevo}"
+  user: "${TARGET_DB_USER:-migration_user}"
+  password: "${TARGET_DB_PASSWORD:-local_migration_pw}"
+  sslmode: "${TARGET_DB_SSLMODE:-prefer}"
+
+target_keycloak:
+  # Local Docker: http://localhost:8081 / Cloud: ca-infinevo-{env}-keycloak
+  base_url: "${KEYCLOAK_BASE_URL:-http://localhost:8081}"
+  realm: "infinevo"
+  client_id: "${KEYCLOAK_CLIENT_ID:-infinevo-web}"
+  admin_username: "${KEYCLOAK_ADMIN_USER:-admin}"
+  admin_password: "${KEYCLOAK_ADMIN_PASSWORD:-local_keycloak_pw}"
+
+staging:
+  storage_type: "duckdb" # or "parquet"
+  staging_db_path: "code/migration/staging/staging.duckdb"
+
+batch:
+  chunk_size: 500

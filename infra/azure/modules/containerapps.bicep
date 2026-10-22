@@ -73,6 +73,9 @@ param brevoSmtpLogin string
 @description('Brevo validated sender email address for worker and Keycloak notifications')
 param brevoSenderEmail string = 'application@infinevocloud.com'
 
+@description('Front Door endpoint hostname, bare (ep-infinevo-dev-....azurefd.net). deploy.sh reads it from the live endpoint before the deployment. Empty on a first deployment, when the endpoint does not exist yet; the Front Door settings are then left to deploy.yml.')
+param frontDoorHostName string = ''
+
 // Origin protection (W-51 section 2.5). Front Door Standard has no Private Link origin and
 // Container Apps ingress has no header-matching rule, so ipSecurityRestrictions is the only
 // control the ingress schema offers. Anything not arriving from a Front Door backend address
@@ -216,6 +219,52 @@ var redisEnv = empty(redisHost) ? [] : [
   }
 ]
 
+// ── The settings deploy.yml also sets (deploy.yml, "Create the new revisions") ──
+// A Bicep deployment REPLACES each container's env list. Until 2026-10-21 these settings
+// lived only in deploy.yml, so any hand run of deploy.sh wrote containers without them.
+// On 2026-10-19 that left the worker - activeRevisionsMode Single, so its new revision
+// takes over at once - crash-looping on a missing KEYCLOAK_JWK_SET_URI for two days, and
+// minted app and keycloak revisions that could not start. Declaring them here with the
+// same values deploy.yml uses means a Bicep run keeps them; deploy.yml's
+// `--set-env-vars` merge writes the same values, so the two cannot disagree.
+var frontDoorUrl = 'https://${frontDoorHostName}'
+var hasFrontDoorHost = !empty(frontDoorHostName)
+
+var appReleaseEnv = concat([
+  { name: 'INFINEVO_ROLE', value: 'app' }
+  { name: 'MANAGEMENT_HEALTH_REDIS_ENABLED', value: 'false' }
+], hasFrontDoorHost ? [
+  { name: 'KEYCLOAK_ISSUER_URI', value: '${frontDoorUrl}/auth/realms/infinevo' }
+  { name: 'KEYCLOAK_JWK_SET_URI', value: '${frontDoorUrl}/auth/realms/infinevo/protocol/openid-connect/certs' }
+  { name: 'KEYCLOAK_ADMIN_URL', value: '${frontDoorUrl}/auth' }
+  { name: 'INVITATION_LINK_BASE_URL', value: '${frontDoorUrl}/invitations/accept' }
+  { name: 'PAYSLIP_LINK_BASE_URL', value: '${frontDoorUrl}/public/payslips' }
+] : [])
+
+var workerReleaseEnv = concat([
+  { name: 'INFINEVO_ROLE', value: 'worker' }
+  { name: 'MANAGEMENT_HEALTH_REDIS_ENABLED', value: 'false' }
+], hasFrontDoorHost ? [
+  { name: 'KEYCLOAK_ISSUER_URI', value: '${frontDoorUrl}/auth/realms/infinevo' }
+  { name: 'KEYCLOAK_JWK_SET_URI', value: '${frontDoorUrl}/auth/realms/infinevo/protocol/openid-connect/certs' }
+  { name: 'PAYSLIP_LINK_BASE_URL', value: '${frontDoorUrl}/public/payslips' }
+] : [])
+
+var webReleaseEnv = concat([
+  { name: 'KEYCLOAK_REALM', value: 'infinevo' }
+  { name: 'KEYCLOAK_CLIENT_ID', value: 'infinevo-web' }
+], hasFrontDoorHost ? [
+  { name: 'API_BASE_URL', value: '${frontDoorUrl}/api' }
+  { name: 'KEYCLOAK_URL', value: '${frontDoorUrl}/auth' }
+] : [])
+
+// KC_HOSTNAME is the BARE host on Keycloak 25 hostname v1 (deploy.yml, review F-21).
+var keycloakReleaseEnv = hasFrontDoorHost ? [
+  { name: 'KC_HOSTNAME', value: frontDoorHostName }
+  { name: 'KC_HOSTNAME_STRICT_HTTPS', value: 'true' }
+  { name: 'KC_WEB_ORIGIN', value: frontDoorUrl }
+] : []
+
 // 1. Container App: app (Backend API)
 resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: 'ca-infinevo-${environment}-app'
@@ -351,8 +400,8 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               secretRef: 'document-link-secret'
             }
             // W-24.2, W-36.2: KEYCLOAK_ADMIN_URL, INVITATION_LINK_BASE_URL and
-            // PAYSLIP_LINK_BASE_URL are Front Door addresses, so deploy.yml sets them next to
-            // KEYCLOAK_ISSUER_URI (the payslip one on the worker too).
+            // PAYSLIP_LINK_BASE_URL are Front Door addresses - in appReleaseEnv above, and
+            // set by deploy.yml too.
             {
               name: 'KEYCLOAK_ADMIN_USERNAME'
               value: 'admin'
@@ -384,7 +433,7 @@ resource appContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'BREVO_FROM_EMAIL'
               value: brevoSenderEmail
             }
-          ], redisEnv)
+          ], redisEnv, appReleaseEnv)
           probes: [
             {
               type: 'Liveness'
@@ -542,7 +591,7 @@ resource workerContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'BREVO_FROM_EMAIL'
               value: brevoSenderEmail
             }
-          ], redisEnv)
+          ], redisEnv, workerReleaseEnv)
         }
       ]
       scale: {
@@ -598,11 +647,11 @@ resource webContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
         {
           name: 'web'
           image: webImage
-          // No `env` block: W-56 owns it. The frontend entrypoint needs API_BASE_URL,
-          // KEYCLOAK_URL, KEYCLOAK_REALM and KEYCLOAK_CLIENT_ID
-          // (infra/docker/frontend-entrypoint.sh) - deploy.yml's release job sets those
-          // four on the revision it creates, because they are Front Door hostnames rather
-          // than secrets. Nothing here sets a secret-backed variable before W-56.
+          // The frontend entrypoint needs API_BASE_URL, KEYCLOAK_URL, KEYCLOAK_REALM and
+          // KEYCLOAK_CLIENT_ID (infra/docker/frontend-entrypoint.sh). deploy.yml's release
+          // job sets all four; webReleaseEnv declares the same values so a Bicep run keeps
+          // them. No secret-backed variable here.
+          env: webReleaseEnv
           resources: {
             cpu: json(cpu)
             memory: memory
@@ -690,7 +739,7 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json(cpu)
             memory: memory
           }
-          env: [
+          env: concat([
             {
               name: 'KC_DB_URL'
               value: keycloakJdbcUrl
@@ -743,7 +792,7 @@ resource keycloakContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'KC_SMTP_PASSWORD'
               secretRef: 'brevo-smtp-key'
             }
-          ]
+          ], keycloakReleaseEnv)
           // ON PORT 9000, NOT THE INGRESS PORT (W-54 round-2 finding F-20). The image bakes
           // KC_HTTP_RELATIVE_PATH=/auth at build time (infra/docker/keycloak.Dockerfile:47),
           // so '/' on 8080 - what this probe used to ask for - is now a 404 and the

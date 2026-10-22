@@ -32,3 +32,8 @@ param alertEmail = 'kmohapatra@infinevocloud.com'
 // Founder step (W-10.1): Brevo SMTP login (Brevo > SMTP & API > SMTP).
 param brevoSmtpLogin = 'bc91dc001@smtp-brevo.com'
 param brevoSenderEmail = 'application@infinevocloud.com'
+
+// W-71: caj-data-migration-dev runs crinfinevo.azurecr.io/data-migration at this tag.
+// The image is built and pushed from the migration branch, never by main's pipeline.
+// Set to '' to leave the job out of the deployment.
+param dataMigrationImageTag = 'latest'
