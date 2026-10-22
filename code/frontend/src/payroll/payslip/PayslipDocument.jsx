@@ -271,7 +271,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
             {earnings.length > 0 ? (
               earnings.map((earning, idx) => (
                 <div
-                  key={earning.code || idx}
+                  key={`${earning.code || 'earn'}-${idx}`}
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -315,7 +315,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
             </div>
             {displayDeductions.map((deduction, idx) => (
               <div
-                key={deduction.code || idx}
+                key={`${deduction.code || 'ded'}-${idx}`}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -405,7 +405,7 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
             </div>
             {reimbursements.map((item, idx) => (
               <div
-                key={item.code || idx}
+                key={`${item.code || 'reimburse'}-${idx}`}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',

@@ -239,7 +239,8 @@ export function LeaveImport() {
           title="Import Configuration"
           extra={
             <Button
-              icon={<DownloadOutlined />}
+              aria-label="Download Sample Template"
+              icon={<DownloadOutlined aria-hidden="true" />}
               onClick={handleDownloadSample}
               loading={downloadingTemplate}
             >
