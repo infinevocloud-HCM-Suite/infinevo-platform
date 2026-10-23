@@ -215,6 +215,14 @@ public final class AuthzTestSchema {
                         executeResource(conn, "db/migration/core/V169__tenant_template_applied.sql");
                     }
                     executeResource(conn, "db/migration/core/V172__grant_reporting_line_manage_to_hr.sql");
+                    if (!tableExists(conn, "core", "wfh_policy")) {
+                        executeResource(conn, "db/migration/core/V179__wfh_policy.sql");
+                        executeResource(conn, "db/migration/core/V180__wfh_allocation.sql");
+                        executeResource(conn, "db/migration/core/V181__wfh_request.sql");
+                        executeResource(conn, "db/migration/core/V182__wfh_consumption.sql");
+                        executeResource(conn, "db/migration/core/V183__wfh_import_log.sql");
+                        executeResource(conn, "db/migration/core/V184__wfh_seed_roles.sql");
+                    }
                 }
 
             } catch (Exception e) {

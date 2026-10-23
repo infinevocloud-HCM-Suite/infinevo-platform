@@ -41,8 +41,8 @@ public class WfhAllocationController {
 
     @GetMapping
     @RequiresAction(
-            value = "core.wfh.read",
-            anyOf = {"core.wfh_balance.manage"})
+            value = "core.wfh_balance.manage",
+            anyOf = {"core.wfh.read"})
     public List<WfhAllocationResponse> listAllocations(
             @RequestParam(required = false) UUID employeeId, @RequestParam(required = false) String year) {
         UUID tenantId = TenantContext.require();

@@ -39,14 +39,14 @@ public class WfhPolicyController {
     }
 
     @GetMapping
-    @RequiresAction("core.wfh.read")
+    @RequiresAction(value = "core.wfh.manage", anyOf = "core.wfh.read")
     public List<WfhPolicyResponse> listPolicies() {
         UUID tenantId = TenantContext.require();
         return policyService.listPolicies(tenantId);
     }
 
     @GetMapping("/default")
-    @RequiresAction("core.wfh.read")
+    @RequiresAction(value = "core.wfh.manage", anyOf = "core.wfh.read")
     public WfhPolicyResponse getDefaultPolicy() {
         UUID tenantId = TenantContext.require();
         WfhPolicy policy = policyService.getOrCreateDefaultPolicy(tenantId);

@@ -24,6 +24,23 @@ BEGIN
         RETURN;
     END IF;
 
+    -- tenant-admin role actions
+    INSERT INTO core.role_action (tenant_id, role_id, action_code)
+    SELECT p_tenant_id, r.id, v.action_code
+    FROM core.role r
+    CROSS JOIN (VALUES
+        ('core.wfh.read'),
+        ('core.wfh.manage'),
+        ('core.wfh_balance.manage'),
+        ('core.wfh.export'),
+        ('core.wfh.apply'),
+        ('core.wfh.read_own')
+    ) AS v(action_code)
+    WHERE r.tenant_id = p_tenant_id
+      AND r.code = 'tenant-admin'
+      AND r.is_system
+    ON CONFLICT (tenant_id, role_id, action_code) DO NOTHING;
+
     -- hr role actions
     INSERT INTO core.role_action (tenant_id, role_id, action_code)
     SELECT p_tenant_id, r.id, v.action_code
