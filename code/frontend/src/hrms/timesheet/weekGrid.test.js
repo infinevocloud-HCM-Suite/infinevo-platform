@@ -96,8 +96,8 @@ describe('weekGrid (W-48.2 §7)', () => {
 
   it('fails a day of 24.25 across tasks', () => {
     const rows = [
-      row(P1, T1, { '2026-09-30': { hours: '20', description: '' } }),
-      row(P2, T2, { '2026-09-30': { hours: '4.25', description: '' } }),
+      row(P1, T1, { '2026-09-30': { hours: '20', description: 'task 1' } }),
+      row(P2, T2, { '2026-09-30': { hours: '4.25', description: 'task 2' } }),
     ];
     const result = validate(WEEK, rows);
     expect(result.ok).toBe(false);
@@ -108,13 +108,39 @@ describe('weekGrid (W-48.2 §7)', () => {
   });
 
   it('refuses more than two decimals, over 24 in a cell, a non-Monday week and an unassigned project', () => {
-    const one = (hours) => [row(P1, T1, { '2026-09-28': { hours, description: '' } })];
+    const one = (hours, description = 'Work') => [row(P1, T1, { '2026-09-28': { hours, description } })];
     expect(validate(WEEK, one('1.125')).ok).toBe(false);
     expect(validate(WEEK, one('24.5')).ok).toBe(false);
     expect(validate('2026-09-29', one('1')).errors).toContain('A week starts on a Monday.');
     expect(validate(WEEK, one('1'), { assignedProjectIds: [P2] }).ok).toBe(false);
     expect(validate(WEEK, one('1'), { assignedProjectIds: [P1] }).ok).toBe(true);
-    expect(validate(WEEK, one('0')).errors).toContain('Enter hours on at least one day.');
+    expect(validate(WEEK, one('0', '')).errors).toContain('Enter hours on at least one day.');
+  });
+
+  it('requires a description when hours are entered, and allows empty description when hours are empty or 0', () => {
+    const emptyDesc = [row(P1, T1, { '2026-09-28': { hours: '4', description: '' } })];
+    const invalidResult = validate(WEEK, emptyDesc);
+    expect(invalidResult.ok).toBe(false);
+    expect(invalidResult.errors).toContain('Description is required when hours are entered.');
+    expect(invalidResult.cellErrors[`${P1}:${T1}|2026-09-28|desc`]).toBe(
+      'Description is required when hours are entered.'
+    );
+
+    const whitespaceDesc = [row(P1, T1, { '2026-09-28': { hours: '4', description: '   ' } })];
+    expect(validate(WEEK, whitespaceDesc).ok).toBe(false);
+
+    const validWithDesc = [row(P1, T1, { '2026-09-28': { hours: '4', description: 'Completed feature' } })];
+    expect(validate(WEEK, validWithDesc).ok).toBe(true);
+
+    const zeroHours = [
+      row(P1, T1, {
+        '2026-09-28': { hours: '0', description: '' },
+        '2026-09-29': { hours: '4', description: 'Valid work' },
+      }),
+    ];
+    const zeroResult = validate(WEEK, zeroHours);
+    expect(zeroResult.ok).toBe(true);
+    expect(zeroResult.cellErrors[`${P1}:${T1}|2026-09-28|desc`]).toBeUndefined();
   });
 
   it('drops hours of 0 from the body, then empty tasks and projects', () => {
