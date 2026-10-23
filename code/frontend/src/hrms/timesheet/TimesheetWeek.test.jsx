@@ -57,14 +57,14 @@ function week(status, projectStatus = {}) {
         project_id: P1,
         status: projectStatus[P1] || status,
         rejection_reason: projectStatus[P1] === 'REJECTED' ? 'Wrong task on Monday' : null,
-        tasks: [{ id: 'te-1', task_id: T1, days: [{ id: 'd1', date: WEEK, hours: 7.25, description: null }] }],
+        tasks: [{ id: 'te-1', task_id: T1, days: [{ id: 'd1', date: WEEK, hours: 7.25, description: 'Build work' }] }],
       },
       {
         id: 'pe-2',
         project_id: P2,
         status: projectStatus[P2] || status,
         rejection_reason: null,
-        tasks: [{ id: 'te-2', task_id: T2, days: [{ id: 'd2', date: WEEK, hours: 0.75, description: null }] }],
+        tasks: [{ id: 'te-2', task_id: T2, days: [{ id: 'd2', date: WEEK, hours: 0.75, description: 'Test work' }] }],
       },
     ],
   };
@@ -117,6 +117,8 @@ describe('TimesheetWeek (W-48.2 §7)', () => {
 
     const cell = await screen.findByRole('spinbutton', { name: `Hours Apollo Build ${WEEK}` });
     fireEvent.change(cell, { target: { value: '7.5' } });
+    const desc = screen.getByRole('textbox', { name: `Description Apollo Build ${WEEK}` });
+    fireEvent.change(desc, { target: { value: 'Apollo Build work' } });
     await waitFor(() => expect(screen.getByTestId('week-total').textContent).toBe('7.50'));
 
     fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
@@ -124,7 +126,7 @@ describe('TimesheetWeek (W-48.2 §7)', () => {
     await waitFor(() =>
       expect(timesheetService.create).toHaveBeenCalledWith({
         week_start_date: WEEK,
-        projects: [{ project_id: P1, tasks: [{ task_id: T1, days: [{ date: WEEK, hours: 7.5, description: null }] }] }],
+        projects: [{ project_id: P1, tasks: [{ task_id: T1, days: [{ date: WEEK, hours: 7.5, description: 'Apollo Build work' }] }] }],
       })
     );
     expect(timesheetService.replace).not.toHaveBeenCalled();
@@ -212,9 +214,28 @@ describe('TimesheetWeek (W-48.2 §7)', () => {
     expect(id).toBe('ts-1');
     expect(body).toEqual({
       week_start_date: WEEK,
-      projects: [{ project_id: P1, tasks: [{ task_id: T1, days: [{ date: WEEK, hours: 6, description: null }] }] }],
+      projects: [{ project_id: P1, tasks: [{ task_id: T1, days: [{ date: WEEK, hours: 6, description: 'Build work' }] }] }],
     });
     expect(timesheetService.submit).not.toHaveBeenCalled();
+  }, 60000);
+
+  it('blocks saving if hours are entered without a description', async () => {
+    timesheetService.week.mockResolvedValue(null);
+    renderAt(WEEK);
+
+    expect(await screen.findByTestId('week-status')).toHaveProperty('textContent', 'Not started');
+
+    chooseOption('Project', 'Apollo');
+    chooseOption('Task', 'Build');
+    fireEvent.click(screen.getByRole('button', { name: /add row/i }));
+
+    const cell = await screen.findByRole('spinbutton', { name: `Hours Apollo Build ${WEEK}` });
+    fireEvent.change(cell, { target: { value: '4' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }));
+    expect(await screen.findByTestId('timesheet-problems')).toBeDefined();
+    expect(screen.getByText('Description is required when hours are entered.')).toBeDefined();
+    expect(timesheetService.create).not.toHaveBeenCalled();
   }, 60000);
 
   it('a non-Monday date goes to its Monday', async () => {

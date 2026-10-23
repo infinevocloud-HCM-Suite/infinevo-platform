@@ -220,11 +220,19 @@ export function validate(weekStart, rows, { assignedProjectIds } = {}) {
         if (dates.length > 0 && !dates.includes(date)) {
           cellErrors[`${row.key}|${date}`] = 'The date is outside the week.';
         }
+        if (!cell.description || !cell.description.trim()) {
+          cellErrors[`${row.key}|${date}|desc`] = 'Description is required when hours are entered.';
+        }
       }
     }
   }
-  if (Object.keys(cellErrors).length > 0) {
+  const hasHoursErrors = Object.keys(cellErrors).some((k) => !k.endsWith('|desc'));
+  const hasDescErrors = Object.keys(cellErrors).some((k) => k.endsWith('|desc'));
+  if (hasHoursErrors) {
     errors.push('Hours are above 0 and at most 24, with two decimals.');
+  }
+  if (hasDescErrors) {
+    errors.push('Description is required when hours are entered.');
   }
 
   const totals = dayTotals(rows, dates);

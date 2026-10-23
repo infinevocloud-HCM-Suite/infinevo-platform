@@ -9,7 +9,6 @@ import {
   Input,
   InputNumber,
   Popconfirm,
-  Popover,
   Result,
   Select,
   Skeleton,
@@ -18,7 +17,7 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { DeleteOutlined, LeftOutlined, MessageOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
+import { DeleteOutlined, LeftOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { NotEntitled, useCan } from '@shell/screens';
 import { successMsg } from '@shared/ui/msgHelper.js';
@@ -59,48 +58,6 @@ function readError(err, fallback) {
     isModuleNotEntitled: Boolean(err?.isModuleNotEntitled),
   };
 }
-
-/** The note on one cell: an editable text in a popover, or the text alone when the cell is locked. */
-function NoteCell({ value, editable, label, onChange }) {
-  if (!editable) {
-    if (!value) return null;
-    return (
-      <Popover content={<Text style={{ whiteSpace: 'pre-wrap' }}>{value}</Text>} title="Note">
-        <MessageOutlined aria-label={`Note ${label}`} />
-      </Popover>
-    );
-  }
-  return (
-    <Popover
-      trigger="click"
-      title="Note"
-      content={
-        <Input.TextArea
-          aria-label={`Note text ${label}`}
-          value={value}
-          maxLength={500}
-          rows={3}
-          style={{ width: 240 }}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      }
-    >
-      <Button
-        size="small"
-        type={value ? 'link' : 'text'}
-        icon={<MessageOutlined />}
-        aria-label={`Note ${label}`}
-      />
-    </Popover>
-  );
-}
-
-NoteCell.propTypes = {
-  value: PropTypes.string,
-  editable: PropTypes.bool.isRequired,
-  label: PropTypes.string.isRequired,
-  onChange: PropTypes.func,
-};
 
 /**
  * One week of the caller's timesheet as a grid (W-48.2 §5): rows are project → task, columns Monday to Sunday.
@@ -344,15 +301,16 @@ function WeekGrid({ weekStart }) {
       </span>
     ),
     key: date,
-    width: 120,
+    width: 140,
     render: (_, row) => {
       const cell = row.cells[date] || { hours: '', description: '' };
       const editable = isEditable(row.projectId);
       const label = `${projectName(row.projectId)} ${taskName(row.projectId, row.taskId)} ${date}`;
-      const invalid =
+      const hoursInvalid =
         Boolean(live.cellErrors[`${row.key}|${date}`]) || totals[date] > DAY_LIMIT_HUNDREDTHS;
+      const descInvalid = Boolean(live.cellErrors[`${row.key}|${date}|desc`]);
       return (
-        <Space size={2}>
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
           {editable ? (
             <InputNumber
               aria-label={`Hours ${label}`}
@@ -362,19 +320,32 @@ function WeekGrid({ weekStart }) {
               step="0.25"
               precision={2}
               value={cell.hours === '' ? null : cell.hours}
-              status={invalid ? 'error' : undefined}
-              style={{ width: 76 }}
+              status={hoursInvalid ? 'error' : undefined}
+              style={{ width: '100%' }}
+              placeholder="0.00"
               onChange={(value) => updateCell(row.key, date, { hours: value ?? '' })}
             />
           ) : (
-            <Text type={invalid ? 'danger' : undefined}>{formatHours(cell.hours)}</Text>
+            <Text type={hoursInvalid ? 'danger' : undefined}>{formatHours(cell.hours)}</Text>
           )}
-          <NoteCell
-            value={cell.description || ''}
-            editable={editable}
-            label={label}
-            onChange={(description) => updateCell(row.key, date, { description })}
-          />
+          {editable ? (
+            <Input.TextArea
+              aria-label={`Description ${label}`}
+              placeholder="Description"
+              rows={2}
+              maxLength={500}
+              value={cell.description || ''}
+              status={descInvalid ? 'error' : undefined}
+              style={{ width: '100%', fontSize: 12 }}
+              onChange={(e) => updateCell(row.key, date, { description: e.target.value })}
+            />
+          ) : (
+            cell.description ? (
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', whiteSpace: 'pre-wrap' }}>
+                {cell.description}
+              </Text>
+            ) : null
+          )}
         </Space>
       );
     },

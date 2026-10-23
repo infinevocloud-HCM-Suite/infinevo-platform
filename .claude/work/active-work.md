@@ -6,6 +6,14 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-23 — D-105: Timesheet weekly entry inline description box and mandatory validation (sayeed)
+
+| Fix | What |
+|---|---|
+| `D-105` | Timesheet weekly entry: replaced 240px comment note popover (`NoteCell` with `MessageOutlined`) with legacy-parity inline `Input.TextArea` (`placeholder="Description"`, rows=2, max 500) stacked under hours `InputNumber` in each day cell; enforced in `weekGrid.validate()` that description is strictly mandatory whenever `hours > 0`, and allowed to remain empty only when hours are 0 or blank |
+
+- Built by Sayeed on `dev-sayeed`; verified with unit and component tests (`weekGrid.test.js`, `TimesheetWeek.test.jsx`, `npm run lint`).
+
 ## 2026-10-13 — Phase 4 of the screen audit on `main` (`D-84`–`D-87`); the `e2e` job is blocking
 
 | Fix | What |
