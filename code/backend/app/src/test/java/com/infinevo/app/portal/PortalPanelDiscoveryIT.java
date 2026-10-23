@@ -10,6 +10,7 @@ import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.core.portal.PanelDescriptor;
 import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.core.portal.PortalPanelService;
+import com.infinevo.core.portal.WfhPanelProvider;
 import com.infinevo.hrms.portal.TimesheetPanelProvider;
 import com.infinevo.hrms.timesheet.TimesheetService;
 import com.infinevo.payroll.portal.FbpPanelProvider;
@@ -90,14 +91,22 @@ class PortalPanelDiscoveryIT {
     private TimesheetService timesheetService;
 
     @Test
-    @DisplayName("PortalPanelService discovers all 8 providers including module providers from payroll and hrms")
+    @DisplayName("PortalPanelService discovers all 9 providers including module providers from payroll and hrms")
     void discoversAllEightProviders() {
-        assertThat(providers).hasSize(8);
+        assertThat(providers).hasSize(9);
 
         List<String> codes = providers.stream().map(PortalPanelProvider::code).toList();
         assertThat(codes)
                 .containsExactlyInAnyOrder(
-                        "profile", "leave", "documents", "payslips", "taxDeclaration", "timesheet", "claims", "fbp");
+                        "profile",
+                        "leave",
+                        "documents",
+                        "wfh",
+                        "payslips",
+                        "taxDeclaration",
+                        "timesheet",
+                        "claims",
+                        "fbp");
 
         assertThat(providers.stream().anyMatch(p -> p instanceof PayslipPanelProvider))
                 .isTrue();
@@ -106,6 +115,8 @@ class PortalPanelDiscoveryIT {
         assertThat(providers.stream().anyMatch(p -> p instanceof TimesheetPanelProvider))
                 .isTrue();
         assertThat(providers.stream().anyMatch(p -> p instanceof FbpPanelProvider))
+                .isTrue();
+        assertThat(providers.stream().anyMatch(p -> p instanceof WfhPanelProvider))
                 .isTrue();
     }
 
@@ -146,9 +157,9 @@ class PortalPanelDiscoveryIT {
         List<PanelDescriptor> panels = portalPanelService.getPanels();
         List<String> panelCodes = panels.stream().map(PanelDescriptor::code).toList();
 
-        // Acme sees profile, leave, documents, payslips, taxDeclaration, claims, fbp - but NOT timesheet
+        // Acme sees profile, leave, documents, wfh, payslips, taxDeclaration, claims, fbp - but NOT timesheet
         assertThat(panelCodes)
-                .containsExactly("profile", "leave", "documents", "payslips", "taxDeclaration", "claims", "fbp");
+                .containsExactly("profile", "leave", "documents", "wfh", "payslips", "taxDeclaration", "claims", "fbp");
 
         // W-47.4: an HRMS-only tenant never sees the claims panel
         when(entitlementService.holds(PlatformModule.PAYROLL)).thenReturn(false);
@@ -158,6 +169,6 @@ class PortalPanelDiscoveryIT {
                 .toList();
         assertThat(hrmsOnly)
                 .doesNotContain("claims", "payslips", "taxDeclaration", "fbp")
-                .contains("timesheet");
+                .contains("timesheet", "wfh");
     }
 }
