@@ -24,61 +24,40 @@ BEGIN
         RETURN;
     END IF;
 
-    -- tenant-admin role actions
+    -- Role grants for tenant roles (platform-admin, tenant-admin, hr, manager, employee)
     INSERT INTO core.role_action (tenant_id, role_id, action_code)
-    SELECT p_tenant_id, r.id, v.action_code
-    FROM core.role r
-    CROSS JOIN (VALUES
-        ('core.wfh.read'),
-        ('core.wfh.manage'),
-        ('core.wfh_balance.manage'),
-        ('core.wfh.export'),
-        ('core.wfh.apply'),
-        ('core.wfh.read_own')
-    ) AS v(action_code)
-    WHERE r.tenant_id = p_tenant_id
-      AND r.code = 'tenant-admin'
-      AND r.is_system
-    ON CONFLICT (tenant_id, role_id, action_code) DO NOTHING;
+    SELECT p_tenant_id, r.id, grants.action_code
+    FROM (VALUES
+        ('platform-admin', 'core.wfh.read'),
+        ('platform-admin', 'core.wfh.manage'),
+        ('platform-admin', 'core.wfh_balance.manage'),
+        ('platform-admin', 'core.wfh.export'),
+        ('platform-admin', 'core.wfh.read_team'),
+        ('platform-admin', 'core.wfh.apply'),
+        ('platform-admin', 'core.wfh.read_own'),
 
-    -- hr role actions
-    INSERT INTO core.role_action (tenant_id, role_id, action_code)
-    SELECT p_tenant_id, r.id, v.action_code
-    FROM core.role r
-    CROSS JOIN (VALUES
-        ('core.wfh.read'),
-        ('core.wfh.manage'),
-        ('core.wfh_balance.manage'),
-        ('core.wfh.export')
-    ) AS v(action_code)
-    WHERE r.tenant_id = p_tenant_id
-      AND r.code = 'hr'
-      AND r.is_system
-    ON CONFLICT (tenant_id, role_id, action_code) DO NOTHING;
+        ('tenant-admin', 'core.wfh.read'),
+        ('tenant-admin', 'core.wfh.manage'),
+        ('tenant-admin', 'core.wfh_balance.manage'),
+        ('tenant-admin', 'core.wfh.export'),
+        ('tenant-admin', 'core.wfh.read_team'),
+        ('tenant-admin', 'core.wfh.apply'),
+        ('tenant-admin', 'core.wfh.read_own'),
 
-    -- manager role actions
-    INSERT INTO core.role_action (tenant_id, role_id, action_code)
-    SELECT p_tenant_id, r.id, v.action_code
-    FROM core.role r
-    CROSS JOIN (VALUES
-        ('core.wfh.read_team')
-    ) AS v(action_code)
-    WHERE r.tenant_id = p_tenant_id
-      AND r.code = 'manager'
-      AND r.is_system
-    ON CONFLICT (tenant_id, role_id, action_code) DO NOTHING;
+        ('hr', 'core.wfh.read'),
+        ('hr', 'core.wfh.manage'),
+        ('hr', 'core.wfh_balance.manage'),
+        ('hr', 'core.wfh.export'),
 
-    -- employee role actions
-    INSERT INTO core.role_action (tenant_id, role_id, action_code)
-    SELECT p_tenant_id, r.id, v.action_code
-    FROM core.role r
-    CROSS JOIN (VALUES
-        ('core.wfh.apply'),
-        ('core.wfh.read_own')
-    ) AS v(action_code)
-    WHERE r.tenant_id = p_tenant_id
-      AND r.code = 'employee'
-      AND r.is_system
+        ('manager', 'core.wfh.read_team'),
+
+        ('employee', 'core.wfh.apply'),
+        ('employee', 'core.wfh.read_own')
+    ) AS grants (role_code, action_code)
+    JOIN core.role r
+        ON r.tenant_id = p_tenant_id
+       AND r.code = grants.role_code
+       AND r.is_system
     ON CONFLICT (tenant_id, role_id, action_code) DO NOTHING;
 
     -- Seed WORK_FROM_HOME approval definition
