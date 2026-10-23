@@ -52,6 +52,11 @@ export const NAV_LABELS = {
   'nav.setup': 'Setup',
   'nav.tenants': 'Tenants',
   'nav.users': 'Users & access',
+  'nav.wfh': 'Work from home',
+  'nav.wfh.allocations': 'WFH allocations',
+  'nav.wfh.import': 'WFH import',
+  'nav.wfh.policies': 'WFH policies',
+  'nav.wfh.requests': 'WFH requests',
 };
 
 const MODULE_PREFIXES = new Set(['nav', 'hrms', 'payroll', 'core']);

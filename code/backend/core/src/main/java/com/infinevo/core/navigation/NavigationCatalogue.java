@@ -242,6 +242,42 @@ public final class NavigationCatalogue {
                                     null,
                                     "core.leave_balance.manage"))),
             new ItemDefinition(
+                    "core.wfh",
+                    "nav.wfh",
+                    "/wfh/policies",
+                    "/api/v1/wfh-policies",
+                    null,
+                    "core.wfh.read",
+                    List.of(
+                            new ItemDefinition(
+                                    "core.wfh.policies",
+                                    "nav.wfh.policies",
+                                    "/wfh/policies",
+                                    "/api/v1/wfh-policies",
+                                    null,
+                                    "core.wfh.manage"),
+                            new ItemDefinition(
+                                    "core.wfh.allocations",
+                                    "nav.wfh.allocations",
+                                    "/wfh/allocations",
+                                    "/api/v1/wfh-allocations",
+                                    null,
+                                    "core.wfh_balance.manage"),
+                            new ItemDefinition(
+                                    "core.wfh.requests",
+                                    "nav.wfh.requests",
+                                    "/wfh/requests",
+                                    "/api/v1/wfh-requests",
+                                    null,
+                                    "core.wfh.read"),
+                            new ItemDefinition(
+                                    "core.wfh.import",
+                                    "nav.wfh.import",
+                                    "/wfh/import",
+                                    "/api/v1/wfh-imports",
+                                    null,
+                                    "core.wfh_balance.manage"))),
+            new ItemDefinition(
                     "core.settings",
                     "nav.settings",
                     "/setup",

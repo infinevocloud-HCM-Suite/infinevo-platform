@@ -103,6 +103,17 @@ export const portalService = {
     return res?.data !== undefined ? res.data : res;
   },
 
+  async getWfhRequests() {
+    const res = await apiClient.get('/v1/me/wfh-requests');
+    return res?.data !== undefined ? res.data : res;
+  },
+
+  async getWfhBalance(asOf) {
+    const params = asOf ? { asOf } : {};
+    const res = await apiClient.get('/v1/me/wfh-balance', { params });
+    return res?.data !== undefined ? res.data : res;
+  },
+
   async getDocuments() {
     const res = await apiClient.get('/v1/me/documents');
     return res?.data !== undefined ? res.data : res;

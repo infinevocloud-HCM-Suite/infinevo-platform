@@ -203,7 +203,9 @@ class NavigationServiceTest {
                         "core.employee.create",
                         "core.tenant.provision",
                         "core.leave.read",
-                        "core.leave_type.manage"));
+                        "core.leave_type.manage",
+                        "core.wfh.read",
+                        "core.wfh.manage"));
         NavigationService shipped = new NavigationService(entitlementService, permissionService);
 
         List<String> keys = keysOf(shipped.navigation());
@@ -277,6 +279,7 @@ class NavigationServiceTest {
                         "core.org",
                         "core.approvals",
                         "core.leave",
+                        "core.wfh",
                         "core.settings",
                         "core.tenants");
         assertThat(childKeys("core.people")).containsExactly("core.employee", "core.users");
@@ -287,6 +290,8 @@ class NavigationServiceTest {
                         "core.org.locations",
                         "core.holiday",
                         "core.roles");
+        assertThat(childKeys("core.wfh"))
+                .containsExactly("core.wfh.policies", "core.wfh.allocations", "core.wfh.requests", "core.wfh.import");
         assertThat(childKeys("core.settings")).containsExactly("core.setup", "core.settings.company", "core.audit");
         for (String group : List.of("core.people", "core.org", "core.settings")) {
             ItemDefinition def = group(group);

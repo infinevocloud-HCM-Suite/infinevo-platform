@@ -87,6 +87,19 @@ const LeaveImport = lazy(() =>
   import('./leave/LeaveImport.jsx').then((m) => ({ default: m.LeaveImport }))
 );
 
+const WfhPolicies = lazy(() =>
+  import('./wfh/WfhPolicies.jsx').then((m) => ({ default: m.WfhPolicies }))
+);
+const WfhAllocations = lazy(() =>
+  import('./wfh/WfhAllocations.jsx').then((m) => ({ default: m.WfhAllocations }))
+);
+const WfhRequests = lazy(() =>
+  import('./wfh/WfhRequests.jsx').then((m) => ({ default: m.WfhRequests }))
+);
+const WfhImport = lazy(() =>
+  import('./wfh/WfhImport.jsx').then((m) => ({ default: m.WfhImport }))
+);
+
 const RolesScreen = lazy(() =>
   import('./roles/RolesScreen.jsx').then((m) => ({ default: m.RolesScreen }))
 );
@@ -153,6 +166,10 @@ export const routes = [
   // employee page; the screen checks core.leave.read. Its old path, /leave/employees/:id, never mounted.
   { path: '/employees/:id/leave', element: React.createElement(EmployeeLeave) },
   { path: '/leave/import', element: React.createElement(LeaveImport) },
+  { path: '/wfh/policies', element: React.createElement(WfhPolicies) },
+  { path: '/wfh/allocations', element: React.createElement(WfhAllocations) },
+  { path: '/wfh/requests', element: React.createElement(WfhRequests) },
+  { path: '/wfh/import', element: React.createElement(WfhImport) },
   // W-73.1: mounted when the feed carries `core.settings.company`.
   { path: '/settings/company', element: React.createElement(CompanyProfile) },
   // Platform staff only: mounted when the feed carries `core.admin.home` (W-73.2) or `core.tenants`
