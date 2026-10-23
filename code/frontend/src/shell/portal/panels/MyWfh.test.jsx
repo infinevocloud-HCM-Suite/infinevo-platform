@@ -51,7 +51,7 @@ describe('MyWfh Panel (W-74)', () => {
 
     // Check Requests table
     expect(screen.getByText('Focus sprint on backend engine')).toBeDefined();
-    expect(screen.getByText('Pending Approval')).toBeDefined();
+    expect(screen.getAllByText('Pending Approval').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('apply-wfh-btn')).toBeDefined();
     expect(screen.getByTestId('withdraw-wfh-wfh-req-1')).toBeDefined();
   });

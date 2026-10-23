@@ -13,7 +13,7 @@ vi.mock('../wfh/wfhService.js', () => ({
   },
 }));
 
-vi.mock('../../../shared/ui/msgHelper.js', () => ({
+vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn().mockResolvedValue(true),
   errorMsg: vi.fn().mockResolvedValue(true),
 }));

@@ -107,6 +107,10 @@ class NavigationCatalogueValidatorTest {
                 "/api/v1/leave-types",
                 "/api/v1/leave-requests",
                 "/api/v1/leave-imports",
+                "/api/v1/wfh-policies",
+                "/api/v1/wfh-allocations",
+                "/api/v1/wfh-requests",
+                "/api/v1/wfh-imports",
                 "/api/v1/me/panels");
 
         assertThat(NavigationCatalogueValidator.missingEndpoints(
