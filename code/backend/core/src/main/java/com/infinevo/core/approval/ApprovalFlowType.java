@@ -10,5 +10,6 @@ public enum ApprovalFlowType {
     REIMBURSEMENT,
     PROOF_OF_INVESTMENT,
     PAY_RUN,
-    TIMESHEET
+    TIMESHEET,
+    WORK_FROM_HOME
 }

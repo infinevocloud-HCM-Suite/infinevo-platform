@@ -10,10 +10,12 @@ import {
   WalletOutlined,
   AppstoreOutlined,
   GiftOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 import { portalService } from './portalService.js';
 import { MyProfile } from './panels/MyProfile.jsx';
 import { MyLeave } from './panels/MyLeave.jsx';
+import { MyWfh } from './panels/MyWfh.jsx';
 import { MyPayslips } from './panels/MyPayslips.jsx';
 import { portalPanels as hrmsPortalPanels } from '../../hrms/index.js';
 import { portalPanels as payrollPortalPanels } from '../../payroll/index.js';
@@ -24,6 +26,7 @@ const { Title, Text } = Typography;
 const PANEL_ICONS = {
   profile: <UserOutlined />,
   leave: <CalendarOutlined />,
+  wfh: <HomeOutlined />,
   documents: <FileTextOutlined />,
   payslips: <DollarOutlined />,
   timesheet: <ClockCircleOutlined />,
@@ -35,6 +38,7 @@ const PANEL_ICONS = {
 const PANEL_COMPONENTS = {
   profile: MyProfile,
   leave: MyLeave,
+  wfh: MyWfh,
   documents: MyDocumentsPanel,
   payslips: MyPayslips,
 };

@@ -5,6 +5,7 @@ import { routes as payrollRoutes } from '../payroll/index.js';
 import { PortalLayout } from './portal/PortalLayout.jsx';
 import { PayslipPage } from './portal/PayslipPage.jsx';
 import { ApplyLeave } from '../core/portal/ApplyLeave.jsx';
+import { ApplyWfh } from '../core/portal/ApplyWfh.jsx';
 import { LeaveRequestDetail } from '../core/leave/LeaveRequestDetail.jsx';
 
 /**
@@ -17,6 +18,7 @@ export const portalRoutes = [
   { path: '/me/:panelId', element: React.createElement(PortalLayout) },
   { path: '/me/leave/apply', element: React.createElement(ApplyLeave) },
   { path: '/me/leave/requests/:id', element: React.createElement(LeaveRequestDetail, { readOnly: true }) },
+  { path: '/me/wfh/apply', element: React.createElement(ApplyWfh) },
   { path: '/me/payslips/:payrunId', element: React.createElement(PayslipPage) },
 ];
 
