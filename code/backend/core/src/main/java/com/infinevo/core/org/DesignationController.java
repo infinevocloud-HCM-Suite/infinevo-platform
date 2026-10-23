@@ -44,7 +44,7 @@ public class DesignationController extends OrgMasterController {
      * @param activeOnly true to leave out the designations an administrator has retired
      */
     @GetMapping
-    @RequiresAction("core.org.read")
+    @RequiresAction(value = "core.org.manage", anyOf = "core.org.read")
     public List<DesignationResponse> list(
             @RequestParam(name = "activeOnly", defaultValue = "false") boolean activeOnly) {
         return designationService.list(activeOnly);

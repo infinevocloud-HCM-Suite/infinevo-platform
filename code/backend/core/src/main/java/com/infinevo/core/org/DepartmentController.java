@@ -50,7 +50,7 @@ public class DepartmentController extends OrgMasterController {
      * @param activeOnly true to leave out the departments an administrator has retired
      */
     @GetMapping
-    @RequiresAction("core.org.read")
+    @RequiresAction(value = "core.org.manage", anyOf = "core.org.read")
     public List<DepartmentResponse> list(
             @RequestParam(name = "activeOnly", defaultValue = "false") boolean activeOnly) {
         return departmentService.list(activeOnly);

@@ -48,7 +48,7 @@ public class WorkLocationController extends OrgMasterController {
      * @param activeOnly true to leave out the work locations an administrator has retired
      */
     @GetMapping
-    @RequiresAction("core.org.read")
+    @RequiresAction(value = "core.org.manage", anyOf = "core.org.read")
     public List<WorkLocationResponse> list(
             @RequestParam(name = "activeOnly", defaultValue = "false") boolean activeOnly) {
         return workLocationService.list(activeOnly);

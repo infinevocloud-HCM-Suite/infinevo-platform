@@ -331,6 +331,30 @@ class NavigationServiceTest {
         assertThat(keysOf(shipped.navigation())).containsExactly("core.approvals");
     }
 
+    @Test
+    @DisplayName(
+            "D-106: organisation masters (departments, designations, locations) require core.org.manage and are hidden from core.org.read callers")
+    void orgMastersHiddenFromReadCallerAndVisibleToManager() {
+        NavigationService shipped = new NavigationService(entitlementService, permissionService);
+
+        // Caller with core.org.read only (e.g. employee)
+        when(permissionService.currentActions()).thenReturn(Set.of("core.org.read"));
+        NavigationResponse readResponse = shipped.navigation();
+        assertThat(keysOf(readResponse)).doesNotContain("core.org");
+
+        // Caller with core.org.manage (e.g. admin, hr)
+        when(permissionService.currentActions()).thenReturn(Set.of("core.org.manage"));
+        NavigationResponse manageResponse = shipped.navigation();
+        assertThat(keysOf(manageResponse)).contains("core.org");
+        NavigationItemResponse orgItem = manageResponse.items().stream()
+                .filter(i -> "core.org".equals(i.key()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(orgItem.children())
+                .extracting(NavigationItemResponse::key)
+                .contains("core.org.departments", "core.org.designations", "core.org.locations");
+    }
+
     // ── D-35: home path
 
     private static final ItemDefinition HOME_PEOPLE = new ItemDefinition(
