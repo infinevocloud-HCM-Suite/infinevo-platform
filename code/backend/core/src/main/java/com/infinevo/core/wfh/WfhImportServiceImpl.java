@@ -251,4 +251,11 @@ public class WfhImportServiceImpl implements WfhImportService {
                     importLog.getFinishedAt());
         }
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WfhImportLog> listImports(UUID tenantId) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        return importLogRepository.findByTenantIdOrderByStartedAtDesc(tenantId);
+    }
 }

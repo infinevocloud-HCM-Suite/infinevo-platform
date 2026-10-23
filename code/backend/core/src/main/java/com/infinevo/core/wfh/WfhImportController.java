@@ -41,7 +41,7 @@ public class WfhImportController {
     @RequiresAction("core.wfh_balance.manage")
     public java.util.List<WfhImportLog> listImports() {
         UUID tenantId = TenantContext.require();
-        return importLogRepository.findByTenantIdOrderByStartedAtDesc(tenantId);
+        return importService.listImports(tenantId);
     }
 
     @GetMapping("/template")
