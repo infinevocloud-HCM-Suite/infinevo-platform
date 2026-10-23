@@ -209,8 +209,9 @@ class RoleCatalogueIT {
             assertThat(strings(conn, "SELECT code FROM reference.action WHERE module = 'core'"))
                     .containsAll(NEW_CORE_CODES);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE code LIKE 'core.%'"))
-                    .as("23 original + 14 renamed + 24 added (spec §8) + core.tenant.impersonate (W-65.2)")
-                    .isEqualTo(62);
+                    .as(
+                            "23 original + 14 renamed + 24 added (spec §8) + core.tenant.impersonate (W-65.2) + 7 wfh (W-74)")
+                    .isEqualTo(69);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE split_part(code, '.', 1) <> module"))
                     .isZero();
         }
