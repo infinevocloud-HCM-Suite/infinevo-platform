@@ -47,8 +47,13 @@ export async function getValidToken() {
   return keycloak.token ?? null;
 }
 
-export function logout() {
-  return keycloak.logout();
+export function logout(options = {}) {
+  const redirectUri =
+    options.redirectUri ??
+    (typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/`
+      : '/');
+  return keycloak.logout({ ...options, redirectUri });
 }
 
 /**

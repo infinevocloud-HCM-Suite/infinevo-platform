@@ -48,6 +48,7 @@ describe('AppShell component', () => {
     );
 
     expect(screen.getByText('404')).toBeDefined();
+    expect(screen.getByRole('button', { name: /Back to Home/i })).toBeDefined();
   });
 
   it('opens the first feed path at the root instead of NotFound', async () => {
@@ -101,6 +102,24 @@ describe('AppShell component', () => {
     render(
       <Provider store={store}>
         <MemoryRouter initialEntries={['/']}>
+          <AppShell />
+        </MemoryRouter>
+      </Provider>,
+    );
+
+    expect(screen.queryByText('No Modules Available')).toBeNull();
+  });
+
+  it('sends an employee with an empty menu who lands on an unauthorized route back to portal home (D-108)', () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [],
+      homePath: '/me',
+      loading: false,
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/approvals']}>
           <AppShell />
         </MemoryRouter>
       </Provider>,

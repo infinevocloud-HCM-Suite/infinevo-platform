@@ -3,7 +3,7 @@
  * the two Keycloak callbacks it owns. No network - `init` is never called.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { keycloak, onTenantChange } from './keycloak.js';
+import { keycloak, onTenantChange, logout } from './keycloak.js';
 
 function tokenFor(tenantId) {
   keycloak.tokenParsed = tenantId === undefined ? undefined : { sub: 'u1', tenant_id: tenantId };
@@ -48,5 +48,25 @@ describe('onTenantChange', () => {
     keycloak.onAuthRefreshSuccess();
 
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('logout', () => {
+  it('calls keycloak.logout with redirectUri set to app root by default (D-108)', () => {
+    const logoutSpy = vi.spyOn(keycloak, 'logout').mockImplementation(() => Promise.resolve());
+    logout();
+    expect(logoutSpy).toHaveBeenCalledTimes(1);
+    expect(logoutSpy).toHaveBeenCalledWith({
+      redirectUri: `${window.location.origin}/`,
+    });
+  });
+
+  it('allows overriding redirectUri when options are provided', () => {
+    const logoutSpy = vi.spyOn(keycloak, 'logout').mockImplementation(() => Promise.resolve());
+    logout({ redirectUri: 'https://auth.infinevo.com/login' });
+    expect(logoutSpy).toHaveBeenCalledTimes(1);
+    expect(logoutSpy).toHaveBeenCalledWith({
+      redirectUri: 'https://auth.infinevo.com/login',
+    });
   });
 });
