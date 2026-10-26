@@ -277,5 +277,29 @@ describe('SectionTab component', () => {
       );
     });
   });
+
+  describe('Identification section document dropdowns (D-109)', () => {
+    it('renders immigrationStatus, idProofType, and addressProofType as select dropdowns with standard options', async () => {
+      vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+      employeeService.section.mockResolvedValueOnce({
+        panNumber: 'ABCDE1234F',
+        aadhaarNumber: '123456789012',
+        immigrationStatus: 'Citizen',
+        idProofType: 'Passport',
+        addressProofType: 'Driving Licence',
+      });
+
+      render(<SectionTab employeeId="emp-1" sectionName="identification" />);
+
+      await waitFor(() => {
+        expect(document.getElementById('field-immigrationStatus')).not.toBeNull();
+        expect(document.getElementById('field-idProofType')).not.toBeNull();
+        expect(document.getElementById('field-addressProofType')).not.toBeNull();
+        expect(screen.getByTitle('Citizen')).toBeDefined();
+        expect(screen.getByTitle('Passport')).toBeDefined();
+        expect(screen.getByTitle('Driving Licence')).toBeDefined();
+      });
+    });
+  });
 });
 

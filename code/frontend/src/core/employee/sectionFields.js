@@ -28,6 +28,37 @@ export const EMPLOYMENT_TYPE_OPTIONS = [
 export const NOTICE_PERIOD_MIN = 0;
 export const NOTICE_PERIOD_MAX = 365;
 
+/** Immigration status options for employee identification (D-109). */
+export const IMMIGRATION_STATUS_OPTIONS = [
+  { value: 'Citizen', label: 'Citizen' },
+  { value: 'Permanent Resident', label: 'Permanent Resident' },
+  { value: 'Work Visa / Permit', label: 'Work Visa / Permit' },
+  { value: 'Student Visa', label: 'Student Visa' },
+  { value: 'Other', label: 'Other' },
+];
+
+/** ID proof document types for employee identification (D-109). */
+export const ID_PROOF_TYPE_OPTIONS = [
+  { value: 'Aadhaar Card', label: 'Aadhaar Card' },
+  { value: 'PAN Card', label: 'PAN Card' },
+  { value: 'Passport', label: 'Passport' },
+  { value: 'Driving Licence', label: 'Driving Licence' },
+  { value: 'Voter ID', label: 'Voter ID' },
+  { value: 'Other', label: 'Other' },
+];
+
+/** Address proof document types for employee identification (D-109). */
+export const ADDRESS_PROOF_TYPE_OPTIONS = [
+  { value: 'Aadhaar Card', label: 'Aadhaar Card' },
+  { value: 'Passport', label: 'Passport' },
+  { value: 'Driving Licence', label: 'Driving Licence' },
+  { value: 'Electricity / Utility Bill', label: 'Electricity / Utility Bill' },
+  { value: 'Rent Agreement', label: 'Rent Agreement' },
+  { value: 'Bank Statement / Passbook', label: 'Bank Statement / Passbook' },
+  { value: 'Voter ID', label: 'Voter ID' },
+  { value: 'Other', label: 'Other' },
+];
+
 export const sectionFields = {
   personal: {
     title: 'Personal Details',
@@ -89,13 +120,28 @@ export const sectionFields = {
     fields: [
       { name: 'panNumber', label: 'PAN Number', type: 'text', masked: true, required: true },
       { name: 'aadhaarNumber', label: 'Aadhaar Number', type: 'text', masked: true, required: true },
-      { name: 'immigrationStatus', label: 'Immigration Status', type: 'text' },
+      {
+        name: 'immigrationStatus',
+        label: 'Immigration Status',
+        type: 'select',
+        options: IMMIGRATION_STATUS_OPTIONS,
+      },
       { name: 'personalTaxId', label: 'Personal Tax ID', type: 'text' },
       { name: 'socialInsuranceNumber', label: 'Social Insurance Number', type: 'text' },
-      { name: 'idProofType', label: 'ID Proof Type', type: 'text' },
+      {
+        name: 'idProofType',
+        label: 'ID Proof Type',
+        type: 'select',
+        options: ID_PROOF_TYPE_OPTIONS,
+      },
       { name: 'idDocumentName', label: 'ID Document Name', type: 'text' },
       { name: 'idDocumentNumber', label: 'ID Document Number', type: 'text' },
-      { name: 'addressProofType', label: 'Address Proof Type', type: 'text' },
+      {
+        name: 'addressProofType',
+        label: 'Address Proof Type',
+        type: 'select',
+        options: ADDRESS_PROOF_TYPE_OPTIONS,
+      },
       { name: 'addressDocumentName', label: 'Address Document Name', type: 'text' },
       { name: 'addressDocumentNumber', label: 'Address Document Number', type: 'text' },
     ],

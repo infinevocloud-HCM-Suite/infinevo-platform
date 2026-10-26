@@ -130,6 +130,8 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
                 id={`field-${field.name}`}
                 style={{ width: '100%' }}
                 disabled={!canUpdate}
+                showSearch
+                optionFilterProp="label"
                 value={val || undefined}
                 placeholder={`Select ${field.label}`}
                 allowClear
