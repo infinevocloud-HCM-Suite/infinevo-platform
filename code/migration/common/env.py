@@ -6,9 +6,9 @@ import os
 import sys
 
 
-def require(name: str) -> str:
+def require(name: str, allow_empty: bool = False) -> str:
     value = os.environ.get(name)
-    if value is None or value == "":
+    if value is None or (not allow_empty and value == ""):
         print(f"ERROR: environment variable {name} is not set", file=sys.stderr)
         sys.exit(2)
     return value

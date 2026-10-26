@@ -166,6 +166,23 @@ def test_missing_variable_exits_2(monkeypatch, staging_dir, capsys, missing):
     assert list(staging_dir.iterdir()) == []
 
 
+@pytest.mark.parametrize("host,ok", [("127.0.0.1", True), ("localhost", True), ("legacy.example.test", False)])
+def test_empty_password_only_for_a_local_host(monkeypatch, capsys, host, ok):
+    # The data-migration job restores the dump into a local MariaDB with a passwordless root
+    # (infra/docker/data-migration-entrypoint.sh); a remote server still needs a password.
+    from extractors.common_extract import connection_settings
+
+    for v, val in (("HOST", host), ("NAME", "db"), ("USER", "root"), ("PASSWORD", "")):
+        monkeypatch.setenv(f"LEGACY_HRMS_DB_{v}", val)
+    if ok:
+        assert connection_settings("HRMS")["password"] == ""
+    else:
+        with pytest.raises(SystemExit) as exc:
+            connection_settings("HRMS")
+        assert exc.value.code == 2
+        assert "LEGACY_HRMS_DB_PASSWORD" in capsys.readouterr().err
+
+
 def test_missing_payroll_variable_exits_2(monkeypatch, staging_dir, capsys):
     for v in ("HOST", "PORT", "NAME", "USER", "PASSWORD"):
         monkeypatch.delenv(f"LEGACY_PAYROLL_DB_{v}", raising=False)
