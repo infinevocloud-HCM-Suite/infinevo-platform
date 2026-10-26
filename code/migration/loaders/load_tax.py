@@ -51,7 +51,9 @@ INPUTS = ["stg_payroll_IncomeTaxDeclaration.json", "stg_payroll_ProofOfInvestmen
           "stg_payroll_employee_poi_item.json", "stg_payroll_employee_poi_item_comment.json",
           "stg_payroll_employee_poi_property_detail.json",
           # id-map sources (merge + load_employees)
-          "stg_merged_employees.json", "stg_payroll_employee.json"]
+          "stg_merged_employees.json", "stg_payroll_employee.json",
+          # employee_tds.organization_id is the organisation code
+          "stg_payroll_organization.json"]
 log = logging.getLogger(STEP)
 AUDIT = {"created_by": db.AUDIT_USER, "updated_by": db.AUDIT_USER}
 
@@ -676,8 +678,13 @@ def _tds(tid, fy, tenants, pois, decls, idmap, emp_of, q):
     decl_by_emp = {(d["tid"], d["employee_id"]): d["id"] for d in decls.values()}
     poi_decl = {e["legacy"]: e["decl"] for e in pois.values()}
     groups: dict[str, list[dict]] = defaultdict(list)
+    # employee_tds.organization_id holds Organization.organizationId (the code, e.g. "414068"),
+    # not the numeric id the org map is keyed by; older rows may carry the id itself.
+    org_by_code = {str(o.get("organizationId")): o.get("id")
+                   for o in staging.load("stg_payroll_organization.json") if o.get("organizationId")}
     for r in sorted(staging.load("stg_payroll_employee_tds.json"), key=lambda x: int(x["id"])):
-        t = tenants.for_org(r.get("organization_id"))
+        org_ref = r.get("organization_id")
+        t = tenants.for_org(org_by_code.get(str(org_ref), org_ref))
         if t is None or t.tenant_id != tid:
             continue
         lid = r["id"]

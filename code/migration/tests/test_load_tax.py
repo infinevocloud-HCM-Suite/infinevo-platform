@@ -198,3 +198,18 @@ def test_second_run_is_a_no_op(legacy_fixture, query):
     assert before == after
     assert sorted(query("SELECT tenant_id::text, status FROM core.migration_ledger WHERE step_name = 'load_tax'")) == \
         sorted([(FOUNDER_TENANT, "DONE"), (CUSTOMER_TENANT, "DONE")])
+
+
+def test_tds_keyed_by_organisation_code(legacy_fixture, query):
+    """Prod employee_tds.organization_id holds Organization.organizationId (e.g. '414068'), not
+    the numeric id the org map is keyed by; every TDS row of org 8 was dropped silently before."""
+    from tests.fixtures.fx_org import org_code
+
+    p = legacy_fixture / "stg_payroll_employee_tds.json"
+    rows = json.loads(p.read_text(encoding="utf-8"))
+    for r in rows:
+        r["organization_id"] = org_code(r["organization_id"])
+    p.write_text(json.dumps(rows), encoding="utf-8")
+    run_base_and("loaders.load_tax")
+    by_tenant = dict(query("SELECT tenant_id::text, count(*) FROM payroll.employee_tds GROUP BY 1"))
+    assert by_tenant[FOUNDER_TENANT] == 2 and by_tenant[CUSTOMER_TENANT] == 1
