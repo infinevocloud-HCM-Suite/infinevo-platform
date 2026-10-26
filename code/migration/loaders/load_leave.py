@@ -98,6 +98,11 @@ def leave_year(year: int, start_month: int) -> tuple[str, date, date]:
     return label, start, end
 
 
+def current_leave_year(today: date, start_month: int) -> tuple[str, date, date]:
+    """The tenant leave year containing today: where HRMS remaining balances open."""
+    return leave_year(today.year if today.month >= start_month else today.year - 1, start_month)
+
+
 def legacy_year(v) -> int | None:
     s = text(v)
     if not s:
@@ -359,9 +364,11 @@ def run(conn=None) -> bool:
         # Balances: HRMS employee_leave_balances when it has rows, else the five fixed columns.
         allocs, cons, seen = [], [], set()
         if h_emp_bal:
-            today = run_start.date()
-            label, ys, ye = leave_year(today.year if today.month >= start_month else today.year - 1, start_month)
-            for b in sorted(h_emp_bal, key=lambda x: int(x.get("id") or 0)):
+            label, ys, ye = current_leave_year(run_start.date(), start_month)
+            # Two rows of one employee can land on one type (a deleted HRMS type found by name): the row
+            # on a type that still exists wins, then the newest row; the other is a duplicate.
+            for b in sorted(h_emp_bal, key=lambda x: (str(x.get("leave_type_id")) not in code_of,
+                                                      -int(x.get("id") or 0))):
                 lid = b.get("id")
                 eid = hrms_emp(b.get("employee_id"), loaded)
                 # The type by id; a row whose type was deleted in HRMS by its name, when one type has it.
@@ -384,7 +391,7 @@ def run(conn=None) -> bool:
                     q.add("DUPLICATE_BALANCE_TYPE", "employee_leave_balances", lid, tid); skipped += 1
                     continue
                 seen.add((eid, code))
-                aid = det_id(tid, "employee_leave_balances", lid)
+                aid = det_id(tid, f"employee_leave_balances.{label}", lid)
                 allocs.append({"id": aid, "tenant_id": tid, "employee_id": eid, "leave_type_id": type_ids[code],
                                "leave_year": label, "year_start_date": ys, "year_end_date": ye,
                                "entitlement_days": max(remaining, _DAYS(0)), "policy_id": pol_ids[code], **audit})
@@ -393,7 +400,11 @@ def run(conn=None) -> bool:
                                  "allocation_id": aid, "consumed_days": -remaining, "consumed_on": ys,
                                  "period": ys.strftime("%Y-%m"),
                                  "reason": "Overdrawn balance from HRMS employee_leave_balances", **audit})
-            # The opening balances replace every allocation an earlier run made from leave_balances.
+            # The opening balances replace every allocation an earlier run made: its own consumptions
+            # (dated, no request) go first, so neither a stale overdrawn row nor an old used-days row
+            # survives. A consumption the app wrote keeps its allocation, and reconciliation shows it.
+            cur.execute("DELETE FROM core.leave_consumption WHERE tenant_id = %s AND created_by = %s "
+                        "AND leave_request_id IS NULL", (tid, db.AUDIT_USER))
             cur.execute("DELETE FROM core.leave_allocation a WHERE a.tenant_id = %s AND a.created_by = %s "
                         "AND NOT (a.id = ANY(%s::uuid[])) AND NOT EXISTS (SELECT 1 FROM core.leave_consumption c "
                         "WHERE c.tenant_id = a.tenant_id AND c.allocation_id = a.id)",

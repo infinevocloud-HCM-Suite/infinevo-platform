@@ -47,7 +47,7 @@ from common.ledger import StepResult, run_per_tenant
 from common.legacy import text, truthy
 from common.money import money_or_zero, to_decimal, to_money
 from common.tenants import Tenant, Tenants
-from loaders.load_leave import SEEDED
+from loaders.load_leave import SEEDED, current_leave_year
 from loaders.load_payruns import _parse_period
 from loaders.load_salary import _EPF_CODE, _ESI_CODE, _IN_CTC, _frequency, _per_month
 from loaders.load_tax import current_fy
@@ -490,15 +490,18 @@ class Check:
         """target allocation id -> (legacy remaining days, employee id, legacy table, legacy id)."""
         lg, tid, out = self.lg, self.tid, {}
         if tid == lg.founder and lg.h_emp_balances:
-            # HRMS employee_leave_balances: remaining days, one allocation per row (load_leave founder_leave).
+            # HRMS employee_leave_balances: remaining days, one allocation per row in the current leave
+            # year (load_leave founder_leave).
+            self.cur.execute("SELECT leave_year_start_month FROM core.tenant WHERE tenant_id = %s", (tid,))
+            label = current_leave_year(datetime.now(timezone.utc).date(), self.cur.fetchone()[0])[0]
             for b in self.kept("load_leave", "employee_leave_balances", lg.h_emp_balances, lambda r: tid):
                 ref = text(b.get("employee_id"))
                 eid = self.idmap.get("hrms.emp_code", ref) or self.idmap.get("hrms.employee", ref)
-                out[det_id(tid, "employee_leave_balances", b.get("id"))] = (
+                out[det_id(tid, f"employee_leave_balances.{label}", b.get("id"))] = (
                     _days(b.get("remaining_days")), eid, "employee_leave_balances", b.get("id"))
         elif tid == lg.founder:
             # HRMS leave_balances: five columns, a column with nothing allotted or used is not
-            # carried (load_leave.py:361-375).
+            # carried (load_leave founder_leave).
             for b in self.kept("load_leave", "leave_balances", lg.h_balances, lambda r: tid):
                 ref = text(b.get("employee_id"))
                 eid = self.idmap.get("hrms.emp_code", ref) or self.idmap.get("hrms.employee", ref)

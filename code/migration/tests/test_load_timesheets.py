@@ -83,4 +83,5 @@ def test_blank_priority_is_medium(legacy_fixture, query):
     p.write_text(json.dumps(projects), encoding="utf-8")
     run_base_and("loaders.load_timesheets")
     assert query("SELECT priority FROM hrms.project WHERE name = 'No Priority'") == [("MEDIUM",)]
-    assert query("SELECT count(*) FROM hrms.project WHERE priority = 'URGENT'") == [(0,)]
+    dropped = json.loads((legacy_fixture / "stg_quarantined_load_timesheets.json").read_text())
+    assert [i["reason"] for i in dropped if i["legacy_table"] == "projects" and i.get("value") == "URGENT"] ==         ["PRIORITY_UNMAPPED"]
