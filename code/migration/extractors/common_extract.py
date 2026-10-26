@@ -32,12 +32,13 @@ _LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 def connection_settings(prefix: str) -> dict:
     """LEGACY_<prefix>_DB_HOST/PORT/NAME/USER/PASSWORD. Only the port has a default."""
     base = f"LEGACY_{prefix}_DB_"
+    host = require(base + "HOST")
     return {
-        "host": require(base + "HOST"),
+        "host": host,
         "port": int(optional(base + "PORT", "3306")),
         "database": require(base + "NAME"),
         "user": require(base + "USER"),
-        "password": require(base + "PASSWORD"),
+        "password": require(base + "PASSWORD", allow_empty=(host in _LOCAL_HOSTS)),
     }
 
 
