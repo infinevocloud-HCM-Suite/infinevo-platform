@@ -136,7 +136,7 @@ def test_table_lists_are_disjoint_and_complete():
         tables = mod.TABLES_TO_EXTRACT
         assert len(tables) == len(set(tables)), f"{mod.__name__} lists a table twice"
         assert not set(tables) & set(mod.COUNT_ONLY)
-    assert set(extract_hrms.COUNT_ONLY) == {"leave_request", "employee_leave_balances", "timesheet"}
+    assert set(extract_hrms.COUNT_ONLY) == {"leave_request", "timesheet"}
     assert extract_payroll.COUNT_ONLY == ("employee_investment_proof",)
     assert extract_hrms.EXCLUDED_COLUMNS == {"employee_document": ("document_content",),
                                              "leave_documents": ("file_data",),

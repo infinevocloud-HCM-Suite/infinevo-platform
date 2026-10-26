@@ -70,7 +70,7 @@ COUNTED_TABLES = {
     "payroll.ctc_structure": ("load_salary", ("ctc_structure",)),
     "payroll.employee_investment_declaration": ("load_tax", ("employee_investment_declaration",)),
     "payroll.employee_tds": ("load_tax", ("employee_tds",)),
-    "core.leave_allocation": ("load_leave", ("leave_balances", "employee_leave_allocation")),
+    "core.leave_allocation": ("load_leave", ("employee_leave_balances", "leave_balances", "employee_leave_allocation")),
     "core.leave_request": ("load_leave", ("leave_requests",)),
     "core.attendance": ("load_attendance", ("attendance",)),
     "hrms.timesheet": ("load_timesheets", ("timesheets",)),
@@ -103,7 +103,7 @@ INPUTS = [
     "stg_payroll_employee_variable_earnings.json", "stg_payroll_ctc_epf_components.json",
     "stg_payroll_ctc_esi_components.json", "stg_payroll_employee_investment_declaration.json",
     "stg_payroll_employee_inv_tax_summary.json", "stg_payroll_employee_tds.json",
-    "stg_hrms_leave_balances.json", "stg_hrms_leave_requests.json",
+    "stg_hrms_leave_balances.json", "stg_hrms_employee_leave_balances.json", "stg_hrms_leave_requests.json",
     "stg_payroll_employee_leave_allocation.json", "stg_hrms_attendance.json", "stg_hrms_timesheets.json",
     "stg_payroll_employee_reimbursement_request.json", "stg_payroll_employee_deduction.json",
     "stg_hrms_notifications.json", "stg_hrms_timesheet_notifications.json",
@@ -185,6 +185,7 @@ class Legacy:
         self.summaries = ld("stg_payroll_employee_inv_tax_summary.json")
         self.tds = ld("stg_payroll_employee_tds.json")
         self.h_balances = ld("stg_hrms_leave_balances.json")
+        self.h_emp_balances = ld("stg_hrms_employee_leave_balances.json")
         self.h_requests = ld("stg_hrms_leave_requests.json")
         self.p_allocations = ld("stg_payroll_employee_leave_allocation.json")
         self.attendance = ld("stg_hrms_attendance.json")
@@ -488,7 +489,14 @@ class Check:
     def expected_allocations(self) -> dict[str, tuple[Decimal, str | None, str, object]]:
         """target allocation id -> (legacy remaining days, employee id, legacy table, legacy id)."""
         lg, tid, out = self.lg, self.tid, {}
-        if tid == lg.founder:
+        if tid == lg.founder and lg.h_emp_balances:
+            # HRMS employee_leave_balances: remaining days, one allocation per row (load_leave founder_leave).
+            for b in self.kept("load_leave", "employee_leave_balances", lg.h_emp_balances, lambda r: tid):
+                ref = text(b.get("employee_id"))
+                eid = self.idmap.get("hrms.emp_code", ref) or self.idmap.get("hrms.employee", ref)
+                out[det_id(tid, "employee_leave_balances", b.get("id"))] = (
+                    _days(b.get("remaining_days")), eid, "employee_leave_balances", b.get("id"))
+        elif tid == lg.founder:
             # HRMS leave_balances: five columns, a column with nothing allotted or used is not
             # carried (load_leave.py:361-375).
             for b in self.kept("load_leave", "leave_balances", lg.h_balances, lambda r: tid):

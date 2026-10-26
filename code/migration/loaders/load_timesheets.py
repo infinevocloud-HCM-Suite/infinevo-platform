@@ -44,6 +44,12 @@ SHEET_STATUS = {"DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"}
 BUDGET_PLACES = Decimal("0.0001")  # hrms.project.budget NUMERIC(19,4)
 
 
+def priority_of(value) -> str | None:
+    """A blank priority is MEDIUM (founder decision 2026-10-26: two prod projects had none, and
+    every timesheet line under them was dropped with them); any other unknown value stays None."""
+    return "MEDIUM" if not text(value) else enum(value, PRIORITY)
+
+
 def enum(value, allowed: set[str]) -> str | None:
     """'In Progress' -> 'IN_PROGRESS' when the target allows it, else None."""
     s = (text(value) or "").upper().replace(" ", "_").replace("-", "_")
@@ -83,7 +89,7 @@ def run(conn=None) -> bool:
         for p in src["projects"]:
             pid = p.get("id")
             name = text(p.get("name"), 128)
-            priority, status = enum(p.get("priority"), PRIORITY), enum(p.get("status"), PROJECT_STATUS)
+            priority, status = priority_of(p.get("priority")), enum(p.get("status"), PROJECT_STATUS)
             if not name:
                 drop("NO_NAME", "projects", pid); continue
             if name.lower() in names:
@@ -115,7 +121,7 @@ def run(conn=None) -> bool:
             kid = k.get("id")
             project = project_ids.get(str(k.get("project_id")))
             title = text(k.get("title"), 128)
-            priority, status = enum(k.get("priority"), PRIORITY), enum(k.get("status"), TASK_STATUS)
+            priority, status = priority_of(k.get("priority")), enum(k.get("status"), TASK_STATUS)
             if project is None:
                 drop("PROJECT_NOT_LOADED", "tasks", kid); continue
             if not title:

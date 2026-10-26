@@ -72,3 +72,15 @@ def test_forced_rerun_updates_nothing(legacy_fixture, query, monkeypatch):
     monkeypatch.setattr(load_timesheets, "run_per_tenant", lambda *a, **k: real(*a, **{**k, "force": True}))
     assert load_timesheets.run()
     assert before == {t: query(f"SELECT count(*), max(updated_at) FROM {t}")[0] for t in TABLES}
+
+
+def test_blank_priority_is_medium(legacy_fixture, query):
+    """Founder decision 2026-10-26: two prod projects had no priority and every timesheet line
+    under them was dropped. A blank priority is MEDIUM; an unknown one is still refused."""
+    p = legacy_fixture / "stg_hrms_projects.json"
+    projects = json.loads(p.read_text(encoding="utf-8"))
+    projects.append({**projects[0], "id": 90, "name": "No Priority", "priority": ""})
+    p.write_text(json.dumps(projects), encoding="utf-8")
+    run_base_and("loaders.load_timesheets")
+    assert query("SELECT priority FROM hrms.project WHERE name = 'No Priority'") == [("MEDIUM",)]
+    assert query("SELECT count(*) FROM hrms.project WHERE priority = 'URGENT'") == [(0,)]
