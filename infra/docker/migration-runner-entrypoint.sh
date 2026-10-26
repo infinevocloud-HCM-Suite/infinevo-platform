@@ -29,7 +29,7 @@ if [[ -n "${IDENTITY_ENDPOINT:-}" ]]; then
   export MSI_ENDPOINT="${MSI_ENDPOINT:-$IDENTITY_ENDPOINT}"
   export MSI_SECRET="${MSI_SECRET:-${IDENTITY_HEADER:-}}"
 fi
-az login --identity --client-id "$MIGRATION_CLIENT_ID" >/dev/null
+az login --identity --username "$MIGRATION_CLIENT_ID" >/dev/null
 az account set --subscription "$AZURE_SUBSCRIPTION_ID" >/dev/null
 
 # ── 2. Fetch the PostgreSQL credentials from Key Vault ───────────────────────
