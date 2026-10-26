@@ -8,7 +8,8 @@ employee_bank_detail staging files, and writes:
   staging/id_map.json                 hrms.employee, hrms.emp_code, payroll.employee, payroll.employee.uuid -> employee id
 
 Match keys, in order: Payroll work_mail = HRMS work_email, = HRMS personal_email, then PAN.
-Never phone, never name. Cohorts: 1 both, 2 HRMS only, 3 Payroll only.
+Never phone, never name. Cohorts: 1 both, 2 HRMS only, 3 Payroll only. Cohort 2 is
+quarantined HRMS_ONLY_NOT_MIGRATED when the founder's map row says hrms_only=false (R1).
 Identity (unchanged since the branch, so ids are stable across runs and versions):
 uuid5(NAMESPACE, "<tenant_id>:<work_email or employee number>"); Payroll-only rows without
 an email use "PAY-<payroll employee_id>".
@@ -253,6 +254,9 @@ def run() -> list[dict]:
             continue
         if founder is None:
             quarantined.append({"system": "HRMS", "reason": "NO_FOUNDER_TENANT", "record_id": h["hrms_id"]})
+            continue
+        if not founder.hrms_only:
+            quarantined.append({"system": "HRMS", "reason": "HRMS_ONLY_NOT_MIGRATED", "record_id": h["hrms_id"]})
             continue
         rec = base_record(founder.tenant_id, h["work_email"] or h["employee_number"], "COHORT_2_HRMS_ONLY")
         counts["COHORT_2_HRMS_ONLY"] += 1

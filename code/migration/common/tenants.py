@@ -1,9 +1,11 @@
 """Which legacy organisations become tenants (W-67 R5).
 
 config/org_mapping.json maps a Payroll organization id to
-{"tenant_id", "name", "country_code", "keep" (default true), "founder" (one entry)}.
+{"tenant_id", "name", "country_code", "keep" (default true), "founder" (one entry),
+"hrms_only" (founder only, default true)}.
 An organisation absent from the map, or with keep=false, is skipped by every loader.
 HRMS has no organisation column (BUG-002), so HRMS rows belong to the founder tenant.
+hrms_only=false leaves HRMS-only employees (cohort 2) and their rows behind (W-67 R1, 2026-10-26).
 MIGRATION_ORG_MAPPING overrides the file path (tests use their own map).
 """
 from __future__ import annotations
@@ -23,6 +25,7 @@ class Tenant:
     name: str
     country_code: str
     founder: bool
+    hrms_only: bool = True
 
 
 class Tenants:
@@ -48,6 +51,7 @@ class Tenants:
                 name=e["name"],
                 country_code=e.get("country_code", "IN"),
                 founder=bool(e.get("founder")),
+                hrms_only=bool(e.get("hrms_only", True)),
             )
         return cls(by_org)
 

@@ -254,11 +254,17 @@ def run(conn=None) -> bool:
             q.add("ORG_NOT_MIGRATED", "ourusers", u.get("id"))
             continue
         tid = founder.tenant_id
+        linked = bool(text(u.get("employee_id")) or text(u.get("emp_id")))
+        emp = (idmap.get("hrms.employee", u.get("employee_id")) or idmap.get("hrms.emp_code", text(u.get("emp_id")))
+               if linked else None)
+        if linked and emp is None and not founder.hrms_only:
+            # W-67 R1: the login of an HRMS-only employee stays behind with the employee
+            q.add("EMPLOYEE_NOT_MIGRATED", "ourusers", u.get("id"), tid)
+            continue
         p = person(tid, email, ("hrms.ourusers", u.get("id")))
         first, last = _split_name(u.get("name"))
         p.first_name, p.last_name = p.first_name or first, p.last_name or last
-        if text(u.get("employee_id")) or text(u.get("emp_id")):
-            emp = idmap.get("hrms.employee", u.get("employee_id")) or idmap.get("hrms.emp_code", text(u.get("emp_id")))
+        if linked:
             if emp is None:
                 q.add("EMPLOYEE_NOT_MIGRATED", "ourusers", u.get("id"), tid)
             else:
