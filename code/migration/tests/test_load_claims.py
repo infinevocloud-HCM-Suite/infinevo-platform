@@ -150,3 +150,28 @@ def test_rerun_keeps_the_document_w69_attached(legacy_fixture, query):
     run_step(STEP)
     assert query("SELECT document_id::text FROM payroll.employee_reimbursement_request "
                  "WHERE description = 'Claim 1'") == [(doc,)]
+
+
+def test_other_claim_goes_under_other_reimbursement(legacy_fixture, query):
+    """Founder decision 2026-10-26: a type OTHER claim with no matching master is carried under
+    one migration-made "Other Reimbursement" component of its tenant; MEDICAL stays quarantined."""
+    p = legacy_fixture / "stg_payroll_employee_reimbursement_request.json"
+    claims = json.loads(p.read_text(encoding="utf-8"))
+    claims.append({**next(c for c in claims if c["id"] == 3), "id": 30, "reimbursement_type": "OTHER"})
+    p.write_text(json.dumps(claims), encoding="utf-8")
+    _setup(legacy_fixture, query)
+    run_step(STEP)
+
+    comp = query("SELECT id::text, name, tenant_id::text FROM payroll.reimbursement WHERE code = 'OTHER_REIMBURSEMENT'")
+    assert [(c[1], c[2]) for c in comp] == [("Other Reimbursement", FOUNDER_TENANT)]  # founder only, once
+    other = query("SELECT count(*) FROM payroll.employee_reimbursement_request WHERE reimbursement_id = %s",
+                  (comp[0][0],))
+    assert other == [(1,)]
+    reasons = {i["legacy_id"]: i["reason"] for i in _quarantine(legacy_fixture)
+               if i["legacy_table"] == "employee_reimbursement_request"}
+    assert 30 not in reasons and reasons[3] == "NO_MATCHING_COMPONENT"
+    # a second run (the ledger row cleared) keeps the one component and its id
+    query("DELETE FROM core.migration_ledger WHERE step_name = %s", (STEP.rsplit(".", 1)[-1],))
+    run_step(STEP)
+    assert query("SELECT id::text, name, tenant_id::text FROM payroll.reimbursement "
+                 "WHERE code = 'OTHER_REIMBURSEMENT'") == comp

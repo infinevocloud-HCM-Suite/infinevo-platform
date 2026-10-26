@@ -39,6 +39,7 @@ TABLES_TO_EXTRACT: tuple[str, ...] = (
     "leave_types",               # LeaveType.java
     "leave_type_employee_ids",   # LeaveType.java @CollectionTable
     "leave_balances",            # LeaveBalance.java
+    "employee_leave_balances",   # EmployeeLeaveBalance.java - the balances the HRMS screens show
     "leave_requests",            # LeaveRequests.java
     "leave_manual_days",         # LeaveRequests.java @CollectionTable
     "leave_selected_dates",      # LeaveRequests.java @CollectionTable
@@ -67,7 +68,6 @@ TABLES_TO_EXTRACT: tuple[str, ...] = (
 # §1 duplicate twins: counted in the summary, no file written (W-67 R2).
 COUNT_ONLY: tuple[str, ...] = (
     "leave_request",             # LeaveRequest.java
-    "employee_leave_balances",   # EmployeeLeaveBalance.java
     "timesheet",                 # Timesheet.java
 )
 

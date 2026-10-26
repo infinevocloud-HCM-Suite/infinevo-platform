@@ -47,7 +47,7 @@ from common.ledger import StepResult, run_per_tenant
 from common.legacy import text, truthy
 from common.money import money_or_zero, to_decimal, to_money
 from common.tenants import Tenant, Tenants
-from loaders.load_leave import SEEDED
+from loaders.load_leave import SEEDED, current_leave_year
 from loaders.load_payruns import _parse_period
 from loaders.load_salary import _EPF_CODE, _ESI_CODE, _IN_CTC, _frequency, _per_month
 from loaders.load_tax import current_fy
@@ -70,7 +70,7 @@ COUNTED_TABLES = {
     "payroll.ctc_structure": ("load_salary", ("ctc_structure",)),
     "payroll.employee_investment_declaration": ("load_tax", ("employee_investment_declaration",)),
     "payroll.employee_tds": ("load_tax", ("employee_tds",)),
-    "core.leave_allocation": ("load_leave", ("leave_balances", "employee_leave_allocation")),
+    "core.leave_allocation": ("load_leave", ("employee_leave_balances", "leave_balances", "employee_leave_allocation")),
     "core.leave_request": ("load_leave", ("leave_requests",)),
     "core.attendance": ("load_attendance", ("attendance",)),
     "hrms.timesheet": ("load_timesheets", ("timesheets",)),
@@ -103,7 +103,7 @@ INPUTS = [
     "stg_payroll_employee_variable_earnings.json", "stg_payroll_ctc_epf_components.json",
     "stg_payroll_ctc_esi_components.json", "stg_payroll_employee_investment_declaration.json",
     "stg_payroll_employee_inv_tax_summary.json", "stg_payroll_employee_tds.json",
-    "stg_hrms_leave_balances.json", "stg_hrms_leave_requests.json",
+    "stg_hrms_leave_balances.json", "stg_hrms_employee_leave_balances.json", "stg_hrms_leave_requests.json",
     "stg_payroll_employee_leave_allocation.json", "stg_hrms_attendance.json", "stg_hrms_timesheets.json",
     "stg_payroll_employee_reimbursement_request.json", "stg_payroll_employee_deduction.json",
     "stg_hrms_notifications.json", "stg_hrms_timesheet_notifications.json",
@@ -153,6 +153,8 @@ class Legacy:
         self.tenants, self.idmap = tenants, idmap
         self.founder = tenants.founder.tenant_id if tenants.founder else None
         ld = staging.load
+        self.org_by_code = {str(o.get("organizationId")): o.get("id")
+                            for o in ld("stg_payroll_organization.json") if o.get("organizationId")}
         self.merged = ld("stg_merged_employees.json")
         self.departments = ld("stg_payroll_department.json")
         self.designations = ld("stg_payroll_designation.json")
@@ -183,6 +185,7 @@ class Legacy:
         self.summaries = ld("stg_payroll_employee_inv_tax_summary.json")
         self.tds = ld("stg_payroll_employee_tds.json")
         self.h_balances = ld("stg_hrms_leave_balances.json")
+        self.h_emp_balances = ld("stg_hrms_employee_leave_balances.json")
         self.h_requests = ld("stg_hrms_leave_requests.json")
         self.p_allocations = ld("stg_payroll_employee_leave_allocation.json")
         self.attendance = ld("stg_hrms_attendance.json")
@@ -196,6 +199,11 @@ class Legacy:
     def org_tenant(self, org) -> str | None:
         t = self.tenants.for_org(org)
         return t.tenant_id if t else None
+
+    def tds_tenant(self, r) -> str | None:
+        """load_tax._tds: organization_id holds the org code, or on older rows the id itself."""
+        ref = r.get("organization_id")
+        return self.org_tenant(self.org_by_code.get(str(ref), ref))
 
     def employee_tenant_by_uuid(self, ref) -> str | None:
         """load_claims.place / load_leave.pay_emp: the Payroll employee UUID's tenant."""
@@ -284,7 +292,7 @@ class Check:
         self.count("payroll.employee_investment_declaration",
                    len(self.kept("load_tax", "employee_investment_declaration", lg.decls.values(), org)))
         self.count("payroll.employee_tds", len(self.kept(
-            "load_tax", "employee_tds", lg.tds, lambda r: lg.org_tenant(r.get("organization_id")))))
+            "load_tax", "employee_tds", lg.tds, lg.tds_tenant)))
         self.count("core.leave_allocation", len(self.expected_allocations()))
         self.count("core.leave_request", len(self.kept("load_leave", "leave_requests", lg.h_requests, hrms)))
         self.count("core.attendance", len(self.kept("load_attendance", "attendance", lg.attendance, hrms)))
@@ -481,9 +489,19 @@ class Check:
     def expected_allocations(self) -> dict[str, tuple[Decimal, str | None, str, object]]:
         """target allocation id -> (legacy remaining days, employee id, legacy table, legacy id)."""
         lg, tid, out = self.lg, self.tid, {}
-        if tid == lg.founder:
+        if tid == lg.founder and lg.h_emp_balances:
+            # HRMS employee_leave_balances: remaining days, one allocation per row in the current leave
+            # year (load_leave founder_leave).
+            self.cur.execute("SELECT leave_year_start_month FROM core.tenant WHERE tenant_id = %s", (tid,))
+            label = current_leave_year(datetime.now(timezone.utc).date(), self.cur.fetchone()[0])[0]
+            for b in self.kept("load_leave", "employee_leave_balances", lg.h_emp_balances, lambda r: tid):
+                ref = text(b.get("employee_id"))
+                eid = self.idmap.get("hrms.emp_code", ref) or self.idmap.get("hrms.employee", ref)
+                out[det_id(tid, f"employee_leave_balances.{label}", b.get("id"))] = (
+                    _days(b.get("remaining_days")), eid, "employee_leave_balances", b.get("id"))
+        elif tid == lg.founder:
             # HRMS leave_balances: five columns, a column with nothing allotted or used is not
-            # carried (load_leave.py:361-375).
+            # carried (load_leave founder_leave).
             for b in self.kept("load_leave", "leave_balances", lg.h_balances, lambda r: tid):
                 ref = text(b.get("employee_id"))
                 eid = self.idmap.get("hrms.emp_code", ref) or self.idmap.get("hrms.employee", ref)
@@ -558,7 +576,7 @@ class Check:
         # Active TDS rows: load_tax keeps one active row per employee per FY, the newest active
         # legacy row (load_tax.py:707-725). Legacy: an employee with any active current-FY row.
         legacy_active = defaultdict(int)
-        for r in self.kept("load_tax", "employee_tds", lg.tds, lambda r: lg.org_tenant(r.get("organization_id"))):
+        for r in self.kept("load_tax", "employee_tds", lg.tds, lg.tds_tenant):
             if r.get("fiscal_year") is None or int(r["fiscal_year"]) != fy.end:
                 continue
             eid = self.idmap.get("payroll.employee.uuid", r.get("employee_id")) or \

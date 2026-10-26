@@ -59,7 +59,8 @@ def norm_gender(v) -> str | None:
     return _GENDER.get(s) if s else None
 
 
-_EMPLOYMENT = {"permanent": "PERMANENT", "full time": "PERMANENT", "full-time": "PERMANENT", "fulltime": "PERMANENT",
+_EMPLOYMENT = {"permanent": "PERMANENT", "full-time permanent": "PERMANENT", "full time permanent": "PERMANENT",
+               "full time": "PERMANENT", "full-time": "PERMANENT", "fulltime": "PERMANENT",
                "contract": "CONTRACT", "contractual": "CONTRACT", "part time": "PART_TIME", "part-time": "PART_TIME",
                "parttime": "PART_TIME", "intern": "INTERN", "internship": "INTERN", "trainee": "INTERN",
                "probation": "PROBATION", "on probation": "PROBATION", "consultant": "CONSULTANT"}

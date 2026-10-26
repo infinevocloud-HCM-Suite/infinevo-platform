@@ -202,3 +202,52 @@ def test_forced_rerun_updates_nothing(legacy_fixture, query, monkeypatch):
     assert load_leave.run()
     after = {t: query(f"SELECT count(*), max(updated_at) FROM {t}")[0] for t in TABLES}
     assert before == after
+
+
+def test_hrms_remaining_balances_replace_fixed_columns(legacy_fixture, query):
+    """Founder decision 2026-10-26: prod leave_balances.*_used is 0 in every row; the HRMS screens
+    read employee_leave_balances. Its remaining days become the opening balance of the current
+    leave year, per real leave type, and replace what an earlier run made from leave_balances."""
+    from datetime import date
+
+    run_base_and("loaders.load_leave")
+    assert _count(query, "core.leave_allocation", FOUNDER_TENANT) == 9
+    rows = [
+        {"id": 1, "employee_id": "E001", "leave_type": "Sick Leave", "leave_type_id": 2, "remaining_days": 1.5},
+        {"id": 2, "employee_id": "E001", "leave_type": "Work From Home", "leave_type_id": 3, "remaining_days": -2},
+        {"id": 3, "employee_id": "E002", "leave_type": "Annual Leave", "leave_type_id": 1, "remaining_days": 2},
+        {"id": 7, "employee_id": "E002", "leave_type": "Annual Leave", "leave_type_id": 99, "remaining_days": 4},
+        {"id": 8, "employee_id": "E002", "leave_type": "Work From Home", "leave_type_id": 97, "remaining_days": 3},
+        {"id": 4, "employee_id": "E002", "leave_type": "Gone Leave", "leave_type_id": 98, "remaining_days": 1},
+        {"id": 5, "employee_id": "E999", "leave_type": "Sick Leave", "leave_type_id": 2, "remaining_days": 1},
+        {"id": 6, "employee_id": "E001", "leave_type": "Sick Leave", "leave_type_id": 2, "remaining_days": 9},
+    ]
+    (legacy_fixture / "stg_hrms_employee_leave_balances.json").write_text(json.dumps(rows), encoding="utf-8")
+    run_base_and("loaders.load_leave")
+
+    today = date.today()
+    y = today.year if today.month >= 4 else today.year - 1
+    label = f"{y}-{(y + 1) % 100:02d}"
+    remaining = query(
+        "SELECT e.employee_number, t.code, a.entitlement_days - coalesce((SELECT sum(c.consumed_days) "
+        "FROM core.leave_consumption c WHERE c.allocation_id = a.id), 0) FROM core.leave_allocation a "
+        "JOIN core.employee e ON e.id = a.employee_id JOIN core.leave_type t ON t.id = a.leave_type_id "
+        "WHERE a.tenant_id = %s AND a.leave_year = %s ORDER BY 1, 2", (FOUNDER_TENANT, label))
+    # E001 has two Sick Leave rows: the newest wins. E002's Annual Leave on the live type beats the newer
+    # row on a deleted type; a deleted type found by its name loads when nothing else claims it.
+    assert remaining == [("E001", "SICK", Decimal("9.00")), ("E001", "WORK_FROM_HOME", Decimal("-2.00")),
+                         ("E002", "ANNUAL", Decimal("2.00")), ("E002", "WORK_FROM_HOME", Decimal("3.00"))]
+    # Every fixed-column allocation goes, with the used days the migration recorded against it.
+    assert _count(query, "core.leave_allocation", FOUNDER_TENANT) == 4
+    assert _count(query, "core.leave_consumption", FOUNDER_TENANT) == 1  # E001's overdrawn Work From Home
+    reasons = {i["legacy_id"]: i["reason"] for i in _quarantine(legacy_fixture)
+               if i["legacy_table"] == "employee_leave_balances"}
+    assert reasons == {4: "LEAVE_TYPE_NOT_FOUND", 5: "EMPLOYEE_NOT_FOUND", 1: "DUPLICATE_BALANCE_TYPE",
+                       7: "DUPLICATE_BALANCE_TYPE"}
+
+    # The HRMS balance moves on and the step runs again: no stale overdrawn row survives.
+    rows[1]["remaining_days"] = 1
+    (legacy_fixture / "stg_hrms_employee_leave_balances.json").write_text(json.dumps(rows), encoding="utf-8")
+    run_base_and("loaders.load_leave")
+    assert _count(query, "core.leave_consumption", FOUNDER_TENANT) == 0
+    assert _count(query, "core.leave_allocation", FOUNDER_TENANT) == 4

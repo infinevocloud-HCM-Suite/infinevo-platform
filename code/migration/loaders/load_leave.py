@@ -5,8 +5,15 @@ Founder tenant, from HRMS (the founder's leave authority; HRMS has no organisati
                         fixed balance columns (ANNUAL, SICK, CASUAL, MATERNITY, PATERNITY) plus
                         LEGACY; an HRMS type whose name is one of them fills that code, any other
                         HRMS type gets its own code.
-  leave_balances     -> one row, five fixed columns -> up to five core.leave_allocation rows;
-                        used days -> core.leave_consumption (one row per type).
+  employee_leave_balances -> one core.leave_allocation per employee and leave type in the leave
+                        year of the run date, entitlement = the remaining days HRMS shows; a
+                        negative balance is entitlement 0 plus one core.leave_consumption
+                        (founder decision 2026-10-26: prod leave_balances.*_used is 0 in every
+                        row, the HRMS screens read employee_leave_balances). Migration-made
+                        allocations not in this set are removed.
+  leave_balances     -> used only when employee_leave_balances is empty: one row, five fixed
+                        columns -> up to five core.leave_allocation rows; used days ->
+                        core.leave_consumption (one row per type).
   leave_requests     -> core.leave_request under the tenant's LEGACY type (the table has no type
                         column, X-01; never "any active type"). hr_status wins over
                         reporting_manager_status. Each request gets one core.approval_instance
@@ -52,7 +59,7 @@ from common.tenants import Tenant, Tenants
 
 STEP = "load_leave"
 HRMS_INPUTS = ["stg_hrms_leave_types.json", "stg_hrms_leave_balances.json", "stg_hrms_leave_requests.json",
-               "stg_hrms_holidays.json"]
+               "stg_hrms_holidays.json", "stg_hrms_employee_leave_balances.json"]
 PAYROLL_INPUTS = [
     "stg_payroll_leave_type.json", "stg_payroll_leave_type_genders.json",
     "stg_payroll_leave_type_departments.json", "stg_payroll_leave_type_designations.json",
@@ -89,6 +96,11 @@ def leave_year(year: int, start_month: int) -> tuple[str, date, date]:
     end = date(year + 1, start_month, 1) - timedelta(days=1)
     label = str(year) if start_month == 1 else f"{year}-{(year + 1) % 100:02d}"
     return label, start, end
+
+
+def current_leave_year(today: date, start_month: int) -> tuple[str, date, date]:
+    """The tenant leave year containing today: where HRMS remaining balances open."""
+    return leave_year(today.year if today.month >= start_month else today.year - 1, start_month)
 
 
 def legacy_year(v) -> int | None:
@@ -164,9 +176,10 @@ def run(conn=None) -> bool:
 
     h_types = staging.load("stg_hrms_leave_types.json")
     h_bal = staging.load("stg_hrms_leave_balances.json")
+    h_emp_bal = staging.load("stg_hrms_employee_leave_balances.json")
     h_req = staging.load("stg_hrms_leave_requests.json")
     h_hol = staging.load("stg_hrms_holidays.json")
-    for twin in ("stg_hrms_leave_request.json", "stg_hrms_employee_leave_balances.json"):
+    for twin in ("stg_hrms_leave_request.json",):
         log.info("not migrated (W-67 R2, superseded twin): %s rows=%d", twin, len(staging.load(twin)))
 
     def by_org(name: str) -> dict[str, list[dict]]:
@@ -333,6 +346,12 @@ def run(conn=None) -> bool:
             policies.append((code, vf, _DAYS(lt.get("default_days")) or _DAYS(0),
                              truthy(lt.get("leave_carried_forward")), _ts(lt.get("created_at"), run_start)))
         type_ids = write_types(cur, tid, types)
+        code_of = {str(lt.get("id")): c for c, lt in by_seed.items()}
+        code_of.update({str(lt.get("id")): c for lt, c in zip(extra, extra_codes)})
+        codes_by_name = defaultdict(set)
+        for lt in h_types:
+            if str(lt.get("id")) in code_of:
+                codes_by_name[(text(lt.get("name")) or "").lower()].add(code_of[str(lt.get("id"))])
         # HRMS turned days beyond the balance into loss of pay (LeaveRequests.lopAllocation): markAsLOP.
         pol_ids, pol_rows = {}, []
         for code, vf, annual, cf, created in policies:
@@ -342,9 +361,57 @@ def run(conn=None) -> bool:
         db.upsert(cur, "core.leave_policy", pol_rows)
         done += len(types) + len(pol_rows)
 
-        # Balances: five fixed columns -> allocation per type; used -> consumption.
+        # Balances: HRMS employee_leave_balances when it has rows, else the five fixed columns.
         allocs, cons, seen = [], [], set()
-        for b in h_bal:
+        if h_emp_bal:
+            label, ys, ye = current_leave_year(run_start.date(), start_month)
+            # Two rows of one employee can land on one type (a deleted HRMS type found by name): the row
+            # on a type that still exists wins, then the newest row; the other is a duplicate.
+            for b in sorted(h_emp_bal, key=lambda x: (str(x.get("leave_type_id")) not in code_of,
+                                                      -int(x.get("id") or 0))):
+                lid = b.get("id")
+                eid = hrms_emp(b.get("employee_id"), loaded)
+                # The type by id; a row whose type was deleted in HRMS by its name, when one type has it.
+                code = code_of.get(str(b.get("leave_type_id")))
+                if code is None:
+                    named = codes_by_name.get((text(b.get("leave_type")) or "").lower(), set())
+                    code = next(iter(named)) if len(named) == 1 else None
+                remaining = _DAYS(b.get("remaining_days"))
+                if eid is None:
+                    q.add("EMPLOYEE_NOT_FOUND", "employee_leave_balances", lid, tid); skipped += 1
+                    continue
+                if code is None:
+                    q.add("LEAVE_TYPE_NOT_FOUND", "employee_leave_balances", lid, tid,
+                          leave_type=text(b.get("leave_type"))); skipped += 1
+                    continue
+                if remaining is None:
+                    q.add("NO_REMAINING_DAYS", "employee_leave_balances", lid, tid); skipped += 1
+                    continue
+                if (eid, code) in seen:
+                    q.add("DUPLICATE_BALANCE_TYPE", "employee_leave_balances", lid, tid); skipped += 1
+                    continue
+                seen.add((eid, code))
+                aid = det_id(tid, f"employee_leave_balances.{label}", lid)
+                allocs.append({"id": aid, "tenant_id": tid, "employee_id": eid, "leave_type_id": type_ids[code],
+                               "leave_year": label, "year_start_date": ys, "year_end_date": ye,
+                               "entitlement_days": max(remaining, _DAYS(0)), "policy_id": pol_ids[code], **audit})
+                if remaining < 0:
+                    cons.append({"id": child_id(aid, "overdrawn"), "tenant_id": tid, "employee_id": eid,
+                                 "allocation_id": aid, "consumed_days": -remaining, "consumed_on": ys,
+                                 "period": ys.strftime("%Y-%m"),
+                                 "reason": "Overdrawn balance from HRMS employee_leave_balances", **audit})
+            # The opening balances replace every allocation an earlier run made: its own consumptions
+            # (dated, no request) go first, so neither a stale overdrawn row nor an old used-days row
+            # survives. A consumption the app wrote keeps its allocation, and reconciliation shows it.
+            cur.execute("DELETE FROM core.leave_consumption WHERE tenant_id = %s AND created_by = %s "
+                        "AND leave_request_id IS NULL", (tid, db.AUDIT_USER))
+            cur.execute("DELETE FROM core.leave_allocation a WHERE a.tenant_id = %s AND a.created_by = %s "
+                        "AND NOT (a.id = ANY(%s::uuid[])) AND NOT EXISTS (SELECT 1 FROM core.leave_consumption c "
+                        "WHERE c.tenant_id = a.tenant_id AND c.allocation_id = a.id)",
+                        (tid, db.AUDIT_USER, [a["id"] for a in allocs]))
+            if cur.rowcount:
+                log.info("tenant %s: %d earlier migrated allocations replaced", tid, cur.rowcount)
+        for b in ([] if h_emp_bal else h_bal):
             eid = hrms_emp(b.get("employee_id"), loaded)
             year = legacy_year(b.get("year"))
             if eid is None:

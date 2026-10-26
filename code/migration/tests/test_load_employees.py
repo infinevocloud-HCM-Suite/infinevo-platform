@@ -77,3 +77,11 @@ def test_second_run_is_a_no_op(legacy_fixture, query):
     after = {t: query(f"SELECT count(*), max(updated_at) FROM {t}")[0] for t in tables}
     assert before == after
     assert query("SELECT count(*) FROM core.migration_ledger WHERE step_name = 'load_employees'")[0][0] == 2
+
+
+def test_full_time_permanent_is_permanent():
+    """Prod HRMS personal.employment_status is 'Full-Time Permanent' for 62 of 91 employees."""
+    from transformers.merge_employees import norm_employment
+
+    assert norm_employment("Full-Time Permanent") == "PERMANENT"
+    assert norm_employment("Freelancer") is None

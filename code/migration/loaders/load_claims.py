@@ -14,6 +14,8 @@ matched to a legacy `reimbursements` master of its organisation whose type or na
 the same thing ("Internet Reimbursement" for INTERNET), and that master's target id is
 read from the id-map key load_salary publishes ("payroll.reimbursements"). No matching
 master -> NO_MATCHING_COMPONENT; a match the salary step did not load -> COMPONENT_NOT_LOADED.
+A type OTHER claim with no matching master goes under the tenant's "Other Reimbursement"
+component (code OTHER_REIMBURSEMENT), which this step makes once (founder decision 2026-10-26).
 Status PENDING -> SUBMITTED, APPROVED, REJECTED as is. payment_status (PAID, UNPAID,
 INPAYRUN) has no target column; no pay_input is written for a claim.
 
@@ -57,6 +59,10 @@ OPEN_DEDUCTION = {"ACTIVE", "INPAYRUN"}
 TAKEN_DEDUCTION = {"PROCESSED"}
 PAY_INPUT_SOURCE = "payroll"
 PAY_INPUT_REF = "employee_deduction:"
+# Founder decision 2026-10-26: a claim of legacy type OTHER whose organisation has no matching
+# reimbursement master is carried under one migration-made "Other Reimbursement" component.
+OTHER_TYPE = "other"
+OTHER_CODE, OTHER_NAME = "OTHER_REIMBURSEMENT", "Other Reimbursement"
 
 
 def deduction_type(raw) -> str:
@@ -164,6 +170,24 @@ def run(conn=None) -> bool:
         # ---- claims
         cur.execute("SELECT id::text FROM payroll.reimbursement WHERE tenant_id = %s", (tid,))
         loaded_masters = {r[0] for r in cur.fetchall()}
+        other_id = None
+
+        def other_component() -> str:
+            """The tenant's "Other Reimbursement" component, made once (same id every run)."""
+            nonlocal other_id
+            if other_id is None:
+                cur.execute("SELECT id::text FROM payroll.reimbursement WHERE tenant_id = %s AND code = %s",
+                            (tid, OTHER_CODE))
+                row = cur.fetchone()
+                other_id = row[0] if row else det_id(tid, "reimbursements", OTHER_CODE)
+                db.upsert(cur, "payroll.reimbursement", [{
+                    "id": other_id, "tenant_id": tid, "code": OTHER_CODE, "name": OTHER_NAME,
+                    "display_name": OTHER_NAME, "reimbursement_type": OTHER_CODE, "calculation_type": "FLAT",
+                    "is_active": True, "is_deleted": False, **audit}], conflict=("tenant_id", "code"),
+                    keep_on_update=("id",))
+                loaded_masters.add(other_id)
+            return other_id
+
         claims = []
         for r, emp in claims_by_tenant.get(tid, []):
             lid = r.get("id")
@@ -177,12 +201,18 @@ def run(conn=None) -> bool:
                 comp = idmap.get("payroll.reimbursements", master.get("id")) or \
                     idmap.get("payroll.reimbursements", master.get("reimbursementId")) or \
                     det_id(tid, "reimbursements", master.get("id"))
+            other = master is None and _norm(r.get("reimbursement_type")) == OTHER_TYPE
             problem = (
                 "STATUS_UNMAPPED" if status is None else
                 "AMOUNT_NOT_POSITIVE" if requested is None or requested <= 0 else
                 "APPROVED_AMOUNT_NEGATIVE" if approved is not None and approved < 0 else
-                "NO_BILL_DATE" if bill_date is None else
-                "NO_MATCHING_COMPONENT" if master is None else
+                "NO_BILL_DATE" if bill_date is None else None
+            )
+            if problem is None and other:
+                # Created only for a claim that will load, so a refused claim leaves no empty component.
+                comp = other_component()
+            problem = problem or (
+                "NO_MATCHING_COMPONENT" if comp is None else
                 "COMPONENT_NOT_LOADED" if comp not in loaded_masters else None
             )
             if problem:
