@@ -201,13 +201,17 @@ def run(conn=None) -> bool:
                 comp = idmap.get("payroll.reimbursements", master.get("id")) or \
                     idmap.get("payroll.reimbursements", master.get("reimbursementId")) or \
                     det_id(tid, "reimbursements", master.get("id"))
-            elif _norm(r.get("reimbursement_type")) == OTHER_TYPE:
-                comp = other_component()
+            other = master is None and _norm(r.get("reimbursement_type")) == OTHER_TYPE
             problem = (
                 "STATUS_UNMAPPED" if status is None else
                 "AMOUNT_NOT_POSITIVE" if requested is None or requested <= 0 else
                 "APPROVED_AMOUNT_NEGATIVE" if approved is not None and approved < 0 else
-                "NO_BILL_DATE" if bill_date is None else
+                "NO_BILL_DATE" if bill_date is None else None
+            )
+            if problem is None and other:
+                # Created only for a claim that will load, so a refused claim leaves no empty component.
+                comp = other_component()
+            problem = problem or (
                 "NO_MATCHING_COMPONENT" if comp is None else
                 "COMPONENT_NOT_LOADED" if comp not in loaded_masters else None
             )

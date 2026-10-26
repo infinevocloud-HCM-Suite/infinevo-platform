@@ -73,6 +73,27 @@ def test_clean_fixture_reconciles_to_zero(migrated):
     assert "@" not in text and "First" not in text and "ABCPE" not in text
 
 
+def test_tds_keyed_by_organisation_code_reconciles(legacy_fixture, query, monkeypatch):
+    """Prod employee_tds.organization_id holds the org code; reconciliation must place those rows
+    as load_tax does, or every loaded TDS row reads as an unexpected count and TAX_MISMATCH."""
+    from tests.fixtures.fx_org import org_code
+
+    p = legacy_fixture / "stg_payroll_employee_tds.json"
+    rows = json.loads(p.read_text(encoding="utf-8"))
+    for r in rows:
+        r["organization_id"] = org_code(r["organization_id"])
+    p.write_text(json.dumps(rows), encoding="utf-8")
+    monkeypatch.setenv("MIGRATION_KEYCLOAK", "off")
+    monkeypatch.setenv("MIGRATION_FY", "2025-26")
+    run_steps(ORDER + ["reconciliation.lop_mismatch_generator"])
+    ok, results = _reconcile(legacy_fixture)
+    tds = {tid: next(c for c in r["counts"] if c["table"] == "payroll.employee_tds")
+           for tid, r in results.items()}
+    assert tds[FOUNDER_TENANT]["actual"] > 0
+    assert {tid: c["delta"] for tid, c in tds.items()} == {FOUNDER_TENANT: 0, CUSTOMER_TENANT: 0}
+    assert ok is True and all(r["clean"] for r in results.values())
+
+
 def test_net_pay_off_by_one_paisa(migrated, query):
     ep = det_id(FOUNDER_TENANT, "employee_payruns", 101)  # run 1 (April 2025), employee 1001 = E001
     query("UPDATE payroll.employee_payrun SET net_pay = net_pay + 0.01 WHERE id = %s", (ep,))

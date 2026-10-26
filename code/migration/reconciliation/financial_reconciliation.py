@@ -153,6 +153,8 @@ class Legacy:
         self.tenants, self.idmap = tenants, idmap
         self.founder = tenants.founder.tenant_id if tenants.founder else None
         ld = staging.load
+        self.org_by_code = {str(o.get("organizationId")): o.get("id")
+                            for o in ld("stg_payroll_organization.json") if o.get("organizationId")}
         self.merged = ld("stg_merged_employees.json")
         self.departments = ld("stg_payroll_department.json")
         self.designations = ld("stg_payroll_designation.json")
@@ -196,6 +198,11 @@ class Legacy:
     def org_tenant(self, org) -> str | None:
         t = self.tenants.for_org(org)
         return t.tenant_id if t else None
+
+    def tds_tenant(self, r) -> str | None:
+        """load_tax._tds: organization_id holds the org code, or on older rows the id itself."""
+        ref = r.get("organization_id")
+        return self.org_tenant(self.org_by_code.get(str(ref), ref))
 
     def employee_tenant_by_uuid(self, ref) -> str | None:
         """load_claims.place / load_leave.pay_emp: the Payroll employee UUID's tenant."""
@@ -284,7 +291,7 @@ class Check:
         self.count("payroll.employee_investment_declaration",
                    len(self.kept("load_tax", "employee_investment_declaration", lg.decls.values(), org)))
         self.count("payroll.employee_tds", len(self.kept(
-            "load_tax", "employee_tds", lg.tds, lambda r: lg.org_tenant(r.get("organization_id")))))
+            "load_tax", "employee_tds", lg.tds, lg.tds_tenant)))
         self.count("core.leave_allocation", len(self.expected_allocations()))
         self.count("core.leave_request", len(self.kept("load_leave", "leave_requests", lg.h_requests, hrms)))
         self.count("core.attendance", len(self.kept("load_attendance", "attendance", lg.attendance, hrms)))
@@ -558,7 +565,7 @@ class Check:
         # Active TDS rows: load_tax keeps one active row per employee per FY, the newest active
         # legacy row (load_tax.py:707-725). Legacy: an employee with any active current-FY row.
         legacy_active = defaultdict(int)
-        for r in self.kept("load_tax", "employee_tds", lg.tds, lambda r: lg.org_tenant(r.get("organization_id"))):
+        for r in self.kept("load_tax", "employee_tds", lg.tds, lg.tds_tenant):
             if r.get("fiscal_year") is None or int(r["fiscal_year"]) != fy.end:
                 continue
             eid = self.idmap.get("payroll.employee.uuid", r.get("employee_id")) or \

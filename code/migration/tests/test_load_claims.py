@@ -170,3 +170,8 @@ def test_other_claim_goes_under_other_reimbursement(legacy_fixture, query):
     reasons = {i["legacy_id"]: i["reason"] for i in _quarantine(legacy_fixture)
                if i["legacy_table"] == "employee_reimbursement_request"}
     assert 30 not in reasons and reasons[3] == "NO_MATCHING_COMPONENT"
+    # a second run (the ledger row cleared) keeps the one component and its id
+    query("DELETE FROM core.migration_ledger WHERE step_name = %s", (STEP.rsplit(".", 1)[-1],))
+    run_step(STEP)
+    assert query("SELECT id::text, name, tenant_id::text FROM payroll.reimbursement "
+                 "WHERE code = 'OTHER_REIMBURSEMENT'") == comp
