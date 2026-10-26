@@ -284,12 +284,7 @@ class NavigationServiceTest {
                         "core.tenants");
         assertThat(childKeys("core.people")).containsExactly("core.employee", "core.users");
         assertThat(childKeys("core.org"))
-                .containsExactly(
-                        "core.org.departments",
-                        "core.org.designations",
-                        "core.org.locations",
-                        "core.holiday",
-                        "core.roles");
+                .containsExactly("core.org.departments", "core.org.designations", "core.org.locations", "core.roles");
         assertThat(childKeys("core.wfh"))
                 .containsExactly("core.wfh.policies", "core.wfh.allocations", "core.wfh.requests", "core.wfh.import");
         assertThat(childKeys("core.settings")).containsExactly("core.setup", "core.settings.company", "core.audit");
@@ -308,17 +303,17 @@ class NavigationServiceTest {
     @Test
     @DisplayName("D-34: a group shows only the children the caller may see, and opens the first of them")
     void groupShowsVisibleChildrenAndOpensTheFirst() {
-        when(permissionService.currentActions()).thenReturn(Set.of("core.holiday.read", "core.audit.read"));
+        when(permissionService.currentActions()).thenReturn(Set.of("core.role.read", "core.audit.read"));
         NavigationService shipped = new NavigationService(entitlementService, permissionService);
 
         NavigationResponse response = shipped.navigation();
 
         assertThat(keysOf(response)).containsExactly("core.org", "core.settings");
         NavigationItemResponse org = response.items().get(0);
-        assertThat(org.children()).extracting(NavigationItemResponse::key).containsExactly("core.holiday");
+        assertThat(org.children()).extracting(NavigationItemResponse::key).containsExactly("core.roles");
         assertThat(org.path())
                 .as("not /org/departments, which this caller cannot open")
-                .isEqualTo("/holidays");
+                .isEqualTo("/roles");
         assertThat(response.items().get(1).path()).isEqualTo("/audit");
     }
 
@@ -631,9 +626,9 @@ class NavigationServiceTest {
     }
 
     @Test
-    @DisplayName("D-35: an employee lands on the portal, even when the HRMS dashboard is in the feed")
-    void employeeLandsOnThePortal() {
-        assertThat(homeFor(EMPLOYEE, BOTH, UUID.randomUUID(), false)).isEqualTo("/me");
+    @DisplayName("D-110: an employee lands on the dashboard when it is in the feed")
+    void employeeLandsOnTheDashboard() {
+        assertThat(homeFor(EMPLOYEE, BOTH, UUID.randomUUID(), false)).isEqualTo("/hrms/dashboard");
     }
 
     @Test

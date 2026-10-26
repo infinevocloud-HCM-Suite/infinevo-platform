@@ -23,7 +23,7 @@ export const ROLES = {
   employee: {
     username: 'employee.globex',
     tenant: 'Globex',
-    homes: ['/me'],
+    homes: ['/hrms/dashboard', '/me'],
     employeeNumber: 'GLBX-0001',
     displayName: 'Gautam Employee',
   },

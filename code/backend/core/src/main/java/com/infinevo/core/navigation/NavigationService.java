@@ -252,6 +252,9 @@ public class NavigationService {
             // which beats the portal - the portal item comes first in the menu (D-75), so it is skipped here.
             return firstLeafPath(items).orElse(PORTAL_HOME);
         }
+        if (visible.contains(HRMS_HOME)) {
+            return HRMS_HOME;
+        }
         return PORTAL_HOME;
     }
 

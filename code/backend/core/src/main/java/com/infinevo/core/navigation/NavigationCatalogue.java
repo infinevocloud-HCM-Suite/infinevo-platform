@@ -168,13 +168,6 @@ public final class NavigationCatalogue {
                                     null,
                                     "core.org.manage"),
                             new ItemDefinition(
-                                    "core.holiday",
-                                    "nav.holidays",
-                                    "/holidays",
-                                    "/api/v1/holiday-calendars",
-                                    null,
-                                    "core.holiday.read"),
-                            new ItemDefinition(
                                     "core.roles", "nav.roles", "/roles", "/api/v1/roles", null, "core.role.read"))),
             new ItemDefinition(
                     "core.approvals",
@@ -305,12 +298,25 @@ public final class NavigationCatalogue {
             new ItemDefinition(
                     "core.tenants", "nav.tenants", "/admin/tenants", "/api/v1/tenants", null, "core.tenant.provision"));
 
-    /** The core items followed by every module's contributed items, in contributor order. */
+    /**
+     * The core items followed by every module's contributed items, in contributor order.
+     * Top-level dashboard (hrms.dashboard) is placed first (D-110) so it precedes the self-service portal.
+     */
     public static List<ItemDefinition> withContributed(List<NavigationContributor> contributors) {
-        List<ItemDefinition> all = new ArrayList<>(DEFAULT_ITEMS);
+        List<ItemDefinition> topLevel = new ArrayList<>();
+        List<ItemDefinition> remainingContributed = new ArrayList<>();
         for (NavigationContributor contributor : contributors) {
-            all.addAll(contributor.items());
+            for (ItemDefinition item : contributor.items()) {
+                if ("hrms.dashboard".equals(item.key())) {
+                    topLevel.add(item);
+                } else {
+                    remainingContributed.add(item);
+                }
+            }
         }
+        List<ItemDefinition> all = new ArrayList<>(topLevel);
+        all.addAll(DEFAULT_ITEMS);
+        all.addAll(remainingContributed);
         return List.copyOf(all);
     }
 

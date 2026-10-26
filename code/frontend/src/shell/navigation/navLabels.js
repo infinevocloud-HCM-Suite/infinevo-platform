@@ -20,7 +20,7 @@ export const NAV_LABELS = {
   'nav.hrms.attendance': 'Attendance',
   'nav.hrms.attendance_log': 'Attendance log',
   'nav.hrms.attendance_settings': 'Attendance settings',
-  'nav.hrms.dashboard': 'HR dashboard',
+  'nav.hrms.dashboard': 'Dashboard',
   'nav.hrms.my_work': 'My work',
   'nav.hrms.overtime_all': 'All overtime',
   'nav.hrms.overtime_requests': 'Overtime requests',

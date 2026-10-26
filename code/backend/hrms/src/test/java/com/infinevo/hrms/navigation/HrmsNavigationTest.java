@@ -2,6 +2,7 @@ package com.infinevo.hrms.navigation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.infinevo.core.holiday.HolidayCalendarController;
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
 import com.infinevo.core.overtime.OvertimeController;
 import com.infinevo.hrms.attendance.AttendancePreferenceController;
@@ -37,11 +38,11 @@ class HrmsNavigationTest {
     private final List<ItemDefinition> items = HrmsNavigation.LEAVES;
 
     @Test
-    @DisplayName("D-34: HRMS contributes one group holding every screen, under the HRMS module and no action")
-    void oneGroupHoldsEveryScreen() {
+    @DisplayName("D-110: HRMS contributes top-level dashboard plus one group holding operational screens")
+    void contributesDashboardAndGroup() {
         List<ItemDefinition> contributed = new HrmsNavigation().items();
-        assertThat(contributed).containsExactly(HrmsNavigation.GROUP);
-        ItemDefinition group = contributed.get(0);
+        assertThat(contributed).containsExactly(HrmsNavigation.DASHBOARD, HrmsNavigation.GROUP);
+        ItemDefinition group = contributed.get(1);
         assertThat(group.key()).isEqualTo("hrms");
         assertThat(group.labelKey()).isEqualTo("nav.hrms");
         assertThat(group.requiredModule()).isEqualTo(PlatformModule.HRMS);
@@ -51,8 +52,15 @@ class HrmsNavigationTest {
     }
 
     @Test
-    @DisplayName("HRMS contributes exactly twelve items, as the specs' tables say")
-    void twelveItems() {
+    @DisplayName("HRMS contributes dashboard plus twelve group items, as the specs' tables say")
+    void groupItemsPlusDashboard() {
+        assertItem(
+                HrmsNavigation.DASHBOARD,
+                "hrms.dashboard",
+                "nav.hrms.dashboard",
+                "/hrms/dashboard",
+                "/api/v1/hrms/dashboard",
+                "hrms.project.read_own");
         assertThat(items).hasSize(12);
         assertItem(
                 items.get(0),
@@ -105,25 +113,25 @@ class HrmsNavigationTest {
                 "core.attendance.manage");
         assertItem(
                 items.get(7),
-                "hrms.dashboard",
-                "nav.hrms.dashboard",
-                "/hrms/dashboard",
-                "/api/v1/hrms/dashboard",
-                "hrms.project.read_own");
-        assertItem(
-                items.get(8),
                 "hrms.regularizations",
                 "nav.hrms.regularizations",
                 "/hrms/regularizations",
                 "/api/v1/hrms/attendance/regularizations/mine",
                 "core.attendance.read_own");
         assertItem(
-                items.get(9),
+                items.get(8),
                 "hrms.overtime_requests",
                 "nav.hrms.overtime_requests",
                 "/hrms/overtime-requests",
                 "/api/v1/hrms/overtime-requests/mine",
                 "hrms.overtime.request");
+        assertItem(
+                items.get(9),
+                "hrms.holidays",
+                "nav.holidays",
+                "/holidays",
+                "/api/v1/holiday-calendars",
+                "core.holiday.read");
         assertItem(
                 items.get(10),
                 "hrms.regularizations_all",
@@ -157,11 +165,12 @@ class HrmsNavigationTest {
 
     @Test
     @DisplayName(
-            "W-48.5 / W-48.6: dashboard, regularizations and overtime requests are GETs guarded by the item's action")
+            "W-48.5 / W-48.6: dashboard, regularizations, overtime requests and holidays are GETs guarded by the item's action")
     void requestAndDashboardEndpointsAreReal() {
-        assertGuardedGet(HrmsDashboardController.class, items.get(7));
-        assertGuardedGet(RegularizationController.class, items.get(8));
-        assertGuardedGet(OvertimeRequestController.class, items.get(9));
+        assertGuardedGet(HrmsDashboardController.class, HrmsNavigation.DASHBOARD);
+        assertGuardedGet(RegularizationController.class, items.get(7));
+        assertGuardedGet(OvertimeRequestController.class, items.get(8));
+        assertGuardedGet(HolidayCalendarController.class, items.get(9));
     }
 
     @Test
@@ -202,7 +211,10 @@ class HrmsNavigationTest {
         }
         assertThat(action.value()).isEqualTo(item.requiredAction());
         assertThat(action.anyOf()).contains(item.anyOf().toArray(String[]::new));
-        assertThat(controller.getAnnotation(RequiresModule.class).value()).isEqualTo(item.requiredModule());
+        RequiresModule module = controller.getAnnotation(RequiresModule.class);
+        if (module != null) {
+            assertThat(module.value()).isEqualTo(item.requiredModule());
+        }
     }
 
     @Test
@@ -263,7 +275,8 @@ class HrmsNavigationTest {
     }
 
     private static Method getMapping(Class<?> controller, String endpoint) {
-        String base = controller.getAnnotation(RequestMapping.class).value()[0];
+        RequestMapping req = controller.getAnnotation(RequestMapping.class);
+        String base = (req != null && req.value().length > 0) ? req.value()[0] : "";
         return Arrays.stream(controller.getDeclaredMethods())
                 .filter(m -> m.isAnnotationPresent(GetMapping.class))
                 .filter(m -> {

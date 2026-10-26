@@ -132,7 +132,16 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "core.overtime.read");
 
-    /** The module's screens, in menu order. */
+    /** The tenant's holiday calendars (W-46.3b): core's {@code HolidayCalendarController} {@code GET /api/v1/holiday-calendars}. */
+    public static final ItemDefinition HOLIDAYS = new ItemDefinition(
+            "hrms.holidays",
+            "nav.holidays",
+            "/holidays",
+            "/api/v1/holiday-calendars",
+            PlatformModule.HRMS,
+            "core.holiday.read");
+
+    /** The module's screens, in menu order (excluding top-level dashboard, D-110). */
     public static final List<ItemDefinition> LEAVES = List.of(
             TIMESHEETS,
             PROJECTS,
@@ -141,9 +150,9 @@ public class HrmsNavigation implements NavigationContributor {
             ATTENDANCE,
             ATTENDANCE_LOG,
             ATTENDANCE_SETTINGS,
-            DASHBOARD,
             REGULARIZATIONS,
             OVERTIME_REQUESTS,
+            HOLIDAYS,
             REGULARIZATIONS_ALL,
             OVERTIME_ALL);
 
@@ -156,6 +165,6 @@ public class HrmsNavigation implements NavigationContributor {
 
     @Override
     public List<ItemDefinition> items() {
-        return List.of(GROUP);
+        return List.of(DASHBOARD, GROUP);
     }
 }

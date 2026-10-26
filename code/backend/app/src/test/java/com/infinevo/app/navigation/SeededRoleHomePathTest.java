@@ -189,12 +189,14 @@ class SeededRoleHomePathTest {
     }
 
     @Test
-    @DisplayName("D-75: the employee lands on the portal, which their menu names first")
-    void employeeLandsOnThePortalNamedFirst() {
+    @DisplayName("D-110: the employee lands on the dashboard, with self-service portal below it")
+    void employeeLandsOnTheDashboardWithPortalBelow() {
         NavigationResponse feed = feedFor(EMPLOYEE);
-        assertThat(feed.homePath()).isEqualTo("/me");
-        assertThat(feed.items().get(0).key()).isEqualTo("core.me");
-        assertThat(feed.items().get(0).path()).isEqualTo("/me");
+        assertThat(feed.homePath()).isEqualTo("/hrms/dashboard");
+        assertThat(feed.items().get(0).key()).isEqualTo("hrms.dashboard");
+        assertThat(feed.items().get(0).path()).isEqualTo("/hrms/dashboard");
+        assertThat(feed.items().get(1).key()).isEqualTo("core.me");
+        assertThat(feed.items().get(1).path()).isEqualTo("/me");
     }
 
     @Test
@@ -204,8 +206,11 @@ class SeededRoleHomePathTest {
         when(linked.currentEmployee()).thenReturn(Optional.of(mock(EmployeeResponse.class)));
 
         for (Set<String> role : List.of(HR, MANAGER, PAYROLL_OFFICER, FINANCE, EMPLOYEE)) {
-            assertThat(feedFor(role, linked).items().get(0).key()).isEqualTo("core.me");
+            assertThat(feedFor(role, linked).items())
+                    .extracting(NavigationItemResponse::key)
+                    .contains("core.me");
         }
+        assertThat(feedFor(EMPLOYEE, linked).homePath()).isEqualTo("/hrms/dashboard");
         assertThat(feedFor(HR, linked).homePath()).isEqualTo("/hrms/dashboard");
         assertThat(feedFor(MANAGER, linked).homePath()).isEqualTo("/approvals");
         assertThat(feedFor(PAYROLL_OFFICER, linked).homePath()).isEqualTo("/payroll/dashboard");
