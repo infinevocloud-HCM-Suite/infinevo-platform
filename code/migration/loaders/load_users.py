@@ -212,6 +212,9 @@ def _safe_role(key: str | None) -> str | None:
 def run(conn=None) -> bool:
     tenants = Tenants.load()
     idmap = IdMap.load()
+    # id_map.json only grows, so an entry can outlive its employee from an earlier run;
+    # an employee link counts only if this run's merge produced that employee.
+    merged_ids = {m["id"] for m in staging.load("stg_merged_employees.json")}
     q = Quarantine(STEP)
     role_map = _load_role_map()
     mode = keycloak_mode()
@@ -257,6 +260,8 @@ def run(conn=None) -> bool:
         linked = bool(text(u.get("employee_id")) or text(u.get("emp_id")))
         emp = (idmap.get("hrms.employee", u.get("employee_id")) or idmap.get("hrms.emp_code", text(u.get("emp_id")))
                if linked else None)
+        if emp not in merged_ids:
+            emp = None
         if linked and emp is None and not founder.hrms_only:
             # W-67 R1: the login of an HRMS-only employee stays behind with the employee
             q.add("EMPLOYEE_NOT_MIGRATED", "ourusers", u.get("id"), tid)

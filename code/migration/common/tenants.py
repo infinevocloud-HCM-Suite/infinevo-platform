@@ -18,6 +18,13 @@ from pathlib import Path
 _DEFAULT = Path(__file__).resolve().parents[1] / "config" / "org_mapping.json"
 
 
+def _flag(value, name: str, org_id) -> bool:
+    """A JSON true/false only: "false" in quotes would read as true and change what migrates."""
+    if not isinstance(value, bool):
+        raise ValueError(f"org_mapping.json org {org_id}: {name} must be true or false, not {value!r}")
+    return value
+
+
 @dataclass(frozen=True)
 class Tenant:
     legacy_org_id: str
@@ -51,7 +58,7 @@ class Tenants:
                 name=e["name"],
                 country_code=e.get("country_code", "IN"),
                 founder=bool(e.get("founder")),
-                hrms_only=bool(e.get("hrms_only", True)),
+                hrms_only=_flag(e.get("hrms_only", True), "hrms_only", org_id),
             )
         return cls(by_org)
 
