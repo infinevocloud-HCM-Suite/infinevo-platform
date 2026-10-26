@@ -151,28 +151,32 @@ export function WfhImport() {
   ];
 
   return (
-    <div style={{ padding: token.paddingLG }}>
-      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Title level={3} style={{ margin: 0 }}>
+    <Card style={{ margin: 24 }}>
+      <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Title level={4} style={{ margin: 0 }}>
               <FileTextOutlined style={{ marginRight: 8 }} />
               Bulk WFH Quota Import
             </Title>
-            <Text type="secondary">Upload annual quota allocations for multiple employees via CSV</Text>
-          </div>
+            <Text type="secondary">
+              Upload annual quota allocations for multiple employees via CSV. Dry run validates records without saving.
+            </Text>
+          </Col>
 
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={handleDownloadTemplate}
-            data-testid="download-wfh-template-btn"
-          >
-            Download CSV Template
-          </Button>
-        </div>
+          <Col>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadTemplate}
+              data-testid="download-wfh-template-btn"
+            >
+              Download CSV Template
+            </Button>
+          </Col>
+        </Row>
 
-        <Card title="Upload Allocations CSV" style={{ borderRadius: token.borderRadiusLG }}>
-          <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+        <Card type="inner" title="Import Configuration" style={{ borderRadius: token.borderRadiusLG }}>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Row gutter={16} align="middle">
               <Col xs={24} sm={8}>
                 <Text strong>Target Allocation Year: </Text>
@@ -250,7 +254,7 @@ export function WfhImport() {
           </Space>
         </Card>
 
-        <Card title="Past Import History" style={{ borderRadius: token.borderRadiusLG }}>
+        <Card type="inner" title="Past Import History" style={{ borderRadius: token.borderRadiusLG }}>
           <Table
             dataSource={logs}
             columns={logColumns}
@@ -261,6 +265,6 @@ export function WfhImport() {
           />
         </Card>
       </Space>
-    </div>
+    </Card>
   );
 }

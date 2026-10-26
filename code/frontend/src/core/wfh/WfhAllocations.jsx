@@ -72,7 +72,7 @@ export function WfhAllocations() {
       title: 'Employee',
       key: 'employee',
       render: (_, r) => (
-        <Space orientation="vertical" size={2}>
+        <Space direction="vertical" size={2}>
           <Text strong>{r.employeeName || 'Unknown'}</Text>
           <Text type="secondary" style={{ fontSize: 12 }}>{r.employeeNumber}</Text>
         </Space>
@@ -117,17 +117,17 @@ export function WfhAllocations() {
   ];
 
   return (
-    <div style={{ padding: token.paddingLG }}>
-      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Title level={3} style={{ margin: 0 }}>
-              <CalendarOutlined style={{ marginRight: 8 }} />
-              WFH Allocations
-            </Title>
-            <Text type="secondary">Manage employee yearly remote work entitlements and pro-rata quotas</Text>
-          </div>
+    <Card style={{ margin: 24 }}>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+        <Col>
+          <Title level={4} style={{ margin: 0 }}>
+            <CalendarOutlined style={{ marginRight: 8 }} />
+            WFH Allocations
+          </Title>
+          <Text type="secondary">Manage employee yearly remote work entitlements and pro-rata quotas</Text>
+        </Col>
 
+        <Col>
           <Space>
             <Select
               value={selectedYear}
@@ -147,19 +147,17 @@ export function WfhAllocations() {
               </Button>
             )}
           </Space>
-        </div>
+        </Col>
+      </Row>
 
-        <Card style={{ borderRadius: token.borderRadiusLG }}>
-          <Table
-            dataSource={allocations}
-            columns={columns}
-            rowKey="id"
-            loading={loading}
-            pagination={{ pageSize: 10 }}
-            data-testid="wfh-allocations-table"
-          />
-        </Card>
-      </Space>
+      <Table
+        dataSource={allocations}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+        data-testid="wfh-allocations-table"
+      />
 
       <Modal
         title="Allocate Annual WFH Quota"
@@ -247,6 +245,6 @@ export function WfhAllocations() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </Card>
   );
 }

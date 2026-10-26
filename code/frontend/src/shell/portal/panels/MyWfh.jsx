@@ -206,7 +206,7 @@ export function MyWfh({ onNavigate }) {
       title: 'Dates',
       key: 'dates',
       render: (_, r) => (
-        <Space orientation="vertical" size={2}>
+        <Space direction="vertical" size={2}>
           <Text strong>
             {formatDate(r.fromDate)}
             {r.fromDate !== r.toDate && ` – ${formatDate(r.toDate)}`}
@@ -307,7 +307,7 @@ export function MyWfh({ onNavigate }) {
   }
 
   return (
-    <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <Title level={4} style={{ margin: 0 }}>Work From Home (WFH)</Title>

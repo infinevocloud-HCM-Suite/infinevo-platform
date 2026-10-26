@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Tabs, Button, Modal, Form, Input, DatePicker, Switch, Radio, Tag, Space, Typography, theme } from 'antd';
+import { Card, Table, Tabs, Button, Modal, Form, Input, DatePicker, Switch, Radio, Tag, Space, Typography, Row, Col } from 'antd';
 import { SolutionOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
@@ -12,7 +12,6 @@ const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
 export function WfhRequests() {
-  const { token } = theme.useToken();
   const canRead = useCan('core.wfh.read');
   const canReadTeam = useCan('core.wfh.read_team');
   const canManage = useCan('core.wfh.manage');
@@ -106,7 +105,7 @@ export function WfhRequests() {
       title: 'Employee',
       key: 'employee',
       render: (_, r) => (
-        <Space orientation="vertical" size={2}>
+        <Space direction="vertical" size={2}>
           <Text strong>{r.employeeName || 'Unknown'}</Text>
           <Text type="secondary" style={{ fontSize: 12 }}>{r.employeeNumber}</Text>
         </Space>
@@ -116,7 +115,7 @@ export function WfhRequests() {
       title: 'Dates',
       key: 'dates',
       render: (_, r) => (
-        <Space orientation="vertical" size={2}>
+        <Space direction="vertical" size={2}>
           <Text>
             {formatDate(r.fromDate)}
             {r.fromDate !== r.toDate && ` – ${formatDate(r.toDate)}`}
@@ -170,17 +169,17 @@ export function WfhRequests() {
   ];
 
   return (
-    <div style={{ padding: token.paddingLG }}>
-      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Title level={3} style={{ margin: 0 }}>
-              <SolutionOutlined style={{ marginRight: 8 }} />
-              WFH Applications
-            </Title>
-            <Text type="secondary">Review tenant-wide and team remote work requests</Text>
-          </div>
+    <Card style={{ margin: 24 }}>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+        <Col>
+          <Title level={4} style={{ margin: 0 }}>
+            <SolutionOutlined style={{ marginRight: 8 }} />
+            WFH Applications
+          </Title>
+          <Text type="secondary">Review tenant-wide and team remote work requests</Text>
+        </Col>
 
+        <Col>
           {canManage && (
             <Button
               type="primary"
@@ -191,24 +190,24 @@ export function WfhRequests() {
               Apply on Behalf
             </Button>
           )}
-        </div>
+        </Col>
+      </Row>
 
-        <Card style={{ borderRadius: token.borderRadiusLG }}>
-          <Tabs
-            activeKey={activeTab}
-            onChange={(key) => setActiveTab(key)}
-            items={tabItems}
-          />
-          <Table
-            dataSource={requests}
-            columns={columns}
-            rowKey="id"
-            loading={loading}
-            pagination={{ pageSize: 10 }}
-            data-testid="all-wfh-requests-table"
-          />
-        </Card>
-      </Space>
+      <Tabs
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key)}
+        items={tabItems}
+        style={{ marginBottom: 16 }}
+      />
+
+      <Table
+        dataSource={requests}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+        data-testid="all-wfh-requests-table"
+      />
 
       <Modal
         title="Apply for WFH on Behalf of Employee"
@@ -295,6 +294,6 @@ export function WfhRequests() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </Card>
   );
 }

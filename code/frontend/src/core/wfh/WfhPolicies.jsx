@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, DatePicker, Tag, Space, Typography, theme } from 'antd';
+import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, DatePicker, Tag, Space, Typography, Row, Col } from 'antd';
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
@@ -10,7 +10,6 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 const { Title, Text } = Typography;
 
 export function WfhPolicies() {
-  const { token } = theme.useToken();
   const canRead = useCan('core.wfh.read');
   const canManage = useCan('core.wfh.manage');
 
@@ -122,17 +121,17 @@ export function WfhPolicies() {
   ];
 
   return (
-    <div style={{ padding: token.paddingLG }}>
-      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Title level={3} style={{ margin: 0 }}>
-              <SettingOutlined style={{ marginRight: 8 }} />
-              WFH Policies
-            </Title>
-            <Text type="secondary">Define annual quotas, monthly pacing, and remote work rules</Text>
-          </div>
+    <Card style={{ margin: 24 }}>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+        <Col>
+          <Title level={4} style={{ margin: 0 }}>
+            <SettingOutlined style={{ marginRight: 8 }} />
+            WFH Policies
+          </Title>
+          <Text type="secondary">Define annual quotas, monthly pacing, and remote work rules</Text>
+        </Col>
 
+        <Col>
           {canManage && (
             <Button
               type="primary"
@@ -143,19 +142,17 @@ export function WfhPolicies() {
               Add WFH Policy
             </Button>
           )}
-        </div>
+        </Col>
+      </Row>
 
-        <Card style={{ borderRadius: token.borderRadiusLG }}>
-          <Table
-            dataSource={policies}
-            columns={columns}
-            rowKey="id"
-            loading={loading}
-            pagination={{ pageSize: 10 }}
-            data-testid="wfh-policies-table"
-          />
-        </Card>
-      </Space>
+      <Table
+        dataSource={policies}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+        data-testid="wfh-policies-table"
+      />
 
       <Modal
         title="Create Work From Home Policy"
@@ -253,6 +250,6 @@ export function WfhPolicies() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </Card>
   );
 }
