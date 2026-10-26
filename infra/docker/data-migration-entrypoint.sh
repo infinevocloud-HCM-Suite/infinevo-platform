@@ -46,7 +46,7 @@ if [[ -n "${IDENTITY_ENDPOINT:-}" ]]; then
 fi
 
 if [[ -n "${MIGRATION_CLIENT_ID:-}" ]]; then
-  az login --identity --username "$MIGRATION_CLIENT_ID" >/dev/null
+  az login --identity --client-id "$MIGRATION_CLIENT_ID" >/dev/null
   if [[ -n "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
     az account set --subscription "$AZURE_SUBSCRIPTION_ID" >/dev/null
   fi
