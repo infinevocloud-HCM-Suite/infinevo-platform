@@ -80,7 +80,8 @@ class TimesheetSchemaIT {
     }
 
     @Test
-    @DisplayName("The seven indexes of the spec exist beside the four primary keys, and nothing else")
+    @DisplayName(
+            "The six indexes exist beside the four primary keys, and nothing else (a task may repeat on a line, V185)")
     void indexes() throws SQLException {
         try (Connection conn = connection()) {
             assertThat(strings(
@@ -97,8 +98,7 @@ class TimesheetSchemaIT {
                             "timesheet_task_entry_pkey",
                             "uk_tde_tenant_entry_date",
                             "uk_timesheet_tenant_employee_week",
-                            "uk_tpe_tenant_timesheet_project",
-                            "uk_tte_tenant_entry_task");
+                            "uk_tpe_tenant_timesheet_project");
         }
     }
 

@@ -10,8 +10,10 @@ so everything belongs to the founder tenant (W-67 R5). Migrated timesheets are h
 as it was, no pay input is raised from them (R3).
 
 Nothing is reshaped to fit a target rule: a week that does not start on a Monday, a second
-live timesheet for the same week, a second project of the same name, a value outside the
-target's enum all go to quarantine with a reason. Zero-hour day entries (the legacy grid saves
+project of the same name, a value outside the target's enum all go to quarantine with a reason.
+Two exceptions keep legacy work (founder decision 2026-10-26): a task repeated on a project line
+stays as its own row (V185 allows it), and a second live timesheet of a week folds into the
+week's timesheet (MERGED_INTO_WEEK), its rows kept. Zero-hour day entries (the legacy grid saves
 every day of the week) carry no work and are counted, not loaded.
 """
 from __future__ import annotations
@@ -41,6 +43,9 @@ PRIORITY = {"LOW", "MEDIUM", "HIGH"}
 PROJECT_STATUS = {"STARTED", "COMPLETED"}
 TASK_STATUS = {"TODO", "IN_PROGRESS", "IN_REVIEW", "COMPLETED"}
 SHEET_STATUS = {"DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"}
+# Legacy kept several live timesheets for one week; the target keeps one, so the others fold into it.
+# The one that stays is the furthest along, then the oldest.
+_WEEK_RANK = {"APPROVED": 0, "SUBMITTED": 1, "REJECTED": 2, "DRAFT": 3}
 BUDGET_PLACES = Decimal("0.0001")  # hrms.project.budget NUMERIC(19,4)
 
 
@@ -157,9 +162,11 @@ def run(conn=None) -> bool:
                             "employee_id": employee, "is_deleted": False, **audit})
         db.upsert(cur, "hrms.assignment", assigns)
 
-        # Timesheets (one live sheet per employee per week, week Monday..Sunday)
-        sheets, sheet_ids, weeks = [], {}, set()
-        for s in src["timesheets"]:
+        # Timesheets (one live sheet per employee per week, week Monday..Sunday). A second live sheet of
+        # a week is not dropped: its lines fold into the week's sheet (founder decision 2026-10-26).
+        sheets, sheet_ids, weeks, sheet_status, folded = [], {}, {}, {}, set()
+        for s in sorted(src["timesheets"], key=lambda r: (_WEEK_RANK.get(enum(r.get("status"), SHEET_STATUS), 9),
+                                                          int(r.get("id") or 0))):
             sid = s.get("id")
             employee = emp(s.get("employee_id"))
             start, end = to_date(s.get("week_start_date")), to_date(s.get("week_end_date"))
@@ -176,17 +183,24 @@ def run(conn=None) -> bool:
                 drop("STATUS_UNMAPPED", "timesheets", sid, value=text(s.get("status"))); continue
             if status != "CANCELLED":
                 if (employee, start) in weeks:
-                    drop("DUPLICATE_WEEK", "timesheets", sid); continue
-                weeks.add((employee, start))
+                    sheet_ids[str(sid)] = weeks[(employee, start)]
+                    folded.add(str(sid))
+                    drop("MERGED_INTO_WEEK", "timesheets", sid); continue
+                weeks[(employee, start)] = det_id(tid, "timesheets", sid)
             sheet_ids[str(sid)] = det_id(tid, "timesheets", sid)
+            sheet_status[sheet_ids[str(sid)]] = status
             sheets.append({"id": sheet_ids[str(sid)], "tenant_id": tid, "employee_id": employee,
                            "week_start_date": start, "week_end_date": end, "status": status,
                            "submitted_at": to_timestamp(s.get("submitted_at")),
                            "created_at": to_timestamp(s.get("created_at")) or run_start, **audit})
+        # A re-run may keep a different sheet of a folded week than an earlier run did: the earlier one goes
+        # first (its lines with it, ON DELETE CASCADE), or it would hold the week's unique index.
+        cur.execute("DELETE FROM hrms.timesheet WHERE tenant_id = %s AND created_by = %s "
+                    "AND NOT (id = ANY(%s::uuid[]))", (tid, db.AUDIT_USER, [r["id"] for r in sheets]))
         db.upsert(cur, "hrms.timesheet", sheets)
 
         # Project lines
-        lines, line_ids, line_keys = [], {}, set()
+        lines, line_ids, line_keys = [], {}, {}
         for e in src["project_entry"]:
             eid = e.get("id")
             sheet, project = sheet_ids.get(str(e.get("timesheet_id"))), project_ids.get(str(e.get("project_id")))
@@ -198,15 +212,26 @@ def run(conn=None) -> bool:
             if status is None:
                 drop("STATUS_UNMAPPED", "project_entry", eid, value=text(e.get("status"))); continue
             if (sheet, project) in line_keys:
-                drop("DUPLICATE_PROJECT_LINE", "project_entry", eid); continue
-            line_keys.add((sheet, project))
+                # The same project on a folded week: its task rows join the line already there.
+                line_ids[str(eid)] = line_keys[(sheet, project)]
+                q.add("MERGED_INTO_LINE", "project_entry", eid, tid, status=status,
+                      rejection_reason=text(e.get("rejection_reason"), 1000))
+                continue
+            reason = text(e.get("rejection_reason"), 1000)
+            if str(e.get("timesheet_id")) in folded:
+                # A line of a folded week takes the kept sheet's status, so no DRAFT line sits stuck inside
+                # an approved sheet; its own status is noted.
+                q.add("STATUS_FROM_KEPT_WEEK", "project_entry", eid, tid, status=status)
+                status = sheet_status[sheet]
+                reason = reason if status == "REJECTED" else None
             line_ids[str(eid)] = (det_id(tid, "project_entry", eid), project)
+            line_keys[(sheet, project)] = line_ids[str(eid)]
             lines.append({"id": line_ids[str(eid)][0], "tenant_id": tid, "timesheet_id": sheet, "project_id": project,
-                          "status": status, "rejection_reason": text(e.get("rejection_reason"), 1000), **audit})
+                          "status": status, "rejection_reason": reason, **audit})
         db.upsert(cur, "hrms.timesheet_project_entry", lines)
 
         # Task lines
-        task_lines, task_line_ids, task_keys = [], {}, set()
+        task_lines, task_line_ids = [], {}
         for e in src["task_entry"]:
             eid = e.get("id")
             line, task = line_ids.get(str(e.get("project_entry_id"))), task_ids.get(str(e.get("task_id")))
@@ -216,9 +241,7 @@ def run(conn=None) -> bool:
                 drop("TASK_NOT_LOADED", "task_entry", eid); continue
             if task[1] != line[1]:
                 drop("TASK_NOT_IN_PROJECT", "task_entry", eid); continue
-            if (line[0], task[0]) in task_keys:
-                drop("DUPLICATE_TASK_LINE", "task_entry", eid); continue
-            task_keys.add((line[0], task[0]))
+            # A task may repeat on a line (V185), as legacy rows did: each legacy row stays its own row.
             task_line_ids[str(eid)] = det_id(tid, "task_entry", eid)
             task_lines.append({"id": task_line_ids[str(eid)], "tenant_id": tid, "project_entry_id": line[0],
                                "task_id": task[0], **audit})

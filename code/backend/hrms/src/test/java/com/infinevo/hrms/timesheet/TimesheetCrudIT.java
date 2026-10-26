@@ -116,6 +116,43 @@ class TimesheetCrudIT extends TimesheetItSupport {
     }
 
     @Test
+    @DisplayName("One task on two rows, both with hours on the same day, saves and reads back as two rows (V185)")
+    void aTaskRepeatsOnAProject() throws Exception {
+        TimesheetRequest request = new TimesheetRequest(
+                WEEK,
+                List.of(new ProjectLine(
+                        projectP,
+                        List.of(
+                                new TaskLine(taskP1, List.of(new DayLine(WEEK, new BigDecimal("4"), "morning"))),
+                                new TaskLine(
+                                        taskP1, List.of(new DayLine(WEEK, new BigDecimal("3.5"), "afternoon")))))));
+
+        TimesheetResponse created = timesheets.create(request);
+
+        assertThat(rows("timesheet_task_entry")).isEqualTo(2);
+        assertThat(storedHours()).containsExactly("3.50", "4.00");
+        assertThat(timesheets.get(created.id()).projects().get(0).tasks()).hasSize(2);
+
+        TimesheetResponse replaced = timesheets.replace(
+                created.id(),
+                new TimesheetRequest(
+                        WEEK,
+                        List.of(new ProjectLine(
+                                projectP,
+                                List.of(
+                                        new TaskLine(taskP1, List.of(day(WEEK, "2"))),
+                                        new TaskLine(taskP1, List.of(day(WEEK, "2.5"))),
+                                        new TaskLine(taskP1, List.of(day(WEEK, "1"))))))));
+        assertThat(rows("timesheet_task_entry"))
+                .as("replace keeps every row of the task")
+                .isEqualTo(3);
+        assertThat(storedHours()).containsExactly("1.00", "2.00", "2.50");
+        assertThat(replaced.projects().get(0).tasks())
+                .as("the same order on every read")
+                .isEqualTo(timesheets.get(created.id()).projects().get(0).tasks());
+    }
+
+    @Test
     @DisplayName("A second create for the same week is 409, and is allowed again after the first is deleted")
     void oneTimesheetPerWeek() {
         TimesheetResponse first = timesheets.create(simple(WEEK));

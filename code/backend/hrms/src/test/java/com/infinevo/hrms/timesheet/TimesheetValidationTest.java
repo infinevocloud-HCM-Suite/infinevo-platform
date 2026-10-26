@@ -66,7 +66,7 @@ class TimesheetValidationTest {
     }
 
     @Test
-    @DisplayName("A project once per timesheet, a task once per project, a date once per task")
+    @DisplayName("A project once per timesheet and a date once per task row; a task may repeat on a project (V185)")
     void noDuplicates() {
         TimesheetRequest twoProjects = new TimesheetRequest(
                 WEEK,
@@ -81,8 +81,8 @@ class TimesheetValidationTest {
                         PROJECT,
                         List.of(
                                 new TaskLine(TASK, List.of(day(WEEK, "1"))),
-                                new TaskLine(TASK, List.of(day(WEEK.plusDays(1), "1")))))));
-        assertThat(errors(twoTasks)).containsKey("projects[0].tasks[1].task_id");
+                                new TaskLine(TASK, List.of(day(WEEK, "2")))))));
+        assertThat(errors(twoTasks)).isEmpty(); // two rows of one task, even on the same day, as in legacy
 
         assertThat(errors(of(WEEK, day(WEEK, "1"), day(WEEK, "2")))).containsKey("projects[0].tasks[0].days[1].date");
     }

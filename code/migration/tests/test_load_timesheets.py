@@ -42,14 +42,16 @@ def test_loaded_column_for_column(legacy_fixture, query):
     for expected in [("DUPLICATE_PROJECT_NAME", "projects"), ("PRIORITY_UNMAPPED", "projects"),
                      ("MANAGER_NOT_FOUND", "projects"), ("PROJECT_NOT_LOADED", "tasks"),
                      ("STATUS_UNMAPPED", "tasks"), ("DUPLICATE_ASSIGNMENT", "assignments"),
-                     ("EMPLOYEE_NOT_FOUND", "assignments"), ("DUPLICATE_WEEK", "timesheets"),
-                     ("WEEK_NOT_MONDAY", "timesheets"), ("TIMESHEET_NOT_LOADED", "project_entry"),
+                     ("EMPLOYEE_NOT_FOUND", "assignments"), ("MERGED_INTO_WEEK", "timesheets"),
+                     ("WEEK_NOT_MONDAY", "timesheets"),
                      ("TASK_NOT_LOADED", "task_entry"), ("HOURS_OUT_OF_RANGE", "day_entry"),
                      ("DUPLICATE_DAY", "day_entry"), ("ZERO_HOURS_NOT_LOADED", "day_entry")]:
         assert expected in reasons, expected
-    # 12 refused rows + 1 zero-hour day; MANAGER_NOT_FOUND is a note on a loaded row
+    # 11 refused or folded rows + 1 zero-hour day; MANAGER_NOT_FOUND is a note on a loaded row. The folded
+    # week's project line joins week 1's Apollo line, so no project line is refused any more.
+    assert ("TIMESHEET_NOT_LOADED", "project_entry") not in reasons
     assert query("SELECT records_processed, records_skipped FROM core.migration_ledger "
-                 "WHERE step_name = 'load_timesheets'") == [(17, 13)]
+                 "WHERE step_name = 'load_timesheets'") == [(17, 12)]
 
 
 def test_second_run_changes_nothing(legacy_fixture, query):
@@ -85,3 +87,82 @@ def test_blank_priority_is_medium(legacy_fixture, query):
     assert query("SELECT priority FROM hrms.project WHERE name = 'No Priority'") == [("MEDIUM",)]
     dropped = json.loads((legacy_fixture / "stg_quarantined_load_timesheets.json").read_text())
     assert [i["reason"] for i in dropped if i["legacy_table"] == "projects" and i.get("value") == "URGENT"] ==         ["PRIORITY_UNMAPPED"]
+
+
+def test_repeated_task_rows_and_a_folded_week_keep_every_entry(legacy_fixture, query):
+    """Founder decision 2026-10-26, as in legacy HRMS: a task on two rows keeps both rows (V185), and a
+    second live timesheet of a week folds into the week's timesheet with all its rows."""
+    def add(name, extra):
+        p = legacy_fixture / name
+        p.write_text(json.dumps(json.loads(p.read_text(encoding="utf-8")) + extra), encoding="utf-8")
+
+    add("stg_hrms_task_entry.json", [
+        {"id": 5, "task_id": 1, "task_name": "Design", "project_entry_id": 3},  # on the folded DRAFT week
+        {"id": 6, "task_id": 1, "task_name": "Design", "project_entry_id": 1},  # Design again on week 1
+    ])
+    add("stg_hrms_day_entry.json", [
+        {"id": 7, "date": "2024-02-08", "day_name": "THURSDAY", "hours": 2.0, "description": "draft row",
+         "task_entry_id": 5},
+        {"id": 8, "date": "2024-02-05", "day_name": "MONDAY", "hours": 1.5, "description": "afternoon",
+         "task_entry_id": 6},
+    ])
+    run_base_and("loaders.load_timesheets")
+
+    rows = query("SELECT t.status, k.title, d.work_date::text, d.hours FROM hrms.timesheet_day_entry d "
+                 "JOIN hrms.timesheet_task_entry te ON te.id = d.task_entry_id "
+                 "JOIN hrms.timesheet_project_entry pe ON pe.id = te.project_entry_id "
+                 "JOIN hrms.timesheet t ON t.id = pe.timesheet_id JOIN hrms.task k ON k.id = te.task_id "
+                 "JOIN core.employee e ON e.id = t.employee_id WHERE e.employee_number = 'E002' ORDER BY 3, 4")
+    assert rows == [("APPROVED", "Design", "2024-02-05", Decimal("1.50")),
+                    ("APPROVED", "Design", "2024-02-05", Decimal("8.00")),
+                    ("APPROVED", "Design", "2024-02-06", Decimal("7.50")),
+                    ("APPROVED", "Design", "2024-02-08", Decimal("2.00"))]
+    assert query("SELECT count(*) FROM hrms.timesheet_task_entry te JOIN hrms.task k ON k.id = te.task_id "
+                 "WHERE k.title = 'Design'") == [(3,)]
+    assert query("SELECT count(*) FROM hrms.timesheet WHERE week_start_date = '2024-02-05'") == [(2,)]
+
+
+def test_folded_week_line_takes_the_kept_status_and_a_rerun_can_switch_the_kept_sheet(legacy_fixture, query):
+    """Review of 788e7a30: a folded week's line on a project the kept sheet lacks must not stay DRAFT inside
+    an APPROVED sheet; and a re-run that keeps a different sheet of the week must not meet the week index."""
+    def edit(name, fn):
+        p = legacy_fixture / name
+        p.write_text(json.dumps(fn(json.loads(p.read_text(encoding="utf-8")))), encoding="utf-8")
+
+    edit("stg_hrms_tasks.json", lambda rows: rows + [
+        {"id": 5, "title": "Deploy", "description": None, "project_id": 2, "assignee_id": None,
+         "due_date": None, "priority": "LOW", "status": "TODO", "estimated_hours": None}])
+    # Zeus leaves E002's first sheet, and appears only on the folded DRAFT copy of the week.
+    edit("stg_hrms_project_entry.json", lambda rows: [{**r, "timesheet_id": 2} if r["id"] == 4 else r for r in rows]
+         + [{"id": 5, "project_id": 2, "project_name": "Zeus", "rejection_reason": "old", "status": "DRAFT",
+             "timesheet_id": 3}])
+    edit("stg_hrms_task_entry.json", lambda rows: rows + [
+        {"id": 7, "task_id": 5, "task_name": "Deploy", "project_entry_id": 5}])
+    edit("stg_hrms_day_entry.json", lambda rows: rows + [
+        {"id": 9, "date": "2024-02-09", "day_name": "FRIDAY", "hours": 3.0, "description": "zeus", "task_entry_id": 7}])
+
+    def e002():
+        lines = query("SELECT p.name, pe.status, pe.rejection_reason FROM hrms.timesheet_project_entry pe "
+                      "JOIN hrms.project p ON p.id = pe.project_id JOIN hrms.timesheet t ON t.id = pe.timesheet_id "
+                      "JOIN core.employee e ON e.id = t.employee_id WHERE e.employee_number = 'E002' ORDER BY 1")
+        hours = query("SELECT sum(d.hours) FROM hrms.timesheet_day_entry d JOIN hrms.timesheet_task_entry te "
+                      "ON te.id = d.task_entry_id JOIN hrms.timesheet_project_entry pe ON pe.id = te.project_entry_id "
+                      "JOIN hrms.timesheet t ON t.id = pe.timesheet_id JOIN core.employee e ON e.id = t.employee_id "
+                      "WHERE e.employee_number = 'E002'")[0][0]
+        sheets = query("SELECT t.status FROM hrms.timesheet t JOIN core.employee e ON e.id = t.employee_id "
+                       "WHERE e.employee_number = 'E002'")
+        return lines, hours, sheets
+
+    run_base_and("loaders.load_timesheets")
+    lines, hours, sheets = e002()
+    assert lines == [("Apollo", "APPROVED", None), ("Zeus", "APPROVED", None)]  # not DRAFT, old reason dropped
+    assert (hours, sheets) == (Decimal("18.50"), [("APPROVED",)])
+
+    # Next extract: the DRAFT copy was approved and the first sheet reopened. The kept sheet switches.
+    edit("stg_hrms_timesheets.json", lambda rows: [
+        {**r, "status": {1: "SUBMITTED", 3: "APPROVED"}.get(r["id"], r["status"])} for r in rows])
+    query("DELETE FROM core.migration_ledger WHERE step_name = 'load_timesheets'")
+    run_base_and("loaders.load_timesheets")
+    lines, hours, sheets = e002()
+    assert (hours, sheets) == (Decimal("18.50"), [("APPROVED",)])  # same work, one sheet, no index clash
+    assert {l[0] for l in lines} == {"Apollo", "Zeus"}

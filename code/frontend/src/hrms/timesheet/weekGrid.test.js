@@ -5,6 +5,7 @@ import {
   gridTotal,
   isMonday,
   mondayOf,
+  emptyRow,
   rowsFromResponse,
   toHundredths,
   toRequestBody,
@@ -176,5 +177,35 @@ describe('weekGrid (W-48.2 §7)', () => {
       '2026-10-03',
       '2026-10-04',
     ]);
+  });
+});
+
+describe('a task on more than one row (V185, as in legacy HRMS)', () => {
+  const repeated = {
+    week_start_date: '2026-10-05',
+    projects: [
+      {
+        project_id: 'p1',
+        tasks: [
+          { task_id: 't1', days: [{ date: '2026-10-05', hours: 4, description: 'morning' }] },
+          { task_id: 't1', days: [{ date: '2026-10-05', hours: 3.5, description: 'afternoon' }] },
+        ],
+      },
+    ],
+  };
+
+  it('reads each row with its own key and cells, and sends both rows back', () => {
+    const rows = rowsFromResponse(repeated);
+    expect(rows.map((r) => r.key)).toEqual(['p1:t1', 'p1:t1#1']);
+    expect(rows[1].cells['2026-10-05']).toEqual({ hours: '3.50', description: 'afternoon' });
+    const body = toRequestBody('2026-10-05', rows);
+    expect(body.projects[0].tasks).toHaveLength(2);
+    expect(validate('2026-10-05', rows).ok).toBe(true);
+  });
+
+  it('adds the same task again under a free key', () => {
+    const rows = rowsFromResponse(repeated);
+    expect(emptyRow('p1', 't1', rows).key).toBe('p1:t1#2');
+    expect(emptyRow('p1', 't2', rows).key).toBe('p1:t2');
   });
 });

@@ -3,6 +3,7 @@ import { DAY_LABELS, formatHundredths, toHundredths, weekDates } from '../timesh
 /** Rows of { key, project, task, cells{date: hundredths}, total } for a list of project lines (W-48.3 §5). */
 export function taskRows(projects) {
   const rows = [];
+  const seen = new Map(); // a task may repeat on a project (V185): each row keeps its own key
   for (const p of projects || []) {
     for (const t of p.tasks || []) {
       const cells = {};
@@ -12,8 +13,11 @@ export function taskRows(projects) {
         cells[d.date] = (cells[d.date] || 0) + h;
         total += h;
       }
+      const base = `${p.project_id}:${t.task_id}`;
+      const n = seen.get(base) || 0;
+      seen.set(base, n + 1);
       rows.push({
-        key: `${p.project_id}:${t.task_id}`,
+        key: n > 0 ? `${base}#${n}` : base,
         project: p.project_name || p.project_id,
         task: t.task_title || t.task_id,
         cells,

@@ -114,7 +114,7 @@ public final class TimesheetRules {
             errors.put(pk + ".tasks", "Each project needs at least one task");
             return;
         }
-        Set<UUID> seenTasks = new HashSet<>();
+        // A task may repeat on a project line, as in legacy HRMS (V185); a date stays once per row.
         for (int t = 0; t < tasks.size(); t++) {
             TaskLine task = tasks.get(t);
             String tk = pk + ".tasks[" + t + "]";
@@ -124,8 +124,6 @@ public final class TimesheetRules {
             }
             if (task.taskId() == null) {
                 errors.put(tk + ".task_id", "task_id is required");
-            } else if (!seenTasks.add(task.taskId())) {
-                errors.put(tk + ".task_id", "A task may appear only once on a project");
             }
             validateDays(errors, tk, task.days(), weekStart, dayTotals);
         }

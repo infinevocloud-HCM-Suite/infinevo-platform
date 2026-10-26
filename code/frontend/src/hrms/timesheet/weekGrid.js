@@ -86,21 +86,25 @@ export function formatHours(value) {
   return h === 0 ? '' : formatHundredths(h);
 }
 
-export function rowKey(projectId, taskId) {
-  return `${projectId}:${taskId}`;
+/** A row's key. A task may sit on more than one row of a project (V185), so a repeat gets `#n`. */
+export function rowKey(projectId, taskId, n = 0) {
+  return n > 0 ? `${projectId}:${taskId}#${n}` : `${projectId}:${taskId}`;
 }
 
-/** An empty row for a project and task. */
-export function emptyRow(projectId, taskId) {
-  return { key: rowKey(projectId, taskId), projectId, taskId, cells: {} };
+/** An empty row for a project and task, keyed apart from the rows already in `rows`. */
+export function emptyRow(projectId, taskId, rows = []) {
+  const taken = new Set(rows.map((r) => r.key));
+  let n = 0;
+  while (taken.has(rowKey(projectId, taskId, n))) n += 1;
+  return { key: rowKey(projectId, taskId, n), projectId, taskId, cells: {} };
 }
 
-/** Grid rows from a timesheet response, one per project and task, in the response's order. */
+/** Grid rows from a timesheet response, one per task row, in the response's order. */
 export function rowsFromResponse(timesheet) {
   const rows = [];
   for (const project of timesheet?.projects || []) {
     for (const task of project.tasks || []) {
-      const row = emptyRow(project.project_id, task.task_id);
+      const row = emptyRow(project.project_id, task.task_id, rows);
       for (const day of task.days || []) {
         row.cells[day.date] = {
           hours: formatHours(day.hours),

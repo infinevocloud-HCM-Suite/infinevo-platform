@@ -15,7 +15,7 @@ import java.util.UUID;
  *
  * <p>Names are read for display at reply time (W-48.3 §4), never stored: {@code employee_name}, {@code project_name}
  * and {@code task_title} are null when the {@code from} overload without names is used or the id has no live row. Within a level the order is fixed so that a response is repeatable: projects
- * and tasks by id, days by date.
+ * and tasks by id (a repeated task by created time, then row id), days by date.
  */
 public record TimesheetResponse(
         @JsonProperty("id") UUID id,
@@ -122,7 +122,11 @@ public record TimesheetResponse(
     /** The tasks of a project line, each with its days, in a fixed order. */
     static List<TaskEntryResponse> tasksOf(TimesheetProjectEntry entry, Map<UUID, String> taskTitles) {
         return entry.getTasks().stream()
-                .sorted(Comparator.comparing(TimesheetTaskEntry::getTaskId))
+                // A task may sit on several rows (V185): created time, then row id, keep their order fixed.
+                .sorted(Comparator.comparing(TimesheetTaskEntry::getTaskId)
+                        .thenComparing(
+                                TimesheetTaskEntry::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(TimesheetTaskEntry::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(task -> task(task, taskTitles))
                 .toList();
     }

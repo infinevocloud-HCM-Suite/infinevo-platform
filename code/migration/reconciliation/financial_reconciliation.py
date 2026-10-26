@@ -84,6 +84,7 @@ COUNTED_TABLES = {
 # reason is therefore read as "dropped": if the loader in fact loaded the row, the count shows it.
 INFORMATIONAL = {
     "NO_APPROVAL_DEFINITION",            # load_leave / load_attendance: loaded without approval history
+    "MERGED_INTO_LINE", "STATUS_FROM_KEPT_WEEK",  # load_timesheets: a folded week's line, its rows loaded
     "NEGATIVE_LINE_AMOUNT",              # load_payruns: the synthetic line is skipped, the row loads
     "PRIOR_MONTH_TOTALS_INCONSISTENT",   # load_payruns: only the prior month is skipped
     "SECOND_FILING_ADDRESS",             # load_org: loaded as not filing

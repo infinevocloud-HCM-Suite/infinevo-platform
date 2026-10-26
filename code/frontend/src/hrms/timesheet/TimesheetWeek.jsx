@@ -37,7 +37,6 @@ import {
   isMonday,
   mondayOf,
   projectStatuses,
-  rowKey,
   rowTotal,
   rowsFromResponse,
   toRequestBody,
@@ -256,10 +255,8 @@ function WeekGrid({ weekStart }) {
 
   const handleAddRow = () => {
     if (!addProject || !addTask) return;
-    const key = rowKey(addProject, addTask);
-    if (!rows.some((r) => r.key === key)) {
-      setRows((current) => [...current, emptyRow(addProject, addTask)]);
-    }
+    // A task may be added again: legacy HRMS kept a row per piece of work, each with its own description.
+    setRows((current) => [...current, emptyRow(addProject, addTask, current)]);
     setAddTask(null);
   };
 
@@ -290,9 +287,7 @@ function WeekGrid({ weekStart }) {
     ? rejectedIds.map((id) => ({ id, name: projectName(id) }))
     : projects
   ).map((p) => ({ value: p.id, label: p.name || projectName(p.id) }));
-  const addableTasks = (tasksByProject[addProject] || [])
-    .filter((t) => !rows.some((r) => r.key === rowKey(addProject, t.id)))
-    .map((t) => ({ value: t.id, label: t.title }));
+  const addableTasks = (tasksByProject[addProject] || []).map((t) => ({ value: t.id, label: t.title }));
 
   const dayColumns = dates.map((date, i) => ({
     title: (

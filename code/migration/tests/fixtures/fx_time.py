@@ -47,7 +47,7 @@ def _timesheets():
     timesheets = [
         ts(1, "E002", "2024-02-05", "2024-02-11", "APPROVED"),
         ts(2, "E003", "2024-02-05", "2024-02-11", "SUBMITTED"),
-        ts(3, "E002", "2024-02-05", "2024-02-11", "DRAFT"),                                # DUPLICATE_WEEK
+        ts(3, "E002", "2024-02-05", "2024-02-11", "DRAFT"),                                # MERGED_INTO_WEEK 1
         ts(4, "E004", "2024-02-06", "2024-02-12", "DRAFT"),                                # WEEK_NOT_MONDAY
     ]
     project_entry = [

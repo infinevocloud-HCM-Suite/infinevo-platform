@@ -95,6 +95,10 @@ public final class HrmsProjectTestSchema {
                 } else if (!tableExists(conn, "hrms", "attendance_regularization")) {
                     executeResource(conn, "db/migration/hrms/V124__attendance_regularization.sql");
                 }
+                // V185: a task may repeat on a project line. IF EXISTS keeps it safe on a database prepared earlier.
+                try (var drop = conn.createStatement()) {
+                    drop.execute("DROP INDEX IF EXISTS hrms.uk_tte_tenant_entry_task");
+                }
                 if (!tableExists(conn, "core", "overtime_request")) {
                     // W-40.6: core's overtime and pay input ledger, the hrms.overtime.request code, and the grant list
                     // that gives it to employee (V139 supersedes V135's copy of core.seed_system_roles).
