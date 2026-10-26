@@ -166,3 +166,23 @@ def test_folded_week_line_takes_the_kept_status_and_a_rerun_can_switch_the_kept_
     lines, hours, sheets = e002()
     assert (hours, sheets) == (Decimal("18.50"), [("APPROVED",)])  # same work, one sheet, no index clash
     assert {l[0] for l in lines} == {"Apollo", "Zeus"}
+
+
+def test_kept_sheet_line_keeps_its_id_when_a_folded_line_comes_first(legacy_fixture, query):
+    """Prod re-run 2026-10-26 met uk_tpe_tenant_timesheet_project: a folded week's line read before the kept
+    sheet's own line for the same project took its place under another id. The kept line must keep its id."""
+    from common.ids import det_id
+
+    def edit(name, fn):
+        p = legacy_fixture / name
+        p.write_text(json.dumps(fn(json.loads(p.read_text(encoding="utf-8")))), encoding="utf-8")
+
+    # Week 1's own Apollo line gets a higher id than the folded DRAFT copy's Apollo line (3).
+    edit("stg_hrms_project_entry.json", lambda rows: [{**r, "id": 10} if r["id"] == 1 else r for r in rows])
+    edit("stg_hrms_task_entry.json", lambda rows: [
+        {**r, "project_entry_id": 10} if r["project_entry_id"] == 1 else r for r in rows])
+    run_base_and("loaders.load_timesheets")
+    ids = query("SELECT pe.id::text FROM hrms.timesheet_project_entry pe JOIN hrms.project p ON p.id = pe.project_id "
+                "JOIN hrms.timesheet t ON t.id = pe.timesheet_id JOIN core.employee e ON e.id = t.employee_id "
+                "WHERE e.employee_number = 'E002' AND p.name = 'Apollo'")
+    assert ids == [(det_id(FOUNDER_TENANT, "project_entry", 10),)]

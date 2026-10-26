@@ -201,7 +201,10 @@ def run(conn=None) -> bool:
 
         # Project lines
         lines, line_ids, line_keys = [], {}, {}
-        for e in src["project_entry"]:
+        # A kept sheet's own lines first: a folded week's line then joins them, never takes their place (the
+        # line already loaded keeps its id, so a re-run does not meet uk_tpe_tenant_timesheet_project).
+        for e in sorted(src["project_entry"], key=lambda r: (str(r.get("timesheet_id")) in folded,
+                                                             int(r.get("id") or 0))):
             eid = e.get("id")
             sheet, project = sheet_ids.get(str(e.get("timesheet_id"))), project_ids.get(str(e.get("project_id")))
             status = enum(e.get("status"), SHEET_STATUS)
