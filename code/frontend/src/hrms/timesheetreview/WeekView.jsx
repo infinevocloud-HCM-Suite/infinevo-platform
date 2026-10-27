@@ -45,9 +45,11 @@ export function WeekView() {
       </Descriptions>
       <Space wrap style={{ marginBottom: 16 }}>
         {(sheet.projects || []).map((p) => (
-          <Tag key={p.id} color={STATUS_COLOR[p.status]}>
-            {p.project_name || p.project_id}: {STATUS_LABEL[p.status] || statusLabel(p.status)}
-          </Tag>
+          <Link key={p.id} to={`/hrms/timesheet-review/entries/${p.id}`}>
+            <Tag color={STATUS_COLOR[p.status]} style={{ cursor: 'pointer' }}>
+              {p.project_name || p.project_id}: {STATUS_LABEL[p.status] || statusLabel(p.status)}
+            </Tag>
+          </Link>
         ))}
       </Space>
       <Table

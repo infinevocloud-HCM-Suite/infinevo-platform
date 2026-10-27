@@ -1,13 +1,30 @@
 import { describe, it, expect, vi } from 'vitest';
-import { configure, render, screen } from '@testing-library/react';
+import { configure, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { EntryView } from './EntryView.jsx';
 import { reviewService } from './reviewService.js';
+import { approvalService } from '../../core/approvals/approvalService.js';
 
 configure({ asyncUtilTimeout: 30000 });
 
 vi.mock('./reviewService.js', () => ({
   reviewService: { entry: vi.fn() },
+}));
+
+vi.mock('react-redux', () => ({
+  useDispatch: () => vi.fn(),
+  useSelector: vi.fn(),
+}));
+
+vi.mock('@shell/screens', () => ({
+  useCan: () => true,
+}));
+
+vi.mock('../../core/approvals/approvalService.js', () => ({
+  approvalService: {
+    pending: vi.fn().mockResolvedValue({ content: [] }),
+    decide: vi.fn().mockResolvedValue({}),
+  },
 }));
 
 describe('EntryView (W-48.3 §7)', () => {
@@ -86,5 +103,56 @@ describe('EntryView (W-48.3 §7)', () => {
     expect(screen.getAllByText('Added integration test coverage').length).toBeGreaterThan(0);
     expect(screen.getByText('Work descriptions (2)')).toBeTruthy();
   }, 60000);
+
+  it('renders inline Approve and Reject buttons when pending step exists and allows decision (D-113)', async () => {
+    reviewService.entry.mockResolvedValue({
+      id: 'pe-3',
+      employee_id: 'e-3',
+      employee_name: 'David Miller',
+      week_start_date: '2026-10-12',
+      week_end_date: '2026-10-18',
+      project_id: 'p-1',
+      project_name: 'Apollo',
+      status: 'SUBMITTED',
+      tasks: [],
+    });
+    approvalService.pending.mockResolvedValue({
+      content: [
+        {
+          id: 'step-ts-1',
+          itemId: 'pe-3',
+          flowType: 'TIMESHEET',
+          itemRef: 'Apollo Week 2026-10-12',
+          decision: null,
+          stepIndex: 0,
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/hrms/timesheet-review/entries/pe-3']}>
+        <Routes>
+          <Route path="/hrms/timesheet-review/entries/:entryId" element={<EntryView />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /approve/i })).toBeTruthy());
+    expect(screen.getByRole('button', { name: /reject/i })).toBeTruthy();
+
+    // Click Approve
+    fireEvent.click(screen.getByRole('button', { name: /approve/i }));
+    expect(await screen.findByText('Approve Request')).toBeTruthy();
+
+    // Confirm decision
+    fireEvent.click(document.getElementById('btn-confirm-decide'));
+    await waitFor(() => {
+      expect(approvalService.decide).toHaveBeenCalledWith('step-ts-1', {
+        decision: 'APPROVED',
+        comment: '',
+      });
+    });
+  }, 60000);
 });
+
 
