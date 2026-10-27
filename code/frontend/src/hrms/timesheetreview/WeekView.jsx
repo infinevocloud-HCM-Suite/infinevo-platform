@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, Card, Descriptions, Space, Spin, Table, Tag, Typography } from 'antd';
+import { Alert, Card, Collapse, Descriptions, Space, Spin, Table, Tag, Typography } from 'antd';
 import { Link, useParams } from 'react-router-dom';
 import { reviewService } from './reviewService.js';
 import { STATUS_COLOR, STATUS_LABEL, formatHundredths } from '../timesheet/weekGrid.js';
-import { dayTotals, gridColumns, sumRows, taskRows } from './reviewGrid.js';
+import { collectDescriptions, dayTotals, gridColumns, sumRows, taskRows } from './reviewGrid.js';
 import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 /** One week, read-only (W-48.3 §5): project and task rows, Mon to Sun, totals, rejection reasons. */
@@ -30,6 +30,7 @@ export function WeekView() {
   const { cols, dates } = gridColumns(sheet.week_start_date);
   const totals = dayTotals(rows, dates);
   const rejected = (sheet.projects || []).filter((p) => p.rejection_reason);
+  const descriptions = collectDescriptions(rows, dates);
 
   return (
     <Card title="Timesheet" extra={<Link to="/hrms/timesheet-review">Back to review</Link>}>
@@ -71,6 +72,31 @@ export function WeekView() {
           </Table.Summary.Row>
         )}
       />
+      {descriptions.length > 0 && (
+        <Collapse
+          ghost
+          defaultActiveKey={['descriptions']}
+          style={{ marginTop: 16 }}
+          items={[
+            {
+              key: 'descriptions',
+              label: <Typography.Text strong>Work descriptions ({descriptions.length})</Typography.Text>,
+              children: (
+                <Descriptions size="small" column={1} bordered>
+                  {descriptions.map((item, idx) => (
+                    <Descriptions.Item
+                      key={idx}
+                      label={`${formatDate(item.date)} · ${item.project ? `${item.project} / ` : ''}${item.task} (${formatHundredths(item.hours)}h)`}
+                    >
+                      <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>{item.description}</Typography.Text>
+                    </Descriptions.Item>
+                  ))}
+                </Descriptions>
+              ),
+            },
+          ]}
+        />
+      )}
       {rejected.map((p) => (
         <Typography.Paragraph key={p.id} type="danger" style={{ marginTop: 12 }}>
           {p.project_name || p.project_id} rejected: {p.rejection_reason}
@@ -79,3 +105,4 @@ export function WeekView() {
     </Card>
   );
 }
+

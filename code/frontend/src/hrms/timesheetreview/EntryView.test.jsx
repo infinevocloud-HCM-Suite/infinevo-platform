@@ -51,4 +51,40 @@ describe('EntryView (W-48.3 §7)', () => {
     expect(screen.getByText('9.00')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Back to approvals' }).getAttribute('href')).toBe('/approvals');
   }, 60000);
+
+  it('renders employee daily descriptions in cells and work descriptions section', async () => {
+    reviewService.entry.mockResolvedValue({
+      id: 'pe-2',
+      employee_id: 'e-2',
+      employee_name: 'Vikram Mehta',
+      week_start_date: '2026-10-05',
+      week_end_date: '2026-10-11',
+      project_id: 'p-1',
+      project_name: 'Apollo',
+      status: 'SUBMITTED',
+      tasks: [
+        {
+          id: 'te-1',
+          task_id: 't-1',
+          task_title: 'Backend API',
+          days: [
+            { date: '2026-10-05', hours: 8, description: 'Implemented JWT token refresh logic' },
+            { date: '2026-10-06', hours: 7.5, description: 'Added integration test coverage' },
+          ],
+        },
+      ],
+    });
+    render(
+      <MemoryRouter initialEntries={['/hrms/timesheet-review/entries/pe-2']}>
+        <Routes>
+          <Route path="/hrms/timesheet-review/entries/:entryId" element={<EntryView />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByText('Backend API')).toBeTruthy();
+    expect(screen.getAllByText('Implemented JWT token refresh logic').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Added integration test coverage').length).toBeGreaterThan(0);
+    expect(screen.getByText('Work descriptions (2)')).toBeTruthy();
+  }, 60000);
 });
+

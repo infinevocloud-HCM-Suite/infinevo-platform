@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Alert, Card, Descriptions, Spin, Table, Tag, Typography } from 'antd';
+import { Alert, Card, Collapse, Descriptions, Spin, Table, Tag, Typography } from 'antd';
 import { Link, useParams } from 'react-router-dom';
 import { reviewService } from './reviewService.js';
 import { STATUS_COLOR, STATUS_LABEL, formatHundredths } from '../timesheet/weekGrid.js';
-import { dayTotals, gridColumns, sumRows, taskRows } from './reviewGrid.js';
+import { collectDescriptions, dayTotals, gridColumns, sumRows, taskRows } from './reviewGrid.js';
 import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 /** The one project line an approver decides (W-48.3 §5), opened from the approvals inbox. */
@@ -30,6 +30,7 @@ export function EntryView() {
   const rows = taskRows([entry]);
   const { cols, dates } = gridColumns(entry.week_start_date, { withProject: false });
   const totals = dayTotals(rows, dates);
+  const descriptions = collectDescriptions(rows, dates);
 
   return (
     <Card title={entry.project_name || entry.project_id} extra={back}>
@@ -62,6 +63,31 @@ export function EntryView() {
           </Table.Summary.Row>
         )}
       />
+      {descriptions.length > 0 && (
+        <Collapse
+          ghost
+          defaultActiveKey={['descriptions']}
+          style={{ marginTop: 16 }}
+          items={[
+            {
+              key: 'descriptions',
+              label: <Typography.Text strong>Work descriptions ({descriptions.length})</Typography.Text>,
+              children: (
+                <Descriptions size="small" column={1} bordered>
+                  {descriptions.map((item, idx) => (
+                    <Descriptions.Item
+                      key={idx}
+                      label={`${formatDate(item.date)} · ${item.task} (${formatHundredths(item.hours)}h)`}
+                    >
+                      <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>{item.description}</Typography.Text>
+                    </Descriptions.Item>
+                  ))}
+                </Descriptions>
+              ),
+            },
+          ]}
+        />
+      )}
       {entry.rejection_reason && (
         <Typography.Paragraph type="danger" style={{ marginTop: 12 }}>
           Rejected: {entry.rejection_reason}
@@ -70,3 +96,4 @@ export function EntryView() {
     </Card>
   );
 }
+
