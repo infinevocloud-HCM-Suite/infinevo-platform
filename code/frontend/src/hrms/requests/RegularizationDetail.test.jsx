@@ -1,15 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { configure, render, screen } from '@testing-library/react';
+import { configure, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { RegularizationDetail } from './RegularizationDetail.jsx';
 import { requestService } from './requestService.js';
+import { approvalService } from '../../core/approvals/approvalService.js';
 
 configure({ asyncUtilTimeout: 20000 });
 
 vi.mock('./requestService.js', () => ({
   requestService: { regularization: vi.fn() },
 }));
-vi.mock('@shell/screens', () => ({ NotFound: () => <div>Page not found</div> }));
+
+vi.mock('react-redux', () => ({
+  useDispatch: () => vi.fn(),
+  useSelector: vi.fn(),
+}));
+
+vi.mock('@shell/screens', () => ({
+  NotFound: () => <div>Page not found</div>,
+  useCan: () => true,
+}));
+
+vi.mock('../../core/approvals/approvalService.js', () => ({
+  approvalService: {
+    pending: vi.fn().mockResolvedValue({ content: [] }),
+    decide: vi.fn().mockResolvedValue({}),
+  },
+}));
 
 const T = 60000;
 const item = {
@@ -27,9 +44,9 @@ const item = {
   decisionComment: 'ok',
 };
 
-const renderAt = () =>
+const renderAt = (state) =>
   render(
-    <MemoryRouter initialEntries={['/hrms/regularizations/r1']}>
+    <MemoryRouter initialEntries={[{ pathname: '/hrms/regularizations/r1', state }]}>
       <Routes>
         <Route path="/hrms/regularizations/:id" element={<RegularizationDetail />} />
       </Routes>
@@ -64,4 +81,42 @@ describe('RegularizationDetail (D-79)', () => {
     expect(await screen.findByText('Asha Rao')).toBeDefined();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   }, T);
+
+  it('renders inline Approve and Reject buttons when pending step exists and allows decision (D-115)', async () => {
+    requestService.regularization.mockResolvedValueOnce({
+      ...item,
+      status: 'PENDING',
+    });
+    approvalService.pending.mockResolvedValueOnce({
+      content: [
+        {
+          id: 'step-reg-1',
+          itemId: 'r1',
+          flowType: 'REGULARIZATION',
+          itemRef: 'Regularization Asha Rao 2026-10-14',
+          decision: null,
+          stepIndex: 0,
+        },
+      ],
+    });
+
+    renderAt();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /approve/i })).toBeTruthy());
+    expect(screen.getByRole('button', { name: /reject/i })).toBeTruthy();
+
+    // Click Approve
+    fireEvent.click(screen.getByRole('button', { name: /approve/i }));
+    expect(await screen.findByText('Approve Request')).toBeTruthy();
+
+    // Confirm decision
+    fireEvent.click(document.getElementById('btn-confirm-decide'));
+    await waitFor(() => {
+      expect(approvalService.decide).toHaveBeenCalledWith('step-reg-1', {
+        decision: 'APPROVED',
+        comment: '',
+      });
+    });
+  }, T);
 });
+
