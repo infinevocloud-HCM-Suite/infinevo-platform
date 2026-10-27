@@ -37,13 +37,14 @@ export const EARNING_TYPE_NAMES = [
   'Transport Allowance', 'Helper Allowance', 'Travelling Allowance',
   'Uniform Allowance', 'Daily Allowance', 'City Compensatory Allowance',
   'Overtime Allowance', 'Telephone Allowance', 'Fixed Medical Allowance',
-  'Project Allowance', 'Food Allowance', 'Holiday Allowance',
+  'Fixed Allowance', 'Project Allowance', 'Food Allowance', 'Holiday Allowance',
   'Entertainment Allowance', 'Custom Allowance', 'Food Coupon',
   'Gift Coupon', 'Research Allowance', 'Books and Periodicals Allowance',
   'Shift Allowance', 'Fuel Allowance', 'Driver Allowance',
   'Leave Travel Allowance', 'Vehicle Maintenance Allowance',
   'Telephone And Internet Allowance',
 ];
+
 
 export const EARNING_TYPES = EARNING_TYPE_NAMES.map((name) => ({ label: name, value: name }));
 

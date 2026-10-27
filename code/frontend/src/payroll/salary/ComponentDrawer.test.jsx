@@ -131,9 +131,10 @@ describe('ComponentDrawer earning type and variable (D-37)', () => {
     vi.clearAllMocks();
   });
 
-  it('the earning type list is the 32 legacy names', () => {
-    expect(EARNING_TYPE_NAMES).toHaveLength(32);
+  it('the earning type list includes legacy names and Fixed Allowance (D-116)', () => {
+    expect(EARNING_TYPE_NAMES).toHaveLength(33);
     expect(EARNING_TYPE_NAMES).toContain('Basic');
+    expect(EARNING_TYPE_NAMES).toContain('Fixed Allowance');
     expect(EARNING_TYPE_NAMES).toContain('Telephone And Internet Allowance');
     EARNING_TYPE_NAMES.forEach((name) => expect(name.length).toBeLessThanOrEqual(32));
   });
