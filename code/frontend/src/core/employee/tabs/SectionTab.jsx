@@ -18,7 +18,7 @@ import {
 } from 'antd';
 import { SaveOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
-import { sectionFields } from '../sectionFields.js';
+import { sectionFields, STATE_CODE_MAP } from '../sectionFields.js';
 import { timeZoneOptions, parseHHmm, formatHHmm } from '../timeFields.js';
 import { employeeService } from '../employeeService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
@@ -70,7 +70,16 @@ export function SectionTab({ employeeId, sectionName, canEdit, permissionOverrid
   // the tenant's zone, and the browser's would be recorded silently on any other Employment save.
 
   const handleChange = (name, val) => {
-    setValues((prev) => ({ ...prev, [name]: val }));
+    setValues((prev) => {
+      const next = { ...prev, [name]: val };
+      if (name === 'state' && STATE_CODE_MAP[val]) {
+        next.stateCode = STATE_CODE_MAP[val];
+      }
+      if (name === 'permanentState' && STATE_CODE_MAP[val]) {
+        next.permanentStateCode = STATE_CODE_MAP[val];
+      }
+      return next;
+    });
   };
 
   const handleSave = async () => {

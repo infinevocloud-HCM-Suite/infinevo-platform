@@ -33,11 +33,12 @@ describe('SectionTab component', () => {
 
     await waitFor(() => {
       expect(employeeService.section).toHaveBeenCalledWith('emp-1', 'personal');
-      expect(screen.getByDisplayValue('Indian')).toBeDefined();
+      expect(screen.getByTitle('Indian')).toBeDefined();
+      expect(screen.getByDisplayValue('Ramesh Rao')).toBeDefined();
     });
 
-    const nationalityInput = screen.getByDisplayValue('Indian');
-    fireEvent.change(nationalityInput, { target: { value: 'Global' } });
+    const fatherNameInput = screen.getByDisplayValue('Ramesh Rao');
+    fireEvent.change(fatherNameInput, { target: { value: 'Suresh Rao' } });
 
     const saveBtn = screen.getByRole('button', { name: /save personal details/i });
     fireEvent.click(saveBtn);
@@ -46,7 +47,7 @@ describe('SectionTab component', () => {
       expect(employeeService.saveSection).toHaveBeenCalledWith(
         'emp-1',
         'personal',
-        expect.objectContaining({ nationality: 'Global' })
+        expect.objectContaining({ fatherName: 'Suresh Rao' })
       );
     });
   });
@@ -106,13 +107,13 @@ describe('SectionTab component', () => {
   it('renders inputs as disabled and hides save button when permission is missing', async () => {
     vi.spyOn(useCanModule, 'useCan').mockReturnValue(false);
     employeeService.section.mockResolvedValueOnce({
-      nationality: 'Indian',
+      fatherName: 'Ramesh Rao',
     });
 
     render(<SectionTab employeeId="emp-1" sectionName="personal" />);
 
     await waitFor(() => {
-      const input = screen.getByDisplayValue('Indian');
+      const input = screen.getByDisplayValue('Ramesh Rao');
       expect(input.disabled || input.hasAttribute('disabled')).toBe(true);
     });
 
@@ -298,6 +299,48 @@ describe('SectionTab component', () => {
         expect(screen.getByTitle('Citizen')).toBeDefined();
         expect(screen.getByTitle('Passport')).toBeDefined();
         expect(screen.getByTitle('Driving Licence')).toBeDefined();
+      });
+    });
+  });
+
+  describe('Personal and Contact section dropdowns (D-111)', () => {
+    it('renders nationality as a select dropdown with standard options in personal section', async () => {
+      vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+      employeeService.section.mockResolvedValueOnce({
+        nationality: 'Indian',
+        maritalStatus: 'SINGLE',
+      });
+
+      render(<SectionTab employeeId="emp-1" sectionName="personal" />);
+
+      await waitFor(() => {
+        expect(document.getElementById('field-nationality')).not.toBeNull();
+        expect(screen.getByTitle('Indian')).toBeDefined();
+      });
+    });
+
+    it('renders state, permanentState, and emergency relationships as select dropdowns in contact section', async () => {
+      vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+      employeeService.section.mockResolvedValueOnce({
+        state: 'Maharashtra',
+        stateCode: 'MH',
+        permanentState: 'Karnataka',
+        permanentStateCode: 'KA',
+        emergencyContactRelationship: 'Spouse',
+        secondaryEmergencyContactRelationship: 'Brother',
+      });
+
+      render(<SectionTab employeeId="emp-1" sectionName="contact" />);
+
+      await waitFor(() => {
+        expect(document.getElementById('field-state')).not.toBeNull();
+        expect(document.getElementById('field-permanentState')).not.toBeNull();
+        expect(document.getElementById('field-emergencyContactRelationship')).not.toBeNull();
+        expect(document.getElementById('field-secondaryEmergencyContactRelationship')).not.toBeNull();
+        expect(screen.getByTitle('Maharashtra')).toBeDefined();
+        expect(screen.getByTitle('Karnataka')).toBeDefined();
+        expect(screen.getByTitle('Spouse')).toBeDefined();
+        expect(screen.getByTitle('Brother')).toBeDefined();
       });
     });
   });
