@@ -11,6 +11,7 @@ Status values: `Blocked` `Ready` `Pass` `Fail` `Closed`. `Closed` means the step
 | P2 People and payroll config: K-05, K-06, M-01…M-05 | Krushna, Mohit | P1 | Pass | 2026-10-13 |
 | J1 October pay run may start: L-06, L-09, T-03, T-04, T-06, E-07, E-08a, E-09, S-02, P-01…P-03 | Mohit | P2 | Pass | 2026-10-14 |
 | J2 Reconciliation: M-14 paid | all | J1 | Pass | 2026-10-14 |
+| J3 Work From Home (WFH - W-74): W-01…W-11, E-WFH-01…E-WFH-11 | Krushna, Sayeed | J2 | Ready | 2026-10-28 |
 
 ## Karmaveer — tenant admin
 
@@ -90,6 +91,17 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | T-08 | Pass | 2026-10-15 | Dashboard metric counts match executed certification activities. |
 | N-01 | Pass | 2026-10-15 | Route not present in menu; application denies access with 403 Forbidden screen. |
 | N-02 | Pass | 2026-10-15 | Access refused with 403 Forbidden screen. |
+| W-01 | Ready | 2026-10-28 | Query tenant WFH policies (/v1/wfh-policies); verify annual_days (12.0) and monthly_limit_days (2.0) |
+| W-02 | Ready | 2026-10-28 | Fetch default WFH policy (/v1/wfh-policies/default); code DEFAULT_WFH with half-day allowed |
+| W-03 | Ready | 2026-10-28 | Create/update tenant WFH policy rules (annualDays 12, monthlyLimit 2, advanceNotice 1, maxConsecutive 3) |
+| W-04 | Ready | 2026-10-28 | View all employee WFH allocations (/v1/wfh-allocations?year=2026) |
+| W-05 | Ready | 2026-10-28 | Assign individual WFH allocation with mid-year pro-rata preview (0.5000 factor, 6.00 days) |
+| W-06 | Ready | 2026-10-28 | Download standardized bulk WFH CSV import template (/v1/wfh-imports/template) |
+| W-07 | Ready | 2026-10-28 | Bulk CSV import execution (/wfh/import); upload file, verify dry-run report, confirm allocation |
+| W-08 | Ready | 2026-10-28 | List all tenant WFH requests (/v1/wfh-requests?status=PENDING); filter by status and employee |
+| W-09 | Ready | 2026-10-28 | Manager approves WFH request (/approvals); status transitions to APPROVED; quota deducted in wfh_consumption |
+| W-10 | Ready | 2026-10-28 | Manager rejects WFH request (/approvals); status transitions to REJECTED; quota restored |
+| W-11 | Ready | 2026-10-28 | Attendance & Zero LOP audit: verify core.attendance has PRESENT / WORK_FROM_HOME and core.leave_monthly_lop is 0 |
 
 ## Mohit — payroll officer + finance
 
@@ -150,6 +162,22 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | N-01 | Pass | 2026-10-14 | All admin/staff URLs (/employees, /leave/requests, /payroll/runs, /admin) refused with 404 (routes unmounted) |
 | N-02 | Pass | 2026-10-14 | Direct colleague profile URL (/employees/<id>) refused with 404 |
 | N-03 | Pass | 2026-10-14 | Access to non-owned leave request refused with 404 |
+
+## Sayeed — employee (WFH self-service)
+
+| Id | Status | Date | Note |
+|---|---|---|---|
+| E-WFH-01 | Ready | 2026-10-28 | Fetch employee WFH balance summary (/v1/me/wfh-balance); verify 12-day quota, available days, and Zero LOP Guarantee badge |
+| E-WFH-02 | Ready | 2026-10-28 | List self WFH requests (/v1/me/wfh-requests); verify request history table and status tags |
+| E-WFH-03 | Ready | 2026-10-28 | Apply for single-day full WFH (/me/wfh/apply); calculated days 1.00; status transitions to PENDING |
+| E-WFH-04 | Ready | 2026-10-28 | Apply for half-day WFH (/me/wfh/apply); toggle half-day ON, pick First Half; duration 0.50, status PENDING |
+| E-WFH-05 | Ready | 2026-10-28 | Monthly cap guard negative test: applying >2 days in a month blocked with 400 Bad Request |
+| E-WFH-06 | Ready | 2026-10-28 | Duplicate request guard negative test: overlapping active WFH date blocked with 400 Bad Request |
+| E-WFH-07 | Ready | 2026-10-28 | Leave mutual exclusion guard: applying for WFH on dates with approved leave blocked with 400 Bad Request |
+| E-WFH-08 | Ready | 2026-10-28 | Chronological date guard: fromDate after toDate blocked with 400 Bad Request |
+| E-WFH-09 | Ready | 2026-10-28 | Multi-day half-day guard: multi-day range with half-day switch ON blocked with 400 Bad Request |
+| E-WFH-10 | Ready | 2026-10-28 | Withdraw PENDING request (/v1/wfh-requests/{id}/withdraw); transitions to WITHDRAWN; pending quota restored |
+| E-WFH-11 | Ready | 2026-10-28 | Cancel APPROVED future request (/v1/wfh-requests/{id}/cancel); transitions to CANCELLED; ledger reversed & attendance deleted |
 
 ## Defects
 
