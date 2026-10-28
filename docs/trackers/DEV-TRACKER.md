@@ -149,6 +149,12 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-114 | Overtime Approval Missing Inline Approve / Reject Buttons: On the overtime detail screen (`/hrms/overtime-requests/:id`), approvers inspecting overtime request details could not approve or reject directly from the screen, and were forced to return to the generic approvals inbox (`/approvals`). | 2026-10-27, overtime approval defect review (Item #11) | sayeed (`dev-sayeed`) | **fixed on main `71135a50`** — added inline Approve and Reject action buttons with `DecideModal` dialog on `OvertimeDetail.jsx`, updating pending count in Redux and request status in place; verified with 4 unit tests, lint & build |
 | D-115 | Regularization Approval Missing Inline Approve / Reject Buttons: On the regularization detail screen (`/hrms/regularizations/:id`), approvers inspecting regularization request details could not approve or reject directly from the screen, and were forced to return to the generic approvals inbox (`/approvals`). | 2026-10-27, regularization approval defect review (Item #12) | sayeed (`dev-sayeed`) | **fixed on main `a0758fea`** — added inline Approve and Reject action buttons with `DecideModal` dialog on `RegularizationDetail.jsx`, updating pending count in Redux and request status in place; verified with 3 unit tests, lint & build |
 | D-116 | Salary Components Earning Type Missing "Fixed Allowance": On the Salary Components screen (`/payroll/components`), the mandatory Earning Type dropdown in the Add/Edit Earning drawer omitted "Fixed Allowance", a core earning component heavily utilized in legacy HRMS for CTC structures and revisions. | 2026-10-27, salary components defect review (Item #5) | sayeed (`dev-sayeed`) | **fixed on main `d2f9a944`** — added 'Fixed Allowance' to `EARNING_TYPE_NAMES` in `componentFields.js`, updated validation schema and `ComponentDrawer.test.jsx`; verified with 27 unit tests, lint & build |
+| D-117 | WFH Policy Screen Parity Defect: Missing default fallback policy card and missing Edit button on policy cards on `/wfh/policies`. | 2026-10-28, Stage 21 Track B (`W-01`, `W-02`, `W-03`) | krushna (`dev-krushna`) | **open** (BUG-D4-01 / BUG-D4-01b) |
+| D-118 | WFH Allocations Table Fails to Render: The quota allocations table on `/wfh/allocations` loads blank / fails to render employee quota records. | 2026-10-28, Stage 21 Track B (`W-04`) | krushna (`dev-krushna`) | **open** (BUG-D4-02) |
+| D-119 | WFH Quota "Assign Allocation" Raw UUID & Missing Typeahead: On `/wfh/allocations`, the employee selector displays raw database UUIDs and lacks autocomplete/search suggestions. | 2026-10-28, Stage 21 Track B (`W-05`) | krushna (`dev-krushna`) | **open** (BUG-D4-03) |
+| D-120 | Bulk WFH CSV Import Template Missing Header: Downloaded bulk CSV template (`/v1/wfh-imports/template`) is missing the required `effective_date` header column. | 2026-10-28, Stage 21 Track B (`W-06`) | krushna (`dev-krushna`) | **open** (BUG-D4-04) |
+| D-121 | WFH Applications & History Tables Missing "Actions" Column and "View" Button: Unlike Leave requests, `/wfh/requests` and `/me/wfh` lack the Actions column and `👁 View` button to open details drawer. | 2026-10-28, Stage 21 Track B (`W-08b`) | krushna (`dev-krushna`) | **open** (BUG-D4-05) |
+| D-122 | Approvals Inbox Missing "View Item", Raw Enum Title, & Missing 2-Tier HR Routing: In `/approvals`, WFH requests lack `👁 View Item`, display `WORK_FROM_HOME Request` with awkward wrap, and approving at Level 1 fails to route to HR Level 2. | 2026-10-28, Stage 21 Track B (`W-09`) | krushna (`dev-krushna`) | **open** (BUG-D4-06 / BUG-D4-07) |
 | D-34 | The side menu is one flat list: employees, roles, audit, setup, tenants and both invitation lists are top-level items (`NavigationCatalogue.java:52,82-83,92,123-137`); only org, approvals, holiday and leave have children | 2026-10-07, founder on Azure dev | catalogue groups: **People** (employees, invitations) · **Organisation** (org masters, holidays, roles) · **Settings** (setup, audit) · Payroll and HRMS under their module parents; groups collapsed by default, labels in `navLabels.js` | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; Payroll and HRMS grouped under module parents; groups collapsed except the current one |
 | D-35 | Every role lands on the first menu path after login (`AppShell.jsx:42,136`): a tenant admin lands on Employees, an employee on whatever is first, platform staff on a customer screen | 2026-10-07, founder on Azure dev | home path by role: `tenant-admin` → `/setup` until the checklist is complete, then the module dashboard · `employee` → `/me` · `payroll-officer` → `/payroll/dashboard` · `hr`, `manager` → `/hrms/dashboard` or `/employees` · platform tenant → `/admin/tenants`; the feed returns `homePath`, the shell uses it | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `homePath` on the navigation feed; a role with no dashboard in its feed lands on its first screen |
 | D-36 | Password rule is `length(8) and notUsername and notEmail` (`infinevo-realm.json:23`): no upper, lower, digit or special character, no history, no brute-force lockout | 2026-10-07, login screen review | realm: `length(10) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername and notEmail and passwordHistory(5)` plus brute-force detection; both realm files; Azure dev realm by hand | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; both realm files; `check-realm.mjs` enforces it. Keycloak 25 validates imported credentials, so the seeded dev password is `Local_dev_pw1!` (reset the `pgdata` volume once). Azure dev realm still by hand |
@@ -1345,6 +1351,97 @@ dev environment crash-loops on the next deploy.
 | **Root Cause** | In `componentFields.js`, `EARNING_TYPE_NAMES` originally copied 32 names from `addNewCustomEarning.js:74-87` without including `"Fixed Allowance"`. |
 | **Resolution** | 1. In `componentFields.js`, added `'Fixed Allowance'` to `EARNING_TYPE_NAMES` (name length 15 characters, well within the backend `VARCHAR(32)` column constraint on `payroll.earning.earning_type`).<br>2. Updated `ComponentDrawer.test.jsx` unit tests verifying that `EARNING_TYPE_NAMES` has 33 valid options and specifically contains `'Fixed Allowance'`.<br>3. Verified with 27 passing unit tests in `ComponentDrawer.test.jsx`, 0 ESLint warnings, and clean Vite build. |
 | **Status** | **fixed on main `d2f9a944`** (verified with Vitest `ComponentDrawer.test.jsx`, `npm run lint`, and `npm run build`) |
+
+---
+
+## 29. Defect D-117 — WFH Policies Missing Fallback Card and Missing Edit Button
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-117` |
+| **Owner** | krushna (`dev-krushna`) |
+| **Found** | 2026-10-28, Stage 21 Track B (`W-01`, `W-02`, `W-03`), `/wfh/policies` |
+| **Severity** | NORMAL |
+| **Description** | In the WFH Policies screen (`/wfh/policies`), the system does not display the default fallback policy card (`DEFAULT_WFH`). Additionally, individual policy cards lack an "Edit Policy" action button, unlike the Leave policy management screen which permits direct edits. |
+| **Root Cause** | Frontend policy screen (`WfhPolicies.jsx`) does not call `GET /v1/wfh-policies/default` to render the fallback card and only provides a "New Policy" button without mounting an Edit action on existing card items. |
+| **Resolution** | 1. Mount fallback default policy banner/card fetching from `GET /v1/wfh-policies/default`.<br>2. Add "Edit" button to policy cards opening the policy drawer populated with the card's existing rule parameters. |
+| **Status** | **open** |
+
+---
+
+## 30. Defect D-118 — WFH Allocations Table Fails to Render
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-118` |
+| **Owner** | krushna (`dev-krushna`) |
+| **Found** | 2026-10-28, Stage 21 Track B (`W-04`), `/wfh/allocations` |
+| **Severity** | CRITICAL |
+| **Description** | On the WFH Allocations screen (`/wfh/allocations`), the employee quota allocations table fails to render completely, presenting an empty/blank view to HR administrators. |
+| **Root Cause** | Frontend `WfhAllocations.jsx` table dataSource mapping fails or backend `GET /v1/wfh-allocations?year=2026` response format mismatch causes component render error. |
+| **Resolution** | Fix data binding in `WfhAllocations.jsx` to correctly map the allocation list DTO into the table rows with proper error boundary fallback. |
+| **Status** | **open** |
+
+---
+
+## 31. Defect D-119 — WFH "Assign Allocation" Employee Selector Raw UUID & Missing Typeahead
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-119` |
+| **Owner** | krushna (`dev-krushna`) |
+| **Found** | 2026-10-28, Stage 21 Track B (`W-05`), `/wfh/allocations` |
+| **Severity** | MAJOR |
+| **Description** | In the "Assign Allocation" drawer on `/wfh/allocations`, the Employee selector displays raw database UUID strings rather than human-readable Employee Codes and Names. Furthermore, typing an employee name does not provide autocomplete/typeahead search suggestions. |
+| **Root Cause** | `WfhAllocations.jsx` uses a basic text/select input instead of the shared `<EmployeeSearchSelect>` component linked to `/api/v1/employees/search`. |
+| **Resolution** | Replace the input with `<EmployeeSearchSelect>` displaying `[Employee Number] Display Name`, resolving the employee UUID internally in the POST payload. |
+| **Status** | **open** |
+
+---
+
+## 32. Defect D-120 — Bulk WFH CSV Import Template Missing Header
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-120` |
+| **Owner** | krushna (`dev-krushna`) |
+| **Found** | 2026-10-28, Stage 21 Track B (`W-06`), `/wfh/import` |
+| **Severity** | NORMAL |
+| **Description** | The downloaded bulk CSV import template from `GET /v1/wfh-imports/template` is missing the `effective_date` header column required for quota validity and pro-rata calculation. |
+| **Root Cause** | Template generation endpoint in `WfhImportController.java` / `WfhImportServiceImpl.java` specifies `employee_number, wfh_year, entitlement_days` and omitted `effective_date`. |
+| **Resolution** | Include `effective_date` in CSV header definition and update parser to accept the column with ISO-8601 validation. |
+| **Status** | **open** |
+
+---
+
+## 33. Defect D-121 — WFH Requests Tables Missing "Actions" Column and "View" Button
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-121` |
+| **Owner** | krushna (`dev-krushna`) |
+| **Found** | 2026-10-28, Stage 21 Track B (`W-08b`), `/wfh/requests` & `/me/wfh` |
+| **Severity** | MAJOR |
+| **Description** | Unlike `/leave/requests` and `/me/leave` which provide an "Actions" column with an "👁 View" button, the WFH Applications table (`/wfh/requests`) and My WFH table (`/me/wfh`) lack the Actions column or View action. Users and managers cannot click to open the request details drawer to view dates, reason, or approval hierarchy progress. |
+| **Root Cause** | Column definitions in `WfhRequestsTable.jsx` and `MyWfh.jsx` omit the `Actions` column. |
+| **Resolution** | Add the `Actions` column with an `👁 View` button triggering the `WfhRequestDetailsDrawer` component. |
+| **Status** | **open** |
+
+---
+
+## 34. Defect D-122 — Approvals Inbox Missing "View Item", Raw Enum Title, & 2-Tier HR Routing
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-122` |
+| **Owner** | krushna (`dev-krushna`) |
+| **Found** | 2026-10-28, Stage 21 Track B (`W-09`), `/approvals` |
+| **Severity** | CRITICAL |
+| **Description** | In the Pending Approvals inbox (`/approvals`):<br>1. WFH requests only show Approve/Reject buttons and lack the "👁 View Item" link present on Leave requests.<br>2. Subject title displays raw enum text with awkward line wrapping: `WORK_FROM_HOME Request`.<br>3. When a Manager approves a WFH request at Level 1, the workflow fails to advance to HR for Level 2 approval and does not appear in the HR pending approvals queue. |
+| **Root Cause** | `Inbox.jsx` lacks handler for `WORK_FROM_HOME` in `View Item` modal router; flow title formatter is missing title-case conversion; workflow definition lacks Step 2 HR assignment on manager approval. |
+| **Resolution** | 1. Add `View Item` action handler for WFH flow in `Inbox.jsx`.<br>2. Format title as `Work From Home Request`.<br>3. Ensure `WfhRequestService.java` routes approved manager requests to the `hr` role approval queue. |
+| **Status** | **open** |
+
 
 
 

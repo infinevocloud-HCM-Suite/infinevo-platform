@@ -11,7 +11,7 @@ Status values: `Blocked` `Ready` `Pass` `Fail` `Closed`. `Closed` means the step
 | P2 People and payroll config: K-05, K-06, M-01…M-05 | Krushna, Mohit | P1 | Pass | 2026-10-13 |
 | J1 October pay run may start: L-06, L-09, T-03, T-04, T-06, E-07, E-08a, E-09, S-02, P-01…P-03 | Mohit | P2 | Pass | 2026-10-14 |
 | J2 Reconciliation: M-14 paid | all | J1 | Pass | 2026-10-14 |
-| J3 Work From Home (WFH - W-74): W-01…W-11, E-WFH-01…E-WFH-11 | Krushna, Sayeed | J2 | Ready | 2026-10-28 |
+| J3 Work From Home (WFH - W-74): W-01…W-11, E-WFH-01…E-WFH-11 | Krushna, Sayeed | J2 | Fail (In Progress) | 2026-10-28 |
 
 ## Karmaveer — tenant admin
 
@@ -91,15 +91,16 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | T-08 | Pass | 2026-10-15 | Dashboard metric counts match executed certification activities. |
 | N-01 | Pass | 2026-10-15 | Route not present in menu; application denies access with 403 Forbidden screen. |
 | N-02 | Pass | 2026-10-15 | Access refused with 403 Forbidden screen. |
-| W-01 | Ready | 2026-10-28 | Query tenant WFH policies (/v1/wfh-policies); verify annual_days (12.0) and monthly_limit_days (2.0) |
-| W-02 | Ready | 2026-10-28 | Fetch default WFH policy (/v1/wfh-policies/default); code DEFAULT_WFH with half-day allowed |
-| W-03 | Ready | 2026-10-28 | Create/update tenant WFH policy rules (annualDays 12, monthlyLimit 2, advanceNotice 1, maxConsecutive 3) |
-| W-04 | Ready | 2026-10-28 | View all employee WFH allocations (/v1/wfh-allocations?year=2026) |
-| W-05 | Ready | 2026-10-28 | Assign individual WFH allocation with mid-year pro-rata preview (0.5000 factor, 6.00 days) |
-| W-06 | Ready | 2026-10-28 | Download standardized bulk WFH CSV import template (/v1/wfh-imports/template) |
-| W-07 | Ready | 2026-10-28 | Bulk CSV import execution (/wfh/import); upload file, verify dry-run report, confirm allocation |
-| W-08 | Ready | 2026-10-28 | List all tenant WFH requests (/v1/wfh-requests?status=PENDING); filter by status and employee |
-| W-09 | Ready | 2026-10-28 | Manager approves WFH request (/approvals); status transitions to APPROVED; quota deducted in wfh_consumption |
+| W-01 | Pass | 2026-10-28 | Policies load (12d annual, 2d monthly cap); Defect noted: missing policy edit button |
+| W-02 | Fail | 2026-10-28 | Default fallback policy card missing on /wfh/policies screen (Defect #11) |
+| W-03 | Pass | 2026-10-28 | Policy created/updated; Defect noted: Edit Policy on card option not available (Defect #12) |
+| W-04 | Fail | 2026-10-28 | Quota allocations table fails to render; screen is blank / has no table (Defect #13) |
+| W-05 | Fail | 2026-10-28 | Assign Allocation drawer shows raw employee UUID instead of code/name, no autocomplete suggestions (Defect #14) |
+| W-06 | Fail | 2026-10-28 | Downloaded bulk CSV template missing effective_date header column (Defect #15) |
+| W-07 | Pass | 2026-10-28 | Bulk CSV upload, dry-run report, and quota commit successful |
+| W-08 | Pass | 2026-10-28 | List tenant/team pending requests filtered by PENDING works |
+| W-08b | Fail | 2026-10-28 | WFH Applications & History tables lack "Actions" column and "👁 View" button present in Leave requests (Defect #16) |
+| W-09 | Fail | 2026-10-28 | In /approvals, WFH requests lack "View Item" button, raw enum text; workflow fails to route to HR after manager approval (Defects #17, #18) |
 | W-10 | Ready | 2026-10-28 | Manager rejects WFH request (/approvals); status transitions to REJECTED; quota restored |
 | W-11 | Ready | 2026-10-28 | Attendance & Zero LOP audit: verify core.attendance has PRESENT / WORK_FROM_HOME and core.leave_monthly_lop is 0 |
 
@@ -195,3 +196,12 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 8 | 2026-10-15 | Mohit | M-15 | payroll-officer | /payroll/runs/new-off-cycle | Saving off-cycle pay inputs for employee bonus fails with "Not permitted: requires action 'core.pay_input.write'" | Role payroll-officer should hold core.pay_input.write to enter off-cycle payouts or endpoint should accept payroll.run.execute | Fixed & Verified on live |
 | 9 | 2026-10-15 | Mohit | R-04 | payroll-officer | /payroll/runs/:id | Pay run detail screen has no "Export to Excel" / XLSX button and backend lacks export endpoint | Export to Excel / XLSX button provided on pay run page to download pay run line totals | Fixed & Verified on live (03c9700a) |
 | 10 | 2026-10-15 | Mohit, Sahmad | R-02, E-11 | payroll-officer, employee | /payroll/tax/form-16, /me | Form 16 screen not mounted in frontend (W-47 unbuilt); no UI available to generate Form 16 statement or upload Part A ZIP | UI screen provided to view/generate Form 16 statement and upload Part A TRACES ZIP, plus employee self-service panel | Fixed & Verified on live (04e8e9d8) |
+| 11 | 2026-10-28 | Krushna | W-02 | HR | /wfh/policies | Not showing any default fallback policy card on /wfh/policies | Screen should render default fallback policy (DEFAULT_WFH) card with 12d annual, 2d monthly, half-day allowed | Open (BUG-D4-01) |
+| 12 | 2026-10-28 | Krushna | W-01, W-03 | HR | /wfh/policies | WFH policy cards lack "Edit Policy" action button present in leave policies | Each policy card should have an "Edit" action button to update velocity caps and notice rules | Open (BUG-D4-01b) |
+| 13 | 2026-10-28 | Krushna | W-04 | HR | /wfh/allocations | Quota allocations table fails to render; screen is blank / has no table | Allocations table should render with employee names, department, entitlement, used, and balance | Open (BUG-D4-02) |
+| 14 | 2026-10-28 | Krushna | W-05 | HR | /wfh/allocations | "Assign Allocation" drawer displays raw employee UUIDs instead of Employee Code/Name, and typing provides no search autocomplete | Searchable employee picker displaying [EMP_CODE] Full Name with typeahead suggestions | Open (BUG-D4-03) |
+| 15 | 2026-10-28 | Krushna | W-06 | HR | /wfh/import | Standard bulk CSV import template is missing the required effective_date header column | Downloaded CSV template should contain: employee_number, wfh_year, entitlement_days, effective_date | Open (BUG-D4-04) |
+| 16 | 2026-10-28 | Krushna | W-08b | HR, Manager, Employee | /wfh/requests, /me/wfh | WFH Applications & History tables lack "Actions" column and "👁 View" button present in Leave requests | Include "Actions" column with "👁 View" button to open request details drawer with reason and balance breakdown | Open (BUG-D4-05) |
+| 17 | 2026-10-28 | Krushna | W-09 | Manager | /approvals | In /approvals, WFH requests lack "👁 View Item" button, and subject displays raw enum with bad wrap (WORK_FROM_HOME Request) | Render "👁 View Item" button matching Leave requests and format title as "Work From Home Request" | Open (BUG-D4-06) |
+| 18 | 2026-10-28 | Krushna | W-09 | Manager, HR | /approvals, /wfh/requests | After Manager approves WFH request at Level 1, workflow fails to route to HR for Level 2 approval; missing from HR inbox | Request should advance to PENDING_HR_APPROVAL and generate pending approval task for HR | Open (BUG-D4-07) |
+
