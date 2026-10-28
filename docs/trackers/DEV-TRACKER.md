@@ -155,6 +155,7 @@ One row per known defect in merged code. A row leaves this table only when its f
 | D-120 | Bulk WFH CSV Import Template Missing Header: Downloaded bulk CSV template (`/v1/wfh-imports/template`) is missing the required `effective_date` header column. | 2026-10-28, Stage 21 Track B (`W-06`) | krushna (`dev-krushna`) | **open** (BUG-D4-04) |
 | D-121 | WFH Applications & History Tables Missing "Actions" Column and "View" Button: Unlike Leave requests, `/wfh/requests` and `/me/wfh` lack the Actions column and `👁 View` button to open details drawer. | 2026-10-28, Stage 21 Track B (`W-08b`) | krushna (`dev-krushna`) | **open** (BUG-D4-05) |
 | D-122 | Approvals Inbox Missing "View Item", Raw Enum Title, & Missing 2-Tier HR Routing: In `/approvals`, WFH requests lack `👁 View Item`, display `WORK_FROM_HOME Request` with awkward wrap, and approving at Level 1 fails to route to HR Level 2. | 2026-10-28, Stage 21 Track B (`W-09`) | krushna (`dev-krushna`) | **open** (BUG-D4-06 / BUG-D4-07) |
+| D-123 | WFH Balance Auto-Defaulting to 12 Days Without HR Allocation: Newly created employees automatically display 12 days annual quota on `/me/wfh` (`GET /v1/me/wfh-balance`) even without any allocation assigned by HR. Balance must remain 0 / unallocated until HR allocates quota. | 2026-10-28, Stage 21 Track A/B parity review (`E-WFH-01`, `W-04`) | krushna (`dev-krushna`), sayeed (`dev-sayeed`) | **open** (BUG-D4-08) |
 | D-34 | The side menu is one flat list: employees, roles, audit, setup, tenants and both invitation lists are top-level items (`NavigationCatalogue.java:52,82-83,92,123-137`); only org, approvals, holiday and leave have children | 2026-10-07, founder on Azure dev | catalogue groups: **People** (employees, invitations) · **Organisation** (org masters, holidays, roles) · **Settings** (setup, audit) · Payroll and HRMS under their module parents; groups collapsed by default, labels in `navLabels.js` | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; Payroll and HRMS grouped under module parents; groups collapsed except the current one |
 | D-35 | Every role lands on the first menu path after login (`AppShell.jsx:42,136`): a tenant admin lands on Employees, an employee on whatever is first, platform staff on a customer screen | 2026-10-07, founder on Azure dev | home path by role: `tenant-admin` → `/setup` until the checklist is complete, then the module dashboard · `employee` → `/me` · `payroll-officer` → `/payroll/dashboard` · `hr`, `manager` → `/hrms/dashboard` or `/employees` · platform tenant → `/admin/tenants`; the feed returns `homePath`, the shell uses it | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; `homePath` on the navigation feed; a role with no dashboard in its feed lands on its first screen |
 | D-36 | Password rule is `length(8) and notUsername and notEmail` (`infinevo-realm.json:23`): no upper, lower, digit or special character, no history, no brute-force lockout | 2026-10-07, login screen review | realm: `length(10) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername and notEmail and passwordHistory(5)` plus brute-force detection; both realm files; Azure dev realm by hand | **fixed on main `f996cd1c` + `a6b3dca3`** — built by claude; both realm files; `check-realm.mjs` enforces it. Keycloak 25 validates imported credentials, so the seeded dev password is `Local_dev_pw1!` (reset the `pgdata` volume once). Azure dev realm still by hand |
@@ -1441,6 +1442,22 @@ dev environment crash-loops on the next deploy.
 | **Root Cause** | `Inbox.jsx` lacks handler for `WORK_FROM_HOME` in `View Item` modal router; flow title formatter is missing title-case conversion; workflow definition lacks Step 2 HR assignment on manager approval. |
 | **Resolution** | 1. Add `View Item` action handler for WFH flow in `Inbox.jsx`.<br>2. Format title as `Work From Home Request`.<br>3. Ensure `WfhRequestService.java` routes approved manager requests to the `hr` role approval queue. |
 | **Status** | **open** |
+
+---
+
+## 35. Defect D-123 — WFH Balance Auto-Defaulting to 12 Days Without HR Allocation
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-123` |
+| **Owner** | krushna (`dev-krushna`), sayeed (`dev-sayeed`) |
+| **Found** | 2026-10-28, Stage 21 Track A & B Parity Review (`E-WFH-01`, `W-04`), `/me/wfh`, `GET /v1/me/wfh-balance` |
+| **Severity** | CRITICAL |
+| **Description** | Whenever a new employee is created, navigating to their WFH dashboard (`/me/wfh`) immediately displays an active annual quota balance of **12 / 12 days** by default. Employees should NOT have an active WFH balance or entitlement until HR explicitly assigns a WFH quota via `/wfh/allocations` or bulk import (`/wfh/import`). Without explicit allocation, the employee balance must remain 0 (or unallocated state) and the employee should be prevented from submitting WFH requests. |
+| **Root Cause** | In `WfhBalanceServiceImpl.java` (or balance calculation handler), if no matching row is found in `core.wfh_allocation` for the employee, the system erroneously falls back to granting the full annual quota from tenant fallback policy `DEFAULT_WFH` (12.0 days), instead of evaluating entitlement as 0.00. |
+| **Resolution** | 1. In `WfhBalanceServiceImpl.java`, return 0.00 entitlement, 0.00 available days, and unallocated status if no active record exists in `core.wfh_allocation` for the employee.<br>2. On `/me/wfh` UI, render "0 / 0" or an informative "No WFH Quota Allocated — Please contact HR" notice and disable "Apply for WFH" until quota is assigned by HR.<br>3. In `WfhRequestServiceImpl.java`, ensure validation blocks application attempts when quota entitlement is 0. |
+| **Status** | **open** |
+
 
 
 

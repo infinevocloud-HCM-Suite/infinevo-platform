@@ -204,4 +204,6 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 16 | 2026-10-28 | Krushna | W-08b | HR, Manager, Employee | /wfh/requests, /me/wfh | WFH Applications & History tables lack "Actions" column and "👁 View" button present in Leave requests | Include "Actions" column with "👁 View" button to open request details drawer with reason and balance breakdown | Open (BUG-D4-05) |
 | 17 | 2026-10-28 | Krushna | W-09 | Manager | /approvals | In /approvals, WFH requests lack "👁 View Item" button, and subject displays raw enum with bad wrap (WORK_FROM_HOME Request) | Render "👁 View Item" button matching Leave requests and format title as "Work From Home Request" | Open (BUG-D4-06) |
 | 18 | 2026-10-28 | Krushna | W-09 | Manager, HR | /approvals, /wfh/requests | After Manager approves WFH request at Level 1, workflow fails to route to HR for Level 2 approval; missing from HR inbox | Request should advance to PENDING_HR_APPROVAL and generate pending approval task for HR | Open (BUG-D4-07) |
+| 19 | 2026-10-28 | Krushna, Sayeed | E-WFH-01, W-04 | employee, HR | /me/wfh, /v1/me/wfh-balance | Newly created employee automatically gets 12 days WFH balance without HR allocation; shows 12/12 before any quota is assigned | Employee WFH balance should be 0 (or unallocated) until HR explicitly assigns quota via /wfh/allocations or bulk import | Open (BUG-D4-08) |
+
 
