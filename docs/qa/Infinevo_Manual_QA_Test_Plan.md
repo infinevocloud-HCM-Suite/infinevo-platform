@@ -606,7 +606,42 @@ All compensation arithmetic follows standard monthly conversion:
 
 ---
 
-## 21. Complete Role-Menu Entitlement Matrix
+### Stage 21 — Work From Home (WFH) Subsystem [W-74 / CORE-WFH]
+> **Track A (Employee Self-Service):** Sayeed (Dev 5) — Role: `employee` (`/me/wfh`, `/me/wfh/apply`)  
+> **Track B (Manager / HR & Administration):** Krushna (Dev 4) — Role: `hr`, `manager` (`/wfh/policies`, `/wfh/allocations`, `/wfh/requests`, `/wfh/import`, `/approvals`)  
+>
+> **Hinglish Flow Explanation:**  
+> WFH feature employee side par Sayeed test karenge (balance card check, single-day & half-day apply, monthly limit / overlap / leave mutual exclusion negative guards, aur request withdrawal/cancellation).  
+> Manager & HR side par Krushna test karenge (tenant WFH policy setup, pro-rata allocation, bulk CSV import, pending inbox me manager approval/rejection, automatic attendance creation `PRESENT (Work From Home)`, immutable ledger deduction, aur Zero LOP payroll verification).
+
+#### Track A: Employee Self-Service — Sayeed (Dev 5)
+| Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
+|---|---|---|---|---|---|
+| 1 | S21-01 | `/me/wfh` | Log in as employee. Open Self-Service → **Work From Home** tab. | Balance card renders with Annual Quota (12.0), Available, Consumed, Pending, This Month Usage vs Monthly Limit, and "Zero LOP Guarantee" tag. | [ ] PENDING |
+| 2 | S21-02 | `/me/wfh` | Click **Apply WFH** (`/me/wfh/apply`). Keep half-day OFF, pick next Wednesday date. Enter reason. | Working days calculates as 1.00. Submit succeeds: "WFH Request Submitted". Status transitions to `PENDING` (Orange tag). | [ ] PENDING |
+| 3 | S21-03 | `/me/wfh/apply` | Toggle **Half Day** ON. Select single date, pick **First Half**. | Duration calculates as 0.50 days. Submit succeeds; request logged with status `PENDING`. | [ ] PENDING |
+| 4 | S21-04 | `/me/wfh/apply` | **Negative Guard:** Try applying for 3 consecutive days in the same month where monthly cap is 2 days. | Client/backend validation blocks submission: "Request exceeds maximum allowable WFH days for the month". | [ ] PENDING |
+| 5 | S21-05 | `/me/wfh/apply` | **Negative Guard:** Apply on dates overlapping with an existing pending/approved WFH request. | System rejects submission with 400 Bad Request: "Employee already has an active WFH request overlapping these dates". | [ ] PENDING |
+| 6 | S21-06 | `/me/wfh/apply` | **Mutual Exclusion Guard:** Apply for WFH on a date where an approved Leave (CL/PL) already exists. | Submission blocked: "Employee already has a pending or approved leave request overlapping these dates". | [ ] PENDING |
+| 7 | S21-07 | `/me/wfh/apply` | **Date Validation:** Pick date span where `fromDate > toDate`, or pick multi-day range with half-day switch ON. | Form validation triggers: rejects invalid chronological order or multi-day half-day selection. | [ ] PENDING |
+| 8 | S21-08 | `/me/wfh` | On a `PENDING` request in history table, click **Withdraw**. Provide reason and confirm. | Request transitions to `WITHDRAWN` (Purple tag); pending approval quota reverts to available; manager task cancelled. | [ ] PENDING |
+| 9 | S21-09 | `/me/wfh` | On an `APPROVED` request for a future date, click **Cancel Request**. | Request transitions to `CANCELLED`; quota ledger reverses deduction; pre-created attendance is removed. | [ ] PENDING |
+
+#### Track B: Manager & HR Administration — Krushna (Dev 4)
+| Step | ID | Route / Action | Exact Test Operation | Expected Result | Status |
+|---|---|---|---|---|---|
+| 10 | S21-10 | `/wfh/policies` | Log in as HR. Open sidebar **Work From Home** → **WFH Policies**. | Policies view loads. Verify default policy (12.0 days annual, 2.0 monthly cap, half-day allowed). Update settings and save. | [ ] PENDING |
+| 11 | S21-11 | `/wfh/allocations` | Open **WFH Allocations**. Click **Assign Allocation**. Select mid-year joiner (e.g. July 1). | System previews pro-rata calculation (factor: 0.5000, entitlement: 6.0 days). Allocation successfully persists. | [ ] PENDING |
+| 12 | S21-12 | `/wfh/import` | Open **WFH Bulk Import**. Click **Download Template**. | Standard CSV template downloads with headers: `employee_number, wfh_year, entitlement_days, effective_date`. | [ ] PENDING |
+| 13 | S21-13 | `/wfh/import` | Upload bulk CSV file. Run dry-run validation, then click **Execute Import**. | Validation summary displays successfully; bulk records inserted into `core.wfh_allocation`. | [ ] PENDING |
+| 14 | S21-14 | `/wfh/requests` | Open **WFH Requests** tenant audit list. Filter by status `PENDING` / employee. | Displays all team requests with applicant name, dates, working days, and status tags. | [ ] PENDING |
+| 15 | S21-15 | `/approvals` | Log in as Manager. Open **Pending Inbox** (`/approvals`). Find pending WFH request. Click **Approve**. | Request marked `APPROVED`; quota deducted in `core.wfh_consumption` ledger; approval notification dispatched. | [ ] PENDING |
+| 16 | S21-16 | `/approvals` | On a separate pending request, click **Reject**. Provide mandatory comment and confirm. | Request transitions to `REJECTED`; quota released back to employee available balance; reason logged. | [ ] PENDING |
+| 17 | S21-17 | Database / Admin | Inspect `core.attendance` for approved WFH date and check payroll LOP tables. | Attendance row exists with `attendance_status = 'PRESENT'` (or `HALF_DAY`), remarks = `Work From Home`. Zero records in `core.leave_monthly_lop`. | [ ] PENDING |
+
+---
+
+## 22. Complete Role-Menu Entitlement Matrix
 
 | Nav Item Key | Target Route | platform-admin | tenant-admin | payroll-officer | hr | manager | finance | employee |
 |---|---|---|---|---|---|---|---|---|
@@ -621,6 +656,10 @@ All compensation arithmetic follows standard monthly conversion:
 | `core.holiday` | `/holidays` | **YES** | **YES** | NO | **YES** | NO | NO | NO |
 | `core.leave` (types, allocations, requests) | `/leave/types` | **YES** | **YES** | NO | **YES** | NO | NO | NO |
 | `core.leave.import` | `/leave/import` | **YES** | **YES** | NO | **YES** | NO | NO | NO |
+| `core.wfh.policies` (WFH Policies) | `/wfh/policies` | **YES** | **YES** | NO | **YES** | NO | NO | NO |
+| `core.wfh.allocations` (WFH Allocations) | `/wfh/allocations` | **YES** | **YES** | NO | **YES** | NO | NO | NO |
+| `core.wfh.requests` (Audit Requests) | `/wfh/requests` | **YES** | **YES** | NO | **YES** | **YES** | NO | NO |
+| `core.wfh.import` (WFH Bulk Import) | `/wfh/import` | **YES** | **YES** | NO | **YES** | NO | NO | NO |
 | `core.approvals` (inbox) | `/approvals` | **YES** | **YES** | NO | NO | **YES** | **YES** | NO |
 | `core.approvals.delegations` | `/approvals/delegations` | **YES** | **YES** | NO | NO | **YES** | **YES** | NO |
 | `core.approvals.definitions` | `/approvals/definitions` | **YES** | **YES** | NO | NO | NO | NO | NO |
@@ -638,6 +677,7 @@ All compensation arithmetic follows standard monthly conversion:
 | `payroll.deductions` | `/payroll/deductions` | **YES** | **YES** | **YES** | NO | NO | **YES** | NO |
 | `payroll.prior_payroll` | `/payroll/prior-payroll` | **YES** | **YES** | **YES** | NO | NO | NO | NO |
 | `/me` (self-service portal) | `/me` | NO | NO | NO | NO | NO | NO | **YES** |
+| `/me/wfh` (My Work From Home) | `/me/wfh` | NO | NO | NO | NO | NO | NO | **YES** |
 
 ---
 
@@ -712,6 +752,8 @@ Each developer updates this table daily before standup:
 | 2026-10-12 | Sayeed (Dev 5) | Azure Dev | Stage 6 (Leave Application & Approvals) | S6-01 to S6-10 | 2 | 8 | 0 | 0 | S6-01 PASS (Approval definitions verified), S6-07 PASS (On-behalf direct approval verified); Defects logged: D-53 (Employee portal leave balance cards misaligned), D-54 (Admin request detail view incorrectly displays applicant-only "Withdraw" action), D-55 (PolicyForm throws `effectiveFrom cannot be null` due to missing date field on deployed environment) |
 | 2026-10-12 | Sayeed (Dev 5) | Azure Dev | Stage 19 (Employee Self-Service Portal) | S19-01 to S19-06 | 4 | 1 | 0 | 1 | S19-01 PASS (Login & redirect to `/me` verified), S19-02 PASS, S19-03 PASS, S19-06 PASS (Emergency contact update persists); S19-04 FAIL (No Holiday Calendar tab on `/me`); S19-05 DEFER (No payslips generated yet); Defects logged: D-56 (Profile summary visual misalignment), D-57 (Missing Holiday Calendar tab on `/me`), D-58 (My Profile form sections visual misalignment) |
 | 2026-10-12 | Devashish (Dev 3) | Azure Dev | Stage 9 (Employee Tax Declaration) | S9-01, S9-02, S9-03, S9-07, S9-08 | 5 | 0 | 0 | 0 | S9-01 & S9-02 PASS (FY 2026-27 window opened with default regime NEW); S9-03 PASS (EMP-01 declaration loaded); S9-07 PASS (Submit declaration & locking verified); S9-08 PASS (Reopen, edit & re-submit verified); Note: Section 6A in New Regime strictly exposes 80CCD(2) by design per Section 115BAC |
+| 2026-10-28 | Sayeed (Dev 5) | `QA-D5` / Local | Stage 21 Track A (WFH Employee Portal) | S21-01 to S21-09 | | | | | W-74 Employee Side: Balance card, single/half day apply, monthly cap guard, overlap checks, leave conflict, withdraw & cancel |
+| 2026-10-28 | Krushna (Dev 4) | `QA-D4` / Local | Stage 21 Track B (WFH Manager & HR) | S21-10 to S21-17 | | | | | W-74 Manager/HR Side: Policy setup, pro-rata allocations, CSV import, manager inbox approval/rejection, attendance sync & Zero LOP |
 
 ---
 
