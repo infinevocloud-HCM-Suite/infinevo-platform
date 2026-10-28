@@ -144,8 +144,9 @@ export function TenantCreate() {
         <Form.Item
           label="Administrator email"
           name="admin_email"
-          extra="Optional. This person is invited as the tenant's administrator."
+          extra="This person is invited as the tenant's administrator."
           rules={[
+            { required: true, whitespace: true, message: 'Administrator email is required' },
             { type: 'email', transform: (v) => (v || '').trim(), message: 'Enter a valid email address' },
             { max: 255, message: 'At most 255 characters' },
           ]}

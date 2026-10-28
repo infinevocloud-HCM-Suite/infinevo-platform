@@ -49,6 +49,7 @@ describe('TenantCreate', () => {
     render(<MemoryRouter><TenantCreate /></MemoryRouter>);
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Initech' } });
+    fireEvent.change(screen.getByLabelText('Administrator email'), { target: { value: 'admin@initech.example' } });
     fireEvent.click(screen.getByRole('button', { name: /create tenant/i }));
 
     await waitFor(() => expect(tenantService.create).toHaveBeenCalled());
@@ -57,10 +58,13 @@ describe('TenantCreate', () => {
   });
 
   it('posts the W-12-1 field names with the defaults and returns to the list', async () => {
-    tenantService.create.mockResolvedValue({ tenantId: 't-9' });
+    tenantService.create.mockResolvedValue({ tenantId: 't-9', adminInvitationId: 'inv-1' });
     render(<MemoryRouter><TenantCreate /></MemoryRouter>);
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: '  Initech  ' } });
+    fireEvent.change(screen.getByLabelText('Administrator email'), {
+      target: { value: '  boss@initech.example  ' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /create tenant/i }));
 
     await waitFor(() =>
@@ -70,10 +74,14 @@ describe('TenantCreate', () => {
         timezone: 'Asia/Kolkata',
         leave_year_start_month: 4,
         modules: [],
+        admin_email: 'boss@initech.example',
       }),
     );
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/admin/tenants'));
-    expect(successMsg).toHaveBeenCalledWith('Tenant created', 'Initech is ready.');
+    expect(successMsg).toHaveBeenCalledWith(
+      'Tenant created',
+      'Initech is ready. An invitation was sent to boss@initech.example.',
+    );
   });
 
   it('sends a given administrator email as admin_email and says the admin was invited', async () => {
@@ -114,13 +122,14 @@ describe('TenantCreate', () => {
     expect(tenantService.create).not.toHaveBeenCalled();
   });
 
-  it('refuses a blank name, a three-letter country and an unknown timezone before calling the server', async () => {
+  it('refuses a blank name, a three-letter country, an unknown timezone and a missing administrator email before calling the server', async () => {
     render(<MemoryRouter><TenantCreate /></MemoryRouter>);
     fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'IND' } });
     fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'Mars/Olympus' } });
     fireEvent.click(screen.getByRole('button', { name: /create tenant/i }));
 
     expect(await screen.findByText('Name is required')).toBeDefined();
+    expect(await screen.findByText('Administrator email is required')).toBeDefined();
     expect(await screen.findByText(/Not a known IANA timezone/)).toBeDefined();
     expect(await screen.findByText(/Two-letter ISO 3166-1 code/)).toBeDefined();
     expect(tenantService.create).not.toHaveBeenCalled();
