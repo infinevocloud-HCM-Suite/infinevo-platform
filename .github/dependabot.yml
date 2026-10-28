@@ -4,8 +4,17 @@ updates:
     directory: "/code/backend"
     schedule:
       interval: "weekly"
+    # Major versions (Tomcat 11, ShedLock 7, Spotless 3) are upgrade work, not a merge.
+    # They get a ticket; Dependabot proposes minors and patches only.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/code/frontend"
     schedule:
       interval: "weekly"
+    # React 19, react-router 7, antd 6, eslint 10 are upgrade work, not a merge.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

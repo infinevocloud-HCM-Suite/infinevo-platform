@@ -14,3 +14,16 @@ This directory contains the canonical database provisioning scripts for the Infi
 - **Docker Compose (`W-02` / `W-05`)**: Mounted into the Postgres container and executed by `00-bootstrap.sh` on initial stack startup.
 - **Testcontainers (`W-04` / `W-05`)**: `02-schemas.sql` and `03-grants.sql` are copied to test classpath by `shared/pom.xml` and executed over JDBC by `PostgresTestContainerInitializer`.
 - **Azure Flexible Server (`W-50`)**: Executed post-deployment against Azure Database for PostgreSQL Flexible Server.
+
+## Purging one tenant — `purge-tenant.sql`
+
+Deletes every row one tenant owns, in one transaction. For a tenant created by mistake or a test
+tenant only — a tenant with payroll or audit history to keep is cancelled, not purged.
+
+| Step | Command |
+|---|---|
+| Dry run (default: deletes, prints counts, rolls back) | `psql "$MIGRATION_URL" -v tenant_id=<uuid> -v confirm_name='<exact name>' -f purge-tenant.sql` |
+| Apply | add `-v apply=1` |
+
+- Connect as `migration_user` (the table owner); the script refuses any other role, the platform tenant, and a name that does not match the id.
+- Finish by hand what it prints: Keycloak users in no other tenant, and blobs under `<tenant_id>/`.
