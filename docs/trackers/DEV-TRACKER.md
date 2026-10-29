@@ -1507,6 +1507,54 @@ dev environment crash-loops on the next deploy.
 | **Status** | **open** (ENH-D4-11) |
 
 
+---
+
+## 38. Defect D-126 — Salary Structure Version Form and Active View Missing Deductions Section
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-126` |
+| **Owner** | sayeed (`dev-sayeed`) |
+| **Found** | 2026-10-29, salary structure defect review (Item #7: "Salary Structure — No Deduction Section") |
+| **Module / Screen** | `code/frontend/src/payroll/salary/` (`SalaryVersionForm.jsx`, `SalaryTab.jsx`) & `code/backend/payroll/src/main/java/com/infinevo/payroll/salary/SalaryVersionRequest.java` |
+| **Severity** | NORMAL |
+| **Description** | In the Employee Salary tab (`/payroll/employees/:id/salary` -> `SalaryTab.jsx`) and Salary Structure Version Form (`SalaryVersionForm.jsx`), only Earnings, Benefits, and Reimbursements are supported and rendered. The Deductions category is missing from the version form's initial values, reset fields, submission payload, and rendered component list, as well as from the active structure card's summary tables. |
+| **Root Cause** | In `SalaryVersionForm.jsx`, `activeComponents.deductions` is fetched by `salarySlice`, but `renderComponentList('deductions', 'Deductions', ...)` is not invoked, nor is `deductions` included in the form's `initialValues`, `resetFields`, or payload mapping. In `SalaryTab.jsx`, only `earnings`, `benefits`, and `reimbursements` tables are rendered under the active structure card. In `SalaryVersionRequest.java`, unknown properties are not ignored by default and `deductions` is not accepted. |
+| **Resolution** | Pending review / will circle back later. Add Deductions list to `SalaryVersionForm.jsx`, render Deductions summary table in `SalaryTab.jsx`, and accept `deductions` in `SalaryVersionRequest.java`. |
+| **Status** | **open** |
+
+---
+
+## 39. Defect D-127 — Salary Structure Percentage Component Value Not Copied In
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-127` |
+| **Owner** | sayeed (`dev-sayeed`) |
+| **Found** | 2026-10-29, salary structure defect review (Item #6: "Salary Structure — Percentage Component Value Not Copied In") |
+| **Module / Screen** | `code/frontend/src/payroll/salary/` (`SalaryVersionForm.jsx`) & `code/backend/payroll/src/main/java/com/infinevo/payroll/salary/EmployeeSalaryServiceImpl.java` |
+| **Severity** | NORMAL |
+| **Description** | When salary components are defined in `/payroll/components` with calculation type `PERCENTAGE`, a default percentage value (e.g., 40.00% for HRA) and percentage calculation base (`BASIC`, `CTC`, `GROSS`), creating or revising an employee's salary structure in `SalaryVersionForm` fails to copy or auto-populate these values. When clicking "Add Earning" or selecting a percentage component from the dropdown, the form defaults to `calculationType: 'FLAT'`, blank value, and null base. |
+| **Root Cause** | 1. In `SalaryVersionForm.jsx`, `renderComponentList` hardcodes `{ calculationType: 'FLAT', value: '', percentageOf: null }` in the "Add Component" click handler and `<Select placeholder="Component">` lacks an `onChange` handler to populate component defaults from `availableItems`.<br>2. In `initialValues` mapping, existing rows with missing or empty values do not fall back to `comp.defaultValue` or `comp.percentageOf`.<br>3. In `EmployeeSalaryServiceImpl.java`, `resolveEarningInputs`, `resolveBenefitInputs`, and `resolveReimbursementInputs` pass `item.calculationType()`, `item.value()`, and `item.percentageOf()` without falling back to component definition when null. |
+| **Resolution** | Pending review / will circle back later. Auto-populate `calculationType`, `defaultValue`, and `percentageOf` when selecting or adding components in `SalaryVersionForm.jsx`, add `GROSS` base option, and provide fallback in `EmployeeSalaryServiceImpl.java`. |
+| **Status** | **open** |
+
+---
+
+## 40. Defect D-128 — Pay Run Deduction Component Default Value Not Applied
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-128` |
+| **Owner** | sayeed (`dev-sayeed`) |
+| **Found** | 2026-10-29, pay run defect review (Item #8: "Pay Run — Deduction Component Default Value Not Applied") |
+| **Module / Screen** | `code/backend/payroll/src/main/java/com/infinevo/payroll/payrun/StructureLineContributor.java`, `code/backend/payroll/src/main/java/com/infinevo/payroll/salary/EmployeeSalaryServiceImpl.java`, `code/backend/payroll/src/main/java/com/infinevo/payroll/salary/SalaryVersionResponse.java` |
+| **Severity** | MAJOR |
+| **Description** | When deduction components are configured in `/payroll/components` (Deductions tab) with default values (FLAT or PERCENTAGE of BASIC/GROSS/CTC, optional maxLimit, active, non-deleted), executing a Pay Run fails to apply them. The pay run computation ignores catalogue deduction default values, resulting in 0 deduction lines, `total_deductions` remaining at 0, net pay failing to subtract deduction amounts, and the pay run lines drawer / payslips omitting deductions. |
+| **Root Cause** | In `StructureLineContributor.java`, only `EarningRepository` is injected and evaluated; `DeductionRepository` is not injected and deduction catalogue defaults are completely ignored. In addition, `SalaryVersionResponse.java` lacks a `deductions` list field to convey version-level deductions to contributors and UI consumers. |
+| **Resolution** | Pending review / will circle back later. Inject `DeductionRepository` in `StructureLineContributor.java`, evaluate catalogue deductions and version deductions, compute flat/percentage amounts with `maxLimit` caps, and populate `SalaryVersionResponse.deductions`. |
+| **Status** | **open** |
+
 
 
 
