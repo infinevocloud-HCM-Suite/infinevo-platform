@@ -1603,6 +1603,23 @@ dev environment crash-loops on the next deploy.
 | **Resolution** | 1. Support composite onboarding orchestration (or domain event `EmployeeCreatedEvent` in backend) so that when an employee is created, their statutory profile is initialized with tenant defaults or provided values in a coherent workflow.<br>2. Ensure frontend handles onboarding gracefully with sequential promises or a composite transaction. |
 | **Status** | **open** |
 
+---
+
+## 44. Defect D-132 — Statutory Profile Missing Validation for Column Length Limits (UAN max 16, PF No max 32, ESI No max 32) Causing 500 Internal Server Error
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-132` |
+| **Owner** | sayeed (`dev-sayeed`) |
+| **Found** | 2026-10-29, Statutory profile update verification (`PUT /api/v1/payroll/employees/{id}/statutory-profile`) |
+| **Module / Screen** | `code/frontend/src/payroll/salary/StatutoryProfileCard.jsx`, `code/backend/payroll/src/main/java/com/infinevo/payroll/salary/` (`EmployeeStatutoryProfileController.java`, `EmployeeStatutoryProfileServiceImpl.java`) |
+| **Severity** | NORMAL |
+| **Description** | When saving statutory components on the Employee Salary page (`/payroll/employees/:id/salary` -> `StatutoryProfileCard.jsx`), entering or pasting values exceeding the database column length constraints causes `PUT /api/v1/payroll/employees/{id}/statutory-profile` to fail with **500 Internal Server Error**.<br>Database column limits on `payroll.employee_statutory_profile`:<br>- **UAN**: max 16 chars (`uan VARCHAR(16)`)<br>- **PF Account Number**: max 32 chars (`pf_account_number VARCHAR(32)`)<br>- **ESI Number**: max 32 chars (`esi_number VARCHAR(32)`)<br>The frontend lacks input `maxLength` limits and client validation rules, and the backend lacks server-side string length validation and exception handling for database constraint failures (`DataIntegrityViolationException`), surfacing raw SQL truncation errors as unhandled 500s rather than clear, user-friendly field-level error messages. |
+| **Root Cause** | 1. In `StatutoryProfileCard.jsx`, `<Input>` components for `pfAccountNumber`, `uan`, and `esiNumber` lack `maxLength` limits (`maxLength={16}` for UAN, `maxLength={32}` for PF and ESI) and lack Form.Item validation rules.<br>2. In `EmployeeStatutoryProfileServiceImpl.java`, `upsert` directly sets incoming strings on the entity without verifying `uan.length() <= 16`, `pfAccountNumber.length() <= 32`, and `esiNumber.length() <= 32` before calling `save`.<br>3. In `EmployeeStatutoryProfileController.java`, only `SalaryValidationException` and `SalaryNotFoundException` are handled; `DataIntegrityViolationException` is unhandled and defaults to HTTP 500. |
+| **Resolution** | 1. In `StatutoryProfileCard.jsx`, enforce `maxLength={16}` on UAN, `maxLength={32}` on PF Account Number, and `maxLength={32}` on ESI Number, adding clear Form.Item validation rules showing exact field limits.<br>2. In `EmployeeStatutoryProfileServiceImpl.java`, validate incoming string lengths and throw `SalaryValidationException` with user-friendly messages (`"UAN must be at most 16 characters"`, `"PF Account Number must be at most 32 characters"`, `"ESI Number must be at most 32 characters"`).<br>3. In `EmployeeStatutoryProfileController.java`, add `@ExceptionHandler(DataIntegrityViolationException.class)` to translate unexpected constraint violations into a clean 400 Bad Request. |
+| **Status** | **open** |
+
+
 
 
 
