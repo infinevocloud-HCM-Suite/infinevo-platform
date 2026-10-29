@@ -19,14 +19,48 @@ public record ClockSessionResponse(
         Integer workedMinutes,
         SessionOrigin origin,
         Instant voidedAt,
-        VoidReason voidReason) {
+        VoidReason voidReason,
+        String dayStatus,
+        String remarks) {
+
+    public ClockSessionResponse(
+            UUID id,
+            UUID employeeId,
+            String employeeName,
+            LocalDate attendanceDate,
+            Instant clockInAt,
+            Instant clockOutAt,
+            Integer workedMinutes,
+            SessionOrigin origin,
+            Instant voidedAt,
+            VoidReason voidReason) {
+        this(
+                id,
+                employeeId,
+                employeeName,
+                attendanceDate,
+                clockInAt,
+                clockOutAt,
+                workedMinutes,
+                origin,
+                voidedAt,
+                voidReason,
+                null,
+                null);
+    }
 
     public static ClockSessionResponse from(ClockSession session) {
-        return from(session, java.util.Map.of());
+        return from(session, java.util.Map.of(), null, null);
     }
 
     /** With the employee's name from the given map; a missing id leaves it null. */
     public static ClockSessionResponse from(ClockSession session, java.util.Map<UUID, String> employeeNames) {
+        return from(session, employeeNames, null, null);
+    }
+
+    /** With the employee's name, day status, and remarks. */
+    public static ClockSessionResponse from(
+            ClockSession session, java.util.Map<UUID, String> employeeNames, String dayStatus, String remarks) {
         Integer minutes = session.getClockOutAt() != null
                 ? (int) Duration.between(session.getClockInAt(), session.getClockOutAt())
                         .toMinutes()
@@ -41,6 +75,8 @@ public record ClockSessionResponse(
                 minutes,
                 session.getOrigin(),
                 session.getVoidedAt(),
-                session.getVoidReason());
+                session.getVoidReason(),
+                dayStatus,
+                remarks);
     }
 }

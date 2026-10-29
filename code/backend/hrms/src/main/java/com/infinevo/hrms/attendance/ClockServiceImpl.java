@@ -1,5 +1,7 @@
 package com.infinevo.hrms.attendance;
 
+import com.infinevo.core.attendance.Attendance;
+import com.infinevo.core.attendance.AttendanceRepository;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.tenant.TenantClock;
@@ -30,6 +32,7 @@ public class ClockServiceImpl implements ClockService {
     private final ClockDayService clockDayService;
     private final EmployeeService employeeService;
     private final TenantClock tenantClock;
+    private final AttendanceRepository attendanceRepository;
     private final Clock clock;
 
     @Autowired
@@ -38,25 +41,38 @@ public class ClockServiceImpl implements ClockService {
             ClockDayService clockDayService,
             EmployeeService employeeService,
             TenantClock tenantClock,
+            AttendanceRepository attendanceRepository,
             org.springframework.beans.factory.ObjectProvider<Clock> clockProvider) {
         this(
                 clockSessions,
                 clockDayService,
                 employeeService,
                 tenantClock,
+                attendanceRepository,
                 clockProvider != null ? clockProvider.getIfAvailable(Clock::systemUTC) : Clock.systemUTC());
     }
 
-    ClockServiceImpl(
+    public ClockServiceImpl(
             ClockSessionRepository clockSessions,
             ClockDayService clockDayService,
             EmployeeService employeeService,
             TenantClock tenantClock,
             Clock clock) {
+        this(clockSessions, clockDayService, employeeService, tenantClock, null, clock);
+    }
+
+    public ClockServiceImpl(
+            ClockSessionRepository clockSessions,
+            ClockDayService clockDayService,
+            EmployeeService employeeService,
+            TenantClock tenantClock,
+            AttendanceRepository attendanceRepository,
+            Clock clock) {
         this.clockSessions = Objects.requireNonNull(clockSessions, "clockSessions must not be null");
         this.clockDayService = Objects.requireNonNull(clockDayService, "clockDayService must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.tenantClock = Objects.requireNonNull(tenantClock, "tenantClock must not be null");
+        this.attendanceRepository = attendanceRepository;
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -147,7 +163,30 @@ public class ClockServiceImpl implements ClockService {
 
         List<ClockSession> list = clockSessions.findByTenantIdAndEmployeeIdAndAttendanceDateBetweenOrderByClockInAtDesc(
                 tenantId, employee.id(), from, to);
-        return list.stream().map(ClockSessionResponse::from).toList();
+
+        java.util.Map<LocalDate, Attendance> attMap = new java.util.HashMap<>();
+        if (attendanceRepository != null) {
+            List<Attendance> attendances =
+                    attendanceRepository.findByTenantIdAndEmployeeIdAndDateRange(tenantId, employee.id(), from, to);
+            if (attendances != null) {
+                for (Attendance a : attendances) {
+                    if (a.getAttendanceDate() != null) {
+                        attMap.put(a.getAttendanceDate(), a);
+                    }
+                }
+            }
+        }
+
+        return list.stream()
+                .map(s -> {
+                    Attendance att = attMap.get(s.getAttendanceDate());
+                    String dayStatus = att != null && att.getStatus() != null
+                            ? att.getStatus().name()
+                            : null;
+                    String remarks = att != null ? att.getRemarks() : null;
+                    return ClockSessionResponse.from(s, java.util.Map.of(), dayStatus, remarks);
+                })
+                .toList();
     }
 
     @Override
@@ -165,7 +204,32 @@ public class ClockServiceImpl implements ClockService {
                 list.stream().map(ClockSession::getEmployeeId).collect(java.util.stream.Collectors.toSet());
         java.util.Map<UUID, String> names = ids.isEmpty() ? java.util.Map.of() : employeeService.displayNames(ids);
         java.util.Map<UUID, String> resolved = names != null ? names : java.util.Map.of();
-        return list.stream().map(s -> ClockSessionResponse.from(s, resolved)).toList();
+
+        // Batch read daily attendance status and remarks
+        java.util.Map<String, Attendance> attMap = new java.util.HashMap<>();
+        if (attendanceRepository != null) {
+            List<Attendance> attendances = employeeId != null
+                    ? attendanceRepository.findByTenantIdAndEmployeeIdAndDateRange(tenantId, employeeId, from, to)
+                    : attendanceRepository.findByTenantIdAndDateRange(tenantId, from, to);
+            if (attendances != null) {
+                for (Attendance a : attendances) {
+                    if (a.getEmployee() != null && a.getAttendanceDate() != null) {
+                        attMap.put(a.getEmployee().getId() + "_" + a.getAttendanceDate(), a);
+                    }
+                }
+            }
+        }
+
+        return list.stream()
+                .map(s -> {
+                    Attendance att = attMap.get(s.getEmployeeId() + "_" + s.getAttendanceDate());
+                    String dayStatus = att != null && att.getStatus() != null
+                            ? att.getStatus().name()
+                            : null;
+                    String remarks = att != null ? att.getRemarks() : null;
+                    return ClockSessionResponse.from(s, resolved, dayStatus, remarks);
+                })
+                .toList();
     }
 
     private EmployeeResponse requireCurrentEmployee() {

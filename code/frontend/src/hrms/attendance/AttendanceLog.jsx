@@ -84,6 +84,34 @@ export function AttendanceLog() {
     { title: 'In', key: 'in', render: (_, r) => timeOf(r.clockInAt) },
     { title: 'Out', key: 'out', render: (_, r) => timeOf(r.clockOutAt) },
     { title: 'Worked', key: 'worked', render: (_, r) => hmm(r.workedMinutes) },
+    {
+      title: 'Day Status / Remarks',
+      key: 'statusRemarks',
+      render: (_, r) => {
+        const isWfh = r.remarks === 'Work From Home' || (r.remarks && r.remarks.includes('Work From Home'));
+        return (
+          <Space size={4} wrap>
+            {isWfh && <Tag color="blue">Work From Home</Tag>}
+            {r.dayStatus && (
+              <Tag
+                color={
+                  r.dayStatus === 'PRESENT'
+                    ? 'green'
+                    : r.dayStatus === 'HALF_DAY'
+                    ? 'purple'
+                    : r.dayStatus === 'ON_LEAVE'
+                    ? 'gold'
+                    : 'default'
+                }
+              >
+                {r.dayStatus}
+              </Tag>
+            )}
+            {!isWfh && !r.dayStatus && <span style={{ color: '#8c8c8c' }}>{EMPTY}</span>}
+          </Space>
+        );
+      },
+    },
     { title: 'Origin', dataIndex: 'origin', key: 'origin', render: (o) => humanize(o) },
     {
       title: 'Voided',

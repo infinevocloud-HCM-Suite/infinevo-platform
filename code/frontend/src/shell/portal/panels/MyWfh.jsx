@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Card, Table, Row, Col, Skeleton, Result, Button, Typography, Space, Progress, Tag, Popconfirm, Alert, Modal, Descriptions, theme } from 'antd';
+import { Card, Table, Row, Col, Skeleton, Result, Button, Typography, Space, Progress, Tag, Popconfirm, Alert, Modal, Descriptions, Timeline, Spin, theme } from 'antd';
 import { HomeOutlined, PlusOutlined, UndoOutlined, StopOutlined, EyeOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { portalService } from '../portalService.js';
 import { wfhService } from '../../../core/wfh/wfhService.js';
+import { approvalService } from '../../../core/approvals/approvalService.js';
 import { formatDate, humanize } from '../../../shared/ui/format.js';
 import { successMsg, errorMsg } from '../../../shared/ui/msgHelper.js';
 
 const { Title, Text } = Typography;
+
+const DECISIONS = {
+  APPROVED: { label: 'Approved', color: 'green' },
+  REJECTED: { label: 'Rejected', color: 'red' },
+  PENDING: { label: 'Pending Approval', color: 'blue' },
+};
+const PENDING_DECISION = { label: 'Pending Approval', color: 'blue' };
 
 function days(value) {
   const n = Number(value);
@@ -137,7 +146,26 @@ export function MyWfh({ onNavigate }) {
   const [actionLoading, setActionLoading] = useState({});
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [viewModalVisible, setViewModalVisible] = useState(false);
+  const [approvalHistory, setApprovalHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const { token } = theme.useToken();
+
+  const handleOpenViewModal = (record) => {
+    setSelectedRequest(record);
+    setViewModalVisible(true);
+    setApprovalHistory([]);
+    if (record.approvalInstanceId && !record.onBehalf) {
+      setHistoryLoading(true);
+      approvalService
+        .history(record.approvalInstanceId)
+        .then((res) => {
+          const steps = res?.steps || (Array.isArray(res) ? res : []);
+          setApprovalHistory(steps);
+        })
+        .catch(() => setApprovalHistory([]))
+        .finally(() => setHistoryLoading(false));
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -266,10 +294,7 @@ export function MyWfh({ onNavigate }) {
             size="small"
             type="link"
             icon={<EyeOutlined />}
-            onClick={() => {
-              setSelectedRequest(r);
-              setViewModalVisible(true);
-            }}
+            onClick={() => handleOpenViewModal(r)}
             data-testid={`view-wfh-${r.id}`}
           >
             View
@@ -388,32 +413,89 @@ export function MyWfh({ onNavigate }) {
             Close
           </Button>,
         ]}
-        width={560}
+        width={600}
       >
         {selectedRequest && (
-          <Descriptions column={1} bordered size="small" style={{ marginTop: 12 }}>
-            <Descriptions.Item label="Dates">
-              {formatDate(selectedRequest.fromDate)}
-              {selectedRequest.fromDate !== selectedRequest.toDate && ` – ${formatDate(selectedRequest.toDate)}`}
-            </Descriptions.Item>
-            <Descriptions.Item label="Duration">
-              {selectedRequest.halfDay
-                ? `0.5 day (${selectedRequest.halfDayPeriod === 'first' ? '1st Half' : '2nd Half'})`
-                : `${showDays(selectedRequest.workingDays)} days`}
-            </Descriptions.Item>
-            <Descriptions.Item label="Status">
-              {getStatusTag(selectedRequest.status)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Reason">
-              {selectedRequest.reason || 'No reason provided'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Submission Type">
-              {selectedRequest.onBehalf ? 'On-Behalf (Manager/HR)' : 'Self-Service'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Applied On">
-              {formatDate(selectedRequest.createdAt)}
-            </Descriptions.Item>
-          </Descriptions>
+          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <Descriptions column={1} bordered size="small" style={{ marginTop: 12 }}>
+              <Descriptions.Item label="Dates">
+                {formatDate(selectedRequest.fromDate)}
+                {selectedRequest.fromDate !== selectedRequest.toDate && ` – ${formatDate(selectedRequest.toDate)}`}
+              </Descriptions.Item>
+              <Descriptions.Item label="Duration">
+                {selectedRequest.halfDay
+                  ? `0.5 day (${selectedRequest.halfDayPeriod === 'first' ? '1st Half' : '2nd Half'})`
+                  : `${showDays(selectedRequest.workingDays)} days`}
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                {getStatusTag(selectedRequest.status)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Reason">
+                {selectedRequest.reason || 'No reason provided'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Submission Type">
+                {selectedRequest.onBehalf ? 'On-Behalf (Manager/HR)' : 'Self-Service'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Applied On">
+                {formatDate(selectedRequest.createdAt)}
+              </Descriptions.Item>
+            </Descriptions>
+
+            <Card size="small" title="Approval Trail">
+              {historyLoading ? (
+                <div style={{ textAlign: 'center', padding: 16 }}>
+                  <Spin size="small" />
+                </div>
+              ) : selectedRequest.onBehalf ? (
+                <Timeline
+                  items={[
+                    {
+                      color: 'green',
+                      children: (
+                        <>
+                          <Text strong>Approved on Creation</Text>
+                          <br />
+                          <Text type="secondary">
+                            Recorded directly by administrator on behalf of employee
+                          </Text>
+                        </>
+                      ),
+                    },
+                  ]}
+                />
+              ) : approvalHistory.length > 0 ? (
+                <Timeline
+                  items={approvalHistory.map((step) => {
+                    const decision = DECISIONS[step.decision] || PENDING_DECISION;
+                    const by = step.assigneeName
+                      ? `by ${step.assigneeName}`
+                      : (step.role ? `by ${humanize(step.role)}` : null);
+                    const when = step.decidedAt ? dayjs(step.decidedAt).format('D MMM YYYY, HH:mm') : null;
+                    return {
+                      key: step.stepId || step.id,
+                      color: decision.color,
+                      children: (
+                        <>
+                          <Text strong>{`Step ${step.stepIndex + 1} — ${decision.label}`}</Text>
+                          <br />
+                          <Text type="secondary">
+                            {[by, when].filter(Boolean).join(' · ') || 'Awaiting decision'}
+                          </Text>
+                          {step.comment && (
+                            <p style={{ margin: '4px 0 0 0', fontStyle: 'italic' }}>
+                              &ldquo;{step.comment}&rdquo;
+                            </p>
+                          )}
+                        </>
+                      ),
+                    };
+                  })}
+                />
+              ) : (
+                <Text type="secondary">No approval steps recorded.</Text>
+              )}
+            </Card>
+          </Space>
         )}
       </Modal>
     </Space>

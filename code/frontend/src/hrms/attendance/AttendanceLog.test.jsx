@@ -92,4 +92,31 @@ describe('AttendanceLog (W-48.4 §7)', () => {
     },
     T
   );
+
+  it(
+    'renders Day Status and Work From Home remarks badge',
+    async () => {
+      const wfhRows = [
+        {
+          id: 's3',
+          employeeId: 'e3',
+          employeeName: 'Manika Arjun',
+          attendanceDate: '2026-10-29',
+          clockInAt: '2026-10-29T12:18:00Z',
+          clockOutAt: '2026-10-29T12:21:00Z',
+          workedMinutes: 3,
+          origin: 'CLOCK',
+          dayStatus: 'PRESENT',
+          remarks: 'Work From Home',
+        },
+      ];
+      attendanceService.allSessions.mockResolvedValue(wfhRows);
+      render(<AttendanceLog />);
+      pickRange('2026-10-26', '2026-10-31');
+      expect(await screen.findAllByText('Manika Arjun')).toBeTruthy();
+      expect(await screen.findByText('Work From Home')).toBeTruthy();
+      expect(await screen.findByText('PRESENT')).toBeTruthy();
+    },
+    T
+  );
 });

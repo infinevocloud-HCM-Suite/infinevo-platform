@@ -267,6 +267,41 @@ class ClockServiceTest {
                 .hasMessageContaining("No employee profile");
     }
 
+    @Test
+    @DisplayName("allSessions enriches session response with dayStatus and remarks from Attendance")
+    void allSessions_enrichesDayStatusAndRemarks() {
+        com.infinevo.core.attendance.AttendanceRepository attendanceRepo =
+                mock(com.infinevo.core.attendance.AttendanceRepository.class);
+        ClockServiceImpl customService = new ClockServiceImpl(
+                clockSessions, clockDayService, employeeService, tenantClock, attendanceRepo, clock);
+
+        LocalDate date = LocalDate.of(2026, 4, 15);
+        ClockSession session = new ClockSession(
+                TENANT, EMPLOYEE, date, Instant.parse("2026-04-15T09:00:00Z"), SessionOrigin.CLOCK, "system");
+
+        when(clockSessions.findByTenantIdAndAttendanceDateBetweenOrderByClockInAtDesc(TENANT, date, date))
+                .thenReturn(java.util.List.of(session));
+
+        com.infinevo.core.employee.Employee emp = mock(com.infinevo.core.employee.Employee.class);
+        when(emp.getId()).thenReturn(EMPLOYEE);
+
+        com.infinevo.core.attendance.Attendance att = mock(com.infinevo.core.attendance.Attendance.class);
+        when(att.getEmployee()).thenReturn(emp);
+        when(att.getAttendanceDate()).thenReturn(date);
+        when(att.getStatus()).thenReturn(AttendanceStatus.PRESENT);
+        when(att.getRemarks()).thenReturn("Work From Home");
+
+        when(attendanceRepo.findByTenantIdAndDateRange(TENANT, date, date)).thenReturn(java.util.List.of(att));
+        when(employeeService.displayNames(java.util.Set.of(EMPLOYEE)))
+                .thenReturn(java.util.Map.of(EMPLOYEE, "Manika Arjun"));
+
+        java.util.List<ClockSessionResponse> results = customService.allSessions(date, date, null);
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).employeeName()).isEqualTo("Manika Arjun");
+        assertThat(results.get(0).dayStatus()).isEqualTo("PRESENT");
+        assertThat(results.get(0).remarks()).isEqualTo("Work From Home");
+    }
+
     private static class MutableClock extends Clock {
         private Instant instant;
 
