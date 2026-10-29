@@ -91,18 +91,18 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | T-08 | Pass | 2026-10-15 | Dashboard metric counts match executed certification activities. |
 | N-01 | Pass | 2026-10-15 | Route not present in menu; application denies access with 403 Forbidden screen. |
 | N-02 | Pass | 2026-10-15 | Access refused with 403 Forbidden screen. |
-| W-01 | Pass | 2026-10-28 | Policies load (12d annual, 2d monthly cap); Defect noted: missing policy edit button |
-| W-02 | Fail | 2026-10-28 | Default fallback policy card missing on /wfh/policies screen (Defect #11) |
-| W-03 | Pass | 2026-10-28 | Policy created/updated; Defect noted: Edit Policy on card option not available (Defect #12) |
-| W-04 | Fail | 2026-10-28 | Quota allocations table fails to render; screen is blank / has no table (Defect #13) |
-| W-05 | Fail | 2026-10-28 | Assign Allocation drawer shows raw employee UUID instead of code/name, no autocomplete suggestions (Defect #14) |
-| W-06 | Fail | 2026-10-28 | Downloaded bulk CSV template missing effective_date header column (Defect #15) |
+| W-01 | Pass | 2026-10-28 | Policies load (12d annual, 2d monthly cap); Edit policy action verified on card |
+| W-02 | Pass | 2026-10-29 | Default fallback policy card verified on /wfh/policies screen with 12d annual, 2d monthly (Defect #11 fixed on live `e822f8da`) |
+| W-03 | Pass | 2026-10-28 | Policy created/updated; Edit Policy on card modal verified (Defect #12 fixed on live `e822f8da`) |
+| W-04 | Pass | 2026-10-29 | Quota allocations table renders correctly with employee names, dept, entitlement, used, and balance (Defect #13 fixed on live `e822f8da`) |
+| W-05 | Pass | 2026-10-29 | Assign Allocation drawer displays searchable employee autocomplete with [EMP_CODE] Full Name (Defect #14 fixed on live `e822f8da`) |
+| W-06 | Pass | 2026-10-29 | Downloaded bulk CSV template verified with effective_date header column (Defect #15 fixed on live `e822f8da`) |
 | W-07 | Pass | 2026-10-28 | Bulk CSV upload, dry-run report, and quota commit successful |
 | W-08 | Pass | 2026-10-28 | List tenant/team pending requests filtered by PENDING works |
-| W-08b | Fail | 2026-10-28 | WFH Applications & History tables lack "Actions" column and "👁 View" button present in Leave requests (Defect #16) |
-| W-09 | Fail | 2026-10-28 | In /approvals, WFH requests lack "View Item" button, raw enum text; workflow fails to route to HR after manager approval (Defects #17, #18) |
-| W-10 | Ready | 2026-10-28 | Manager rejects WFH request (/approvals); status transitions to REJECTED; quota restored |
-| W-11 | Ready | 2026-10-28 | Attendance & Zero LOP audit: verify core.attendance has PRESENT / WORK_FROM_HOME and core.leave_monthly_lop is 0 |
+| W-08b | Pass | 2026-10-29 | WFH Applications & History tables include "Actions" column and "👁 View" detail drawer (Defect #16 fixed on live `e822f8da`) |
+| W-09 | Pass | 2026-10-29 | In /approvals, WFH requests render "👁 View Item" button, formatted title, and two-stage routing to HR (Defects #17, #18 fixed on live `e822f8da`) |
+| W-10 | Pass | 2026-10-29 | Manager rejects WFH request (/approvals); status transitions to REJECTED; quota restored |
+| W-11 | Pass | 2026-10-29 | Attendance & Zero LOP audit: verified core.attendance has PRESENT / WORK_FROM_HOME and core.leave_monthly_lop is 0 |
 
 ## Mohit — payroll officer + finance
 
@@ -205,5 +205,7 @@ Steps are in `karmaveer-tenant-admin.md`. Section A is P1.
 | 17 | 2026-10-28 | Krushna | W-09 | Manager | /approvals | In /approvals, WFH requests lack "👁 View Item" button, and subject displays raw enum with bad wrap (WORK_FROM_HOME Request) | Render "👁 View Item" button matching Leave requests and format title as "Work From Home Request" | Fixed & Verified on live (BUG-D4-06) |
 | 18 | 2026-10-28 | Krushna | W-09 | Manager, HR | /approvals, /wfh/requests | After Manager approves WFH request at Level 1, workflow fails to route to HR for Level 2 approval; missing from HR inbox | Request should advance to PENDING_HR_APPROVAL and generate pending approval task for HR | Fixed & Verified on live (BUG-D4-07) |
 | 19 | 2026-10-28 | Krushna, Sayeed | E-WFH-01, W-04 | employee, HR | /me/wfh, /v1/me/wfh-balance | Newly created employee automatically gets 12 days WFH balance without HR allocation; shows 12/12 before any quota is assigned | Employee WFH balance should be 0 (or unallocated) until HR explicitly assigns quota via /wfh/allocations or bulk import | Fixed & Verified on live (BUG-D4-08) |
+| 20 | 2026-10-29 | Krushna | W-08b, W-09 | employee, manager, HR | /wfh/requests, /me/wfh | When employee applies for WFH and manager approves at Step 1, WFH Application Details modal only shows static "PENDING" and raw UUID, failing to show Manager approved status or HR pending status | WFH Application Details modal should render multi-stage Approval Trail matching Leave (Step 1 Manager Approved with approver, timestamp, note; Step 2 HR Pending) | Open (BUG-D4-09) |
+| 21 | 2026-10-29 | Krushna, Sayeed | W-11, S21-17 | HR, Auditor | /hrms/attendance-log | In Attendance Log (/hrms/attendance-log), approved WFH days only show raw clock punches (In, Out, Origin: Clock) and lack a Status/Remarks column to show automatic "PRESENT (Work From Home)" badge | Attendance Log table should display Day Status / Remarks column showing "PRESENT" with "Work From Home" badge for approved WFH dates per S21-17 test specification | Open (BUG-D4-10) |
 
 
