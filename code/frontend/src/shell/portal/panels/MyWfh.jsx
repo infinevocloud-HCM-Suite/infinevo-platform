@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Card, Table, Row, Col, Skeleton, Result, Button, Typography, Space, Progress, Tag, Popconfirm, theme } from 'antd';
-import { HomeOutlined, PlusOutlined, UndoOutlined, StopOutlined } from '@ant-design/icons';
+import { Card, Table, Row, Col, Skeleton, Result, Button, Typography, Space, Progress, Tag, Popconfirm, Alert, Modal, Descriptions, theme } from 'antd';
+import { HomeOutlined, PlusOutlined, UndoOutlined, StopOutlined, EyeOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 import { wfhService } from '../../../core/wfh/wfhService.js';
 import { formatDate } from '../../../shared/ui/format.js';
@@ -20,11 +20,12 @@ function showDays(value) {
 }
 
 function WfhBalanceCard({ balance, token }) {
-  const entitled = days(balance?.entitledDays || 12);
+  const hasAllocation = balance?.entitledDays !== undefined && balance?.entitledDays !== null && Number(balance?.entitledDays) > 0;
+  const entitled = hasAllocation ? days(balance.entitledDays) : 0;
   const consumed = days(balance?.consumedDays || 0);
   const pending = days(balance?.pendingDays || 0);
-  const available = days(balance?.availableDays || 12);
-  const monthlyLimit = days(balance?.monthlyLimit || 2);
+  const available = hasAllocation ? days(balance.availableDays) : 0;
+  const monthlyLimit = hasAllocation ? days(balance?.monthlyLimit || 2) : 0;
   const monthConsumed = days(balance?.monthConsumed || 0);
 
   const percent = entitled > 0 ? Math.min(100, Math.round((consumed / entitled) * 100)) : 0;
@@ -108,6 +109,17 @@ function WfhBalanceCard({ balance, token }) {
           </Text>
         </div>
       </div>
+
+      {!hasAllocation && (
+        <Alert
+          type="info"
+          showIcon
+          message="No WFH Quota Allocated"
+          description="You do not have an active WFH quota allocated for this year. Please contact HR to assign your remote work quota."
+          style={{ marginTop: token.marginXS }}
+          data-testid="no-wfh-quota-alert"
+        />
+      )}
     </Card>
   );
 }
@@ -123,6 +135,8 @@ export function MyWfh({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [viewModalVisible, setViewModalVisible] = useState(false);
   const { token } = theme.useToken();
 
   const fetchData = async () => {
@@ -248,6 +262,19 @@ export function MyWfh({ onNavigate }) {
       key: 'actions',
       render: (_, r) => (
         <Space size="small">
+          <Button
+            size="small"
+            type="link"
+            icon={<EyeOutlined />}
+            onClick={() => {
+              setSelectedRequest(r);
+              setViewModalVisible(true);
+            }}
+            data-testid={`view-wfh-${r.id}`}
+          >
+            View
+          </Button>
+
           {r.status === 'PENDING' && (
             <Popconfirm
               title="Withdraw WFH Request"
@@ -306,6 +333,9 @@ export function MyWfh({ onNavigate }) {
     );
   }
 
+  const hasAllocation = balance?.entitledDays !== undefined && balance?.entitledDays !== null && Number(balance?.entitledDays) > 0;
+  const availableDaysCount = hasAllocation ? Number(balance?.availableDays || 0) : 0;
+
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -318,6 +348,8 @@ export function MyWfh({ onNavigate }) {
           type="primary"
           icon={<PlusOutlined />}
           data-testid="apply-wfh-btn"
+          disabled={!hasAllocation || availableDaysCount <= 0}
+          title={!hasAllocation ? 'No WFH quota allocated by HR' : (availableDaysCount <= 0 ? 'No available WFH days remaining' : '')}
           onClick={() => {
             if (onNavigate) {
               onNavigate('/me/wfh/apply');
@@ -346,6 +378,44 @@ export function MyWfh({ onNavigate }) {
           data-testid="wfh-requests-table"
         />
       </Card>
+
+      <Modal
+        title="WFH Request Details"
+        open={viewModalVisible}
+        onCancel={() => setViewModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setViewModalVisible(false)}>
+            Close
+          </Button>,
+        ]}
+        width={560}
+      >
+        {selectedRequest && (
+          <Descriptions column={1} bordered size="small" style={{ marginTop: 12 }}>
+            <Descriptions.Item label="Dates">
+              {formatDate(selectedRequest.fromDate)}
+              {selectedRequest.fromDate !== selectedRequest.toDate && ` – ${formatDate(selectedRequest.toDate)}`}
+            </Descriptions.Item>
+            <Descriptions.Item label="Duration">
+              {selectedRequest.halfDay
+                ? `0.5 day (${selectedRequest.halfDayPeriod === 'first' ? '1st Half' : '2nd Half'})`
+                : `${showDays(selectedRequest.workingDays)} days`}
+            </Descriptions.Item>
+            <Descriptions.Item label="Status">
+              {getStatusTag(selectedRequest.status)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Reason">
+              {selectedRequest.reason || 'No reason provided'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Submission Type">
+              {selectedRequest.onBehalf ? 'On-Behalf (Manager/HR)' : 'Self-Service'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Applied On">
+              {formatDate(selectedRequest.createdAt)}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
     </Space>
   );
 }

@@ -1366,7 +1366,7 @@ dev environment crash-loops on the next deploy.
 | **Description** | In the WFH Policies screen (`/wfh/policies`), the system does not display the default fallback policy card (`DEFAULT_WFH`). Additionally, individual policy cards lack an "Edit Policy" action button, unlike the Leave policy management screen which permits direct edits. |
 | **Root Cause** | Frontend policy screen (`WfhPolicies.jsx`) does not call `GET /v1/wfh-policies/default` to render the fallback card and only provides a "New Policy" button without mounting an Edit action on existing card items. |
 | **Resolution** | 1. Mount fallback default policy banner/card fetching from `GET /v1/wfh-policies/default`.<br>2. Add "Edit" button to policy cards opening the policy drawer populated with the card's existing rule parameters. |
-| **Status** | **open** |
+| **Status** | **fixed on main (uncommitted)** |
 
 ---
 
@@ -1381,7 +1381,7 @@ dev environment crash-loops on the next deploy.
 | **Description** | On the WFH Allocations screen (`/wfh/allocations`), the employee quota allocations table fails to render completely, presenting an empty/blank view to HR administrators. |
 | **Root Cause** | Frontend `WfhAllocations.jsx` table dataSource mapping fails or backend `GET /v1/wfh-allocations?year=2026` response format mismatch causes component render error. |
 | **Resolution** | Fix data binding in `WfhAllocations.jsx` to correctly map the allocation list DTO into the table rows with proper error boundary fallback. |
-| **Status** | **open** |
+| **Status** | **fixed on main (uncommitted)** |
 
 ---
 
@@ -1396,7 +1396,7 @@ dev environment crash-loops on the next deploy.
 | **Description** | In the "Assign Allocation" drawer on `/wfh/allocations`, the Employee selector displays raw database UUID strings rather than human-readable Employee Codes and Names. Furthermore, typing an employee name does not provide autocomplete/typeahead search suggestions. |
 | **Root Cause** | `WfhAllocations.jsx` uses a basic text/select input instead of the shared `<EmployeeSearchSelect>` component linked to `/api/v1/employees/search`. |
 | **Resolution** | Replace the input with `<EmployeeSearchSelect>` displaying `[Employee Number] Display Name`, resolving the employee UUID internally in the POST payload. |
-| **Status** | **open** |
+| **Status** | **fixed on main (uncommitted)** |
 
 ---
 
@@ -1411,7 +1411,7 @@ dev environment crash-loops on the next deploy.
 | **Description** | The downloaded bulk CSV import template from `GET /v1/wfh-imports/template` is missing the `effective_date` header column required for quota validity and pro-rata calculation. |
 | **Root Cause** | Template generation endpoint in `WfhImportController.java` / `WfhImportServiceImpl.java` specifies `employee_number, wfh_year, entitlement_days` and omitted `effective_date`. |
 | **Resolution** | Include `effective_date` in CSV header definition and update parser to accept the column with ISO-8601 validation. |
-| **Status** | **open** |
+| **Status** | **fixed on main (uncommitted)** |
 
 ---
 
@@ -1426,7 +1426,7 @@ dev environment crash-loops on the next deploy.
 | **Description** | Unlike `/leave/requests` and `/me/leave` which provide an "Actions" column with an "👁 View" button, the WFH Applications table (`/wfh/requests`) and My WFH table (`/me/wfh`) lack the Actions column or View action. Users and managers cannot click to open the request details drawer to view dates, reason, or approval hierarchy progress. |
 | **Root Cause** | Column definitions in `WfhRequestsTable.jsx` and `MyWfh.jsx` omit the `Actions` column. |
 | **Resolution** | Add the `Actions` column with an `👁 View` button triggering the `WfhRequestDetailsDrawer` component. |
-| **Status** | **open** |
+| **Status** | **fixed on main (uncommitted)** |
 
 ---
 
@@ -1441,7 +1441,7 @@ dev environment crash-loops on the next deploy.
 | **Description** | In the Pending Approvals inbox (`/approvals`):<br>1. WFH requests only show Approve/Reject buttons and lack the "👁 View Item" link present on Leave requests.<br>2. Subject title displays raw enum text with awkward line wrapping: `WORK_FROM_HOME Request`.<br>3. When a Manager approves a WFH request at Level 1, the workflow fails to advance to HR for Level 2 approval and does not appear in the HR pending approvals queue. |
 | **Root Cause** | `Inbox.jsx` lacks handler for `WORK_FROM_HOME` in `View Item` modal router; flow title formatter is missing title-case conversion; workflow definition lacks Step 2 HR assignment on manager approval. |
 | **Resolution** | 1. Add `View Item` action handler for WFH flow in `Inbox.jsx`.<br>2. Format title as `Work From Home Request`.<br>3. Ensure `WfhRequestService.java` routes approved manager requests to the `hr` role approval queue. |
-| **Status** | **open** |
+| **Status** | **fixed on main (uncommitted)** |
 
 ---
 
@@ -1456,7 +1456,7 @@ dev environment crash-loops on the next deploy.
 | **Description** | Whenever a new employee is created, navigating to their WFH dashboard (`/me/wfh`) immediately displays an active annual quota balance of **12 / 12 days** by default. Employees should NOT have an active WFH balance or entitlement until HR explicitly assigns a WFH quota via `/wfh/allocations` or bulk import (`/wfh/import`). Without explicit allocation, the employee balance must remain 0 (or unallocated state) and the employee should be prevented from submitting WFH requests. |
 | **Root Cause** | In `WfhBalanceServiceImpl.java` (or balance calculation handler), if no matching row is found in `core.wfh_allocation` for the employee, the system erroneously falls back to granting the full annual quota from tenant fallback policy `DEFAULT_WFH` (12.0 days), instead of evaluating entitlement as 0.00. |
 | **Resolution** | 1. In `WfhBalanceServiceImpl.java`, return 0.00 entitlement, 0.00 available days, and unallocated status if no active record exists in `core.wfh_allocation` for the employee.<br>2. On `/me/wfh` UI, render "0 / 0" or an informative "No WFH Quota Allocated — Please contact HR" notice and disable "Apply for WFH" until quota is assigned by HR.<br>3. In `WfhRequestServiceImpl.java`, ensure validation blocks application attempts when quota entitlement is 0. |
-| **Status** | **open** |
+| **Status** | **fixed on main (uncommitted)** |
 
 
 

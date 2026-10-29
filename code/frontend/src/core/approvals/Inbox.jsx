@@ -31,6 +31,12 @@ const FLOW_TYPE_COLORS = {
   PROOF_OF_INVESTMENT: 'cyan',
   PAY_RUN: 'geekblue',
   TIMESHEET: 'magenta',
+  WORK_FROM_HOME: 'cyan',
+};
+
+const formatSummary = (str) => {
+  if (!str) return str;
+  return str.replace('WORK_FROM_HOME Request', 'Work From Home Request');
 };
 
 export function Inbox() {
@@ -125,7 +131,7 @@ export function Inbox() {
       render: (_, record) => (
         <Space direction="vertical" size={2}>
           <Link to={`/approvals/${record.instanceId}`} id={`link-instance-${record.id}`}>
-            <Text strong>{record.summary || record.itemRef || `Instance #${record.instanceId?.substring(0, 8)}`}</Text>
+            <Text strong>{formatSummary(record.summary || record.itemRef) || `Instance #${record.instanceId?.substring(0, 8)}`}</Text>
           </Link>
           {record.subjectEmployeeId && (
             <Text type="secondary" style={{ fontSize: 12 }}>

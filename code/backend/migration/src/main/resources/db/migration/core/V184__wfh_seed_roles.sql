@@ -68,7 +68,8 @@ BEGIN
         'WORK_FROM_HOME',
         'SEQUENTIAL',
         '[
-            {"kind": "REPORTING_MANAGER", "assignee": null, "escalate_after_days": 3, "per_item": false}
+            {"kind": "REPORTING_MANAGER", "assignee": null, "escalate_after_days": 3, "per_item": false},
+            {"kind": "ROLE", "assignee": "hr", "escalate_after_days": 3, "per_item": false}
         ]'::jsonb,
         'PER_STEP',
         true,

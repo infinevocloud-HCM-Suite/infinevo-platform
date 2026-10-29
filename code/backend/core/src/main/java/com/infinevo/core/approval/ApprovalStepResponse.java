@@ -70,9 +70,14 @@ public record ApprovalStepResponse(
         ApprovalFlowType flowType = instance != null ? instance.getFlowType() : null;
         UUID subjectEmployeeId = instance != null ? instance.getSubjectEmployeeId() : null;
         UUID itemId = instance != null ? instance.getSubjectId() : null;
-        String summary = (step.getItemRef() != null && !step.getItemRef().isBlank())
-                ? step.getItemRef()
-                : (instance != null ? (instance.getFlowType() + " Request") : null);
+        String fallbackSummary = null;
+        if (instance != null && instance.getFlowType() != null) {
+            fallbackSummary = instance.getFlowType() == ApprovalFlowType.WORK_FROM_HOME
+                    ? "Work From Home Request"
+                    : (instance.getFlowType() + " Request");
+        }
+        String summary =
+                (step.getItemRef() != null && !step.getItemRef().isBlank()) ? step.getItemRef() : fallbackSummary;
 
         return new ApprovalStepResponse(
                 step.getId(),

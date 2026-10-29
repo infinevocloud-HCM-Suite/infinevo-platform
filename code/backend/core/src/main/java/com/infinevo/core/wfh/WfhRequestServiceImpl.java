@@ -138,6 +138,10 @@ public class WfhRequestServiceImpl implements WfhRequestService {
 
         // Check available balance
         BigDecimal availableDays = balanceService.getAvailableDays(tenantId, employeeId, fromDate);
+        if (availableDays.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                    "No active WFH quota allocated for this employee. Please contact HR to assign quota.");
+        }
         if (availableDays.compareTo(workingDays) < 0) {
             throw new IllegalArgumentException(
                     "Insufficient WFH balance. Available: " + availableDays + ", requested: " + workingDays);

@@ -8,6 +8,8 @@ public interface WfhPolicyService {
 
     WfhPolicyResponse createPolicy(UUID tenantId, CreateWfhPolicyRequest request);
 
+    WfhPolicyResponse updatePolicy(UUID tenantId, UUID policyId, CreateWfhPolicyRequest request);
+
     Optional<WfhPolicyResponse> getActivePolicy(UUID tenantId);
 
     List<WfhPolicyResponse> listPolicies(UUID tenantId);

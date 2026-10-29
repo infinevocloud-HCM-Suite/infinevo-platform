@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -43,6 +44,15 @@ public class WfhPolicyController {
     public List<WfhPolicyResponse> listPolicies() {
         UUID tenantId = TenantContext.require();
         return policyService.listPolicies(tenantId);
+    }
+
+    @PutMapping("/{id}")
+    @RequiresAction("core.wfh.manage")
+    public WfhPolicyResponse updatePolicy(
+            @org.springframework.web.bind.annotation.PathVariable UUID id,
+            @RequestBody CreateWfhPolicyRequest request) {
+        UUID tenantId = TenantContext.require();
+        return policyService.updatePolicy(tenantId, id, request);
     }
 
     @GetMapping("/default")

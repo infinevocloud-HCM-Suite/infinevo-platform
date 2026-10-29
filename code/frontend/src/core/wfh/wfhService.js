@@ -44,6 +44,11 @@ export const wfhService = {
     return res?.data !== undefined ? res.data : res;
   },
 
+  async updatePolicy(id, data) {
+    const res = await apiClient.put(`/v1/wfh-policies/${encodeURIComponent(id)}`, data);
+    return res?.data !== undefined ? res.data : res;
+  },
+
   // Management: Allocations
   async getAllocations(params = {}) {
     const res = await apiClient.get('/v1/wfh-allocations', { params });

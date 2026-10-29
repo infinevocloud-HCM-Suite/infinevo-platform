@@ -7,6 +7,7 @@ export const FLOW_TYPES = [
   { key: 'REGULARIZATION', label: 'Regularization', module: 'HRMS' },
   { key: 'OVERTIME', label: 'Overtime', module: 'HRMS' },
   { key: 'TIMESHEET', label: 'Timesheet', module: 'HRMS' },
+  { key: 'WORK_FROM_HOME', label: 'Work From Home', module: 'HRMS' },
   { key: 'REIMBURSEMENT', label: 'Reimbursement', module: 'PAYROLL' },
   { key: 'PROOF_OF_INVESTMENT', label: 'Proof of Investment', module: 'PAYROLL' },
   { key: 'PAY_RUN', label: 'Pay Run', module: 'PAYROLL' },

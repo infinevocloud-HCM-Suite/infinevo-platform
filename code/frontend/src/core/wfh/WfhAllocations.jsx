@@ -3,6 +3,7 @@ import { Card, Table, Button, Modal, Form, Input, InputNumber, DatePicker, Selec
 import { PlusOutlined, CalendarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
+import { EmployeePicker } from '../leave/EmployeePicker.jsx';
 import { wfhService } from './wfhService.js';
 import { formatDate } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
@@ -25,9 +26,12 @@ export function WfhAllocations() {
     setLoading(true);
     try {
       const data = await wfhService.getAllocations({ year });
-      setAllocations(Array.isArray(data) ? data : []);
+      const raw = data?.data !== undefined ? data.data : data;
+      const list = Array.isArray(raw) ? raw : (raw?.content || raw?.items || []);
+      setAllocations(list);
     } catch (err) {
       errorMsg('Error', err?.message || 'Failed to fetch WFH allocations');
+      setAllocations([]);
     } finally {
       setLoading(false);
     }
@@ -74,9 +78,15 @@ export function WfhAllocations() {
       render: (_, r) => (
         <Space direction="vertical" size={2}>
           <Text strong>{r.employeeName || 'Unknown'}</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>{r.employeeNumber}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{r.employeeNumber || '-'}</Text>
         </Space>
       ),
+    },
+    {
+      title: 'Department',
+      dataIndex: 'departmentName',
+      key: 'departmentName',
+      render: (d) => d || '-',
     },
     {
       title: 'Year',
@@ -90,16 +100,31 @@ export function WfhAllocations() {
       render: (_, r) => `${formatDate(r.yearStartDate)} – ${formatDate(r.yearEndDate)}`,
     },
     {
-      title: 'Entitlement Quota',
+      title: 'Entitlement',
       dataIndex: 'entitlementDays',
       key: 'entitlementDays',
       render: (d) => <Text strong style={{ color: token.colorPrimary }}>{d} days</Text>,
     },
     {
-      title: 'Pro-rate Factor',
+      title: 'Used',
+      dataIndex: 'consumedDays',
+      key: 'consumedDays',
+      render: (d) => `${d ?? 0} d`,
+    },
+    {
+      title: 'Balance',
+      dataIndex: 'balanceDays',
+      key: 'balanceDays',
+      render: (d, r) => {
+        const bal = d !== undefined && d !== null ? d : (Number(r.entitlementDays || 0) - Number(r.consumedDays || 0));
+        return <Text strong style={{ color: Number(bal) > 0 ? token.colorSuccess : token.colorTextSecondary }}>{bal} d</Text>;
+      },
+    },
+    {
+      title: 'Pro-rate',
       dataIndex: 'proRateFactor',
       key: 'proRateFactor',
-      render: (f) => `${(Number(f) * 100).toFixed(0)}%`,
+      render: (f) => `${(Number(f || 1) * 100).toFixed(0)}%`,
     },
     {
       title: 'Created At',
@@ -156,6 +181,7 @@ export function WfhAllocations() {
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 10 }}
+        locale={{ emptyText: 'No WFH allocations found for this year' }}
         data-testid="wfh-allocations-table"
       />
 
@@ -180,10 +206,13 @@ export function WfhAllocations() {
         >
           <Form.Item
             name="employeeId"
-            label="Employee UUID"
-            rules={[{ required: true, message: 'Please enter employee UUID' }]}
+            label="Employee"
+            rules={[{ required: true, message: 'Please select an employee' }]}
           >
-            <Input placeholder="Enter employee UUID..." />
+            <EmployeePicker
+              id="wfh-allocation-employee-picker"
+              placeholder="Search employee by name or code..."
+            />
           </Form.Item>
 
           <Form.Item

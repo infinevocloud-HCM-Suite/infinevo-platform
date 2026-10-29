@@ -20,16 +20,27 @@ public class WfhAllocationServiceImpl implements WfhAllocationService {
     private final WfhPolicyRepository policyRepository;
     private final WfhPolicyService policyService;
     private final EmployeeRepository employeeRepository;
+    private final WfhConsumptionRepository consumptionRepository;
 
     public WfhAllocationServiceImpl(
             WfhAllocationRepository allocationRepository,
             WfhPolicyRepository policyRepository,
             WfhPolicyService policyService,
             EmployeeRepository employeeRepository) {
+        this(allocationRepository, policyRepository, policyService, employeeRepository, null);
+    }
+
+    public WfhAllocationServiceImpl(
+            WfhAllocationRepository allocationRepository,
+            WfhPolicyRepository policyRepository,
+            WfhPolicyService policyService,
+            EmployeeRepository employeeRepository,
+            WfhConsumptionRepository consumptionRepository) {
         this.allocationRepository = Objects.requireNonNull(allocationRepository);
         this.policyRepository = Objects.requireNonNull(policyRepository);
         this.policyService = Objects.requireNonNull(policyService);
         this.employeeRepository = Objects.requireNonNull(employeeRepository);
+        this.consumptionRepository = consumptionRepository;
     }
 
     @Override
@@ -77,7 +88,15 @@ public class WfhAllocationServiceImpl implements WfhAllocationService {
         WfhAllocation saved = allocationRepository.save(allocation);
         String employeeName =
                 employee.getFirstName() + " " + (employee.getLastName() != null ? employee.getLastName() : "");
-        return WfhAllocationResponse.from(saved, employeeName.trim(), employee.getEmployeeNumber());
+        String dept =
+                employee.getDepartment() != null ? employee.getDepartment().getName() : null;
+        return WfhAllocationResponse.from(
+                saved,
+                employeeName.trim(),
+                employee.getEmployeeNumber(),
+                dept,
+                BigDecimal.ZERO,
+                saved.getEntitlementDays());
     }
 
     @Override
@@ -101,7 +120,20 @@ public class WfhAllocationServiceImpl implements WfhAllocationService {
                             ? (emp.getFirstName() + " " + (emp.getLastName() != null ? emp.getLastName() : "")).trim()
                             : "Unknown";
                     String number = emp != null ? emp.getEmployeeNumber() : "";
-                    return WfhAllocationResponse.from(a, name, number);
+                    String dept = (emp != null && emp.getDepartment() != null)
+                            ? emp.getDepartment().getName()
+                            : null;
+                    BigDecimal consumed = (consumptionRepository != null)
+                            ? consumptionRepository.sumConsumedDaysByAllocation(tenantId, a.getId())
+                            : BigDecimal.ZERO;
+                    if (consumed == null) {
+                        consumed = BigDecimal.ZERO;
+                    }
+                    BigDecimal balance = a.getEntitlementDays().subtract(consumed);
+                    if (balance.compareTo(BigDecimal.ZERO) < 0) {
+                        balance = BigDecimal.ZERO;
+                    }
+                    return WfhAllocationResponse.from(a, name, number, dept, consumed, balance);
                 })
                 .toList();
     }

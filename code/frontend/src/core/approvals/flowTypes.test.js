@@ -17,6 +17,7 @@ describe('flowTypesFor', () => {
       'REGULARIZATION',
       'OVERTIME',
       'TIMESHEET',
+      'WORK_FROM_HOME',
     ]);
   });
 

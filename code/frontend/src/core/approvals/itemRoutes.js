@@ -13,6 +13,7 @@ export const itemRoutes = {
   PAY_RUN: null,
   // The approval subject is the project entry (W-48.3 §5, TimesheetSubmitService.java:16).
   TIMESHEET: (itemId) => (itemId ? `/hrms/timesheet-review/entries/${itemId}` : null),
+  WORK_FROM_HOME: (id) => (id ? '/wfh/requests' : null),
 };
 
 export function getItemRoute(flowType, itemId) {

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Tabs, Button, Modal, Form, Input, DatePicker, Switch, Radio, Tag, Space, Typography, Row, Col } from 'antd';
-import { SolutionOutlined, PlusOutlined } from '@ant-design/icons';
+import { Card, Table, Tabs, Button, Modal, Form, Input, DatePicker, Switch, Radio, Tag, Space, Typography, Descriptions, Row, Col } from 'antd';
+import { SolutionOutlined, PlusOutlined, EyeOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
+import { EmployeePicker } from '../leave/EmployeePicker.jsx';
 import { wfhService } from './wfhService.js';
 import { formatDate } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
@@ -22,6 +23,8 @@ export function WfhRequests() {
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isHalfDay, setIsHalfDay] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [viewModalVisible, setViewModalVisible] = useState(false);
   const [form] = Form.useForm();
 
   const fetchRequests = async (status) => {
@@ -158,6 +161,24 @@ export function WfhRequests() {
       key: 'createdAt',
       render: (d) => formatDate(d),
     },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, r) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => {
+            setSelectedRequest(r);
+            setViewModalVisible(true);
+          }}
+          data-testid={`view-wfh-request-${r.id}`}
+        >
+          View
+        </Button>
+      ),
+    },
   ];
 
   const tabItems = [
@@ -224,10 +245,13 @@ export function WfhRequests() {
         >
           <Form.Item
             name="employeeId"
-            label="Employee UUID"
-            rules={[{ required: true, message: 'Please enter employee UUID' }]}
+            label="Employee"
+            rules={[{ required: true, message: 'Please select an employee' }]}
           >
-            <Input placeholder="Enter employee UUID..." />
+            <EmployeePicker
+              id="wfh-on-behalf-employee-picker"
+              placeholder="Search employee by name or code..."
+            />
           </Form.Item>
 
           <Form.Item
@@ -293,6 +317,53 @@ export function WfhRequests() {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="WFH Application Details"
+        open={viewModalVisible}
+        onCancel={() => setViewModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setViewModalVisible(false)}>
+            Close
+          </Button>,
+        ]}
+        width={560}
+      >
+        {selectedRequest && (
+          <Descriptions column={1} bordered size="small" style={{ marginTop: 12 }}>
+            <Descriptions.Item label="Employee ID">
+              {selectedRequest.employeeId || '—'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Dates">
+              {formatDate(selectedRequest.fromDate)}
+              {selectedRequest.fromDate !== selectedRequest.toDate && ` – ${formatDate(selectedRequest.toDate)}`}
+            </Descriptions.Item>
+            <Descriptions.Item label="Duration">
+              {selectedRequest.halfDay
+                ? `0.5 day (${selectedRequest.halfDayPeriod === 'first' ? '1st Half' : '2nd Half'})`
+                : `${selectedRequest.workingDays || 1} day(s)`}
+            </Descriptions.Item>
+            <Descriptions.Item label="Status">
+              <Tag color={
+                selectedRequest.status === 'APPROVED' ? 'green' :
+                selectedRequest.status === 'REJECTED' ? 'red' :
+                selectedRequest.status === 'PENDING' ? 'blue' : 'default'
+              }>
+                {selectedRequest.status}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Reason">
+              {selectedRequest.reason || 'No reason provided'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Submission Type">
+              {selectedRequest.onBehalf ? 'On-Behalf (Manager/HR)' : 'Self-Service'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Applied On">
+              {formatDate(selectedRequest.createdAt)}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
       </Modal>
     </Card>
   );

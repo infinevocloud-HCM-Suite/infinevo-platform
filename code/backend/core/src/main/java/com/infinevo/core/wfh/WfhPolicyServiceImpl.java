@@ -3,6 +3,7 @@ package com.infinevo.core.wfh;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,6 +29,36 @@ public class WfhPolicyServiceImpl implements WfhPolicyService {
         WfhPolicy policy = new WfhPolicy();
         policy.setTenantId(tenantId);
         policy.setCode(request.code().trim().toUpperCase());
+        policy.setName(request.name().trim());
+        policy.setAnnualDays(request.annualDays());
+        policy.setMonthlyLimitDays(request.monthlyLimitDays());
+        policy.setAllowHalfDay(request.allowHalfDay());
+        policy.setAdvanceNoticeDays(request.advanceNoticeDays());
+        policy.setMaxConsecutiveDays(request.maxConsecutiveDays());
+        policy.setRequiresManagerApproval(request.requiresManagerApproval());
+        policy.setRequiresHrApproval(request.requiresHrApproval());
+        policy.setEffectiveFrom(request.effectiveFrom());
+        policy.setActive(request.active());
+
+        WfhPolicy saved = policyRepository.save(policy);
+        return WfhPolicyResponse.from(saved);
+    }
+
+    @Override
+    public WfhPolicyResponse updatePolicy(UUID tenantId, UUID policyId, CreateWfhPolicyRequest request) {
+        WfhPolicy policy = policyRepository
+                .findById(policyId)
+                .filter(p -> p.getTenantId().equals(tenantId))
+                .orElseThrow(() -> new NoSuchElementException("WFH policy not found: " + policyId));
+
+        if (!policy.getCode().equalsIgnoreCase(request.code().trim())) {
+            if (policyRepository.existsByTenantIdAndCode(
+                    tenantId, request.code().trim().toUpperCase())) {
+                throw new IllegalArgumentException("WFH policy code already exists: " + request.code());
+            }
+            policy.setCode(request.code().trim().toUpperCase());
+        }
+
         policy.setName(request.name().trim());
         policy.setAnnualDays(request.annualDays());
         policy.setMonthlyLimitDays(request.monthlyLimitDays());

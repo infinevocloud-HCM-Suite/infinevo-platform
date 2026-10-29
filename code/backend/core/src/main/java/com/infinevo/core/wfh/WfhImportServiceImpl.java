@@ -43,7 +43,9 @@ public class WfhImportServiceImpl implements WfhImportService {
 
     @Override
     public byte[] generateSampleCsv() {
-        String csv = "employee_code,year,allocated_days\n" + "EMP001,2026,12.00\n" + "EMP002,2026,12.00\n";
+        String csv = "employee_number,wfh_year,entitlement_days,effective_date\n"
+                + "EMP001,2026,12.00,2026-01-01\n"
+                + "EMP002,2026,6.00,2026-07-01\n";
         return csv.getBytes(StandardCharsets.UTF_8);
     }
 
@@ -98,21 +100,30 @@ public class WfhImportServiceImpl implements WfhImportService {
             int empCodeIdx = -1;
             int yearIdx = -1;
             int daysIdx = -1;
+            int effectiveDateIdx = -1;
 
             for (int i = 0; i < headers.length; i++) {
                 String h = headers[i].trim().toLowerCase().replace("\"", "");
-                if (h.equals("employee_code") || h.equals("employeecode") || h.equals("employee_number")) {
+                if (h.equals("employee_code")
+                        || h.equals("employeecode")
+                        || h.equals("employee_number")
+                        || h.equals("employeenumber")) {
                     empCodeIdx = i;
-                } else if (h.equals("year") || h.equals("wfh_year")) {
+                } else if (h.equals("year") || h.equals("wfh_year") || h.equals("wfhyear")) {
                     yearIdx = i;
-                } else if (h.equals("allocated_days") || h.equals("days") || h.equals("entitlement_days")) {
+                } else if (h.equals("allocated_days")
+                        || h.equals("days")
+                        || h.equals("entitlement_days")
+                        || h.equals("entitlementdays")) {
                     daysIdx = i;
+                } else if (h.equals("effective_date") || h.equals("effectivedate")) {
+                    effectiveDateIdx = i;
                 }
             }
 
             if (empCodeIdx == -1 || daysIdx == -1) {
                 throw new IllegalArgumentException(
-                        "CSV header must contain 'employee_code' and 'allocated_days' columns.");
+                        "CSV header must contain 'employee_number' (or 'employee_code') and 'entitlement_days' (or 'allocated_days') columns.");
             }
 
             WfhPolicy policy = policyService.getOrCreateDefaultPolicy(tenantId);
@@ -180,6 +191,22 @@ public class WfhImportServiceImpl implements WfhImportService {
 
                     LocalDate yearStart = LocalDate.of(parsedYear, 1, 1);
                     LocalDate yearEnd = LocalDate.of(parsedYear, 12, 31);
+                    BigDecimal proRateFactor = BigDecimal.ONE.setScale(4, RoundingMode.HALF_UP);
+
+                    if (effectiveDateIdx != -1 && parts.length > effectiveDateIdx) {
+                        String effDateStr = parts[effectiveDateIdx].trim().replace("\"", "");
+                        if (!effDateStr.isEmpty()) {
+                            try {
+                                LocalDate effDate = LocalDate.parse(effDateStr);
+                                yearStart = effDate;
+                                int remainingMonths = Math.max(1, 13 - effDate.getMonthValue());
+                                proRateFactor = BigDecimal.valueOf(remainingMonths)
+                                        .divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    }
+
                     Employee emp = empOpt.get();
 
                     List<WfhAllocation> existingAllocs =
@@ -190,7 +217,10 @@ public class WfhImportServiceImpl implements WfhImportService {
                             .orElse(null);
 
                     if (matching != null) {
+                        matching.setYearStartDate(yearStart);
+                        matching.setYearEndDate(yearEnd);
                         matching.setEntitlementDays(allocatedDays);
+                        matching.setProRateFactor(proRateFactor);
                         allocationRepository.save(matching);
                     } else {
                         WfhAllocation alloc = new WfhAllocation();
@@ -201,7 +231,7 @@ public class WfhImportServiceImpl implements WfhImportService {
                         alloc.setYearStartDate(yearStart);
                         alloc.setYearEndDate(yearEnd);
                         alloc.setEntitlementDays(allocatedDays);
-                        alloc.setProRateFactor(BigDecimal.ONE.setScale(4, RoundingMode.HALF_UP));
+                        alloc.setProRateFactor(proRateFactor);
                         allocationRepository.save(alloc);
                     }
                 }

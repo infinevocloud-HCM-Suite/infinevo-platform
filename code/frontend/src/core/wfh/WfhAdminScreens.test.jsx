@@ -10,6 +10,8 @@ import * as useCanModule from '@shell/screens';
 vi.mock('./wfhService.js', () => ({
   wfhService: {
     getPolicies: vi.fn(),
+    getDefaultPolicy: vi.fn(),
+    updatePolicy: vi.fn(),
     createPolicy: vi.fn(),
     getAllocations: vi.fn(),
     allocateQuota: vi.fn(),

@@ -113,8 +113,9 @@ export function ApplyWfh({ onSuccess }) {
     }
   };
 
-  const availableDays = balance?.availableDays !== undefined ? Number(balance.availableDays) : 12;
-  const isOverBalance = estimatedDays > availableDays;
+  const hasAllocation = balance?.entitledDays !== undefined && balance?.entitledDays !== null && Number(balance?.entitledDays) > 0;
+  const availableDays = hasAllocation ? Number(balance.availableDays || 0) : 0;
+  const isOverBalance = !hasAllocation || estimatedDays > availableDays;
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: token.paddingMD }}>
@@ -131,7 +132,18 @@ export function ApplyWfh({ onSuccess }) {
           <div style={{ width: 80 }} />
         </div>
 
-        {balance && (
+        {!hasAllocation && balance && (
+          <Alert
+            type="error"
+            showIcon
+            message="No WFH Quota Allocated"
+            description="You do not have an active WFH quota allocated for this year. Submissions are disabled until HR allocates quota."
+            style={{ borderRadius: token.borderRadiusLG }}
+            data-testid="no-allocation-warning"
+          />
+        )}
+
+        {hasAllocation && balance && (
           <Alert
             message={
               <Row justify="space-between" align="middle">
