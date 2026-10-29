@@ -1509,7 +1509,7 @@ dev environment crash-loops on the next deploy.
 
 ---
 
-## 38. Defect D-126 — Salary Structure Version Form and Active View Missing Deductions Section
+## 39. Defect D-126 — Salary Structure Version Form and Active View Missing Deductions Section
 
 | Field | Value |
 |---|---|
@@ -1525,7 +1525,7 @@ dev environment crash-loops on the next deploy.
 
 ---
 
-## 39. Defect D-127 — Salary Structure Percentage Component Value Not Copied In
+## 40. Defect D-127 — Salary Structure Percentage Component Value Not Copied In
 
 | Field | Value |
 |---|---|
@@ -1541,7 +1541,7 @@ dev environment crash-loops on the next deploy.
 
 ---
 
-## 40. Defect D-128 — Pay Run Deduction Component Default Value Not Applied
+## 41. Defect D-128 — Pay Run Deduction Component Default Value Not Applied
 
 | Field | Value |
 |---|---|
@@ -1557,7 +1557,7 @@ dev environment crash-loops on the next deploy.
 
 ---
 
-## 41. Defect D-129 — Employee Creation Screen Missing Statutory Components Section (EPF, ESI, PT Toggles & PF/UAN Input Fields)
+## 42. Defect D-129 — Employee Creation Screen Missing Statutory Components Section (EPF, ESI, PT Toggles & PF/UAN Input Fields)
 
 | Field | Value |
 |---|---|
@@ -1573,7 +1573,7 @@ dev environment crash-loops on the next deploy.
 
 ---
 
-## 42. Defect D-130 — Salary Structure Active View, Edit Details, and Revision Modal Missing Statutory Breakdown & CTC Reconciliation (EPF, ESI, PT)
+## 43. Defect D-130 — Salary Structure Active View, Edit Details, and Revision Modal Missing Statutory Breakdown & CTC Reconciliation (EPF, ESI, PT)
 
 | Field | Value |
 |---|---|
@@ -1589,7 +1589,7 @@ dev environment crash-loops on the next deploy.
 
 ---
 
-## 43. Defect D-131 — Employee Creation Backend Missing Integrated Statutory Profile Onboarding Workflow
+## 44. Defect D-131 — Employee Creation Backend Missing Integrated Statutory Profile Onboarding Workflow
 
 | Field | Value |
 |---|---|
@@ -1605,7 +1605,7 @@ dev environment crash-loops on the next deploy.
 
 ---
 
-## 44. Defect D-132 — Statutory Profile Missing Validation for Column Length Limits (UAN max 16, PF No max 32, ESI No max 32) Causing 500 Internal Server Error
+## 45. Defect D-132 — Statutory Profile Missing Validation for Column Length Limits (UAN max 16, PF No max 32, ESI No max 32) Causing 500 Internal Server Error
 
 | Field | Value |
 |---|---|
