@@ -1555,6 +1555,55 @@ dev environment crash-loops on the next deploy.
 | **Resolution** | Pending review / will circle back later. Inject `DeductionRepository` in `StructureLineContributor.java`, evaluate catalogue deductions and version deductions, compute flat/percentage amounts with `maxLimit` caps, and populate `SalaryVersionResponse.deductions`. |
 | **Status** | **open** |
 
+---
+
+## 41. Defect D-129 — Employee Creation Screen Missing Statutory Components Section (EPF, ESI, PT Toggles & PF/UAN Input Fields)
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-129` |
+| **Owner** | sayeed (`dev-sayeed`) |
+| **Found** | 2026-10-29, Legacy parity analysis: Add Employee Statutory Components Workflow (`/employees/create`) |
+| **Module / Screen** | `code/frontend/src/core/employee/EmployeeCreate.jsx`, `code/frontend/src/core/employee/employeeService.js` |
+| **Severity** | MAJOR |
+| **Description** | In the legacy application (`legacy/Payroll-Fend-react/src/pages/mainPages/employee/basicDetails.js:912-1111`), creating a new employee on the first page ("Basic Details") dynamically displays the **Statutory Components** section if enabled in organization settings (`statutoryConfig.epfEnabled`, `esiEnabled`, `ptEnabled`).<br>1. When EPF is enabled for the tenant, an **"Employees' Provident Fund"** checkbox is presented. Selecting it exposes mandatory inputs for **PF Account Number** (with format validation `AA/AAA/0000000/XXX/0000000`) and **UAN** (12 numeric digits), plus EPS contribution toggles (`eligibleForEps`, `contributesEpsOnHigherWages`).<br>2. When ESI is enabled for the tenant, an **"Employees' State Insurance"** checkbox is presented. Selecting it exposes the **ESI Insurance Number** input (10 digits).<br>3. When Professional Tax is enabled, a **"Professional Tax"** checkbox is presented.<br>In the new HCM application (`EmployeeCreate.jsx`), the employee creation page completely lacks the Statutory Components section. HR cannot configure statutory eligibility, PF, or UAN numbers during onboarding, forcing them to find a disconnected `StatutoryProfileCard` at the bottom of the payroll salary tab after employee creation. |
+| **Root Cause** | `EmployeeCreate.jsx` only handles basic core employee demographic fields (`core.employee`), without querying payroll statutory settings (`/v1/payroll/settings/epf`, `/v1/payroll/settings/esi`) or rendering statutory enrollment controls. |
+| **Resolution** | 1. In `EmployeeCreate.jsx`, query tenant statutory settings (EPF, ESI, PT) on load.<br>2. Add a **Statutory Components** section to `EmployeeCreate.jsx` that dynamically renders EPF, ESI, and PT controls based on tenant configuration.<br>3. When EPF is checked, render inputs for PF Account Number and UAN (with standard regex validation) and EPS options.<br>4. When ESI is checked, render input for ESI Insurance Number.<br>5. Upon successful creation of the employee, persist the statutory profile via `statutoryProfileService.save(createdEmployee.id, statutoryPayload)` (or unified onboarding backend flow). |
+| **Status** | **open** |
+
+---
+
+## 42. Defect D-130 — Salary Structure Active View and Version Modal Missing Statutory Contributions Breakdown (EPF, ESI, EDLI Rates & Amounts)
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-130` |
+| **Owner** | sayeed (`dev-sayeed`) |
+| **Found** | 2026-10-29, Legacy parity analysis: Salary Structure Statutory Breakdown & Preview (`/payroll/employees/:id/salary`) |
+| **Module / Screen** | `code/frontend/src/payroll/salary/` (`SalaryTab.jsx`, `SalaryVersionForm.jsx`) |
+| **Severity** | MAJOR |
+| **Description** | In the legacy application (`legacy/Payroll-Fend-react/src/pages/mainPages/employee/salaryDetails.js:1208-1346`), when an employee is enrolled in statutory schemes (EPF, ESI):<br>1. The Salary Details view renders a dedicated **Benefits / Statutory Contributions** section displaying employer statutory components with their applicable percentages (e.g. `EPF - Employer Contribution: 12% of PF Wages`, `EDLI: 0.50% of PF Wages`, `EPF Admin Charges: 0.50% of PF Wages`, `ESI: 3.25% of Gross`) along with calculated monthly and annual amounts.<br>2. These statutory amounts are factored into the CTC reconciliation (`Earnings + Employer Statutory Contributions = Annual CTC`).<br>In the new HCM application:<br>- In `SalaryTab.jsx`, the active salary structure card displays only Earnings, Benefits, and Reimbursements. It completely ignores `currentVersion.statutory` returned by `SalaryVersionResponse.java`, omitting statutory contribution rates, shares, and amounts from the employee's salary overview.<br>- In `SalaryVersionForm.jsx`, the creation/revision modal provides zero preview or visibility of employer statutory contribution lines and their percentages against the entered Annual CTC. |
+| **Root Cause** | `SalaryTab.jsx` lacks a table mapping `currentVersion.statutory` items. `SalaryVersionForm.jsx` does not simulate or fetch derived statutory lines (`StatutoryLineDeriver`) during structure draft editing. |
+| **Resolution** | 1. In `SalaryTab.jsx`, render a dedicated **Statutory Contributions** table (`id="table-salary-statutory"`) under the active version card displaying component code, contribution share (Employer/Employee), rate/percentage, monthly amount, and annual amount from `currentVersion.statutory`.<br>2. In `SalaryVersionForm.jsx`, render an informational statutory preview or breakdown showing estimated employer EPF/ESI contributions based on employee statutory profile and entered Basic/Gross, reconciling total CTC. |
+| **Status** | **open** |
+
+---
+
+## 43. Defect D-131 — Employee Creation Backend Missing Integrated Statutory Profile Onboarding Workflow
+
+| Field | Value |
+|---|---|
+| **Defect ID** | `D-131` |
+| **Owner** | sayeed (`dev-sayeed`) |
+| **Found** | 2026-10-29, Legacy parity analysis: Cross-Module Employee Statutory Onboarding Orchestration |
+| **Module / Screen** | `code/backend/core/` and `code/backend/payroll/` (`EmployeeCreate` / Onboarding API) |
+| **Severity** | NORMAL |
+| **Description** | In the legacy system, basic employee information and statutory components are submitted as a single transactional payload. In the new modular architecture, `core.employee` (Core module) and `payroll.employee_statutory_profile` (Payroll module) are separated behind distinct API endpoints (`POST /v1/employees` and `PUT /v1/payroll/employees/{id}/statutory-profile`). If statutory fields are submitted during employee onboarding, a failure in the statutory call could leave an orphaned employee with unconfigured statutory profile, or vice-versa. |
+| **Root Cause** | Absence of an orchestrated onboarding endpoint or domain event listener (`EmployeeCreatedEvent` triggering statutory profile initialisation with defaults). |
+| **Resolution** | 1. Support composite onboarding orchestration (or domain event `EmployeeCreatedEvent` in backend) so that when an employee is created, their statutory profile is initialized with tenant defaults or provided values in a coherent workflow.<br>2. Ensure frontend handles onboarding gracefully with sequential promises or a composite transaction. |
+| **Status** | **open** |
+
+
 
 
 
