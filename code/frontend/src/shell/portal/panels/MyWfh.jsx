@@ -4,7 +4,7 @@ import { Card, Table, Row, Col, Skeleton, Result, Button, Typography, Space, Pro
 import { HomeOutlined, PlusOutlined, UndoOutlined, StopOutlined, EyeOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 import { wfhService } from '../../../core/wfh/wfhService.js';
-import { formatDate } from '../../../shared/ui/format.js';
+import { formatDate, humanize } from '../../../shared/ui/format.js';
 import { successMsg, errorMsg } from '../../../shared/ui/msgHelper.js';
 
 const { Title, Text } = Typography;
@@ -205,7 +205,7 @@ export function MyWfh({ onNavigate }) {
       case 'CANCELLED':
         return <Tag color="warning">Cancelled</Tag>;
       default:
-        return <Tag>{status}</Tag>;
+        return <Tag>{status ? humanize(status) : '—'}</Tag>;
     }
   };
 

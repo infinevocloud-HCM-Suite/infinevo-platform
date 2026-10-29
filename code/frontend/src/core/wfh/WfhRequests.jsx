@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { EmployeePicker } from '../leave/EmployeePicker.jsx';
 import { wfhService } from './wfhService.js';
-import { formatDate } from '@shared/ui/format.js';
+import { formatDate, humanize } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 const { Title, Text } = Typography;
@@ -99,7 +99,7 @@ export function WfhRequests() {
       case 'CANCELLED':
         return <Tag color="warning">Cancelled</Tag>;
       default:
-        return <Tag>{status}</Tag>;
+        return <Tag>{status ? humanize(status) : '—'}</Tag>;
     }
   };
 

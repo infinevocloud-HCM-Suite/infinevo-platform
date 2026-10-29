@@ -65,8 +65,12 @@ export function AuditTab({ enabled }) {
     },
     { title: 'Actor', dataIndex: 'actorLabel', key: 'actorLabel' },
     { title: 'Operation', dataIndex: 'operation', key: 'operation', render: (op) => humanize(op) },
-    { title: 'Entity', dataIndex: 'entityTable', key: 'entityTable' },
-    { title: 'Entity id', dataIndex: 'entityId', key: 'entityId' },
+    {
+      title: 'Entity id',
+      dataIndex: 'entityId',
+      key: 'entityId',
+      render: (id) => (id ? <Typography.Text code>{String(id).slice(0, 8)}...</Typography.Text> : EMPTY),
+    },
     {
       title: 'Changed',
       dataIndex: 'changedColumns',

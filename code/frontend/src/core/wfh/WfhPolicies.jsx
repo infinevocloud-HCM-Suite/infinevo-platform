@@ -4,7 +4,7 @@ import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { wfhService } from './wfhService.js';
-import { formatDate } from '@shared/ui/format.js';
+import { formatDate, humanize, EMPTY } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
 const { Title, Text } = Typography;
@@ -129,7 +129,7 @@ export function WfhPolicies() {
       title: 'Code',
       dataIndex: 'code',
       key: 'code',
-      render: (code) => <Text strong>{code}</Text>,
+      render: (code) => <Text strong>{code ? humanize(code) : EMPTY}</Text>,
     },
     {
       title: 'Policy Name',
