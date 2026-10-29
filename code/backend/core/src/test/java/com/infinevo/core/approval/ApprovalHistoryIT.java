@@ -55,6 +55,9 @@ class ApprovalHistoryIT extends AbstractIntegrationTest {
     private ApprovalDefinitionService definitionService;
 
     @Autowired
+    private com.infinevo.core.employee.EmployeeService employeeService;
+
+    @Autowired
     private org.springframework.transaction.PlatformTransactionManager txManager;
 
     private org.springframework.transaction.support.TransactionTemplate tx;
@@ -175,6 +178,20 @@ class ApprovalHistoryIT extends AbstractIntegrationTest {
                         .with(jwt().jwt(b ->
                                 b.subject(approverUserSub.toString()).claim("tenant_id", tenantId.toString()))))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.steps[0].assigneeName").value("Delegate"));
+
+        // D-126: An employee reading the approval trail of their own request (holds core.wfh.read_own /
+        // core.leave.read_own)
+        UUID requesterUserSub = UUID.randomUUID();
+        UUID requesterAccountId = AuthzTestSchema.insertMember(tenantId, requesterUserSub, "requester@history.test");
+        AuthzTestSchema.grant(tenantId, requesterAccountId, AuthzTestSchema.roleId(tenantId, "employee"));
+        employeeService.linkLogin(requesterId, requesterAccountId);
+
+        mvc.perform(get("/api/v1/approvals/" + instanceId + "/history")
+                        .with(jwt().jwt(b ->
+                                b.subject(requesterUserSub.toString()).claim("tenant_id", tenantId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.instanceId").value(instanceId.toString()))
                 .andExpect(jsonPath("$.steps[0].assigneeName").value("Delegate"));
 
         // 2. With core.approval.read -> 200 OK and shows all 3 distinctly

@@ -54,8 +54,17 @@ public class ApprovalController {
     }
 
     // An approver reads the trail too, as they read the instance above: the request screens show it (D-71).
+    // An employee reads the trail of their own request (D-126).
     @GetMapping("/api/v1/approvals/{instanceId}/history")
-    @RequiresAction(value = "core.approval.read", anyOf = "core.approval.decide")
+    @RequiresAction(
+            value = "core.approval.read",
+            anyOf = {
+                "core.approval.decide",
+                "core.wfh.read_own",
+                "core.leave.read_own",
+                "core.attendance.read_own",
+                "core.employee.read_own"
+            })
     public ApprovalHistoryResponse getApprovalHistory(@PathVariable("instanceId") UUID instanceId) {
         return approvalService.getHistory(instanceId);
     }

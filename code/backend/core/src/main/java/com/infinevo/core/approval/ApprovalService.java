@@ -471,6 +471,21 @@ public class ApprovalService {
         ApprovalInstance instance = instanceRepository
                 .findByTenantIdAndId(tenantId, instanceId)
                 .orElseThrow(() -> new NoSuchElementException("Approval instance not found: " + instanceId));
+
+        // D-126: If caller does not hold admin/manager approval permissions, ensure caller
+        // is the subject employee of this instance (self-service ownership check).
+        if (permissionService != null
+                && !permissionService.holds("core.approval.read")
+                && !permissionService.holds("core.approval.manage")) {
+            Optional<EmployeeResponse> currentEmployee = employeeService.currentEmployee();
+            UUID currentEmployeeId = currentEmployee.map(EmployeeResponse::id).orElse(null);
+            boolean isSubject = currentEmployeeId != null && currentEmployeeId.equals(instance.getSubjectEmployeeId());
+            boolean isApprover = permissionService.holds("core.approval.decide");
+            if (!isSubject && !isApprover) {
+                throw new AccessDeniedException("Caller is not authorized to view approval history for this instance");
+            }
+        }
+
         List<ApprovalStep> steps = stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instanceId);
         // D-71, D-79: one lookup for the trail, not one per step, as the inbox names its subjects.
         Map<UUID, String> names = peopleNames(instance, steps);
