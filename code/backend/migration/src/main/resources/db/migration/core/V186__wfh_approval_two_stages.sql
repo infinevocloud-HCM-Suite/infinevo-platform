@@ -1,4 +1,4 @@
--- Migration: V185__wfh_approval_two_stages.sql
+-- Migration: V186__wfh_approval_two_stages.sql
 -- Description: D-122 — update WORK_FROM_HOME approval definition to 2-stage approval (REPORTING_MANAGER -> ROLE hr)
 
 -- 1. Update existing WORK_FROM_HOME approval definitions for all active tenants

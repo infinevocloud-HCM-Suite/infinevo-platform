@@ -222,7 +222,7 @@ public final class AuthzTestSchema {
                         executeResource(conn, "db/migration/core/V182__wfh_consumption.sql");
                         executeResource(conn, "db/migration/core/V183__wfh_import_log.sql");
                         executeResource(conn, "db/migration/core/V184__wfh_seed_roles.sql");
-                        executeResource(conn, "db/migration/core/V185__wfh_approval_two_stages.sql");
+                        executeResource(conn, "db/migration/core/V186__wfh_approval_two_stages.sql");
                     }
                 }
 
