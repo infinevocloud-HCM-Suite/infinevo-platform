@@ -55,9 +55,6 @@ class ApprovalHistoryIT extends AbstractIntegrationTest {
     private ApprovalDefinitionService definitionService;
 
     @Autowired
-    private com.infinevo.core.employee.EmployeeService employeeService;
-
-    @Autowired
     private org.springframework.transaction.PlatformTransactionManager txManager;
 
     private org.springframework.transaction.support.TransactionTemplate tx;
@@ -185,7 +182,7 @@ class ApprovalHistoryIT extends AbstractIntegrationTest {
         UUID requesterUserSub = UUID.randomUUID();
         UUID requesterAccountId = AuthzTestSchema.insertMember(tenantId, requesterUserSub, "requester@history.test");
         AuthzTestSchema.grant(tenantId, requesterAccountId, AuthzTestSchema.roleId(tenantId, "employee"));
-        employeeService.linkLogin(requesterId, requesterAccountId);
+        AuthzTestSchema.linkEmployee(requesterId, requesterAccountId);
 
         mvc.perform(get("/api/v1/approvals/" + instanceId + "/history")
                         .with(jwt().jwt(b ->

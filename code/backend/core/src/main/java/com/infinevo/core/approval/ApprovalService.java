@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -474,15 +477,23 @@ public class ApprovalService {
 
         // D-126: If caller does not hold admin/manager approval permissions, ensure caller
         // is the subject employee of this instance (self-service ownership check).
-        if (permissionService != null
-                && !permissionService.holds("core.approval.read")
-                && !permissionService.holds("core.approval.manage")) {
-            Optional<EmployeeResponse> currentEmployee = employeeService.currentEmployee();
-            UUID currentEmployeeId = currentEmployee.map(EmployeeResponse::id).orElse(null);
-            boolean isSubject = currentEmployeeId != null && currentEmployeeId.equals(instance.getSubjectEmployeeId());
-            boolean isApprover = permissionService.holds("core.approval.decide");
-            if (!isSubject && !isApprover) {
-                throw new AccessDeniedException("Caller is not authorized to view approval history for this instance");
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            if (permissionService != null
+                    && !permissionService.holds("core.approval.read")
+                    && !permissionService.holds("core.approval.manage")) {
+                boolean isApprover = permissionService.holds("core.approval.decide");
+                if (!isApprover) {
+                    Optional<EmployeeResponse> currentEmployee = employeeService.currentEmployee();
+                    UUID currentEmployeeId =
+                            currentEmployee.map(EmployeeResponse::id).orElse(null);
+                    boolean isSubject =
+                            currentEmployeeId != null && currentEmployeeId.equals(instance.getSubjectEmployeeId());
+                    if (!isSubject) {
+                        throw new AccessDeniedException(
+                                "Caller is not authorized to view approval history for this instance");
+                    }
+                }
             }
         }
 

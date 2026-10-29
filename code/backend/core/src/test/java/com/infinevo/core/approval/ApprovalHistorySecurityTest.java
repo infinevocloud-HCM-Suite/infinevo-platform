@@ -17,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
  * D-126: Self-service approval trail security and caller isolation tests.
@@ -64,10 +66,15 @@ class ApprovalHistorySecurityTest {
         when(instanceRepository.findByTenantIdAndId(tenantId, instanceId)).thenReturn(Optional.of(instance));
         when(stepRepository.findByTenantIdAndInstanceIdOrderByStepIndexAsc(tenantId, instanceId))
                 .thenReturn(Collections.emptyList());
+
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
     @AfterEach
     void tearDown() {
+        SecurityContextHolder.clearContext();
         TenantContext.clear();
     }
 
@@ -120,6 +127,14 @@ class ApprovalHistorySecurityTest {
         when(permissionService.holds("core.approval.manage")).thenReturn(false);
         when(permissionService.holds("core.approval.decide")).thenReturn(true);
 
+        ApprovalHistoryResponse response = approvalService.getHistory(instanceId);
+        assertThat(response).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Internal service call without security auth context succeeds")
+    void internalCallWithoutAuthSucceeds() {
+        SecurityContextHolder.clearContext();
         ApprovalHistoryResponse response = approvalService.getHistory(instanceId);
         assertThat(response).isNotNull();
     }
