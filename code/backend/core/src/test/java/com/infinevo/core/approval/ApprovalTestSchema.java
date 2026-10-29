@@ -185,8 +185,29 @@ public final class ApprovalTestSchema {
             if (tableExists(conn, "approval_definition")) {
                 stmt.execute("DELETE FROM core.approval_definition");
             }
+            if (tableExists(conn, "wfh_consumption")) {
+                stmt.execute("DELETE FROM core.wfh_consumption");
+            }
+            if (tableExists(conn, "wfh_request")) {
+                stmt.execute("DELETE FROM core.wfh_request");
+            }
+            if (tableExists(conn, "wfh_allocation")) {
+                stmt.execute("DELETE FROM core.wfh_allocation");
+            }
+            if (tableExists(conn, "attendance")) {
+                stmt.execute("DELETE FROM core.attendance");
+            }
+            if (tableExists(conn, "employee_contact")) {
+                stmt.execute("DELETE FROM core.employee_contact");
+            }
+            if (tableExists(conn, "employee_personal")) {
+                stmt.execute("DELETE FROM core.employee_personal");
+            }
             if (tableExists(conn, "reporting_line")) {
                 stmt.execute("DELETE FROM core.reporting_line");
+            }
+            if (tableExists(conn, "employee_invitation")) {
+                stmt.execute("DELETE FROM core.employee_invitation");
             }
             if (tableExists(conn, "employee")) {
                 stmt.execute("DELETE FROM core.employee");

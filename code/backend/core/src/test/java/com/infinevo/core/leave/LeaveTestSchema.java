@@ -237,6 +237,30 @@ public final class LeaveTestSchema {
             if (tableExists(conn, "document")) {
                 stmt.execute("DELETE FROM core.document");
             }
+            if (tableExists(conn, "wfh_consumption")) {
+                stmt.execute("DELETE FROM core.wfh_consumption");
+            }
+            if (tableExists(conn, "wfh_request")) {
+                stmt.execute("DELETE FROM core.wfh_request");
+            }
+            if (tableExists(conn, "wfh_allocation")) {
+                stmt.execute("DELETE FROM core.wfh_allocation");
+            }
+            if (tableExists(conn, "attendance")) {
+                stmt.execute("DELETE FROM core.attendance");
+            }
+            if (tableExists(conn, "employee_contact")) {
+                stmt.execute("DELETE FROM core.employee_contact");
+            }
+            if (tableExists(conn, "employee_personal")) {
+                stmt.execute("DELETE FROM core.employee_personal");
+            }
+            if (tableExists(conn, "reporting_line")) {
+                stmt.execute("DELETE FROM core.reporting_line");
+            }
+            if (tableExists(conn, "employee_invitation")) {
+                stmt.execute("DELETE FROM core.employee_invitation");
+            }
             if (tableExists(conn, "employee")) {
                 stmt.execute("DELETE FROM core.employee");
             }
