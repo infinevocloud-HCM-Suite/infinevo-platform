@@ -41,6 +41,22 @@ public class ClockServiceImpl implements ClockService {
             ClockDayService clockDayService,
             EmployeeService employeeService,
             TenantClock tenantClock,
+            org.springframework.beans.factory.ObjectProvider<AttendanceRepository> attendanceRepoProvider,
+            org.springframework.beans.factory.ObjectProvider<Clock> clockProvider) {
+        this(
+                clockSessions,
+                clockDayService,
+                employeeService,
+                tenantClock,
+                attendanceRepoProvider != null ? attendanceRepoProvider.getIfAvailable() : null,
+                clockProvider != null ? clockProvider.getIfAvailable(Clock::systemUTC) : Clock.systemUTC());
+    }
+
+    public ClockServiceImpl(
+            ClockSessionRepository clockSessions,
+            ClockDayService clockDayService,
+            EmployeeService employeeService,
+            TenantClock tenantClock,
             AttendanceRepository attendanceRepository,
             org.springframework.beans.factory.ObjectProvider<Clock> clockProvider) {
         this(
