@@ -63,6 +63,13 @@ public class EmployeeSalaryController {
                 .body(created);
     }
 
+    @PostMapping("/preview")
+    @RequiresAction("payroll.salary.manage")
+    public SalaryPreviewResponse preview(
+            @PathVariable("employeeId") UUID employeeId, @RequestBody SalaryPreviewRequest request) {
+        return employeeSalaryService.preview(employeeId, request);
+    }
+
     @GetMapping
     @RequiresAction("payroll.salary.read")
     public SalaryVersionResponse getAsOf(

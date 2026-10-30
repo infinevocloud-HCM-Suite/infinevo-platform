@@ -22,4 +22,10 @@ public interface EmployeeSalaryService {
     void cancel(UUID employeeId, UUID versionId);
 
     SalaryVersionResponse versionInForce(UUID tenantId, UUID employeeId, LocalDate date);
+
+    /**
+     * Runs the create calculation (balancing earning, statutory lines, CTC check) and writes nothing (W-75.1).
+     * Uses {@code request.statutoryProfile()} when present, otherwise the stored profile.
+     */
+    SalaryPreviewResponse preview(UUID employeeId, SalaryPreviewRequest request);
 }

@@ -1,8 +1,11 @@
 package com.infinevo.payroll.salary;
 
+import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.detail.EmployeePersonalResponse;
 import com.infinevo.core.employee.detail.EmployeePersonalService;
+import com.infinevo.core.org.WorkLocationResponse;
+import com.infinevo.core.org.WorkLocationService;
 import com.infinevo.payroll.component.Benefit;
 import com.infinevo.payroll.component.BenefitRepository;
 import com.infinevo.payroll.component.Earning;
@@ -13,6 +16,7 @@ import com.infinevo.payroll.fbp.EmployeeFbpComponent;
 import com.infinevo.payroll.fbp.EmployeeFbpComponentRepository;
 import com.infinevo.payroll.fbp.FbpDeclarationService;
 import com.infinevo.payroll.fbp.FbpSummaryResponse;
+import com.infinevo.payroll.statutory.lines.ContributionShare;
 import com.infinevo.payroll.statutory.lines.CtcEpfComponent;
 import com.infinevo.payroll.statutory.lines.CtcEpfComponentRepository;
 import com.infinevo.payroll.statutory.lines.CtcEsiComponent;
@@ -20,7 +24,7 @@ import com.infinevo.payroll.statutory.lines.CtcEsiComponentRepository;
 import com.infinevo.payroll.statutory.lines.DerivedStatutoryLine;
 import com.infinevo.payroll.statutory.lines.SalaryStatutoryItemResponse;
 import com.infinevo.payroll.statutory.lines.StatutoryComponentCode;
-import com.infinevo.payroll.statutory.lines.StatutoryLineDeriver;
+import com.infinevo.payroll.statutory.pt.ProfessionalTaxService;
 import com.infinevo.payroll.statutory.settings.EpfSetting;
 import com.infinevo.payroll.statutory.settings.EpfSettingRepository;
 import com.infinevo.payroll.statutory.settings.EsiSetting;
@@ -57,6 +61,9 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
 
     private static final int MAX_ACTOR_LEN = 100;
 
+    /** Code of the professional tax line in a preview's employee deductions (W-75.1). */
+    static final String PT_CODE = "PT";
+
     private final CtcStructureRepository ctcStructureRepository;
     private final EmployeeEarningRepository employeeEarningRepository;
     private final EmployeeBenefitRepository employeeBenefitRepository;
@@ -74,6 +81,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
     private final CtcEpfComponentRepository ctcEpfComponentRepository;
     private final CtcEsiComponentRepository ctcEsiComponentRepository;
     private final ApplicationEventPublisher publisher;
+    private final ProfessionalTaxService professionalTaxService;
+    private final WorkLocationService workLocationService;
 
     public EmployeeSalaryServiceImpl(
             CtcStructureRepository ctcStructureRepository,
@@ -135,6 +144,46 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                 null);
     }
 
+    public EmployeeSalaryServiceImpl(
+            CtcStructureRepository ctcStructureRepository,
+            EmployeeEarningRepository employeeEarningRepository,
+            EmployeeBenefitRepository employeeBenefitRepository,
+            EmployeeReimbursementRepository employeeReimbursementRepository,
+            EarningRepository earningRepository,
+            BenefitRepository benefitRepository,
+            ReimbursementRepository reimbursementRepository,
+            EmployeeService employeeService,
+            EmployeeFbpComponentRepository employeeFbpComponentRepository,
+            FbpDeclarationService fbpDeclarationService,
+            EpfSettingRepository epfSettingRepository,
+            EsiSettingRepository esiSettingRepository,
+            EmployeeStatutoryProfileRepository employeeStatutoryProfileRepository,
+            EmployeePersonalService employeePersonalService,
+            CtcEpfComponentRepository ctcEpfComponentRepository,
+            CtcEsiComponentRepository ctcEsiComponentRepository,
+            ApplicationEventPublisher publisher) {
+        this(
+                ctcStructureRepository,
+                employeeEarningRepository,
+                employeeBenefitRepository,
+                employeeReimbursementRepository,
+                earningRepository,
+                benefitRepository,
+                reimbursementRepository,
+                employeeService,
+                employeeFbpComponentRepository,
+                fbpDeclarationService,
+                epfSettingRepository,
+                esiSettingRepository,
+                employeeStatutoryProfileRepository,
+                employeePersonalService,
+                ctcEpfComponentRepository,
+                ctcEsiComponentRepository,
+                publisher,
+                null,
+                null);
+    }
+
     @Autowired
     public EmployeeSalaryServiceImpl(
             CtcStructureRepository ctcStructureRepository,
@@ -153,7 +202,9 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             @Autowired(required = false) EmployeePersonalService employeePersonalService,
             @Autowired(required = false) CtcEpfComponentRepository ctcEpfComponentRepository,
             @Autowired(required = false) CtcEsiComponentRepository ctcEsiComponentRepository,
-            @Autowired(required = false) ApplicationEventPublisher publisher) {
+            @Autowired(required = false) ApplicationEventPublisher publisher,
+            @Autowired(required = false) ProfessionalTaxService professionalTaxService,
+            @Autowired(required = false) WorkLocationService workLocationService) {
         this.ctcStructureRepository =
                 Objects.requireNonNull(ctcStructureRepository, "ctcStructureRepository must not be null");
         this.employeeEarningRepository =
@@ -176,6 +227,8 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         this.ctcEpfComponentRepository = ctcEpfComponentRepository;
         this.ctcEsiComponentRepository = ctcEsiComponentRepository;
         this.publisher = publisher;
+        this.professionalTaxService = professionalTaxService;
+        this.workLocationService = workLocationService;
     }
 
     @Override
@@ -351,58 +404,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
             boolean isUpdate) {
 
         String actor = currentActor();
-        List<SalarySplitCalculator.ComponentInput> earningInputs = resolveEarningInputs(tenantId, request.earnings());
-        List<SalarySplitCalculator.ComponentInput> benefitInputs = resolveBenefitInputs(tenantId, request.benefits());
-        List<SalarySplitCalculator.ComponentInput> reimbursementInputs =
-                resolveReimbursementInputs(tenantId, request.reimbursements());
-
-        SalarySplitCalculator.SplitOutput split =
-                SalarySplitCalculator.resolve(request.annualCtc(), earningInputs, benefitInputs, reimbursementInputs);
-
-        // Derive statutory lines from version wages, profile, and tenant settings (W-31.3)
-        SalarySplitCalculator.CalculatedResult basicResult = SalarySplitCalculator.findBasicEarning(split.earnings());
-        Money basicMonthly = basicResult != null ? Money.of(basicResult.monthlyAmount()) : Money.ZERO;
-        BigDecimal grossMonthlySum = split.earnings().stream()
-                .map(SalarySplitCalculator.CalculatedResult::monthlyAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        Money grossMonthly = Money.of(grossMonthlySum);
-
-        EmployeeStatutoryProfile profile = employeeStatutoryProfileRepository != null
-                ? employeeStatutoryProfileRepository
-                        .findByTenantIdAndEmployeeId(tenantId, employeeId)
-                        .orElse(null)
-                : null;
-        EpfSetting epf = epfSettingRepository != null
-                ? epfSettingRepository.findByTenantId(tenantId).orElse(null)
-                : null;
-        EsiSetting esi = esiSettingRepository != null
-                ? esiSettingRepository.findByTenantId(tenantId).orElse(null)
-                : null;
-
-        LocalDate dob = null;
-        if (employeePersonalService != null) {
-            try {
-                dob = employeePersonalService
-                        .find(employeeId)
-                        .map(EmployeePersonalResponse::dateOfBirth)
-                        .orElse(null);
-            } catch (Exception e) {
-                dob = null;
-            }
-        }
-
-        List<DerivedStatutoryLine> statutoryLines = StatutoryLineDeriver.derive(
-                basicMonthly, grossMonthly, profile, epf, esi, dob, request.effectiveFrom());
-
-        BigDecimal statutoryIncludedAnnual = BigDecimal.ZERO;
-        for (DerivedStatutoryLine line : statutoryLines) {
-            if (line.includedInCtc()) {
-                statutoryIncludedAnnual =
-                        statutoryIncludedAnnual.add(line.annualAmount().raw());
-            }
-        }
-
-        SalarySplitCalculator.validateCtcBalance(request.annualCtc(), split, statutoryIncludedAnnual);
+        VersionComputation computed =
+                computeVersion(tenantId, employeeId, request, loadStatutoryProfile(tenantId, employeeId));
+        SalarySplitCalculator.SplitOutput split = computed.split();
+        List<DerivedStatutoryLine> statutoryLines = computed.statutoryLines();
 
         CtcStructure ctcStructure =
                 isUpdate ? existingVersion : new CtcStructure(tenantId, employeeId, request.effectiveFrom(), actor);
@@ -518,6 +523,234 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
         return toResponse(saved, tenantId, change);
     }
 
+    /** The resolved split and statutory lines of a version, before anything is written (W-75.1). */
+    private record VersionComputation(
+            SalarySplitCalculator.SplitOutput split,
+            List<DerivedStatutoryLine> statutoryLines,
+            List<SalarySplitCalculator.ComponentInput> earningInputs,
+            List<SalarySplitCalculator.ComponentInput> reimbursementInputs) {}
+
+    /**
+     * The one calculation path shared by save and preview: resolve components (computing the balancing earning, if
+     * any), derive the statutory lines and validate that the in-CTC total equals the CTC (W-26.2, W-31.3, W-75.1).
+     */
+    private VersionComputation computeVersion(
+            UUID tenantId, UUID employeeId, SalaryVersionRequest request, EmployeeStatutoryProfile profile) {
+        List<SalarySplitCalculator.ComponentInput> earningInputs = resolveEarningInputs(tenantId, request.earnings());
+        List<SalarySplitCalculator.ComponentInput> benefitInputs = resolveBenefitInputs(tenantId, request.benefits());
+        List<SalarySplitCalculator.ComponentInput> reimbursementInputs =
+                resolveReimbursementInputs(tenantId, request.reimbursements());
+
+        EpfSetting epf = epfSettingRepository != null
+                ? epfSettingRepository.findByTenantId(tenantId).orElse(null)
+                : null;
+        EsiSetting esi = esiSettingRepository != null
+                ? esiSettingRepository.findByTenantId(tenantId).orElse(null)
+                : null;
+
+        LocalDate dob = null;
+        if (employeePersonalService != null) {
+            try {
+                dob = employeePersonalService
+                        .find(employeeId)
+                        .map(EmployeePersonalResponse::dateOfBirth)
+                        .orElse(null);
+            } catch (Exception e) {
+                dob = null;
+            }
+        }
+
+        SalarySplitCalculator.StatutoryInputs statutory =
+                new SalarySplitCalculator.StatutoryInputs(profile, epf, esi, dob, request.effectiveFrom());
+
+        SalarySplitCalculator.SplitOutput split = SalarySplitCalculator.resolveWithBalancing(
+                request.annualCtc(), earningInputs, benefitInputs, reimbursementInputs, statutory);
+
+        // Derive statutory lines from version wages, profile, and tenant settings (W-31.3)
+        List<DerivedStatutoryLine> statutoryLines = SalarySplitCalculator.deriveStatutory(split, statutory);
+
+        SalarySplitCalculator.validateCtcBalance(
+                request.annualCtc(), split, SalarySplitCalculator.includedStatutoryAnnual(statutoryLines));
+
+        return new VersionComputation(split, statutoryLines, earningInputs, reimbursementInputs);
+    }
+
+    private EmployeeStatutoryProfile loadStatutoryProfile(UUID tenantId, UUID employeeId) {
+        return employeeStatutoryProfileRepository != null
+                ? employeeStatutoryProfileRepository
+                        .findByTenantIdAndEmployeeId(tenantId, employeeId)
+                        .orElse(null)
+                : null;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SalaryPreviewResponse preview(UUID employeeId, SalaryPreviewRequest request) {
+        if (request == null) {
+            throw new SalaryValidationException("request", "Request body must not be null");
+        }
+        SalaryVersionRequest versionRequest = request.toVersionRequest();
+        validateRequest(versionRequest);
+        UUID tenantId = TenantContext.require();
+        EmployeeResponse employee = employeeService.get(employeeId);
+
+        EmployeeStatutoryProfile profile = request.statutoryProfile() != null
+                ? unsavedProfile(tenantId, employeeId, request.statutoryProfile())
+                : loadStatutoryProfile(tenantId, employeeId);
+
+        VersionComputation computed = computeVersion(tenantId, employeeId, versionRequest, profile);
+        return toPreviewResponse(tenantId, employeeId, employee, versionRequest, profile, computed);
+    }
+
+    /** A profile built from the request and never saved, so the screen can preview ticks before saving them. */
+    private static EmployeeStatutoryProfile unsavedProfile(
+            UUID tenantId, UUID employeeId, StatutoryProfileRequest request) {
+        EmployeeStatutoryProfile profile =
+                new EmployeeStatutoryProfile(tenantId, employeeId, EmployeeStatutoryProfile.ACTOR_SYSTEM);
+        profile.setEligibleForPf(Boolean.TRUE.equals(request.eligibleForPf()));
+        profile.setEligibleForPt(Boolean.TRUE.equals(request.eligibleForPt()));
+        profile.setEligibleForLwf(Boolean.TRUE.equals(request.eligibleForLwf()));
+        profile.setEligibleForEsi(Boolean.TRUE.equals(request.eligibleForEsi()));
+        profile.setEligibleForEps(Boolean.TRUE.equals(request.eligibleForEps()));
+        profile.setContributesEpsOnHigherWages(Boolean.TRUE.equals(request.contributesEpsOnHigherWages()));
+        profile.setDirector(Boolean.TRUE.equals(request.director()));
+        return profile;
+    }
+
+    private SalaryPreviewResponse toPreviewResponse(
+            UUID tenantId,
+            UUID employeeId,
+            EmployeeResponse employee,
+            SalaryVersionRequest request,
+            EmployeeStatutoryProfile profile,
+            VersionComputation computed) {
+        SalarySplitCalculator.SplitOutput split = computed.split();
+
+        Map<UUID, Boolean> earningFbpById = new HashMap<>();
+        UUID balancingComponentId = null;
+        for (SalarySplitCalculator.ComponentInput input : computed.earningInputs()) {
+            earningFbpById.put(input.componentId(), input.fbpComponent());
+            if (input.balancing()) {
+                balancingComponentId = input.componentId();
+            }
+        }
+        Map<UUID, Boolean> reimbursementFbpById = new HashMap<>();
+        for (SalarySplitCalculator.ComponentInput input : computed.reimbursementInputs()) {
+            reimbursementFbpById.put(input.componentId(), input.fbpComponent());
+        }
+
+        List<SalaryComponentItemResponse> earnings = split.earnings().stream()
+                .map(r -> previewItem(r, earningFbpById.getOrDefault(r.componentId(), false)))
+                .toList();
+        List<SalaryComponentItemResponse> benefits =
+                split.benefits().stream().map(r -> previewItem(r, false)).toList();
+        List<SalaryComponentItemResponse> reimbursements = split.reimbursements().stream()
+                .map(r -> previewItem(r, reimbursementFbpById.getOrDefault(r.componentId(), false)))
+                .toList();
+
+        List<SalaryStatutoryItemResponse> statutory = new ArrayList<>();
+        List<SalaryPreviewResponse.MonthlyLine> employeeDeductions = new ArrayList<>();
+        List<SalaryPreviewResponse.MonthlyLine> employerContributions = new ArrayList<>();
+        for (DerivedStatutoryLine line : computed.statutoryLines()) {
+            statutory.add(new SalaryStatutoryItemResponse(
+                    null,
+                    line.code().name(),
+                    line.share(),
+                    line.wageBase().raw(),
+                    line.rate(),
+                    line.monthlyAmount().raw(),
+                    line.annualAmount().raw(),
+                    line.includedInCtc()));
+            SalaryPreviewResponse.MonthlyLine monthly = new SalaryPreviewResponse.MonthlyLine(
+                    line.code().name(), line.monthlyAmount().raw(), line.includedInCtc());
+            if (line.share() == ContributionShare.EMPLOYEE) {
+                employeeDeductions.add(monthly);
+            } else {
+                employerContributions.add(monthly);
+            }
+        }
+        statutory.sort(Comparator.comparing(
+                item -> StatutoryComponentCode.valueOf(item.componentCode()).ordinal()));
+
+        BigDecimal grossMonthly = SalarySplitCalculator.grossMonthly(split).setScale(4, RoundingMode.HALF_UP);
+
+        // PT is known to be zero when the employee is not eligible; it is unknown without a work location.
+        boolean ptEstimated = true;
+        if (profile != null && profile.isEligibleForPt()) {
+            Money pt = estimatePt(tenantId, employee, grossMonthly, request.effectiveFrom());
+            if (pt == null) {
+                ptEstimated = false;
+            } else if (pt.isPositive()) {
+                employeeDeductions.add(new SalaryPreviewResponse.MonthlyLine(PT_CODE, pt.raw(), false));
+            }
+        }
+
+        BigDecimal takeHome = grossMonthly;
+        for (SalaryPreviewResponse.MonthlyLine deduction : employeeDeductions) {
+            takeHome = takeHome.subtract(deduction.monthlyAmount());
+        }
+
+        return new SalaryPreviewResponse(
+                employeeId,
+                request.effectiveFrom(),
+                split.annualCtc(),
+                split.monthlyCtc(),
+                earnings,
+                benefits,
+                reimbursements,
+                statutory,
+                grossMonthly,
+                employeeDeductions,
+                employerContributions,
+                takeHome,
+                ptEstimated,
+                balancingComponentId);
+    }
+
+    /**
+     * PT for the employee's work-location state and gender, resolved as the pay run does
+     * ({@code statutory/payrun/StatutoryLineContributor.java:241-251}); {@code null} when no work location resolves.
+     */
+    private Money estimatePt(UUID tenantId, EmployeeResponse employee, BigDecimal grossMonthly, LocalDate from) {
+        if (professionalTaxService == null || workLocationService == null || employee.workLocationId() == null) {
+            return null;
+        }
+        String stateCode;
+        try {
+            WorkLocationResponse location = workLocationService.get(employee.workLocationId());
+            stateCode = location != null ? location.stateCode() : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+        if (stateCode == null || stateCode.isBlank()) {
+            return null;
+        }
+        LocalDate periodEnd = from.withDayOfMonth(from.lengthOfMonth());
+        Money pt = professionalTaxService.resolve(
+                tenantId, stateCode, Money.of(grossMonthly), employee.gender(), periodEnd);
+        return pt != null ? pt : Money.ZERO;
+    }
+
+    private static SalaryComponentItemResponse previewItem(SalarySplitCalculator.CalculatedResult r, boolean isFbp) {
+        return new SalaryComponentItemResponse(
+                null,
+                r.componentId(),
+                r.code(),
+                r.name(),
+                r.calculationType(),
+                r.value(),
+                r.percentageOf(),
+                r.monthlyAmount(),
+                r.annualAmount(),
+                true,
+                r.includedInCtc(),
+                r.earningFrequency(),
+                r.carryForwardOption(),
+                isFbp,
+                null,
+                null);
+    }
+
     private BigDecimal computeChangeFromPrevious(
             UUID tenantId, UUID employeeId, LocalDate effectiveFrom, BigDecimal currentAnnualCtc) {
         Optional<CtcStructure> prevOpt =
@@ -578,7 +811,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                     earning.isIncludedInCtc(),
                     earning.getEarningType(),
                     item.earningFrequency() != null ? item.earningFrequency() : earning.getEarningFrequency(),
-                    null));
+                    null,
+                    Boolean.TRUE.equals(item.balancing()),
+                    earning.isFbpComponent(),
+                    earning.isVariable()));
         }
         return list;
     }
@@ -607,7 +843,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                     benefit.isIncludedInCtc(),
                     null,
                     null,
-                    null));
+                    null,
+                    Boolean.TRUE.equals(item.balancing()),
+                    false,
+                    false));
         }
         return list;
     }
@@ -639,7 +878,10 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
                     null,
                     item.carryForwardOption() != null
                             ? item.carryForwardOption()
-                            : reimbursement.getCarryForwardOption()));
+                            : reimbursement.getCarryForwardOption(),
+                    Boolean.TRUE.equals(item.balancing()),
+                    reimbursement.isFbpComponent(),
+                    false));
         }
         return list;
     }
