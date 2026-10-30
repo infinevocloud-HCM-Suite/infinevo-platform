@@ -770,6 +770,8 @@ dev environment crash-loops on the next deploy.
 | #50 | `W-38.1` Prior payroll import | `payroll.prior_payroll_month` (gross, EPF, ESI, PT, TDS, net per employee per month) and `payroll.prior_payroll_import_log`; CSV template, upload, dry run, partial success, error file — the `W-16.4b` pattern; a month with a real regular run is refused, and a regular run is refused for an imported month; `status` lists the missing months; adds the `payroll.prior_payroll` menu item. **Split 2026-10-02** from `W-38`; spec `W-38-1-prior-payroll-import.md`. Size M. **Done 2026-10-03 on `2780d098` — Built by krushna.** Migration `V140`. Open: imported gross is not used by the tax calculator (spec § 13 decision 6) |
 | #50 | `W-38.2` Imported tax counts as already deducted | Monthly TDS year-to-date and Form 16 quarters add the imported TDS; an imported month counts toward Form 16 `final`. Spec `W-38-2-prior-tax-counted.md`. Size S. **Done 2026-10-04 on `6e19dd89` — Built by Claude (batch-2026-10-03).** Form 16 `final` now counts paid and imported months as a set. No table |
 | #50 | `W-38.3` Prior payroll setup step | `PRIOR_PAYROLL` at order 4 in the catalogue, done when any month is imported or the first regular run is in April, skippable with a reason; `setup_step_skipped` on the status. Spec `W-38-3-prior-payroll-setup-step.md`. Size S. **Done 2026-10-03 on `2780d098` — Built by krushna.** No table; one `core` catalogue line accepted by the founder |
+| #— | `W-75.1` Salary preview and balancing component | One earning in a salary request may be marked *balancing*; the server sets it so the in-CTC total equals the CTC exactly, employer EPF/ESI included (ESI solved against its ceiling). `POST …/salary/preview` runs the same calculation without saving and returns the statutory lines and a take-home estimate. Statutory profile saves check UAN, PF and ESI number lengths and answer 400, not 500 (was `D-132`). Spec `W-75-1-salary-preview-and-balancing.md`. Size M. **In flight — claude, `dev-claude-w75`.** No table |
+| #— | `W-75.2` Salary setup drawer | One "Set up salary" drawer on the Salary tab: rows pre-filled from the company defaults (was `D-127`), Special Allowance computed, statutory ticks and UAN/ESI in the same step with format checks, live summary and take-home from the preview; a Statutory Contributions table on the saved salary view (from `D-130`). Statutory details stay on the Salary tab, not Add Employee (`D-129`–`D-131` dropped 2026-10-30). Replaces `SalaryVersionForm`. Spec `W-75-2-salary-setup-drawer.md`. Size M. **Assigned — claude, `dev-claude-w75`; blocked by `W-75.1`.** No table |
 
 > **Tax is the largest and most compliance-exposed area.** `W-33.2` (#44) was next in the
 > queue once `W-09` shipped its 15 reference tables, and carries three conditions from
@@ -1509,23 +1511,7 @@ dev environment crash-loops on the next deploy.
 
 ---
 
-## 39. Defect D-126 — Salary Structure Version Form and Active View Missing Deductions Section
-
-| Field | Value |
-|---|---|
-| **Defect ID** | `D-126` |
-| **Owner** | sayeed (`dev-sayeed`) |
-| **Found** | 2026-10-29, salary structure defect review (Item #7: "Salary Structure — No Deduction Section") |
-| **Module / Screen** | `code/frontend/src/payroll/salary/` (`SalaryVersionForm.jsx`, `SalaryTab.jsx`) & `code/backend/payroll/src/main/java/com/infinevo/payroll/salary/SalaryVersionRequest.java` |
-| **Severity** | NORMAL |
-| **Description** | In the Employee Salary tab (`/payroll/employees/:id/salary` -> `SalaryTab.jsx`) and Salary Structure Version Form (`SalaryVersionForm.jsx`), only Earnings, Benefits, and Reimbursements are supported and rendered. The Deductions category is missing from the version form's initial values, reset fields, submission payload, and rendered component list, as well as from the active structure card's summary tables. |
-| **Root Cause** | In `SalaryVersionForm.jsx`, `activeComponents.deductions` is fetched by `salarySlice`, but `renderComponentList('deductions', 'Deductions', ...)` is not invoked, nor is `deductions` included in the form's `initialValues`, `resetFields`, or payload mapping. In `SalaryTab.jsx`, only `earnings`, `benefits`, and `reimbursements` tables are rendered under the active structure card. In `SalaryVersionRequest.java`, unknown properties are not ignored by default and `deductions` is not accepted. |
-| **Resolution** | Pending review / will circle back later. Add Deductions list to `SalaryVersionForm.jsx`, render Deductions summary table in `SalaryTab.jsx`, and accept `deductions` in `SalaryVersionRequest.java`. |
-| **Status** | **open** |
-
----
-
-## 40. Defect D-127 — Salary Structure Percentage Component Value Not Copied In
+## 39. Defect D-127 — Salary Structure Percentage Component Value Not Copied In
 
 | Field | Value |
 |---|---|
@@ -1537,75 +1523,11 @@ dev environment crash-loops on the next deploy.
 | **Description** | When salary components are defined in `/payroll/components` with calculation type `PERCENTAGE`, a default percentage value (e.g., 40.00% for HRA) and percentage calculation base (`BASIC`, `CTC`, `GROSS`), creating or revising an employee's salary structure in `SalaryVersionForm` fails to copy or auto-populate these values. When clicking "Add Earning" or selecting a percentage component from the dropdown, the form defaults to `calculationType: 'FLAT'`, blank value, and null base. |
 | **Root Cause** | 1. In `SalaryVersionForm.jsx`, `renderComponentList` hardcodes `{ calculationType: 'FLAT', value: '', percentageOf: null }` in the "Add Component" click handler and `<Select placeholder="Component">` lacks an `onChange` handler to populate component defaults from `availableItems`.<br>2. In `initialValues` mapping, existing rows with missing or empty values do not fall back to `comp.defaultValue` or `comp.percentageOf`.<br>3. In `EmployeeSalaryServiceImpl.java`, `resolveEarningInputs`, `resolveBenefitInputs`, and `resolveReimbursementInputs` pass `item.calculationType()`, `item.value()`, and `item.percentageOf()` without falling back to component definition when null. |
 | **Resolution** | Pending review / will circle back later. Auto-populate `calculationType`, `defaultValue`, and `percentageOf` when selecting or adding components in `SalaryVersionForm.jsx`, add `GROSS` base option, and provide fallback in `EmployeeSalaryServiceImpl.java`. |
-| **Status** | **open** |
+| **Status** | **moved to `W-75.2`** (rows pre-filled from the company defaults) — 2026-10-30, founder. Built there, not as a separate fix |
 
 ---
 
-## 41. Defect D-128 — Pay Run Deduction Component Default Value Not Applied
-
-| Field | Value |
-|---|---|
-| **Defect ID** | `D-128` |
-| **Owner** | sayeed (`dev-sayeed`) |
-| **Found** | 2026-10-29, pay run defect review (Item #8: "Pay Run — Deduction Component Default Value Not Applied") |
-| **Module / Screen** | `code/backend/payroll/src/main/java/com/infinevo/payroll/payrun/StructureLineContributor.java`, `code/backend/payroll/src/main/java/com/infinevo/payroll/salary/EmployeeSalaryServiceImpl.java`, `code/backend/payroll/src/main/java/com/infinevo/payroll/salary/SalaryVersionResponse.java` |
-| **Severity** | MAJOR |
-| **Description** | When deduction components are configured in `/payroll/components` (Deductions tab) with default values (FLAT or PERCENTAGE of BASIC/GROSS/CTC, optional maxLimit, active, non-deleted), executing a Pay Run fails to apply them. The pay run computation ignores catalogue deduction default values, resulting in 0 deduction lines, `total_deductions` remaining at 0, net pay failing to subtract deduction amounts, and the pay run lines drawer / payslips omitting deductions. |
-| **Root Cause** | In `StructureLineContributor.java`, only `EarningRepository` is injected and evaluated; `DeductionRepository` is not injected and deduction catalogue defaults are completely ignored. In addition, `SalaryVersionResponse.java` lacks a `deductions` list field to convey version-level deductions to contributors and UI consumers. |
-| **Resolution** | Pending review / will circle back later. Inject `DeductionRepository` in `StructureLineContributor.java`, evaluate catalogue deductions and version deductions, compute flat/percentage amounts with `maxLimit` caps, and populate `SalaryVersionResponse.deductions`. |
-| **Status** | **open** |
-
----
-
-## 42. Defect D-129 — Employee Creation Screen Missing Statutory Components Section (EPF, ESI, PT Toggles & PF/UAN Input Fields)
-
-| Field | Value |
-|---|---|
-| **Defect ID** | `D-129` |
-| **Owner** | sayeed (`dev-sayeed`) |
-| **Found** | 2026-10-29, Legacy parity analysis: Add Employee Statutory Components Workflow (`/employees/create`) |
-| **Module / Screen** | `code/frontend/src/core/employee/EmployeeCreate.jsx`, `code/frontend/src/core/employee/employeeService.js` |
-| **Severity** | MAJOR |
-| **Description** | In the legacy application (`legacy/Payroll-Fend-react/src/pages/mainPages/employee/basicDetails.js:912-1111`), creating a new employee on the first page ("Basic Details") dynamically displays the **Statutory Components** section if enabled in organization settings (`statutoryConfig.epfEnabled`, `esiEnabled`, `ptEnabled`).<br>1. When EPF is enabled for the tenant, an **"Employees' Provident Fund"** checkbox is presented. Selecting it exposes mandatory inputs for **PF Account Number** (with format validation `AA/AAA/0000000/XXX/0000000`) and **UAN** (12 numeric digits), plus EPS contribution toggles (`eligibleForEps`, `contributesEpsOnHigherWages`).<br>2. When ESI is enabled for the tenant, an **"Employees' State Insurance"** checkbox is presented. Selecting it exposes the **ESI Insurance Number** input (10 digits).<br>3. When Professional Tax is enabled, a **"Professional Tax"** checkbox is presented (saving to `eligibleForPt`). Unlike EPF and ESI, PT does not require an employee-level registration/account number because the employer's PT registration number and progressive tax slabs are resolved at the work location state level (`payroll.pt_setting` / `payroll.pt_slab`).<br>In the new HCM application (`EmployeeCreate.jsx`), the employee creation page completely lacks the Statutory Components section. HR cannot configure statutory eligibility, PF, UAN, or PT eligibility during onboarding, forcing them to find a disconnected `StatutoryProfileCard` at the bottom of the payroll salary tab after employee creation. |
-| **Root Cause** | `EmployeeCreate.jsx` only handles basic core employee demographic fields (`core.employee`), without querying payroll statutory settings (`/v1/payroll/settings/epf`, `/v1/payroll/settings/esi`, `/v1/payroll/settings/professional-tax`) or rendering statutory enrollment controls. |
-| **Resolution** | 1. In `EmployeeCreate.jsx`, query tenant statutory settings (EPF, ESI, PT via `/v1/payroll/settings/professional-tax`) on load.<br>2. Add a **Statutory Components** section to `EmployeeCreate.jsx` that dynamically renders EPF, ESI, and PT controls based on tenant configuration.<br>3. When EPF is checked, render inputs for PF Account Number and UAN (with standard regex validation) and EPS options.<br>4. When ESI is checked, render input for ESI Insurance Number.<br>5. When Professional Tax is displayed, render the "Professional Tax" checkbox (setting `eligibleForPt: true/false`), defaulting to checked when the selected work location state has active PT configuration.<br>6. Upon successful creation of the employee, persist the statutory profile via `statutoryProfileService.save(createdEmployee.id, statutoryPayload)` (or unified onboarding backend flow). |
-| **Status** | **open** |
-
----
-
-## 43. Defect D-130 — Salary Structure Active View, Edit Details, and Revision Modal Missing Statutory Breakdown & CTC Reconciliation (EPF, ESI, PT)
-
-| Field | Value |
-|---|---|
-| **Defect ID** | `D-130` |
-| **Owner** | sayeed (`dev-sayeed`) |
-| **Found** | 2026-10-29, Legacy parity analysis: Salary Structure Statutory Breakdown, Edit Details & Revision Preview (`/payroll/employees/:id/salary`) |
-| **Module / Screen** | `code/frontend/src/payroll/salary/` (`SalaryTab.jsx`, `SalaryVersionForm.jsx`) |
-| **Severity** | MAJOR |
-| **Description** | In the legacy application (`legacy/Payroll-Fend-react/src/pages/mainPages/employee/salaryDetails.js:1208-1346` and `editSalaryRevision.js:1720-1840`), when an employee is enrolled in statutory schemes during onboarding (EPF, ESI, PT):<br>1. **Initial Salary, Edit Salary Details & Salary Revision**: Both the initial salary step and the Salary Revision page dynamically check if statutory components were enabled for the employee (`employeeBasicDetails?.eligibleForPf`, `eligibleForEsi`, `eligibleForPt`).<br>2. **Employer Statutory Breakdown**: When enabled, the screen renders a dedicated **Benefits / Statutory Contributions** section displaying:<br>   - `EPF - Employer Contribution` (12% or 3.67% of PF Wages) with EPS indication.<br>   - `EDLI - Employer Contribution` (0.50% of PF Wages).<br>   - `EPF Admin Charges - Employer Contribution` (0.50% of PF Wages).<br>   - `ESI - Employer Contribution` (3.25% of ESI Wages).<br>3. **Live CTC Reconciliation**: The Cost to Company footer dynamically recalculates `Annual CTC = Total Earnings + Total Employer Statutory Contributions`.<br>4. **Professional Tax**: If `eligibleForPt` was enabled, the employee is flagged for PT deductions evaluated against state slabs.<br>In the new HCM application:<br>- In `SalaryTab.jsx`, the active salary structure card displays only Earnings, Benefits, and Reimbursements. It completely ignores `currentVersion.statutory` returned by `SalaryVersionResponse.java`, omitting statutory contribution rates, shares, and amounts from the employee's overview.<br>- In `SalaryVersionForm.jsx` (used for both initial salary assignment and **Salary Revision**), the form provides zero visibility or preview of employer statutory contributions. When an HR admin enters a revised Annual CTC or adjusts Basic/HRA percentages, the statutory employer share is not displayed or reconciled against CTC, causing unexpected backend CTC balance rejections. |
-| **Root Cause** | `SalaryTab.jsx` lacks a table mapping `currentVersion.statutory` items. `SalaryVersionForm.jsx` does not simulate or fetch derived statutory lines (`StatutoryLineDeriver`) during initial salary editing or revision drafting. |
-| **Resolution** | 1. In `SalaryTab.jsx`, render a dedicated **Statutory Contributions** table (`id="table-salary-statutory"`) under the active version card displaying component code, contribution share (Employer/Employee), rate/percentage, monthly amount, and annual amount from `currentVersion.statutory`.<br>2. In `SalaryVersionForm.jsx` (in both initial creation and revision mode):<br>   - Inspect the employee's statutory profile (`eligibleForPf`, `eligibleForEsi`, `eligibleForPt`).<br>   - When enabled, dynamically render the **Statutory Contributions (Benefits)** preview section showing employer EPF, EPS, EDLI, Admin Charges, and ESI rates and amounts computed live against entered Basic and Gross wages.<br>   - Reconcile Annual CTC so that `Total Annual CTC = Total Earnings + Employer Statutory Contributions + Reimbursements`.<br>   - Display estimated employee statutory deductions (EPF 12%, ESI 0.75%, and PT state slab estimate) to give full net take-home visibility during salary revision. |
-| **Status** | **open** |
-
----
-
-## 44. Defect D-131 — Employee Creation Backend Missing Integrated Statutory Profile Onboarding Workflow
-
-| Field | Value |
-|---|---|
-| **Defect ID** | `D-131` |
-| **Owner** | sayeed (`dev-sayeed`) |
-| **Found** | 2026-10-29, Legacy parity analysis: Cross-Module Employee Statutory Onboarding Orchestration |
-| **Module / Screen** | `code/backend/core/` and `code/backend/payroll/` (`EmployeeCreate` / Onboarding API) |
-| **Severity** | NORMAL |
-| **Description** | In the legacy system, basic employee information and statutory components are submitted as a single transactional payload. In the new modular architecture, `core.employee` (Core module) and `payroll.employee_statutory_profile` (Payroll module) are separated behind distinct API endpoints (`POST /v1/employees` and `PUT /v1/payroll/employees/{id}/statutory-profile`). If statutory fields are submitted during employee onboarding, a failure in the statutory call could leave an orphaned employee with unconfigured statutory profile, or vice-versa. |
-| **Root Cause** | Absence of an orchestrated onboarding endpoint or domain event listener (`EmployeeCreatedEvent` triggering statutory profile initialisation with defaults). |
-| **Resolution** | 1. Support composite onboarding orchestration (or domain event `EmployeeCreatedEvent` in backend) so that when an employee is created, their statutory profile is initialized with tenant defaults or provided values in a coherent workflow.<br>2. Ensure frontend handles onboarding gracefully with sequential promises or a composite transaction. |
-| **Status** | **open** |
-
----
-
-## 45. Defect D-132 — Statutory Profile Missing Validation for Column Length Limits (UAN max 16, PF No max 32, ESI No max 32) Causing 500 Internal Server Error
+## 40. Defect D-132 — Statutory Profile Missing Validation for Column Length Limits (UAN max 16, PF No max 32, ESI No max 32) Causing 500 Internal Server Error
 
 | Field | Value |
 |---|---|
@@ -1617,7 +1539,7 @@ dev environment crash-loops on the next deploy.
 | **Description** | When saving statutory components on the Employee Salary page (`/payroll/employees/:id/salary` -> `StatutoryProfileCard.jsx`), entering or pasting values exceeding the database column length constraints causes `PUT /api/v1/payroll/employees/{id}/statutory-profile` to fail with **500 Internal Server Error**.<br>Database column limits on `payroll.employee_statutory_profile`:<br>- **UAN**: max 16 chars (`uan VARCHAR(16)`)<br>- **PF Account Number**: max 32 chars (`pf_account_number VARCHAR(32)`)<br>- **ESI Number**: max 32 chars (`esi_number VARCHAR(32)`)<br>The frontend lacks input `maxLength` limits and client validation rules, and the backend lacks server-side string length validation and exception handling for database constraint failures (`DataIntegrityViolationException`), surfacing raw SQL truncation errors as unhandled 500s rather than clear, user-friendly field-level error messages. |
 | **Root Cause** | 1. In `StatutoryProfileCard.jsx`, `<Input>` components for `pfAccountNumber`, `uan`, and `esiNumber` lack `maxLength` limits (`maxLength={16}` for UAN, `maxLength={32}` for PF and ESI) and lack Form.Item validation rules.<br>2. In `EmployeeStatutoryProfileServiceImpl.java`, `upsert` directly sets incoming strings on the entity without verifying `uan.length() <= 16`, `pfAccountNumber.length() <= 32`, and `esiNumber.length() <= 32` before calling `save`.<br>3. In `EmployeeStatutoryProfileController.java`, only `SalaryValidationException` and `SalaryNotFoundException` are handled; `DataIntegrityViolationException` is unhandled and defaults to HTTP 500. |
 | **Resolution** | 1. In `StatutoryProfileCard.jsx`, enforce `maxLength={16}` on UAN, `maxLength={32}` on PF Account Number, and `maxLength={32}` on ESI Number, adding clear Form.Item validation rules showing exact field limits.<br>2. In `EmployeeStatutoryProfileServiceImpl.java`, validate incoming string lengths and throw `SalaryValidationException` with user-friendly messages (`"UAN must be at most 16 characters"`, `"PF Account Number must be at most 32 characters"`, `"ESI Number must be at most 32 characters"`).<br>3. In `EmployeeStatutoryProfileController.java`, add `@ExceptionHandler(DataIntegrityViolationException.class)` to translate unexpected constraint violations into a clean 400 Bad Request. |
-| **Status** | **open** |
+| **Status** | **moved to `W-75.1`** (server checks) **and `W-75.2`** (screen checks) — 2026-10-30, founder. Built there, not as a separate fix |
 
 
 
