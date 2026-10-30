@@ -37,6 +37,18 @@ export const salaryService = {
   },
 
   /**
+   * Preview a salary version without saving it: the split, statutory lines and a take-home estimate (W-75.1).
+   * @param {string} employeeId
+   * @param {Object} body SalaryPreviewRequest (SalaryVersionRequest fields plus an unsaved statutoryProfile)
+   * @param {{ signal?: AbortSignal }} [options] cancels a superseded preview
+   */
+  async preview(employeeId, body, { signal } = {}) {
+    const url = `${BASE_PATH}/${employeeId}/salary/preview`;
+    const res = signal ? await apiClient.post(url, body, { signal }) : await apiClient.post(url, body);
+    return res.data;
+  },
+
+  /**
    * Revise an employee's salary structure (creates a new dated version).
    * @param {string} employeeId
    * @param {Object} body SalaryVersionRequest

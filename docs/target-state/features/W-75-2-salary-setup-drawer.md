@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/frontend` (`src/payroll/salary`) |
 | **Related gaps** | `DEBT-027` (`legacy/docs/GAP_INVENTORY.md:77`); absorbs `D-127` (defaults copied in), the screen half of `D-132`, and the saved-view table from `D-130` — founder 2026-10-30. `D-129`–`D-131` dropped: statutory details stay on the Salary tab |
-| **Status** | **Assigned** — claude |
+| **Status** | **Ready to merge** — `dev-claude-w75` |
 | **Blocked by** | `W-75.1` (preview endpoint and `balancing` flag) |
 
 ## Size cap

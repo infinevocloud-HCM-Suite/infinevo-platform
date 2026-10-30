@@ -10,10 +10,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
@@ -23,7 +25,7 @@ class StatutoryProfileControllerTest {
 
     private MockMvc mockMvc;
     private EmployeeStatutoryProfileService service;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private final UUID employeeId = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
@@ -81,5 +83,19 @@ class StatutoryProfileControllerTest {
                         .content(mapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eligibleForEsi").value(true));
+    }
+
+    @Test
+    @DisplayName("PUT /statutory-profile maps a constraint failure to 400 VALIDATION_FAILED, never 500 (D-132)")
+    void constraintFailureIs400() throws Exception {
+        when(service.upsert(eq(employeeId), any()))
+                .thenThrow(new DataIntegrityViolationException("value too long for type character varying(16)"));
+
+        mockMvc.perform(put("/api/v1/payroll/employees/{id}/statutory-profile", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(new StatutoryProfileRequest(
+                                true, true, true, true, true, false, false, "PF123", "UAN123", "ESI123"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 }

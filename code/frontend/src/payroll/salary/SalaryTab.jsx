@@ -21,7 +21,8 @@ import { useCan, NotEntitled } from '@shell/screens';
 import { salaryService } from './salaryService.js';
 import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
 import { ScheduledEarningsPanel } from './ScheduledEarningsPanel.jsx';
-import { SalaryVersionForm } from './SalaryVersionForm.jsx';
+import { SalarySetupDrawer } from './SalarySetupDrawer.jsx';
+import { StatutoryContributionsTable } from './StatutoryContributionsTable.jsx';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { EMPTY, formatDate, formatMoney, humanize } from '@shared/ui/format.js';
 
@@ -42,6 +43,8 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState('create');
   const [selectedVersion, setSelectedVersion] = useState(null);
+  // Bumped when the drawer saves the statutory profile, so the card below re-reads it.
+  const [profileKey, setProfileKey] = useState(0);
 
   const loadData = useCallback(async () => {
     if (!employeeId || !canRead) return;
@@ -250,7 +253,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
                     setFormOpen(true);
                   }}
                 >
-                  Create structure
+                  Set up salary
                 </Button>
               )}
 
@@ -347,6 +350,10 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
                 />
               </>
             )}
+
+            {/* Statutory Contributions (W-75.2, D-130) */}
+            <Title level={5}>Statutory Contributions</Title>
+            <StatutoryContributionsTable statutory={currentVersion.statutory || []} />
           </Card>
         ) : (
           <Card style={{ marginBottom: 24, textAlign: 'center', padding: '32px 0' }}>
@@ -365,7 +372,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
                     setFormOpen(true);
                   }}
                 >
-                  Create structure
+                  Set up salary
                 </Button>
               )}
             </Empty>
@@ -373,7 +380,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
         )}
 
         {/* Statutory Profile Section */}
-        {employeeId && <StatutoryProfileCard employeeId={employeeId} />}
+        {employeeId && <StatutoryProfileCard key={profileKey} employeeId={employeeId} />}
 
         {/* Scheduled earnings (W-73.6) */}
         {employeeId && <ScheduledEarningsPanel employeeId={employeeId} />}
@@ -406,9 +413,9 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
         </Card>
       </Spin>
 
-      {/* Salary Version Form Modal */}
-      {formOpen && (
-        <SalaryVersionForm
+      {/* Salary setup drawer (W-75.2): create, revise and edit a future version */}
+      {formOpen && canManage && (
+        <SalarySetupDrawer
           open={formOpen}
           onClose={() => {
             setFormOpen(false);
@@ -417,9 +424,11 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
           onSuccess={() => {
             loadData();
           }}
+          onProfileSaved={() => setProfileKey((k) => k + 1)}
           employeeId={employeeId}
           mode={formMode}
           initialValues={selectedVersion}
+          dateOfJoining={employee?.dateOfJoining || null}
         />
       )}
     </div>
@@ -430,5 +439,6 @@ SalaryTab.propTypes = {
   employeeId: PropTypes.string,
   employee: PropTypes.shape({
     id: PropTypes.string,
+    dateOfJoining: PropTypes.string,
   }),
 };

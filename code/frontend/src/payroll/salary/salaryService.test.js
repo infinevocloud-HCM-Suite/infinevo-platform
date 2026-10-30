@@ -49,6 +49,20 @@ describe('salaryService (W-47.1a §7)', () => {
     expect(res).toEqual(mockCreated);
   });
 
+  it('preview posts to /v1/payroll/employees/{id}/salary/preview with the abort signal (W-75.2)', async () => {
+    const payload = { annualCtc: '600000', effectiveFrom: '2026-10-01', earnings: [] };
+    const mockPreview = { takeHomeMonthlyEstimate: '46200.0000' };
+    apiClient.post.mockResolvedValueOnce({ data: mockPreview });
+    const controller = new AbortController();
+
+    const res = await salaryService.preview('emp-1', payload, { signal: controller.signal });
+
+    expect(apiClient.post).toHaveBeenCalledWith('/v1/payroll/employees/emp-1/salary/preview', payload, {
+      signal: controller.signal,
+    });
+    expect(res).toEqual(mockPreview);
+  });
+
   it('revise posts to /v1/payroll/employees/{id}/salary/revisions', async () => {
     const payload = { annualCtc: '660000', effectiveFrom: '2026-11-01' };
     const mockRevised = { id: 'v2', ...payload, changeInPercent: 10 };

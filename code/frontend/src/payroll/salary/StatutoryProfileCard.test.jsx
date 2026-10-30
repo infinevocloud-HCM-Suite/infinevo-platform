@@ -28,7 +28,7 @@ describe('StatutoryProfileCard component (W-47.1a §7)', () => {
       director: false,
       pfAccountNumber: 'MH/BAN/0012345/000/0001234',
       uan: '100123456789',
-      esiNumber: '11000123456789012',
+      esiNumber: '1100012345',
     });
     statutoryProfileService.save.mockResolvedValueOnce({ id: 'p1' });
 
@@ -58,8 +58,54 @@ describe('StatutoryProfileCard component (W-47.1a §7)', () => {
       expect(payload).toHaveProperty('director', false);
       expect(payload).toHaveProperty('pfAccountNumber', 'MH/BAN/0012345/000/0001234');
       expect(payload).toHaveProperty('uan', '100123456789');
-      expect(payload).toHaveProperty('esiNumber', '11000123456789012');
+      expect(payload).toHaveProperty('esiNumber', '1100012345');
       expect(Object.keys(payload)).toHaveLength(10);
+    });
+  });
+
+  it('refuses an 11-digit UAN before save and caps the three inputs at 16 / 32 / 32 (W-75.2)', async () => {
+    statutoryProfileService.get.mockResolvedValueOnce({
+      eligibleForPf: true,
+      eligibleForEsi: true,
+      uan: '10012345678',
+      pfAccountNumber: '',
+      esiNumber: '',
+    });
+
+    render(<StatutoryProfileCard employeeId="emp-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('10012345678')).toBeDefined();
+    });
+    expect(screen.getByPlaceholderText('000000000000').getAttribute('maxlength')).toBe('16');
+    expect(screen.getByPlaceholderText('PF Account Number').getAttribute('maxlength')).toBe('32');
+    expect(screen.getByPlaceholderText('ESI Number').getAttribute('maxlength')).toBe('32');
+
+    fireEvent.click(screen.getByRole('button', { name: /save statutory details/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('UAN must be exactly 12 digits')).toBeDefined();
+    });
+    expect(statutoryProfileService.save).not.toHaveBeenCalled();
+  });
+
+  it('shows a 400 field error from the server under its field (W-75.1)', async () => {
+    statutoryProfileService.get.mockResolvedValueOnce({ eligibleForPf: true, pfAccountNumber: 'MH/BAN/1' });
+    statutoryProfileService.save.mockRejectedValueOnce({
+      code: 'VALIDATION_FAILED',
+      message: 'Validation failed',
+      fieldErrors: { pfAccountNumber: 'PF account number must be at most 32 characters' },
+    });
+
+    render(<StatutoryProfileCard employeeId="emp-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('MH/BAN/1')).toBeDefined();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save statutory details/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('PF account number must be at most 32 characters')).toBeDefined();
     });
   });
 });

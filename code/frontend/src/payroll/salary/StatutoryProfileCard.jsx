@@ -4,6 +4,13 @@ import { Card, Form, Input, Checkbox, Button, Row, Col, Typography, Spin, Divide
 import { useCan } from '@shell/screens';
 import { statutoryProfileService } from './statutoryProfileService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import {
+  statutoryFieldRules,
+  STATUTORY_FIELD_KEYS,
+  UAN_MAX_LENGTH,
+  PF_ACCOUNT_MAX_LENGTH,
+  ESI_NUMBER_MAX_LENGTH,
+} from './statutoryRules.js';
 
 const { Title, Text } = Typography;
 
@@ -16,6 +23,8 @@ export function StatutoryProfileCard({ employeeId }) {
   const eligibleForPf = Form.useWatch('eligibleForPf', form);
   const eligibleForEps = Form.useWatch('eligibleForEps', form);
   const eligibleForEsi = Form.useWatch('eligibleForEsi', form);
+  // The same checks as the salary setup drawer (W-75.2).
+  const fieldRules = statutoryFieldRules((name) => form.getFieldValue(name));
 
   const loadProfile = useCallback(async () => {
     if (!employeeId) return;
@@ -69,7 +78,15 @@ export function StatutoryProfileCard({ employeeId }) {
       await successMsg('Success', 'Statutory profile updated successfully');
       loadProfile();
     } catch (err) {
-      errorMsg(err);
+      // A 400 naming uan, pfAccountNumber or esiNumber (W-75.1) is shown under that field.
+      const placed = Object.entries(err?.fieldErrors || {})
+        .filter(([key]) => STATUTORY_FIELD_KEYS.includes(key))
+        .map(([name, message]) => ({ name, errors: [message] }));
+      if (placed.length) {
+        form.setFields(placed);
+      } else {
+        errorMsg(err);
+      }
     } finally {
       setSaving(false);
     }
@@ -109,18 +126,25 @@ export function StatutoryProfileCard({ employeeId }) {
                 <Form.Item
                   name="pfAccountNumber"
                   label="PF Account Number"
-                  help={<Text type="secondary">Format: AA/AAA/0000000/XXX/0000000</Text>}
+                  extra={<Text type="secondary">Format: AA/AAA/0000000/XXX/0000000</Text>}
+                  rules={fieldRules.pfAccountNumber}
                 >
-                  <Input placeholder="PF Account Number" disabled={!canManage} />
+                  <Input
+                    placeholder="PF Account Number"
+                    maxLength={PF_ACCOUNT_MAX_LENGTH}
+                    disabled={!canManage}
+                  />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item
                   name="uan"
                   label="Universal Account Number (UAN)"
-                  help={<Text type="secondary">12-digit number</Text>}
+                  extra={<Text type="secondary">12-digit number</Text>}
+                  rules={fieldRules.uan}
+                  dependencies={['eligibleForPf']}
                 >
-                  <Input placeholder="000000000000" disabled={!canManage} />
+                  <Input placeholder="000000000000" maxLength={UAN_MAX_LENGTH} disabled={!canManage} />
                 </Form.Item>
               </Col>
             </Row>
@@ -162,8 +186,13 @@ export function StatutoryProfileCard({ employeeId }) {
           <div style={{ paddingLeft: 24, marginBottom: 16, display: eligibleForEsi ? 'block' : 'none' }}>
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name="esiNumber" label="ESI Insurance Number">
-                  <Input placeholder="ESI Number" disabled={!canManage} />
+                <Form.Item
+                  name="esiNumber"
+                  label="ESI Insurance Number"
+                  rules={fieldRules.esiNumber}
+                  dependencies={['eligibleForEsi']}
+                >
+                  <Input placeholder="ESI Number" maxLength={ESI_NUMBER_MAX_LENGTH} disabled={!canManage} />
                 </Form.Item>
               </Col>
             </Row>
