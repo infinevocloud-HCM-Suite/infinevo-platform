@@ -13,6 +13,7 @@ vi.mock('./salaryService.js', () => ({
   salaryService: {
     asOf: vi.fn(),
     versions: vi.fn(),
+    preview: vi.fn(),
     create: vi.fn(),
     revise: vi.fn(),
     update: vi.fn(),
@@ -24,6 +25,12 @@ vi.mock('./statutoryProfileService.js', () => ({
   statutoryProfileService: {
     get: vi.fn(),
     save: vi.fn(),
+  },
+}));
+
+vi.mock('../settings/statutoryService.js', () => ({
+  statutoryService: {
+    get: vi.fn().mockResolvedValue({ is_enabled: true }),
   },
 }));
 
@@ -42,7 +49,7 @@ vi.mock('@shared/ui/msgHelper.js', () => ({
   errorMsg: vi.fn().mockResolvedValue(true),
 }));
 
-function renderTab(employeeId = 'emp-1') {
+function renderTab(employeeId = 'emp-1', { canManage = true } = {}) {
   const store = configureStore({
     reducer: {
       salary: salaryReducer,
@@ -60,7 +67,9 @@ function renderTab(employeeId = 'emp-1') {
     },
   });
 
-  vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+  vi.spyOn(useCanModule, 'useCan').mockImplementation(
+    (action) => action === 'payroll.salary.read' || canManage
+  );
 
   return render(
     <Provider store={store}>
@@ -75,9 +84,20 @@ describe('SalaryTab component (W-47.1a §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     statutoryProfileService.get.mockResolvedValue(null);
+    statutoryProfileService.save.mockResolvedValue({ id: 'p1' });
+    salaryService.preview.mockResolvedValue({
+      earnings: [],
+      benefits: [],
+      reimbursements: [],
+      statutory: [],
+      grossMonthly: '0.0000',
+      employeeDeductionsMonthly: [],
+      takeHomeMonthlyEstimate: '0.0000',
+      ptEstimated: true,
+    });
   });
 
-  it('no version shows "Create structure" button', async () => {
+  it('no version shows the "Set up salary" button', async () => {
     salaryService.asOf.mockResolvedValueOnce(null);
     salaryService.versions.mockResolvedValueOnce([]);
 
@@ -86,6 +106,52 @@ describe('SalaryTab component (W-47.1a §7)', () => {
     await waitFor(() => {
       expect(document.getElementById('btn-create-salary-structure')).toBeTruthy();
     });
+    expect(document.getElementById('btn-create-salary-structure').textContent).toContain('Set up salary');
+  });
+
+  it('finance (read only) sees no "Set up salary" or "Revise" button', async () => {
+    salaryService.asOf.mockResolvedValueOnce(null);
+    salaryService.versions.mockResolvedValueOnce([]);
+
+    renderTab('emp-1', { canManage: false });
+
+    await waitFor(() => {
+      expect(screen.getByText('No salary structure active as of this date')).toBeDefined();
+    });
+    expect(document.getElementById('btn-create-salary-structure')).toBeNull();
+    expect(document.getElementById('btn-create-salary-top')).toBeNull();
+    expect(document.getElementById('btn-revise-salary-structure')).toBeNull();
+  });
+
+  it('the active version shows its statutory contributions table (W-75.2, D-130)', async () => {
+    salaryService.asOf.mockResolvedValueOnce({
+      id: 'v1',
+      effectiveFrom: '2026-10-01',
+      annualCtc: '600000',
+      monthlyCtc: '50000',
+      earnings: [],
+      statutory: [
+        {
+          id: 's1',
+          componentCode: 'EPF_EMPLOYER',
+          share: 'EMPLOYER',
+          wageBase: '15000.0000',
+          rate: '3.6700',
+          monthlyAmount: '550.5000',
+          annualAmount: '6606.0000',
+          includedInCtc: true,
+        },
+      ],
+    });
+    salaryService.versions.mockResolvedValueOnce([{ id: 'v1', effectiveFrom: '2026-10-01', cancelled: false }]);
+
+    renderTab();
+
+    await waitFor(() => {
+      expect(document.getElementById('table-salary-statutory')).toBeTruthy();
+    });
+    expect(screen.getByText('Employer PF')).toBeDefined();
+    expect(screen.getByText('3.67% of ₹ 15,000.00')).toBeDefined();
   });
 
   it('a version shows "Revise" button', async () => {
@@ -136,7 +202,7 @@ describe('SalaryTab component (W-47.1a §7)', () => {
       expect(document.getElementById('btn-create-salary-structure')).toBeTruthy();
     });
 
-    // Open create modal
+    // Open the setup drawer
     const createBtn = document.getElementById('btn-create-salary-structure');
     fireEvent.click(createBtn);
 
@@ -158,12 +224,18 @@ describe('SalaryTab component (W-47.1a §7)', () => {
       { id: 'v1', effectiveFrom: '2026-10-01', annualCtc: '600000', monthlyCtc: '50000' },
     ]);
 
-    // Submit form modal
-    const submitBtn = document.getElementById('btn-salary-version-submit');
-    expect(submitBtn).toBeTruthy();
-    fireEvent.click(submitBtn);
+    // Save once the preview has settled
+    // The drawer's preview is debounced 400 ms; allow for a loaded full-suite run.
+    await waitFor(
+      () => {
+        expect(document.getElementById('btn-salary-version-submit').disabled).toBe(false);
+      },
+      { timeout: 5000 }
+    );
+    fireEvent.click(document.getElementById('btn-salary-version-submit'));
 
     await waitFor(() => {
+      expect(statutoryProfileService.save).toHaveBeenCalled();
       expect(salaryService.create).toHaveBeenCalled();
       expect(screen.getAllByText('50000').length).toBeGreaterThan(0);
     });
@@ -190,8 +262,14 @@ describe('SalaryTab component (W-47.1a §7)', () => {
       message: 'Basic salary component is required in CTC structure',
     });
 
-    const submitBtn = document.getElementById('btn-salary-version-submit');
-    fireEvent.click(submitBtn);
+    // The drawer's preview is debounced 400 ms; allow for a loaded full-suite run.
+    await waitFor(
+      () => {
+        expect(document.getElementById('btn-salary-version-submit').disabled).toBe(false);
+      },
+      { timeout: 5000 }
+    );
+    fireEvent.click(document.getElementById('btn-salary-version-submit'));
 
     await waitFor(() => {
       expect(

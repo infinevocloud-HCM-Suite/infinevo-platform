@@ -165,7 +165,7 @@ export const employeeTabs = [
     label: 'Salary',
     action: 'payroll.salary.read',
     component: SalaryTab,
-    render: ({ employee }) => React.createElement(SalaryTab, { employeeId: employee?.id }),
+    render: ({ employee }) => React.createElement(SalaryTab, { employeeId: employee?.id, employee }),
   },
   {
     key: 'fbp',
