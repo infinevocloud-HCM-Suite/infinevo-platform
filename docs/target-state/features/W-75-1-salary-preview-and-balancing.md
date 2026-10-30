@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/backend/payroll` |
 | **Related gaps** | `DEBT-027` (`legacy/docs/GAP_INVENTORY.md:77`); absorbs `D-132` (statutory profile length checks), founder 2026-10-30 |
-| **Status** | **Ready to merge** — `dev-claude-w75` |
+| **Status** | **Done** — `589f6a07` |
 | **Blocked by** | nothing — `W-26.2`, `W-31.3` are on `main` |
 
 ## Size cap

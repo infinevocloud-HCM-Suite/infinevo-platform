@@ -6,6 +6,19 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-10-30 — W-75 salary setup on `main` (`589f6a07`)
+
+| Ticket | What |
+|---|---|
+| `W-75.1` | Balancing earning: the server sets it so the in-CTC total equals the CTC (employer EPF/ESI included, ESI against its ceiling); `POST …/salary/preview` with statutory lines and take-home, no write; statutory profile length checks (was `D-132`) |
+| `W-75.2` | "Set up salary" drawer replaces `SalaryVersionForm`: rows from company defaults (was `D-127`), balancing Special else Fixed Allowance, statutory section with checks, live summary, Statutory Contributions table (from `D-130`) |
+
+- Built by Claude on `dev-claude-w75`, one independent read (one defect fixed: Save now waits for the statutory profile), CI green.
+- `D-126` (salary deductions), `D-128`, `D-129`–`D-131` dropped 2026-10-30; Sayeed's statutory design doc removed, its useful parts are in W-75.
+- Migrated company (tenant `a0000000-…-0001`) data fixed the same day: EPF employer in CTC on, HRA % of Basic, Arrear type `arrear`. Nidhi Kumari still has no salary (founder: leave it).
+- **Left:** the `DataIntegrityViolation`→400 handler has only a controller test; preview's PT code is `PT`, the pay run's is `PROFESSIONAL_TAX`.
+- **Branches:** `dev-claude-w75` can be deleted.
+
 ## 2026-10-23 — D-105: Timesheet weekly entry inline description box and mandatory validation (sayeed)
 
 | Fix | What |
