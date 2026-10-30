@@ -39,7 +39,11 @@ async function pickInFormItem(page, scope, label, optionText) {
     await search.fill(optionText);
     await page.waitForTimeout(300);
   }
-  await dropdown.locator('.ant-select-item-option').filter({ hasText: new RegExp(`^${optionText}$`) }).first().click();
+  await dropdown
+    .locator('.ant-select-item-option')
+    .filter({ has: page.getByText(optionText, { exact: true }) })
+    .first()
+    .click();
 }
 
 async function ensureEarning(page, earning) {
