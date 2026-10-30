@@ -10,6 +10,7 @@ import com.infinevo.shared.logging.MdcLoggingContext;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.MDC;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -79,6 +80,16 @@ public class EmployeeStatutoryProfileController {
                 .body(ApiErrorResponse.of(
                         ApiError.VALIDATION_FAILED,
                         "The request body could not be read. Check the JSON is well formed.",
+                        traceId()));
+    }
+
+    /** A constraint failure the service did not catch first is still the caller's input, never a 500 (D-132). */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrity(DataIntegrityViolationException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiErrorResponse.of(
+                        ApiError.VALIDATION_FAILED,
+                        "The statutory profile could not be saved. Check that each number is within its length.",
                         traceId()));
     }
 
