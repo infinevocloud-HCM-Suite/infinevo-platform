@@ -256,6 +256,21 @@ describe('SalarySetupDrawer (W-75.2 §7)', () => {
     expect(document.getElementById('btn-salary-version-submit').disabled).toBe(true);
   });
 
+  it('keeps Save off and never PUTs the profile when the statutory profile fails to load', async () => {
+    statutoryProfileService.get.mockRejectedValue({ code: 'INTERNAL', message: 'boom' });
+    renderDrawer();
+    await waitFor(() => expect(screen.getByTestId('earning-row-2')).toBeDefined(), SLOW);
+    fireEvent.change(document.getElementById('input-annual-ctc'), { target: { value: '600000' } });
+
+    await waitFor(() => expect(screen.getByTestId('statutory-profile-load-error')).toBeDefined(), SLOW);
+    await waitFor(() => expect(screen.getByTestId('salary-take-home')).toBeDefined(), SLOW);
+    const save = document.getElementById('btn-salary-version-submit');
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
+    expect(statutoryProfileService.save).not.toHaveBeenCalled();
+    expect(salaryService.create).not.toHaveBeenCalled();
+  });
+
   it('refuses an 11-digit UAN under the field', async () => {
     renderDrawer();
     await waitFor(() => expect(screen.getByTestId('earning-row-2')).toBeDefined(), SLOW);

@@ -198,6 +198,8 @@ export function SalarySetupDrawer({
   const [keptProfile, setKeptProfile] = useState({ eligibleForLwf: false, director: false });
   const [companyEpf, setCompanyEpf] = useState(null);
   const [companyEsi, setCompanyEsi] = useState(null);
+  // 'loading' | 'loaded' | 'error'. Save waits for 'loaded' so it can never PUT an empty profile over a real one.
+  const [profileState, setProfileState] = useState('loading');
 
   const [preview, setPreview] = useState(null);
   const [previewError, setPreviewError] = useState(null);
@@ -383,10 +385,16 @@ export function SalarySetupDrawer({
   useEffect(() => {
     if (!open || !employeeId) return undefined;
     let live = true;
+    setProfileState('loading');
     statutoryProfileService
       .get(employeeId)
       .then((data) => {
-        if (!live || !data) return;
+        if (!live) return;
+        // The server answers a default profile when none is stored, so no data is a failed read.
+        if (!data) {
+          setProfileState('error');
+          return;
+        }
         const kept = { eligibleForLwf: Boolean(data.eligibleForLwf), director: Boolean(data.director) };
         keptRef.current = kept;
         setKeptProfile(kept);
@@ -402,10 +410,11 @@ export function SalarySetupDrawer({
             esiNumber: data.esiNumber || '',
           },
         });
+        setProfileState('loaded');
         schedulePreview();
       })
       .catch(() => {
-        // No profile yet (404) or unreadable: the drawer starts with every tick off.
+        if (live) setProfileState('error');
       });
 
     Promise.allSettled([statutoryService.get('epf'), statutoryService.get('esi')]).then(([epf, esi]) => {
@@ -488,7 +497,7 @@ export function SalarySetupDrawer({
   const balancingMonthly =
     preview?.earnings?.find((e) => e.componentId === balancingId)?.monthlyAmount ?? null;
   const esiWarning = esiCeilingWarning(preview?.grossMonthly, esiTicked, companyEsi?.wage_ceiling);
-  const saveBlocked = previewPending || previewLoading || Boolean(previewError);
+  const saveBlocked = previewPending || previewLoading || Boolean(previewError) || profileState !== 'loaded';
 
   const renderEarnings = () => (
     <Card
@@ -787,6 +796,15 @@ export function SalarySetupDrawer({
 
   const renderStatutory = () => (
     <Card size="small" title="Statutory" style={{ marginBottom: 16 }}>
+      {profileState === 'error' && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 8 }}
+          data-testid="statutory-profile-load-error"
+          message="Could not load the employee's statutory details. Close and reopen to try again; saving is off until they load."
+        />
+      )}
       {companyEpf && !companyEpf.is_enabled && (
         <Alert
           type="warning"

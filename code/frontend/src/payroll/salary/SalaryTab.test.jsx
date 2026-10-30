@@ -83,7 +83,19 @@ function renderTab(employeeId = 'emp-1', { canManage = true } = {}) {
 describe('SalaryTab component (W-47.1a §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    statutoryProfileService.get.mockResolvedValue(null);
+    // The server answers a default profile when none is stored (EmployeeStatutoryProfileServiceImpl.get).
+    statutoryProfileService.get.mockResolvedValue({
+      eligibleForPf: false,
+      eligibleForEps: false,
+      contributesEpsOnHigherWages: false,
+      eligibleForPt: false,
+      eligibleForEsi: false,
+      eligibleForLwf: false,
+      director: false,
+      pfAccountNumber: null,
+      uan: null,
+      esiNumber: null,
+    });
     statutoryProfileService.save.mockResolvedValue({ id: 'p1' });
     salaryService.preview.mockResolvedValue({
       earnings: [],
