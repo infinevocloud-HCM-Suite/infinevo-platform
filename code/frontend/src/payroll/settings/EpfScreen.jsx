@@ -67,6 +67,10 @@ export function EpfScreen() {
   const dispatch = useDispatch();
   const { token } = theme.useToken();
   const [form] = Form.useForm();
+  // EDLI and admin are part of the salary, and paid, only when their structure switch is on; their CTC
+  // switch means something only then (W-76.3, founder 2026-11-01).
+  const edliInStructure = Form.useWatch('include_edli_in_structure', form);
+  const adminInStructure = Form.useWatch('include_admin_in_structure', form);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -139,8 +143,8 @@ export function EpfScreen() {
         consider_earned_wage: !!values.consider_earned_wage,
         eps_senior_age: Number(values.eps_senior_age),
         include_employer_in_ctc: !!values.include_employer_in_ctc,
-        include_edli_in_ctc: !!values.include_edli_in_ctc,
-        include_admin_in_ctc: !!values.include_admin_in_ctc,
+        include_edli_in_ctc: !!values.include_edli_in_ctc && !!values.include_edli_in_structure,
+        include_admin_in_ctc: !!values.include_admin_in_ctc && !!values.include_admin_in_structure,
         include_employer_in_structure: !!values.include_employer_in_structure,
         include_edli_in_structure: !!values.include_edli_in_structure,
         include_admin_in_structure: !!values.include_admin_in_structure,
@@ -411,8 +415,9 @@ export function EpfScreen() {
               name="include_edli_in_ctc"
               label="Include EDLI contribution in CTC"
               valuePropName="checked"
+              extra={edliInStructure ? null : 'Turn on "Include EDLI contribution in salary structure" first'}
             >
-              <Switch data-testid="epf-include-edli-in-ctc" />
+              <Switch data-testid="epf-include-edli-in-ctc" disabled={!edliInStructure} />
             </Form.Item>
           </Col>
 
@@ -421,8 +426,9 @@ export function EpfScreen() {
               name="include_admin_in_ctc"
               label="Include EPF admin charges in CTC"
               valuePropName="checked"
+              extra={adminInStructure ? null : 'Turn on "Include EPF admin charges in salary structure" first'}
             >
-              <Switch data-testid="epf-include-admin-in-ctc" />
+              <Switch data-testid="epf-include-admin-in-ctc" disabled={!adminInStructure} />
             </Form.Item>
           </Col>
 
@@ -431,6 +437,7 @@ export function EpfScreen() {
               name="include_employer_in_structure"
               label="Include Employer Share in Salary Structure"
               valuePropName="checked"
+              extra="Display only. Employer PF is always paid when EPF is on and the employee is ticked for PF."
             >
               <Switch />
             </Form.Item>
@@ -441,6 +448,7 @@ export function EpfScreen() {
               name="include_edli_in_structure"
               label="Include EDLI contribution in salary structure"
               valuePropName="checked"
+              extra="On: shown in the salary and paid in the pay run. Off: neither."
             >
               <Switch data-testid="epf-include-edli-in-structure" />
             </Form.Item>
@@ -451,6 +459,7 @@ export function EpfScreen() {
               name="include_admin_in_structure"
               label="Include EPF admin charges in salary structure"
               valuePropName="checked"
+              extra="On: shown in the salary and paid in the pay run. Off: neither."
             >
               <Switch data-testid="epf-include-admin-in-structure" />
             </Form.Item>

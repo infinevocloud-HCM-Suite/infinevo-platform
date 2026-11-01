@@ -709,7 +709,7 @@ public class EmployeeSalaryServiceImpl implements EmployeeSalaryService {
 
     /**
      * PT for the employee's work-location state and gender, resolved as the pay run does
-     * ({@code statutory/payrun/StatutoryLineContributor.java:241-251}); {@code null} when no work location resolves.
+     * ({@code statutory/payrun/StatutoryLineContributor.java:260-281}); {@code null} when no work location resolves.
      */
     private Money estimatePt(UUID tenantId, EmployeeResponse employee, BigDecimal grossMonthly, LocalDate from) {
         if (professionalTaxService == null || workLocationService == null || employee.workLocationId() == null) {

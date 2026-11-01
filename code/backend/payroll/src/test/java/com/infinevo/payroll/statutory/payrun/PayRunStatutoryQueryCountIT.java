@@ -252,8 +252,10 @@ class PayRunStatutoryQueryCountIT extends AbstractIntegrationTest {
                         INSERT INTO payroll.epf_setting
                             (id, tenant_id, is_enabled, wage_ceiling, restrict_employee_to_ceiling, restrict_employer_to_ceiling,
                              employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, eps_senior_age,
-                             consider_earned_wage, prorate_restricted_wage)
-                        VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, 12.0000, 12.0000, 8.3300, 0.5000, 0.5000, 58, true, false)
+                             consider_earned_wage, prorate_restricted_wage, include_edli_in_structure,
+                             include_admin_in_structure)
+                        VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, 12.0000, 12.0000, 8.3300, 0.5000, 0.5000, 58, true, false,
+                                true, true)
                         """)) {
             ps.setObject(1, tenantId);
             ps.executeUpdate();

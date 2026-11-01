@@ -181,6 +181,21 @@ class SalaryCtcReconciliationIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("W-76.3: EDLI and admin in CTC but out of the salary structure -> no rows, earnings alone are the CTC")
+    void edliAndAdminOutOfStructure_notInCtc() throws SQLException {
+        seedEpfSetting(TENANT_A, false, true, true, false, false);
+
+        TenantContext.set(TENANT_A);
+        SalaryVersionResponse response =
+                salaryService.create(employeeId, basicOnlyRequest(new BigDecimal("120000.0000")));
+
+        assertThat(response.statutory())
+                .extracting(SalaryStatutoryItemResponse::componentCode)
+                .doesNotContain("EDLI", "EPF_ADMIN")
+                .contains("EPF_EMPLOYEE", "EPF_EMPLOYER");
+    }
+
+    @Test
     @DisplayName("D-39: admin in CTC and EDLI out of CTC is accepted at earnings plus admin, flags set per line")
     void adminInCtc_edliOut_accepted() throws SQLException {
         seedEpfSetting(TENANT_A, false, false, true);
@@ -248,14 +263,28 @@ class SalaryCtcReconciliationIT extends AbstractIntegrationTest {
     private static void seedEpfSetting(
             UUID tenantId, boolean includeEmployerInCtc, boolean includeEdliInCtc, boolean includeAdminInCtc)
             throws SQLException {
+        seedEpfSetting(tenantId, includeEmployerInCtc, includeEdliInCtc, includeAdminInCtc, true, true);
+    }
+
+    private static void seedEpfSetting(
+            UUID tenantId,
+            boolean includeEmployerInCtc,
+            boolean includeEdliInCtc,
+            boolean includeAdminInCtc,
+            boolean includeEdliInStructure,
+            boolean includeAdminInStructure)
+            throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO payroll.epf_setting (id, tenant_id, is_enabled, wage_ceiling, restrict_employee_to_ceiling, restrict_employer_to_ceiling, employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, eps_senior_age, include_employer_in_ctc, include_edli_in_ctc, include_admin_in_ctc) "
-                                + "VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, 12.0000, 12.0000, 8.3300, 0.5000, 0.5000, 58, ?, ?, ?) ON CONFLICT DO NOTHING")) {
+                        "INSERT INTO payroll.epf_setting (id, tenant_id, is_enabled, wage_ceiling, restrict_employee_to_ceiling, restrict_employer_to_ceiling, employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, eps_senior_age, include_employer_in_ctc, include_edli_in_ctc, include_admin_in_ctc, "
+                                + "include_edli_in_structure, include_admin_in_structure) "
+                                + "VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, 12.0000, 12.0000, 8.3300, 0.5000, 0.5000, 58, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")) {
             ps.setObject(1, tenantId);
             ps.setBoolean(2, includeEmployerInCtc);
             ps.setBoolean(3, includeEdliInCtc);
             ps.setBoolean(4, includeAdminInCtc);
+            ps.setBoolean(5, includeEdliInStructure);
+            ps.setBoolean(6, includeAdminInStructure);
             ps.executeUpdate();
         }
     }

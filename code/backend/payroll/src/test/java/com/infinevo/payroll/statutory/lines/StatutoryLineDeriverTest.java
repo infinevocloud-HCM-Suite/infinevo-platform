@@ -35,6 +35,8 @@ class StatutoryLineDeriverTest {
         epf.setIncludeEmployerInCtc(true);
         epf.setIncludeEdliInCtc(true);
         epf.setIncludeAdminInCtc(true);
+        epf.setIncludeEdliInStructure(true);
+        epf.setIncludeAdminInStructure(true);
         return epf;
     }
 
@@ -161,7 +163,7 @@ class StatutoryLineDeriverTest {
     }
 
     @Test
-    @DisplayName("Not eligible for EPS puts the whole 12% in EPF_EMPLOYER")
+    @DisplayName("W-76.3: not eligible for EPS -> no EPS row, the whole 12% in EPF_EMPLOYER")
     void notEligibleForEps_putsWhole12PercentInEpfEmployer() {
         Money basic = Money.of(new BigDecimal("25000.0000"));
         Money gross = Money.of(new BigDecimal("45000.0000"));
@@ -177,8 +179,7 @@ class StatutoryLineDeriverTest {
         Map<StatutoryComponentCode, DerivedStatutoryLine> map =
                 lines.stream().collect(Collectors.toMap(DerivedStatutoryLine::code, l -> l));
 
-        DerivedStatutoryLine eps = map.get(StatutoryComponentCode.EPS_EMPLOYER);
-        assertThat(eps.monthlyAmount().raw()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(map).doesNotContainKey(StatutoryComponentCode.EPS_EMPLOYER);
 
         DerivedStatutoryLine erPf = map.get(StatutoryComponentCode.EPF_EMPLOYER);
         assertThat(erPf.rate()).isEqualByComparingTo(new BigDecimal("12.0000"));
@@ -186,7 +187,7 @@ class StatutoryLineDeriverTest {
     }
 
     @Test
-    @DisplayName("Age 58 on effective_from puts the whole 12% in EPF_EMPLOYER (senior age exemption)")
+    @DisplayName("W-76.3: age 58 on effective_from -> no EPS row, the whole 12% in EPF_EMPLOYER")
     void age58OnEffectiveFrom_putsWhole12PercentInEpfEmployer() {
         Money basic = Money.of(new BigDecimal("25000.0000"));
         Money gross = Money.of(new BigDecimal("45000.0000"));
@@ -202,8 +203,7 @@ class StatutoryLineDeriverTest {
         Map<StatutoryComponentCode, DerivedStatutoryLine> map =
                 lines.stream().collect(Collectors.toMap(DerivedStatutoryLine::code, l -> l));
 
-        DerivedStatutoryLine eps = map.get(StatutoryComponentCode.EPS_EMPLOYER);
-        assertThat(eps.monthlyAmount().raw()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(map).doesNotContainKey(StatutoryComponentCode.EPS_EMPLOYER);
 
         DerivedStatutoryLine erPf = map.get(StatutoryComponentCode.EPF_EMPLOYER);
         assertThat(erPf.rate()).isEqualByComparingTo(new BigDecimal("12.0000"));
@@ -374,8 +374,8 @@ class StatutoryLineDeriverTest {
     }
 
     @Test
-    @DisplayName("D-39: the structure switches do not change which lines count in CTC")
-    void structureSwitchesDoNotAffectCtc() {
+    @DisplayName("W-76.3: EDLI and admin in the structure with CTC off -> rows kept, not in CTC")
+    void structureOnCtcOff_rowsNotInCtc() {
         EpfSetting epf = createDefaultEpfSetting();
         epf.setIncludeEdliInCtc(false);
         epf.setIncludeAdminInCtc(false);
@@ -386,6 +386,50 @@ class StatutoryLineDeriverTest {
 
         assertThat(map.get(StatutoryComponentCode.EDLI).includedInCtc()).isFalse();
         assertThat(map.get(StatutoryComponentCode.EPF_ADMIN).includedInCtc()).isFalse();
+    }
+
+    @Test
+    @DisplayName("W-76.3: EDLI and admin out of the structure -> no rows and not in CTC, even with CTC on")
+    void structureOff_noRowsEvenWithCtcOn() {
+        EpfSetting epf = createDefaultEpfSetting();
+        epf.setIncludeEdliInStructure(false);
+        epf.setIncludeAdminInStructure(false);
+        epf.setIncludeEdliInCtc(true);
+        epf.setIncludeAdminInCtc(true);
+
+        Map<StatutoryComponentCode, DerivedStatutoryLine> map = deriveEpfOnly(epf);
+
+        assertThat(map).doesNotContainKeys(StatutoryComponentCode.EDLI, StatutoryComponentCode.EPF_ADMIN);
+        // EPS 14,994 + employer PF 6,606 = 21,600 a year: nothing for EDLI or admin.
+        assertThat(employerAnnualInCtc(map)).isEqualByComparingTo(new BigDecimal("21600.0000"));
+    }
+
+    @Test
+    @DisplayName("W-76.3: EDLI in the structure, admin out -> EDLI row in CTC, no admin row")
+    void edliStructureOn_adminStructureOff() {
+        EpfSetting epf = createDefaultEpfSetting();
+        epf.setIncludeAdminInStructure(false);
+
+        Map<StatutoryComponentCode, DerivedStatutoryLine> map = deriveEpfOnly(epf);
+
+        assertThat(map.get(StatutoryComponentCode.EDLI).includedInCtc()).isTrue();
+        assertThat(map.get(StatutoryComponentCode.EDLI).monthlyAmount().raw())
+                .isEqualByComparingTo(new BigDecimal("75.0000"));
+        assertThat(map).doesNotContainKey(StatutoryComponentCode.EPF_ADMIN);
+        assertThat(employerAnnualInCtc(map)).isEqualByComparingTo(new BigDecimal("22500.0000"));
+    }
+
+    @Test
+    @DisplayName("W-76.3: admin in the structure, EDLI out -> admin row in CTC, no EDLI row")
+    void adminStructureOn_edliStructureOff() {
+        EpfSetting epf = createDefaultEpfSetting();
+        epf.setIncludeEdliInStructure(false);
+
+        Map<StatutoryComponentCode, DerivedStatutoryLine> map = deriveEpfOnly(epf);
+
+        assertThat(map.get(StatutoryComponentCode.EPF_ADMIN).includedInCtc()).isTrue();
+        assertThat(map).doesNotContainKey(StatutoryComponentCode.EDLI);
+        assertThat(employerAnnualInCtc(map)).isEqualByComparingTo(new BigDecimal("22500.0000"));
     }
 
     /** Basic 25,000, restricted ceiling 15,000: EDLI and admin are 900 a year each. */

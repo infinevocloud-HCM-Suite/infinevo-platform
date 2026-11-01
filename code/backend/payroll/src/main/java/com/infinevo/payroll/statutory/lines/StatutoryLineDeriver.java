@@ -75,19 +75,21 @@ public final class StatutoryLineDeriver {
 
             boolean eligibleForEps = profile.isEligibleForEps() && !isSenior;
 
-            // Employer EPS
-            Money epsWageBase = profile.isContributesEpsOnHigherWages() ? basic : min(basic, wageCeiling);
+            // Employer EPS: no row for an employee not in EPS or over the EPS age (W-76.3)
             BigDecimal epsRate = epf.getEpsRate();
-            Money epsMonthly = eligibleForEps ? calculateRateAmount(epsWageBase, epsRate) : Money.ZERO;
-            Money epsAnnual = epsMonthly.multiply(TWELVE);
-            lines.add(new DerivedStatutoryLine(
-                    StatutoryComponentCode.EPS_EMPLOYER,
-                    ContributionShare.EMPLOYER,
-                    epsWageBase,
-                    epsRate,
-                    epsMonthly,
-                    epsAnnual,
-                    epf.isIncludeEmployerInCtc()));
+            Money epsMonthly = Money.ZERO;
+            if (eligibleForEps) {
+                Money epsWageBase = profile.isContributesEpsOnHigherWages() ? basic : min(basic, wageCeiling);
+                epsMonthly = calculateRateAmount(epsWageBase, epsRate);
+                lines.add(new DerivedStatutoryLine(
+                        StatutoryComponentCode.EPS_EMPLOYER,
+                        ContributionShare.EMPLOYER,
+                        epsWageBase,
+                        epsRate,
+                        epsMonthly,
+                        epsMonthly.multiply(TWELVE),
+                        epf.isIncludeEmployerInCtc()));
+            }
 
             // Employer PF
             Money employerWageBase = epf.isRestrictEmployerToCeiling() ? min(basic, wageCeiling) : basic;
@@ -108,33 +110,36 @@ public final class StatutoryLineDeriver {
                     employerPfAnnual,
                     epf.isIncludeEmployerInCtc()));
 
-            // EDLI
-            Money edliWageBase = min(basic, wageCeiling);
-            BigDecimal edliRate = epf.getEdliRate();
-            Money edliMonthly = calculateRateAmount(edliWageBase, edliRate);
-            Money edliAnnual = edliMonthly.multiply(TWELVE);
-            lines.add(new DerivedStatutoryLine(
-                    StatutoryComponentCode.EDLI,
-                    ContributionShare.EMPLOYER,
-                    edliWageBase,
-                    edliRate,
-                    edliMonthly,
-                    edliAnnual,
-                    epf.isIncludeEdliInCtc()));
+            // EDLI and admin charge: only when their "include in salary structure" switch is on, and then in CTC
+            // only when their CTC switch is on too (W-76.3). Legacy added them only when their switch was on
+            // (legacy/Payroll-Fend-react/src/pages/mainPages/employee/salaryDetails.js:617-659).
+            if (epf.isIncludeEdliInStructure()) {
+                Money edliWageBase = min(basic, wageCeiling);
+                BigDecimal edliRate = epf.getEdliRate();
+                Money edliMonthly = calculateRateAmount(edliWageBase, edliRate);
+                lines.add(new DerivedStatutoryLine(
+                        StatutoryComponentCode.EDLI,
+                        ContributionShare.EMPLOYER,
+                        edliWageBase,
+                        edliRate,
+                        edliMonthly,
+                        edliMonthly.multiply(TWELVE),
+                        epf.isIncludeEdliInCtc()));
+            }
 
-            // Admin Charge
-            Money adminWageBase = epf.isRestrictEmployerToCeiling() ? min(basic, wageCeiling) : basic;
-            BigDecimal adminRate = epf.getAdminChargeRate();
-            Money adminMonthly = calculateRateAmount(adminWageBase, adminRate);
-            Money adminAnnual = adminMonthly.multiply(TWELVE);
-            lines.add(new DerivedStatutoryLine(
-                    StatutoryComponentCode.EPF_ADMIN,
-                    ContributionShare.EMPLOYER,
-                    adminWageBase,
-                    adminRate,
-                    adminMonthly,
-                    adminAnnual,
-                    epf.isIncludeAdminInCtc()));
+            if (epf.isIncludeAdminInStructure()) {
+                Money adminWageBase = epf.isRestrictEmployerToCeiling() ? min(basic, wageCeiling) : basic;
+                BigDecimal adminRate = epf.getAdminChargeRate();
+                Money adminMonthly = calculateRateAmount(adminWageBase, adminRate);
+                lines.add(new DerivedStatutoryLine(
+                        StatutoryComponentCode.EPF_ADMIN,
+                        ContributionShare.EMPLOYER,
+                        adminWageBase,
+                        adminRate,
+                        adminMonthly,
+                        adminMonthly.multiply(TWELVE),
+                        epf.isIncludeAdminInCtc()));
+            }
         }
 
         // 2. State Insurance (ESI)
