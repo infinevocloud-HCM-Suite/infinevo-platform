@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/backend/payroll` |
 | **Related gaps** | found at the `W-76` merge review; founder rules 2026-11-01: "everything switch based, once switched on at company level and selected for the employee then only applied, checked every month during pay run"; EDLI / admin as legacy; employer PF / ESI as legacy |
-| **Status** | Ready to merge — `dev-claude-w76` |
+| **Status** | **Done** — `aaf53c21` |
 | **Blocked by** | nothing |
 
 ## Size cap

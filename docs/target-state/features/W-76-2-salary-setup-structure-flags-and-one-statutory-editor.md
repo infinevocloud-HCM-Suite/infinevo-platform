@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/frontend` (`src/payroll/salary`) |
 | **Related gaps** | follows `W-75.2`; `W-75.2` §5 meant the bottom statutory card as a read view (`W-75-2-salary-setup-drawer.md:71`) but it stayed editable — founder 2026-11-01 |
-| **Status** | Ready to merge — `dev-claude-w76` |
+| **Status** | **Done** — `aaf53c21` |
 | **Blocked by** | nothing. Takes over the structure-switch rule from `W-76.1` (dropped 2026-11-01: the pay run pays the employer lines on the saved salary, so the rule is display only) |
 
 ## Size cap

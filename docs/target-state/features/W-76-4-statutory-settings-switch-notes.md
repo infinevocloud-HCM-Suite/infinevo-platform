@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/frontend` (`src/payroll/settings`) |
 | **Related gaps** | founder 2026-11-01: employer PF / ESI structure switch is display only and must say so; EDLI / admin "in CTC" means something only when they are in the salary structure |
-| **Status** | Ready to merge — `dev-claude-w76` |
+| **Status** | **Done** — `aaf53c21` |
 | **Blocked by** | nothing; matches the pay-run rule in `W-76.3` |
 
 ## Size cap

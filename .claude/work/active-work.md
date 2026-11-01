@@ -6,6 +6,20 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-01 — W-76 salary statutory switches on `main` (`aaf53c21`)
+
+| Ticket | What |
+|---|---|
+| `W-76.2` | Salary screen: pre-fill only "in salary structure" earnings; EDLI / admin shown only when their switch is on; zero rows hidden; Salary-tab statutory card read only, LWF and Director in the drawer |
+| `W-76.3` | Pay run applies PF / EPS / EDLI / admin / ESI from the current company switches and employee ticks every month; EPS only for ticked staff under the EPS age; employer PF / ESI structure switches display only (as legacy) |
+| `W-76.4` | EPF / ESI settings: switch notes; EDLI / admin "in CTC" locked while out of the structure |
+
+- `W-76.1` dropped: removing saved rows would have stopped employer PF being paid.
+- Migrated company: ESI employer in CTC turned on (2026-11-01, matches legacy). EDLI / admin structure switches are off, as legacy, so EDLI / admin are no longer paid there.
+- `caj-data-migration-dev` and its `data-migration` image deleted from Azure 2026-11-01 (migration done); its Bicep module and `code/migration/` remain.
+- **Left:** tax projection reads the saved employee PF row (TDS lags a PF untick until revise); LWF not calculated; DOB lookup costs 2 queries per PF+EPS employee per run.
+- **Branches:** `dev-claude-w76` can be deleted.
+
 ## 2026-10-30 — W-75 salary setup on `main` (`589f6a07`)
 
 | Ticket | What |
