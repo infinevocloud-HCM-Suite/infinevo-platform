@@ -12,6 +12,8 @@ import {
   Typography,
   Space,
   Card,
+  Row,
+  Col,
   theme,
 } from 'antd';
 import { UserOutlined, PlusOutlined } from '@ant-design/icons';
@@ -243,38 +245,44 @@ export function ReportingLineTab({ employeeId }) {
             />
           </div>
 
-          <div>
-            <label htmlFor="select-kind" style={{ display: 'block', marginBottom: 4 }}>
-              <Text strong>Reporting Kind</Text>
-            </label>
-            <Select
-              id="select-kind"
-              style={{ width: '100%' }}
-              value={selectedKind}
-              onChange={(val) => setSelectedKind(val)}
-              options={[
-                { value: 'PRIMARY', label: 'Primary' },
-                { value: 'INDIRECT', label: 'Indirect' },
-                { value: 'APPROVER_L1', label: 'Approver Level 1' },
-                { value: 'APPROVER_L2', label: 'Approver Level 2' },
-                { value: 'APPROVER_L3', label: 'Approver Level 3' },
-              ]}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="picker-effectiveDate" style={{ display: 'block', marginBottom: 4 }}>
-              <Text strong>Effective Date *</Text>
-            </label>
-            <DatePicker
-              id="picker-effectiveDate"
-              style={{ width: '100%' }}
-              placement="bottomLeft"
-              getPopupContainer={(trigger) => trigger.parentElement || document.body}
-              value={effectiveDate ? dayjs(effectiveDate) : null}
-              onChange={(_, dateStr) => setEffectiveDate(dateStr)}
-            />
-          </div>
+          <Row gutter={16}>
+            <Col span={12}>
+              <div>
+                <label htmlFor="select-kind" style={{ display: 'block', marginBottom: 4 }}>
+                  <Text strong>Reporting Kind</Text>
+                </label>
+                <Select
+                  id="select-kind"
+                  style={{ width: '100%' }}
+                  value={selectedKind}
+                  onChange={(val) => setSelectedKind(val)}
+                  options={[
+                    { value: 'PRIMARY', label: 'Primary' },
+                    { value: 'INDIRECT', label: 'Indirect' },
+                    { value: 'APPROVER_L1', label: 'Approver Level 1' },
+                    { value: 'APPROVER_L2', label: 'Approver Level 2' },
+                    { value: 'APPROVER_L3', label: 'Approver Level 3' },
+                  ]}
+                />
+              </div>
+            </Col>
+            <Col span={12}>
+              <div>
+                <label htmlFor="picker-effectiveDate" style={{ display: 'block', marginBottom: 4 }}>
+                  <Text strong>Effective Date *</Text>
+                </label>
+                <DatePicker
+                  id="picker-effectiveDate"
+                  style={{ width: '100%' }}
+                  placement="bottomLeft"
+                  popupAlign={{ overflow: { adjustX: true, adjustY: false } }}
+                  getPopupContainer={() => document.body}
+                  value={effectiveDate ? dayjs(effectiveDate) : null}
+                  onChange={(_, dateStr) => setEffectiveDate(dateStr)}
+                />
+              </div>
+            </Col>
+          </Row>
         </Space>
       </Modal>
     </Card>

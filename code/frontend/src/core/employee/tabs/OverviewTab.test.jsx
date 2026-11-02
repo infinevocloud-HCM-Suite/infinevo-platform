@@ -205,4 +205,59 @@ describe('OverviewTab component', () => {
       expect(screen.getByText('Employee number already taken')).toBeDefined();
     });
   });
+
+  it('filters non-numeric characters from mobile and enforces 10-digit validation (D-135)', async () => {
+    const employee = {
+      id: 'emp-106',
+      employeeNumber: 'EMP006',
+      firstName: 'Frank',
+      status: 'ACTIVE',
+      dateOfJoining: '2026-01-01',
+      mobile: '',
+    };
+
+    render(
+      <Provider store={store}>
+        <OverviewTab employee={employee} onUpdate={vi.fn()} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /edit details/i }));
+
+    const mobileInput = document.getElementById('edit-mobile');
+    expect(mobileInput).toBeTruthy();
+    expect(mobileInput.getAttribute('maxlength')).toBe('10');
+
+    // 1. Enter alphanumeric characters: letters should be filtered out
+    fireEvent.change(mobileInput, { target: { value: '3456789ewdyhjk' } });
+    expect(mobileInput.value).toBe('3456789');
+
+    // 2. Submit with 7 digits: should show validation error and block submit
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Mobile number must be a valid 10-digit number')).toBeDefined();
+    });
+    expect(employeeService.update).not.toHaveBeenCalled();
+
+    // 3. Enter exactly 10 digits
+    fireEvent.change(mobileInput, { target: { value: '9876543210' } });
+    expect(mobileInput.value).toBe('9876543210');
+
+    employeeService.update.mockResolvedValueOnce({
+      ...employee,
+      mobile: '9876543210',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(employeeService.update).toHaveBeenCalledWith(
+        'emp-106',
+        expect.objectContaining({
+          mobile: '9876543210',
+        })
+      );
+    });
+  });
 });

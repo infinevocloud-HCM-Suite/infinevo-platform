@@ -71,6 +71,9 @@ export function OverviewTab({ employee, onUpdate }) {
     if (formData.workEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.workEmail.trim())) {
       errs.workEmail = 'Invalid email address';
     }
+    if (formData.mobile && !/^\d{10}$/.test(formData.mobile.trim())) {
+      errs.mobile = 'Mobile number must be a valid 10-digit number';
+    }
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -235,9 +238,21 @@ export function OverviewTab({ employee, onUpdate }) {
             <label htmlFor="edit-mobile"><Text strong>Mobile</Text></label>
             <Input
               id="edit-mobile"
+              maxLength={10}
+              placeholder="10-digit mobile number"
               value={formData.mobile}
-              onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+              status={formErrors.mobile ? 'error' : ''}
+              onChange={(e) => {
+                const numericOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setFormData({ ...formData, mobile: numericOnly });
+                if (formErrors.mobile) {
+                  setFormErrors((prev) => ({ ...prev, mobile: undefined }));
+                }
+              }}
             />
+            {formErrors.mobile && (
+              <Text type="danger" style={{ fontSize: 12, display: 'block' }}>{formErrors.mobile}</Text>
+            )}
           </Col>
           <Col xs={24} sm={12} md={8}>
             <label htmlFor="edit-department"><Text strong>Department</Text></label>
