@@ -275,6 +275,7 @@ export function EsiScreen() {
               name="include_in_structure"
               label="Include Employer Share in Salary Structure"
               valuePropName="checked"
+              extra="Display only. Employer ESI is always paid when ESI is on and the employee is ticked for ESI."
             >
               <Switch />
             </Form.Item>

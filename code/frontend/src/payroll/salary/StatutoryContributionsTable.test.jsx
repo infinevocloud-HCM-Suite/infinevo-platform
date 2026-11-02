@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { StatutoryContributionsTable } from './StatutoryContributionsTable.jsx';
+import { StatutoryContributionsTable, shownInStructure } from './StatutoryContributionsTable.jsx';
 
 const LINES = [
   {
@@ -67,9 +67,57 @@ describe('StatutoryContributionsTable (W-75.2 §7)', () => {
     expect(screen.queryByText('EPS_EMPLOYER')).toBeNull();
   });
 
+  it('hides a zero line such as EPS for an employee not in EPS (W-76.2)', () => {
+    const zeroEps = { ...LINES[1], id: 'zero-eps', monthlyAmount: '0.0000', annualAmount: '0.0000' };
+    render(<StatutoryContributionsTable statutory={[LINES[0], zeroEps]} />);
+
+    const rows = document.getElementById('table-salary-statutory').querySelectorAll('tbody tr.ant-table-row');
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]).getByText('Employer PF')).toBeDefined();
+  });
+
+  it('hides EDLI and admin outside CTC when the company keeps them out of the structure (W-76.2)', () => {
+    const admin = { ...LINES[2], id: 's4', componentCode: 'EPF_ADMIN' };
+    const epf = { includeEmployerInStructure: true, includeEdliInStructure: false, includeAdminInStructure: false };
+    render(<StatutoryContributionsTable statutory={[...LINES, admin]} epfSetting={epf} />);
+
+    const rows = document.getElementById('table-salary-statutory').querySelectorAll('tbody tr.ant-table-row');
+    expect(rows).toHaveLength(2);
+    expect(screen.queryByText('EDLI')).toBeNull();
+  });
+
   it('shows the empty state when the version has no statutory lines', () => {
     render(<StatutoryContributionsTable statutory={[]} />);
 
     expect(screen.getByText('No statutory contributions on this version')).toBeDefined();
+  });
+});
+
+describe('shownInStructure (W-76.2)', () => {
+  const edliOut = { componentCode: 'EDLI', share: 'EMPLOYER', includedInCtc: false };
+
+  it('follows the switch for a line outside CTC', () => {
+    expect(shownInStructure(edliOut, { epf: { includeEdliInStructure: false } })).toBe(false);
+    expect(shownInStructure(edliOut, { epf: { includeEdliInStructure: true } })).toBe(true);
+  });
+
+  it('EDLI with its switch off is hidden even when counted in CTC (W-76.3)', () => {
+    expect(shownInStructure({ ...edliOut, includedInCtc: true }, { epf: { includeEdliInStructure: false } })).toBe(false);
+  });
+
+  it('always shows employer PF counted in CTC', () => {
+    const erPf = { componentCode: 'EPF_EMPLOYER', includedInCtc: true };
+    expect(shownInStructure(erPf, { epf: { includeEmployerInStructure: false } })).toBe(true);
+  });
+
+  it('always shows employee lines, and every line when settings are not loaded', () => {
+    expect(shownInStructure({ componentCode: 'EPF_EMPLOYEE', includedInCtc: false }, { epf: {} })).toBe(true);
+    expect(shownInStructure(edliOut, {})).toBe(true);
+  });
+
+  it('employer ESI follows the ESI structure switch', () => {
+    const esiOut = { componentCode: 'ESI_EMPLOYER', includedInCtc: false };
+    expect(shownInStructure(esiOut, { esi: { includeInStructure: false } })).toBe(false);
+    expect(shownInStructure(esiOut, { esi: { includeInStructure: true } })).toBe(true);
   });
 });

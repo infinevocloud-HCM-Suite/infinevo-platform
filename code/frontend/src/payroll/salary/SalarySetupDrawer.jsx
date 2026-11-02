@@ -59,6 +59,8 @@ const EMPTY_PROFILE = {
   contributesEpsOnHigherWages: false,
   eligibleForPt: false,
   eligibleForEsi: false,
+  eligibleForLwf: false,
+  director: false,
   pfAccountNumber: '',
   uan: '',
   esiNumber: '',
@@ -107,17 +109,17 @@ function salaryPayload(values, balancingId) {
   };
 }
 
-/** `StatutoryProfileRequest`: the drawer's ticks and numbers, LWF and director kept as loaded. */
-function profilePayload(statutory = {}, kept = {}) {
+/** `StatutoryProfileRequest`: the drawer's ticks and numbers - the only place they are edited (W-76.2). */
+function profilePayload(statutory = {}) {
   const trimmed = (value) => (value && String(value).trim() ? String(value).trim() : null);
   return {
     eligibleForPf: Boolean(statutory.eligibleForPf),
     eligibleForPt: Boolean(statutory.eligibleForPt),
-    eligibleForLwf: Boolean(kept.eligibleForLwf),
+    eligibleForLwf: Boolean(statutory.eligibleForLwf),
     eligibleForEsi: Boolean(statutory.eligibleForEsi),
     eligibleForEps: Boolean(statutory.eligibleForEps),
     contributesEpsOnHigherWages: Boolean(statutory.contributesEpsOnHigherWages),
-    director: Boolean(kept.director),
+    director: Boolean(statutory.director),
     pfAccountNumber: trimmed(statutory.pfAccountNumber),
     uan: trimmed(statutory.uan),
     esiNumber: trimmed(statutory.esiNumber),
@@ -195,7 +197,6 @@ export function SalarySetupDrawer({
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [balancingId, setBalancingIdState] = useState(null);
-  const [keptProfile, setKeptProfile] = useState({ eligibleForLwf: false, director: false });
   const [companyEpf, setCompanyEpf] = useState(null);
   const [companyEsi, setCompanyEsi] = useState(null);
   // 'loading' | 'loaded' | 'error'. Save waits for 'loaded' so it can never PUT an empty profile over a real one.
@@ -207,7 +208,6 @@ export function SalarySetupDrawer({
   const [previewPending, setPreviewPending] = useState(false);
 
   const balancingRef = useRef(null);
-  const keptRef = useRef(keptProfile);
   const initialisedRef = useRef(false);
   const timerRef = useRef(null);
   const abortRef = useRef(null);
@@ -282,7 +282,7 @@ export function SalarySetupDrawer({
     try {
       const body = {
         ...salaryPayload(values, balancing),
-        statutoryProfile: profilePayload(values.statutory, keptRef.current),
+        statutoryProfile: profilePayload(values.statutory),
       };
       const data = await salaryService.preview(employeeId, body, { signal: controller.signal });
       if (seq !== seqRef.current) return;
@@ -395,9 +395,6 @@ export function SalarySetupDrawer({
           setProfileState('error');
           return;
         }
-        const kept = { eligibleForLwf: Boolean(data.eligibleForLwf), director: Boolean(data.director) };
-        keptRef.current = kept;
-        setKeptProfile(kept);
         form.setFieldsValue({
           statutory: {
             eligibleForPf: Boolean(data.eligibleForPf),
@@ -405,6 +402,8 @@ export function SalarySetupDrawer({
             contributesEpsOnHigherWages: Boolean(data.contributesEpsOnHigherWages),
             eligibleForPt: Boolean(data.eligibleForPt),
             eligibleForEsi: Boolean(data.eligibleForEsi),
+            eligibleForLwf: Boolean(data.eligibleForLwf),
+            director: Boolean(data.director),
             pfAccountNumber: data.pfAccountNumber || '',
             uan: data.uan || '',
             esiNumber: data.esiNumber || '',
@@ -456,7 +455,7 @@ export function SalarySetupDrawer({
 
     // Statutory profile first: the salary's statutory lines are derived from it.
     try {
-      await statutoryProfileService.save(employeeId, profilePayload(values.statutory, keptRef.current));
+      await statutoryProfileService.save(employeeId, profilePayload(values.statutory));
       if (onProfileSaved) onProfileSaved();
     } catch (err) {
       setSaveError({ message: err?.message || 'Failed to save statutory details', unplaced: applyServerErrors(err) });
@@ -848,6 +847,14 @@ export function SalarySetupDrawer({
           </Form.Item>
           {esiWarning && <Alert type="warning" showIcon message={esiWarning} data-testid="esi-ceiling-warning" />}
         </Col>
+        <Col span={8}>
+          <Form.Item name={['statutory', 'eligibleForLwf']} valuePropName="checked" style={{ marginBottom: 4 }}>
+            <Checkbox id="chk-statutory-lwf">Labour Welfare Fund (LWF)</Checkbox>
+          </Form.Item>
+          <Form.Item name={['statutory', 'director']} valuePropName="checked" style={{ marginBottom: 4 }}>
+            <Checkbox id="chk-statutory-director">Director</Checkbox>
+          </Form.Item>
+        </Col>
       </Row>
       <Row gutter={16} style={{ marginTop: 8 }}>
         <Col span={8}>
@@ -938,6 +945,8 @@ export function SalarySetupDrawer({
             <StatutoryContributionsTable
               id="table-salary-preview-statutory"
               statutory={(preview.statutory || []).filter((line) => line.share === 'EMPLOYER')}
+              epfSetting={companyEpf}
+              esiSetting={companyEsi}
             />
           </div>
           <Descriptions bordered size="small" column={1}>

@@ -46,6 +46,7 @@ function earning(code, name, overrides = {}) {
     defaultValue: '0',
     percentageOf: null,
     includedInCtc: true,
+    includedInSalaryStructure: true,
     variable: false,
     fbpComponent: false,
     active: true,
@@ -214,9 +215,34 @@ describe('SalarySetupDrawer (W-75.2 §7)', () => {
     const [, profile] = statutoryProfileService.save.mock.calls[0];
     expect(Object.keys(profile)).toHaveLength(10);
     expect(profile).toMatchObject({ eligibleForPf: true, eligibleForEps: true, eligibleForPt: true });
+    expect(profile).toMatchObject({ eligibleForLwf: false, director: false });
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled(), SLOW);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('loads LWF and Director into the drawer and sends what the officer ticks (W-76.2)', async () => {
+    statutoryProfileService.get.mockResolvedValue({
+      eligibleForPf: true,
+      eligibleForEps: true,
+      eligibleForLwf: true,
+      director: false,
+      uan: '',
+      pfAccountNumber: '',
+      esiNumber: '',
+    });
+    renderDrawer();
+    await waitFor(() => expect(document.getElementById('chk-statutory-lwf').checked).toBe(true), SLOW);
+    expect(document.getElementById('chk-statutory-director').checked).toBe(false);
+
+    fireEvent.click(document.getElementById('chk-statutory-director'));
+    fireEvent.change(document.getElementById('input-annual-ctc'), { target: { value: '600000' } });
+    await waitFor(() => expect(document.getElementById('btn-salary-version-submit').disabled).toBe(false), SLOW);
+    fireEvent.click(document.getElementById('btn-salary-version-submit'));
+
+    await waitFor(() => expect(statutoryProfileService.save).toHaveBeenCalledTimes(1), SLOW);
+    const [, profile] = statutoryProfileService.save.mock.calls[0];
+    expect(profile).toMatchObject({ eligibleForLwf: true, director: true });
   });
 
   it('keeps the drawer open with the server message when the salary save fails after the profile saved', async () => {

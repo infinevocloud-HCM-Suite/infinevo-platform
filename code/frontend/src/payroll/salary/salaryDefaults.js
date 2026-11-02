@@ -25,11 +25,20 @@ function isBasic(earning) {
   return code(earning) === 'BASIC' || String(earning?.earningType || '').toUpperCase() === 'BASIC';
 }
 
-/** An earning a new structure starts with: active, in CTC, not variable, not FBP, default above zero. */
+/** The company marked the earning "Include in Salary Structure" (W-76.2). */
+function inStructure(earning) {
+  return Boolean(earning?.includedInSalaryStructure);
+}
+
+/**
+ * An earning a new structure starts with: active, in CTC and in the salary structure, not variable,
+ * not FBP, default above zero.
+ */
 export function isDefaultEarning(earning) {
   return (
     isActive(earning) &&
     Boolean(earning.includedInCtc) &&
+    inStructure(earning) &&
     !earning.variable &&
     !earning.fbpComponent &&
     isPositiveDecimal(earning.defaultValue)
@@ -50,10 +59,13 @@ export function canBalance(earning) {
   );
 }
 
-/** The balancing earning: `SPECIAL` if active, else `FIXED_ALLOWANCE` if active, else null. */
+/**
+ * The balancing earning: `SPECIAL` if active and in the salary structure, else `FIXED_ALLOWANCE` on the
+ * same terms, else null. The officer may still pick any earning `canBalance` accepts.
+ */
 export function pickBalancingEarning(earnings = []) {
   for (const wanted of BALANCING_CODES) {
-    const found = earnings.find((e) => code(e) === wanted && canBalance(e));
+    const found = earnings.find((e) => code(e) === wanted && canBalance(e) && inStructure(e));
     if (found) return found;
   }
   return null;

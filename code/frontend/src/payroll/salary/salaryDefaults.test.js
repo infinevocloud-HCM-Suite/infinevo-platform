@@ -9,6 +9,7 @@ function earning(overrides) {
     defaultValue: '0',
     percentageOf: null,
     includedInCtc: true,
+    includedInSalaryStructure: true,
     variable: false,
     fbpComponent: false,
     active: true,
@@ -45,6 +46,22 @@ describe('salaryDefaults (W-75.2 §7)', () => {
 
     expect(rows.map((r) => r.componentId)).toEqual(['basic']);
     [inactive, variable, fbp, zero, missing, outsideCtc].forEach((e) => expect(isDefaultEarning(e)).toBe(false));
+  });
+
+  it('leaves out an in-CTC earning not marked "Include in Salary Structure" (W-76.2)', () => {
+    const notInStructure = earning({ code: 'CONVEYANCE', defaultValue: '1600', includedInSalaryStructure: false });
+
+    const { rows } = buildDefaultRows([BASIC, notInStructure]);
+
+    expect(rows.map((r) => r.componentId)).toEqual(['basic']);
+    expect(isDefaultEarning(notInStructure)).toBe(false);
+  });
+
+  it('does not pick a balancing earning that is not in the salary structure (W-76.2)', () => {
+    expect(pickBalancingEarning([BASIC, { ...SPECIAL, includedInSalaryStructure: false }, FIXED])?.code).toBe(
+      'FIXED_ALLOWANCE'
+    );
+    expect(pickBalancingEarning([BASIC, { ...FIXED, includedInSalaryStructure: false }])).toBeNull();
   });
 
   it('chooses SPECIAL over FIXED_ALLOWANCE when both are active', () => {

@@ -169,6 +169,49 @@ class PayRunStatutoryIT extends AbstractIntegrationTest {
         assertThat(contributors).hasSizeGreaterThanOrEqualTo(4);
     }
 
+    @Test
+    @DisplayName("W-76.3: EPF switched off for the company after the salary was saved -> no PF lines that month")
+    void epfSwitchedOffAfterSave_noPfLines() throws SQLException {
+        execute("UPDATE payroll.epf_setting SET is_enabled = false WHERE tenant_id = '" + TENANT_A + "'");
+
+        PayRunResponse run = payRunService.create(JULY);
+        payRunService.lock(run.id());
+        PayRunResponse computed = worker.computeNow(run.id());
+
+        assertThat(computed.status()).isEqualTo(PayRunStatus.COMPUTED);
+        List<String> codes = payRunService.lines(run.id(), employeeId).lines().stream()
+                .filter(l -> l.source() == LineSource.STATUTORY)
+                .map(EmployeePayRunLineResponse::componentCode)
+                .toList();
+        assertThat(codes).containsExactly("PROFESSIONAL_TAX");
+        assertThat(computed.totalDeductions()).isEqualByComparingTo("200.0000");
+    }
+
+    @Test
+    @DisplayName("W-76.3: EDLI and admin out of the salary structure -> PF and EPS paid, no EDLI or admin line")
+    void edliAndAdminOutOfStructure_noLines() throws SQLException {
+        execute("UPDATE payroll.epf_setting SET include_edli_in_structure = false, include_admin_in_structure = false"
+                + " WHERE tenant_id = '" + TENANT_A + "'");
+
+        PayRunResponse run = payRunService.create(JULY);
+        payRunService.lock(run.id());
+        worker.computeNow(run.id());
+
+        List<String> codes = payRunService.lines(run.id(), employeeId).lines().stream()
+                .filter(l -> l.source() == LineSource.STATUTORY)
+                .map(EmployeePayRunLineResponse::componentCode)
+                .toList();
+        assertThat(codes).containsExactlyInAnyOrder("EPF_EMPLOYEE", "PROFESSIONAL_TAX", "EPS_EMPLOYER", "EPF_EMPLOYER");
+        assertThat(getRowTotalBenefits(run.id(), employeeId)).isEqualByComparingTo("1800.0000");
+    }
+
+    private static void execute(String sql) throws SQLException {
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.executeUpdate();
+        }
+    }
+
     private static void seedWorkLocation(UUID tenantId, UUID locationId, String code, String name, String stateCode)
             throws SQLException {
         try (Connection conn = PayrollTestSchema.migrationConnection();
@@ -229,8 +272,10 @@ class PayRunStatutoryIT extends AbstractIntegrationTest {
                         INSERT INTO payroll.epf_setting
                             (id, tenant_id, is_enabled, wage_ceiling, restrict_employee_to_ceiling, restrict_employer_to_ceiling,
                              employee_rate, employer_rate, eps_rate, edli_rate, admin_charge_rate, eps_senior_age,
-                             consider_earned_wage, prorate_restricted_wage)
-                        VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, 12.0000, 12.0000, 8.3300, 0.5000, 0.5000, 58, true, false)
+                             consider_earned_wage, prorate_restricted_wage, include_edli_in_structure,
+                             include_admin_in_structure)
+                        VALUES (gen_random_uuid(), ?, true, 15000.0000, true, true, 12.0000, 12.0000, 8.3300, 0.5000, 0.5000, 58, true, false,
+                                true, true)
                         """)) {
             ps.setObject(1, tenantId);
             ps.executeUpdate();

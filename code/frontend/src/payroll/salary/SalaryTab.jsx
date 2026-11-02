@@ -23,6 +23,7 @@ import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
 import { ScheduledEarningsPanel } from './ScheduledEarningsPanel.jsx';
 import { SalarySetupDrawer } from './SalarySetupDrawer.jsx';
 import { StatutoryContributionsTable } from './StatutoryContributionsTable.jsx';
+import { statutoryService } from '../settings/statutoryService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { EMPTY, formatDate, formatMoney, humanize } from '@shared/ui/format.js';
 
@@ -45,6 +46,22 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
   const [selectedVersion, setSelectedVersion] = useState(null);
   // Bumped when the drawer saves the statutory profile, so the card below re-reads it.
   const [profileKey, setProfileKey] = useState(0);
+  // The company's EPF and ESI switches decide which employer lines the structure shows (W-76.2).
+  const [companyEpf, setCompanyEpf] = useState(null);
+  const [companyEsi, setCompanyEsi] = useState(null);
+
+  useEffect(() => {
+    if (!canRead) return undefined;
+    let live = true;
+    Promise.allSettled([statutoryService.get('epf'), statutoryService.get('esi')]).then(([epf, esi]) => {
+      if (!live) return;
+      setCompanyEpf(epf.status === 'fulfilled' ? epf.value : null);
+      setCompanyEsi(esi.status === 'fulfilled' ? esi.value : null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [canRead]);
 
   const loadData = useCallback(async () => {
     if (!employeeId || !canRead) return;
@@ -353,7 +370,11 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
 
             {/* Statutory Contributions (W-75.2, D-130) */}
             <Title level={5}>Statutory Contributions</Title>
-            <StatutoryContributionsTable statutory={currentVersion.statutory || []} />
+            <StatutoryContributionsTable
+              statutory={currentVersion.statutory || []}
+              epfSetting={companyEpf}
+              esiSetting={companyEsi}
+            />
           </Card>
         ) : (
           <Card style={{ marginBottom: 24, textAlign: 'center', padding: '32px 0' }}>

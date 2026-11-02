@@ -195,6 +195,9 @@ describe('EpfScreen (W-47.1b §7)', () => {
     expect(screen.getByTestId('epf-include-admin-in-ctc').getAttribute('aria-checked')).toBe('false');
     expect(screen.getByTestId('epf-include-edli-in-structure').getAttribute('aria-checked')).toBe('false');
     expect(screen.getByTestId('epf-include-admin-in-structure').getAttribute('aria-checked')).toBe('true');
+    // EDLI is not in the salary structure, so its CTC switch is off limits (W-76.3).
+    expect(screen.getByTestId('epf-include-edli-in-ctc').disabled).toBe(true);
+    expect(screen.getByTestId('epf-include-admin-in-ctc').disabled).toBe(false);
 
     // Turn admin charges on in CTC without touching EDLI.
     fireEvent.click(screen.getByTestId('epf-include-admin-in-ctc'));
@@ -205,7 +208,8 @@ describe('EpfScreen (W-47.1b §7)', () => {
     });
 
     const [, payload] = statutoryService.save.mock.calls[0];
-    expect(payload.include_edli_in_ctc).toBe(true);
+    // EDLI out of the salary structure is out of CTC too, whatever was stored (W-76.3).
+    expect(payload.include_edli_in_ctc).toBe(false);
     expect(payload.include_admin_in_ctc).toBe(true);
     expect(payload.include_edli_in_structure).toBe(false);
     expect(payload.include_admin_in_structure).toBe(true);

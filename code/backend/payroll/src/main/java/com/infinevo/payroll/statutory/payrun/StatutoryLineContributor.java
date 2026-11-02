@@ -1,5 +1,7 @@
 package com.infinevo.payroll.statutory.payrun;
 
+import com.infinevo.core.employee.detail.EmployeePersonalResponse;
+import com.infinevo.core.employee.detail.EmployeePersonalService;
 import com.infinevo.core.org.WorkLocationResponse;
 import com.infinevo.core.org.WorkLocationService;
 import com.infinevo.payroll.payrun.LineKind;
@@ -17,17 +19,19 @@ import com.infinevo.payroll.statutory.pt.ProfessionalTaxService;
 import com.infinevo.payroll.statutory.settings.EpfSettingResponse;
 import com.infinevo.payroll.statutory.settings.EsiSettingResponse;
 import com.infinevo.payroll.statutory.settings.StatutorySettingsService;
+import com.infinevo.payroll.taxcalc.EarningKinds;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.Period;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -41,6 +45,9 @@ import org.springframework.stereotype.Component;
  *   <li>Prorating the restricted ceiling when {@code prorate_restricted_wage} is enabled</li>
  *   <li>Statutory whole-rupee rounding per {@link StatutoryLineRounder}</li>
  * </ul>
+ *
+ * <p>W-76.3: which lines exist and their rates come from the company EPF / ESI settings and the employee's
+ * statutory ticks at the time of the run, not from the statutory rows saved with the salary.
  *
  * <p>Settings and work-location state lookups are cached per run / location to enforce the W-55 query budget.
  */
@@ -79,6 +86,7 @@ public class StatutoryLineContributor implements PayLineContributor {
     private final ProfessionalTaxService professionalTaxService;
     private final WorkLocationService workLocationService;
     private final EmployeeStatutoryProfileService employeeStatutoryProfileService;
+    private final EmployeePersonalService employeePersonalService;
 
     private final Map<UUID, EpfSettingResponse> epfCache = new ConcurrentHashMap<>();
     private final Map<UUID, EsiSettingResponse> esiCache = new ConcurrentHashMap<>();
@@ -87,11 +95,27 @@ public class StatutoryLineContributor implements PayLineContributor {
 
     private record PtKey(UUID payrunId, String stateCode, Money gross, String gender, LocalDate periodEnd) {}
 
+    /** Without a personal-details service: every date of birth is unknown, so no one is over the EPS age. */
     public StatutoryLineContributor(
             StatutorySettingsService statutorySettingsService,
             ProfessionalTaxService professionalTaxService,
             WorkLocationService workLocationService,
             EmployeeStatutoryProfileService employeeStatutoryProfileService) {
+        this(
+                statutorySettingsService,
+                professionalTaxService,
+                workLocationService,
+                employeeStatutoryProfileService,
+                null);
+    }
+
+    @Autowired
+    public StatutoryLineContributor(
+            StatutorySettingsService statutorySettingsService,
+            ProfessionalTaxService professionalTaxService,
+            WorkLocationService workLocationService,
+            EmployeeStatutoryProfileService employeeStatutoryProfileService,
+            @Autowired(required = false) EmployeePersonalService employeePersonalService) {
         this.statutorySettingsService =
                 Objects.requireNonNull(statutorySettingsService, "statutorySettingsService must not be null");
         this.professionalTaxService =
@@ -99,6 +123,7 @@ public class StatutoryLineContributor implements PayLineContributor {
         this.workLocationService = Objects.requireNonNull(workLocationService, "workLocationService must not be null");
         this.employeeStatutoryProfileService = Objects.requireNonNull(
                 employeeStatutoryProfileService, "employeeStatutoryProfileService must not be null");
+        this.employeePersonalService = employeePersonalService;
     }
 
     @Override
@@ -135,13 +160,14 @@ public class StatutoryLineContributor implements PayLineContributor {
                 ? computeScaled(wageCeiling, true, paidDays, payableDays)
                 : wageCeiling;
 
-        List<SalaryStatutoryItemResponse> versionStatutory = ctx.version().statutory();
-        Map<String, SalaryStatutoryItemResponse> itemsByCode = new HashMap<>();
-        if (versionStatutory != null) {
-            for (SalaryStatutoryItemResponse item : versionStatutory) {
-                itemsByCode.put(item.componentCode(), item);
-            }
-        }
+        // W-76.3: every regular run decides from the company settings and the employee's ticks as they are now,
+        // never from the statutory rows saved with the salary. Legacy applied PF / ESI when the company switch
+        // was on and the employee ticked, and EDLI / admin only when their structure switch was on
+        // (legacy/Payroll-Fend-react/src/pages/mainPages/employee/salaryDetails.js:617-659).
+        boolean pfApplies = epf != null && epf.isEnabled() && profile != null && profile.eligibleForPf();
+        boolean epsApplies = pfApplies
+                && profile.eligibleForEps()
+                && !isEpsSenior(ctx.employee().id(), ctx.periodStart(), epf.epsSeniorAge());
 
         PayLine eePfLine = null;
         PayLine erEpsLine = null;
@@ -151,90 +177,85 @@ public class StatutoryLineContributor implements PayLineContributor {
         PayLine eeEsiLine = null;
         PayLine erEsiLine = null;
 
-        Money epsUnrounded = Money.ZERO;
-
-        if (itemsByCode.containsKey(CODE_EPF_EE)) {
-            SalaryStatutoryItemResponse item = itemsByCode.get(CODE_EPF_EE);
-            Money eeBase =
-                    (epf != null && epf.restrictEmployeeToCeiling()) ? min(earnedBasic, effectiveCeiling) : earnedBasic;
-            Money unrounded = calculateRate(eeBase, item.rate());
-            Money amount = StatutoryLineRounder.roundPf(unrounded);
-            if (amount.isPositive()) {
+        if (pfApplies) {
+            Money eeBase = epf.restrictEmployeeToCeiling() ? min(earnedBasic, effectiveCeiling) : earnedBasic;
+            Money eeAmount = StatutoryLineRounder.roundPf(calculateRate(eeBase, epf.employeeRate()));
+            if (eeAmount.isPositive()) {
                 eePfLine = new PayLine(
-                        LineKind.DEDUCTION, LineSource.STATUTORY, null, CODE_EPF_EE, NAME_EPF_EE, amount, false);
+                        LineKind.DEDUCTION, LineSource.STATUTORY, null, CODE_EPF_EE, NAME_EPF_EE, eeAmount, false);
             }
-        }
 
-        if (itemsByCode.containsKey(CODE_EPS_ER)) {
-            SalaryStatutoryItemResponse item = itemsByCode.get(CODE_EPS_ER);
-            boolean higherWages = profile != null && profile.contributesEpsOnHigherWages();
-            Money epsBase = higherWages ? earnedBasic : min(earnedBasic, effectiveCeiling);
-            epsUnrounded = calculateRate(epsBase, item.rate());
-            Money amount = StatutoryLineRounder.roundPf(epsUnrounded);
-            if (amount.isPositive()) {
-                erEpsLine = new PayLine(
-                        LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_EPS_ER, NAME_EPS_ER, amount, false);
+            // EPS only for an EPS member under the EPS age; otherwise the whole employer share goes to EPF.
+            // Legacy paid one 12% employer PF line with no EPS split
+            // (legacy/Payroll-Fend-react/src/pages/mainPages/employee/salaryDetails.js:248-263).
+            Money epsUnrounded = Money.ZERO;
+            if (epsApplies) {
+                boolean higherWages = profile.contributesEpsOnHigherWages();
+                Money epsBase = higherWages ? earnedBasic : min(earnedBasic, effectiveCeiling);
+                epsUnrounded = calculateRate(epsBase, epf.epsRate());
+                Money epsAmount = StatutoryLineRounder.roundPf(epsUnrounded);
+                if (epsAmount.isPositive()) {
+                    erEpsLine = new PayLine(
+                            LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_EPS_ER, NAME_EPS_ER, epsAmount, false);
+                }
             }
-        }
 
-        if (itemsByCode.containsKey(CODE_EPF_ER)) {
-            Money erBase =
-                    (epf != null && epf.restrictEmployerToCeiling()) ? min(earnedBasic, effectiveCeiling) : earnedBasic;
-            BigDecimal erTotalRate = epf != null ? epf.employerRate() : DEFAULT_EMPLOYER_PF_RATE;
+            Money erBase = epf.restrictEmployerToCeiling() ? min(earnedBasic, effectiveCeiling) : earnedBasic;
+            BigDecimal erTotalRate = epf.employerRate() != null ? epf.employerRate() : DEFAULT_EMPLOYER_PF_RATE;
             Money erTotalUnrounded = calculateRate(erBase, erTotalRate);
-            Money erPfAmount = itemsByCode.containsKey(CODE_EPS_ER)
+            Money erPfAmount = epsApplies
                     ? StatutoryLineRounder.roundEmployerPf(erTotalUnrounded, epsUnrounded)
                     : StatutoryLineRounder.roundPf(erTotalUnrounded);
             if (erPfAmount.isPositive()) {
                 erPfLine = new PayLine(
                         LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_EPF_ER, NAME_EPF_ER, erPfAmount, false);
             }
-        }
 
-        if (itemsByCode.containsKey(CODE_EDLI)) {
-            SalaryStatutoryItemResponse item = itemsByCode.get(CODE_EDLI);
-            Money edliBase = min(earnedBasic, effectiveCeiling);
-            Money unrounded = calculateRate(edliBase, item.rate());
-            Money amount = StatutoryLineRounder.roundPf(unrounded);
-            if (amount.isPositive()) {
-                edliLine =
-                        new PayLine(LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_EDLI, NAME_EDLI, amount, false);
+            if (epf.includeEdliInStructure()) {
+                Money edliBase = min(earnedBasic, effectiveCeiling);
+                Money edliAmount = StatutoryLineRounder.roundPf(calculateRate(edliBase, epf.edliRate()));
+                if (edliAmount.isPositive()) {
+                    edliLine = new PayLine(
+                            LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_EDLI, NAME_EDLI, edliAmount, false);
+                }
+            }
+
+            if (epf.includeAdminInStructure()) {
+                Money adminBase = epf.restrictEmployerToCeiling() ? min(earnedBasic, effectiveCeiling) : earnedBasic;
+                Money adminAmount = StatutoryLineRounder.roundPf(calculateRate(adminBase, epf.adminChargeRate()));
+                if (adminAmount.isPositive()) {
+                    adminLine = new PayLine(
+                            LineKind.BENEFIT,
+                            LineSource.STATUTORY,
+                            null,
+                            CODE_EPF_ADMIN,
+                            NAME_EPF_ADMIN,
+                            adminAmount,
+                            false);
+                }
             }
         }
 
-        if (itemsByCode.containsKey(CODE_EPF_ADMIN)) {
-            SalaryStatutoryItemResponse item = itemsByCode.get(CODE_EPF_ADMIN);
-            Money adminBase =
-                    (epf != null && epf.restrictEmployerToCeiling()) ? min(earnedBasic, effectiveCeiling) : earnedBasic;
-            Money unrounded = calculateRate(adminBase, item.rate());
-            Money amount = StatutoryLineRounder.roundPf(unrounded);
-            if (amount.isPositive()) {
-                adminLine = new PayLine(
-                        LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_EPF_ADMIN, NAME_EPF_ADMIN, amount, false);
-            }
-        }
-
-        if (itemsByCode.containsKey(CODE_ESI_EE)) {
-            SalaryStatutoryItemResponse item = itemsByCode.get(CODE_ESI_EE);
-            Money grossBase = Money.of(item.wageBase());
-            Money earnedGross = computeScaled(grossBase, scaleByDays, paidDays, payableDays);
-            Money unrounded = calculateRate(earnedGross, item.rate());
-            Money amount = StatutoryLineRounder.roundEsi(unrounded);
-            if (amount.isPositive()) {
+        // ESI on the structure's monthly gross, as tested at save (SalarySplitCalculator.grossMonthly); the
+        // employer ESI "include in structure" switch is display only and does not gate payment (W-76.3).
+        Money structureGross = structureGrossMonthly(ctx);
+        boolean esiApplies = esi != null
+                && esi.isEnabled()
+                && profile != null
+                && profile.eligibleForEsi()
+                && esi.wageCeiling() != null
+                && structureGross.compareTo(Money.of(esi.wageCeiling())) <= 0;
+        if (esiApplies) {
+            Money earnedGross = computeScaled(structureGross, scaleByDays, paidDays, payableDays);
+            Money eeEsiAmount = StatutoryLineRounder.roundEsi(calculateRate(earnedGross, esi.employeeRate()));
+            if (eeEsiAmount.isPositive()) {
                 eeEsiLine = new PayLine(
-                        LineKind.DEDUCTION, LineSource.STATUTORY, null, CODE_ESI_EE, NAME_ESI_EE, amount, false);
+                        LineKind.DEDUCTION, LineSource.STATUTORY, null, CODE_ESI_EE, NAME_ESI_EE, eeEsiAmount, false);
             }
-        }
-
-        if (itemsByCode.containsKey(CODE_ESI_ER)) {
-            SalaryStatutoryItemResponse item = itemsByCode.get(CODE_ESI_ER);
-            Money grossBase = Money.of(item.wageBase());
-            Money earnedGross = computeScaled(grossBase, scaleByDays, paidDays, payableDays);
-            Money unrounded = calculateRate(earnedGross, item.rate());
-            Money amount = StatutoryLineRounder.roundEsi(unrounded);
-            if (amount.isPositive()) {
+            Money erEsiAmount = StatutoryLineRounder.roundEsi(calculateRate(earnedGross, esi.employerRate()));
+            if (erEsiAmount.isPositive()) {
                 erEsiLine = new PayLine(
-                        LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_ESI_ER, NAME_ESI_ER, amount, false);
+                        LineKind.BENEFIT, LineSource.STATUTORY, null, CODE_ESI_ER, NAME_ESI_ER, erEsiAmount, false);
             }
         }
 
@@ -289,24 +310,65 @@ public class StatutoryLineContributor implements PayLineContributor {
         return lines;
     }
 
+    /**
+     * The monthly Basic of the salary in force: the earning whose code or name is Basic (the same names the
+     * tax rules accept, {@link EarningKinds}); failing that, the PF wage base the salary save worked out
+     * from Basic, so a tenant whose Basic has its own code still pays PF; zero otherwise.
+     */
     private static Money findBasicSalary(PayRunEmployeeContext ctx) {
         if (ctx.version().earnings() != null) {
             for (SalaryComponentItemResponse item : ctx.version().earnings()) {
-                if ("BASIC".equalsIgnoreCase(item.componentCode()) || "BASIC".equalsIgnoreCase(item.componentName())) {
+                if (item.monthlyAmount() != null
+                        && (EarningKinds.isBasic(item.componentCode(), null)
+                                || EarningKinds.isBasic(item.componentName(), null))) {
                     return Money.of(item.monthlyAmount());
                 }
             }
         }
         if (ctx.version().statutory() != null) {
             for (SalaryStatutoryItemResponse item : ctx.version().statutory()) {
-                if (item.componentCode().startsWith("EPF_")
-                        || CODE_EDLI.equals(item.componentCode())
-                        || CODE_EPS_ER.equals(item.componentCode())) {
+                if (CODE_EPF_EE.equals(item.componentCode()) && item.wageBase() != null) {
                     return Money.of(item.wageBase());
                 }
             }
         }
         return Money.ZERO;
+    }
+
+    /** Sum of the monthly amounts of the version's enabled earnings: the gross ESI is tested on at save. */
+    private static Money structureGrossMonthly(PayRunEmployeeContext ctx) {
+        Money gross = Money.ZERO;
+        if (ctx.version().earnings() != null) {
+            for (SalaryComponentItemResponse item : ctx.version().earnings()) {
+                if (item.enabled() && item.monthlyAmount() != null) {
+                    gross = gross.add(Money.of(item.monthlyAmount()));
+                }
+            }
+        }
+        return gross.isNegative() ? Money.ZERO : gross;
+    }
+
+    /**
+     * Whether the employee is at or over the EPS age on {@code periodStart}. An unknown date of birth, or one
+     * that cannot be read, counts as under the age (W-76.3), as at salary save (StatutoryLineDeriver).
+     */
+    private boolean isEpsSenior(UUID employeeId, LocalDate periodStart, int epsSeniorAge) {
+        if (employeePersonalService == null || employeeId == null || periodStart == null) {
+            return false;
+        }
+        LocalDate dob;
+        try {
+            dob = employeePersonalService
+                    .find(employeeId)
+                    .map(EmployeePersonalResponse::dateOfBirth)
+                    .orElse(null);
+        } catch (RuntimeException e) {
+            return false;
+        }
+        if (dob == null || dob.isAfter(periodStart)) {
+            return false;
+        }
+        return Period.between(dob, periodStart).getYears() >= epsSeniorAge;
     }
 
     private static Money computeScaled(Money base, boolean scale, BigDecimal paidDays, BigDecimal payableDays) {
