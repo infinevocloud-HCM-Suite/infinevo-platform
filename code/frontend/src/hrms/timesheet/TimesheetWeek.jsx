@@ -23,7 +23,6 @@ import { NotEntitled, useCan } from '@shell/screens';
 import { successMsg } from '@shared/ui/msgHelper.js';
 import { timesheetService } from './timesheetService.js';
 import {
-  DAY_LABELS,
   DAY_LIMIT_HUNDREDTHS,
   STATUS_COLOR,
   STATUS_LABEL,
@@ -84,6 +83,7 @@ function WeekGrid({ weekStart }) {
   const [rows, setRows] = useState([]);
   const [projects, setProjects] = useState([]);
   const [tasksByProject, setTasksByProject] = useState({});
+  const [currentEmployee, setCurrentEmployee] = useState(null);
   const [busy, setBusy] = useState(false);
   const [problems, setProblems] = useState(null); // { message, list: string[] }
   const [addProject, setAddProject] = useState(null);
@@ -93,9 +93,10 @@ function WeekGrid({ weekStart }) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [week, mine] = await Promise.all([
+      const [week, mine, empProfile] = await Promise.all([
         timesheetService.week(weekStart),
         timesheetService.myProjects(),
+        timesheetService.myProfile ? timesheetService.myProfile().catch(() => null) : Promise.resolve(null),
       ]);
       const projectList = Array.isArray(mine) ? mine : [];
       const ids = [
@@ -109,6 +110,7 @@ function WeekGrid({ weekStart }) {
       );
       setProjects(projectList);
       setTasksByProject(Object.fromEntries(ids.map((id, i) => [id, Array.isArray(lists[i]) ? lists[i] : []])));
+      setCurrentEmployee(empProfile);
       setTimesheet(week);
       setRows(rowsFromResponse(week));
     } catch (err) {
@@ -287,64 +289,102 @@ function WeekGrid({ weekStart }) {
     ? rejectedIds.map((id) => ({ id, name: projectName(id) }))
     : projects
   ).map((p) => ({ value: p.id, label: p.name || projectName(p.id) }));
-  const addableTasks = (tasksByProject[addProject] || []).map((t) => ({ value: t.id, label: t.title }));
+  const currentEmployeeId = currentEmployee?.id || timesheet?.employee_id || null;
+  const projectTasks = tasksByProject[addProject] || [];
+  const addableTasks = projectTasks
+    .filter((t) => {
+      if (!currentEmployeeId) return true;
+      // Filter tasks assigned to the current employee, or general unassigned tasks
+      return !t.assignee_employee_id || t.assignee_employee_id === currentEmployeeId;
+    })
+    .map((t) => ({
+      value: t.id,
+      label: t.title,
+    }));
 
-  const dayColumns = dates.map((date, i) => ({
-    title: (
-      <span>
-        {DAY_LABELS[i]} <Text type="secondary">{dayjs(date).format('D MMM')}</Text>
-      </span>
-    ),
-    key: date,
-    width: 140,
-    render: (_, row) => {
-      const cell = row.cells[date] || { hours: '', description: '' };
-      const editable = isEditable(row.projectId);
-      const label = `${projectName(row.projectId)} ${taskName(row.projectId, row.taskId)} ${date}`;
-      const hoursInvalid =
-        Boolean(live.cellErrors[`${row.key}|${date}`]) || totals[date] > DAY_LIMIT_HUNDREDTHS;
-      const descInvalid = Boolean(live.cellErrors[`${row.key}|${date}|desc`]);
-      return (
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          {editable ? (
-            <InputNumber
-              aria-label={`Hours ${label}`}
-              stringMode
-              min="0"
-              max="24"
-              step="0.25"
-              precision={2}
-              value={cell.hours === '' ? null : cell.hours}
-              status={hoursInvalid ? 'error' : undefined}
-              style={{ width: '100%' }}
-              placeholder="0.00"
-              onChange={(value) => updateCell(row.key, date, { hours: value ?? '' })}
-            />
-          ) : (
-            <Text type={hoursInvalid ? 'danger' : undefined}>{formatHours(cell.hours)}</Text>
-          )}
-          {editable ? (
-            <Input.TextArea
-              aria-label={`Description ${label}`}
-              placeholder="Description"
-              rows={2}
-              maxLength={500}
-              value={cell.description || ''}
-              status={descInvalid ? 'error' : undefined}
-              style={{ width: '100%', fontSize: 12 }}
-              onChange={(e) => updateCell(row.key, date, { description: e.target.value })}
-            />
-          ) : (
-            cell.description ? (
-              <Text type="secondary" style={{ fontSize: 12, display: 'block', whiteSpace: 'pre-wrap' }}>
-                {cell.description}
-              </Text>
-            ) : null
-          )}
-        </Space>
-      );
-    },
-  }));
+  const dayColumns = dates.map((date) => {
+    const isWeekend = dayjs(date).day() === 0 || dayjs(date).day() === 6;
+    return {
+      title: (
+        <span
+          data-testid={`day-header-${date}`}
+          style={isWeekend ? { color: '#cf1322', fontWeight: 600 } : undefined}
+        >
+          {dayjs(date).format('ddd DD/MM')}
+        </span>
+      ),
+      key: date,
+      width: 140,
+      render: (_, row) => {
+        const cell = row.cells[date] || { hours: '', description: '' };
+        const editable = isEditable(row.projectId);
+        const label = `${projectName(row.projectId)} ${taskName(row.projectId, row.taskId)} ${date}`;
+        const hoursInvalid =
+          Boolean(live.cellErrors[`${row.key}|${date}`]) || totals[date] > DAY_LIMIT_HUNDREDTHS;
+        const descInvalid = Boolean(live.cellErrors[`${row.key}|${date}|desc`]);
+        return (
+          <div
+            data-testid={`day-box-${date}`}
+            style={{
+              background: isWeekend ? '#fff1f0' : '#ffffff',
+              border: `1px solid ${isWeekend ? '#ffa39e' : '#d9d9d9'}`,
+              borderRadius: 6,
+              padding: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            {editable ? (
+              <InputNumber
+                aria-label={`Hours ${label}`}
+                stringMode
+                min="0"
+                max="24"
+                step="0.25"
+                precision={2}
+                value={cell.hours === '' ? null : cell.hours}
+                status={hoursInvalid ? 'error' : undefined}
+                style={{
+                  width: '100%',
+                  textAlign: 'center',
+                  borderColor: isWeekend ? '#ffccc7' : undefined,
+                }}
+                placeholder="0"
+                onChange={(value) => updateCell(row.key, date, { hours: value ?? '' })}
+              />
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <Text type={hoursInvalid ? 'danger' : undefined}>{formatHours(cell.hours)}</Text>
+              </div>
+            )}
+            {editable ? (
+              <Input.TextArea
+                aria-label={`Description ${label}`}
+                placeholder="Description"
+                rows={2}
+                maxLength={500}
+                value={cell.description || ''}
+                status={descInvalid ? 'error' : undefined}
+                style={{
+                  width: '100%',
+                  fontSize: 12,
+                  borderColor: isWeekend ? '#ffccc7' : undefined,
+                }}
+                onChange={(e) => updateCell(row.key, date, { description: e.target.value })}
+              />
+            ) : (
+              cell.description ? (
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', whiteSpace: 'pre-wrap' }}>
+                  {cell.description}
+                </Text>
+              ) : null
+            )}
+          </div>
+        );
+      },
+    };
+  });
 
   const columns = [
     {
@@ -391,17 +431,25 @@ function WeekGrid({ weekStart }) {
       <Table.Summary.Cell index={0} colSpan={2}>
         <Text strong>Day total</Text>
       </Table.Summary.Cell>
-      {dates.map((date, i) => (
-        <Table.Summary.Cell index={i + 2} key={date}>
-          <Text
-            strong
-            type={totals[date] > DAY_LIMIT_HUNDREDTHS ? 'danger' : undefined}
-            data-testid={`day-total-${date}`}
+      {dates.map((date, i) => {
+        const isWeekend = dayjs(date).day() === 0 || dayjs(date).day() === 6;
+        return (
+          <Table.Summary.Cell
+            index={i + 2}
+            key={date}
+            style={isWeekend ? { background: '#fff1f0', borderColor: '#ffa39e' } : undefined}
           >
-            {formatHundredths(totals[date])}
-          </Text>
-        </Table.Summary.Cell>
-      ))}
+            <Text
+              strong
+              type={totals[date] > DAY_LIMIT_HUNDREDTHS ? 'danger' : undefined}
+              style={isWeekend ? { color: totals[date] > DAY_LIMIT_HUNDREDTHS ? undefined : '#cf1322' } : undefined}
+              data-testid={`day-total-${date}`}
+            >
+              {formatHundredths(totals[date])}
+            </Text>
+          </Table.Summary.Cell>
+        );
+      })}
       <Table.Summary.Cell index={9}>
         <Text strong data-testid="week-total">
           {formatHundredths(gridTotal(rows))}
@@ -415,13 +463,26 @@ function WeekGrid({ weekStart }) {
     <div style={{ padding: 24 }} data-testid="timesheet-week">
       <Space align="center" wrap style={{ marginBottom: 16 }}>
         <Title level={2} style={{ margin: 0 }}>
-          Timesheet
+          {mode === 'new' ? 'Add New Timesheet' : 'Timesheet'}
         </Title>
         <Tag color={STATUS_COLOR[weekStatus]} data-testid="week-status">
           {STATUS_LABEL[weekStatus] || weekStatus}
         </Tag>
         <Link to="/hrms/timesheets">All weeks</Link>
       </Space>
+
+      {currentEmployee?.employeeNumber && (
+        <div style={{ marginBottom: 16 }}>
+          <Space align="center">
+            <Text type="secondary">Employee ID:</Text>
+            <Input
+              readOnly
+              value={currentEmployee.employeeNumber}
+              style={{ width: 120, fontWeight: 500, backgroundColor: '#fafafa' }}
+            />
+          </Space>
+        </div>
+      )}
 
       <Space align="center" wrap style={{ marginBottom: 16, display: 'flex' }}>
         <Button
@@ -531,6 +592,9 @@ function WeekGrid({ weekStart }) {
 
         {anyEditable && (
           <Space wrap style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button onClick={() => navigate('/hrms/timesheets')} disabled={busy}>
+              Cancel
+            </Button>
             {mode === 'draft' && (
               <Popconfirm
                 title="Delete this draft week?"

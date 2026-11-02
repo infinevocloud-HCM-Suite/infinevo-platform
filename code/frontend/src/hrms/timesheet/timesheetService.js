@@ -54,4 +54,14 @@ export const timesheetService = {
     const res = await apiClient.get(`${PROJECTS}/${projectId}/tasks`);
     return res.data.data;
   },
+
+  /** Profile of the caller (for employee number and ID). */
+  async myProfile() {
+    try {
+      const res = await apiClient.get('/v1/me/employee');
+      return res?.data?.data ?? res?.data ?? null;
+    } catch {
+      return null;
+    }
+  },
 };

@@ -17,6 +17,7 @@ vi.mock('./timesheetService.js', () => ({
     remove: vi.fn(),
     myProjects: vi.fn(),
     tasks: vi.fn(),
+    myProfile: vi.fn(),
   },
 }));
 
@@ -99,6 +100,7 @@ describe('TimesheetWeek (W-48.2 §7)', () => {
     vi.clearAllMocks();
     timesheetService.myProjects.mockResolvedValue(projects);
     timesheetService.tasks.mockImplementation((id) => Promise.resolve(tasks[id] || []));
+    timesheetService.myProfile.mockResolvedValue({ id: 'emp-1', employeeNumber: 'P074' });
   });
 
   it('with no timesheet, Save sends POST with the rows entered', async () => {
@@ -245,4 +247,99 @@ describe('TimesheetWeek (W-48.2 §7)', () => {
     await waitFor(() => expect(timesheetService.week).toHaveBeenCalledWith(WEEK));
     expect(timesheetService.week).not.toHaveBeenCalledWith('2026-10-04');
   }, 60000);
+
+  it('filters task dropdown by logged-in employee assignee (D-136)', async () => {
+    timesheetService.week.mockResolvedValue(null);
+    timesheetService.myProfile.mockResolvedValue({ id: 'emp-1', employeeNumber: 'P074' });
+    timesheetService.tasks.mockImplementation((id) => {
+      if (id === P1) {
+        return Promise.resolve([
+          { id: 'task-mine-1', title: 'My Feature Task', assignee_employee_id: 'emp-1' },
+          { id: 'task-other-1', title: 'Colleague Bugfix Task', assignee_employee_id: 'emp-2' },
+          { id: 'task-unassigned', title: 'General Unassigned Task', assignee_employee_id: null },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+
+    renderAt(WEEK);
+
+    // Verify Employee ID is rendered in header
+    expect(await screen.findByDisplayValue('P074')).toBeDefined();
+
+    // Select project P1
+    chooseOption('Project', 'Apollo');
+
+    // Open task select
+    const taskSelect = screen.getByRole('combobox', { name: 'Task' });
+    fireEvent.mouseDown(taskSelect);
+
+    // "My Feature Task" and "General Unassigned Task" should be visible
+    const myOption = screen.getAllByTitle('My Feature Task').find((el) => el.classList.contains('ant-select-item-option'));
+    expect(myOption).toBeDefined();
+
+    const generalOption = screen.getAllByTitle('General Unassigned Task').find((el) => el.classList.contains('ant-select-item-option'));
+    expect(generalOption).toBeDefined();
+
+    // "Colleague Bugfix Task" assigned to emp-2 MUST NOT be present
+    const colleagueOption = screen.queryByTitle('Colleague Bugfix Task');
+    expect(colleagueOption).toBeNull();
+  }, 60000);
+
+  it('renders weekend headers in red and weekend boxes with red border & pink tint (D-137)', async () => {
+    timesheetService.week.mockResolvedValue(null);
+    renderAt(WEEK);
+
+    // Wait for screen to finish loading
+    expect(await screen.findByTestId('week-status')).toHaveProperty('textContent', 'Not started');
+
+    // Week is 2026-09-28 (Monday) to 2026-10-04 (Sunday)
+    // Saturday: 2026-10-03, Sunday: 2026-10-04
+    // Ant Design scroll.x tables clone headers, so getAllByText returns all header instances
+    const satHeaders = screen.getAllByText('Sat 03/10');
+    expect(satHeaders.length).toBeGreaterThan(0);
+    expect(satHeaders[0].style.color).toBe('rgb(207, 19, 34)');
+    expect(satHeaders[0].style.fontWeight).toBe('600');
+
+    const sunHeaders = screen.getAllByText('Sun 04/10');
+    expect(sunHeaders.length).toBeGreaterThan(0);
+    expect(sunHeaders[0].style.color).toBe('rgb(207, 19, 34)');
+    expect(sunHeaders[0].style.fontWeight).toBe('600');
+
+    // Monday header is not red
+    const monHeaders = screen.getAllByText('Mon 28/09');
+    expect(monHeaders.length).toBeGreaterThan(0);
+    expect(monHeaders[0].style.color).toBe('');
+
+    // Add a row to inspect cell boxes
+    chooseOption('Project', 'Apollo');
+    chooseOption('Task', 'Build');
+    fireEvent.click(screen.getByRole('button', { name: /add row/i }));
+
+    // Weekday box (Monday 2026-09-28)
+    const monBox = await screen.findByTestId('day-box-2026-09-28');
+    expect(monBox.style.backgroundColor).toBe('rgb(255, 255, 255)');
+    expect(monBox.style.borderColor).toBe('rgb(217, 217, 217)');
+
+    // Weekend box (Saturday 2026-10-03 and Sunday 2026-10-04)
+    const satBox = screen.getByTestId('day-box-2026-10-03');
+    expect(satBox.style.backgroundColor).toBe('rgb(255, 241, 240)');
+    expect(satBox.style.borderColor).toBe('rgb(255, 163, 158)');
+
+    const sunBox = screen.getByTestId('day-box-2026-10-04');
+    expect(sunBox.style.backgroundColor).toBe('rgb(255, 241, 240)');
+    expect(sunBox.style.borderColor).toBe('rgb(255, 163, 158)');
+
+    // Hours input placeholder is "0"
+    const hoursInput = screen.getByRole('spinbutton', { name: `Hours Apollo Build 2026-10-03` });
+    expect(hoursInput.getAttribute('placeholder')).toBe('0');
+
+    // Description input placeholder is "Description"
+    const descInput = screen.getByRole('textbox', { name: `Description Apollo Build 2026-10-03` });
+    expect(descInput.getAttribute('placeholder')).toBe('Description');
+
+    // Cancel button is present
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeDefined();
+  }, 60000);
 });
+
