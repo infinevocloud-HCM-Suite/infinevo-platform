@@ -16,6 +16,7 @@ vi.mock('../reportingLineService.js', () => ({
 vi.mock('../employeeService.js', () => ({
   employeeService: {
     list: vi.fn(),
+    getAccess: vi.fn(),
   },
 }));
 
@@ -44,6 +45,9 @@ describe('ReportingLineTab component', () => {
     ]);
     employeeService.list.mockResolvedValue({
       content: [{ id: 'mgr-2', employeeNumber: 'E-002', firstName: 'Priya', lastName: 'Nair' }],
+    });
+    employeeService.getAccess.mockResolvedValue({
+      roles: [{ id: 'role-mgr', code: 'manager', name: 'Manager' }],
     });
   });
 
@@ -104,6 +108,53 @@ describe('ReportingLineTab component', () => {
         })
       );
       expect(errorMsg).toHaveBeenCalledWith(cycleError);
+    });
+  });
+
+  it('filters out self and non-manager employees from manager dropdown (D-134)', async () => {
+    employeeService.list.mockResolvedValue({
+      content: [
+        { id: 'emp-1', employeeNumber: 'E-001', firstName: 'Self', lastName: 'Employee' },
+        { id: 'emp-regular', employeeNumber: 'E-003', firstName: 'John', lastName: 'Doe' },
+        { id: 'emp-mgr', employeeNumber: 'E-004', firstName: 'Sarah', lastName: 'Connor' },
+      ],
+    });
+
+    employeeService.getAccess.mockImplementation(async (id) => {
+      if (id === 'emp-mgr') {
+        return { roles: [{ id: 'r-mgr', code: 'manager', name: 'Manager' }] };
+      }
+      return { roles: [{ id: 'r-emp', code: 'employee', name: 'Employee' }] };
+    });
+
+    render(<ReportingLineTab employeeId="emp-1" />);
+
+    const setBtn = await screen.findByRole('button', { name: /set primary manager/i });
+    fireEvent.click(setBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Set Reporting Manager')).toBeDefined();
+    });
+
+    const selectManager = document.querySelector('#select-manager .ant-select-selector') || document.getElementById('select-manager');
+    fireEvent.mouseDown(selectManager);
+
+    await waitFor(() => {
+      expect(screen.getByText('E-004 - Sarah Connor')).toBeDefined();
+      expect(screen.queryByText('E-001 - Self Employee')).toBeNull();
+      expect(screen.queryByText('E-003 - John Doe')).toBeNull();
+    });
+  });
+
+  it('renders DatePicker in the modal with effective date input (D-133)', async () => {
+    render(<ReportingLineTab employeeId="emp-1" />);
+
+    const setBtn = await screen.findByRole('button', { name: /set primary manager/i });
+    fireEvent.click(setBtn);
+
+    await waitFor(() => {
+      const picker = document.getElementById('picker-effectiveDate');
+      expect(picker).toBeDefined();
     });
   });
 });

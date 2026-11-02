@@ -63,8 +63,46 @@ export function ReportingLineTab({ employeeId }) {
   const searchEmployees = async (query) => {
     setSearchLoading(true);
     try {
-      const res = await employeeService.list({ q: query, size: 10 });
-      const options = (res.content || []).map((e) => ({
+      const res = await employeeService.list({ q: query, size: 20 });
+      const rows = res?.content || (Array.isArray(res) ? res : []);
+      // D-134: Exclude current employee from manager selection to prevent self-management cycles
+      const candidates = rows.filter(
+        (e) => String(e.id) !== String(employeeId) && (!e.status || e.status === 'ACTIVE')
+      );
+
+      const isManagerRole = (roles) =>
+        Array.isArray(roles) &&
+        roles.some((r) => {
+          const code = typeof r === 'string' ? r : r?.code;
+          return ['manager', 'hr', 'tenant-admin'].includes(code);
+        });
+
+      let managers = [];
+      if (candidates.length > 0) {
+        const checked = await Promise.allSettled(
+          candidates.map(async (e) => {
+            if (e.roles && Array.isArray(e.roles)) {
+              return isManagerRole(e.roles) ? e : null;
+            }
+            if (typeof employeeService.getAccess === 'function') {
+              try {
+                const access = await employeeService.getAccess(e.id);
+                if (access?.roles && isManagerRole(access.roles)) {
+                  return e;
+                }
+              } catch {
+                return null;
+              }
+            }
+            return null;
+          })
+        );
+        managers = checked
+          .filter((r) => r.status === 'fulfilled' && r.value)
+          .map((r) => r.value);
+      }
+
+      const options = managers.map((e) => ({
         value: e.id,
         label: `${e.employeeNumber} - ${[e.firstName, e.lastName].filter(Boolean).join(' ')}`,
       }));
@@ -231,6 +269,8 @@ export function ReportingLineTab({ employeeId }) {
             <DatePicker
               id="picker-effectiveDate"
               style={{ width: '100%' }}
+              placement="bottomLeft"
+              getPopupContainer={(trigger) => trigger.parentElement || document.body}
               value={effectiveDate ? dayjs(effectiveDate) : null}
               onChange={(_, dateStr) => setEffectiveDate(dateStr)}
             />
