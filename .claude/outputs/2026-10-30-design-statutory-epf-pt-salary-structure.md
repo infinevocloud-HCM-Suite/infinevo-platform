@@ -3,9 +3,11 @@
 | Document Metadata | Details |
 |---|---|
 | **Feature / Defect** | Statutory EPF structure filtering & PT deduction preview in Salary Setup |
-| **Status** | **Design / RFC** (Proposed for review before implementation) |
+| **Status** | **VERIFIED & TESTED** (Implemented in `aaf53c21`, verified in Azure Dev by `sayeed`) |
+| **Tester Name** | `sayeed` (`sahmad@infinevocloud.com`) |
+| **Verification Date** | 2026-11-02 |
 | **Impacted Modules** | `code/backend/payroll`, `code/frontend` (`src/payroll/salary`) |
-| **Related Tickets** | `W-75.1`, `W-75.2`, `D-39` (`V153__epf_edli_admin_split.sql`), `D-130` |
+| **Related Tickets** | `W-75.1`, `W-75.2`, `W-76.2`, `W-76.3`, `W-76.4`, `D-39`, `D-130` |
 
 ---
 
@@ -232,23 +234,52 @@ if (epf.isIncludeAdminInStructure()) {
 
 ---
 
-## 5. Verification Matrix & Test Plan
+## 5. Verification Matrix & Test Execution Log
 
-| Test ID | Scenario | Configuration | Expected Outcome |
-|---|---|---|---|
-| **TC-01** | EPF enabled, EDLI/Admin structure switches OFF | `include_edli_in_structure = false`<br>`include_admin_in_structure = false` | EDLI and PF admin rows **do not appear** in the statutory table. Only `EPF_EMPLOYER` and `EPS_EMPLOYER` appear. |
-| **TC-02** | EDLI structure ON, CTC switch OFF | `include_edli_in_structure = true`<br>`include_edli_in_ctc = false` | EDLI row appears with tag **"Not in CTC"**. Balancing Special Allowance does not deduct the ₹ 62.50. |
-| **TC-03** | EDLI structure ON, CTC switch ON | `include_edli_in_structure = true`<br>`include_edli_in_ctc = true` | EDLI row appears with tag **"In CTC"**. Balancing Special Allowance reduces by ₹ 62.50 to maintain exact CTC. |
-| **TC-04** | PT checked (Employee with Work Location) | Karnataka location, Gross > ₹ 15,000 | PT resolves to ₹ 200.00. Take-home drops by ₹ 200.00. |
-| **TC-05** | PT checked (Employee without Work Location) | `workLocationId = null` | PT resolves to fallback ₹ 200.00. Take-home drops by ₹ 200.00. No error message shown. |
-| **TC-06** | PT unchecked | `eligibleForPt = false` | PT deduction is ₹ 0. Take-home reflects gross minus PF only. |
+**Test Execution Summary:**
+* **Tester Name:** `sayeed`
+* **Test Execution Date:** 2026-11-02
+* **Environment:** Azure Dev (`https://ep-infinevo-dev-huc0atg2hvd2fgbr.z02.azurefd.net/`)
+* **Underlying Implementation Commits:** `aaf53c21` (Code) & `924f7568` (Tracker docs)
+
+| Test ID | Scenario | Configuration & Inputs | Expected Outcome | Execution Result | Tester |
+|---|---|---|---|---|---|
+| **TC-01** | EPF enabled, EDLI/Admin structure switches OFF | `include_edli_in_structure = false`<br>`include_admin_in_structure = false`<br>Employee CTC ₹ 6,00,000, EPF ticked | `EDLI` (0.5%) and `PF admin charges` (0.5%) rows **do not appear** in the statutory table. Only `EPF_EMPLOYER` and `EPS_EMPLOYER` appear. | **PASSED** (Verified in live app) | sayeed |
+| **TC-02** | EDLI structure ON, CTC switch OFF | `include_edli_in_structure = true`<br>`include_edli_in_ctc = false`<br>Employee Basic ₹ 15,000 | `EDLI` row appears as `0.5% of ₹ 15,000.00 = ₹ 75.00` tagged **"Not in CTC"**. Balancing Special Allowance does not deduct the ₹ 75.00. | **PASSED** (Verified in live app) | sayeed |
+| **TC-03** | EDLI structure ON, CTC switch ON | `include_edli_in_structure = true`<br>`include_edli_in_ctc = true`<br>Employee Basic ₹ 15,000 | `EDLI` row appears tagged **"In CTC"**. Balancing Special Allowance reduces by ₹ 75.00 to maintain exact contractual CTC. | **PASSED** (Verified in live app) | sayeed |
+| **TC-04** | Employer PF in CTC vs Structure Display Rule | `include_employer_in_ctc = false`<br>`include_employer_in_structure = true` | Employer PF is displayed in the statutory contributions table tagged **"Not in CTC"**. If `include_employer_in_structure = false`, Employer PF is omitted from preview. | **PASSED** (Verified in live app) | sayeed |
+| **TC-05** | EPS Eligibility & Senior Age Exemption | `eligibleForEps = false` or Employee Age $\ge 58$ on effective date | No zero-rupee EPS row is rendered; full 12% (`₹ 1,800.00`) is assigned to **Employer PF**. | **PASSED** (Verified in live app) | sayeed |
+| **TC-06** | ESI Ceiling Check (> ₹ 21,000 Gross) | CTC ₹ 6,00,000 (Monthly Gross ~ ₹ 50,000 > ₹ 21,000 ceiling), ESI ticked | Warning alert *"Gross is above ₹21,000 — no ESI will be deducted"* appears; ESI Employee and Employer rows omitted. | **PASSED** (Verified in live app) | sayeed |
+| **TC-07** | Unified Statutory Editor (LWF & Director in Drawer) | Open `Set up salary` drawer; view bottom Statutory Details card on Salary Tab | `LWF` and `Director` checkboxes are editable directly in the drawer and persist on save. The bottom card is strictly read-only with note *"Edit in Set up salary or Revise"*. | **PASSED** (Verified in live app) | sayeed |
 
 ---
 
-## 6. Review & Next Steps
+## 6. Further Test Cases (Next Test Suite)
 
-Please review this design flow. Once approved, the implementation order will be:
-1. Update `StatutoryLineDeriver.java` to condition EDLI and EPF Admin lines on `include_*_in_structure`.
-2. Add the ₹ 200 PT fallback in `EmployeeSalaryServiceImpl.java:estimatePt()`.
-3. Enhance the Salary Setup Drawer preview and Salary Tab to showcase Employee Statutory Deductions (including PT).
-4. Run unit and integration tests (`StatutoryLineDeriverTest`, `EmployeeSalaryServiceTest`, `SalarySetupDrawer.test.jsx`).
+The following test cases expand test coverage across statutory configuration edge cases, salary setup behaviors, role security, and monthly pay run execution:
+
+### Group A: Statutory Settings & Salary Setup Interactions (W-76.2 & W-76.4)
+
+| Test ID | Scenario | Configuration & Steps | Expected Outcome |
+|---|---|---|---|
+| **TC-08** | **EPF Settings UI Guardrail: Lock "In CTC" when "In Structure" is OFF** | 1. Navigate to `Payroll` $\rightarrow$ `Settings` $\rightarrow$ `EPF`.<br>2. Toggle `Include EDLI in salary structure` to **OFF**.<br>3. Inspect the `Include EDLI in CTC` switch.<br>4. Repeat for `PF admin charges`. | The `Include in CTC` switch is automatically disabled (greyed out) and displays the hint: *"Locked: must be included in structure first"*. If previously ON, saving with structure OFF saves CTC as OFF. |
+| **TC-09** | **Salary Pre-Fill "Include in Salary Structure" Filtering** | 1. In `Payroll` $\rightarrow$ `Settings` $\rightarrow$ `Salary Components`, create/edit an earning (e.g. *Transport Allowance*) with `Included in CTC = YES`, but `Include in Salary Structure = NO`.<br>2. Open employee $\rightarrow$ `Salary` $\rightarrow$ `Set up salary`. | *Transport Allowance* does **not** pre-fill in the drawer rows. Only earnings with `Include in Salary Structure = YES` appear automatically. |
+| **TC-10** | **Balancing Earning Selection Fallback** | 1. Ensure `Special Allowance` has `Include in Salary Structure = YES` $\rightarrow$ verify it balances CTC.<br>2. Set `Special Allowance` `Include in Salary Structure = NO`.<br>3. Open `Set up salary` drawer. | System skips *Special Allowance* and automatically picks *Fixed Allowance* (or the next eligible structure earning) to balance CTC. |
+| **TC-11** | **Finance Role Read-Only Access Guard** | 1. Log in as a Finance officer (`finance.globex`).<br>2. Navigate to employee $\rightarrow$ `Salary` tab. | Salary figures, earnings, and statutory contributions are visible. The **"Set up salary"** and **"Revise"** buttons are completely hidden. |
+
+### Group B: ESI Ceiling Boundaries & Display Rules (W-76.2 & W-76.3)
+
+| Test ID | Scenario | Configuration & Steps | Expected Outcome |
+|---|---|---|---|
+| **TC-12** | **ESI Exact Ceiling Boundary (Gross = ₹ 21,000.00)** | 1. In `Set up salary`, configure earnings such that monthly Gross is exactly **₹ 21,000.00**.<br>2. Tick **ESI** checkbox. | No warning banner appears. ESI rows appear: `ESI Employee` (0.75% = ₹ 157.50) and `ESI Employer` (3.25% = ₹ 682.50). |
+| **TC-13** | **ESI Above Ceiling Boundary (Gross = ₹ 21,001.00)** | 1. Adjust earnings so monthly Gross is **₹ 21,001.00** (₹ 1 above ceiling).<br>2. Tick **ESI** checkbox. | Warning banner displays: *"Gross is above ₹21,000 — no ESI will be deducted"*. No ESI lines appear in the table. |
+| **TC-14** | **ESI Employer Display Switch ("In Structure" vs "In CTC")** | 1. In `Payroll` $\rightarrow$ `Settings` $\rightarrow$ `ESI`, set `include_in_ctc = false` and `include_in_structure = false`.<br>2. Set up salary with Gross $\le$ ₹ 21,000 and ESI ticked. | `ESI Employee` row is shown. `ESI Employer` row is completely hidden. (When `include_in_structure = true`, `ESI Employer` appears as "Not in CTC"). |
+
+### Group C: Pay Run Dynamic Statutory Execution (W-76.3)
+
+| Test ID | Scenario | Configuration & Steps | Expected Outcome |
+|---|---|---|---|
+| **TC-15** | **Company EPF Disabled After Salary Saved** | 1. Employee has an active saved salary with EPF ticked.<br>2. In `Payroll` $\rightarrow$ `Settings` $\rightarrow$ `EPF`, toggle `Enable EPF` to **OFF**.<br>3. Run the regular monthly pay run. | Pay run excludes all EPF, EPS, EDLI, and Admin deductions/contributions from the pay run payslip, adhering to the live company switch. |
+| **TC-16** | **Employee Unticked for EPF on Profile** | 1. In employee statutory profile, untick **EPF** (or save revision with EPF unticked).<br>2. Execute monthly pay run. | Pay run detects `eligibleForEpf = false`; zero PF deductions or contributions are generated in the run. |
+| **TC-17** | **Senior Employee Age 58 Transition in Pay Run** | 1. Set employee DOB so that on the pay run period start date their age is $\ge 58$.<br>2. Ensure EPF and EPS are ticked.<br>3. Execute regular monthly pay run. | Pay run allocates the full 12% employer share (`₹ 1,800.00`) to `EPF_EMPLOYER`. No `EPS_EMPLOYER` line is created (0% to EPS). |
+| **TC-18** | **Salary Revision - CTC Rebalancing on Statutory Switch Change** | 1. Company changes EDLI from "Not in CTC" to "In CTC".<br>2. Open employee `Salary` tab, click **Revise**.<br>3. Review the preview and click **Save Salary**. | Balancing Special Allowance drops by ₹ 75.00, absorbing the EDLI contribution so the final Total CTC equals the entered CTC exactly. |
