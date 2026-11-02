@@ -161,4 +161,101 @@ class LeaveBalanceServiceTest {
         // Remaining: 20 entitlement + 2 effective carried - 6 consumed = 16.00 (NOT 19.00!)
         assertThat(balance.remainingDays()).isEqualByComparingTo("16.00");
     }
+
+    @Test
+    @DisplayName("A balance is expired when its leave type has ended or is switched off (W-77.1)")
+    void expiredWhenLeaveTypeEndedOrSwitchedOff() {
+        LocalDate evalDate = LocalDate.of(2026, 11, 2);
+        LocalDate ended = LocalDate.of(2025, 12, 30);
+        assertThat(balanceFor(
+                        new LeaveType(
+                                TENANT_ID,
+                                "CO",
+                                "Comp Off",
+                                true,
+                                LeaveUnit.DAYS,
+                                true,
+                                LocalDate.of(2025, 1, 1),
+                                ended,
+                                true),
+                        evalDate))
+                .satisfies(b -> {
+                    assertThat(b.expired()).isTrue();
+                    assertThat(b.leaveTypeValidTo()).isEqualTo(ended);
+                    assertThat(b.remainingDays()).isEqualByComparingTo("13.00"); // days still shown, as history
+                });
+        assertThat(balanceFor(
+                                new LeaveType(
+                                        TENANT_ID,
+                                        "OLD",
+                                        "Old Leave",
+                                        true,
+                                        LeaveUnit.DAYS,
+                                        true,
+                                        LocalDate.of(2025, 1, 1),
+                                        null,
+                                        false),
+                                evalDate)
+                        .expired())
+                .isTrue();
+        assertThat(balanceFor(
+                                new LeaveType(
+                                        TENANT_ID,
+                                        "CL",
+                                        "Casual Leave",
+                                        true,
+                                        LeaveUnit.DAYS,
+                                        true,
+                                        LocalDate.of(2025, 1, 1),
+                                        LocalDate.of(2026, 12, 30),
+                                        true),
+                                evalDate)
+                        .expired())
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("A future asOf (Allocations asks as of 31 December) does not mark a still-running type expired")
+    void futureAsOfJudgesExpiryOnToday() {
+        LocalDate farYearEnd = LocalDate.of(2999, 12, 31);
+        assertThat(balanceFor(
+                                new LeaveType(
+                                        TENANT_ID,
+                                        "CL",
+                                        "Casual Leave",
+                                        true,
+                                        LeaveUnit.DAYS,
+                                        true,
+                                        LocalDate.of(2025, 1, 1),
+                                        LocalDate.of(2999, 12, 30),
+                                        true),
+                                farYearEnd)
+                        .expired())
+                .isFalse();
+    }
+
+    private LeaveBalanceResponse balanceFor(LeaveType type, LocalDate evalDate) {
+        UUID typeId = UUID.randomUUID();
+        when(leaveTypeRepository.findByTenantIdAndId(TENANT_ID, typeId)).thenReturn(Optional.of(type));
+        LeaveAllocation allocation = new LeaveAllocation(
+                TENANT_ID,
+                EMPLOYEE_ID,
+                typeId,
+                "2026",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                new BigDecimal("13.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ONE,
+                UUID.randomUUID());
+        when(allocationRepository
+                        .findFirstByTenantIdAndEmployeeIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
+                                TENANT_ID, EMPLOYEE_ID, typeId, evalDate, evalDate))
+                .thenReturn(Optional.of(allocation));
+        return balanceService
+                .getBalance(TENANT_ID, EMPLOYEE_ID, typeId, evalDate)
+                .orElseThrow();
+    }
 }

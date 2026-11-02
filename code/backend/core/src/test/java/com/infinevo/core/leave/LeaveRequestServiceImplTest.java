@@ -235,7 +235,9 @@ class LeaveRequestServiceImplTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
-                null);
+                null,
+                null,
+                false);
         when(leaveBalanceService.getBalance(tenantId, employeeId, leaveTypeId, from))
                 .thenReturn(Optional.of(bal));
 

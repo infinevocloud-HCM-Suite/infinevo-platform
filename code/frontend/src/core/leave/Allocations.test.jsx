@@ -67,6 +67,29 @@ describe('Allocations component', () => {
     leaveBalanceService.forEmployee.mockResolvedValue(mockBalances);
   });
 
+  it('gives an ended leave type no column and tags its balance Expired (W-77.1)', async () => {
+    leaveTypeService.list.mockResolvedValue([
+      ...mockTypes,
+      { id: 'type-2', name: 'Old Comp Off', code: 'CO1', isActive: true, validTo: '2025-12-30' },
+      { id: 'type-3', name: 'Switched Off', code: 'SO', isActive: false },
+    ]);
+    leaveBalanceService.forEmployee.mockResolvedValue([
+      { ...mockBalances[0], leaveTypeId: 'type-2', leaveTypeName: 'Old Comp Off', expired: true },
+      ...mockBalances,
+    ]);
+    const { container } = render(<Allocations />);
+
+    await waitFor(() => expect(screen.getByText('John Doe')).toBeDefined());
+    expect(screen.getByRole('columnheader', { name: 'Annual Leave' })).toBeDefined();
+    expect(screen.queryByRole('columnheader', { name: 'Old Comp Off' })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Switched Off' })).toBeNull();
+
+    fireEvent.click(container.querySelector('.ant-table-row-expand-icon'));
+    await waitFor(() => expect(screen.getByText('Expired')).toBeDefined());
+    const names = [...container.querySelectorAll('.ant-table-expanded-row tbody tr')].map((r) => r.cells[0].textContent);
+    expect(names).toEqual(['Annual Leave', 'Old Comp OffExpired']);
+  });
+
   it('renders employee balance table and allocate button', async () => {
     render(<Allocations />);
 

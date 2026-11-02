@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Card, Table, Row, Col, Skeleton, Result, Button, Typography, Space, Progress, theme } from 'antd';
+import { Card, Table, Row, Col, Skeleton, Result, Button, Typography, Space, Progress, Tag, theme } from 'antd';
 import { CalendarOutlined, PlusOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 import { EMPTY, formatDate } from '../../../shared/ui/format.js';
@@ -34,6 +34,7 @@ function showDays(value) {
  * One leave type's balance as an equal-height card with a meter of days used out of the year's
  * total (D-53). Total is what was used plus what remains, which is the server's own working:
  * remaining = entitlement + accrued + carried forward - consumed (LeaveBalanceResponse).
+ * A balance on an ended or switched-off leave type is tagged Expired (W-77.2).
  */
 function BalanceCard({ balance, token }) {
   const used = days(balance.consumedDays);
@@ -47,14 +48,23 @@ function BalanceCard({ balance, token }) {
       style={{ width: '100%', height: '100%' }}
       styles={{ body: { height: '100%', display: 'flex', flexDirection: 'column', gap: token.marginXS } }}
     >
-      <Text strong ellipsis={{ tooltip: true }}>
-        {balance.leaveTypeName || balance.leaveTypeCode || 'Leave'}
-      </Text>
+      <Space size={4} style={{ minWidth: 0 }}>
+        <Text strong ellipsis={{ tooltip: true }}>
+          {balance.leaveTypeName || balance.leaveTypeCode || 'Leave'}
+        </Text>
+        {balance.expired && <Tag color="error">Expired</Tag>}
+      </Space>
       <div>
-        <Text style={{ fontSize: token.fontSizeHeading3, fontWeight: 600, color: token.colorPrimary }}>
+        <Text
+          style={{
+            fontSize: token.fontSizeHeading3,
+            fontWeight: 600,
+            color: balance.expired ? token.colorTextDisabled : token.colorPrimary,
+          }}
+        >
           {showDays(remaining)}
         </Text>
-        <Text type="secondary"> days available</Text>
+        <Text type="secondary">{balance.expired ? ' days (expired)' : ' days available'}</Text>
       </div>
       <Progress
         percent={percent}
@@ -211,7 +221,9 @@ export function MyLeave({ actions, onNavigate }) {
       {balances && balances.length > 0 && (
         <Card title="Leave Balances" style={{ borderRadius: token.borderRadiusLG }}>
           <Row gutter={[16, 16]} align="stretch">
-            {balances.map((bal, idx) => (
+            {[...balances]
+              .sort((a, b) => Number(Boolean(a.expired)) - Number(Boolean(b.expired)))
+              .map((bal, idx) => (
               <Col xs={24} sm={12} md={8} lg={6} key={bal.leaveTypeId || bal.leaveTypeCode || idx} style={{ display: 'flex' }}>
                 <BalanceCard balance={bal} token={token} />
               </Col>

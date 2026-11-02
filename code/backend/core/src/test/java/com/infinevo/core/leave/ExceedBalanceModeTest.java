@@ -93,7 +93,9 @@ class ExceedBalanceModeTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         new BigDecimal("2.00"),
-                        null)));
+                        null,
+                        null,
+                        false)));
 
         org.mockito.Mockito.when(leaveMonthlyLopRepository.save(org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(inv -> {

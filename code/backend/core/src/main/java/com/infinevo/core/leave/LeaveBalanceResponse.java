@@ -7,6 +7,7 @@ import java.util.UUID;
 /**
  * Breakdown of an employee's leave balance for a specific leave type and year (W-16.2).
  * Shows the working: remaining = entitlement + accrued + carried_forward - consumed.
+ * {@code expired} is true when the leave type is switched off or its Valid To has passed (W-77.1).
  */
 public record LeaveBalanceResponse(
         UUID employeeId,
@@ -19,4 +20,6 @@ public record LeaveBalanceResponse(
         BigDecimal carriedForwardDays,
         BigDecimal consumedDays,
         BigDecimal remainingDays,
-        LocalDate carryForwardExpiresOn) {}
+        LocalDate carryForwardExpiresOn,
+        LocalDate leaveTypeValidTo,
+        boolean expired) {}

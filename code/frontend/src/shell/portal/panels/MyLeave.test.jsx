@@ -60,4 +60,23 @@ describe('Portal panels read the fields the server sends (W-25)', () => {
     expect(meter).not.toBeNull();
     expect(meter.getAttribute('aria-valuenow')).toBe('17');
   });
+
+  it('MyLeave tags a balance on an ended leave type Expired and lists it last (W-77.2)', async () => {
+    vi.spyOn(portalService, 'getLeaveRequests').mockResolvedValue({ content: [], totalElements: 0 });
+    vi.spyOn(portalService, 'getLeaveBalances').mockResolvedValue([
+      { leaveTypeId: 'type-co', leaveTypeName: 'Comp Off', consumedDays: 0, remainingDays: 13, expired: true },
+      { leaveTypeId: 'type-cl', leaveTypeName: 'Casual Leave', consumedDays: 1, remainingDays: 7, expired: false },
+    ]);
+
+    render(<MyLeave />);
+
+    await waitFor(() => expect(screen.getAllByTestId('leave-balance-card')).toHaveLength(2));
+    const [first, second] = screen.getAllByTestId('leave-balance-card');
+    expect(first.textContent).toContain('Casual Leave');
+    expect(first.textContent).toContain('days available');
+    expect(first.textContent).not.toContain('Expired');
+    expect(second.textContent).toContain('Comp Off');
+    expect(second.textContent).toContain('Expired');
+    expect(second.textContent).toContain('days (expired)');
+  });
 });

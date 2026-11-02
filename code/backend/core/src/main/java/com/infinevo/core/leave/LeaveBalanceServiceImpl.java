@@ -109,6 +109,14 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
         // remaining = entitlement + accrued + carried_forward - consumed (W-16.2 spec section 3 & 7)
         BigDecimal remaining = entitlement.add(accrued).add(carried).subtract(consumed);
 
+        // An ended or switched-off leave type is history: its days still show, marked expired (W-77.1).
+        // Judged on the earlier of asOf and today: Allocations asks as of 31 December, and a type
+        // that is still running today has not ended yet.
+        LocalDate validTo = type != null ? type.getValidTo() : null;
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate expiryDate = asOf.isAfter(today) ? today : asOf;
+        boolean expired = type == null || !type.isActive() || (validTo != null && validTo.isBefore(expiryDate));
+
         return new LeaveBalanceResponse(
                 allocation.getEmployeeId(),
                 allocation.getLeaveTypeId(),
@@ -120,7 +128,9 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                 carried,
                 consumed,
                 remaining,
-                allocation.getCarryForwardExpiresOn());
+                allocation.getCarryForwardExpiresOn(),
+                validTo,
+                expired);
     }
 
     @Override

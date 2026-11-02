@@ -13,6 +13,7 @@ import {
   Row,
   Col,
   Input,
+  Tag,
 } from 'antd';
 import { PlusOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -182,6 +183,11 @@ export function Allocations() {
     return <NotEntitled />;
   }
 
+  // W-77.1: one column per current leave type; a switched-off or ended type shows only in the
+  // expanded rows, tagged Expired.
+  const today = dayjs().format('YYYY-MM-DD');
+  const currentTypes = leaveTypes.filter((t) => t.isActive !== false && (!t.validTo || t.validTo >= today));
+
   const columns = [
     {
       title: 'Employee',
@@ -197,7 +203,7 @@ export function Allocations() {
         </Space>
       ),
     },
-    ...leaveTypes.map((type) => ({
+    ...currentTypes.map((type) => ({
       title: type.name,
       key: `type_${type.id}`,
       width: 130,
@@ -217,7 +223,17 @@ export function Allocations() {
     }
 
     const detailColumns = [
-      { title: 'Leave Type', dataIndex: 'leaveTypeName', key: 'leaveTypeName' },
+      {
+        title: 'Leave Type',
+        dataIndex: 'leaveTypeName',
+        key: 'leaveTypeName',
+        render: (name, bal) => (
+          <Space size={4}>
+            <span>{name}</span>
+            {bal.expired && <Tag color="error">Expired</Tag>}
+          </Space>
+        ),
+      },
       { title: 'Entitlement', dataIndex: 'entitlementDays', key: 'entitlementDays' },
       { title: 'Accrued', dataIndex: 'accruedDays', key: 'accruedDays' },
       { title: 'Carried Forward', dataIndex: 'carriedForwardDays', key: 'carriedForwardDays' },
@@ -240,7 +256,7 @@ export function Allocations() {
       <Table
         rowKey="leaveTypeId"
         columns={detailColumns}
-        dataSource={balances}
+        dataSource={[...balances].sort((a, b) => Number(Boolean(a.expired)) - Number(Boolean(b.expired)))}
         pagination={false}
         size="small"
       />
