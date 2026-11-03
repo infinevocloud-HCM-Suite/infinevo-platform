@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/backend/core` (`leave`), `code/frontend` (`src/core/leave`) |
 | **Related gaps** | founder 2026-11-02: an ended leave type (aksinha's Comp Off, ended 2025-12-30) shows as usable; legacy tags it "Expired" (`legacy/HRMS_Frontend/src/components/Leaves/LeaveBalance.jsx:88-112`) |
-| **Status** | In flight — dev-claude |
+| **Status** | **Done** — `663934d1` |
 | **Blocked by** | nothing |
 
 ## Size cap

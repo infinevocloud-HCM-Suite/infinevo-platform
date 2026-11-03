@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-02 — W-77 leave expiry on `main` (`663934d1`); migrated company leave fixed in data
+
+| Ticket | What |
+|---|---|
+| `W-77.1` | A balance on a switched-off or ended leave type comes back `expired`; Allocations shows only current types as columns and tags expired balances |
+| `W-77.2` | My Leave tags expired balance cards and lists them last |
+
+- Migrated company leave, data fixes 2026-11-02 (rows marked `leave-fix-2026-11-02`, `leave-merge-2026-11-02`, `emp-merge-2026-11-02`): missing allocations added, request leave types set from legacy `leave_manual_days`, used days linked to requests; leave types merged to one per kind (CL, SL, EL, CO, PRL), old ones switched off; P068-H35 merged into P068 (same person), P068-H35 and P073-H98 suspended.
+- 13 pending requests dated 2025 stay pending (founder): approving one books it to an empty 2025 allocation — reject only.
+- **Left for HR:** reset / carry-forward on the new policies; 2027 allocations by import in January; Comp Off given per person.
+- **Left:** Allocations column filter uses the browser date, the server UTC; the Allocate modal still offers ended types.
+
 ## 2026-11-01 — W-76 salary statutory switches on `main` (`aaf53c21`)
 
 | Ticket | What |

@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/frontend` (`src/shell/portal`) |
 | **Related gaps** | founder 2026-11-02, same as `W-77.1`, on the employee's own page |
-| **Status** | In flight — dev-claude |
+| **Status** | **Done** — `663934d1` |
 | **Blocked by** | `W-77.1` (the `expired` field) |
 
 ## Size cap
