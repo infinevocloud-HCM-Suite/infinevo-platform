@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/backend/core` (`leave`), `code/backend/migration` (one Flyway script), `code/frontend` (`src/core/leave`) |
 | **Related gaps** | founder 2026-11-02: legacy gave a leave type to picked employees (`legacy/HRMS_Backend/.../repository/LeaveTypeRepository.java:23-26`, `leave_type_employee_ids`). HCM can limit a policy only by department, designation, work location and gender (`LeaveEligibilityServiceImpl.java:82-119`, `LeavePolicyValidator.java:12`), so Comp Off and Probation Leave show in everyone's apply list |
-| **Status** | In flight — dev-claude |
+| **Status** | **Done** — `c9fce7a3` |
 | **Blocked by** | nothing |
 
 ## Size cap

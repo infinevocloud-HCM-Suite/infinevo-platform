@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/backend/payroll` (`taxcalc`) |
 | **Related gaps** | `W-76.3` review F-2 (2026-11-01): the pay run applies PF from the company switch and the employee tick every month (`StatutoryLineContributor.java:167`), but the tax projection still reads the employee PF saved on the salary (`TaxInputAssembler.java:419`, `:492-536`). HR unticks PF without a new salary version → no PF paid, but TDS still deducts PF as 80C → TDS too low |
-| **Status** | In flight — dev-claude |
+| **Status** | **Done** — `c9fce7a3` |
 | **Blocked by** | nothing |
 
 ## Size cap
