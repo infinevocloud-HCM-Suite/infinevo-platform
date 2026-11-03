@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Layout, Menu, Skeleton, Typography, Button, Result, theme as antdTheme } from 'antd';
+import { Layout, Menu, Skeleton, Typography, Button, Result, Drawer, Grid, theme as antdTheme } from 'antd';
 import { Link, Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
 import { navLabel } from './navigation/navLabels.js';
@@ -14,6 +14,7 @@ import { NotFound, NoModules } from './screens/index.js';
 import { Welcome } from './screens/Welcome.jsx';
 import { useMe } from './auth/useMe.js';
 import { theme } from '../shared/theme.js';
+import './phone.css';
 
 const { Sider, Content } = Layout;
 
@@ -105,67 +106,100 @@ export function AppShell() {
   const siderWidth = theme.components.Layout.siderWidth;
   const headerHeight = theme.components.Layout.headerHeight;
 
+  // A phone is below the md breakpoint (W-80.1). Until the breakpoints answer, `md` is undefined
+  // and the screen counts as a desktop, so a desktop never flashes the phone layout.
+  const screens = Grid.useBreakpoint();
+  const phone = screens.md === false;
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  React.useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname, phone]);
+
+  const navigation = (
+    <>
+      <div
+        style={{
+          height: headerHeight,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          padding: `0 ${token.padding}px`,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        }}
+      >
+        <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeLG, lineHeight: 1.3 }}>
+          Infinevo HCM Suite
+        </Typography.Text>
+        <Typography.Text style={{ color: token.colorBgContainer, fontSize: token.fontSizeSM, opacity: 0.75, lineHeight: 1.3 }}>
+          Human Capital Management
+        </Typography.Text>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: `${token.padding}px ${token.padding}px` }}>
+          {[...Array(5)].map((_, i) => (
+            <Skeleton
+              key={i}
+              active
+              title={{ width: '80%' }}
+              paragraph={false}
+              style={{ marginBottom: token.marginSM }}
+            />
+          ))}
+        </div>
+      ) : (
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={selectedKey ? [selectedKey] : []}
+          openKeys={openKeys}
+          onOpenChange={setOpenKeys}
+          // A pick closes the phone drawer even when it is the screen already open.
+          onClick={() => setMenuOpen(false)}
+          items={menuItems}
+          style={{ borderRight: 0, marginTop: token.sizeUnit * 2 }}
+        />
+      )}
+    </>
+  );
+
   return (
     <ShellBoundary>
       <Layout style={{ minHeight: '100vh' }}>
-        <Sider
-          width={siderWidth}
-          theme="dark"
-          collapsible={false}
-          style={{ position: 'fixed', left: 0, top: 0, bottom: 0, overflowY: 'auto', zIndex: 100 }}
-        >
-          <div
-            style={{
-              height: headerHeight,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              padding: `0 ${token.padding}px`,
-              borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            }}
+        {phone ? (
+          <Drawer
+            placement="left"
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            width={siderWidth}
+            closable={false}
+            rootClassName="shell-nav-drawer"
+            styles={{ body: { padding: 0, background: theme.components.Layout.siderBg } }}
           >
-            <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeLG, lineHeight: 1.3 }}>
-              Infinevo HCM Suite
-            </Typography.Text>
-            <Typography.Text style={{ color: token.colorBgContainer, fontSize: token.fontSizeSM, opacity: 0.75, lineHeight: 1.3 }}>
-              Human Capital Management
-            </Typography.Text>
-          </div>
+            {navigation}
+          </Drawer>
+        ) : (
+          <Sider
+            width={siderWidth}
+            theme="dark"
+            collapsible={false}
+            style={{ position: 'fixed', left: 0, top: 0, bottom: 0, overflowY: 'auto', zIndex: 100 }}
+          >
+            {navigation}
+          </Sider>
+        )}
 
-          {loading ? (
-            <div style={{ padding: `${token.padding}px ${token.padding}px` }}>
-              {[...Array(5)].map((_, i) => (
-                <Skeleton
-                  key={i}
-                  active
-                  title={{ width: '80%' }}
-                  paragraph={false}
-                  style={{ marginBottom: token.marginSM }}
-                />
-              ))}
-            </div>
-          ) : (
-            <Menu
-              theme="dark"
-              mode="inline"
-              selectedKeys={selectedKey ? [selectedKey] : []}
-              openKeys={openKeys}
-              onOpenChange={setOpenKeys}
-              items={menuItems}
-              style={{ borderRight: 0, marginTop: token.sizeUnit * 2 }}
-            />
-          )}
-        </Sider>
-
-        <Layout style={{ marginLeft: siderWidth }}>
+        <Layout style={{ marginLeft: phone ? 0 : siderWidth }}>
           <Header
             tenantName={tenantName}
             tenantLogoUrl={tenantLogoUrl}
             tagline={tagline}
             onGettingStarted={() => navigate(WELCOME_PATH)}
             onMyProfile={ownsProfile ? () => navigate(MY_PROFILE_PATH) : undefined}
+            compact={phone}
+            onOpenMenu={phone ? () => setMenuOpen(true) : undefined}
           />
-          <Content style={{ padding: token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
+          <Content style={{ padding: phone ? token.paddingSM : token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
             {!loading && error ? (
               <Result
                 status="500"
