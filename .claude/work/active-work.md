@@ -6,6 +6,17 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-03 — W-80.1 phone-friendly shell on `main` (`7feeca1d`)
+
+| Ticket | What |
+|---|---|
+| `W-80.1` | Below 768 px: side menu in a drawer behind a menu button, compact header, tables scroll sideways, side drawers full width, inputs capped at screen width, tighter padding (`shell/phone.css`). Nothing changes at 768 px and wider |
+
+- Built by Claude on `dev-claude-w80`, one independent read (5 findings, all fixed: long tenant name now ellipsed, drawer closes on re-pick, 767.98px breakpoint, two test fixes), CI green.
+- Test `matchMedia` stub now answers width queries against `innerWidth` (1024 in jsdom), so suites render at desktop width.
+- **Left:** fixed pixel widths inside screens (44 files) — `W-80.2` core, `W-80.3` hrms, `W-80.4` payroll, not written. Not yet checked by eye at phone width.
+- **Branches:** `dev-claude-w80` can be deleted.
+
 ## 2026-11-02 — W-77 leave expiry on `main` (`663934d1`); migrated company leave fixed in data
 
 | Ticket | What |

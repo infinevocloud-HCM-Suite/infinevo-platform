@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import fs from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -411,6 +411,63 @@ describe('AppShell component', () => {
       fireEvent.click(screen.getByRole('button', { name: 'User menu' }));
       fireEvent.click(await screen.findByText('Getting started'));
       expect(await screen.findByTestId('welcome-screen')).toBeDefined();
+    });
+  });
+
+  describe('phone width (W-80.1)', () => {
+    const feed = {
+      items: [{ key: 'core.employee', labelKey: 'nav.employees', path: '/core-people' }],
+      loading: false,
+    };
+    const desktopWidth = window.innerWidth;
+    const setWidth = (width) => Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+
+    afterEach(() => setWidth(desktopWidth));
+
+    it('keeps the side menu and no menu button at a desktop width', () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+      const { container } = render(
+        <MemoryRouter initialEntries={['/core-people']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+
+      expect(container.querySelector('.ant-layout-sider')).not.toBeNull();
+      expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+    });
+
+    it('puts the menu in a drawer behind a menu button, closed again after a pick', async () => {
+      setWidth(375);
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+      const { container } = render(
+        <MemoryRouter initialEntries={['/unknown-path']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+
+      expect(container.querySelector('.ant-layout-sider')).toBeNull();
+      expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+      expect(await screen.findByRole('link', { name: 'Employees' })).toBeDefined();
+      expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).not.toBeNull();
+
+      fireEvent.click(screen.getByRole('link', { name: 'Employees' }));
+      await waitFor(() => expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).toBeNull());
+    });
+
+    it('closes the drawer when the screen already open is picked again', async () => {
+      setWidth(375);
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+      render(
+        <MemoryRouter initialEntries={['/core-people']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+      fireEvent.click(await screen.findByRole('link', { name: 'Employees' }));
+      await waitFor(() => expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).toBeNull());
     });
   });
 });
