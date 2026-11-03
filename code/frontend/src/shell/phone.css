@@ -1,8 +1,8 @@
 /*
- * Phone widths only (W-80.1): below Ant Design's md breakpoint (768 px). At 768 px and above
- * nothing here applies. One place, so every screen fits a phone without each being edited.
+ * Phone widths only (W-80.1): below Ant Design's md breakpoint (768 px; 767.98 covers a zoomed
+ * fractional width too). At 768 px and above nothing here applies. One place, so every screen fits a phone without each being edited.
  */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   /* A wide table scrolls inside the page instead of widening it. */
   .ant-table-wrapper .ant-table-content,
   .ant-table-wrapper .ant-table-body {

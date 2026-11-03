@@ -177,11 +177,16 @@ export function Header({
           />
         )}
         {tenantName ? (
-          <Space
-            size={compact ? 'small' : 'middle'}
+          // A plain flex row, not a Space: a Space item never shrinks, so a long name could not be
+          // cut short on a phone (W-80.1).
+          <div
             data-testid="tenant-display"
-            align="center"
-            style={compact ? { flex: 1, minWidth: 0 } : undefined}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: compact ? token.marginXS : token.margin,
+              ...(compact ? { flex: 1, minWidth: 0 } : {}),
+            }}
           >
             {showLogo ? (
               <img
@@ -189,13 +194,13 @@ export function Header({
                 alt={`${tenantName} logo`}
                 data-testid="tenant-logo"
                 onError={onLogoError}
-                style={{ height: token.controlHeightLG, maxWidth: compact ? 96 : 160, objectFit: 'contain', display: 'block' }}
+                style={{ height: token.controlHeightLG, maxWidth: compact ? 96 : 160, objectFit: 'contain', display: 'block', flexShrink: 0 }}
               />
             ) : (
               <Avatar
                 size="large"
                 data-testid="tenant-initials"
-                style={{ background: token.colorPrimary, color: token.colorBgContainer, fontWeight: 600 }}
+                style={{ background: token.colorPrimary, color: token.colorBgContainer, fontWeight: 600, flexShrink: 0 }}
               >
                 {initials}
               </Avatar>
@@ -210,7 +215,7 @@ export function Header({
                 </Text>
               ) : null}
             </div>
-          </Space>
+          </div>
         ) : (
           <span />
         )}

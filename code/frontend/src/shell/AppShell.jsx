@@ -154,6 +154,8 @@ export function AppShell() {
           selectedKeys={selectedKey ? [selectedKey] : []}
           openKeys={openKeys}
           onOpenChange={setOpenKeys}
+          // A pick closes the phone drawer even when it is the screen already open.
+          onClick={() => setMenuOpen(false)}
           items={menuItems}
           style={{ borderRight: 0, marginTop: token.sizeUnit * 2 }}
         />

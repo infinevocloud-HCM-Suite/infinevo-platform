@@ -446,13 +446,27 @@ describe('AppShell component', () => {
       );
 
       expect(container.querySelector('.ant-layout-sider')).toBeNull();
-      expect(document.querySelector('.shell-nav-drawer .ant-drawer-open')).toBeNull();
+      expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).toBeNull();
 
       fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
       expect(await screen.findByRole('link', { name: 'Employees' })).toBeDefined();
       expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).not.toBeNull();
 
       fireEvent.click(screen.getByRole('link', { name: 'Employees' }));
+      await waitFor(() => expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).toBeNull());
+    });
+
+    it('closes the drawer when the screen already open is picked again', async () => {
+      setWidth(375);
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+      render(
+        <MemoryRouter initialEntries={['/core-people']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+      fireEvent.click(await screen.findByRole('link', { name: 'Employees' }));
       await waitFor(() => expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).toBeNull());
     });
   });
