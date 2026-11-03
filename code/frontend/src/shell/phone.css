@@ -1,0 +1,46 @@
+/*
+ * Phone widths only (W-80.1): below Ant Design's md breakpoint (768 px). At 768 px and above
+ * nothing here applies. One place, so every screen fits a phone without each being edited.
+ */
+@media (max-width: 767px) {
+  /* A wide table scrolls inside the page instead of widening it. */
+  .ant-table-wrapper .ant-table-content,
+  .ant-table-wrapper .ant-table-body {
+    overflow-x: auto;
+  }
+
+  /* Side drawers open full width; the menu drawer keeps its own width. */
+  .ant-drawer:not(.shell-nav-drawer) .ant-drawer-content-wrapper {
+    width: 100% !important;
+    max-width: 100vw;
+  }
+
+  /* A field given a fixed width on a desktop screen never runs off the right edge. */
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-select,
+  .ant-picker,
+  .ant-input-search {
+    max-width: 100%;
+  }
+
+  .ant-card .ant-card-head,
+  .ant-card .ant-card-body {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .ant-card .ant-card-head-wrapper {
+    flex-wrap: wrap;
+  }
+
+  .ant-space-horizontal {
+    flex-wrap: wrap;
+  }
+
+  .ant-page-header {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

@@ -257,4 +257,27 @@ describe('Header impersonation banner (W-65.3)', () => {
     ).rejects.toMatchObject({ isImpersonationInvalid: true });
     expect(store.getState().impersonation.session).toBeNull();
   });
+
+  it('compact (W-80.1) hides the tagline, role chips and user name, and onOpenMenu adds a menu button', () => {
+    me({ displayName: 'Gita Rao', roles: ['hr'] });
+    const onOpenMenu = vi.fn();
+    render(<Header tenantName="Acme Ltd" tagline="Making things" compact onOpenMenu={onOpenMenu} />);
+
+    expect(screen.getByText('Acme Ltd')).toBeDefined();
+    expect(screen.queryByTestId('tenant-tagline')).toBeNull();
+    expect(screen.queryByTestId('role-chips')).toBeNull();
+    expect(screen.queryByText('Gita Rao')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+    expect(onOpenMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no menu button without onOpenMenu', () => {
+    me({ displayName: 'Gita Rao', roles: ['hr'] });
+    render(<Header tenantName="Acme Ltd" tagline="Making things" />);
+
+    expect(screen.getByTestId('tenant-tagline')).toBeDefined();
+    expect(screen.getByTestId('role-chips')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+  });
 });

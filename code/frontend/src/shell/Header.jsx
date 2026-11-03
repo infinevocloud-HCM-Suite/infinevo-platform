@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { ReactReduxContext } from 'react-redux';
 import { Layout, Button, Space, Typography, Alert, Avatar, Dropdown, Tag, theme } from 'antd';
-import { CompassOutlined, DownOutlined, IdcardOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { CompassOutlined, DownOutlined, IdcardOutlined, LogoutOutlined, MenuOutlined, UserOutlined } from '@ant-design/icons';
 import { keycloak, logout } from './auth/keycloak.js';
 import { useMe, fetchMe } from './auth/useMe.js';
 import { roleLabel } from './auth/roleLabels.js';
@@ -52,8 +52,20 @@ export function initialsOf(name) {
  *     `403 IMPERSONATION_INVALID` clears it
  *   - refetches the navigation feed and `/me` whenever a session starts or stops, since both are
  *     the target's while acting and the staff member's otherwise
+ *
+ * On a phone (W-80.1) the shell passes `compact` - no tagline, role chips or user name, a smaller
+ * logo - and `onOpenMenu`, which puts a menu button first, since the side menu is a drawer there.
  */
-export function Header({ style, tenantName, tenantLogoUrl, tagline, onGettingStarted, onMyProfile }) {
+export function Header({
+  style,
+  tenantName,
+  tenantLogoUrl,
+  tagline,
+  onGettingStarted,
+  onMyProfile,
+  compact = false,
+  onOpenMenu,
+}) {
   const { token } = theme.useToken();
   const store = useContext(ReactReduxContext)?.store ?? null;
   const session = useImpersonationSession(store);
@@ -145,24 +157,39 @@ export function Header({ style, tenantName, tenantLogoUrl, tagline, onGettingSta
           top: 0,
           zIndex: 99,
           background: token.colorBgContainer,
-          padding: `0 ${token.paddingLG}px`,
+          padding: `0 ${compact ? token.padding : token.paddingLG}px`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: token.marginSM,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
           boxShadow: token.boxShadowSecondary,
           ...style,
         }}
       >
+        {onOpenMenu && (
+          <Button
+            type="text"
+            aria-label="Open menu"
+            data-testid="open-menu"
+            icon={<MenuOutlined />}
+            onClick={onOpenMenu}
+          />
+        )}
         {tenantName ? (
-          <Space size="middle" data-testid="tenant-display" align="center">
+          <Space
+            size={compact ? 'small' : 'middle'}
+            data-testid="tenant-display"
+            align="center"
+            style={compact ? { flex: 1, minWidth: 0 } : undefined}
+          >
             {showLogo ? (
               <img
                 src={tenantLogoUrl}
                 alt={`${tenantName} logo`}
                 data-testid="tenant-logo"
                 onError={onLogoError}
-                style={{ height: token.controlHeightLG, maxWidth: 160, objectFit: 'contain', display: 'block' }}
+                style={{ height: token.controlHeightLG, maxWidth: compact ? 96 : 160, objectFit: 'contain', display: 'block' }}
               />
             ) : (
               <Avatar
@@ -173,11 +200,11 @@ export function Header({ style, tenantName, tenantLogoUrl, tagline, onGettingSta
                 {initials}
               </Avatar>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
-              <Text strong style={{ fontSize: token.fontSizeLG }}>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3, minWidth: 0 }}>
+              <Text strong ellipsis={compact} style={{ fontSize: compact ? token.fontSize : token.fontSizeLG }}>
                 {tenantName}
               </Text>
-              {tagline ? (
+              {tagline && !compact ? (
                 <Text type="secondary" data-testid="tenant-tagline" style={{ fontSize: token.fontSizeSM }}>
                   {tagline}
                 </Text>
@@ -188,7 +215,7 @@ export function Header({ style, tenantName, tenantLogoUrl, tagline, onGettingSta
           <span />
         )}
         <Space size="middle" align="center">
-          {roles.length > 0 && (
+          {roles.length > 0 && !compact && (
             <Space size={4} wrap data-testid="role-chips">
               {roles.map((code) => (
                 <Tag key={code} color="blue" style={{ marginInlineEnd: 0 }}>
@@ -201,7 +228,7 @@ export function Header({ style, tenantName, tenantLogoUrl, tagline, onGettingSta
             <Button type="text" aria-label="User menu" data-testid="user-display">
               <Space size="small">
                 <UserOutlined style={{ color: token.colorTextSecondary }} />
-                {displayName && <Text strong>{displayName}</Text>}
+                {displayName && !compact && <Text strong>{displayName}</Text>}
                 <DownOutlined style={{ color: token.colorTextSecondary, fontSize: token.fontSizeSM }} />
               </Space>
             </Button>
@@ -233,4 +260,6 @@ Header.propTypes = {
   tagline: PropTypes.string,
   onGettingStarted: PropTypes.func,
   onMyProfile: PropTypes.func,
+  compact: PropTypes.bool,
+  onOpenMenu: PropTypes.func,
 };
