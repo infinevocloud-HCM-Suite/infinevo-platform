@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, Modal, theme } from 'antd';
+import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, Modal, theme, Avatar } from 'antd';
 import { PlusOutlined, UserOutlined, UploadOutlined, MailOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
@@ -13,10 +13,10 @@ import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 const { Title, Text } = Typography;
 
-const statusColorMap = {
-  ACTIVE: 'success',
-  SUSPENDED: 'warning',
-  TERMINATED: 'error',
+const statusColorStyles = {
+  ACTIVE: { background: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+  SUSPENDED: { background: '#fffbeb', color: '#d97706', border: '#fde68a' },
+  TERMINATED: { background: '#fff1f2', color: '#e11d48', border: '#fecdd3' },
 };
 
 export function EmployeeList() {
@@ -133,17 +133,36 @@ export function EmployeeList() {
       title: 'Emp ID',
       dataIndex: 'employeeNumber',
       key: 'employeeNumber',
-      render: (num) => <Text strong>{num}</Text>,
+      render: (num) => (
+        <span style={{ fontWeight: 600, color: '#0f172a', fontFamily: 'monospace' }}>
+          {num}
+        </span>
+      ),
     },
     {
       title: 'Name',
       key: 'name',
       render: (_, r) => {
         const fullName = [r.firstName, r.middleName, r.lastName].filter(Boolean).join(' ');
+        const initials = [r.firstName?.[0], r.lastName?.[0]].filter(Boolean).join('').toUpperCase() || 'U';
         return (
-          <Space size="small">
-            <UserOutlined style={{ color: token.colorPrimary }} />
-            <Text>{fullName}</Text>
+          <Space size="middle">
+            <Avatar
+              size={32}
+              style={{
+                backgroundColor: '#e0f2fe',
+                color: '#0284c7',
+                fontWeight: 700,
+                fontSize: 12,
+                border: '1px solid #bae6fd',
+              }}
+              icon={!initials ? <UserOutlined /> : undefined}
+            >
+              {initials}
+            </Avatar>
+            <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
+              <Text strong style={{ color: '#0f172a' }}>{fullName}</Text>
+            </div>
           </Space>
         );
       },
@@ -152,49 +171,85 @@ export function EmployeeList() {
       title: 'Work Email',
       dataIndex: 'workEmail',
       key: 'workEmail',
-      render: (email) => email || '—',
+      render: (email) => <span style={{ color: email ? '#334155' : '#94a3b8' }}>{email || '—'}</span>,
     },
     {
       title: 'Department',
       dataIndex: 'departmentId',
       key: 'department',
-      render: (id) => (id && masters.departments?.[id]) || '—',
+      render: (id) => <span style={{ color: '#334155' }}>{(id && masters.departments?.[id]) || '—'}</span>,
     },
     {
       title: 'Designation',
       dataIndex: 'designationId',
       key: 'designation',
-      render: (id) => (id && masters.designations?.[id]) || '—',
+      render: (id) => <span style={{ color: '#334155' }}>{(id && masters.designations?.[id]) || '—'}</span>,
     },
     {
       title: 'Location',
       dataIndex: 'workLocationId',
       key: 'workLocation',
-      render: (id) => (id && masters.workLocations?.[id]) || '—',
+      render: (id) => <span style={{ color: '#334155' }}>{(id && masters.workLocations?.[id]) || '—'}</span>,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status, r) => (
-        <Space size="small">
-          <Tag color={statusColorMap[status] || 'default'}>{statusLabel(status)}</Tag>
-          {r.isDeleted && <Tag color="error">Deleted</Tag>}
-        </Space>
-      ),
+      render: (status, r) => {
+        const customStyle = statusColorStyles[status] || { background: '#f1f5f9', color: '#475569', border: '#e2e8f0' };
+        return (
+          <Space size="small">
+            <Tag
+              style={{
+                borderRadius: 12,
+                padding: '2px 10px',
+                fontWeight: 600,
+                fontSize: 11,
+                backgroundColor: customStyle.background,
+                color: customStyle.color,
+                borderColor: customStyle.border,
+              }}
+            >
+              {statusLabel(status)}
+            </Tag>
+            {r.isDeleted && <Tag color="error" style={{ borderRadius: 12 }}>Deleted</Tag>}
+          </Space>
+        );
+      },
     },
     {
       title: 'Date of Joining',
       dataIndex: 'dateOfJoining',
       key: 'dateOfJoining',
-      render: (date) => formatDate(date),
+      render: (date) => <span style={{ color: '#64748b' }}>{formatDate(date)}</span>,
     },
   ];
 
   return (
-    <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
+    <Card
+      variant="borderless"
+      style={{
+        borderRadius: 12,
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.05)',
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: token.marginLG }}>
-        <Title level={4} style={{ margin: 0 }}>Employees</Title>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Title level={4} style={{ margin: 0, color: '#0f172a' }}>Employees</Title>
+          <Tag
+            style={{
+              borderRadius: 12,
+              backgroundColor: '#f0f9ff',
+              color: '#0284c7',
+              borderColor: '#bae6fd',
+              fontWeight: 600,
+              padding: '2px 10px',
+            }}
+          >
+            {total} Active Staff
+          </Tag>
+        </div>
         <Space wrap>
           {canExport && (
             <Button
@@ -202,16 +257,27 @@ export function EmployeeList() {
               onClick={handleExport}
               loading={exporting}
               id="btn-export-employees"
+              style={{ borderRadius: 8, borderColor: '#cbd5e1' }}
             >
               Export
             </Button>
           )}
           {canCreate && (
             <>
-              <Button icon={<MailOutlined />} onClick={handleInviteAll} id="btn-invite-all">
+              <Button
+                icon={<MailOutlined />}
+                onClick={handleInviteAll}
+                id="btn-invite-all"
+                style={{ borderRadius: 8, borderColor: '#cbd5e1' }}
+              >
                 Invite all without access
               </Button>
-              <Button icon={<UploadOutlined />} onClick={() => navigate('/employees/import')} id="btn-import-employees">
+              <Button
+                icon={<UploadOutlined />}
+                onClick={() => navigate('/employees/import')}
+                id="btn-import-employees"
+                style={{ borderRadius: 8, borderColor: '#cbd5e1' }}
+              >
                 Import
               </Button>
               <Button
@@ -219,6 +285,11 @@ export function EmployeeList() {
                 icon={<PlusOutlined />}
                 onClick={() => navigate('/employees/new')}
                 id="btn-new-employee"
+                style={{
+                  borderRadius: 8,
+                  backgroundColor: '#2563eb',
+                  boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+                }}
               >
                 New Employee
               </Button>
@@ -235,7 +306,7 @@ export function EmployeeList() {
             setSearchQuery(val);
             setPage(1);
           }}
-          style={{ width: 260 }}
+          style={{ width: 280 }}
           id="input-search-employees"
         />
 
@@ -282,7 +353,7 @@ export function EmployeeList() {
               Retry
             </Button>
           }
-          style={{ marginBottom: token.marginLG }}
+          style={{ marginBottom: token.marginLG, borderRadius: 8 }}
           id="alert-employees-load-error"
         />
       )}

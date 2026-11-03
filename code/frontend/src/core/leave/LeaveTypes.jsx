@@ -228,25 +228,70 @@ export function LeaveTypes() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4} style={{ margin: 0 }}>
-            Leave Types
-          </Title>
-        </Col>
-        <Col>
+    <Card
+      variant="borderless"
+      style={{
+        borderRadius: 16,
+        border: '1px solid #E2E8F0',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+        background: '#FFFFFF',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+          paddingBottom: 16,
+          borderBottom: '1px solid #F1F5F9',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Title level={4} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
+              Leave Types
+            </Title>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                background: '#E0F2FE',
+                color: '#0369A1',
+                border: '1px solid #BAE6FD',
+                borderRadius: 9999,
+                padding: '2px 10px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              ● {types.length} Categories
+            </span>
+          </div>
+          <Typography.Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
+            Configure leave categories, accrual rules, and policy constraints
+          </Typography.Text>
+        </div>
+
+        <div>
           {canManage && (
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={handleOpenCreate}
+              style={{
+                borderRadius: 8,
+                fontWeight: 500,
+                boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+              }}
             >
               Add Leave Type
             </Button>
           )}
-        </Col>
-      </Row>
+        </div>
+      </div>
 
       <Table
         rowKey="id"

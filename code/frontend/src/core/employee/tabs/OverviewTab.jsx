@@ -308,13 +308,26 @@ export function OverviewTab({ employee, onUpdate }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: token.margin }}>
         {canUpdate && (
-          <Button icon={<EditOutlined />} onClick={() => setIsEditing(true)} id="btn-edit-overview">
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => setIsEditing(true)}
+            id="btn-edit-overview"
+            style={{ borderRadius: 8, fontWeight: 500 }}
+          >
             Edit Details
           </Button>
         )}
       </div>
 
-      <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }}>
+      <Descriptions
+        bordered
+        column={{ xs: 1, sm: 2, md: 3 }}
+        style={{
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid #E2E8F0',
+        }}
+      >
         <Descriptions.Item label="Employee ID">{employee.employeeNumber}</Descriptions.Item>
         <Descriptions.Item label="Full Name">
           {[employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ')}

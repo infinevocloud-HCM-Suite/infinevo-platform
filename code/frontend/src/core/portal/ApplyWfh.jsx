@@ -120,16 +120,38 @@ export function ApplyWfh({ onSuccess }) {
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: token.paddingMD }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/me/wfh')}
-            data-testid="back-to-wfh-btn"
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: token.marginSM }}>
+          <Space align="center">
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={() => navigate('/me/wfh')}
+              data-testid="back-to-wfh-btn"
+              style={{ borderRadius: 8, color: '#64748B' }}
+            >
+              Back to WFH
+            </Button>
+            <div>
+              <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>Apply for Work From Home</Title>
+              <Typography.Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
+                Submit remote work schedule requests
+              </Typography.Text>
+            </div>
+          </Space>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#E0F2FE',
+              color: '#0369A1',
+              border: '1px solid #BAE6FD',
+              borderRadius: 9999,
+              padding: '4px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
           >
-            Back to WFH
-          </Button>
-          <Title level={3} style={{ margin: 0 }}>Apply for Work From Home</Title>
-          <div style={{ width: 80 }} />
+            ● Remote Work
+          </span>
         </div>
 
         {!hasAllocation && balance && (
@@ -138,7 +160,7 @@ export function ApplyWfh({ onSuccess }) {
             showIcon
             message="No WFH Quota Allocated"
             description="You do not have an active WFH quota allocated for this year. Submissions are disabled until HR allocates quota."
-            style={{ borderRadius: token.borderRadiusLG }}
+            style={{ borderRadius: 12 }}
             data-testid="no-allocation-warning"
           />
         )}
@@ -149,9 +171,9 @@ export function ApplyWfh({ onSuccess }) {
               <Row justify="space-between" align="middle">
                 <Col>
                   <Space>
-                    <InfoCircleOutlined style={{ color: token.colorPrimary }} />
+                    <InfoCircleOutlined style={{ color: '#2563EB' }} />
                     <Text strong>Current Available Quota:</Text>
-                    <Text style={{ fontSize: token.fontSizeLG, fontWeight: 700, color: token.colorPrimary }}>
+                    <Text style={{ fontSize: token.fontSizeLG, fontWeight: 700, color: '#2563EB' }}>
                       {availableDays} days
                     </Text>
                   </Space>
@@ -165,15 +187,18 @@ export function ApplyWfh({ onSuccess }) {
             }
             type="info"
             showIcon={false}
-            style={{ borderRadius: token.borderRadiusLG }}
+            style={{ borderRadius: 12, background: '#F0F9FF', border: '1px solid #BAE6FD' }}
           />
         )}
 
         <Card
           data-testid="apply-wfh-card"
+          variant="borderless"
           style={{
-            borderRadius: token.borderRadiusLG,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+            borderRadius: 16,
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+            background: '#FFFFFF',
           }}
         >
           <Form

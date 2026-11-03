@@ -229,10 +229,11 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
       <Table
         dataSource={requests}
         columns={columns}
-        rowKey={(r, index) => r.id || index}
+        rowKey={(r) => r.id || r.key || `${r.fromDate}-${r.toDate}`}
         loading={loading}
         pagination={{ pageSize: 10 }}
         locale={{ emptyText: 'No leave requests submitted yet.' }}
+        style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}
       />
 
       <Modal

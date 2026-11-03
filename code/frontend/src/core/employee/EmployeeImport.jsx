@@ -246,32 +246,91 @@ export function EmployeeImport() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
-        <Space style={{ marginBottom: token.marginLG }}>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/employees')} id="btn-back-employees">
-            Employees
-          </Button>
-          <Title level={4} style={{ margin: 0 }}>
-            Import Employees
-          </Title>
-        </Space>
+      <Card
+        variant="borderless"
+        style={{
+          borderRadius: 16,
+          border: '1px solid #E2E8F0',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+          background: '#FFFFFF',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: token.marginLG,
+            paddingBottom: token.marginMD,
+            borderBottom: '1px solid #F1F5F9',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={() => navigate('/employees')}
+              id="btn-back-employees"
+              style={{ borderRadius: 8, color: '#64748B' }}
+            >
+              Employees
+            </Button>
+            <div>
+              <Title level={4} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
+                Import Employees
+              </Title>
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                Bulk upload staff records via CSV, execute dry-run checks, and inspect job history
+              </Text>
+            </div>
+          </div>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: '#E0F2FE',
+              color: '#0369A1',
+              border: '1px solid #BAE6FD',
+              borderRadius: 9999,
+              padding: '4px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            ● CSV Import Engine
+          </span>
+        </div>
 
         <Space wrap style={{ marginBottom: token.marginLG }}>
-          <Button icon={<DownloadOutlined />} onClick={handleTemplate} id="btn-import-template">
+          <Button icon={<DownloadOutlined />} onClick={handleTemplate} id="btn-import-template" style={{ borderRadius: 8 }}>
             Download template
           </Button>
           <Upload accept=".csv" maxCount={1} showUploadList={false} beforeUpload={beforeUpload}>
-            <Button icon={<UploadOutlined />} id="btn-import-choose">
+            <Button icon={<UploadOutlined />} id="btn-import-choose" style={{ borderRadius: 8 }}>
               Choose CSV
             </Button>
           </Upload>
-          {file && <Text data-testid="import-file-name">{file.name}</Text>}
+          {file && (
+            <span
+              data-testid="import-file-name"
+              style={{
+                background: '#F1F5F9',
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontWeight: 500,
+                color: '#334155',
+                fontSize: 13,
+              }}
+            >
+              {file.name}
+            </span>
+          )}
           <Button
             icon={<ExperimentOutlined />}
             onClick={handleDryRun}
             disabled={!file}
             loading={checking}
             id="btn-import-dry-run"
+            style={{ borderRadius: 8 }}
           >
             Dry run
           </Button>
@@ -282,25 +341,40 @@ export function EmployeeImport() {
             disabled={!canImport}
             loading={importing}
             id="btn-import-start"
+            style={{
+              borderRadius: 8,
+              fontWeight: 500,
+              boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+            }}
           >
             Import
           </Button>
         </Space>
 
-        <Text type="secondary" style={{ display: 'block', marginBottom: token.margin }}>
-          Up to 1,000 rows. Rows with give_access Y are invited by email; roles (for example hr;manager) need the
-          Assign roles permission.
-        </Text>
+        <div
+          style={{
+            background: '#F0F9FF',
+            border: '1px solid #BAE6FD',
+            borderRadius: 8,
+            padding: '10px 14px',
+            marginBottom: token.margin,
+          }}
+        >
+          <Text type="secondary" style={{ display: 'block', color: '#0369A1', fontSize: 13 }}>
+            Up to 1,000 rows. Rows with give_access Y are invited by email; roles (for example hr;manager) need the
+            Assign roles permission.
+          </Text>
+        </div>
 
         {error && (
-          <Alert type="error" showIcon message={error} style={{ marginBottom: token.margin }} id="alert-import-error" />
+          <Alert type="error" showIcon message={error} style={{ marginBottom: token.margin, borderRadius: 8 }} id="alert-import-error" />
         )}
 
         {results && (
           <>
             <Space style={{ marginBottom: token.margin }} wrap>
-              <Tag color="success">{counts.ok} OK</Tag>
-              <Tag color={counts.errors ? 'error' : 'default'}>{counts.errors} with errors</Tag>
+              <Tag color="success" style={{ borderRadius: 9999 }}>{counts.ok} OK</Tag>
+              <Tag color={counts.errors ? 'error' : 'default'} style={{ borderRadius: 9999 }}>{counts.errors} with errors</Tag>
               {counts.errors > 0 && counts.ok > 0 && (
                 <Checkbox
                   checked={validOnly}
@@ -318,6 +392,7 @@ export function EmployeeImport() {
               dataSource={errorsFirst(results)}
               pagination={{ pageSize: 50 }}
               data-testid="import-dry-run-table"
+              style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}
             />
           </>
         )}
@@ -325,10 +400,15 @@ export function EmployeeImport() {
 
       <Card
         variant="borderless"
-        title="History"
-        style={{ borderRadius: token.borderRadiusLG }}
+        title={<span style={{ fontWeight: 600, color: '#0F172A' }}>History</span>}
+        style={{
+          borderRadius: 16,
+          border: '1px solid #E2E8F0',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+          background: '#FFFFFF',
+        }}
         extra={
-          <Button size="small" onClick={loadJobs} id="btn-import-history-refresh">
+          <Button size="small" onClick={loadJobs} id="btn-import-history-refresh" style={{ borderRadius: 6 }}>
             Refresh
           </Button>
         }
@@ -341,6 +421,7 @@ export function EmployeeImport() {
           loading={jobsLoading}
           pagination={false}
           data-testid="import-history-table"
+          style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}
         />
       </Card>
     </Space>

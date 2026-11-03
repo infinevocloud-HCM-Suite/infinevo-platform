@@ -336,20 +336,49 @@ export function Definitions() {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
+    <Card
+      variant="borderless"
+      style={{
+        borderRadius: 16,
+        border: '1px solid #E2E8F0',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+        background: '#FFFFFF',
+      }}
+    >
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: token.marginLG,
+          paddingBottom: token.marginMD,
+          borderBottom: '1px solid #F1F5F9',
+          flexWrap: 'wrap',
+          gap: token.marginSM,
         }}
       >
         <div>
-          <Title level={3} style={{ marginBottom: 4 }}>
-            Approval Definitions
-          </Title>
-          <Text type="secondary">
+          <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
+            <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
+              Approval Definitions
+            </Title>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                background: '#E0F2FE',
+                color: '#0369A1',
+                border: '1px solid #BAE6FD',
+                borderRadius: 9999,
+                padding: '2px 10px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              ● Multi-step Engine
+            </span>
+          </div>
+          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
             Configure multi-step approval workflows across organization flow types.
           </Text>
         </div>
@@ -360,6 +389,7 @@ export function Definitions() {
               icon={<PlusOutlined />}
               onClick={handleAddStep}
               id="btn-add-step"
+              style={{ borderRadius: 8 }}
             >
               Add Step
             </Button>
@@ -369,6 +399,11 @@ export function Definitions() {
               onClick={handleSave}
               loading={saving}
               id="btn-save-definition"
+              style={{
+                borderRadius: 8,
+                fontWeight: 500,
+                boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+              }}
             >
               Save Definition
             </Button>

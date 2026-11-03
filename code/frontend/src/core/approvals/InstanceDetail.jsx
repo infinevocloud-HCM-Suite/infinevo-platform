@@ -158,13 +158,24 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
   ];
 
   return (
-    <Card style={{ margin: token.marginLG }} loading={loading}>
+    <Card
+      variant="borderless"
+      style={{
+        borderRadius: 16,
+        border: '1px solid #E2E8F0',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+        background: '#FFFFFF',
+      }}
+      loading={loading}
+    >
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: token.marginLG,
+          paddingBottom: token.marginMD,
+          borderBottom: '1px solid #F1F5F9',
         }}
       >
         <Space size="middle">
@@ -172,10 +183,11 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate('/approvals')}
             id="btn-back-to-inbox"
+            style={{ borderRadius: 8, color: '#64748B' }}
           >
             Inbox
           </Button>
-          <Title level={3} style={{ margin: 0 }}>
+          <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
             Approval Instance Details
           </Title>
         </Space>
@@ -185,6 +197,7 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
             icon={<SwapOutlined />}
             onClick={() => setReassignOpen(true)}
             id="btn-open-reassign"
+            style={{ borderRadius: 8 }}
           >
             Reassign Step
           </Button>

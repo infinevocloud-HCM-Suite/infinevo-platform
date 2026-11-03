@@ -264,15 +264,54 @@ export function EmployeeCreate() {
   }));
 
   return (
-    <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: token.marginLG }}>
-        <Button
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/employees')}
-          style={{ marginRight: token.marginSM }}
-        />
-        <Title level={4} style={{ margin: 0 }}>Create New Employee</Title>
+    <Card
+      variant="borderless"
+      style={{
+        borderRadius: 16,
+        border: '1px solid #E2E8F0',
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+        background: '#FFFFFF',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: token.marginLG,
+          paddingBottom: token.marginMD,
+          borderBottom: '1px solid #F1F5F9',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate('/employees')}
+            style={{ marginRight: token.marginSM }}
+          />
+          <div>
+            <Title level={4} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>Create New Employee</Title>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              Onboard a new employee and configure baseline organization details
+            </Text>
+          </div>
+        </div>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: '#E0F2FE',
+            color: '#0369A1',
+            border: '1px solid #BAE6FD',
+            borderRadius: 9999,
+            padding: '4px 12px',
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          ● HR Onboarding
+        </span>
       </div>
 
       {partialFailure && (
@@ -532,56 +571,82 @@ export function EmployeeCreate() {
               </Row>
 
               <Collapse
-                style={{ marginTop: token.marginLG }}
+                style={{
+                  marginTop: token.marginLG,
+                  borderRadius: 12,
+                  border: '1px solid #E2E8F0',
+                  background: '#F8FAFC',
+                }}
                 activeKey={openPanels}
                 onChange={(keys) => setOpenPanels(Array.isArray(keys) ? keys : [keys])}
                 items={[
                   {
                     key: MORE_KEY,
-                    label: <Text strong>More</Text>,
+                    label: <Text strong style={{ color: '#1E293B' }}>More</Text>,
                     children: moreFields,
                   },
                 ]}
               />
 
-              <Title level={5} style={{ marginTop: token.marginLG }}>Portal access</Title>
-              <Checkbox
-                id="check-giveAccess"
-                checked={values.giveAccess}
-                onChange={(e) => setFieldValue('giveAccess', e.target.checked)}
+              <div
+                style={{
+                  marginTop: token.marginLG,
+                  padding: '16px 20px',
+                  borderRadius: 12,
+                  border: '1px solid #E2E8F0',
+                  background: '#F8FAFC',
+                }}
               >
-                Give portal access
-              </Checkbox>
-              {values.giveAccess && !canAssignRoles && (
-                <div style={{ marginTop: token.marginSM }}>
-                  <Text strong>Roles: </Text>
-                  <Text id="text-locked-role">Employee</Text>
-                  <div>
-                    <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
+                <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: '#0F172A' }}>Portal access</Title>
+                <Checkbox
+                  id="check-giveAccess"
+                  checked={values.giveAccess}
+                  onChange={(e) => setFieldValue('giveAccess', e.target.checked)}
+                >
+                  <Text strong style={{ color: '#1E293B' }}>Give portal access</Text>
+                </Checkbox>
+                {values.giveAccess && !canAssignRoles && (
+                  <div style={{ marginTop: token.marginSM }}>
+                    <Text strong>Roles: </Text>
+                    <Text id="text-locked-role">Employee</Text>
+                    <div>
+                      <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
+                    </div>
                   </div>
-                </div>
-              )}
-              {values.giveAccess && canAssignRoles && (
-                <div style={{ marginTop: token.marginSM }}>
-                  <label htmlFor="select-roles"><Text strong>Roles</Text></label>
-                  <Select
-                    mode="multiple"
-                    id="select-roles"
-                    style={{ width: '100%' }}
-                    placeholder="Select roles"
-                    optionFilterProp="label"
-                    options={roleOptions(roles)}
-                    value={[employeeRoleId, ...values.roleIds].filter(Boolean)}
-                    onChange={(ids) =>
-                      setFieldValue('roleIds', (ids || []).filter((rid) => rid !== employeeRoleId))
-                    }
-                  />
-                  <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
-                </div>
-              )}
+                )}
+                {values.giveAccess && canAssignRoles && (
+                  <div style={{ marginTop: token.marginSM }}>
+                    <label htmlFor="select-roles"><Text strong>Roles</Text></label>
+                    <Select
+                      mode="multiple"
+                      id="select-roles"
+                      style={{ width: '100%', marginTop: 4 }}
+                      placeholder="Select roles"
+                      optionFilterProp="label"
+                      options={roleOptions(roles)}
+                      value={[employeeRoleId, ...values.roleIds].filter(Boolean)}
+                      onChange={(ids) =>
+                        setFieldValue('roleIds', (ids || []).filter((rid) => rid !== employeeRoleId))
+                      }
+                    />
+                    <div style={{ marginTop: 4 }}>
+                      <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-              <div style={{ marginTop: token.marginLG, display: 'flex', justifyContent: 'flex-end', gap: token.marginSM }}>
-                <Button onClick={() => navigate('/employees')}>Cancel</Button>
+              <div
+                style={{
+                  marginTop: token.marginXL,
+                  paddingTop: token.marginMD,
+                  borderTop: '1px solid #F1F5F9',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: token.marginSM,
+                }}
+              >
+                <Button onClick={() => navigate('/employees')} style={{ borderRadius: 8 }}>Cancel</Button>
                 <Button
                   type="primary"
                   icon={<SaveOutlined />}
@@ -589,6 +654,11 @@ export function EmployeeCreate() {
                   disabled={Boolean(partialFailure)}
                   onClick={onCreate}
                   id="btn-submit-employee"
+                  style={{
+                    borderRadius: 8,
+                    fontWeight: 500,
+                    boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+                  }}
                 >
                   Create Employee
                 </Button>

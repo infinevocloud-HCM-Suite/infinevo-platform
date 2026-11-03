@@ -25,10 +25,40 @@ export function UsersScreen() {
   return (
     <div style={{ padding: 24 }}>
       <Breadcrumb items={[{ title: 'Home' }, { title: 'Users & access' }]} style={{ marginBottom: 16 }} />
-      <Title level={3} style={{ marginTop: 0 }}>
-        Users &amp; access
-      </Title>
-      <Card>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
+            Users &amp; access
+          </Title>
+          <Typography.Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
+            Manage active user accounts, security roles, and onboarding invitations
+          </Typography.Text>
+        </div>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: '#E0F2FE',
+            color: '#0369A1',
+            border: '1px solid #BAE6FD',
+            borderRadius: 9999,
+            padding: '4px 12px',
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          ● Identity &amp; Access
+        </span>
+      </div>
+      <Card
+        variant="borderless"
+        style={{
+          borderRadius: 16,
+          border: '1px solid #E2E8F0',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+          background: '#FFFFFF',
+        }}
+      >
         <Tabs
           activeKey={tab}
           onChange={(key) => setParams(key === 'users' ? {} : { tab: key }, { replace: true })}

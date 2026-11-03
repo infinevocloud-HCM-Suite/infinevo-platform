@@ -203,6 +203,7 @@ export function EmployeePage() {
   }
 
   const fullName = [employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ');
+  const initials = `${employee.firstName?.[0] || ''}${employee.lastName?.[0] || ''}`.toUpperCase() || 'EM';
   // Both suspended and terminated employees can be reactivated back to ACTIVE.
   const canReactivate = employee.status === 'SUSPENDED' || employee.status === 'TERMINATED';
   const canTerminate = employee.status === 'ACTIVE' || employee.status === 'SUSPENDED';
@@ -236,23 +237,60 @@ export function EmployeePage() {
   return (
     <div>
       {/* Header bar */}
-      <Card variant="borderless" style={{ marginBottom: token.marginLG, borderRadius: token.borderRadiusLG }}>
+      <Card
+        variant="borderless"
+        style={{
+          marginBottom: token.marginLG,
+          borderRadius: 16,
+          border: '1px solid #E2E8F0',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+          background: '#FFFFFF',
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: token.marginSM }}>
           <Space size="middle">
             <Button
               type="text"
               icon={<ArrowLeftOutlined />}
               onClick={() => navigate('/employees')}
+              style={{ borderRadius: 8, color: '#64748B' }}
             />
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: '#E0F2FE',
+                color: '#0284C7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 16,
+                fontWeight: 700,
+                border: '1px solid #BAE6FD',
+                flexShrink: 0,
+              }}
+            >
+              {initials}
+            </div>
             <div>
               <Space align="center" size="small">
-                <Title level={4} style={{ margin: 0 }}>{fullName}</Title>
-                <Tag color={statusColorMap[employee.status] || 'default'}>{statusLabel(employee.status)}</Tag>
+                <Title level={4} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>{fullName}</Title>
+                <Tag
+                  color={statusColorMap[employee.status] || 'default'}
+                  style={{
+                    borderRadius: 9999,
+                    fontWeight: 500,
+                    padding: '1px 10px',
+                  }}
+                >
+                  {statusLabel(employee.status)}
+                </Tag>
                 {(!access || access?.state === 'NONE') && (
                   <>
-                    <Tag id="tag-access">No access</Tag>
+                    <Tag id="tag-access" style={{ borderRadius: 9999 }}>No access</Tag>
                     {canInvite && (
-                      <Button size="small" id="btn-invite-employee" onClick={handleInvite}>
+                      <Button size="small" id="btn-invite-employee" onClick={handleInvite} style={{ borderRadius: 6 }}>
                         Invite
                       </Button>
                     )}
@@ -260,12 +298,12 @@ export function EmployeePage() {
                 )}
                 {access?.state === 'INVITED' && (
                   <>
-                    <Tag color="processing" id="tag-access">
+                    <Tag color="processing" id="tag-access" style={{ borderRadius: 9999 }}>
                       {`Invited, expires ${formatDate(access.expiresAt)}`}
                     </Tag>
                     {canInvite && (
                       <>
-                        <Button size="small" id="btn-resend-invitation" onClick={handleResend}>
+                        <Button size="small" id="btn-resend-invitation" onClick={handleResend} style={{ borderRadius: 6 }}>
                           Resend
                         </Button>
                         <Popconfirm
@@ -274,7 +312,7 @@ export function EmployeePage() {
                           okButtonProps={{ danger: true, id: 'btn-confirm-revoke-invitation' }}
                           onConfirm={handleRevoke}
                         >
-                          <Button size="small" danger id="btn-revoke-invitation">
+                          <Button size="small" danger id="btn-revoke-invitation" style={{ borderRadius: 6 }}>
                             Revoke
                           </Button>
                         </Popconfirm>
@@ -284,15 +322,15 @@ export function EmployeePage() {
                 )}
                 {access?.state === 'ACTIVE' && (
                   <>
-                    <Tag color="success" id="tag-access">Active</Tag>
+                    <Tag color="success" id="tag-access" style={{ borderRadius: 9999 }}>Active</Tag>
                     {(access.roles || []).map((r) => (
-                      <Tag key={r.id}>{r.code}</Tag>
+                      <Tag key={r.id} style={{ borderRadius: 9999 }}>{r.code}</Tag>
                     ))}
                   </>
                 )}
               </Space>
-              <Text type="secondary" style={{ display: 'block', marginTop: 2 }}>
-                Emp ID: {employee.employeeNumber} {employee.workEmail ? `• ${employee.workEmail}` : ''}
+              <Text type="secondary" style={{ display: 'block', marginTop: 2, fontSize: 13 }}>
+                Emp ID: <span style={{ color: '#0F172A', fontWeight: 500 }}>{employee.employeeNumber}</span> {employee.workEmail ? `• ${employee.workEmail}` : ''}
               </Text>
             </div>
           </Space>
@@ -304,6 +342,7 @@ export function EmployeePage() {
                 icon={<CalendarOutlined />}
                 onClick={() => navigate(`/employees/${id}/leave`)}
                 id="btn-employee-leave"
+                style={{ borderRadius: 8 }}
               >
                 Leave
               </Button>
@@ -314,6 +353,7 @@ export function EmployeePage() {
                 icon={<MailOutlined />}
                 onClick={handleInvite}
                 id="btn-send-employee-invitation"
+                style={{ borderRadius: 8 }}
               >
                 Send Invitation
               </Button>
@@ -324,6 +364,7 @@ export function EmployeePage() {
                 icon={<MailOutlined />}
                 onClick={handleResend}
                 id="btn-resend-employee-invitation"
+                style={{ borderRadius: 8 }}
               >
                 Resend Invitation
               </Button>
@@ -335,6 +376,7 @@ export function EmployeePage() {
                 icon={<CheckCircleOutlined />}
                 onClick={handleReactivate}
                 id="btn-reactivate-employee"
+                style={{ borderRadius: 8 }}
               >
                 Reactivate
               </Button>
@@ -346,6 +388,7 @@ export function EmployeePage() {
                 icon={<StopOutlined />}
                 onClick={() => setTerminateModalOpen(true)}
                 id="btn-terminate-employee"
+                style={{ borderRadius: 8 }}
               >
                 Terminate
               </Button>
@@ -358,6 +401,7 @@ export function EmployeePage() {
                 icon={<DeleteOutlined />}
                 onClick={handleDelete}
                 id="btn-delete-employee"
+                style={{ borderRadius: 8 }}
               >
                 Delete
               </Button>
@@ -367,7 +411,15 @@ export function EmployeePage() {
       </Card>
 
       {/* Tabs */}
-      <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
+      <Card
+        variant="borderless"
+        style={{
+          borderRadius: 16,
+          border: '1px solid #E2E8F0',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+          background: '#FFFFFF',
+        }}
+      >
         <Tabs defaultActiveKey="overview" items={tabItems} destroyInactiveTabPane={false} />
       </Card>
 
