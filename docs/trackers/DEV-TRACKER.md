@@ -31,7 +31,7 @@ lane so two lanes never collide on a version.
 | Developer | Branch | Lane | Order | Migrations |
 |---|---|---|---|---|
 | sayeed | `dev-sayeed` | 1a employee & org · 5 statutory settings, lines and screens · tax deductor | ~~`W-52.1`~~ ~~`W-53.1`~~ **on main `5c07c45`** ~~`W-13.4`~~ **on main `e699699`** ~~`W-09.1`~~ **on main `c79755c`** ~~`W-13.3`~~ ~~`W-14.2`~~ **on main `ccc8e48`** ~~`W-39.1`~~ **on main `3bf5b10`** → D-9 manual checks → ~~`W-31.1`~~ ~~`W-31.2`~~ **on main `ac94662`** → ~~`W-31.3`~~ **on main `ed180b1`** ~~`W-35.1`~~ **on main `840bf2e`** → ~~`W-36.3`~~ ~~`W-31.4`~~ ~~`W-47.1a`~~ ~~`W-47.1b`~~ **on main `2780d098`** → ~~`D-106`~~ (org master exposure) **on main `2547ab2d`** → ~~`D-108`~~ (logout return route) **on main `1ac99343`** → ~~`D-109`~~ (employee document dropdowns) **on main `b1296254`** → ~~`D-110`~~ (dashboard landing & navigation) **on main `a82fbffd`** → ~~`D-111`~~ (nationality, state, relationship dropdowns) **on main `0da553d0`** → ~~`D-112`~~ **on main `f7cf7b51`** → ~~`D-113`~~ **on main `78ce6ed2`** → ~~`D-114`~~ **on main `71135a50`** → ~~`D-115`~~ **on main `a0758fea`** → ~~`D-116`~~ **on main `d2f9a944`** → Stage 21 Track A (`W-74` WFH employee self-service `/me/wfh`) live verified on Azure Dev (S21-01 to S21-09 PASS) — queue empty, D-9 still open (`W-36.1` and `W-40` moved to karma 2026-10-02; `W-47.1a` from karma 2026-10-02) | `V026`–`V032` (`V030` used) · `V062`–`V069` · `V107` `W-36.3` used (**on main `2780d098`**) |
-| krushna | `dev-krushna` | 2 tenant & onboarding · 7a working-day policy & schedule · 7c pay run compute · QA defects · WFH | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** ~~`W-24.1`~~ ~~`W-17`~~ ~~`W-24.2`~~ ~~`W-18.1`~~ ~~`W-28`~~ **on main `288f9fa`** ~~`W-29.1`~~ ~~`W-29.2`~~ ~~`W-29.3`~~ ~~`W-29.4`~~ **on main `7dfd74e`** ~~`W-18.2`~~ **on main `b580d8b`** ~~`W-30.2`~~ ~~`W-35.2`~~ ~~`W-36.2`~~ **on main `9d5c0a0`** ~~`W-47.2`~~ **on main `36c02d1`** ~~`W-38.1`~~ ~~`W-38.3`~~ ~~`W-47.6`~~ **on main `2780d098`** (branch `krushna-tickets`) ~~`W-38.2`~~ **on main `6e19dd89`** (built in `batch-2026-10-03`) → **QA Defect Remediation: Day 4 & Day 2 resolved, `D-50` (Bulk Leave Import Sample Template) resolved** → ~~`W-74`~~ **on main `f959ab51`** → ~~`D-107`~~ (WFH UI Screen Layout & Leave Parity) **fixed on main `c5b9bd1f`** → ~~`D-124`~~ & ~~`D-125`~~ **fixed on main `134be96a`** → ~~`D-126`~~ (ENH-D4-11 self-service approval trail) **fixed on main `cabc1b99`** → ~~`D-133`~~ & ~~`D-135`~~ **fixed on main `39668cd9`** → `D-134` (Manager Role Filter) **fixed & verified locally** → `D-136` (`HRMS-DEF-TS-01` Timesheet Task Selector Shows All Project Tasks Instead of Assignee Tasks) **fixed & verified locally** → `D-137` (`UI-ENH-TS-01` Timesheet Weekly Entry Box Layout & Weekend Red Border UI Enhancement) **fixed & verified locally** | `V140` `W-38.1` used (**on main `2780d098`**) · `V033`–`V036` used · `V054` used · `V116`–`V119` used · `V055`–`V059` used · `V125` used · `V061`, `V100`–`V101`, `V103` used (**on main `9d5c0a0`**) · `V179`–`V184` used for `W-74` |
+| krushna | `dev-krushna` | 2 tenant & onboarding · 7a working-day policy & schedule · 7c pay run compute · QA defects · WFH · 10/10 UI Redesign | ~~`W-12.1`~~ ~~`W-12.2`~~ **on main `b7d03ec`** ~~`W-12.3`~~ **on main `a4f31ae`** ~~`W-24.1`~~ ~~`W-17`~~ ~~`W-24.2`~~ ~~`W-18.1`~~ ~~`W-28`~~ **on main `288f9fa`** ~~`W-29.1`~~ ~~`W-29.2`~~ ~~`W-29.3`~~ ~~`W-29.4`~~ **on main `7dfd74e`** ~~`W-18.2`~~ **on main `b580d8b`** ~~`W-30.2`~~ ~~`W-35.2`~~ ~~`W-36.2`~~ **on main `9d5c0a0`** ~~`W-47.2`~~ **on main `36c02d1`** ~~`W-38.1`~~ ~~`W-38.3`~~ ~~`W-47.6`~~ **on main `2780d098`** (branch `krushna-tickets`) ~~`W-38.2`~~ **on main `6e19dd89`** (built in `batch-2026-10-03`) → **QA Defect Remediation: Day 4 & Day 2 resolved, `D-50` (Bulk Leave Import Sample Template) resolved** → ~~`W-74`~~ **on main `f959ab51`** → ~~`D-107`~~ (WFH UI Screen Layout & Leave Parity) **fixed on main `c5b9bd1f`** → ~~`D-124`~~ & ~~`D-125`~~ **fixed on main `134be96a`** → ~~`D-126`~~ (ENH-D4-11 self-service approval trail) **fixed on main `cabc1b99`** → ~~`D-133`~~ & ~~`D-135`~~ **fixed on main `39668cd9`** → `D-134` (Manager Role Filter) **fixed & verified locally** → `D-136` (`HRMS-DEF-TS-01` Timesheet Task Selector Shows All Project Tasks Instead of Assignee Tasks) **fixed & verified locally** → `D-137` (`UI-ENH-TS-01` Timesheet Weekly Entry Box Layout & Weekend Red Border UI Enhancement) **fixed & verified locally** → **10/10 UI Redesign**: `W-80` (Core Screens), `W-81` (HRMS Screens), `W-82` (Payroll Screens) | `V140` `W-38.1` used (**on main `2780d098`**) · `V033`–`V036` used · `V054` used · `V116`–`V119` used · `V055`–`V059` used · `V125` used · `V061`, `V100`–`V101`, `V103` used (**on main `9d5c0a0`**) · `V179`–`V184` used for `W-74` |
 | devashis | `dev-devashis` | 3 documents, notifications, reporting · 7b pay input ledger & captures · HRMS projects · admin console · proof of investment · payslips | ~~`W-21`~~ ~~`W-20.1`~~ ~~`W-23.1`~~ ~~`W-20.2`~~ ~~`W-22.2`~~ ~~`W-23.2`~~ ~~`W-19`~~ ~~`W-30.1`~~ ~~`W-39.2`~~ **on main `b6e6012`** ~~`W-41`~~ ~~`W-65.1`~~ ~~`W-65.2`~~ ~~`W-34.1`~~ ~~`W-34.3`~~ **on main `5fa04b1`** ~~`W-34.2`~~ **on main `5fa04b1` and `6e19dd89`** ~~`W-42.1`~~ ~~`W-42.2`~~ ~~`W-42.4`~~ ~~`W-42.3`~~ ~~`W-43.1`~~ ~~`W-43.2`~~ **on main `2780d098`** (branch `dev-devashish`) | `V031`–`V032` · `V037`–`V041` · `V060` · `V093`–`V096` — all used · `V110`–`V114` `W-34.1` (`V110` a `reference` script) · `V115` `W-34.2` · `V141`–`V144` `W-42.1` · `V145` `W-42.2` · `V146` `W-43.1` — used (**on main `2780d098`**) |
 | karma | `dev-karma` | 1b approvals, leave & portal · employee TDS · HRMS attendance · salary structure screens | ~~`W-15.1`~~ ~~`W-15.2`~~ ~~`W-15.3`~~ **on main `a34c14f`** ~~`W-16.1`~~ ~~`W-16.2`~~ ~~`W-16.3`~~ ~~`W-16.4a`~~ ~~`W-16.4b`~~ ~~`W-25`~~ **on main `a53e311`** ~~`W-36.1`~~ **on main `9263c30`** ~~`W-40.1`~~ ~~`W-40.2`~~ ~~`W-40.5`~~ ~~`W-40.3`~~ **on main `2780d098`** ~~`W-40.4`~~ ~~`W-40.6`~~ **on main `6e19dd89`** (built in `batch-2026-10-03`) ~~`W-10.1`~~ **on main `889b09b`** ~~`W-52.2`~~ **on main `cc8bd8ce`** (fixes `D-11`) (`W-36.1`, `W-40` from sayeed 2026-10-02, `W-47.1a` moved to sayeed 2026-10-02; resets `dev-karma` to `main` first) | `V089`–`V092` used · `V126`–`V134` used · `V102` used (**on main `9263c30`**) · `V120`–`V123` and `V139` used (**on main `2780d098`**; `V139` kept outside the block, founder 2026-10-03) · `V120`–`V124` `W-40` (`V121` `.1` · `V122` `.2`, a `reference` script · `V123` `.3` · `V124` `.4` · `V120` `.5`, a `core` script; `.6` has none — reserved 2026-09-30; `.1`–`.4` moved up from `V116`–`V119`, which krushna's lane used on main `288f9fa`) |
 | biren | `dev-biren` | 4 salary structure & FBP · 8 frontend shell & core screens | ~~`W-26.1`~~ ~~`W-26.2`~~ **on main `a3ad0a3`** ~~`W-27.1`~~ ~~`W-27.2`~~ **on main `79c8825`** ~~`W-45`~~ ~~`W-46.1`~~ ~~`W-46.3a`~~ ~~`W-46.4`~~ **on main `11ec157`** ~~`W-46.3b`~~ ~~`W-46.6`~~ ~~`W-46.7`~~ **on main `24bb261`** ~~`W-46.2`~~ ~~`W-46.5`~~ **on main `2780d098`** (branch `dev-biren4s`) ~~`W-47.4`~~ ~~`W-37`~~ ~~`W-47.5`~~ **on main `6e19dd89`** (built in `batch-2026-10-03`) | `V042`–`V053` used · frontend: none |
@@ -73,6 +73,14 @@ lane so two lanes never collide on a version.
 | Ticket | From | To |
 |---|---|---|
 | `W-47.1a` | karma | sayeed |
+
+**2026-11-03 — assigned to krushna** (10/10 UI Redesign across all screens: Core, HRMS, and Payroll per target specs `W-80`, `W-81`, `W-82`). No database migration.
+
+| Ticket | From | To | Scope |
+|---|---|---|---|
+| `W-80` | unassigned | krushna | 10/10 Professional UI Redesign — Part 1: Core Module Screens (37 screens) |
+| `W-81` | unassigned | krushna | 10/10 Professional UI Redesign — Part 2: HRMS Module Screens (19 screens) |
+| `W-82` | unassigned | krushna | 10/10 Professional UI Redesign — Part 3: Payroll Module Screens (26 screens) |
 
 **2026-09-25.** sayeed holds every open defect (D-2, D-3, D-6, D-7, D-8, D-9) and follows
 them with the employee chain, since `W-13.4` and `W-13.3` both touch `core.employee`. No
@@ -1634,17 +1642,41 @@ dev environment crash-loops on the next deploy.
 | **Resolution** | 1. In `code/frontend/src/hrms/timesheet/TimesheetWeek.jsx`:<br>&nbsp;&nbsp;&nbsp;&nbsp;• Detect weekend days (`const isWeekend = dayjs(date).day() === 0 || dayjs(date).day() === 6`).<br>&nbsp;&nbsp;&nbsp;&nbsp;• In `dayColumns.title`, format header as `${dayjs(date).format('ddd DD/MM')}` and apply red color style (`color: '#cf1322'`, `fontWeight: 600`) when `isWeekend` is true.<br>&nbsp;&nbsp;&nbsp;&nbsp;• Wrap the day inputs inside a structured card container (`day-cell-card`): when `isWeekend` is true, apply `background: '#fff1f0'`, `borderColor: '#ffa39e'`, and red-tinted input borders; for weekdays, apply neutral white card background with `#d9d9d9` border.<br>&nbsp;&nbsp;&nbsp;&nbsp;• Ensure the top hours box has centered alignment and the bottom description box has placeholder `"Description"`.<br>2. Verify with unit tests in `TimesheetWeek.test.jsx`. |
 | **Status** | **fixed & verified locally** (`UI-ENH-TS-01`) — double-box day cards, weekend red headers, light-pink tint & coral borders; verified with unit tests (`TimesheetWeek.test.jsx`), 0 lint warnings, clean build. |
 
+---
 
+## 46. Feature W-80 — 10/10 Professional UI Redesign: Part 1 Core Module Screens
 
+| Field | Value |
+|---|---|
+| **Ticket ID** | `W-80` |
+| **Owner** | krushna (`dev-krushna` / `feature/ui-professional-specs`) |
+| **Status** | **Assigned** (Target specification in `docs/target-state/features/W-80-ui-spec-part1-core-screens.md`) |
+| **Module / Screens** | Core Module (37 Screens total): Employee Directory (`/employees`), Onboarding Stepper (`/employees/new`), Pre-Validation Bulk Import (`/employees/import`), 360 Profile (`/employees/:id`), Departments, Designations, Work Locations, Approvals Inbox (`/approvals`), Visual Decision Stepper, Delegations, Approval Workflows, Holiday Calendars, Leave Policies, Allocations, Admin Leave Requests, WFH Policies & Requests, Users & Access, Roles (RBAC), Audit Log, Company Branding Studio, Multi-tenant Admin Console, and Core Self-Service Portal panels (`/me`). |
+| **Scope & Philosophy** | Non-breaking visual overhaul to 10/10 enterprise SaaS tier. Sky Blue (`#E0F2FE`), Royal Blue (`#2563EB`), and Crisp White (`#FFFFFF`) with Slate text hierarchy (`#0F172A`). 100% parity with existing API endpoints, Redux state, and routes. |
 
+---
 
+## 47. Feature W-81 — 10/10 Professional UI Redesign: Part 2 HRMS Module Screens
 
+| Field | Value |
+|---|---|
+| **Ticket ID** | `W-81` |
+| **Owner** | krushna (`dev-krushna` / `feature/ui-professional-specs`) |
+| **Status** | **Assigned** (Target specification in `docs/target-state/features/W-81-ui-spec-part2-hrms-screens.md`) |
+| **Reference Assets** | `d:\HCM Project\ui_preview\1_dashboard.jpg` and `2_timesheet.jpg` |
+| **Module / Screens** | HRMS Module (19 Screens total): HRMS Dashboard (`/hrms/dashboard`), ClockCard & Web Clock-In (`/hrms/attendance`), Company Punch Log (`/hrms/attendance-log`), Attendance Settings, Timesheet Archive (`/hrms/timesheets`), Weekly Timesheet Grid (`/hrms/timesheets/week/:weekStart`), Timesheet Review Dashboard (`/hrms/timesheet-review`), Review Week View, Entry Inspector, Projects Directory (`/hrms/projects`), Project Workspace (`/hrms/projects/:id`), My Work Task Board, Regularizations (`/hrms/regularizations`), All Regularizations Log, Overtime Requests & Audit Ledger. |
+| **Key UI Fixes** | 1. Replace harsh solid red weekend headers on Timesheets with refined neutral slate (`#F1F5F9`) and muted text (`#64748B`).<br>2. Replace bulky card-in-card inputs with compact, spreadsheet-style time entry cells.<br>3. Elevate dashboard to match `1_dashboard.jpg` with interactive leave dots calendar, mini-chart metrics, and quick actions. |
 
+---
 
+## 48. Feature W-82 — 10/10 Professional UI Redesign: Part 3 Payroll Module Screens
 
-
-
-
-
-
+| Field | Value |
+|---|---|
+| **Ticket ID** | `W-82` |
+| **Owner** | krushna (`dev-krushna` / `feature/ui-professional-specs`) |
+| **Status** | **Assigned** (Target specification in `docs/target-state/features/W-82-ui-spec-part3-payroll-screens.md`) |
+| **Reference Asset** | `d:\HCM Project\ui_preview\3_payroll_payrun.jpg` |
+| **Module / Screens** | Payroll Module (26 Screens total): Payroll Executive Dashboard (`/payroll/dashboard`), Pay Run History (`/payroll/runs`), Off-Cycle Run Wizard (`/payroll/runs/new-off-cycle`), Pay Run Cockpit (`/payroll/runs/:id`), Lines Drawer, Components Master (`/payroll/components`), Employee Salary Setup Tab (`/employees/:id`), Claims Admin Ledger (`/payroll/claims`), Dual-Pane Receipt Inspector, Deductions Master & Batch Grid (`/payroll/deductions`), IT Declaration Window Settings, Employee Tax Portal (`/me`), Officer Tax Audit Workbench, Form 16 Generator, Settings Layout (`/payroll/settings`), Pay Schedule, EPF, ESI, Professional Tax, FBP Plan, Prior Payroll Import, Digital Payslip Gallery & Interactive Payslip (`/me/payslips/:payrunId`), and Secure Public Payslip Verification (`/public/payslips`). |
+| **Key UI Fixes** | 1. **Financial Table Alignment**: Enforce strict right-alignment with `font-variant-numeric: tabular-nums` for all currency amounts across Pay Run tables and slips.<br>2. **Pay Run Cockpit**: Match `3_payroll_payrun.jpg` with interconnected progress stepper, sky-blue highlight metric cards, and slide-over employee lines drawer. |
 
