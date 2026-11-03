@@ -116,6 +116,12 @@ public class LeaveEligibilityServiceImpl implements LeaveEligibilityService {
             }
         }
 
+        // W-79.1: a policy limited to named employees is eligible only for them
+        if (allowedByDimension.containsKey("employee")
+                && !allowedByDimension.get("employee").contains(employee.getId())) {
+            return false;
+        }
+
         return true;
     }
 

@@ -162,6 +162,28 @@ class LeaveEligibilityServiceTest {
     }
 
     @Test
+    @DisplayName("employee dimension (W-79.1): only the named employees are eligible, ANDed with the others")
+    void employeeDimensionFilters() {
+        UUID named = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        when(eligibilityRepository.findByTenantIdAndPolicyId(tenantId, policyId))
+                .thenReturn(List.of(
+                        new LeavePolicyEligibility(tenantId, policyId, "employee", named),
+                        new LeavePolicyEligibility(tenantId, policyId, "department", deptA)));
+
+        Employee namedInA = createEmployee(createDepartment(deptA), null, null, "Male");
+        when(namedInA.getId()).thenReturn(named);
+        Employee otherInA = createEmployee(createDepartment(deptA), null, null, "Male");
+        when(otherInA.getId()).thenReturn(other);
+        Employee namedInB = createEmployee(createDepartment(deptB), null, null, "Male");
+        when(namedInB.getId()).thenReturn(named);
+
+        assertThat(service.isEligible(namedInA, leaveType, today)).isTrue();
+        assertThat(service.isEligible(otherInA, leaveType, today)).isFalse();
+        assertThat(service.isEligible(namedInB, leaveType, today)).isFalse();
+    }
+
+    @Test
     @DisplayName("combined dimensions are AND, not OR: employee must satisfy every active dimension")
     void combinedDimensionsAreAndNotOr() {
         when(eligibilityRepository.findByTenantIdAndPolicyId(tenantId, policyId))

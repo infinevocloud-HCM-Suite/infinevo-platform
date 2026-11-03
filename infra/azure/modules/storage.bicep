@@ -70,8 +70,8 @@ var containerNames = [
   'documents'
   'payslips'
   'proofs'
-  // W-71: legacy MySQL dumps and each rehearsal's results, read and written by
-  // caj-data-migration-{env}. Already present on dev since 2026-10-19.
+  // W-71: the legacy MySQL dumps and the rehearsals' results. The data migration
+  // finished 2026-11-01 and its job is removed; the container is kept as the archive.
   'migration-dumps'
 ]
 

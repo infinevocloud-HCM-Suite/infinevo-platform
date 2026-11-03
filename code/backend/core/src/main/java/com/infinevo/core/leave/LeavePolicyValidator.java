@@ -9,7 +9,9 @@ import java.util.Set;
  */
 public final class LeavePolicyValidator {
 
-    private static final Set<String> ALLOWED_DIMENSIONS = Set.of("department", "designation", "work_location");
+    /** {@code employee}: the policy is limited to named employees, value = employee id (W-79.1). */
+    private static final Set<String> ALLOWED_DIMENSIONS =
+            Set.of("department", "designation", "work_location", "employee");
 
     private LeavePolicyValidator() {}
 
@@ -81,7 +83,7 @@ public final class LeavePolicyValidator {
                 }
                 if (!ALLOWED_DIMENSIONS.contains(dim)) {
                     throw new IllegalArgumentException("Unsupported eligibility dimension: '" + elig.dimension()
-                            + "'. Allowed: department, designation, work_location");
+                            + "'. Allowed: department, designation, work_location, employee");
                 }
                 if (elig.valueId() == null) {
                     throw new IllegalArgumentException("Eligibility valueId must not be null");

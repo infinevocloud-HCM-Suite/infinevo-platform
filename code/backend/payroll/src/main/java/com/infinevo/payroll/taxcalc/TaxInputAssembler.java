@@ -48,6 +48,7 @@ import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -85,6 +86,13 @@ public class TaxInputAssembler {
     private final CtcEpfComponentRepository ctcEpfComponentRepository;
     /** Verified proof figures in place of declared ones (W-34.2); {@code null} where no proof feature is wired. */
     private final ProofAdjustment proofAdjustment;
+    /** The pay run's PF test (W-78.1); {@code null} where it is not wired, and then PF counts as before. */
+    private PfApplicability pfApplicability;
+
+    @Autowired(required = false)
+    void setPfApplicability(PfApplicability pfApplicability) {
+        this.pfApplicability = pfApplicability;
+    }
 
     @Autowired
     public TaxInputAssembler(
@@ -380,6 +388,10 @@ public class TaxInputAssembler {
         boolean hasStructurePt = false;
         Money ptTotal = Money.ZERO;
         Map<UUID, Optional<Money>> epfMonthlyByVersionId = new HashMap<>();
+        // W-78.1: from this month on, the salary's employee PF counts only while the pay run would
+        // deduct it (company EPF on, employee ticked). Months already past keep the salary's PF.
+        boolean pfDeductedNow = pfApplicability == null || pfApplicability.applies(tenantId, employeeId);
+        YearMonth thisMonth = YearMonth.now(ZoneOffset.UTC);
 
         for (MonthProjection mp : salaryResult.months()) {
             YearMonth currentYm = mp.month();
@@ -416,7 +428,9 @@ public class TaxInputAssembler {
                     }
                 }
 
-                Optional<Money> monthlyEpf = resolveMonthlyEpf(tenantId, version, epfMonthlyByVersionId);
+                Optional<Money> monthlyEpf = pfDeductedNow || currentYm.isBefore(thisMonth)
+                        ? resolveMonthlyEpf(tenantId, version, epfMonthlyByVersionId)
+                        : Optional.empty();
                 if (monthlyEpf.isPresent()) {
                     hasStructureEpf = true;
                     epfTotal = epfTotal.add(monthlyEpf.get());

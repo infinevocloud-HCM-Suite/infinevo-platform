@@ -19,6 +19,13 @@ vi.mock('../org/workLocationService.js', () => ({
   workLocationService: { list: vi.fn().mockResolvedValue([]) },
 }));
 
+vi.mock('../employee/employeeService.js', () => ({
+  employeeService: {
+    list: vi.fn().mockResolvedValue({ content: [] }),
+    get: vi.fn().mockResolvedValue({ id: 'emp-7', firstName: 'Asha', lastName: 'Rao', employeeNumber: 'P007' }),
+  },
+}));
+
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn(),
   errorMsg: vi.fn(),
@@ -177,6 +184,26 @@ describe('PolicyForm component', () => {
         expect.objectContaining({
           pastBookingLimitDays: 15,
         })
+      );
+    });
+  });
+
+  it('names the employees a policy is limited to and sends them back as employee rows (W-79.1)', async () => {
+    leaveTypeService.savePolicy.mockResolvedValueOnce({ success: true });
+    const limited = {
+      ...dummyLeaveType,
+      policy: { ...dummyLeaveType.policy, eligibility: [{ dimension: 'employee', valueId: 'emp-7' }] },
+    };
+
+    render(<PolicyForm leaveType={limited} />);
+
+    await waitFor(() => expect(screen.getByText('Asha Rao (P007)')).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: /Save Policy/i }));
+
+    await waitFor(() => {
+      expect(leaveTypeService.savePolicy).toHaveBeenCalledWith(
+        'type-1',
+        expect.objectContaining({ eligibility: [{ dimension: 'employee', valueId: 'emp-7' }] })
       );
     });
   });

@@ -28,8 +28,8 @@
 
 - `W-76.1` dropped: removing saved rows would have stopped employer PF being paid.
 - Migrated company: ESI employer in CTC turned on (2026-11-01, matches legacy). EDLI / admin structure switches are off, as legacy, so EDLI / admin are no longer paid there.
-- `caj-data-migration-dev` and its `data-migration` image deleted from Azure 2026-11-01 (migration done); its Bicep module and `code/migration/` remain.
-- **Left:** tax projection reads the saved employee PF row (TDS lags a PF untick until revise); LWF not calculated; DOB lookup costs 2 queries per PF+EPS employee per run.
+- `caj-data-migration-dev` and its `data-migration` image deleted from Azure 2026-11-01 (migration done); its Bicep module, Docker files, CI job and `code/migration/` removed 2026-11-03 (git history keeps them).
+- **Left:** LWF not calculated; DOB lookup costs 2 queries per PF+EPS employee per run.
 - **Branches:** `dev-claude-w76` can be deleted.
 
 ## 2026-10-30 — W-75 salary setup on `main` (`589f6a07`)

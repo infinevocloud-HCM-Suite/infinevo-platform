@@ -27,7 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * <p>Verifies constraints on {@code core.leave_policy_eligibility}:
  * <ul>
  *   <li>A second row for the same {@code (policy, dimension, value_id)} is refused by the unique constraint.
- *   <li>A {@code dimension} outside the four is refused by the {@code CHECK} constraint.
+ *   <li>A {@code dimension} outside the five is refused by the {@code CHECK} constraint.
  * </ul>
  */
 @SpringBootTest(classes = LeaveTestApp.class)
@@ -164,13 +164,14 @@ class LeavePolicyEligibilityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("All four allowed dimensions satisfy the database check constraint")
+    @DisplayName("All five allowed dimensions satisfy the database check constraint (employee: W-79.1)")
     void allFourDimensionsAllowedInDatabase() throws SQLException {
         try (Connection conn = LeaveTestSchema.appConnection()) {
             conn.setAutoCommit(false);
             LeaveTestSchema.bindTenant(conn, TENANT_A);
 
-            String[] allowedDims = new String[] {"department", "designation", "work_location", "employment_type"};
+            String[] allowedDims =
+                    new String[] {"department", "designation", "work_location", "employment_type", "employee"};
             for (String dim : allowedDims) {
                 try (PreparedStatement ps = conn.prepareStatement(
                         """

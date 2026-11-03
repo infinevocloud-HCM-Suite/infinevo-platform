@@ -107,6 +107,7 @@ public final class LeaveTestSchema {
             }
             if (!tableExists(conn, "leave_policy_eligibility")) {
                 executeResource(conn, "db/migration/core/V128__leave_policy_eligibility.sql");
+                executeResource(conn, "db/migration/core/V187__leave_policy_eligibility_employee.sql"); // W-79.1
             }
             if (!tableExists(conn, "leave_allocation")) {
                 executeResource(conn, "db/migration/core/V129__leave_allocation.sql");

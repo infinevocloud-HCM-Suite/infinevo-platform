@@ -252,4 +252,34 @@ class LeavePolicyValidationTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unsupported eligibility dimension: 'religion'");
     }
+
+    @Test
+    @DisplayName("employee dimension is accepted (W-79.1)")
+    void employeeDimensionIsAccepted() {
+        LeavePolicyRequest request = new LeavePolicyRequest(
+                BigDecimal.valueOf(20),
+                false,
+                null,
+                null,
+                false,
+                null,
+                false,
+                null,
+                null,
+                false,
+                null,
+                null,
+                false,
+                false,
+                ExceedBalanceMode.NO_LIMIT,
+                null,
+                false,
+                null,
+                null,
+                EFFECTIVE_DATE,
+                List.of(new LeavePolicyEligibilityRequest("employee", java.util.UUID.randomUUID())));
+
+        org.assertj.core.api.Assertions.assertThatCode(() -> LeavePolicyValidator.validate(request))
+                .doesNotThrowAnyException();
+    }
 }

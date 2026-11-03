@@ -17,6 +17,7 @@ import { leaveTypeService } from './leaveTypeService.js';
 import { departmentService } from '../org/departmentService.js';
 import { designationService } from '../org/designationService.js';
 import { workLocationService } from '../org/workLocationService.js';
+import { EmployeePicker } from './EmployeePicker.jsx';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { formatDate } from '@shared/ui/format.js';
 
@@ -58,6 +59,9 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
       const locIds = (p.eligibility || [])
         .filter((e) => ['location', 'work_location'].includes((e.dimension || '').toLowerCase()))
         .map((e) => e.valueId);
+      const empIds = (p.eligibility || [])
+        .filter((e) => (e.dimension || '').toLowerCase() === 'employee')
+        .map((e) => e.valueId);
 
       setExceedMode(p.exceedBalanceMode || 'noLimit');
       setAccrualOn(Boolean(p.accrualEnabled));
@@ -84,6 +88,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         departmentIds: deptIds,
         designationIds: desigIds,
         locationIds: locIds,
+        employeeIds: empIds,
       });
     } else {
       setExceedMode('noLimit');
@@ -101,6 +106,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
         departmentIds: [],
         designationIds: [],
         locationIds: [],
+        employeeIds: [],
       });
     }
   }, [leaveType, form]);
@@ -113,6 +119,7 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
           ...(values.departmentIds || []).map((id) => ({ dimension: 'department', valueId: id })),
           ...(values.designationIds || []).map((id) => ({ dimension: 'designation', valueId: id })),
           ...(values.locationIds || []).map((id) => ({ dimension: 'work_location', valueId: id })),
+          ...(values.employeeIds || []).map((id) => ({ dimension: 'employee', valueId: id })),
         ];
 
         const payload = {
@@ -355,6 +362,17 @@ export function PolicyForm({ leaveType, onSuccess, onCancel }) {
                 { value: 'OTHER', label: 'Other' },
               ]}
             />
+          </Form.Item>
+        </Col>
+      </Row>
+      <Row gutter={16}>
+        <Col span={24}>
+          <Form.Item
+            name="employeeIds"
+            label="Employees (Empty for All)"
+            extra="Only these employees can use this leave type."
+          >
+            <EmployeePicker multiple ariaLabel="Employees" placeholder="All employees" />
           </Form.Item>
         </Col>
       </Row>

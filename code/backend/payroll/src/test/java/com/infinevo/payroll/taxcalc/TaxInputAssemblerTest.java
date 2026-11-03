@@ -322,6 +322,49 @@ class TaxInputAssemblerTest {
         assertThat(input.professionalTaxFromService()).contains(Money.of("1200"));
     }
 
+    /** W-78.1: projected EPF from the salary, with the pay run's PF test answering {@code pfOn}. */
+    private TaxInput assembleWithPf(boolean pfOn, FinancialYear fy, LocalDate joining) {
+        stubCommon(joining, WORK_LOCATION_ID);
+        given(earningRepository.findAllByTenantIdAndDeletedFalse(TENANT_ID))
+                .willReturn(
+                        List.of(earning(BASIC_COMP, "BASIC", "BASIC", true), earning(HRA_COMP, "HRA", "HRA", true)));
+        SalaryVersionResponse v = versionWithHraAndEpf(joining, BigDecimal.valueOf(1800));
+        given(salaryService.versionInForce(eq(TENANT_ID), eq(EMPLOYEE_ID), any(LocalDate.class)))
+                .willAnswer(inv -> {
+                    LocalDate d = inv.getArgument(2);
+                    if (!d.isBefore(joining)) {
+                        return v;
+                    }
+                    throw new SalaryNotFoundException("No active salary version as of " + d);
+                });
+        PfApplicability pf = org.mockito.Mockito.mock(PfApplicability.class);
+        given(pf.applies(TENANT_ID, EMPLOYEE_ID)).willReturn(pfOn);
+        TaxInputAssembler a = assemblerWithPt();
+        a.setPfApplicability(pf);
+        return a.assemble(TENANT_ID, EMPLOYEE_ID, fy);
+    }
+
+    @Test
+    @DisplayName("W-78.1: PF on and ticked - the salary's employee PF counts for the coming months")
+    void pfTicked_futureMonthsCountEpf() {
+        TaxInput input = assembleWithPf(true, FinancialYear.of(2099, 2100), LocalDate.of(2099, 10, 15));
+        assertThat(input.epfFromCtc()).contains(Money.of("10800"));
+    }
+
+    @Test
+    @DisplayName("W-78.1: PF unticked (or company EPF off) - no employee PF for the coming months")
+    void pfUnticked_futureMonthsNoEpf() {
+        TaxInput input = assembleWithPf(false, FinancialYear.of(2099, 2100), LocalDate.of(2099, 10, 15));
+        assertThat(input.epfFromCtc()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("W-78.1: PF unticked now - months already past keep the salary's employee PF")
+    void pfUnticked_pastMonthsKeepEpf() {
+        TaxInput input = assembleWithPf(false, FY, LocalDate.of(2025, 10, 15));
+        assertThat(input.epfFromCtc()).contains(Money.of("10800"));
+    }
+
     /**
      * CTC revised mid-year: Apr-Sep on one version, Oct-Mar on a revised one. Each month's HRA inputs
      * must come from the version in force that month.

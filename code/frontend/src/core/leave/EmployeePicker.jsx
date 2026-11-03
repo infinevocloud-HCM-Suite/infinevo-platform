@@ -35,8 +35,13 @@ export function EmployeePicker({
   id,
   ariaLabel,
   debounceMs = SEARCH_DEBOUNCE_MS,
+  multiple = false,
 }) {
   const [options, setOptions] = useState([]);
+  // multiple (W-79.1): names of chosen employees, kept when a search does not return them; a
+  // saved list of ids is named by reading each employee once.
+  const [labels, setLabels] = useState({});
+  const named = useRef(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [chosen, setChosen] = useState(null);
@@ -90,21 +95,49 @@ export function EmployeePicker({
     }
   };
 
+  useEffect(() => {
+    if (!multiple || !Array.isArray(value)) return;
+    value
+      .filter((empId) => !named.current.has(empId) && !labels[empId] && !options.some((o) => o.value === empId))
+      .forEach(async (empId) => {
+        named.current.add(empId);
+        try {
+          const emp = await employeeService.get(empId);
+          setLabels((prev) => ({ ...prev, [empId]: employeeOptionLabel(emp) }));
+        } catch {
+          // left as its id; the server still holds the row
+        }
+      });
+  }, [multiple, value, labels, options]);
+
   const handleChange = (next, option) => {
+    if (multiple) {
+      const picked = Array.isArray(option) ? option : [];
+      setLabels((prev) => ({
+        ...prev,
+        ...Object.fromEntries(picked.filter((o) => o?.label).map((o) => [o.value, o.label])),
+      }));
+      onChange?.(next || [], option);
+      return;
+    }
     setChosen(next ? { value: next, label: option?.label } : null);
     onChange?.(next ?? undefined, option);
   };
 
   // The chosen employee stays labelled even when the latest search did not return it.
-  const merged =
-    chosen && chosen.value === value && !options.some((o) => o.value === chosen.value)
-      ? [chosen, ...options]
-      : options;
+  let merged = options;
+  if (multiple) {
+    const missing = (Array.isArray(value) ? value : []).filter((v) => !options.some((o) => o.value === v));
+    merged = [...missing.map((v) => ({ value: v, label: labels[v] || v })), ...options];
+  } else if (chosen && chosen.value === value && !options.some((o) => o.value === chosen.value)) {
+    merged = [chosen, ...options];
+  }
 
   return (
     <Select
       id={id}
       aria-label={ariaLabel}
+      mode={multiple ? 'multiple' : undefined}
       showSearch
       allowClear={allowClear}
       value={value}
@@ -123,7 +156,8 @@ export function EmployeePicker({
 }
 
 EmployeePicker.propTypes = {
-  value: PropTypes.string,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)]),
+  multiple: PropTypes.bool,
   onChange: PropTypes.func,
   placeholder: PropTypes.string,
   allowClear: PropTypes.bool,

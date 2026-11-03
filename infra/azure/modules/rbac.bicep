@@ -94,8 +94,8 @@ resource keyVaultSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01
 }]
 
 // ── Storage blob: Contributor for app, worker and migration (3f rows 2, 5; W-71) ──
-// migration: caj-data-migration-{env} reads dumps from migration-dumps/, writes its
-// results there, and copies legacy documents into documents/ (W-69).
+// migration: id-migration kept the blob role it had for the legacy data migration (W-71,
+// finished 2026-11-01; its job and code are removed). migration-dumps/ holds the dumps.
 var blobContributors = [
   { role: 'app', principalId: appPrincipalId }
   { role: 'worker', principalId: workerPrincipalId }
