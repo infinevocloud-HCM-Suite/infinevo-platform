@@ -6,7 +6,7 @@
 | **Owner** | claude |
 | **Apps touched** | `code/frontend` (`src/shell`, plus `src/test/setup.js`) |
 | **Related gaps** | founder 2026-11-03: "if opened in a mobile browser it should look clean" |
-| **Status** | Ready |
+| **Status** | **Done** — `7feeca1d` |
 | **Blocked by** | nothing |
 
 ## What and why
