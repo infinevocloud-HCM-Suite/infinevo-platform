@@ -1,19 +1,20 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Table,
   Button,
-  Space,
+
   Typography,
   Card,
   Form,
   Select,
   DatePicker,
   Tag,
-  Breadcrumb,
+
   theme,
 } from 'antd';
-import { ArrowLeftOutlined, SearchOutlined } from '@ant-design/icons';
+import { SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { errorMsg } from '@shared/ui/msgHelper.js';
@@ -21,7 +22,7 @@ import { holidayService } from './holidayService.js';
 import { workLocationService } from '../org/workLocationService.js';
 import { formatDate } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { RangePicker } = DatePicker;
 
 export function HolidayLookup() {
@@ -144,31 +145,14 @@ export function HolidayLookup() {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <Breadcrumb
-        style={{ marginBottom: token.marginMD }}
-        items={[
-          { title: <Link to="/holidays" id="link-breadcrumb-holidays">Calendars</Link> },
-          { title: 'Holiday Lookup' },
-        ]}
+    <Card variant="borderless">
+      <PageHeader
+        title="Holiday Range Lookup"
+        subtitle="Query applicable holidays exactly as the leave and pay run engines resolve them for a given location and period."
+        onBack={() => navigate('/holidays')}
+        backLabel="Calendars"
+        backProps={{ id: 'btn-back-calendars' }}
       />
-
-      <div style={{ marginBottom: token.marginLG }}>
-        <Space align="center" style={{ marginBottom: 4 }}>
-          <Button
-            type="text"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/holidays')}
-            id="btn-back-calendars"
-          />
-          <Title level={3} style={{ marginBottom: 0 }}>
-            Holiday Range Lookup
-          </Title>
-        </Space>
-        <Text type="secondary" style={{ display: 'block', marginLeft: 32 }}>
-          Query applicable holidays exactly as the leave and pay run engines resolve them for a given location and period.
-        </Text>
-      </div>
 
       <Form layout="inline" style={{ marginBottom: token.marginLG, gap: token.marginMD }}>
         <Form.Item label="Work Location">

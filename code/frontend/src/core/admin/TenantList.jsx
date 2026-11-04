@@ -1,13 +1,14 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Tag, Button, Space, Typography, Card, theme } from 'antd';
+import { Table, Tag, Button, Space, Typography, Card } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { LoadError } from '@shared/ui/LoadError.jsx';
 import { tenantService } from './tenantService.js';
 import { isPlatformTenant, STATUS_COLORS } from './platform.js';
 import { formatDate, statusLabel } from '@shared/ui/format.js';
 
-const { Title } = Typography;
+
 
 /** The Admin cell for a `TenantOverview.admin_invitation` of `{ email, status }`. */
 export function adminInvitationLabel(invitation) {
@@ -30,7 +31,7 @@ export function adminInvitationLabel(invitation) {
  */
 export function TenantList() {
   const navigate = useNavigate();
-  const { token } = theme.useToken();
+
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   // A failed read shows an error with Retry and no rows, never an empty list (D-85).
@@ -124,15 +125,15 @@ export function TenantList() {
   ];
 
   return (
-    <Card>
-      <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: token.marginMD }}>
-        <Title level={3} style={{ margin: 0 }}>
-          Tenants
-        </Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/admin/tenants/new')}>
-          New tenant
-        </Button>
-      </Space>
+    <Card variant="borderless">
+      <PageHeader
+        title="Tenants"
+        actions={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/admin/tenants/new')}>
+            New tenant
+          </Button>
+        }
+      />
       {loadError ? (
         <LoadError title="Could not load tenants" error={loadError} onRetry={load} />
       ) : (

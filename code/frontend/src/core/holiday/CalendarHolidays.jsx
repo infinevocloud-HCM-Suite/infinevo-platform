@@ -1,5 +1,6 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Table,
   Button,
@@ -14,13 +15,13 @@ import {
   Tag,
   Popconfirm,
   Select,
-  Breadcrumb,
-  theme,
+
+
 } from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,
-  ArrowLeftOutlined,
+
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
@@ -28,10 +29,10 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { holidayCalendarService } from './holidayCalendarService.js';
 import { formatDate } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function CalendarHolidays() {
-  const { token } = theme.useToken();
+
   const { id: calendarId } = useParams();
   const navigate = useNavigate();
 
@@ -229,61 +230,36 @@ export function CalendarHolidays() {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <Breadcrumb
-        style={{ marginBottom: token.marginMD }}
-        items={[
-          { title: <Link to="/holidays" id="link-breadcrumb-holidays">Calendars</Link> },
-          { title: calendar?.name || 'Calendar Details' },
-        ]}
-      />
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-        }}
-      >
-        <Space direction="vertical" size={2}>
-          <Space align="center">
-            <Button
-              type="text"
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate('/holidays')}
-              id="btn-back-calendars"
+    <Card variant="borderless">
+      <PageHeader
+        title={calendar?.name || 'Calendar Holidays'}
+        subtitle="Manage specific holidays and restricted dates observed for this calendar."
+        count={calendar?.isDefault ? 'Default Calendar' : undefined}
+        onBack={() => navigate('/holidays')}
+        backLabel="Calendars"
+        backProps={{ id: 'btn-back-calendars' }}
+        actions={
+          <Space>
+            <Select
+              value={selectedYear}
+              onChange={(val) => setSelectedYear(val)}
+              options={yearOptions}
+              style={{ width: 110 }}
+              id="select-year"
             />
-            <Title level={3} style={{ marginBottom: 0 }}>
-              {calendar?.name || 'Calendar Holidays'}
-            </Title>
-            {calendar?.isDefault && <Tag color="blue">Default Calendar</Tag>}
+            {canManage && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleOpenAdd}
+                id="btn-add-holiday"
+              >
+                Add Holiday
+              </Button>
+            )}
           </Space>
-          <Text type="secondary" style={{ marginLeft: 32 }}>
-            Manage specific holidays and restricted dates observed for this calendar.
-          </Text>
-        </Space>
-
-        <Space>
-          <Select
-            value={selectedYear}
-            onChange={(val) => setSelectedYear(val)}
-            options={yearOptions}
-            style={{ width: 110 }}
-            id="select-year"
-          />
-          {canManage && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleOpenAdd}
-              id="btn-add-holiday"
-            >
-              Add Holiday
-            </Button>
-          )}
-        </Space>
-      </div>
+        }
+      />
 
       <Table
         dataSource={filteredHolidays}

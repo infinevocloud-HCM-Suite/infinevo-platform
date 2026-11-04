@@ -1,6 +1,7 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useState, useEffect } from 'react';
 import { Card, Table, Button, Modal, Form, Input, InputNumber, DatePicker, Select, Space, Typography, Tag, Row, Col, theme } from 'antd';
-import { PlusOutlined, CalendarOutlined } from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { EmployeePicker } from '../leave/EmployeePicker.jsx';
@@ -8,7 +9,7 @@ import { wfhService } from './wfhService.js';
 import { formatDate } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function WfhAllocations() {
   const { token } = theme.useToken();
@@ -142,17 +143,11 @@ export function WfhAllocations() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4} style={{ margin: 0 }}>
-            <CalendarOutlined style={{ marginRight: 8 }} />
-            WFH Allocations
-          </Title>
-          <Text type="secondary">Manage employee yearly remote work entitlements and pro-rata quotas</Text>
-        </Col>
-
-        <Col>
+    <Card variant="borderless">
+      <PageHeader
+        title="WFH Allocations"
+        subtitle="Manage employee yearly remote work entitlements and pro-rata quotas"
+        actions={
           <Space>
             <Select
               value={selectedYear}
@@ -172,8 +167,8 @@ export function WfhAllocations() {
               </Button>
             )}
           </Space>
-        </Col>
-      </Row>
+        }
+      />
 
       <Table
         dataSource={allocations}

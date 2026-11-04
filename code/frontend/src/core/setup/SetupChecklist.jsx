@@ -1,3 +1,4 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -17,7 +18,7 @@ import { stepLinks, stepActions } from './stepLinks.js';
 import { SkipStepModal } from './SkipStepModal.jsx';
 import { formatDateTime } from '@shared/ui/format.js';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 
 // W-73.9: a step the country template filled reads "Pre-filled — review" until someone saves it.
@@ -197,15 +198,15 @@ export function SetupChecklist() {
 
   return (
     <div style={{ padding: '24px', maxWidth: 1000, margin: '0 auto' }}>
-      <Title level={2} id="heading-setup-checklist">
-        Setup Checklist
-      </Title>
-      <Paragraph type="secondary">
-        Complete these recommended setup steps to configure your organization on Infinevo.
-      </Paragraph>
+      <div id="heading-setup-checklist">
+        <PageHeader
+          title="Setup Checklist"
+          subtitle="Complete these recommended setup steps to configure your organization on Infinevo."
+        />
+      </div>
 
       {checklistData && (
-        <Card style={{ marginBottom: 24 }} id="card-setup-progress">
+        <Card variant="borderless" style={{ marginBottom: 24 }} id="card-setup-progress">
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong style={{ fontSize: 16 }}>
@@ -232,6 +233,7 @@ export function SetupChecklist() {
       {groups.map((group) => (
         <Card
           key={group.key}
+          variant="borderless"
           title={group.title}
           style={{ marginBottom: 24 }}
           id={`card-group-${group.key}`}

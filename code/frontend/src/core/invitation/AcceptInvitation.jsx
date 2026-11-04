@@ -167,11 +167,11 @@ export function AcceptInvitation() {
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: '100vh',
-          backgroundColor: '#f5f5f5',
+          backgroundColor: token.colorBgLayout,
           padding: 16,
         }}
       >
-        <Card style={{ maxWidth: 520, width: '100%', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+        <Card style={{ maxWidth: 520, width: '100%', textAlign: 'center', boxShadow: token.boxShadowSecondary }}>
           <Result
             status="success"
             title={next.title}
@@ -195,11 +195,11 @@ export function AcceptInvitation() {
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: '100vh',
-          backgroundColor: '#f5f5f5',
+          backgroundColor: token.colorBgLayout,
           padding: 16,
         }}
       >
-        <Card style={{ maxWidth: 520, width: '100%', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+        <Card style={{ maxWidth: 520, width: '100%', textAlign: 'center', boxShadow: token.boxShadowSecondary }}>
           <Result
             status="info"
             title="Invitation Declined"
@@ -217,7 +217,7 @@ export function AcceptInvitation() {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        backgroundColor: '#f5f5f5',
+        backgroundColor: token.colorBgLayout,
         padding: 16,
       }}
     >
@@ -225,7 +225,7 @@ export function AcceptInvitation() {
         style={{
           maxWidth: 520,
           width: '100%',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          boxShadow: token.boxShadowSecondary,
           borderRadius: 8,
         }}
       >

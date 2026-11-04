@@ -1,6 +1,7 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Select, Checkbox, Button, Card, Space, Typography } from 'antd';
+import { Form, Input, Select, Checkbox, Button, Card, Space } from 'antd';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { tenantService } from './tenantService.js';
 import { MODULES } from './platform.js';
@@ -86,8 +87,12 @@ export function TenantCreate() {
   };
 
   return (
-    <Card>
-      <Typography.Title level={3}>New tenant</Typography.Title>
+    <Card variant="borderless">
+      <PageHeader
+        title="New tenant"
+        onBack={() => navigate('/admin/tenants')}
+        backLabel="Tenants"
+      />
       <Form
         form={form}
         layout="vertical"

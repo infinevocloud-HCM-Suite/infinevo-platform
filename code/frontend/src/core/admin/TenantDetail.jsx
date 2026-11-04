@@ -1,5 +1,6 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Card, Descriptions, Switch, Select, Form, Input, Button, Tabs, Tag, Typography, Space, Skeleton,
@@ -35,6 +36,7 @@ const LOCKING_STATUSES = ['SUSPENDED', 'CANCELLED'];
  */
 export function TenantDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const { token } = theme.useToken();
   const session = useSelector((state) => state.impersonation?.session ?? null);
@@ -202,7 +204,7 @@ export function TenantDetail() {
       </Descriptions>
 
       {!platform && (
-        <Card size="small" title="Modules">
+        <Card size="small" variant="borderless" title="Modules">
           <Space direction="vertical">
             {MODULES.map((m) => (
               <Space key={m}>
@@ -220,7 +222,7 @@ export function TenantDetail() {
       )}
 
       {!platform && (
-        <Card size="small" title="Status">
+        <Card size="small" variant="borderless" title="Status">
           <Select
             aria-label="Subscription status"
             style={{ width: 200 }}
@@ -233,7 +235,7 @@ export function TenantDetail() {
       )}
 
       {!platform && (
-        <Card size="small" title="Country template">
+        <Card size="small" variant="borderless" title="Country template">
           <Space direction="vertical" style={{ width: '100%' }}>
             <Typography.Text type="secondary">
               Adds the country&apos;s holidays, leave types, salary components, EPF and ESI settings and pay
@@ -248,7 +250,7 @@ export function TenantDetail() {
       )}
 
       {!platform && (canImpersonate || sessionHere) && (
-        <Card size="small" title="Act as">
+        <Card size="small" variant="borderless" title="Act as">
           {sessionHere && (
             <Alert
               type="info"
@@ -311,8 +313,12 @@ export function TenantDetail() {
   );
 
   return (
-    <Card>
-      <Typography.Title level={3}>{tenant.name}</Typography.Title>
+    <Card variant="borderless">
+      <PageHeader
+        title={tenant.name}
+        onBack={() => navigate('/admin/tenants')}
+        backLabel="Tenants"
+      />
       <Tabs
         defaultActiveKey="overview"
         tabBarExtraContent={

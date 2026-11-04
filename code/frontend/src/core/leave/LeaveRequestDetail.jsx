@@ -1,3 +1,4 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -11,11 +12,11 @@ import {
   Typography,
   Modal,
   Input,
-  Row,
-  Col,
+
+
   Spin,
 } from 'antd';
-import { ArrowLeftOutlined, CloseCircleOutlined, StopOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, StopOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
@@ -26,7 +27,7 @@ import { approvalService } from '../approvals/approvalService.js';
 import { portalService } from '@shell/portal/portalService.js';
 import { formatDate } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 
 const STATUS_TAGS = {
@@ -202,21 +203,14 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   const canCancel = !isReadOnly && canManage && request.status === 'APPROVED';
 
   return (
-    <Card style={{ margin: 24, maxWidth: 900 }}>
+    <Card variant="borderless" style={{ maxWidth: 900 }}>
       <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space align="center">
-              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(effectiveBackPath)}>
-                Back
-              </Button>
-              <Title level={4} style={{ margin: 0 }}>
-                Leave Request Details
-              </Title>
-              <Tag color={statusConfig.color}>{statusConfig.label}</Tag>
-            </Space>
-          </Col>
-          <Col>
+        <PageHeader
+          title="Leave Request Details"
+          count={statusConfig.label}
+          onBack={() => navigate(effectiveBackPath)}
+          backLabel="Back"
+          actions={
             <Space>
               {canWithdraw && (
                 <Button
@@ -237,8 +231,8 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
                 </Button>
               )}
             </Space>
-          </Col>
-        </Row>
+          }
+        />
 
         <Descriptions bordered column={{ xs: 1, sm: 2, md: 2 }}>
           <Descriptions.Item label="Employee">
@@ -284,7 +278,7 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
           </Descriptions.Item>
         </Descriptions>
 
-        <Card type="inner" title="Approval Trail">
+        <Card type="inner" variant="borderless" title="Approval Trail">
           {request.onBehalf ? (
             <Timeline
               items={[

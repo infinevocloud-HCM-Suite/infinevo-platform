@@ -1,3 +1,4 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Card,
@@ -13,6 +14,7 @@ import {
   Tag,
   Statistic,
   Alert,
+  theme,
 } from 'antd';
 import {
   InboxOutlined,
@@ -27,7 +29,7 @@ import { leaveImportService } from './leaveImportService.js';
 import { documentService } from '../document/documentService.js';
 import { EMPTY, formatDateTime, statusTag } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Dragger } = Upload;
 
 const STATUS_TAGS = {
@@ -39,6 +41,7 @@ const STATUS_TAGS = {
 
 export function LeaveImport() {
   const canManage = useCan('core.leave_balance.manage');
+  const { token } = theme.useToken();
 
   const [leaveYear, setLeaveYear] = useState(dayjs().year());
   const [dryRun, setDryRun] = useState(true);
@@ -222,20 +225,17 @@ export function LeaveImport() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
+    <Card variant="borderless">
       <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <Title level={4} style={{ margin: 0 }}>
-          Bulk Leave Import
-        </Title>
-
-        <Text type="secondary">
-          Upload a spreadsheet (.xlsx or .csv) to bulk allocate initial leave balances or annual
-          allotments across employees. Dry run validates records without writing to the database.
-        </Text>
+        <PageHeader
+          title="Bulk Leave Import"
+          subtitle="Upload a spreadsheet (.xlsx or .csv) to bulk allocate initial leave balances or annual allotments across employees. Dry run validates records without writing to the database."
+        />
 
         {/* Upload & Configuration Card */}
         <Card
           type="inner"
+          variant="borderless"
           title="Import Configuration"
           extra={
             <Button
@@ -331,14 +331,14 @@ export function LeaveImport() {
                 <Statistic
                   title="Rows Imported (Valid)"
                   value={currentImport.rowsImported ?? 0}
-                  valueStyle={{ color: '#3f8600' }}
+                  valueStyle={{ color: token.colorSuccess }}
                 />
               </Col>
               <Col span={8}>
                 <Statistic
                   title="Rows Failed"
                   value={currentImport.rowsFailed ?? 0}
-                  valueStyle={{ color: currentImport.rowsFailed > 0 ? '#cf1322' : undefined }}
+                  valueStyle={{ color: currentImport.rowsFailed > 0 ? token.colorError : undefined }}
                 />
               </Col>
             </Row>
@@ -360,7 +360,7 @@ export function LeaveImport() {
         )}
 
         {/* Execution History */}
-        <Card type="inner" title="Import History" icon={<HistoryOutlined />}>
+        <Card type="inner" variant="borderless" title="Import History" icon={<HistoryOutlined />}>
           <Table
             rowKey="id"
             columns={historyColumns}
