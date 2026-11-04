@@ -319,15 +319,7 @@ export function OverviewTab({ employee, onUpdate }) {
         )}
       </div>
 
-      <Descriptions
-        bordered
-        column={{ xs: 1, sm: 2, md: 3 }}
-        style={{
-          borderRadius: 12,
-          overflow: 'hidden',
-          border: '1px solid #E2E8F0',
-        }}
-      >
+      <Descriptions bordered column={{ xs: 1, sm: 2, md: 3 }}>
         <Descriptions.Item label="Employee ID">{employee.employeeNumber}</Descriptions.Item>
         <Descriptions.Item label="Full Name">
           {[employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ')}

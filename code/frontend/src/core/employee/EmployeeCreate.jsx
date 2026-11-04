@@ -22,7 +22,7 @@ import {
   Space,
   theme,
 } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
+import { SaveOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { employeeService } from './employeeService.js';
 import { orgMasterService } from './orgMasterService.js';
@@ -37,6 +37,7 @@ import {
 } from './sectionFields.js';
 import { successMsg, errorMsg } from '../../shared/ui/msgHelper.js';
 import { toTitleCase } from '../../shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
 const { Title, Text } = Typography;
 
@@ -264,55 +265,11 @@ export function EmployeeCreate() {
   }));
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 16,
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-        background: '#FFFFFF',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: token.marginLG,
-          paddingBottom: token.marginMD,
-          borderBottom: '1px solid #F1F5F9',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
-          <Button
-            type="text"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/employees')}
-            style={{ marginRight: token.marginSM }}
-          />
-          <div>
-            <Title level={4} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>Create New Employee</Title>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              Onboard a new employee and configure baseline organization details
-            </Text>
-          </div>
-        </div>
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            background: '#E0F2FE',
-            color: '#0369A1',
-            border: '1px solid #BAE6FD',
-            borderRadius: 9999,
-            padding: '4px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
-          ● HR Onboarding
-        </span>
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Create New Employee"
+        onBack={() => navigate('/employees')}
+      />
 
       {partialFailure && (
         <Alert
@@ -571,18 +528,13 @@ export function EmployeeCreate() {
               </Row>
 
               <Collapse
-                style={{
-                  marginTop: token.marginLG,
-                  borderRadius: 12,
-                  border: '1px solid #E2E8F0',
-                  background: '#F8FAFC',
-                }}
+                style={{ marginTop: token.marginLG }}
                 activeKey={openPanels}
                 onChange={(keys) => setOpenPanels(Array.isArray(keys) ? keys : [keys])}
                 items={[
                   {
                     key: MORE_KEY,
-                    label: <Text strong style={{ color: '#1E293B' }}>More</Text>,
+                    label: <Text strong>More</Text>,
                     children: moreFields,
                   },
                 ]}
@@ -591,19 +543,19 @@ export function EmployeeCreate() {
               <div
                 style={{
                   marginTop: token.marginLG,
-                  padding: '16px 20px',
-                  borderRadius: 12,
-                  border: '1px solid #E2E8F0',
-                  background: '#F8FAFC',
+                  padding: token.paddingMD,
+                  borderRadius: token.borderRadiusLG,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  background: token.colorFillAlter,
                 }}
               >
-                <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: '#0F172A' }}>Portal access</Title>
+                <Title level={5} style={{ marginTop: 0, marginBottom: 8 }}>Portal access</Title>
                 <Checkbox
                   id="check-giveAccess"
                   checked={values.giveAccess}
                   onChange={(e) => setFieldValue('giveAccess', e.target.checked)}
                 >
-                  <Text strong style={{ color: '#1E293B' }}>Give portal access</Text>
+                  <Text strong>Give portal access</Text>
                 </Checkbox>
                 {values.giveAccess && !canAssignRoles && (
                   <div style={{ marginTop: token.marginSM }}>
@@ -640,13 +592,13 @@ export function EmployeeCreate() {
                 style={{
                   marginTop: token.marginXL,
                   paddingTop: token.marginMD,
-                  borderTop: '1px solid #F1F5F9',
+                  borderTop: `1px solid ${token.colorBorderSecondary}`,
                   display: 'flex',
                   justifyContent: 'flex-end',
                   gap: token.marginSM,
                 }}
               >
-                <Button onClick={() => navigate('/employees')} style={{ borderRadius: 8 }}>Cancel</Button>
+                <Button onClick={() => navigate('/employees')}>Cancel</Button>
                 <Button
                   type="primary"
                   icon={<SaveOutlined />}
@@ -654,11 +606,6 @@ export function EmployeeCreate() {
                   disabled={Boolean(partialFailure)}
                   onClick={onCreate}
                   id="btn-submit-employee"
-                  style={{
-                    borderRadius: 8,
-                    fontWeight: 500,
-                    boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
-                  }}
                 >
                   Create Employee
                 </Button>

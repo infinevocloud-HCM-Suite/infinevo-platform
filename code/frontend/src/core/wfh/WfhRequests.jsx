@@ -8,8 +8,9 @@ import { wfhService } from './wfhService.js';
 import { approvalService } from '../approvals/approvalService.js';
 import { formatDate, humanize } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
@@ -214,71 +215,24 @@ export function WfhRequests() {
   ];
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 16,
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-        background: '#FFFFFF',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
-          paddingBottom: 16,
-          borderBottom: '1px solid #F1F5F9',
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Title level={4} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-              WFH Applications
-            </Title>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: '#E0F2FE',
-                color: '#0369A1',
-                border: '1px solid #BAE6FD',
-                borderRadius: 9999,
-                padding: '2px 10px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              ● {requests.length} Requests
-            </span>
-          </div>
-          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
-            Review tenant-wide and team remote work requests
-          </Text>
-        </div>
-
-        <div>
-          {canManage && (
+    <Card variant="borderless">
+      <PageHeader
+        title="WFH Applications"
+        subtitle="Review tenant-wide and team remote work requests"
+        count={`${requests.length} WFH requests`}
+        actions={
+          canManage && (
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setModalVisible(true)}
               data-testid="apply-on-behalf-btn"
-              style={{
-                borderRadius: 8,
-                fontWeight: 500,
-                boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
-              }}
             >
               Apply on Behalf
             </Button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       <Tabs
         activeKey={activeTab}

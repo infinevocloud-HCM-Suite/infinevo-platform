@@ -9,7 +9,6 @@ import {
   Card,
   Tag,
   Select,
-  theme,
 } from 'antd';
 import { CheckOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
 import { useCan, useHasModule, NotEntitled } from '@shell/screens';
@@ -20,8 +19,9 @@ import { DecideModal } from './DecideModal.jsx';
 import { getItemRoute } from './itemRoutes.js';
 import { flowTypesFor } from './flowTypes.js';
 import { formatDate, humanize } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const FLOW_TYPE_COLORS = {
   LEAVE: 'blue',
@@ -40,8 +40,7 @@ const formatSummary = (str) => {
 };
 
 export function Inbox() {
-  const { token } = theme.useToken();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
   const dispatch = useDispatch();
   const canDecide = useCan('core.approval.decide');
   const hasHrms = useHasModule('HRMS');
@@ -213,63 +212,23 @@ export function Inbox() {
   }
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 16,
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-        background: '#FFFFFF',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-          paddingBottom: token.marginMD,
-          borderBottom: '1px solid #F1F5F9',
-          flexWrap: 'wrap',
-          gap: token.marginSM,
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
-            <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-              Pending Approvals
-            </Title>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: '#E0F2FE',
-                color: '#0369A1',
-                border: '1px solid #BAE6FD',
-                borderRadius: 9999,
-                padding: '2px 10px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              ● {total} Pending
-            </span>
-          </div>
-          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
-            Review and decide requests waiting on your approval.
-          </Text>
-        </div>
-
-        <Select
-          id="select-flow-type-filter"
-          allowClear
-          placeholder="Filter by Flow Type"
-          style={{ width: 220 }}
-          value={flowTypeFilter}
-          onChange={(val) => setFlowTypeFilter(val)}
-          options={filterOptions}
-        />
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Pending Approvals"
+        subtitle="Review and decide requests waiting on your approval."
+        count={`${total} pending`}
+        actions={
+          <Select
+            id="select-flow-type-filter"
+            allowClear
+            placeholder="Filter by Flow Type"
+            style={{ width: 220 }}
+            value={flowTypeFilter}
+            onChange={(val) => setFlowTypeFilter(val)}
+            options={filterOptions}
+          />
+        }
+      />
 
       <Table
         dataSource={filteredData}

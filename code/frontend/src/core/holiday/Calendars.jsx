@@ -12,19 +12,18 @@ import {
   Select,
   Switch,
   Tag,
-  theme,
 } from 'antd';
 import { PlusOutlined, EditOutlined, CalendarOutlined, SearchOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { holidayCalendarService } from './holidayCalendarService.js';
 import { workLocationService } from '../org/workLocationService.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function Calendars() {
-  const { token } = theme.useToken();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
 
@@ -248,79 +247,33 @@ export function Calendars() {
   }
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 16,
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-        background: '#FFFFFF',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-          paddingBottom: token.marginMD,
-          borderBottom: '1px solid #F1F5F9',
-          flexWrap: 'wrap',
-          gap: token.marginSM,
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
-            <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-              Holiday Calendars
-            </Title>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: '#E0F2FE',
-                color: '#0369A1',
-                border: '1px solid #BAE6FD',
-                borderRadius: 9999,
-                padding: '2px 10px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              ● {calendars.length} Calendars
-            </span>
-          </div>
-          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
-            Configure work-location-specific holiday schedules and statutory non-working days.
-          </Text>
-        </div>
-
-        <Space>
-          <Button
-            icon={<SearchOutlined />}
-            onClick={() => navigate('/holidays/lookup')}
-            id="btn-holiday-lookup"
-            style={{ borderRadius: 8 }}
-          >
-            Lookup Holidays
-          </Button>
-          {canManage && (
+    <Card variant="borderless">
+      <PageHeader
+        title="Holiday Calendars"
+        subtitle="Configure work-location-specific holiday schedules and statutory non-working days."
+        count={`${calendars.length} calendars`}
+        actions={
+          <Space>
             <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleOpenCreate}
-              id="btn-create-calendar"
-              style={{
-                borderRadius: 8,
-                fontWeight: 500,
-                boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
-              }}
+              icon={<SearchOutlined />}
+              onClick={() => navigate('/holidays/lookup')}
+              id="btn-holiday-lookup"
             >
-              Add Calendar
+              Lookup Holidays
             </Button>
-          )}
-        </Space>
-      </div>
+            {canManage && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleOpenCreate}
+                id="btn-create-calendar"
+              >
+                Create Calendar
+              </Button>
+            )}
+          </Space>
+        }
+      />
 
       <Table
         dataSource={calendars}

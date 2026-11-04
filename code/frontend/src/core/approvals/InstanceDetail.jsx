@@ -8,7 +8,6 @@ import {
   Timeline,
   Tag,
   Button,
-  Space,
   Typography,
   Modal,
   Form,
@@ -16,13 +15,14 @@ import {
   Input,
   theme,
 } from 'antd';
-import { ArrowLeftOutlined, SwapOutlined } from '@ant-design/icons';
+import { SwapOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { EMPTY, formatDate, formatMoney } from '@shared/ui/format.js';
 import { approvalService } from './approvalService.js';
 import { useEmployeeSearch } from './useEmployeeSearch.js';
 import { getItemRoute } from './itemRoutes.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
 const { Title } = Typography;
 
@@ -158,51 +158,24 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
   ];
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 16,
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-        background: '#FFFFFF',
-      }}
-      loading={loading}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-          paddingBottom: token.marginMD,
-          borderBottom: '1px solid #F1F5F9',
-        }}
-      >
-        <Space size="middle">
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/approvals')}
-            id="btn-back-to-inbox"
-            style={{ borderRadius: 8, color: '#64748B' }}
-          >
-            Inbox
-          </Button>
-          <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-            Approval Instance Details
-          </Title>
-        </Space>
-
-        {canManage && instance?.status === 'PENDING' && (
-          <Button
-            icon={<SwapOutlined />}
-            onClick={() => setReassignOpen(true)}
-            id="btn-open-reassign"
-            style={{ borderRadius: 8 }}
-          >
-            Reassign Step
-          </Button>
-        )}
-      </div>
+    <Card variant="borderless" loading={loading}>
+      <PageHeader
+        title="Approval Instance Details"
+        onBack={() => navigate('/approvals')}
+        backLabel="Inbox"
+        backProps={{ id: 'btn-back-to-inbox' }}
+        actions={
+          canManage && instance?.status === 'PENDING' && (
+            <Button
+              icon={<SwapOutlined />}
+              onClick={() => setReassignOpen(true)}
+              id="btn-open-reassign"
+            >
+              Reassign Step
+            </Button>
+          )
+        }
+      />
 
       {instance && (
         <>
@@ -289,7 +262,7 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
                     <div>
                       <strong>{label}</strong>
                       {reason ? ` — ${reason}` : ''}
-                      <div style={{ color: '#888', fontSize: 12 }}>
+                      <div style={{ color: token.colorTextSecondary, fontSize: 12 }}>
                         {time ? formatDate(time) : ''}
                         {event.reassignedFromEmployeeId
                           ? ` • From: ${personName(event.reassignedFromEmployeeName)}`

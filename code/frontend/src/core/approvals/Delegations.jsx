@@ -12,7 +12,6 @@ import {
   DatePicker,
   Select,
   Popconfirm,
-  theme,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
@@ -20,8 +19,9 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { EMPTY, formatDate } from '@shared/ui/format.js';
 import { delegationService } from './delegationService.js';
 import { useEmployeeSearch } from './useEmployeeSearch.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const FLOW_TYPE_OPTIONS = [
   { label: 'Leave', value: 'LEAVE' },
@@ -48,8 +48,7 @@ export function delegationStatus(record, today = new Date().toISOString().split(
 }
 
 export function Delegations({ me: propMe, form: externalForm }) {
-  const { token } = theme.useToken();
-  const canDelegate = useCan('core.approval.delegate');
+    const canDelegate = useCan('core.approval.delegate');
 
   const [loading, setLoading] = useState(false);
   const [delegations, setDelegations] = useState([]);
@@ -212,72 +211,26 @@ export function Delegations({ me: propMe, form: externalForm }) {
   }
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 16,
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-        background: '#FFFFFF',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-          paddingBottom: token.marginMD,
-          borderBottom: '1px solid #F1F5F9',
-          flexWrap: 'wrap',
-          gap: token.marginSM,
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
-            <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-              Approval Delegations
-            </Title>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: '#E0F2FE',
-                color: '#0369A1',
-                border: '1px solid #BAE6FD',
-                borderRadius: 9999,
-                padding: '2px 10px',
-                fontSize: 12,
-                fontWeight: 600,
+    <Card variant="borderless">
+      <PageHeader
+        title="Approval Delegations"
+        subtitle="Delegate your approval authority to a colleague during absence."
+        actions={
+          canDelegate && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                form.resetFields();
+                setCreateOpen(true);
               }}
+              id="btn-new-delegation"
             >
-              ● Temporary Authority
-            </span>
-          </div>
-          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
-            Delegate your approval authority to a colleague during absence.
-          </Text>
-        </div>
-
-        {canDelegate && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              searchEmployees('');
-              setCreateOpen(true);
-            }}
-            id="btn-new-delegation"
-            style={{
-              borderRadius: 8,
-              fontWeight: 500,
-              boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
-            }}
-          >
-            New Delegation
-          </Button>
-        )}
-      </div>
+              New Delegation
+            </Button>
+          )
+        }
+      />
 
       <Table
         dataSource={delegations}

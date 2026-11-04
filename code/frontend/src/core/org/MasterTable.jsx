@@ -19,8 +19,9 @@ import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { formatDate, toTitleCase } from '@shared/ui/format.js';
 import { invalidateMasters } from '../employee/employeeSlice.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function MasterTable({ title, service }) {
   const { token } = theme.useToken();
@@ -291,62 +292,19 @@ export function MasterTable({ title, service }) {
   }
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 16,
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-        background: '#FFFFFF',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-          paddingBottom: token.marginMD,
-          borderBottom: '1px solid #F1F5F9',
-          flexWrap: 'wrap',
-          gap: token.marginSM,
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
-            <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-              {title}
-            </Title>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: '#E0F2FE',
-                color: '#0369A1',
-                border: '1px solid #BAE6FD',
-                borderRadius: 9999,
-                padding: '2px 10px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              ● Org Master
-            </span>
-          </div>
-          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
-            Manage your organization&apos;s {title.toLowerCase()} catalogue.
-          </Text>
-        </div>
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title={title}
+        subtitle={`Manage your organization's ${title.toLowerCase()} catalogue.`}
+      />
 
       {canManage && (
         <Card
           size="small"
           style={{
             marginBottom: token.marginLG,
-            background: '#F8FAFC',
-            border: '1px solid #E2E8F0',
-            borderRadius: 12,
+            background: token.colorBgContainer,
+            border: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
           <Space wrap size="middle">
@@ -354,7 +312,7 @@ export function MasterTable({ title, service }) {
               placeholder="Code (e.g. ENG)"
               value={newCode}
               onChange={(e) => setNewCode(e.target.value)}
-              style={{ width: 160, borderRadius: 8 }}
+              style={{ width: 160 }}
               id="input-new-code"
             />
             <Input

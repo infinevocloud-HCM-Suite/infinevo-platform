@@ -18,14 +18,14 @@ import {
   UploadOutlined,
   ExperimentOutlined,
   CloudUploadOutlined,
-  ArrowLeftOutlined,
 } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg } from '@shared/ui/msgHelper.js';
 import { employeeImportService, saveCsv } from './employeeImportService.js';
 import { formatDateTime, statusTag } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /** How often the history refreshes while a job is queued or running. */
 export const POLL_MS = 3000;
@@ -246,59 +246,13 @@ export function EmployeeImport() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Card
-        variant="borderless"
-        style={{
-          borderRadius: 16,
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-          background: '#FFFFFF',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: token.marginLG,
-            paddingBottom: token.marginMD,
-            borderBottom: '1px solid #F1F5F9',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: token.marginSM }}>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate('/employees')}
-              id="btn-back-employees"
-              style={{ borderRadius: 8, color: '#64748B' }}
-            >
-              Employees
-            </Button>
-            <div>
-              <Title level={4} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-                Import Employees
-              </Title>
-              <Text type="secondary" style={{ fontSize: 13 }}>
-                Bulk upload staff records via CSV, execute dry-run checks, and inspect job history
-              </Text>
-            </div>
-          </div>
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              background: '#E0F2FE',
-              color: '#0369A1',
-              border: '1px solid #BAE6FD',
-              borderRadius: 9999,
-              padding: '4px 12px',
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            ● CSV Import Engine
-          </span>
-        </div>
+      <Card variant="borderless">
+        <PageHeader
+          title="Import Employees"
+          onBack={() => navigate('/employees')}
+          backLabel="Employees"
+          backProps={{ id: 'btn-back-employees' }}
+        />
 
         <Space wrap style={{ marginBottom: token.marginLG }}>
           <Button icon={<DownloadOutlined />} onClick={handleTemplate} id="btn-import-template" style={{ borderRadius: 8 }}>
@@ -309,21 +263,7 @@ export function EmployeeImport() {
               Choose CSV
             </Button>
           </Upload>
-          {file && (
-            <span
-              data-testid="import-file-name"
-              style={{
-                background: '#F1F5F9',
-                padding: '4px 10px',
-                borderRadius: 6,
-                fontWeight: 500,
-                color: '#334155',
-                fontSize: 13,
-              }}
-            >
-              {file.name}
-            </span>
-          )}
+          {file && <Text data-testid="import-file-name">{file.name}</Text>}
           <Button
             icon={<ExperimentOutlined />}
             onClick={handleDryRun}
@@ -351,20 +291,10 @@ export function EmployeeImport() {
           </Button>
         </Space>
 
-        <div
-          style={{
-            background: '#F0F9FF',
-            border: '1px solid #BAE6FD',
-            borderRadius: 8,
-            padding: '10px 14px',
-            marginBottom: token.margin,
-          }}
-        >
-          <Text type="secondary" style={{ display: 'block', color: '#0369A1', fontSize: 13 }}>
+        <Text type="secondary" style={{ display: 'block', marginBottom: token.margin }}>
             Up to 1,000 rows. Rows with give_access Y are invited by email; roles (for example hr;manager) need the
             Assign roles permission.
-          </Text>
-        </div>
+        </Text>
 
         {error && (
           <Alert type="error" showIcon message={error} style={{ marginBottom: token.margin, borderRadius: 8 }} id="alert-import-error" />
@@ -392,7 +322,7 @@ export function EmployeeImport() {
               dataSource={errorsFirst(results)}
               pagination={{ pageSize: 50 }}
               data-testid="import-dry-run-table"
-              style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}
+              
             />
           </>
         )}
@@ -400,19 +330,12 @@ export function EmployeeImport() {
 
       <Card
         variant="borderless"
-        title={<span style={{ fontWeight: 600, color: '#0F172A' }}>History</span>}
-        style={{
-          borderRadius: 16,
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-          background: '#FFFFFF',
-        }}
+        title="History"
         extra={
-          <Button size="small" onClick={loadJobs} id="btn-import-history-refresh" style={{ borderRadius: 6 }}>
+          <Button size="small" onClick={loadJobs} id="btn-import-history-refresh">
             Refresh
           </Button>
-        }
-      >
+        }>
         <Table
           rowKey="jobId"
           size="small"
@@ -421,7 +344,7 @@ export function EmployeeImport() {
           loading={jobsLoading}
           pagination={false}
           data-testid="import-history-table"
-          style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}
+          
         />
       </Card>
     </Space>

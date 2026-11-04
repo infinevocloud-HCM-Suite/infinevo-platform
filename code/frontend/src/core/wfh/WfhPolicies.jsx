@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, DatePicker, Tag, Space, Typography, Row, Col } from 'antd';
+import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, DatePicker, Tag, Space, Typography, Row, Col, theme } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { wfhService } from './wfhService.js';
 import { formatDate, humanize, EMPTY } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function WfhPolicies() {
+  const { token } = theme.useToken();
   const canRead = useCan('core.wfh.read');
   const canManage = useCan('core.wfh.manage');
 
@@ -189,80 +191,31 @@ export function WfhPolicies() {
   ];
 
   return (
-    <Card
-      variant="borderless"
-      style={{
-        borderRadius: 16,
-        border: '1px solid #E2E8F0',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-        background: '#FFFFFF',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
-          paddingBottom: 16,
-          borderBottom: '1px solid #F1F5F9',
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Title level={4} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-              WFH Policies
-            </Title>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: '#E0F2FE',
-                color: '#0369A1',
-                border: '1px solid #BAE6FD',
-                borderRadius: 9999,
-                padding: '2px 10px',
-                fontSize: 12,
-                fontWeight: 600,
-              }}
-            >
-              ● Remote Work Rules
-            </span>
-          </div>
-          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
-            Define annual quotas, monthly pacing, and remote work rules
-          </Text>
-        </div>
-
-        <div>
-          {canManage && (
+    <Card variant="borderless">
+      <PageHeader
+        title="WFH Policies"
+        subtitle="Define annual quotas, monthly pacing, and remote work rules"
+        actions={
+          canManage && (
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={handleOpenCreate}
               data-testid="create-wfh-policy-btn"
-              style={{
-                borderRadius: 8,
-                fontWeight: 500,
-                boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
-              }}
             >
               Add WFH Policy
             </Button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {defaultPolicy && (
         <Card
           type="inner"
           style={{
             marginBottom: 20,
-            background: '#F0F9FF',
-            borderColor: '#BAE6FD',
-            borderRadius: 12,
+            background: token.colorInfoBg,
+            borderColor: token.colorInfoBorder,
           }}
           data-testid="wfh-default-policy-card"
         >
@@ -274,7 +227,7 @@ export function WfhPolicies() {
                   <Text strong>{defaultPolicy.name || 'Default Remote Work Policy'}</Text>
                   <Tag color="cyan">Tenant Fallback</Tag>
                 </Space>
-                <Text type="secondary" style={{ fontSize: 13, color: '#0369A1' }}>
+                <Text type="secondary" style={{ fontSize: 13 }}>
                   Active system fallback policy governing all employees without an explicit custom policy
                 </Text>
               </Space>
@@ -283,7 +236,7 @@ export function WfhPolicies() {
               <Space size="large">
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Annual Quota</Text>
-                  <div><Text strong style={{ color: '#2563EB', fontSize: 15 }}>{defaultPolicy.annualDays || 12} days/yr</Text></div>
+                  <div><Text strong style={{ color: token.colorPrimary, fontSize: 15 }}>{defaultPolicy.annualDays || 12} days/yr</Text></div>
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Monthly Cap</Text>

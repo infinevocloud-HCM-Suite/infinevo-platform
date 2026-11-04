@@ -11,7 +11,7 @@ const { Title, Text } = Typography;
  * onBack button, and actions area.
  * The outer row wraps (`flexWrap: 'wrap'`) so actions drop to the next line on mobile phones.
  */
-export function PageHeader({ title, subtitle, count, onBack, backLabel, actions }) {
+export function PageHeader({ title, subtitle, count, onBack, backLabel, backProps, actions }) {
   const { token } = theme.useToken();
 
   return (
@@ -41,6 +41,7 @@ export function PageHeader({ title, subtitle, count, onBack, backLabel, actions 
             icon={<ArrowLeftOutlined />}
             onClick={onBack}
             aria-label={backLabel || 'Back'}
+            {...(backProps || {})}
           >
             {backLabel || null}
           </Button>
@@ -96,6 +97,7 @@ PageHeader.propTypes = {
   count: PropTypes.string,
   onBack: PropTypes.func,
   backLabel: PropTypes.string,
+  backProps: PropTypes.object,
   actions: PropTypes.node,
 };
 

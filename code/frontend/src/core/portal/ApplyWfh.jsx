@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { Card, Form, DatePicker, Switch, Radio, Input, Button, Space, Typography, Alert, Row, Col, theme } from 'antd';
-import { ArrowLeftOutlined, SendOutlined, CheckCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { SendOutlined, CheckCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { wfhService } from '../wfh/wfhService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
@@ -120,39 +121,12 @@ export function ApplyWfh({ onSuccess }) {
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: token.paddingMD }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: token.marginSM }}>
-          <Space align="center">
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate('/me/wfh')}
-              data-testid="back-to-wfh-btn"
-              style={{ borderRadius: 8, color: '#64748B' }}
-            >
-              Back to WFH
-            </Button>
-            <div>
-              <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>Apply for Work From Home</Title>
-              <Typography.Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
-                Submit remote work schedule requests
-              </Typography.Text>
-            </div>
-          </Space>
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              background: '#E0F2FE',
-              color: '#0369A1',
-              border: '1px solid #BAE6FD',
-              borderRadius: 9999,
-              padding: '4px 12px',
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            ● Remote Work
-          </span>
-        </div>
+        <PageHeader
+          title="Apply for Work From Home"
+          onBack={() => navigate('/me/wfh')}
+          backLabel="Back to WFH"
+          backProps={{ 'data-testid': 'back-to-wfh-btn' }}
+        />
 
         {!hasAllocation && balance && (
           <Alert
@@ -171,9 +145,9 @@ export function ApplyWfh({ onSuccess }) {
               <Row justify="space-between" align="middle">
                 <Col>
                   <Space>
-                    <InfoCircleOutlined style={{ color: '#2563EB' }} />
+                    <InfoCircleOutlined style={{ color: token.colorPrimary }} />
                     <Text strong>Current Available Quota:</Text>
-                    <Text style={{ fontSize: token.fontSizeLG, fontWeight: 700, color: '#2563EB' }}>
+                    <Text style={{ fontSize: token.fontSizeLG, fontWeight: 700, color: token.colorPrimary }}>
                       {availableDays} days
                     </Text>
                   </Space>
@@ -187,20 +161,11 @@ export function ApplyWfh({ onSuccess }) {
             }
             type="info"
             showIcon={false}
-            style={{ borderRadius: 12, background: '#F0F9FF', border: '1px solid #BAE6FD' }}
+            style={{ borderRadius: token.borderRadiusLG }}
           />
         )}
 
-        <Card
-          data-testid="apply-wfh-card"
-          variant="borderless"
-          style={{
-            borderRadius: 16,
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-            background: '#FFFFFF',
-          }}
-        >
+        <Card data-testid="apply-wfh-card" variant="borderless">
           <Form
             form={form}
             layout="vertical"

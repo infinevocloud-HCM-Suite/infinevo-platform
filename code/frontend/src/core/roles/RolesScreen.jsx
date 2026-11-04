@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Card, Table, Tag, Typography, Breadcrumb, List } from 'antd';
 import { useCan, NotEntitled } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { errorMsg } from '@shared/ui/msgHelper.js';
 import { rolesService } from './rolesService.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /**
- * Roles (D-73): the tenant's roles and the actions each holds, read only. A row expands to its
+ * Roles (D-73, W-83.2): the tenant's roles and the actions each holds, read only. A row expands to its
  * action codes, named from the action catalogue; if the catalogue cannot be read, the codes alone.
  */
 export function RolesScreen() {
@@ -75,42 +76,10 @@ export function RolesScreen() {
   );
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       <Breadcrumb items={[{ title: 'Home' }, { title: 'Roles' }]} style={{ marginBottom: 16 }} />
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <Title level={3} style={{ margin: 0, color: '#0F172A', fontWeight: 600 }}>
-            Roles
-          </Title>
-          <Text type="secondary" style={{ fontSize: 13, display: 'block', marginTop: 2 }}>
-            Inspect role definitions, system privilege grants, and permission catalogues
-          </Text>
-        </div>
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            background: '#E0F2FE',
-            color: '#0369A1',
-            border: '1px solid #BAE6FD',
-            borderRadius: 9999,
-            padding: '4px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
-          ● RBAC Matrix
-        </span>
-      </div>
-      <Card
-        variant="borderless"
-        style={{
-          borderRadius: 16,
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
-          background: '#FFFFFF',
-        }}
-      >
+      <PageHeader title="Roles" />
+      <Card variant="borderless">
         <Table
           rowKey="id"
           columns={columns}
