@@ -1,10 +1,11 @@
+import { MoneyText } from '../../../shared/ui/MoneyText.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, Empty, Result, Space, Table, theme } from 'antd';
 import { DollarOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 import { formatPeriod } from '../PayslipPage.jsx';
-import { formatDate, formatMoney } from '../../../shared/ui/format.js';
+import { formatDate } from '../../../shared/ui/format.js';
 
 const PAGE_SIZE = 12;
 
@@ -48,7 +49,7 @@ export function MyPayslips() {
       dataIndex: 'net_pay',
       key: 'net_pay',
       align: 'right',
-      render: (netPay) => formatMoney(netPay),
+      render: (netPay) => <MoneyText value={netPay} />,
     },
     {
       title: 'Actions',
@@ -102,6 +103,7 @@ export function MyPayslips() {
 
   return (
     <Card
+      variant="borderless"
       title={
         <Space>
           <DollarOutlined style={{ color: token.colorPrimary }} />

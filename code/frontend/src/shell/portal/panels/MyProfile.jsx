@@ -41,7 +41,7 @@ export function MyProfile({ actions }) {
 
   if (loading) {
     return (
-      <Card data-testid="panel-profile-loading">
+      <Card variant="borderless" data-testid="panel-profile-loading">
         <Skeleton active avatar paragraph={{ rows: 6 }} />
       </Card>
     );
@@ -49,7 +49,7 @@ export function MyProfile({ actions }) {
 
   if (error) {
     return (
-      <Card>
+      <Card variant="borderless">
         <Result
           status="error"
           title="Unable to Load Profile"
@@ -86,9 +86,9 @@ export function MyProfile({ actions }) {
     <Row gutter={[token.marginLG, token.marginLG]} data-testid="panel-profile">
       <Col span={24}>
         <Card
+          variant="borderless"
           style={{
             borderRadius: token.borderRadiusLG,
-            boxShadow: token.boxShadowTertiary,
           }}
         >
           <div

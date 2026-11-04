@@ -1,3 +1,4 @@
+import { PageHeader } from '../../shared/ui/PageHeader.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -63,7 +64,7 @@ export function PayslipPage() {
 
   if (loading) {
     return (
-      <Card data-testid="payslip-loading">
+      <Card variant="borderless" data-testid="payslip-loading">
         <Skeleton active paragraph={{ rows: 8 }} />
       </Card>
     );
@@ -71,7 +72,7 @@ export function PayslipPage() {
 
   if (error || !payslip) {
     return (
-      <Card>
+      <Card variant="borderless">
         <Result
           status="error"
           title="Unable to load the payslip"
@@ -97,7 +98,7 @@ export function PayslipPage() {
         {`
           @media print {
             body {
-              background: #fff !important;
+              background: white !important;
             }
             .no-print {
               display: none !important;
@@ -113,41 +114,34 @@ export function PayslipPage() {
       </style>
 
       {/* Top Action Bar (hidden in print) */}
-      <div
-        className="no-print"
-        style={{
-          maxWidth: 900,
-          margin: '0 auto 16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <Space>
-          {back}
-          <Button
-            type="primary"
-            icon={<PrinterOutlined />}
-            onClick={handlePrint}
-            data-testid="print-payslip-btn"
-          >
-            Download / Print PDF
-          </Button>
-        </Space>
-        <Space>
-          {run.pay_date && (
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              {formatDate(run.pay_date)}
-            </Text>
-          )}
-          {run.paid_on && (
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              {formatDate(run.paid_on)}
-            </Text>
-          )}
-        </Space>
+      <div className="no-print" style={{ maxWidth: 900, margin: '0 auto 16px' }}>
+        <PageHeader
+          title={`Payslip – ${formatPeriod(run.period || payslip.period)}`}
+          onBack={() => navigate('/me/payslips')}
+          backLabel="Back to payslips"
+          actions={
+            <Space>
+              <Button
+                type="primary"
+                icon={<PrinterOutlined />}
+                onClick={handlePrint}
+                data-testid="print-payslip-btn"
+              >
+                Download / Print PDF
+              </Button>
+              {run.pay_date && (
+                <Text type="secondary" style={{ fontSize: 13 }}>
+                  {formatDate(run.pay_date)}
+                </Text>
+              )}
+              {run.paid_on && (
+                <Text type="secondary" style={{ fontSize: 13 }}>
+                  {formatDate(run.paid_on)}
+                </Text>
+              )}
+            </Space>
+          }
+        />
       </div>
 
       {/* Payslip Document */}

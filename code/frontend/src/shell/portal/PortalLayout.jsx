@@ -84,7 +84,7 @@ export function PortalLayout() {
   if (loading) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-loading">
-        <Card>
+        <Card variant="borderless">
           <Skeleton active paragraph={{ rows: 8 }} />
         </Card>
       </div>
@@ -94,7 +94,7 @@ export function PortalLayout() {
   if (error) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-error">
-        <Card>
+        <Card variant="borderless">
           <Result
             status="error"
             title="Unable to Access Self-Service Portal"
@@ -113,7 +113,7 @@ export function PortalLayout() {
   if (!panels || panels.length === 0) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-empty">
-        <Card style={{ borderRadius: token.borderRadiusLG, textAlign: 'center', padding: token.paddingLG }}>
+        <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG, textAlign: 'center', padding: token.paddingLG }}>
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
@@ -143,7 +143,7 @@ export function PortalLayout() {
   ) {
     return (
       <div style={{ padding: token.paddingLG }} data-testid="portal-panel-forbidden">
-        <Card>
+        <Card variant="borderless">
           <Result
             status="403"
             title="Panel Not Available"
@@ -209,9 +209,9 @@ export function PortalLayout() {
       </div>
 
       <Card
+        variant="borderless"
         style={{
           borderRadius: token.borderRadiusLG,
-          boxShadow: token.boxShadowTertiary,
         }}
         styles={{ body: { padding: `${token.paddingSM}px ${token.paddingLG}px ${token.paddingLG}px` } }}
       >

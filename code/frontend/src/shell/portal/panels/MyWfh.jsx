@@ -42,11 +42,11 @@ function WfhBalanceCard({ balance, token }) {
   return (
     <Card
       type="inner"
+      variant="borderless"
       data-testid="wfh-balance-card"
       style={{
         width: '100%',
         borderRadius: token.borderRadiusLG,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
       }}
       styles={{ body: { display: 'flex', flexDirection: 'column', gap: token.marginSM } }}
     >
@@ -390,6 +390,7 @@ export function MyWfh({ onNavigate }) {
       <WfhBalanceCard balance={balance} token={token} />
 
       <Card
+        variant="borderless"
         title="WFH History & Requests"
         data-testid="wfh-requests-card"
         style={{ borderRadius: token.borderRadiusLG }}

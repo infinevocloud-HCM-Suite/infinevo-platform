@@ -145,7 +145,7 @@ module.exports = {
     },
     {
       // W-83.1: Enforce theme tokens instead of literal hex colours in shared JSX components
-      files: ['src/shared/**/*.jsx', 'src/core/**/*.jsx'],
+      files: ['src/shared/**/*.jsx', 'src/core/**/*.jsx', 'src/shell/**/*.jsx'],
       rules: {
         'no-restricted-syntax': ['error', ...hexColorRestrictedSyntax],
       },
