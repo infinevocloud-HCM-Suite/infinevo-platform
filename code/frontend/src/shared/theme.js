@@ -1,6 +1,7 @@
 /**
- * Ant Design theme tokens (D-29, W-45 §5a, W-80 10/10 UI Redesign).
+ * Ant Design theme tokens (D-29, W-45 §5a, W-80 10/10 UI Redesign, W-83.1).
  * Single source of truth for design tokens across the application.
+ * One place, so a restyle is not 158 screens of work.
  * Palette: Sky Blue, Royal Blue, Soft Slate, and Crisp White.
  */
 export const theme = {
@@ -12,6 +13,9 @@ export const theme = {
     colorWarning: '#d97706', // Amber
     colorError: '#e11d48', // Rose
     colorInfo: '#0284c7', // Sky Blue
+    colorInfoBg: '#e0f2fe',
+    colorInfoBorder: '#bae6fd',
+    colorInfoText: '#0369a1',
     colorBgLayout: '#f8fafc', // Soft slate
     colorBgContainer: '#ffffff', // Pure white
     colorBorderSecondary: '#e2e8f0', // Hairline border
@@ -21,7 +25,7 @@ export const theme = {
 
     // Type
     fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
     fontSize: 14,
     fontSizeHeading1: 36,
     fontSizeHeading2: 28,
@@ -61,7 +65,7 @@ export const theme = {
       headerFontSize: 16,
       borderRadiusLG: 12,
       colorBorderSecondary: '#e2e8f0',
-      boxShadowTertiary: '0 1px 3px 0 rgba(15, 23, 42, 0.04)',
+      boxShadowTertiary: '0 0 0 1px #e2e8f0, 0 1px 3px 0 rgba(15, 23, 42, 0.05)',
     },
     Table: {
       headerBg: '#f8fafc',
@@ -76,7 +80,7 @@ export const theme = {
       primaryShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
     },
     Tag: {
-      borderRadiusSM: 6,
+      borderRadiusSM: 12,
     },
     Input: {
       borderRadius: 8,

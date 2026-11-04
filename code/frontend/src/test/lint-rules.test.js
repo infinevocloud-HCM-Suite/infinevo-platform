@@ -116,5 +116,14 @@ describe('ESLint boundary rules (W-45 §5b)', () => {
     expect(results2[0].errorCount).toBe(1);
     expect(results2[0].messages[0].ruleId).toBe('no-restricted-syntax');
   });
-});
 
+  it('rejects literal hex colours in src/shared/**/*.jsx with exactly 1 error (W-83.1)', async () => {
+    const code = "export const BadComponent = () => <div style={{ color: '#2563eb' }}>bad</div>;\n";
+    const results = await eslint.lintText(code, {
+      filePath: resolve(__dirname, '../shared/ui/BadHexComponent.jsx'),
+    });
+    expect(results[0].errorCount).toBe(1);
+    expect(results[0].messages[0].ruleId).toBe('no-restricted-syntax');
+    expect(results[0].messages[0].message).toContain('Use a theme token, not a hex colour');
+  });
+});
