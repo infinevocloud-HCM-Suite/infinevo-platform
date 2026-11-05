@@ -884,7 +884,8 @@ Logged for later building. **None has a spec or an owner yet**; each gets both t
 
 | # | Ticket | What it is | Status |
 |---|---|---|---|
-| #— | `W-84` Plans and employee limit | Plan, support plan and employee limit per tenant; block adding or reactivating an employee over the limit; usage on screen. Terminated and soft-deleted employees do not count. Size L | Not specced. Unassigned. Waits on final prices and the `PAST_DUE` decision |
+| #— | `W-84.1` Plan and employee limit on the subscription | Plan (`STARTER`/`GROWTH`/`ENTERPRISE`), support plan (`STANDARD`/`PRIORITY`) and a typed employee limit per tenant, set by the platform admin on the tenant page; `NULL` means unlimited and is what every tenant starts with; employees / limit on the tenant list. Spec `W-84-1-plan-and-employee-limit.md` written 2026-11-05. Size M. `V188` | **Ready — Claude** (`dev-claude-w84`). Founder 2026-11-05: no wait on prices (`W-94`) or on `PAST_DUE`, which keeps blocking nothing |
+| #— | `W-84.2` Employee limit enforced and usage on screen | Add, CSV import and reactivate from Terminated refused with `409` once the live count (not deleted, not Terminated; Suspended counts) would pass the limit; Employees page badge reads "N of M employees". Spec `W-84-2-employee-limit-enforced.md` written 2026-11-05. Size M. No table | **Ready — Claude** (`dev-claude-w84`), after `W-84.1` |
 | #— | `W-85` Block Core for suspended customers | One central check stops Core changes when suspended or cancelled; today no Core controller checks subscription status. Size M | Not specced. Unassigned. Waits on the decision on viewing and export while suspended |
 | #— | `W-86` Overdue tracking | Daily job moves overdue customers to `PAST_DUE` and alerts the platform admin; nothing sets `current_period_end` today. Size M | Not specced. Unassigned. Waits on the `PAST_DUE` decision |
 | #— | `W-87` PF ECR file | Generate the monthly PF upload file from the pay run. Size M | Not specced. Unassigned. Waits on CA review |
@@ -894,9 +895,9 @@ Logged for later building. **None has a spec or an owner yet**; each gets both t
 | #— | `W-91` Gratuity | Eligibility, calculation and payout on exit. Size M | Not specced. Unassigned. Waits on CA review |
 | #— | `W-92` Labour Welfare Fund | Calculate LWF in the pay run by state; only the employee tick exists today. Size M | Not specced. Unassigned. Waits on CA review |
 | #— | `W-93` Guided statutory setup | Setup questions for the tenant admin that turn on the right rules. Size M | Not specced. Unassigned |
-| #— | `W-94` Billing and GST invoices | Generate GST invoices and record payments. Size L | Not specced. Unassigned. After `W-84`; waits on final prices |
+| #— | `W-94` Billing and GST invoices | Generate GST invoices and record payments. Size L | Not specced. Unassigned. After `W-84.1`; waits on final prices |
 | #— | `W-95` ESI and PT return reports | Monthly and periodic statutory reports; check first what already exists. Size M | Not specced. Unassigned |
-| #— | `W-115` Customer support tickets | Tenant admin, HR and payroll officer raise and track tickets to Infinevo support, with category, urgency, attachments, replies and status; platform admin works one queue across tenants; email on each update; first response measured against the tenant's support plan. Size M | Not specced. Unassigned. Response timer needs the support plan from `W-84` |
+| #— | `W-115` Customer support tickets | Tenant admin, HR and payroll officer raise and track tickets to Infinevo support, with category, urgency, attachments, replies and status; platform admin works one queue across tenants; email on each update; first response measured against the tenant's support plan. Size M | Not specced. Unassigned. Response timer needs the support plan from `W-84.1` |
 
 ### Priority 2 — competing with Keka
 
