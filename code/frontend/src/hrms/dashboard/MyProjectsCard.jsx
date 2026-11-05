@@ -24,7 +24,7 @@ export function MyProjectsCard({ projects }) {
     { title: 'End date', dataIndex: 'end_date', key: 'end_date', render: (d) => formatDate(d) },
   ];
   return (
-    <Card title="My projects">
+    <Card variant="borderless" title="My projects">
       <Statistic title="Active" value={projects.active} />
       <Table size="small" pagination={false} rowKey="project_id" columns={columns} dataSource={projects.items ?? []} />
     </Card>

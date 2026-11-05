@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useDispatch, useSelector } from 'react-redux';
-import { Card, Table, Button, Input, Select, Space, Typography, Alert, Spin, Tag } from 'antd';
+import { Card, Table, Button, Input, Select, Space, Typography, Alert, Spin, Tag, theme } from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -99,6 +99,7 @@ function numberedRowErrors(err) {
 }
 
 export function DeductionsSection({ fy, editable, onRefresh, regime }) {
+  const { token } = theme.useToken();
   const dispatch = useDispatch();
   const stored = useSelector(selectTaxSection('deductions'));
   const storedFy = useSelector(selectTaxFy);
@@ -417,7 +418,7 @@ export function DeductionsSection({ fy, editable, onRefresh, regime }) {
   const rowProps = (prefix, errors) => (_, index) => ({
     'data-testid': `${prefix}-row-${index}`,
     'data-row-error': errors[index] ? 'true' : 'false',
-    style: errors[index]?.row ? { background: '#fff2f0' } : undefined,
+    style: errors[index]?.row ? { background: token.colorErrorBg } : undefined,
   });
 
   const sixAColumns = [

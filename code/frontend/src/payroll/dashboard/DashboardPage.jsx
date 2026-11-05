@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Col, Empty, Result, Row, Select, Space, Spin, Typography } from 'antd';
+import { Button, Col, Empty, Result, Row, Select, Space, Spin } from 'antd';
 import { dashboardService } from './dashboardService.js';
 import { currentStartYear, options } from './financialYear.js';
 import { CurrentRunCard } from './CurrentRunCard.jsx';
@@ -9,8 +9,7 @@ import { StatutoryTiles } from './StatutoryTiles.jsx';
 import { YearTable } from './YearTable.jsx';
 import { SetupCard } from './SetupCard.jsx';
 import { readError } from '../tax/apiError.js';
-
-const { Title } = Typography;
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
 /** How often the page re-reads the dashboard while the current run is `COMPUTING` (W-47.5 §3). */
 export const POLL_MS = 10000;
@@ -113,18 +112,18 @@ export function DashboardPage() {
 
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>
-          Payroll dashboard
-        </Title>
-        <Select
-          aria-label="Financial year"
-          value={fy}
-          options={options()}
-          onChange={setFy}
-          style={{ width: 140 }}
-        />
-      </Space>
+      <PageHeader
+        title="Payroll dashboard"
+        actions={
+          <Select
+            aria-label="Financial year"
+            value={fy}
+            options={options()}
+            onChange={setFy}
+            style={{ width: 140 }}
+          />
+        }
+      />
       <SetupCard />
       {body}
     </div>

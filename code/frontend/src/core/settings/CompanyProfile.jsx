@@ -186,7 +186,7 @@ export function CompanyProfile() {
                       <Avatar
                         size={64}
                         data-testid="logo-initials"
-                        style={{ background: token.colorPrimary, color: token.colorBgContainer, fontWeight: 600 }}
+                        style={{ background: token.colorPrimary, color: token.colorBgContainer }}
                       >
                         {initialsOf(profile.name)}
                       </Avatar>

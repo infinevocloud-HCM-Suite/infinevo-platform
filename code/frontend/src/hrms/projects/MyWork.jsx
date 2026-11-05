@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Alert, Card, Col, Empty, Progress, Row, Select, Table, Tag, Typography } from 'antd';
+import { Alert, Card, Col, Empty, Progress, Row, Select, Table, Tag, Typography, theme } from 'antd';
 import dayjs from 'dayjs';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { COLOR, LABEL, TASK_STATUSES, errorMessage, projectService } from './projectService.js';
 import { EMPTY, formatDate, humanize } from '@shared/ui/format.js';
 
@@ -11,6 +12,7 @@ export function isOverdue(task, today = dayjs().format('YYYY-MM-DD')) {
 
 /** The employee's own projects and tasks (W-48.1 §5); status changes go to `PUT /tasks/{id}/status`. */
 export function MyWork() {
+  const { token } = theme.useToken();
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ export function MyWork() {
   };
 
   const columns = [
-    { title: 'Title', dataIndex: 'title' },
+    { title: 'Title', dataIndex: 'title', render: (v) => <Typography.Text strong>{v}</Typography.Text> },
     { title: 'Project', dataIndex: 'project_name', render: (v) => v || EMPTY },
     {
       title: 'Due',
@@ -74,8 +76,9 @@ export function MyWork() {
 
   return (
     <>
-      {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
-      <Card title="My projects" loading={loading} style={{ marginBottom: 16 }}>
+      <PageHeader title="My work" subtitle="My assigned projects and tasks" />
+      {error && <Alert type="error" message={error} style={{ marginBottom: token.margin }} />}
+      <Card variant="borderless" title="My projects" loading={loading} style={{ marginBottom: token.margin }}>
         {projects.length === 0 ? (
           <Empty description="No projects" />
         ) : (
@@ -83,6 +86,7 @@ export function MyWork() {
             {projects.map((p) => (
               <Col key={p.id} xs={24} sm={12} lg={8}>
                 <Card
+                  variant="borderless"
                   size="small"
                   title={p.name}
                   extra={<Tag color={COLOR[p.status]}>{LABEL[p.status]}</Tag>}
@@ -95,12 +99,12 @@ export function MyWork() {
           </Row>
         )}
       </Card>
-      <Card title="My tasks" loading={loading}>
+      <Card variant="borderless" title="My tasks" loading={loading}>
         {TASK_STATUSES.map((s) => {
           const group = tasks.filter((t) => t.status === s);
           if (group.length === 0) return null;
           return (
-            <div key={s} style={{ marginBottom: 16 }}>
+            <div key={s} style={{ marginBottom: token.margin }}>
               <Typography.Title level={5}>
                 {LABEL[s]} ({group.length})
               </Typography.Title>

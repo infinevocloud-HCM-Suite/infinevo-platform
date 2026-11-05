@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card, Form, InputNumber, Radio, Spin, Switch, Tag } from 'antd';
+import { Alert, Button, Card, Form, InputNumber, Radio, Spin, Switch, Tag, theme } from 'antd';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useCan } from '@shell/screens';
 import { LoadError } from '@shared/ui/LoadError.jsx';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { attendanceService } from './attendanceService.js';
 
 const hours = Yup.number().typeError('Enter hours').required('Required').min(0, 'At least 0').max(24, 'At most 24');
@@ -74,9 +75,12 @@ export function AttendanceSettings() {
     load();
   }, [load]);
 
+  const { token } = theme.useToken();
+
   if (!pref && loadError) {
     return (
-      <Card title="Attendance settings">
+      <Card variant="borderless">
+        <PageHeader title="Attendance settings" />
         <LoadError title="Could not load the attendance settings" error={loadError} onRetry={load} />
       </Card>
     );
@@ -84,7 +88,7 @@ export function AttendanceSettings() {
 
   if (!pref) {
     return (
-      <Card>
+      <Card variant="borderless">
         <Spin />
       </Card>
     );
@@ -102,9 +106,13 @@ export function AttendanceSettings() {
   };
 
   return (
-    <Card title="Attendance settings" extra={pref?.isDefault ? <Tag color="blue">Using defaults</Tag> : null}>
-      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
-      {saved && <Alert type="success" message="Saved" showIcon style={{ marginBottom: 16 }} />}
+    <Card variant="borderless">
+      <PageHeader
+        title="Attendance settings"
+        actions={pref?.isDefault ? <Tag color="blue">Using defaults</Tag> : null}
+      />
+      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
+      {saved && <Alert type="success" message="Saved" showIcon style={{ marginBottom: token.margin }} />}
       <Form layout="vertical" onFinish={formik.handleSubmit} disabled={!canManage}>
         <Form.Item {...item('hoursCalculation', 'Hours calculation')}>
           <Radio.Group

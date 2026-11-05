@@ -212,7 +212,7 @@ export function Allocations() {
         const balances = balancesByEmployee[emp.id] || [];
         const record = balances.find((b) => b.leaveTypeId === type.id);
         if (!record) return '-';
-        return <Text strong>{record.remainingDays ?? record.entitlementDays ?? 0}</Text>;
+        return <Text>{record.remainingDays ?? record.entitlementDays ?? 0}</Text>;
       },
     })),
   ];
@@ -230,7 +230,7 @@ export function Allocations() {
         key: 'leaveTypeName',
         render: (name, bal) => (
           <Space size={4}>
-            <span>{name}</span>
+            <Text strong>{name}</Text>
             {bal.expired && <Tag color="error">Expired</Tag>}
           </Space>
         ),
@@ -243,7 +243,7 @@ export function Allocations() {
         title: 'Remaining',
         dataIndex: 'remainingDays',
         key: 'remainingDays',
-        render: (days) => <Text strong>{days}</Text>,
+        render: (days) => <Text>{days}</Text>,
       },
       {
         title: 'Carry Forward Expires',

@@ -19,6 +19,7 @@ import {
   Switch,
   Divider,
   Tabs,
+  theme,
 } from 'antd';
 import {
   FileTextOutlined,
@@ -33,6 +34,7 @@ import {
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { currentFy, fyOptions, formatFyDisplay } from './financialYear';
 import { declarationService } from './declarationService';
 import {
@@ -55,6 +57,7 @@ const { Title, Text, Paragraph } = Typography;
 const RELOAD_HEADER_CODES = ['ALREADY_SUBMITTED', 'NOT_EDITABLE', 'WINDOW_CLOSED', 'LOCKED', 'OFFICER_ENTERED'];
 
 export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
+  const { token } = theme.useToken();
   const dispatch = useDispatch();
   const sliceFy = useSelector(selectTaxFy);
   const header = useSelector(selectTaxHeader);
@@ -305,11 +308,12 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
       ),
       children: (
         <Card
+          variant="borderless"
           title={
           <Row justify="space-between" align="middle" wrap gutter={[12, 12]}>
             <Col>
               <Space align="center">
-                <FileTextOutlined style={{ fontSize: 22, color: '#1677ff' }} />
+                <FileTextOutlined style={{ fontSize: 22, color: token.colorPrimary }} />
                 <div>
                   <Title level={4} style={{ margin: 0 }}>
                     Tax Declaration (Investment Declarations)
@@ -392,11 +396,11 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
               {/* Action Bar & Regime Controls */}
               <div
                 style={{
-                  background: '#fafafa',
+                  background: token.colorFillAlter,
                   padding: '16px 20px',
-                  borderRadius: 8,
+                  borderRadius: token.borderRadiusLG,
                   marginBottom: 20,
-                  border: '1px solid #f0f0f0',
+                  border: `1px solid ${token.colorBorderSecondary}`,
                 }}
               >
                 <Row justify="space-between" align="middle" gutter={[16, 16]}>
@@ -544,6 +548,10 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
+      <PageHeader
+        title="Tax Declaration"
+        subtitle={`Financial Year ${formatFyDisplay(selectedFy)}`}
+      />
       <Tabs
         activeKey={activeMainTab}
         onChange={handleTabChange}

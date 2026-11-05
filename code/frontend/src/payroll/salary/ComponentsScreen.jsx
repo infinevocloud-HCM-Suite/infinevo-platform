@@ -10,7 +10,6 @@ import {
   Space,
   Popconfirm,
   Typography,
-  theme,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
@@ -18,12 +17,12 @@ import { componentService } from './componentService.js';
 import { ComponentDrawer } from './ComponentDrawer.jsx';
 import { invalidateComponents } from './salarySlice.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
-import { formatMoney } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
-const { Title } = Typography;
+const { Text } = Typography;
 
 export function ComponentsScreen() {
-  const { token } = theme.useToken();
   const dispatch = useDispatch();
 
   const canRead = useCan('payroll.structure.read');
@@ -97,9 +96,11 @@ export function ComponentsScreen() {
         key: 'name',
         render: (name, record) => (
           <div>
-            <div style={{ fontWeight: 500 }}>{name}</div>
+            <Text strong>{name}</Text>
             {record.displayName && record.displayName !== name && (
-              <small style={{ color: token.colorTextSecondary }}>{record.displayName}</small>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>{record.displayName}</Text>
+              </div>
             )}
           </div>
         ),
@@ -108,7 +109,7 @@ export function ComponentsScreen() {
         title: 'Code',
         dataIndex: 'code',
         key: 'code',
-        render: (code) => <Tag color="geekblue">{code}</Tag>,
+        render: (code) => <Text type="secondary">{code}</Text>,
       },
       {
         title: 'Calculation Type',
@@ -126,10 +127,13 @@ export function ComponentsScreen() {
         title: 'Default Value',
         dataIndex: 'defaultValue',
         key: 'defaultValue',
+        align: 'right',
         render: (val, record) => (
-          <span style={{ fontFamily: 'monospace' }}>
-            {record.calculationType === 'PERCENTAGE' ? `${val}%` : formatMoney(val)}
-          </span>
+          record.calculationType === 'PERCENTAGE' ? (
+            <span>{val}%</span>
+          ) : (
+            <MoneyText value={val} />
+          )
         ),
       },
     ];
@@ -267,9 +271,9 @@ export function ComponentsScreen() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Card
-        title={<Title level={4} style={{ margin: 0 }}>Salary Components</Title>}
-        extra={
+      <PageHeader
+        title="Salary Components"
+        actions={
           canManage && (
             <Button
               type="primary"
@@ -283,7 +287,8 @@ export function ComponentsScreen() {
             </Button>
           )
         }
-      >
+      />
+      <Card variant="borderless">
         <Tabs activeKey={activeTab} items={tabItems} onChange={setActiveTab} />
       </Card>
 

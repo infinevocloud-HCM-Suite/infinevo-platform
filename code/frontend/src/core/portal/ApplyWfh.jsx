@@ -147,7 +147,7 @@ export function ApplyWfh({ onSuccess }) {
                   <Space>
                     <InfoCircleOutlined style={{ color: token.colorPrimary }} />
                     <Text strong>Current Available Quota:</Text>
-                    <Text style={{ fontSize: token.fontSizeLG, fontWeight: 700, color: token.colorPrimary }}>
+                    <Text strong style={{ fontSize: token.fontSizeLG, color: token.colorPrimary }}>
                       {availableDays} days
                     </Text>
                   </Space>

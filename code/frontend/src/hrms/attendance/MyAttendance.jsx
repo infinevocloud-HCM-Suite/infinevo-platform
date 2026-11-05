@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Card, DatePicker, Space, Table, Tag } from 'antd';
+import { Alert, Card, DatePicker, Space, Table, Tag, Typography, theme } from 'antd';
 import dayjs from 'dayjs';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { ClockCard } from './ClockCard.jsx';
 import { attendanceService } from './attendanceService.js';
 import { hmm, timeOf } from './format.js';
 import { formatDate } from '@shared/ui/format.js';
+
+const { Text } = Typography;
 
 /** Groups sessions into one row per attendance date (W-48.4 §5). */
 function byDay(sessions) {
@@ -85,10 +88,12 @@ export function MyAttendance() {
     };
   }, [month]);
 
+  const { token } = theme.useToken();
+
   const days = useMemo(() => byDay(rows), [rows]);
 
   const columns = [
-    { title: 'Date', dataIndex: 'date', key: 'date', render: (d) => formatDate(d) },
+    { title: 'Date', dataIndex: 'date', key: 'date', render: (d) => <Text strong>{formatDate(d)}</Text> },
     { title: 'First in', key: 'in', render: (_, r) => timeOf(r.firstIn) },
     { title: 'Last out', key: 'out', render: (_, r) => timeOf(r.lastOut) },
     { title: 'Worked', key: 'worked', render: (_, r) => hmm(r.worked) },
@@ -108,18 +113,19 @@ export function MyAttendance() {
   return (
     <Space direction="vertical" style={{ width: '100%' }}>
       <ClockCard onDay={onDay} />
-      <Card
-        title="My days"
-        extra={
-          <DatePicker
-            picker="month"
-            value={month}
-            allowClear={false}
-            onChange={pickMonth}
-          />
-        }
-      >
-        {error && <Alert type="error" message={error} showIcon />}
+      <Card variant="borderless">
+        <PageHeader
+          title="My days"
+          actions={
+            <DatePicker
+              picker="month"
+              value={month}
+              allowClear={false}
+              onChange={pickMonth}
+            />
+          }
+        />
+        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
         <Table rowKey="date" columns={columns} dataSource={days} loading={loading} pagination={false} />
       </Card>
     </Space>

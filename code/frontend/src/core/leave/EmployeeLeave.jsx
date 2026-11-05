@@ -101,13 +101,13 @@ export function EmployeeLeave() {
       title: 'Period',
       dataIndex: 'period',
       key: 'period',
-      render: (p) => formatMonth(p),
+      render: (p) => <Text strong>{formatMonth(p)}</Text>,
     },
     {
       title: 'Days',
       dataIndex: 'consumedDays',
       key: 'consumedDays',
-      render: (days) => <Text strong>{days}</Text>,
+      render: (days) => <Text>{days}</Text>,
     },
     {
       title: 'Reason',
@@ -141,12 +141,12 @@ export function EmployeeLeave() {
   ];
 
   const lopColumns = [
-    { title: 'Period', dataIndex: 'period', key: 'period', render: (p) => formatMonth(p) },
+    { title: 'Period', dataIndex: 'period', key: 'period', render: (p) => <Text strong>{formatMonth(p)}</Text> },
     {
       title: 'LOP Days',
       dataIndex: 'lopDays',
       key: 'lopDays',
-      render: (d) => <Text strong type="danger">{d}</Text>,
+      render: (d) => <Text type="danger">{d}</Text>,
     },
     {
       title: 'Type',

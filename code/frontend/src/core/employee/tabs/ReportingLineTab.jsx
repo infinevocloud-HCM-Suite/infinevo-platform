@@ -23,7 +23,7 @@ import { employeeService } from '../employeeService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { formatDate, humanize } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function ReportingLineTab({ employeeId }) {
   const { token } = theme.useToken();
@@ -181,7 +181,9 @@ export function ReportingLineTab({ employeeId }) {
     <Card variant="borderless" style={{ padding: 0 }}>
       {/* Manager chain */}
       <div style={{ marginBottom: token.marginLG }}>
-        <Title level={5} style={{ marginBottom: token.marginSM }}>Manager Chain</Title>
+        <Text strong style={{ display: 'block', marginBottom: token.marginSM, fontSize: token.fontSizeLG }}>
+          Manager Chain
+        </Text>
         {chain.length > 0 ? (
           <Breadcrumb
             id="breadcrumb-manager-chain"
@@ -196,7 +198,7 @@ export function ReportingLineTab({ employeeId }) {
 
       {/* Reporting lines table */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: token.marginSM }}>
-        <Title level={5} style={{ margin: 0 }}>Reporting Lines</Title>
+        <Text strong style={{ fontSize: token.fontSizeLG }}>Reporting Lines</Text>
         {canManage && (
           <Button
             type="primary"

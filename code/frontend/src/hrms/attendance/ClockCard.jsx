@@ -71,7 +71,7 @@ export function ClockCard({ onDay }) {
 
   if (loading && !today)
     return (
-      <Card>
+      <Card variant="borderless">
         <Spin />
       </Card>
     );
@@ -80,7 +80,7 @@ export function ClockCard({ onDay }) {
   const sessions = today?.sessions || [];
 
   return (
-    <Card title={`Today${today?.date ? ` — ${formatDate(today.date)}` : ''}`}>
+    <Card variant="borderless" title={`Today${today?.date ? ` — ${formatDate(today.date)}` : ''}`}>
       <Space direction="vertical" style={{ width: '100%' }}>
         {error && <Alert type="error" message={error} showIcon />}
         {isStale && (

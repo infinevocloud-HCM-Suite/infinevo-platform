@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
-import { Card, Col, Row, Statistic, Table, Typography } from 'antd';
+import { Card, Col, Row, Statistic, Table, Typography, theme } from 'antd';
 import { formatDate } from '@shared/ui/format.js';
 
 /** Overdue = due date before the reply's `as_of` (ISO dates compare as strings); never the browser's date. */
@@ -8,6 +8,7 @@ export const isOverdue = (dueDate, asOf) => Boolean(dueDate && asOf && dueDate <
 
 /** `me.tasks` (W-48.6 §5): counts are the server's; overdue rows in red. */
 export function MyTasksCard({ tasks, asOf }) {
+  const { token } = theme.useToken();
   if (!tasks) return null;
   const columns = [
     {
@@ -30,13 +31,13 @@ export function MyTasksCard({ tasks, asOf }) {
     },
   ];
   return (
-    <Card title="My tasks" extra={<Link to="/hrms/my-work">My work</Link>}>
+    <Card variant="borderless" title="My tasks" extra={<Link to="/hrms/my-work">My work</Link>}>
       <Row gutter={16}>
         <Col span={8}>
           <Statistic title="Open" value={tasks.open} />
         </Col>
         <Col span={8}>
-          <Statistic title="Overdue" value={tasks.overdue} valueStyle={{ color: '#cf1322' }} />
+          <Statistic title="Overdue" value={tasks.overdue} valueStyle={{ color: token.colorError }} />
         </Col>
         <Col span={8}>
           <Statistic title="Due this week" value={tasks.due_this_week} />

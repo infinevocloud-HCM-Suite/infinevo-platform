@@ -16,19 +16,18 @@ import {
   Tag,
   Row,
   Col,
-  Breadcrumb,
 } from 'antd';
 import {
-  ArrowLeftOutlined,
   PlusOutlined,
   DeleteOutlined,
   CheckCircleOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { payrunService } from './payrunService.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 // core.payinput.PayInputKind less LOP_DAYS, which an off-cycle run refuses (W-30.2 §4).
 export const INPUT_KINDS = [
@@ -355,24 +354,17 @@ export function OffCycleCreate() {
 
   return (
     <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
-        items={[
-          { title: <a onClick={() => navigate('/payroll/runs')}>Pay Runs</a> },
-          { title: 'New Off-Cycle Run' },
+      <PageHeader
+        title="Create Off-Cycle Pay Run"
+        breadcrumbs={[
+          { label: 'Pay Runs', to: '/payroll/runs' },
+          { label: 'New Off-Cycle Run' },
         ]}
+        onBack={() => navigate('/payroll/runs')}
+        backLabel="Runs"
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/payroll/runs')}>
-          Runs
-        </Button>
-        <Title level={3} style={{ margin: 0 }}>
-          Create Off-Cycle Pay Run
-        </Title>
-      </div>
-
-      <Card style={{ marginBottom: 24 }}>
+      <Card variant="borderless" style={{ marginBottom: 24 }}>
         <Steps
           current={currentStep}
           items={[
@@ -383,7 +375,7 @@ export function OffCycleCreate() {
       </Card>
 
       {currentStep === 0 && (
-        <Card title="Step 1: Off-Cycle Run Configuration">
+        <Card variant="borderless" title="Step 1: Off-Cycle Run Configuration">
           {step1Error && (
             <Alert
               message="Failed to create off-cycle run"
@@ -463,6 +455,7 @@ export function OffCycleCreate() {
 
       {currentStep === 1 && (
         <Card
+          variant="borderless"
           title={
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>

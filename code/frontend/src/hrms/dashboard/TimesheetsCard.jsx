@@ -32,7 +32,7 @@ export function TimesheetsCard({ timesheets }) {
     { title: 'Hours', key: 'hours', render: (_, r) => r.week.hours },
   ];
   return (
-    <Card title="Timesheets">
+    <Card variant="borderless" title="Timesheets">
       <Table size="small" pagination={false} rowKey="key" columns={columns} dataSource={rows} />
     </Card>
   );

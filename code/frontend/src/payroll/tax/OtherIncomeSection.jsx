@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useDispatch, useSelector } from 'react-redux';
-import { Card, Table, Button, Input, Select, Space, Typography, Alert, Spin } from 'antd';
+import { Card, Table, Button, Input, Select, Space, Typography, Alert, Spin, theme } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined, DollarCircleOutlined } from '@ant-design/icons';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { declarationService } from './declarationService';
@@ -31,6 +31,7 @@ const isAmount = (value) => {
 };
 
 export function OtherIncomeSection({ fy, editable, onRefresh }) {
+  const { token } = theme.useToken();
   const dispatch = useDispatch();
   const stored = useSelector(selectTaxSection('otherIncome'));
   const storedFy = useSelector(selectTaxFy);
@@ -209,7 +210,7 @@ export function OtherIncomeSection({ fy, editable, onRefresh }) {
         type="inner"
         title={
           <Space align="center">
-            <DollarCircleOutlined style={{ color: '#1677ff' }} />
+            <DollarCircleOutlined style={{ color: token.colorPrimary }} />
             <Text strong>Income from Other Sources</Text>
           </Space>
         }

@@ -20,9 +20,11 @@ import { PlusOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/i
 import { useCan } from '@shell/screens';
 import { payrunService } from './payrunService.js';
 import { MidYearBanner } from '../priorpayroll/MidYearBanner.jsx';
-import { EMPTY, formatDate, formatMoney, formatMonth, humanize, statusLabel } from '@shared/ui/format.js';
+import { EMPTY, formatDate, formatMonth, humanize, statusLabel } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const STATUS_OPTIONS = [
   { label: 'All Statuses', value: 'ALL' },
@@ -180,59 +182,46 @@ export function RunList() {
         if (!isComputed || val === undefined || val === null) {
           return <Text type="secondary">{EMPTY}</Text>;
         }
-        return (
-          <Text strong style={{ fontFamily: 'monospace' }}>
-            {formatMoney(val)}
-          </Text>
-        );
+        return <MoneyText value={val} />;
       },
     },
   ];
 
   return (
     <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
-          flexWrap: 'wrap',
-          gap: 16,
-        }}
-      >
-        <Title level={2} style={{ margin: 0 }}>
-          Pay Runs
-        </Title>
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={fetchRuns} loading={loading}>
-            Refresh
-          </Button>
-          {canExecute && (
-            <>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setCreateError(null);
-                  setIs409Conflict(false);
-                  setCreateModalOpen(true);
-                }}
-              >
-                New Run
-              </Button>
-              <Button
-                icon={<ThunderboltOutlined />}
-                onClick={() => navigate('/payroll/runs/new-off-cycle')}
-              >
-                New Off-Cycle Run
-              </Button>
-            </>
-          )}
-        </Space>
-      </div>
+      <PageHeader
+        title="Pay Runs"
+        actions={
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={fetchRuns} loading={loading}>
+              Refresh
+            </Button>
+            {canExecute && (
+              <>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => {
+                    setCreateError(null);
+                    setIs409Conflict(false);
+                    setCreateModalOpen(true);
+                  }}
+                >
+                  New Run
+                </Button>
+                <Button
+                  icon={<ThunderboltOutlined />}
+                  onClick={() => navigate('/payroll/runs/new-off-cycle')}
+                >
+                  New Off-Cycle Run
+                </Button>
+              </>
+            )}
+          </Space>
+        }
+      />
 
-      <Card style={{ marginBottom: 20 }}>
+      <Card variant="borderless" style={{ marginBottom: 20 }}>
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={12} md={8}>
             <Space align="center" style={{ width: '100%' }}>
@@ -280,26 +269,28 @@ export function RunList() {
 
       <MidYearBanner />
 
-      <Table
-        dataSource={data}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        onRow={(record) => ({
-          onClick: () => navigate(`/payroll/runs/${record.id}`),
-          style: { cursor: 'pointer' },
-        })}
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-          showSizeChanger: true,
-        }}
-      />
+      <Card variant="borderless">
+        <Table
+          dataSource={data}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          onRow={(record) => ({
+            onClick: () => navigate(`/payroll/runs/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+            showSizeChanger: true,
+          }}
+        />
+      </Card>
 
       <Modal
         title="Create Regular Pay Run"

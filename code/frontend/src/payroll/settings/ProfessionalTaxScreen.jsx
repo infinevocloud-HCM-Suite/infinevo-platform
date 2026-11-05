@@ -32,7 +32,8 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ptService } from './ptService.js';
-import { formatMoney, humanize } from '@shared/ui/format.js';
+import { humanize } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Text } = Typography;
 
@@ -189,19 +190,22 @@ export function ProfessionalTaxScreen() {
       title: 'From Amount',
       dataIndex: 'from_amount',
       key: 'from_amount',
-      render: (val) => formatMoney(val ?? 0),
+      align: 'right',
+      render: (val) => <MoneyText value={val ?? 0} />,
     },
     {
       title: 'To Amount',
       dataIndex: 'to_amount',
       key: 'to_amount',
-      render: (val) => (val != null ? formatMoney(val) : 'And above'),
+      align: 'right',
+      render: (val) => (val != null ? <MoneyText value={val} /> : 'And above'),
     },
     {
       title: 'Tax Amount',
       dataIndex: 'amount',
       key: 'amount',
-      render: (val) => <Text strong>{formatMoney(val ?? 0)}</Text>,
+      align: 'right',
+      render: (val) => <MoneyText value={val ?? 0} />,
     },
     {
       title: 'Female Exempt',
@@ -323,6 +327,7 @@ export function ProfessionalTaxScreen() {
 
   return (
     <Card
+      variant="borderless"
       title={
         <Space>
           <BankOutlined style={{ color: token.colorPrimary }} />
@@ -422,7 +427,7 @@ export function ProfessionalTaxScreen() {
                     extra={
                       fields.length > 1 ? (
                         <MinusCircleOutlined
-                          style={{ color: '#ff4d4f', cursor: 'pointer' }}
+                          style={{ color: token.colorError, cursor: 'pointer' }}
                           onClick={() => remove(name)}
                           data-testid={`remove-slab-btn-${idx}`}
                         />

@@ -87,10 +87,10 @@ export function HolidayLookup() {
       render: (_, record) => {
         if (!record.from) return '—';
         if (!record.to || record.from === record.to) {
-          return <Text strong>{formatDate(record.from)}</Text>;
+          return <Text>{formatDate(record.from)}</Text>;
         }
         return (
-          <Text strong>
+          <Text>
             {formatDate(record.from)} <Text type="secondary">to</Text> {formatDate(record.to)}
           </Text>
         );

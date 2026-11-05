@@ -168,11 +168,11 @@ export function Calendars() {
         <Space size="small">
           <Button
             type="link"
-            style={{ padding: 0, fontWeight: 600 }}
+            style={{ padding: 0 }}
             onClick={() => navigate(`/holidays/${record.id}`)}
             id={`link-calendar-${record.id}`}
           >
-            {name}
+            <Text strong>{name}</Text>
           </Button>
           {record.isDefault && (
             <Tag color="blue" id={`tag-default-${record.id}`}>
@@ -210,7 +210,7 @@ export function Calendars() {
           const toYear = h.to ? new Date(h.to).getFullYear() : null;
           return fromYear === currentYear || toYear === currentYear;
         }).length;
-        return <Text strong>{count}</Text>;
+        return <Text>{count}</Text>;
       },
     },
     {

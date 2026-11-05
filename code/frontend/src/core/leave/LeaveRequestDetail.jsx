@@ -247,7 +247,7 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
           <Descriptions.Item label="To Date">{formatDate(request.toDate)}</Descriptions.Item>
           <Descriptions.Item label="Duration">
             <Space>
-              <Text strong>{request.workingDays} working day(s)</Text>
+              <Text>{request.workingDays} working day(s)</Text>
               {request.isHalfDay && (
                 <Tag color="cyan">
                   {request.halfDayPeriod?.toUpperCase() === 'FIRST' ? '1st Half' : '2nd Half'}

@@ -25,7 +25,8 @@ import { useCan } from '@shell/screens';
 import { fetchActiveComponents } from './salarySlice.js';
 import { scheduledEarningService } from './scheduledEarningService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
-import { EMPTY, formatMoney, formatMonth, statusLabel } from '@shared/ui/format.js';
+import { EMPTY, formatMonth, statusLabel } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Title, Text } = Typography;
 
@@ -311,12 +312,12 @@ export function ScheduledEarningsPanel({ employeeId }) {
       key: 'component',
       render: (_, r) => (
         <span>
-          {r.componentName || r.componentCode}
+          <Text strong>{r.componentName || r.componentCode}</Text>
           {r.componentCode && r.componentName ? <Text type="secondary"> ({r.componentCode})</Text> : null}
         </span>
       ),
     },
-    { title: 'Amount', dataIndex: 'amount', key: 'amount', width: 120, render: (v) => formatMoney(v) },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', width: 120, align: 'right', render: (v) => <MoneyText value={v} /> },
     { title: 'First month', dataIndex: 'firstPeriod', key: 'firstPeriod', width: 110, render: (v) => formatMonth(v) },
     {
       title: 'Instalments',
@@ -401,6 +402,7 @@ export function ScheduledEarningsPanel({ employeeId }) {
 
   return (
     <Card
+      variant="borderless"
       title={<Title level={5} style={{ margin: 0 }}>Scheduled earnings</Title>}
       extra={
         canManage && (

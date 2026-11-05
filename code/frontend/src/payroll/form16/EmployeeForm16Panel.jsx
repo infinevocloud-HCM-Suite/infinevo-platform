@@ -116,7 +116,7 @@ export function EmployeeForm16Panel() {
                 <span>TDS Deducted to Date (FY {selectedFy})</span>
               </Space>
             }
-            bordered
+            variant="borderless"
             style={{ height: '100%', borderRadius: token.borderRadiusLG }}
           >
             {loading ? (
@@ -126,7 +126,7 @@ export function EmployeeForm16Panel() {
                 <Statistic
                   title="Total Tax Deducted by Employer"
                   value={`₹${formatAmount(statement?.totalDeducted || 0)}`}
-                  styles={{ content: { color: token.colorPrimary, fontWeight: 600 } }}
+                  styles={{ content: { color: token.colorPrimary } }}
                 />
                 <div style={{ marginTop: token.marginSM }}>
                   <Text type="secondary">Assessment Year: </Text>
@@ -147,7 +147,7 @@ export function EmployeeForm16Panel() {
                 <span>TRACES Certificate (Part A)</span>
               </Space>
             }
-            bordered
+            variant="borderless"
             style={{ height: '100%', borderRadius: token.borderRadiusLG }}
           >
             {partALoading ? (

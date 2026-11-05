@@ -131,7 +131,7 @@ export function LeaveRequests() {
       title: 'Days',
       dataIndex: 'workingDays',
       key: 'workingDays',
-      render: (days) => <Text strong>{days}</Text>,
+      render: (days) => <Text>{days}</Text>,
     },
     {
       title: 'Status',

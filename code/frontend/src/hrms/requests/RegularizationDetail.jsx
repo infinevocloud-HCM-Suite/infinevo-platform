@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Descriptions, Space, Spin, Tag } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { NotFound, useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { DecideModal } from '../../core/approvals/DecideModal.jsx';
 import { approvalService } from '../../core/approvals/approvalService.js';
 import { decrementPendingCount } from '../../core/approvals/approvalSlice.js';
@@ -27,6 +28,7 @@ export function backLink(location, list) {
 export function RegularizationDetail() {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const canDecide = useCan('core.approval.decide');
 
@@ -124,7 +126,15 @@ export function RegularizationDetail() {
   );
 
   return (
-    <Card title="Regularization" extra={extra}>
+    <Card variant="borderless">
+      <PageHeader
+        title="Regularization"
+        onBack={() => {
+          if (location.state?.from === '/approvals') navigate('/approvals');
+          else navigate('/hrms/regularizations');
+        }}
+        actions={extra}
+      />
       <Descriptions size="small" column={2} bordered>
         <Descriptions.Item label="Employee">{item.employeeName || EMPTY}</Descriptions.Item>
         <Descriptions.Item label="Date">{formatDate(item.date)}</Descriptions.Item>

@@ -26,6 +26,7 @@ import { StatutoryContributionsTable } from './StatutoryContributionsTable.jsx';
 import { statutoryService } from '../settings/statutoryService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { EMPTY, formatDate, formatMoney, humanize } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Title, Text } = Typography;
 
@@ -117,8 +118,19 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
   };
 
   const componentColumns = [
-    { title: 'Code', dataIndex: 'componentCode', key: 'componentCode', width: 120 },
-    { title: 'Name', dataIndex: 'componentName', key: 'componentName' },
+    {
+      title: 'Code',
+      dataIndex: 'componentCode',
+      key: 'componentCode',
+      width: 120,
+      render: (c) => <Text type="secondary">{c}</Text>,
+    },
+    {
+      title: 'Name',
+      dataIndex: 'componentName',
+      key: 'componentName',
+      render: (n) => <Text strong>{n}</Text>,
+    },
     {
       title: 'Type',
       dataIndex: 'calculationType',
@@ -138,14 +150,16 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
       dataIndex: 'monthlyAmount',
       key: 'monthlyAmount',
       width: 140,
-      render: (amt) => formatMoney(amt),
+      align: 'right',
+      render: (amt) => (amt != null ? <MoneyText value={amt} /> : EMPTY),
     },
     {
       title: 'Annual Amount',
       dataIndex: 'annualAmount',
       key: 'annualAmount',
       width: 140,
-      render: (amt) => formatMoney(amt),
+      align: 'right',
+      render: (amt) => (amt != null ? <MoneyText value={amt} /> : EMPTY),
     },
     {
       title: 'Status',
@@ -163,19 +177,21 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
       title: 'Effective From',
       dataIndex: 'effectiveFrom',
       key: 'effectiveFrom',
-      render: (d) => formatDate(d),
+      render: (d) => <Text strong>{formatDate(d)}</Text>,
     },
     {
       title: 'Annual CTC',
       dataIndex: 'annualCtc',
       key: 'annualCtc',
-      render: (val) => formatMoney(val),
+      align: 'right',
+      render: (val) => (val != null ? <MoneyText value={val} /> : EMPTY),
     },
     {
       title: 'Monthly CTC',
       dataIndex: 'monthlyCtc',
       key: 'monthlyCtc',
-      render: (val) => formatMoney(val),
+      align: 'right',
+      render: (val) => (val != null ? <MoneyText value={val} /> : EMPTY),
     },
     {
       title: 'Change',
@@ -236,7 +252,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
     <div>
       <Spin spinning={loading}>
         {/* Top Control Bar */}
-        <Card style={{ marginBottom: 24 }}>
+        <Card variant="borderless" style={{ marginBottom: 24 }}>
           <div
             style={{
               display: 'flex',
@@ -295,6 +311,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
         {/* Current In-Force Version */}
         {currentVersion ? (
           <Card
+            variant="borderless"
             title={
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Title level={5} style={{ margin: 0 }}>
@@ -377,7 +394,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
             />
           </Card>
         ) : (
-          <Card style={{ marginBottom: 24, textAlign: 'center', padding: '32px 0' }}>
+          <Card variant="borderless" style={{ marginBottom: 24, textAlign: 'center', padding: '32px 0' }}>
             <Empty
               description="No salary structure active as of this date"
               image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -410,6 +427,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
 
         {/* All Versions History Table */}
         <Card
+          variant="borderless"
           title={<Title level={5} style={{ margin: 0 }}>Salary Versions History</Title>}
           style={{ marginBottom: 24 }}
         >

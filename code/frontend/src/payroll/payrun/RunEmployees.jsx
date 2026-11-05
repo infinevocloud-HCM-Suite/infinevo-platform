@@ -4,7 +4,8 @@ import { Table, Tag, Segmented, Typography, Alert, Card, Button } from 'antd';
 import { EyeOutlined } from '@ant-design/icons';
 import { payrunService } from './payrunService.js';
 import { LinesDrawer } from './LinesDrawer.jsx';
-import { EMPTY, formatMoney } from '@shared/ui/format.js';
+import { EMPTY } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Text } = Typography;
 
@@ -103,7 +104,7 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
       dataIndex: 'employee_number',
       key: 'employee_number',
       render: (num, record) => (
-        <Text strong>{num || record.employeeNumber || '-'}</Text>
+        <Text type="secondary">{num || record.employeeNumber || '-'}</Text>
       ),
     },
     {
@@ -115,7 +116,7 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
           record.employeeName ||
           names[record.employee_id || record.employeeId] ||
           '-';
-        return <Text>{name}</Text>;
+        return <Text strong>{name}</Text>;
       },
     },
     {
@@ -150,7 +151,7 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
       render: (amt, record) => {
         const val = amt !== undefined ? amt : record.grossEarnings;
         return val !== undefined && val !== null ? (
-          <Text style={{ fontFamily: 'monospace' }}>{formatMoney(val)}</Text>
+          <MoneyText value={val} />
         ) : (
           EMPTY
         );
@@ -164,9 +165,7 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
       render: (amt, record) => {
         const val = amt !== undefined ? amt : record.netPay;
         return val !== undefined && val !== null ? (
-          <Text strong style={{ fontFamily: 'monospace' }}>
-            {formatMoney(val)}
-          </Text>
+          <MoneyText value={val} strong />
         ) : (
           EMPTY
         );
@@ -193,6 +192,7 @@ export function RunEmployees({ payrunId, initialEmployees, initialTotal }) {
 
   return (
     <Card
+      variant="borderless"
       title={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Employees in this Run</span>
