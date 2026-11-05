@@ -5,7 +5,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 const { Title, Text } = Typography;
 
 /**
- * Reusable PageHeader for all screens (W-83.1, W-80.1).
+ * Reusable PageHeader for all screens (W-83.1, W-80.1, W-83.5).
  *
  * Provides title (level 4), optional subtitle, real data count badge,
  * onBack button, and actions area.
@@ -23,7 +23,7 @@ export function PageHeader({ title, subtitle, count, onBack, backLabel, backProp
         justifyContent: 'space-between',
         gap: token.marginSM,
         paddingBottom: token.paddingSM,
-        marginBottom: token.marginLG,
+        marginBottom: token.margin,
         borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
@@ -67,7 +67,7 @@ export function PageHeader({ title, subtitle, count, onBack, backLabel, backProp
           {subtitle && (
             <div style={{ marginTop: token.marginXXS }}>
               {typeof subtitle === 'string' ? (
-                <Text type="secondary">{subtitle}</Text>
+                <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{subtitle}</Text>
               ) : (
                 subtitle
               )}

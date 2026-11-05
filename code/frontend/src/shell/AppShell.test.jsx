@@ -434,6 +434,9 @@ describe('AppShell component', () => {
 
       expect(container.querySelector('.ant-layout-sider')).not.toBeNull();
       expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+      // W-83.5: the brand block shows the product name only.
+      expect(screen.getByText('Infinevo HCM Suite')).toBeDefined();
+      expect(screen.queryByText('Human Capital Management')).toBeNull();
     });
 
     it('puts the menu in a drawer behind a menu button, closed again after a pick', async () => {

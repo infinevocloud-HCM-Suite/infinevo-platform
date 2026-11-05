@@ -1,5 +1,5 @@
 /**
- * Ant Design theme tokens (D-29, W-45 §5a, W-80 10/10 UI Redesign, W-83.1).
+ * Ant Design theme tokens (D-29, W-45 §5a, W-80 10/10 UI Redesign, W-83.1, W-83.5).
  * Single source of truth for design tokens across the application.
  * One place, so a restyle is not 158 screens of work.
  * Palette: Sky Blue, Royal Blue, Soft Slate, and Crisp White.
@@ -29,8 +29,8 @@ export const theme = {
     fontSize: 14,
     fontSizeHeading1: 36,
     fontSizeHeading2: 28,
-    fontSizeHeading3: 22,
-    fontSizeHeading4: 18,
+    fontSizeHeading3: 20,
+    fontSizeHeading4: 16,
     lineHeight: 1.5,
 
     // Space
@@ -60,6 +60,11 @@ export const theme = {
       darkItemBg: '#0f172a',
       darkItemSelectedBg: '#2563eb',
       itemBorderRadius: 6,
+      // W-83.5: 40 px rows
+      itemHeight: 40,
+      itemMarginBlock: 2,
+      itemMarginInline: 8,
+      fontSize: 14,
     },
     Card: {
       headerFontSize: 16,
@@ -71,7 +76,13 @@ export const theme = {
       headerBg: '#f8fafc',
       headerColor: '#475569',
       rowHoverBg: '#f0f9ff',
+      // W-83.5: 10 px above and below the line, so a row with a 24 px avatar is 44 px and a
+      // text-only row about 42 px; small tables 6 px
+      cellPaddingBlock: 10,
+      cellPaddingBlockSM: 6,
       cellPaddingInline: 12,
+      cellPaddingInlineSM: 8,
+      cellFontSize: 14,
       borderColor: '#f1f5f9',
       borderRadiusLG: 12,
     },

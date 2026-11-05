@@ -18,6 +18,9 @@ import './phone.css';
 
 const { Sider, Content } = Layout;
 
+/** W-83.5: widest the page content gets, in px. */
+export const CONTENT_MAX_WIDTH = 1440;
+
 /**
  * The platform-staff tenant screens (W-65.1, W-65.3). While an "act as" session is live the feed
  * is the customer's and no longer names this path, yet staff still need the tenant page to read
@@ -127,11 +130,9 @@ export function AppShell() {
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
+        {/* W-83.5: the product name alone, level with the header */}
         <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeLG, lineHeight: 1.3 }}>
           Infinevo HCM Suite
-        </Typography.Text>
-        <Typography.Text style={{ color: token.colorBgContainer, fontSize: token.fontSizeSM, opacity: 0.75, lineHeight: 1.3 }}>
-          Human Capital Management
         </Typography.Text>
       </div>
 
@@ -200,6 +201,8 @@ export function AppShell() {
             onOpenMenu={phone ? () => setMenuOpen(true) : undefined}
           />
           <Content style={{ padding: phone ? token.paddingSM : token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
+            {/* W-83.5: content stops at 1440 px so columns do not spread across a wide screen */}
+            <div style={{ maxWidth: CONTENT_MAX_WIDTH, margin: '0 auto' }}>
             {!loading && error ? (
               <Result
                 status="500"
@@ -252,6 +255,7 @@ export function AppShell() {
                 </React.Suspense>
               </ModuleEmployeeTabsProvider>
             )}
+            </div>
           </Content>
         </Layout>
       </Layout>

@@ -156,20 +156,26 @@ describe('Header branding (W-73.1 §7)', () => {
     await waitFor(() => expect(refetch).toHaveBeenCalledTimes(2));
   });
 
-  it('hides the tagline when it is null and shows it under the name when set', () => {
+  // W-83.5: the tagline and role chips sit in the user menu, not in the bar.
+  it('hides the tagline when it is null and shows it in the user menu when set', async () => {
     const { unmount } = render(<Header tenantName="Acme Ltd" tagline={null} />);
+    fireEvent.click(screen.getByTestId('user-display'));
     expect(screen.queryByTestId('tenant-tagline')).toBeNull();
     unmount();
 
     render(<Header tenantName="Acme Ltd" tagline="People first" />);
-    expect(screen.getByTestId('tenant-tagline').textContent).toBe('People first');
+    expect(screen.queryByTestId('tenant-tagline')).toBeNull();
+    fireEvent.click(screen.getByTestId('user-display'));
+    expect((await screen.findByTestId('tenant-tagline')).textContent).toBe('People first');
   });
 
-  it('shows one chip per role, as words', () => {
+  it('shows one chip per role, as words, in the user menu', async () => {
     me({ displayName: 'Gita Rao', roles: ['hr', 'payroll-officer', 'shift_lead'] });
     render(<Header tenantName="Acme Ltd" />);
+    expect(screen.queryByTestId('role-chips')).toBeNull();
 
-    const chips = Array.from(screen.getByTestId('role-chips').querySelectorAll('.ant-tag')).map((el) =>
+    fireEvent.click(screen.getByTestId('user-display'));
+    const chips = Array.from((await screen.findByTestId('role-chips')).querySelectorAll('.ant-tag')).map((el) =>
       el.textContent.trim(),
     );
     expect(chips).toEqual(['HR', 'Payroll officer', 'Shift lead']);
@@ -178,6 +184,7 @@ describe('Header branding (W-73.1 §7)', () => {
   it('shows no chip row for a user with no roles', () => {
     me({ displayName: 'Gita Rao', roles: [] });
     render(<Header tenantName="Acme Ltd" />);
+    fireEvent.click(screen.getByTestId('user-display'));
     expect(screen.queryByTestId('role-chips')).toBeNull();
   });
 });
@@ -272,12 +279,13 @@ describe('Header impersonation banner (W-65.3)', () => {
     expect(onOpenMenu).toHaveBeenCalledTimes(1);
   });
 
-  it('shows no menu button without onOpenMenu', () => {
+  it('shows no menu button without onOpenMenu, and the user menu holds the tagline and roles', async () => {
     me({ displayName: 'Gita Rao', roles: ['hr'] });
     render(<Header tenantName="Acme Ltd" tagline="Making things" />);
 
-    expect(screen.getByTestId('tenant-tagline')).toBeDefined();
-    expect(screen.getByTestId('role-chips')).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+    fireEvent.click(screen.getByTestId('user-display'));
+    expect(await screen.findByTestId('tenant-tagline')).toBeDefined();
+    expect(screen.getByTestId('role-chips')).toBeDefined();
   });
 });

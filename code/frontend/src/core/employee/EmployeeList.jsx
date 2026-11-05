@@ -158,7 +158,6 @@ export function EmployeeList() {
                 color: token.colorInfoText,
                 fontWeight: 700,
                 fontSize: 12,
-                border: `1px solid ${token.colorInfoBorder}`,
               }}
             >
               {initials}
@@ -172,7 +171,7 @@ export function EmployeeList() {
       title: 'Work Email',
       dataIndex: 'workEmail',
       key: 'workEmail',
-      width: 220,
+      width: 200,
       ellipsis: true,
       render: (email) => (email ? <span title={email}>{email}</span> : <span style={{ color: token.colorTextSecondary }}>—</span>),
     },
@@ -185,14 +184,14 @@ export function EmployeeList() {
     },
     {
       title: 'Designation',
-      width: 150,
+      width: 140,
       dataIndex: 'designationId',
       key: 'designation',
       render: (id) => (id && masters.designations?.[id]) || '—',
     },
     {
       title: 'Location',
-      width: 130,
+      width: 120,
       dataIndex: 'workLocationId',
       key: 'workLocation',
       render: (id) => (id && masters.workLocations?.[id]) || '—',

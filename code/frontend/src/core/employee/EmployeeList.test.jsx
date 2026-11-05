@@ -107,6 +107,8 @@ describe('EmployeeList component', () => {
     expect(screen.queryByText('2026-04-01')).toBeNull();
     expect(screen.getByText('Active')).toBeDefined();
     expect(screen.queryByText('ACTIVE')).toBeNull();
+    // W-83.5: the list avatar is the small (24 px) size.
+    expect(document.querySelector('.ant-table-row .ant-avatar-sm')).not.toBeNull();
 
     // Search query
     const searchInput = screen.getByPlaceholderText('Search employees...');

@@ -136,8 +136,31 @@ export function Header({
   const initials = initialsOf(tenantName);
   const showLogo = !!tenantLogoUrl && !logoFailed;
 
+  // W-83.5: the tagline and role chips live in the user menu, so the bar holds only the
+  // logo, the company name and the user. Compact (phone) never showed them and still does not.
+  const whoAmI =
+    !compact && (tagline || roles.length > 0) ? (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: token.marginXS, padding: `${token.paddingXS}px 0` }}>
+        {tagline ? (
+          <Text type="secondary" data-testid="tenant-tagline" style={{ fontSize: token.fontSizeSM }}>
+            {tagline}
+          </Text>
+        ) : null}
+        {roles.length > 0 ? (
+          <Space size={4} wrap data-testid="role-chips">
+            {roles.map((code) => (
+              <Tag key={code} color="blue" style={{ marginInlineEnd: 0 }}>
+                {roleLabel(code)}
+              </Tag>
+            ))}
+          </Space>
+        ) : null}
+      </div>
+    ) : null;
+
   const userMenu = {
     items: [
+      ...(whoAmI ? [{ key: 'who', type: 'group', label: whoAmI }, { type: 'divider' }] : []),
       ...(onMyProfile ? [{ key: 'profile', label: 'My profile', icon: <IdcardOutlined /> }] : []),
       ...(onGettingStarted ? [{ key: 'welcome', label: 'Getting started', icon: <CompassOutlined /> }] : []),
       { key: 'signout', label: 'Sign out', icon: <LogoutOutlined /> },
@@ -163,7 +186,6 @@ export function Header({
           justifyContent: 'space-between',
           gap: token.marginSM,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          boxShadow: token.boxShadowSecondary,
           ...style,
         }}
       >
@@ -209,26 +231,12 @@ export function Header({
               <Text strong ellipsis={compact} style={{ fontSize: compact ? token.fontSize : token.fontSizeLG }}>
                 {tenantName}
               </Text>
-              {tagline && !compact ? (
-                <Text type="secondary" data-testid="tenant-tagline" style={{ fontSize: token.fontSizeSM }}>
-                  {tagline}
-                </Text>
-              ) : null}
             </div>
           </div>
         ) : (
           <span />
         )}
         <Space size="middle" align="center">
-          {roles.length > 0 && !compact && (
-            <Space size={4} wrap data-testid="role-chips">
-              {roles.map((code) => (
-                <Tag key={code} color="blue" style={{ marginInlineEnd: 0 }}>
-                  {roleLabel(code)}
-                </Tag>
-              ))}
-            </Space>
-          )}
           <Dropdown menu={userMenu} trigger={['click']} placement="bottomRight">
             <Button type="text" aria-label="User menu" data-testid="user-display">
               <Space size="small">
@@ -245,7 +253,12 @@ export function Header({
           banner
           type="warning"
           data-testid="impersonation-banner"
-          style={{ position: 'sticky', top: appTheme.components.Layout.headerHeight, zIndex: 98 }}
+          style={{
+            position: 'sticky',
+            top: appTheme.components.Layout.headerHeight,
+            zIndex: 98,
+            padding: `${token.paddingXS}px ${token.padding}px`,
+          }}
           message={`Acting as ${session.userLabel} in ${session.tenantName} until ${formatExpiry(session.expiresAt)}`}
           action={
             <Button size="small" danger loading={stopping} onClick={stop}>
