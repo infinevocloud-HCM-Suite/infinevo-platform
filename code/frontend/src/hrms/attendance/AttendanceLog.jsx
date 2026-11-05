@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Card, DatePicker, Select, Space, Table, Tag } from 'antd';
+import { Alert, Card, DatePicker, Select, Space, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { attendanceService } from './attendanceService.js';
 import { hmm, timeOf } from './format.js';
 import { EMPTY, formatDate, humanize } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
+
+const { Text } = Typography;
 
 export const MAX_RANGE_DAYS = 31;
 const FMT = 'YYYY-MM-DD';
@@ -78,7 +81,7 @@ export function AttendanceLog() {
     {
       title: 'Employee',
       key: 'employee',
-      render: (_, r) => r.employeeName || r.employeeId,
+      render: (_, r) => <Text strong>{r.employeeName || r.employeeId}</Text>,
     },
     { title: 'Date', dataIndex: 'attendanceDate', key: 'date', render: (d) => formatDate(d) },
     { title: 'In', key: 'in', render: (_, r) => timeOf(r.clockInAt) },
@@ -107,7 +110,7 @@ export function AttendanceLog() {
                 {r.dayStatus}
               </Tag>
             )}
-            {!isWfh && !r.dayStatus && <span style={{ color: '#8c8c8c' }}>{EMPTY}</span>}
+            {!isWfh && !r.dayStatus && <Text type="secondary">{EMPTY}</Text>}
           </Space>
         );
       },
@@ -121,8 +124,12 @@ export function AttendanceLog() {
   ];
 
   return (
-    <Card title="Attendance log">
-      <Space direction="vertical" style={{ width: '100%' }}>
+    <Card variant="borderless">
+      <PageHeader
+        title="Attendance Log"
+        subtitle="Review employee clock-in sessions, worked hours, and daily attendance logs"
+      />
+      <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <Space wrap>
           <DatePicker.RangePicker
             value={range}

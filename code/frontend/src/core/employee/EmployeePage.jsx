@@ -263,7 +263,6 @@ export function EmployeePage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 16,
-                fontWeight: 700,
                 border: `1px solid ${token.colorInfoBorder}`,
                 flexShrink: 0,
               }}

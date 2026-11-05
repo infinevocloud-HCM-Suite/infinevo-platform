@@ -140,6 +140,7 @@ export function EsiScreen() {
 
   return (
     <Card
+      variant="borderless"
       title={
         <Space>
           <MedicineBoxOutlined style={{ color: token.colorPrimary }} />

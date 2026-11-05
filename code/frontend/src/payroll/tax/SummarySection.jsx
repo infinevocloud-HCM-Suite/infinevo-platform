@@ -13,6 +13,7 @@ import {
   Spin,
   Button,
   Space,
+  theme,
 } from 'antd';
 import {
   ReloadOutlined,
@@ -24,10 +25,12 @@ import { formatFyDisplay } from './financialYear';
 import { setSectionData, selectTaxSection, selectTaxFy } from './taxSlice';
 import { readError } from './apiError';
 import { formatDateTime, formatMoney } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Title, Text } = Typography;
 
 export function SummarySection({ fy }) {
+  const { token } = theme.useToken();
   const dispatch = useDispatch();
   const summaryData = useSelector(selectTaxSection('summary'));
   const storedFy = useSelector(selectTaxFy);
@@ -97,7 +100,7 @@ export function SummarySection({ fy }) {
           <Row justify="space-between" align="middle" wrap>
             <Col>
               <Space align="center">
-                <CalculatorOutlined style={{ fontSize: 20, color: '#1677ff' }} />
+                <CalculatorOutlined style={{ fontSize: 20, color: token.colorPrimary }} />
                 <Text strong style={{ fontSize: 16 }}>
                   Tax Declaration & Computation Summary — FY {formatFyDisplay(fy)}
                 </Text>
@@ -119,46 +122,46 @@ export function SummarySection({ fy }) {
         {/* Top summary cards */}
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           <Col xs={24} sm={12} md={6}>
-            <Card size="small" style={{ background: '#f6ffed', borderColor: '#b7eb8f' }}>
+            <Card size="small" style={{ background: token.colorSuccessBg, borderColor: token.colorSuccessBorder }}>
               <Statistic
                 title="Total Section 6A Declared"
                 value={Number(declared.section6a_total || 0)}
                 prefix="₹"
                 precision={0}
-                valueStyle={{ color: '#389e0d', fontSize: 20 }}
+                valueStyle={{ color: token.colorSuccess, fontSize: 20 }}
               />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card size="small" style={{ background: '#e6f4ff', borderColor: '#91caff' }}>
+            <Card size="small" style={{ background: token.colorInfoBg, borderColor: token.colorInfoBorder }}>
               <Statistic
                 title="Annual Rent Declared"
                 value={Number(declared.house_rent_annual || 0)}
                 prefix="₹"
                 precision={0}
-                valueStyle={{ color: '#0958d9', fontSize: 20 }}
+                valueStyle={{ color: token.colorPrimary, fontSize: 20 }}
               />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card size="small" style={{ background: '#fff7e6', borderColor: '#ffd591' }}>
+            <Card size="small" style={{ background: token.colorWarningBg, borderColor: token.colorWarningBorder }}>
               <Statistic
                 title="Other Income Declared"
                 value={Number(declared.other_income_total || 0)}
                 prefix="₹"
                 precision={0}
-                valueStyle={{ color: '#d46b08', fontSize: 20 }}
+                valueStyle={{ color: token.colorWarning, fontSize: 20 }}
               />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card size="small" style={{ background: '#f9f0ff', borderColor: '#d3adf7' }}>
+            <Card size="small" style={{ background: token.colorFillAlter, borderColor: token.colorBorderSecondary }}>
               <Statistic
                 title="Pre-Tax Deductions"
                 value={Number(declared.pre_tax_total || 0)}
                 prefix="₹"
                 precision={0}
-                valueStyle={{ color: '#722ed1', fontSize: 20 }}
+                valueStyle={{ color: token.colorTextSecondary, fontSize: 20 }}
               />
             </Card>
           </Col>
@@ -173,14 +176,19 @@ export function SummarySection({ fy }) {
               pagination={false}
               size="small"
               columns={[
-                { title: 'Category', dataIndex: 'category', key: 'category' },
+                {
+                  title: 'Category',
+                  dataIndex: 'category',
+                  key: 'category',
+                  render: (name) => <Text strong>{name}</Text>,
+                },
                 {
                   title: 'Declared Amount (₹)',
                   dataIndex: 'amount',
                   key: 'amount',
                   align: 'right',
                   render: (val) => (
-                    <Text strong>{formatMoney(val)}</Text>
+                    <MoneyText value={val} />
                   ),
                 },
               ]}
@@ -216,44 +224,44 @@ export function SummarySection({ fy }) {
             </Title>
 
             {!computed ? (
-              <Card size="small" type="inner" style={{ background: '#fafafa' }}>
+              <Card size="small" type="inner" style={{ background: token.colorFillAlter }}>
                 <Text type="secondary">computed after the tax calculator runs</Text>
               </Card>
             ) : (
-              <Card size="small" type="inner" style={{ background: '#fafafa' }}>
-                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+              <Card size="small" type="inner" style={{ background: token.colorFillAlter }}>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
                   <Text type="secondary">Gross Taxable Income:</Text>
                   <Text strong>{formatMoney(computed.taxable_income || 0)}</Text>
                 </Row>
-                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
                   <Text type="secondary">Section 10 Exemption (HRA):</Text>
                   <Text>{formatMoney(computed.exemption_under_section10 || 0)}</Text>
                 </Row>
-                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
                   <Text type="secondary">Chapter VI-A Allowed Deduction:</Text>
                   <Text>{formatMoney(computed.exemption_under_section6a || 0)}</Text>
                 </Row>
-                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
                   <Text strong>Net Taxable Income:</Text>
-                  <Text strong style={{ color: '#1677ff' }}>
+                  <Text strong style={{ color: token.colorPrimary }}>
                     {formatMoney(computed.net_taxable_income || 0)}
                   </Text>
                 </Row>
-                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
                   <Text type="secondary">Computed Income Tax:</Text>
                   <Text strong>{formatMoney(computed.tax_on_taxable_income || 0)}</Text>
                 </Row>
-                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
                   <Text type="secondary">Tax Paid YTD (Payroll TDS):</Text>
                   <Text>{formatMoney(computed.tds_through_payroll || computed.tax_ytd_amount || 0)}</Text>
                 </Row>
-                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Row justify="space-between" style={{ padding: '8px 0', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
                   <Text type="secondary">Previous Employer TDS Credit:</Text>
                   <Text>{formatMoney(computed.tds_previous_employer || 0)}</Text>
                 </Row>
                 <Row justify="space-between" style={{ padding: '10px 0' }}>
                   <Text strong style={{ fontSize: 15 }}>Remaining Tax to be Deducted:</Text>
-                  <Text strong style={{ fontSize: 16, color: '#cf1322' }}>
+                  <Text strong style={{ fontSize: 16, color: token.colorError }}>
                     {formatMoney(computed.tax_to_be_paid || 0)}
                   </Text>
                 </Row>

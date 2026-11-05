@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { Layout, Menu, Typography, theme } from 'antd';
+import { Layout, Menu, theme } from 'antd';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import {
   CalendarOutlined,
   SafetyCertificateOutlined,
@@ -12,7 +13,6 @@ import {
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
-const { Title, Text } = Typography;
 
 export const SETTINGS_MENU_ITEMS = [
   {
@@ -63,14 +63,14 @@ export function SettingsLayout({ children }) {
 
   return (
     <div style={{ width: '100%' }}>
-      <div style={{ marginBottom: token.marginLG }}>
-        <Title level={2} style={{ margin: 0 }}>
-          Payroll Settings
-        </Title>
-        <Text type="secondary">
-          Configure organization-wide payroll schedules, statutory settings, and benefits.
-        </Text>
-      </div>
+      <PageHeader
+        title="Payroll Settings"
+        subtitle="Configure organization-wide payroll schedules, statutory settings, and benefits."
+        breadcrumbs={[
+          { label: 'Payroll', to: '/payroll' },
+          { label: 'Settings' },
+        ]}
+      />
 
       <Layout
         style={{

@@ -13,9 +13,11 @@ import {
   Spin,
   Tabs,
   Tag,
+  theme,
 } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { ProjectForm } from './ProjectForm.jsx';
 import { TeamTab } from './TeamTab.jsx';
 import { TasksTab } from './TasksTab.jsx';
@@ -24,6 +26,7 @@ import { formatDate } from '@shared/ui/format.js';
 
 /** One project (W-48.1 §5): header with status, progress and delete; Details, Team and Tasks tabs. */
 export function ProjectPage() {
+  const { token } = theme.useToken();
   const { id } = useParams();
   const navigate = useNavigate();
   const canManage = useCan('hrms.project.manage');
@@ -101,36 +104,36 @@ export function ProjectPage() {
   );
 
   return (
-    <Card
-      title={
-        <Space>
-          {project.name}
-          <Tag color={COLOR[project.status]}>{LABEL[project.status] || project.status}</Tag>
-        </Space>
-      }
-      extra={
-        canManage && (
-          <Space>
-            <Select
-              aria-label="Project status"
-              value={project.status}
-              onChange={changeStatus}
-              style={{ width: 140 }}
-              options={PROJECT_STATUSES.map((s) => ({
-                value: s,
-                label: LABEL[s],
-              }))}
-            />
-            <Button onClick={() => setEditing(true)}>Edit</Button>
-            <Popconfirm title="Delete this project?" onConfirm={remove} okText="Delete">
-              <Button danger>Delete</Button>
-            </Popconfirm>
+    <Card variant="borderless">
+      <PageHeader
+        title={project.name}
+        onBack={() => navigate('/hrms/projects')}
+        actions={
+          <Space wrap>
+            <Tag color={COLOR[project.status]}>{LABEL[project.status] || project.status}</Tag>
+            {canManage && (
+              <>
+                <Select
+                  aria-label="Project status"
+                  value={project.status}
+                  onChange={changeStatus}
+                  style={{ width: 140 }}
+                  options={PROJECT_STATUSES.map((s) => ({
+                    value: s,
+                    label: LABEL[s],
+                  }))}
+                />
+                <Button onClick={() => setEditing(true)}>Edit</Button>
+                <Popconfirm title="Delete this project?" onConfirm={remove} okText="Delete">
+                  <Button danger>Delete</Button>
+                </Popconfirm>
+              </>
+            )}
           </Space>
-        )
-      }
-    >
-      {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
-      <div style={{ maxWidth: 400, marginBottom: 16 }}>
+        }
+      />
+      {error && <Alert type="error" message={error} style={{ marginBottom: token.margin }} />}
+      <div style={{ maxWidth: 400, marginBottom: token.margin }}>
         {canManage ? (
           <Slider
             aria-label="Progress"

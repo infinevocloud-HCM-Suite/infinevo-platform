@@ -16,11 +16,13 @@ import {
   Table,
   Tag,
   Typography,
+  theme,
 } from 'antd';
 import { DeleteOutlined, LeftOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { NotEntitled, useCan } from '@shell/screens';
 import { successMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { timesheetService } from './timesheetService.js';
 import {
   DAY_LIMIT_HUNDREDTHS,
@@ -44,7 +46,7 @@ import {
 } from './weekGrid.js';
 import { statusLabel } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const weekPath = (weekStart) => `/hrms/timesheets/week/${weekStart}`;
 
@@ -73,6 +75,7 @@ export function TimesheetWeek() {
 }
 
 function WeekGrid({ weekStart }) {
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const canSubmit = useCan('hrms.timesheet.submit');
   const dates = useMemo(() => weekDates(weekStart), [weekStart]);
@@ -308,7 +311,7 @@ function WeekGrid({ weekStart }) {
       title: (
         <span
           data-testid={`day-header-${date}`}
-          style={isWeekend ? { color: '#cf1322', fontWeight: 600 } : undefined}
+          style={isWeekend ? { color: token.colorTextSecondary, fontWeight: 600 } : undefined}
         >
           {dayjs(date).format('ddd DD/MM')}
         </span>
@@ -326,8 +329,8 @@ function WeekGrid({ weekStart }) {
           <div
             data-testid={`day-box-${date}`}
             style={{
-              background: isWeekend ? '#fff1f0' : '#ffffff',
-              border: `1px solid ${isWeekend ? '#ffa39e' : '#d9d9d9'}`,
+              background: isWeekend ? token.colorBgLayout : token.colorBgContainer,
+              border: `1px solid ${isWeekend ? token.colorBorderSecondary : token.colorBorder}`,
               borderRadius: 6,
               padding: 6,
               display: 'flex',
@@ -348,7 +351,6 @@ function WeekGrid({ weekStart }) {
                 style={{
                   width: '100%',
                   textAlign: 'center',
-                  borderColor: isWeekend ? '#ffccc7' : undefined,
                 }}
                 placeholder="0"
                 onChange={(value) => updateCell(row.key, date, { hours: value ?? '' })}
@@ -369,7 +371,6 @@ function WeekGrid({ weekStart }) {
                 style={{
                   width: '100%',
                   fontSize: 12,
-                  borderColor: isWeekend ? '#ffccc7' : undefined,
                 }}
                 onChange={(e) => updateCell(row.key, date, { description: e.target.value })}
               />
@@ -437,12 +438,11 @@ function WeekGrid({ weekStart }) {
           <Table.Summary.Cell
             index={i + 2}
             key={date}
-            style={isWeekend ? { background: '#fff1f0', borderColor: '#ffa39e' } : undefined}
+            style={isWeekend ? { background: token.colorBgLayout, borderColor: token.colorBorderSecondary } : undefined}
           >
             <Text
               strong
               type={totals[date] > DAY_LIMIT_HUNDREDTHS ? 'danger' : undefined}
-              style={isWeekend ? { color: totals[date] > DAY_LIMIT_HUNDREDTHS ? undefined : '#cf1322' } : undefined}
               data-testid={`day-total-${date}`}
             >
               {formatHundredths(totals[date])}
@@ -460,16 +460,20 @@ function WeekGrid({ weekStart }) {
   );
 
   return (
-    <div style={{ padding: 24 }} data-testid="timesheet-week">
-      <Space align="center" wrap style={{ marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>
-          {mode === 'new' ? 'Add New Timesheet' : 'Timesheet'}
-        </Title>
-        <Tag color={STATUS_COLOR[weekStatus]} data-testid="week-status">
-          {STATUS_LABEL[weekStatus] || weekStatus}
-        </Tag>
-        <Link to="/hrms/timesheets">All weeks</Link>
-      </Space>
+    <Card variant="borderless" data-testid="timesheet-week">
+      <PageHeader
+        title={mode === 'new' ? 'Add New Timesheet' : 'Timesheet'}
+        onBack={() => navigate('/hrms/timesheets')}
+        backLabel="All weeks"
+        actions={
+          <Space>
+            <Tag color={STATUS_COLOR[weekStatus]} data-testid="week-status">
+              {STATUS_LABEL[weekStatus] || weekStatus}
+            </Tag>
+            <Link to="/hrms/timesheets">All weeks</Link>
+          </Space>
+        }
+      />
 
       {currentEmployee?.employeeNumber && (
         <div style={{ marginBottom: 16 }}>
@@ -478,7 +482,7 @@ function WeekGrid({ weekStart }) {
             <Input
               readOnly
               value={currentEmployee.employeeNumber}
-              style={{ width: 120, fontWeight: 500, backgroundColor: '#fafafa' }}
+              style={{ width: 120, backgroundColor: token.colorFillAlter }}
             />
           </Space>
         </div>
@@ -550,7 +554,7 @@ function WeekGrid({ weekStart }) {
         />
       )}
 
-      <Card>
+      <Card variant="borderless">
         <Table
           rowKey="key"
           size="small"
@@ -647,7 +651,7 @@ function WeekGrid({ weekStart }) {
           </Text>
         )}
       </Card>
-    </div>
+    </Card>
   );
 }
 

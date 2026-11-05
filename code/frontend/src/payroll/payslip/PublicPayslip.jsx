@@ -120,7 +120,7 @@ export function PublicPayslip({ token: propToken }) {
     <div
       style={{
         minHeight: '100vh',
-        backgroundColor: '#f5f7fa',
+        backgroundColor: antdThemeToken.colorBgLayout,
         padding: '24px 16px 48px',
       }}
       data-testid="public-payslip-page"
@@ -129,7 +129,7 @@ export function PublicPayslip({ token: propToken }) {
         {`
           @media print {
             body {
-              background: #fff !important;
+              background: white !important;
             }
             .no-print {
               display: none !important;

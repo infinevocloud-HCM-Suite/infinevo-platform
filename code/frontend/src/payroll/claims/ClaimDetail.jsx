@@ -2,14 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, Card, Descriptions, Result, Skeleton, Space, Tag, Typography } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
 import { NotFound } from '@shell/screens';
 import { claimService } from './claimService.js';
 import { claimStatus, formatAmount } from './claimLabels.js';
 import { EMPTY, formatDate } from '@shared/ui/format.js';
 import { readError } from '../tax/apiError.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const show = (v) => (v === null || v === undefined || v === '' ? EMPTY : String(v));
 
@@ -94,7 +94,7 @@ export function ClaimDetail() {
 
   if (loading) {
     return (
-      <Card>
+      <Card variant="borderless">
         <Skeleton active paragraph={{ rows: 8 }} />
       </Card>
     );
@@ -121,13 +121,15 @@ export function ClaimDetail() {
 
   return (
     <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/payroll/claims')}>
-          Claims
-        </Button>
-      </Space>
-      <Title level={3}>Reimbursement claim</Title>
-      <ClaimDescriptions claim={claim} showApprovalLink />
+      <PageHeader
+        title="Reimbursement claim"
+        subtitle={claim?.employee_name ? `${claim.employee_name} · ${claim.component_name || ''}` : undefined}
+        onBack={() => navigate('/payroll/claims')}
+        backLabel="Claims"
+      />
+      <Card variant="borderless">
+        <ClaimDescriptions claim={claim} showApprovalLink />
+      </Card>
     </div>
   );
 }

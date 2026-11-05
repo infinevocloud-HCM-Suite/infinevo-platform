@@ -12,7 +12,7 @@ export function HeadcountCard({ employees }) {
   const run = employees?.as_at_run;
   const reasons = Object.entries(run?.skipped_by_reason ?? {});
   return (
-    <Card title="Employees">
+    <Card variant="borderless" title="Employees">
       <Statistic title="Active today" value={employees?.active_today ?? 0} />
       {run && (
         <div style={{ marginTop: 16 }}>

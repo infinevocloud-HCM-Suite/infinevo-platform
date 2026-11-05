@@ -21,6 +21,7 @@ import { SaveOutlined, CalendarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { fbpService } from './fbpService.js';
 import { formatMoney, humanize } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Text } = Typography;
 
@@ -155,7 +156,8 @@ export function FbpDeclarationForm({
       dataIndex: 'lineAnnualAmount',
       key: 'lineAnnualAmount',
       width: 160,
-      render: (val) => (val != null ? formatMoney(val) : 'No limit'),
+      align: 'right',
+      render: (val) => (val != null ? <MoneyText value={val} /> : 'No limit'),
     },
     {
       title: 'Declared Annual Amount (₹)',
@@ -183,6 +185,7 @@ export function FbpDeclarationForm({
 
   return (
     <Card
+      variant="borderless"
       title={
         <Row justify="space-between" align="middle" style={{ width: '100%' }}>
           <Col>
@@ -248,7 +251,7 @@ export function FbpDeclarationForm({
           {declaration && (
             <Row gutter={24} style={{ marginBottom: 24 }}>
               <Col xs={24} sm={8}>
-                <Card size="small" style={{ background: token.colorBgLayout }}>
+                <Card variant="borderless" size="small" style={{ background: token.colorBgLayout }}>
                   <Statistic
                     title="FBP Annual Pool"
                     value={declaration.summary?.poolAnnual ?? 0}
@@ -258,7 +261,7 @@ export function FbpDeclarationForm({
                 </Card>
               </Col>
               <Col xs={24} sm={8}>
-                <Card size="small" style={{ background: token.colorBgLayout }}>
+                <Card variant="borderless" size="small" style={{ background: token.colorBgLayout }}>
                   <Statistic
                     title="Total Declared"
                     value={declaration.summary?.declaredAnnual ?? 0}
@@ -269,7 +272,7 @@ export function FbpDeclarationForm({
                 </Card>
               </Col>
               <Col xs={24} sm={8}>
-                <Card size="small" style={{ background: token.colorBgLayout }}>
+                <Card variant="borderless" size="small" style={{ background: token.colorBgLayout }}>
                   <Statistic
                     title="Unallocated Amount"
                     value={declaration.summary?.unallocatedAnnual ?? 0}

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Descriptions, Space, Spin, Tag } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { NotFound, useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { DecideModal } from '../../core/approvals/DecideModal.jsx';
 import { approvalService } from '../../core/approvals/approvalService.js';
 import { decrementPendingCount } from '../../core/approvals/approvalSlice.js';
@@ -17,6 +18,7 @@ import { formatDate, formatMoney, formatMonth, humanize, statusLabel } from '@sh
 export function OvertimeDetail() {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const canDecide = useCan('core.approval.decide');
 
@@ -114,7 +116,15 @@ export function OvertimeDetail() {
   );
 
   return (
-    <Card title="Overtime request" extra={extra}>
+    <Card variant="borderless">
+      <PageHeader
+        title="Overtime request"
+        onBack={() => {
+          if (location.state?.from === '/approvals') navigate('/approvals');
+          else navigate('/hrms/overtime-requests');
+        }}
+        actions={extra}
+      />
       <Descriptions size="small" column={2} bordered>
         <Descriptions.Item label="Date">{formatDate(item.overtimeDate)}</Descriptions.Item>
         <Descriptions.Item label="Status">

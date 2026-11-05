@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Alert, Card, Collapse, Descriptions, Space, Spin, Table, Tag, Typography } from 'antd';
-import { Link, useParams } from 'react-router-dom';
+import { Alert, Card, Collapse, Descriptions, Space, Spin, Table, Tag, Typography, theme } from 'antd';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { reviewService } from './reviewService.js';
 import { STATUS_COLOR, STATUS_LABEL, formatHundredths } from '../timesheet/weekGrid.js';
 import { collectDescriptions, dayTotals, gridColumns, sumRows, taskRows } from './reviewGrid.js';
@@ -8,7 +9,9 @@ import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 /** One week, read-only (W-48.3 §5): project and task rows, Mon to Sun, totals, rejection reasons. */
 export function WeekView() {
+  const { token } = theme.useToken();
   const { id } = useParams();
+  const navigate = useNavigate();
   const [sheet, setSheet] = useState(null);
   const [error, setError] = useState(null);
 
@@ -33,8 +36,13 @@ export function WeekView() {
   const descriptions = collectDescriptions(rows, dates);
 
   return (
-    <Card title="Timesheet" extra={<Link to="/hrms/timesheet-review">Back to review</Link>}>
-      <Descriptions size="small" column={3} style={{ marginBottom: 16 }}>
+    <Card variant="borderless">
+      <PageHeader
+        title="Timesheet"
+        onBack={() => navigate('/hrms/timesheet-review')}
+        actions={<Link to="/hrms/timesheet-review">Back to review</Link>}
+      />
+      <Descriptions size="small" column={3} style={{ marginBottom: token.margin }}>
         <Descriptions.Item label="Employee">{sheet.employee_name || sheet.employee_id}</Descriptions.Item>
         <Descriptions.Item label="Week">
           {formatDate(sheet.week_start_date)} to {formatDate(sheet.week_end_date)}
@@ -43,7 +51,7 @@ export function WeekView() {
           <Tag color={STATUS_COLOR[sheet.status]}>{STATUS_LABEL[sheet.status] || statusLabel(sheet.status)}</Tag>
         </Descriptions.Item>
       </Descriptions>
-      <Space wrap style={{ marginBottom: 16 }}>
+      <Space wrap style={{ marginBottom: token.margin }}>
         {(sheet.projects || []).map((p) => (
           <Link key={p.id} to={`/hrms/timesheet-review/entries/${p.id}`}>
             <Tag color={STATUS_COLOR[p.status]} style={{ cursor: 'pointer' }}>

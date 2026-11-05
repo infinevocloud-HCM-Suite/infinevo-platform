@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { Table, Tag, Typography } from 'antd';
 import { EMPTY, formatMoney, humanize } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 import { statutoryName } from './statutoryLabels.js';
 import { isPositiveDecimal, trimDecimal } from './decimal.js';
 
@@ -52,7 +53,7 @@ export function StatutoryContributionsTable({
       title: 'Component',
       dataIndex: 'componentCode',
       key: 'componentCode',
-      render: (code) => statutoryName(code),
+      render: (code) => <Text strong>{statutoryName(code)}</Text>,
     },
     {
       title: 'Share',
@@ -72,7 +73,8 @@ export function StatutoryContributionsTable({
       dataIndex: 'monthlyAmount',
       key: 'monthlyAmount',
       width: 140,
-      render: (amt) => formatMoney(amt),
+      align: 'right',
+      render: (amt) => <MoneyText value={amt} />,
     },
     ...(showAnnual
       ? [
@@ -81,7 +83,8 @@ export function StatutoryContributionsTable({
             dataIndex: 'annualAmount',
             key: 'annualAmount',
             width: 140,
-            render: (amt) => formatMoney(amt),
+            align: 'right',
+            render: (amt) => <MoneyText value={amt} />,
           },
         ]
       : []),

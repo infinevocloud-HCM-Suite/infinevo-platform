@@ -286,24 +286,47 @@ describe('TimesheetWeek (W-48.2 §7)', () => {
     expect(colleagueOption).toBeNull();
   }, 60000);
 
-  it('renders weekend headers in red and weekend boxes with red border & pink tint (D-137)', async () => {
-    timesheetService.week.mockResolvedValue(null);
+  it('renders weekend headers and boxes with neutral grey styling, not red/pink (W-81.1)', async () => {
+    const overlimitWeek = {
+      ...week('DRAFT'),
+      projects: [
+        {
+          id: 'pe-1',
+          project_id: P1,
+          status: 'DRAFT',
+          rejection_reason: null,
+          tasks: [
+            {
+              id: 'te-1',
+              task_id: T1,
+              days: [{ id: 'd-sat1', date: '2026-10-03', hours: 15, description: 'Sat 1' }],
+            },
+            {
+              id: 'te-2',
+              task_id: T2,
+              days: [{ id: 'd-sat2', date: '2026-10-03', hours: 10, description: 'Sat 2' }],
+            },
+          ],
+        },
+      ],
+    };
+    timesheetService.week.mockResolvedValue(overlimitWeek);
     renderAt(WEEK);
 
     // Wait for screen to finish loading
-    expect(await screen.findByTestId('week-status')).toHaveProperty('textContent', 'Not started');
+    expect(await screen.findByTestId('week-status')).toHaveProperty('textContent', 'Draft');
 
     // Week is 2026-09-28 (Monday) to 2026-10-04 (Sunday)
     // Saturday: 2026-10-03, Sunday: 2026-10-04
     // Ant Design scroll.x tables clone headers, so getAllByText returns all header instances
     const satHeaders = screen.getAllByText('Sat 03/10');
     expect(satHeaders.length).toBeGreaterThan(0);
-    expect(satHeaders[0].style.color).toBe('rgb(207, 19, 34)');
+    expect(satHeaders[0].style.color).not.toBe('rgb(207, 19, 34)');
     expect(satHeaders[0].style.fontWeight).toBe('600');
 
     const sunHeaders = screen.getAllByText('Sun 04/10');
     expect(sunHeaders.length).toBeGreaterThan(0);
-    expect(sunHeaders[0].style.color).toBe('rgb(207, 19, 34)');
+    expect(sunHeaders[0].style.color).not.toBe('rgb(207, 19, 34)');
     expect(sunHeaders[0].style.fontWeight).toBe('600');
 
     // Monday header is not red
@@ -311,32 +334,26 @@ describe('TimesheetWeek (W-48.2 §7)', () => {
     expect(monHeaders.length).toBeGreaterThan(0);
     expect(monHeaders[0].style.color).toBe('');
 
-    // Add a row to inspect cell boxes
-    chooseOption('Project', 'Apollo');
-    chooseOption('Task', 'Build');
-    fireEvent.click(screen.getByRole('button', { name: /add row/i }));
-
     // Weekday box (Monday 2026-09-28)
-    const monBox = await screen.findByTestId('day-box-2026-09-28');
-    expect(monBox.style.backgroundColor).toBe('rgb(255, 255, 255)');
-    expect(monBox.style.borderColor).toBe('rgb(217, 217, 217)');
+    const monBoxes = await screen.findAllByTestId('day-box-2026-09-28');
+    const monBox = monBoxes[0];
 
-    // Weekend box (Saturday 2026-10-03 and Sunday 2026-10-04)
-    const satBox = screen.getByTestId('day-box-2026-10-03');
-    expect(satBox.style.backgroundColor).toBe('rgb(255, 241, 240)');
-    expect(satBox.style.borderColor).toBe('rgb(255, 163, 158)');
+    // Weekend box (Saturday 2026-10-03 and Sunday 2026-10-04) shows no red/pink and differs from weekday
+    const satBox = screen.getAllByTestId('day-box-2026-10-03')[0];
+    expect(satBox.style.backgroundColor).not.toBe('rgb(255, 241, 240)');
+    expect(satBox.style.borderColor).not.toBe('rgb(255, 163, 158)');
 
-    const sunBox = screen.getByTestId('day-box-2026-10-04');
-    expect(sunBox.style.backgroundColor).toBe('rgb(255, 241, 240)');
-    expect(sunBox.style.borderColor).toBe('rgb(255, 163, 158)');
+    const sunBox = screen.getAllByTestId('day-box-2026-10-04')[0];
+    expect(sunBox.style.backgroundColor).not.toBe('rgb(255, 241, 240)');
+    expect(sunBox.style.borderColor).not.toBe('rgb(255, 163, 158)');
 
-    // Hours input placeholder is "0"
-    const hoursInput = screen.getByRole('spinbutton', { name: `Hours Apollo Build 2026-10-03` });
-    expect(hoursInput.getAttribute('placeholder')).toBe('0');
+    expect(satBox.style.backgroundColor).not.toBe(monBox.style.backgroundColor);
+    expect(satBox.style.borderColor).not.toBe(monBox.style.borderColor);
 
-    // Description input placeholder is "Description"
-    const descInput = screen.getByRole('textbox', { name: `Description Apollo Build 2026-10-03` });
-    expect(descInput.getAttribute('placeholder')).toBe('Description');
+    // Over-limit weekend total (15 + 10 = 25.00 hours > 24) still shows as danger
+    const satTotal = screen.getByTestId('day-total-2026-10-03');
+    expect(satTotal.textContent).toBe('25.00');
+    expect(satTotal.className).toContain('ant-typography-danger');
 
     // Cancel button is present
     expect(screen.getByRole('button', { name: /cancel/i })).toBeDefined();

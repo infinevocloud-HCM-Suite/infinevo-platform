@@ -50,6 +50,7 @@ export function StatutoryProfileCard({ employeeId }) {
 
   return (
     <Card
+      variant="borderless"
       id="card-statutory-details"
       title={<Title level={5} style={{ margin: 0 }}>Statutory Details</Title>}
       extra={

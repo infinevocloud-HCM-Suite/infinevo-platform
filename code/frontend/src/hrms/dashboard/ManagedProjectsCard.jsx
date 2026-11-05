@@ -17,7 +17,7 @@ export function ManagedProjectsCard({ projects }) {
     { title: 'Overdue', dataIndex: 'overdue_tasks', key: 'overdue_tasks' },
   ];
   return (
-    <Card title="Projects I manage">
+    <Card variant="borderless" title="Projects I manage">
       <Statistic title="Managed" value={projects.managed} />
       <Space wrap style={{ margin: '8px 0' }}>
         {Object.entries(projects.by_status ?? {}).map(([status, count]) => (

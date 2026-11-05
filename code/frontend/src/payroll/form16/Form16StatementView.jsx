@@ -110,7 +110,7 @@ export function Form16StatementView({ statement }) {
       dataIndex: 'item',
       key: 'item',
       render: (text, record) => (
-        <span style={{ fontWeight: record.isTotal ? 600 : 400 }}>{text}</span>
+        record.isTotal ? <Text strong>{text}</Text> : text
       ),
     },
     {
@@ -119,11 +119,10 @@ export function Form16StatementView({ statement }) {
       key: 'amount',
       align: 'right',
       width: 200,
-      render: (amt, record) => (
-        <span style={{ fontWeight: record.isTotal ? 600 : 400 }}>
-          {record.isDeduction && amt > 0 ? `(-) ₹${formatAmount(amt)}` : `₹${formatAmount(amt)}`}
-        </span>
-      ),
+      render: (amt, record) => {
+        const text = record.isDeduction && amt > 0 ? `(-) ₹${formatAmount(amt)}` : `₹${formatAmount(amt)}`;
+        return record.isTotal ? <Text strong>{text}</Text> : text;
+      },
     },
   ];
 

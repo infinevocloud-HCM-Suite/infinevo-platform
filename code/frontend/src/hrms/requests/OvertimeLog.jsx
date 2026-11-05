@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Card, DatePicker, Select, Space, Table, Tag } from 'antd';
+import { Alert, Card, DatePicker, Select, Space, Table, Tag, Typography, theme } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { NotEntitled, useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { requestService } from './requestService.js';
 import { FMT, MAX_RANGE_DAYS, STATUS_COLOR, presets, spanDays } from './range.js';
 import { formatDate, formatMoney, formatMonth, humanize, statusLabel } from '@shared/ui/format.js';
 
+const { Text } = Typography;
+
 /** HR: everyone's overtime requests for a range (W-68 §5). Amount shown as sent. */
 export function OvertimeLog() {
+  const { token } = theme.useToken();
   const canRead = useCan('core.overtime.read');
   const navigate = useNavigate();
   const [range, setRange] = useState(null);
@@ -64,7 +68,7 @@ export function OvertimeLog() {
     {
       title: 'Employee',
       key: 'employee',
-      render: (_, r) => r.employeeName || r.employeeId,
+      render: (_, r) => <Text strong>{r.employeeName || r.employeeId}</Text>,
     },
     { title: 'Date', dataIndex: 'overtimeDate', key: 'date', render: (d) => formatDate(d) },
     { title: 'Hours', dataIndex: 'hours', key: 'hours' },
@@ -79,7 +83,11 @@ export function OvertimeLog() {
   ];
 
   return (
-    <Card title="Everyone's overtime">
+    <Card variant="borderless">
+      <PageHeader
+        title="Everyone's overtime"
+        count={range ? String(rows.length) : undefined}
+      />
       <Space direction="vertical" style={{ width: '100%' }}>
         <Space wrap>
           <DatePicker.RangePicker
@@ -102,7 +110,7 @@ export function OvertimeLog() {
             aria-label="Employee"
           />
         </Space>
-        {error && <Alert type="error" message={error} showIcon />}
+        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
         <Table
           rowKey="id"
           columns={columns}

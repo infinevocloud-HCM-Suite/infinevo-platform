@@ -104,7 +104,7 @@ export function WfhAllocations() {
       title: 'Entitlement',
       dataIndex: 'entitlementDays',
       key: 'entitlementDays',
-      render: (d) => <Text strong style={{ color: token.colorPrimary }}>{d} days</Text>,
+      render: (d) => <Text style={{ color: token.colorPrimary }}>{d} days</Text>,
     },
     {
       title: 'Used',
@@ -118,7 +118,7 @@ export function WfhAllocations() {
       key: 'balanceDays',
       render: (d, r) => {
         const bal = d !== undefined && d !== null ? d : (Number(r.entitlementDays || 0) - Number(r.consumedDays || 0));
-        return <Text strong style={{ color: Number(bal) > 0 ? token.colorSuccess : token.colorTextSecondary }}>{bal} d</Text>;
+        return <Text style={{ color: Number(bal) > 0 ? token.colorSuccess : token.colorTextSecondary }}>{bal} d</Text>;
       },
     },
     {

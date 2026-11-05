@@ -24,7 +24,7 @@ import { useEmployeeSearch } from './useEmployeeSearch.js';
 import { getItemRoute } from './itemRoutes.js';
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title } = Typography;
+const { Text } = Typography;
 
 /** A person as the reply names them (D-79); the id alone is never shown. */
 function personName(name) {
@@ -223,9 +223,9 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
             </Descriptions.Item>
           </Descriptions>
 
-          <Title level={4} style={{ marginTop: token.marginLG, marginBottom: 12 }}>
+          <Text strong style={{ display: 'block', marginTop: token.marginLG, marginBottom: 12, fontSize: token.fontSizeLG }}>
             Approval Steps
-          </Title>
+          </Text>
           <Table
             dataSource={instance.steps || []}
             columns={stepsColumns}
@@ -234,9 +234,9 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
             style={{ marginBottom: token.marginLG }}
           />
 
-          <Title level={4} style={{ marginTop: token.marginLG, marginBottom: 16 }}>
+          <Text strong style={{ display: 'block', marginTop: token.marginLG, marginBottom: 16, fontSize: token.fontSizeLG }}>
             History Trail
-          </Title>
+          </Text>
           {historyEvents.length > 0 ? (
             <Timeline
               items={historyEvents.map((event, idx) => {

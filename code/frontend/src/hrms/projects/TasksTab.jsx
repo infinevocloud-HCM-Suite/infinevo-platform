@@ -13,6 +13,7 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
 } from 'antd';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -160,7 +161,7 @@ export function TasksTab({ projectId, team, canManage }) {
   };
 
   const columns = [
-    { title: 'Title', dataIndex: 'title' },
+    { title: 'Title', dataIndex: 'title', render: (v) => <Typography.Text strong>{v}</Typography.Text> },
     { title: 'Assignee', dataIndex: 'assignee_name', render: (v) => v || EMPTY },
     { title: 'Due', dataIndex: 'due_date', render: (v) => formatDate(v) },
     { title: 'Priority', dataIndex: 'priority', render: (v) => LABEL[v] || humanize(v) },

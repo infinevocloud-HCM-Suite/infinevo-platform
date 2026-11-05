@@ -30,7 +30,8 @@ import dayjs from 'dayjs';
 import { useDispatch } from 'react-redux';
 import { fbpService } from './fbpService.js';
 import { setFbpPlan } from './settingsSlice.js';
-import { formatMoney, humanize } from '@shared/ui/format.js';
+import { humanize } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Text } = Typography;
 
@@ -172,7 +173,8 @@ export function FbpPlanScreen() {
       title: 'Max Limit',
       dataIndex: 'maxLimit',
       key: 'maxLimit',
-      render: (limit) => (limit != null ? formatMoney(limit) : 'No limit'),
+      align: 'right',
+      render: (limit) => (limit != null ? <MoneyText value={limit} /> : 'No limit'),
     },
   ];
 
@@ -187,6 +189,7 @@ export function FbpPlanScreen() {
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <Card
+        variant="borderless"
         title={
           <Space>
             <GiftOutlined style={{ color: token.colorPrimary }} />
@@ -356,6 +359,7 @@ export function FbpPlanScreen() {
 
       {/* Read-only Table of FBP Components */}
       <Card
+        variant="borderless"
         title={
           <Row justify="space-between" align="middle" style={{ width: '100%' }}>
             <Col>

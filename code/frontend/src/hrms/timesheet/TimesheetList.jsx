@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Alert, Button, Card, DatePicker, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, DatePicker, Space, Table, Tag, Typography, theme } from 'antd';
 import { CalendarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { NotEntitled } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { timesheetService } from './timesheetService.js';
 import {
   DATE_FORMAT,
@@ -16,8 +17,6 @@ import {
 } from './weekGrid.js';
 import { statusLabel } from '@shared/ui/format.js';
 
-const { Title } = Typography;
-
 /** The default range: the last 12 weeks, this one included (W-48.2 §3). */
 function defaultRange() {
   const thisMonday = mondayOf(dayjs());
@@ -28,6 +27,7 @@ function defaultRange() {
  * The caller's weeks, newest first, with each week's and each project's status (W-48.2 §5).
  */
 export function TimesheetList() {
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const [range, setRange] = useState(defaultRange);
   const [weeks, setWeeks] = useState([]);
@@ -72,9 +72,11 @@ export function TimesheetList() {
       dataIndex: 'week_start_date',
       key: 'week',
       render: (start, row) => (
-        <Link to={`/hrms/timesheets/week/${start}`}>
-          {dayjs(start).format('D MMM YYYY')} – {dayjs(row.week_end_date || dayjs(start).add(6, 'day')).format('D MMM YYYY')}
-        </Link>
+        <Typography.Text strong>
+          <Link to={`/hrms/timesheets/week/${start}`}>
+            {dayjs(start).format('D MMM YYYY')} – {dayjs(row.week_end_date || dayjs(start).add(6, 'day')).format('D MMM YYYY')}
+          </Link>
+        </Typography.Text>
       ),
     },
     {
@@ -104,40 +106,41 @@ export function TimesheetList() {
   ];
 
   return (
-    <div style={{ padding: 24 }} data-testid="timesheet-list">
-      <Space align="center" wrap style={{ marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>
-          My timesheets
-        </Title>
-        <Button
-          type="primary"
-          icon={<CalendarOutlined />}
-          onClick={() => navigate(`/hrms/timesheets/week/${mondayOf(dayjs())}`)}
-        >
-          Open this week
-        </Button>
-        <DatePicker.RangePicker
-          value={range}
-          allowClear={false}
-          onChange={(value) => value && setRange(value)}
-        />
-      </Space>
+    <Card variant="borderless" data-testid="timesheet-list">
+      <PageHeader
+        title="My timesheets"
+        count={String(weeks.length)}
+        actions={
+          <Space align="center" wrap>
+            <Button
+              type="primary"
+              icon={<CalendarOutlined />}
+              onClick={() => navigate(`/hrms/timesheets/week/${mondayOf(dayjs())}`)}
+            >
+              Open this week
+            </Button>
+            <DatePicker.RangePicker
+              value={range}
+              allowClear={false}
+              onChange={(value) => value && setRange(value)}
+            />
+          </Space>
+        }
+      />
 
       {error && (
-        <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />
+        <Alert type="error" showIcon message={error} style={{ marginBottom: token.margin }} />
       )}
 
-      <Card>
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={weeks}
-          loading={loading}
-          pagination={{ pageSize: 20 }}
-          locale={{ emptyText: 'No timesheets in this range.' }}
-        />
-      </Card>
-    </div>
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={weeks}
+        loading={loading}
+        pagination={{ pageSize: 20 }}
+        locale={{ emptyText: 'No timesheets in this range.' }}
+      />
+    </Card>
   );
 }
 

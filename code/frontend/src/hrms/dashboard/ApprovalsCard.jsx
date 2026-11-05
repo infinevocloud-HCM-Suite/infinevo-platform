@@ -6,7 +6,7 @@ import { Card, List, Statistic } from 'antd';
 export function ApprovalsCard({ approvals }) {
   if (!approvals) return null;
   return (
-    <Card title="Waiting for me" extra={<Link to="/approvals">Go to approvals</Link>}>
+    <Card variant="borderless" title="Waiting for me" extra={<Link to="/approvals">Go to approvals</Link>}>
       <Statistic title="Waiting" value={approvals.waiting} />
       <List
         size="small"

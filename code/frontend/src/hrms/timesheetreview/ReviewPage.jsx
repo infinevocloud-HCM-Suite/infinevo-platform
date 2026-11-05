@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, DatePicker, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { Card, DatePicker, Select, Space, Table, Tabs, Tag, Typography, theme } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { NotEntitled, useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { reviewService } from './reviewService.js';
 import {
   DATE_FORMAT,
@@ -33,6 +34,7 @@ function defaultRange() {
 
 /** Timesheet review (W-48.3 §5): one tab per list the caller may see, shared filters, server paging. */
 export function ReviewPage() {
+  const { token } = theme.useToken();
   const canApprove = useCan('hrms.timesheet.approve');
   const canTeam = useCan('hrms.timesheet.read_team');
   const canAll = useCan('hrms.timesheet.read');
@@ -89,7 +91,11 @@ export function ReviewPage() {
   if (tabs.length === 0) return <NotEntitled />;
 
   const columns = [
-    { title: 'Employee', key: 'employee', render: (_, r) => r.employee_name || r.employee_id },
+    {
+      title: 'Employee',
+      key: 'employee',
+      render: (_, r) => <Typography.Text strong>{r.employee_name || r.employee_id}</Typography.Text>,
+    },
     { title: 'Week', dataIndex: 'week_start_date', key: 'week', render: (d) => formatDate(d) },
     {
       title: 'Total hours',
@@ -129,7 +135,11 @@ export function ReviewPage() {
   const byProject = current?.by === 'projectId';
 
   return (
-    <Card title="Timesheet review">
+    <Card variant="borderless">
+      <PageHeader
+        title="Timesheet review"
+        count={data.total_elements != null ? String(data.total_elements) : undefined}
+      />
       <Tabs
         activeKey={tab}
         onChange={(k) => {
@@ -139,7 +149,7 @@ export function ReviewPage() {
         }}
         items={tabs.map((t) => ({ key: t.key, label: t.label }))}
       />
-      <Space wrap style={{ marginBottom: 16 }}>
+      <Space wrap style={{ marginBottom: token.margin }}>
         <RangePicker value={range} onChange={reset(setRange)} />
         <Select
           aria-label="Status"

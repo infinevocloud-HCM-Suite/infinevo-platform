@@ -32,7 +32,7 @@ import {
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { formatDateTime } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const ACCEPTED_NAME = /\.(pdf|png|jpe?g)$/i;
 
@@ -195,7 +195,7 @@ export function DocumentsTab({ employeeId }) {
   return (
     <Card variant="borderless" style={{ padding: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: token.marginSM }}>
-        <Title level={5} style={{ margin: 0 }}>Documents</Title>
+        <Text strong style={{ fontSize: token.fontSizeLG }}>Documents</Text>
         {canUpload && (
           <Button
             type="primary"

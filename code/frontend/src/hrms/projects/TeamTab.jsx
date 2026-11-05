@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
-import { Alert, Button, DatePicker, Popconfirm, Space, Table } from 'antd';
+import { Alert, Button, DatePicker, Popconfirm, Space, Table, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { EmployeePicker } from './EmployeePicker.jsx';
 import { errorMessage, projectService } from './projectService.js';
@@ -45,7 +45,7 @@ export function TeamTab({ projectId, assignments, canManage, onChange }) {
     {
       title: 'Employee',
       dataIndex: 'employee_name',
-      render: (v, r) => v || r.employee_id,
+      render: (v, r) => <Typography.Text strong>{v || r.employee_id}</Typography.Text>,
     },
     { title: 'Assigned on', dataIndex: 'assigned_on', render: (v) => formatDate(v) },
   ];

@@ -24,8 +24,10 @@ import { DeductionGrid } from './DeductionGrid.jsx';
 import { DEDUCTION_STATUS_OPTIONS, DEDUCTION_TYPE_OPTIONS, deductionStatus, deductionTypeLabel } from './claimLabels.js';
 import { readError } from '../tax/apiError.js';
 import { EMPTY, formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const REASON_MAX = 255;
 
 /**
@@ -116,10 +118,10 @@ export function DeductionList() {
   };
 
   const columns = [
-    { title: 'Employee', dataIndex: 'employee_name', key: 'employee_name', render: (v) => v || EMPTY },
+    { title: 'Employee', dataIndex: 'employee_name', key: 'employee_name', render: (v) => <Text strong>{v || EMPTY}</Text> },
     { title: 'Period', dataIndex: 'period', key: 'period', render: (v) => formatMonth(v) },
     { title: 'Type', dataIndex: 'deduction_type', key: 'deduction_type', render: deductionTypeLabel },
-    { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right', render: (v) => formatMoney(v) },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right', render: (v) => <MoneyText value={v} /> },
     { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v) => v || EMPTY },
     {
       title: 'Status',
@@ -155,23 +157,23 @@ export function DeductionList() {
 
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>
-          Salary deductions
-        </Title>
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-            Refresh
-          </Button>
-          {canManage && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setGridOpen(true)}>
-              Enter deductions
+      <PageHeader
+        title="Salary deductions"
+        actions={
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+              Refresh
             </Button>
-          )}
-        </Space>
-      </Space>
+            {canManage && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setGridOpen(true)}>
+                Enter deductions
+              </Button>
+            )}
+          </Space>
+        }
+      />
 
-      <Card style={{ marginBottom: 16 }}>
+      <Card variant="borderless" style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>
           <Col xs={24} md={8}>
             <Text type="secondary">Employee</Text>
@@ -242,22 +244,24 @@ export function DeductionList() {
           }
         />
       ) : (
-        <Table
-          rowKey="id"
-          dataSource={rows}
-          columns={columns}
-          loading={loading}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            onChange: (p, ps) => {
-              setPage(p);
-              setPageSize(ps);
-            },
-          }}
-        />
+        <Card variant="borderless">
+          <Table
+            rowKey="id"
+            dataSource={rows}
+            columns={columns}
+            loading={loading}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              onChange: (p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              },
+            }}
+          />
+        </Card>
       )}
 
       <Modal

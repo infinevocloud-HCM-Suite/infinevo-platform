@@ -25,6 +25,7 @@ export function CurrentRunCard({ run, today }) {
 
   return (
     <Card
+      variant="borderless"
       title={`Current run: ${formatMonth(run.period)}`}
       extra={<Link to={`/payroll/runs/${run.payrun_id}`}>Open run</Link>}
     >

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Col, Divider, Result, Row, Spin, Typography } from 'antd';
+import { Button, Col, Divider, Result, Row, Spin, Typography, theme } from 'antd';
 import { NotEntitled } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { hrmsDashboardService } from './hrmsDashboardService.js';
 import { TodayCard } from './TodayCard.jsx';
 import { TimesheetsCard } from './TimesheetsCard.jsx';
@@ -10,7 +11,7 @@ import { ManagedProjectsCard } from './ManagedProjectsCard.jsx';
 import { ApprovalsCard } from './ApprovalsCard.jsx';
 import { ReportsCard } from './ReportsCard.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const forbidden = (err) => err?.status === 403 || Boolean(err?.isModuleNotEntitled) || Boolean(err?.isForbidden);
 
@@ -19,6 +20,7 @@ const forbidden = (err) => err?.status === 403 || Boolean(err?.isModuleNotEntitl
  * card; a `null` `team` hides the Team section. No constants and no fallback figures (DEBT-028).
  */
 export function HrmsDashboardPage() {
+  const { token } = theme.useToken();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -112,8 +114,8 @@ export function HrmsDashboardPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <Title level={2}>Dashboard</Title>
+    <div style={{ padding: token.paddingLG, maxWidth: 1200, margin: '0 auto' }}>
+      <PageHeader title="Dashboard" />
       {body}
     </div>
   );

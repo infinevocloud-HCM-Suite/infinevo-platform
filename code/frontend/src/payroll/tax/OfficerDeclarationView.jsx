@@ -14,6 +14,7 @@ import {
   Button,
   Empty,
   Select,
+  theme,
 } from 'antd';
 import {
   EyeOutlined,
@@ -23,6 +24,7 @@ import {
   ArrowLeftOutlined,
 } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { declarationService } from './declarationService';
 import { currentFy, fyOptions, formatFyDisplay } from './financialYear';
 import { readError } from './apiError';
@@ -39,6 +41,7 @@ export function isEmployeeUuid(value) {
 }
 
 export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy }) {
+  const { token } = theme.useToken();
   const params = useParams();
   const canRead = useCan('payroll.tax_declaration.read');
 
@@ -120,12 +123,26 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
+      <PageHeader
+        title="Officer Declaration Review"
+        subtitle={header?.employee_name ? `${header.employee_name} (${header.financial_year || selectedFy})` : undefined}
+        actions={
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => fetchDeclaration(empId, selectedFy)}
+            disabled={!validEmpId || loading}
+          >
+            Refresh
+          </Button>
+        }
+      />
       <Card
+        variant="borderless"
         title={
           <Row justify="space-between" align="middle" wrap>
             <Col>
               <Space align="center">
-                <EyeOutlined style={{ fontSize: 20, color: '#1677ff' }} />
+                <EyeOutlined style={{ fontSize: 20, color: token.colorPrimary }} />
                 <Title level={4} style={{ margin: 0 }}>
                   Officer Declaration Review
                 </Title>

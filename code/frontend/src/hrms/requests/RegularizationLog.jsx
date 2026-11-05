@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Card, DatePicker, Select, Space, Table, Tag } from 'antd';
+import { Alert, Card, DatePicker, Select, Space, Table, Tag, Typography, theme } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { NotEntitled, useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { requestService } from './requestService.js';
 import { FMT, MAX_RANGE_DAYS, STATUS_COLOR, presets, spanDays, stamp, timeOf } from './range.js';
 import { formatDate, statusLabel } from '@shared/ui/format.js';
+
+const { Text } = Typography;
 
 const STATUSES = ['PENDING', 'APPROVED', 'REJECTED'].map((s) => ({ value: s, label: s }));
 
 /** HR: everyone's regularization requests for a range (W-48.5 §5). */
 export function RegularizationLog() {
+  const { token } = theme.useToken();
   const canRead = useCan('core.attendance.read');
   const navigate = useNavigate();
   const [range, setRange] = useState(null);
@@ -64,7 +68,7 @@ export function RegularizationLog() {
   };
 
   const columns = [
-    { title: 'Employee', key: 'employee', render: (_, r) => r.employeeName || r.employeeId },
+    { title: 'Employee', key: 'employee', render: (_, r) => <Text strong>{r.employeeName || r.employeeId}</Text> },
     { title: 'Date', dataIndex: 'date', key: 'date', render: (d) => formatDate(d) },
     { title: 'In', key: 'in', render: (_, r) => timeOf(r.inAt) },
     { title: 'Out', key: 'out', render: (_, r) => timeOf(r.outAt) },
@@ -74,7 +78,11 @@ export function RegularizationLog() {
   ];
 
   return (
-    <Card title="Everyone's regularizations">
+    <Card variant="borderless">
+      <PageHeader
+        title="Everyone's regularizations"
+        count={range ? String(rows.length) : undefined}
+      />
       <Space direction="vertical" style={{ width: '100%' }}>
         <Space wrap>
           <DatePicker.RangePicker
@@ -106,7 +114,7 @@ export function RegularizationLog() {
             aria-label="Employee"
           />
         </Space>
-        {error && <Alert type="error" message={error} showIcon />}
+        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
         <Table
           rowKey="id"
           columns={columns}
