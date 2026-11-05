@@ -96,6 +96,18 @@ written 2026-09-27, as was `W-58`. `W-64` has no spec yet.
 
 ---
 
+## Planned infrastructure tickets — logged 2026-11-04
+
+Logged for later building. **None has a spec or an owner yet**; each gets both through `/plan-feature`.
+
+| # | Ticket | What it is | Priority | Status |
+|---|---|---|---|---|
+| #— | `W-96` Database upgrade | Larger database and high availability in the Bicep. October peaks on `Standard_B1ms`: CPU 100%, memory 90%. Size S | 1 — before selling widely | Not specced. Unassigned |
+| #— | `W-105` Azure tidy-up | Worker scale-to-zero (one copy ran all October with a minimum of 0), registry image clean-up, smaller web container. Size S | 2 | Not specced. Unassigned |
+| #— | `W-113` Customer's own Azure package | Repeatable deployment and upgrades in a customer's subscription. Size L | 3 — after paying customers | Not specced. Unassigned |
+
+---
+
 ## 5. Open defects and follow-ups
 
 | # | What | Size |
