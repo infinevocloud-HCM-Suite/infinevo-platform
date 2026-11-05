@@ -1,9 +1,11 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Layout, Menu, Skeleton, Typography, Button, Result, Drawer, Grid, theme as antdTheme } from 'antd';
+import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { Link, Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
 import { navLabel } from './navigation/navLabels.js';
+import { navIcon } from './navigation/navIcons.jsx';
 import { routesFromFeed, portalRoutes } from './routes.js';
 import { moduleEmployeeTabs } from './moduleTabs.js';
 import { ModuleEmployeeTabsProvider } from './navigation/moduleEmployeeTabs.js';
@@ -20,6 +22,8 @@ const { Sider, Content } = Layout;
 
 /** W-83.5: widest the page content gets, in px. */
 export const CONTENT_MAX_WIDTH = 1440;
+/** W-83.7: the side menu collapsed to icons, in px. */
+export const SIDER_COLLAPSED_WIDTH = 64;
 
 /**
  * The platform-staff tenant screens (W-65.1, W-65.3). While an "act as" session is live the feed
@@ -118,6 +122,14 @@ export function AppShell() {
     setMenuOpen(false);
   }, [location.pathname, phone]);
 
+  // W-83.7: the side menu collapses to icons. The choice lasts for the page: browser storage is
+  // off limits (W-45 §5b), and a server-side preference is its own ticket.
+  const [collapsed, setCollapsed] = React.useState(false);
+  const onCollapse = (next) => setCollapsed(next);
+  // The phone drawer always shows labels.
+  const iconsOnly = collapsed && !phone;
+  const currentSiderWidth = iconsOnly ? SIDER_COLLAPSED_WIDTH : siderWidth;
+
   const navigation = (
     <>
       <div
@@ -130,10 +142,39 @@ export function AppShell() {
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
-        {/* W-83.5: the product name alone, level with the header */}
-        <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeLG, lineHeight: 1.3 }}>
-          Infinevo HCM Suite
-        </Typography.Text>
+        {/* W-83.5: the product name alone, level with the header; W-83.7: a monogram when collapsed,
+            and the collapse button up here, in the flow, so it never covers the last menu item */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: token.marginXS }}>
+          <Typography.Text
+            strong
+            ellipsis
+            data-testid="brand"
+            style={{ color: token.colorText, fontSize: token.fontSizeLG, lineHeight: 1.3, textAlign: iconsOnly ? 'center' : 'start' }}
+          >
+            {iconsOnly ? 'IH' : 'Infinevo HCM Suite'}
+          </Typography.Text>
+          {!phone && !iconsOnly && (
+            <Button
+              type="text"
+              size="small"
+              aria-label="Collapse menu"
+              data-testid="sider-trigger"
+              icon={<MenuFoldOutlined />}
+              onClick={() => onCollapse(true)}
+            />
+          )}
+        </div>
+        {iconsOnly && (
+          <Button
+            type="text"
+            size="small"
+            aria-label="Expand menu"
+            data-testid="sider-trigger"
+            icon={<MenuUnfoldOutlined />}
+            onClick={() => onCollapse(false)}
+            style={{ alignSelf: 'center', marginTop: token.marginXXS }}
+          />
+        )}
       </div>
 
       {loading ? (
@@ -150,10 +191,11 @@ export function AppShell() {
         </div>
       ) : (
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={selectedKey ? [selectedKey] : []}
-          openKeys={openKeys}
+          // Collapsed, groups open as hover popups; controlling them would pin one open after a pick.
+          openKeys={iconsOnly ? undefined : openKeys}
           onOpenChange={setOpenKeys}
           // A pick closes the phone drawer even when it is the screen already open.
           onClick={() => setMenuOpen(false)}
@@ -182,15 +224,27 @@ export function AppShell() {
         ) : (
           <Sider
             width={siderWidth}
-            theme="dark"
-            collapsible={false}
-            style={{ position: 'fixed', left: 0, top: 0, bottom: 0, overflowY: 'auto', zIndex: 100 }}
+            theme="light"
+            collapsible
+            collapsed={iconsOnly}
+            onCollapse={onCollapse}
+            collapsedWidth={SIDER_COLLAPSED_WIDTH}
+            trigger={null}
+            style={{
+              position: 'fixed',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              overflowY: 'auto',
+              zIndex: 100,
+              borderRight: `1px solid ${token.colorBorderSecondary}`,
+            }}
           >
             {navigation}
           </Sider>
         )}
 
-        <Layout style={{ marginLeft: phone ? 0 : siderWidth }}>
+        <Layout style={{ marginLeft: phone ? 0 : currentSiderWidth }}>
           <Header
             tenantName={tenantName}
             tenantLogoUrl={tenantLogoUrl}
@@ -265,20 +319,23 @@ export function AppShell() {
 
 /**
  * Convert navigation items from the feed into Ant Design Menu item descriptors.
- * No icon keys are emitted — the feed carries only label keys and paths; `navLabel` turns a key into words.
+ * The feed carries only label keys and paths; `navLabel` turns a key into words and, for a top-level
+ * item, `navIcon` picks the line icon (W-83.7).
  */
-function buildMenuItems(items) {
+function buildMenuItems(items, topLevel = true) {
   if (!items || items.length === 0) return [];
   return items.map((item) => {
     if (item.children && item.children.length > 0) {
       return {
         key: item.key,
         label: navLabel(item.labelKey),
-        children: buildMenuItems(item.children),
+        ...(topLevel ? { icon: navIcon(item.labelKey) } : {}),
+        children: buildMenuItems(item.children, false),
       };
     }
     return {
       key: item.key,
+      ...(topLevel ? { icon: navIcon(item.labelKey) } : {}),
       label: <Link to={item.path}>{navLabel(item.labelKey)}</Link>,
     };
   });

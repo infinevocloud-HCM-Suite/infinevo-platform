@@ -1,5 +1,5 @@
 /**
- * Ant Design theme tokens (D-29, W-45 §5a, W-80 10/10 UI Redesign, W-83.1, W-83.5).
+ * Ant Design theme tokens (D-29, W-45 §5a, W-80 10/10 UI Redesign, W-83.1, W-83.5, W-83.7).
  * Single source of truth for design tokens across the application.
  * One place, so a restyle is not 158 screens of work.
  * Palette: Sky Blue, Royal Blue, Soft Slate, and Crisp White.
@@ -24,8 +24,9 @@ export const theme = {
     colorTextSecondary: '#64748b', // Muted slate
 
     // Type
+    // W-83.7: Inter, self-hosted through @fontsource-variable/inter (imported in main.jsx)
     fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      "'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
     fontSize: 14,
     fontSizeHeading1: 36,
     fontSizeHeading2: 28,
@@ -46,19 +47,29 @@ export const theme = {
     borderRadiusSM: 6,
     borderRadiusLG: 12,
     controlHeight: 34,
-    boxShadowSecondary: '0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05)',
+    // W-83.7: borders, not shadows; a visible focus ring
+    boxShadowSecondary: 'none',
+    controlOutline: 'rgba(37, 99, 235, 0.3)',
+    controlOutlineWidth: 2,
   },
   components: {
     Layout: {
       headerBg: '#ffffff',
       headerHeight: 64,
       siderWidth: 230,
-      siderBg: '#0f172a',
+      siderBg: '#ffffff', // W-83.7: white side menu
       bodyBg: '#f8fafc',
     },
     Menu: {
-      darkItemBg: '#0f172a',
-      darkItemSelectedBg: '#2563eb',
+      // W-83.7: light menu; the selected item is blue on sky blue, the rest slate
+      itemBg: '#ffffff',
+      subMenuItemBg: '#ffffff',
+      itemColor: '#334155',
+      itemHoverBg: '#f1f5f9',
+      itemSelectedBg: '#e0f2fe',
+      itemSelectedColor: '#2563eb',
+      iconSize: 16,
+      collapsedIconSize: 18,
       itemBorderRadius: 6,
       // W-83.5: 40 px rows
       itemHeight: 40,
@@ -70,7 +81,7 @@ export const theme = {
       headerFontSize: 16,
       borderRadiusLG: 12,
       colorBorderSecondary: '#e2e8f0',
-      boxShadowTertiary: '0 0 0 1px #e2e8f0, 0 1px 3px 0 rgba(15, 23, 42, 0.05)',
+      boxShadowTertiary: '0 0 0 1px #e2e8f0', // W-83.7: a 1 px ring, no shadow
     },
     Table: {
       headerBg: '#f8fafc',
@@ -89,7 +100,7 @@ export const theme = {
     Button: {
       borderRadius: 8,
       controlHeight: 34,
-      primaryShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+      primaryShadow: 'none', // W-83.7
     },
     Tag: {
       borderRadiusSM: 12,

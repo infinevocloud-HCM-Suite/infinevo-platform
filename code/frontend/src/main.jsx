@@ -2,6 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider } from 'antd';
+import '@fontsource-variable/inter'; // W-83.7: Inter, bundled, no font call to a third party
 import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 

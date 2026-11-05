@@ -5,6 +5,8 @@ import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Ale
 import { PlusOutlined, UploadOutlined, MailOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
+import { StatusDot } from '@shared/ui/StatusDot.jsx';
+import { theme as appTheme } from '@shared/theme.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { employeeService } from './employeeService.js';
 import { employeeImportService } from './employeeImportService.js';
@@ -203,7 +205,7 @@ export function EmployeeList() {
       key: 'status',
       render: (status, r) => (
         <Space size="small">
-          <Tag color={statusColorMap[status] || 'default'}>{statusLabel(status)}</Tag>
+          <StatusDot tone={statusColorMap[status] || 'default'}>{statusLabel(status)}</StatusDot>
           {r.isDeleted && <Tag color="error">Deleted</Tag>}
         </Space>
       ),
@@ -330,6 +332,8 @@ export function EmployeeList() {
         rowKey="id"
         scroll={{ x: 960 }}
         tableLayout="fixed"
+        // W-83.7: the header stays below the app's 64 px top bar while rows scroll.
+        sticky={{ offsetHeader: appTheme.components.Layout.headerHeight }}
         columns={columns}
         dataSource={data}
         loading={loading}

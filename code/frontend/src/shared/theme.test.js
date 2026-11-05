@@ -18,3 +18,23 @@ describe('theme density (W-83.5)', () => {
     expect(theme.token.fontSizeHeading3).toBe(20);
   });
 });
+
+// W-83.7: a white side menu, Inter, borders rather than shadows.
+describe('theme chrome (W-83.7)', () => {
+  it('the side menu is white and the menu is light', () => {
+    expect(theme.components.Layout.siderBg).toBe('#ffffff');
+    expect(theme.components.Menu.itemSelectedBg).toBe('#e0f2fe');
+    expect(theme.components.Menu.darkItemBg).toBeUndefined();
+  });
+
+  it('Inter comes first in the font stack', () => {
+    expect(theme.token.fontFamily.startsWith("'Inter Variable'")).toBe(true);
+  });
+
+  it('no blur shadow is left in the tokens', () => {
+    const all = JSON.stringify(theme);
+    expect(all).not.toMatch(/rgba\(15, 23, 42/);
+    expect(theme.components.Button.primaryShadow).toBe('none');
+    expect(theme.components.Card.boxShadowTertiary).toBe('0 0 0 1px #e2e8f0');
+  });
+});

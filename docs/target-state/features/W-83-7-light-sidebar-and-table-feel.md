@@ -6,7 +6,7 @@
 | **Owner** | Claude (`dev-claude-w83`) |
 | **Apps touched** | `code/frontend` (`src/shared/theme.js`, `src/shared/ui`, `src/shell`, `index.html`) |
 | **Related gaps** | founder 2026-11-05: "a professional and latest styling look and feel" |
-| **Status** | Ready |
+| **Status** | In flight |
 | **Blocked by** | `W-83.5` |
 
 ## What and why
@@ -32,10 +32,10 @@ headers and actions that appear on the row. Nothing about how a screen works cha
 |---|---|---|
 | White side menu | `theme.js` `Layout.siderBg`, `Menu` | `siderBg: colorBgContainer`; `Menu` light: `itemSelectedBg: colorInfoBg`, `itemSelectedColor: colorPrimary`; 1 px right border |
 | One line icon per top-level item | `shell/navigation` item builder (`AppShell.jsx:263`) | `@ant-design/icons` outlined set, 16 px; a fixed map from module key to icon, with `AppstoreOutlined` as the fallback |
-| Collapses to icons | `AppShell.jsx:182-189` | `Sider collapsible`, trigger at the bottom, width 64 when collapsed; the choice is kept in `localStorage` key `shell.sider.collapsed`; phone drawer unchanged |
-| One typeface | `index.html`, `theme.js` `fontFamily` | Inter, self-hosted under `public/fonts` (no Google Fonts call), weights 400, 500, 600; `font-feature-settings: 'tnum'` on `MoneyText` and date cells |
-| Sticky table header | `shared/ui` wrapper or `Table` default via `ConfigProvider` | `sticky` on every `Table` with more than 10 rows per page |
-| Hover row actions | `shared/ui/RowActions.jsx` (new) | Icon buttons that show on row hover and on keyboard focus; replace "Actions" columns one screen at a time, starting with `/employees` |
+| Collapses to icons | `AppShell.jsx:182-189` | `Sider collapsible`, the collapse button beside the product name (a bottom trigger covered the last group on a long menu), width 64 when collapsed; the choice lasts for the page, since browser storage is off limits (W-45 §5b) and a saved preference needs a server field (own ticket); phone drawer unchanged |
+| One typeface | `main.jsx`, `theme.js` `fontFamily` | Inter, bundled from `@fontsource-variable/inter` (one variable file, no call to a third party); `MoneyText` already sets tabular figures |
+| Sticky table header | `core/employee/EmployeeList.jsx` | `sticky` with `offsetHeader` = the 64 px app header on the employee list; other lists add it in `W-83.6`, `W-81.1`, `W-82.1` (Ant Design has no global default) |
+| Hover row actions | deferred to `W-83.6` | `/employees` has no Actions column (rows open on click), so there is nothing to replace here; the first Core screen with one gets `RowActions` |
 | Status as a dot | `shared/ui/StatusDot.jsx` (new) | 8 px dot plus plain text; `Tag` stays for counts and roles |
 | Borders, not shadows | `theme.js` `Card.boxShadowTertiary`, `Button.primaryShadow` | Removed; 1 px `colorBorderSecondary` everywhere |
 | Focus ring | `theme.js` `controlOutline` | 2 px `colorPrimary` at 30 % |
@@ -55,8 +55,7 @@ Every element `id`, `data-testid`, permission check, route and service call stay
 
 | File | Covers |
 |---|---|
-| `shell/AppShell.test.jsx` | Collapse toggles the width and is remembered; every top-level item has an icon |
-| `shared/ui/RowActions.test.jsx` | Actions are reachable by keyboard without hover |
+| `shell/AppShell.test.jsx` | Collapse toggles the width and the monogram; every top-level item has an icon |
 | `shared/ui/StatusDot.test.jsx` | Renders the text, and the colour comes from a token |
 | `shared/theme.test.js` | `siderBg` is white; no shadow tokens left |
 
@@ -79,4 +78,4 @@ Inter changes line widths by a few percent, so a label that just fitted may wrap
 
 ## Rollback
 
-Revert the squash commit. No data changes. `localStorage` key is ignored once the code is gone.
+Revert the squash commit. No data changes.

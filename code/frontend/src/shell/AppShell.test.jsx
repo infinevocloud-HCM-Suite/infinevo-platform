@@ -473,4 +473,54 @@ describe('AppShell component', () => {
       await waitFor(() => expect(document.querySelector('.shell-nav-drawer.ant-drawer-open')).toBeNull());
     });
   });
+
+  describe('light side menu (W-83.7)', () => {
+    const feed = {
+      items: [
+        {
+          key: 'core.people',
+          labelKey: 'nav.people',
+          children: [{ key: 'core.employee', labelKey: 'nav.employees', path: '/core-people' }],
+        },
+        { key: 'core.audit', labelKey: 'nav.audit', path: '/audit' },
+      ],
+      loading: false,
+    };
+
+    it('is light, and every top-level item carries an icon', () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+      const { container } = render(
+        <MemoryRouter initialEntries={['/core-people']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+      expect(container.querySelector('.ant-layout-sider-light')).not.toBeNull();
+      expect(container.querySelector('.ant-layout-sider-dark')).toBeNull();
+      // Two top-level items, two icons; the child "Employees" has none.
+      expect(container.querySelectorAll('.ant-layout-sider [data-testid="nav-icon"]').length).toBe(2);
+    });
+
+    it('collapses to icons on the trigger and shows the monogram', () => {
+      vi.spyOn(navigationModule, 'useNavigation').mockReturnValue(feed);
+      const { container } = render(
+        <MemoryRouter initialEntries={['/audit']}>
+          <AppShell />
+        </MemoryRouter>,
+      );
+      expect(screen.getByTestId('brand').textContent).toBe('Infinevo HCM Suite');
+
+      const content = () => container.querySelector('.ant-layout-sider + .ant-layout');
+      expect(content().style.marginLeft).toBe('230px');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Collapse menu' }));
+      expect(container.querySelector('.ant-layout-sider-collapsed')).not.toBeNull();
+      expect(screen.getByTestId('brand').textContent).toBe('IH');
+      expect(content().style.marginLeft).toBe('64px');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Expand menu' }));
+      expect(container.querySelector('.ant-layout-sider-collapsed')).toBeNull();
+      expect(screen.getByTestId('brand').textContent).toBe('Infinevo HCM Suite');
+      expect(content().style.marginLeft).toBe('230px');
+    });
+  });
 });
