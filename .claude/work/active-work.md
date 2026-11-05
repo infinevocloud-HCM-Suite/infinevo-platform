@@ -6,17 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
-## 2026-11-05 — W-83.5 density and chrome on `main` (`02a94f5e`); W-83.7 in flight
+## 2026-11-05 — W-83.5 (`02a94f5e`) and W-83.7 (`e92d7878`) new look on `main`
 
 | Ticket | What |
 |---|---|
 | `W-83.5` | 44 px table rows, 40 px menu rows, content capped at 1440 px, top bar down to logo, company and user (tagline and roles in the user menu), tighter `PageHeader`, one-line impersonation banner. `shared/theme.test.js` pins the density values |
 | fixes `61827acf`, `743db4b7`, `c9c73272` | Employee list after W-83.2 on Azure: Name column wrapped letter by letter, then overflowed; now fixed widths (1,100 px), scrolls inside its card, "Joined" header, email and name ellipsis |
-| `W-83.7` | **In flight — Claude, `dev-claude-w83`.** White side menu with icons, collapsible to 64 px (choice lasts the page: W-45 §5b forbids browser storage), Inter bundled from `@fontsource-variable/inter`, borders not shadows, `StatusDot`, sticky employee list. Founder reviewing screenshots |
+| `W-83.7` | White side menu with icons, collapsible to 64 px (choice lasts the page: W-45 §5b forbids browser storage), Inter bundled from `@fontsource-variable/inter`, borders not shadows, `shared/ui/StatusDot`, employee list header sticky below the top bar. Founder approved from screenshots; one read, five findings fixed |
 
 - Built by Claude on `dev-claude-w83` (founder reassigned from krushna 2026-11-05 so the look lands while krushna restyles HRMS and Payroll). One independent read; two missing spec tests added before the squash.
 - **Decisions 2026-11-05 (founder):** tables, not card grids, for admin lists; W-83.5 look approved from screenshots; `RowActions` deferred to `W-83.6` since `/employees` has no Actions column.
-- **Next:** founder's yes on W-83.7 screenshots, then `/merge W-83.7`. Krushna: `W-81.1` → `W-82.1` → `W-83.6`, each from a fresh `main`.
+- **Left:** collapse choice not remembered across a reload (needs a server-side preference, own ticket if wanted); `RowActions` and sticky headers on other lists ride with `W-83.6`, `W-81.1`, `W-82.1`.
+- **Next:** Krushna: `W-81.1` → `W-82.1` → `W-83.6`, each from a fresh `main`. `dev-claude-w83` reset to `main`.
 
 ## 2026-11-05 — W-83.1–.4 new look on `main` (`25c1ac5f`)
 

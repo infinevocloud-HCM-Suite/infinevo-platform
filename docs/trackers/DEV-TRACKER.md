@@ -876,7 +876,7 @@ dev environment crash-loops on the next deploy.
 | #— | `W-82.1` Payroll screens | Payroll restyle, visual only; amounts right-aligned in even figures; Approve and Pay stay separate; no payslip Download or proof review. Spec `W-82-1-payroll-screens-new-look.md`. Size L. **Ready — krushna.** `W-83.1` on main. No table |
 | #— | `W-83.5` Density and app chrome | Tables 44 px per row, one bold per row, content capped at 1440 px, top bar down to logo, company, user; set once in the theme and shell. Founder sees three screenshots before the build. Spec `W-83-5-density-and-app-chrome.md`. Size M. **Done 2026-11-05 on `02a94f5e` — Built by Claude** (reassigned from krushna so the look lands while krushna does `W-81.1`). No table |
 | #— | `W-83.6` Core emphasis sweep | Core lists and detail screens: one bold per row. Spec `W-83-6-core-emphasis-sweep.md`. Size S. **Ready — krushna.** Waits on `W-83.5`. No table |
-| #— | `W-83.7` Light sidebar and table feel | White collapsible side menu with icons, Inter, sticky table headers, hover row actions, status dots. Spec `W-83-7-light-sidebar-and-table-feel.md`. Size M. **In flight — Claude** (`dev-claude-w83`), screenshots with the founder 2026-11-05. No table |
+| #— | `W-83.7` Light sidebar and table feel | White collapsible side menu with icons, Inter, sticky table headers, hover row actions, status dots. Spec `W-83-7-light-sidebar-and-table-feel.md`. Size M. **Done 2026-11-05 on `e92d7878` — Built by Claude.** No table |
 
 ---
 

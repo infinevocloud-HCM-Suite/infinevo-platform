@@ -6,7 +6,7 @@
 | **Owner** | Claude (`dev-claude-w83`) |
 | **Apps touched** | `code/frontend` (`src/shared/theme.js`, `src/shared/ui`, `src/shell`, `index.html`) |
 | **Related gaps** | founder 2026-11-05: "a professional and latest styling look and feel" |
-| **Status** | In flight |
+| **Status** | Done — on `main` `e92d7878`, 2026-11-05 |
 | **Blocked by** | `W-83.5` |
 
 ## What and why
