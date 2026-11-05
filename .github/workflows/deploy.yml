@@ -582,15 +582,31 @@ jobs:
 
       # An empty Front Door hostname used to produce API_BASE_URL=https:///api with no
       # failure anywhere - review finding F-12. An empty lookup is now fatal.
+      # Prefers custom domain (vars.CUSTOM_DOMAIN or Front Door profile custom domain)
+      # so that custom-branded environments maintain their custom domain hostname.
       - name: Resolve Front Door hostname
         id: infra
+        env:
+          CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
         run: |
           set -euo pipefail
-          fd_host=$(az afd endpoint show \
-            -g rg-infinevo-shared \
-            --profile-name afd-infinevo-shared \
-            --endpoint-name "ep-infinevo-${ENV}" \
-            --query hostName -o tsv)
+          if [ -n "${CUSTOM_DOMAIN:-}" ]; then
+            fd_host="${CUSTOM_DOMAIN}"
+          else
+            custom_domain=$(az afd custom-domain list \
+              -g rg-infinevo-shared \
+              --profile-name afd-infinevo-shared \
+              --query "[0].hostName" -o tsv 2>/dev/null || true)
+            if [ -n "$custom_domain" ] && [ "$custom_domain" != "None" ]; then
+              fd_host="$custom_domain"
+            else
+              fd_host=$(az afd endpoint show \
+                -g rg-infinevo-shared \
+                --profile-name afd-infinevo-shared \
+                --endpoint-name "ep-infinevo-${ENV}" \
+                --query hostName -o tsv)
+            fi
+          fi
           if [ -z "$fd_host" ]; then
             echo "::error::Front Door endpoint ep-infinevo-${ENV} resolved to an empty hostname - the frontend and Keycloak cannot be configured without it"
             exit 1
