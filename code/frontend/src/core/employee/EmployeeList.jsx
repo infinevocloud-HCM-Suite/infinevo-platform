@@ -143,6 +143,7 @@ export function EmployeeList() {
     {
       title: 'Name',
       key: 'name',
+      width: 240,
       render: (_, r) => {
         const fullName = [r.firstName, r.middleName, r.lastName].filter(Boolean).join(' ');
         const initials = [r.firstName?.[0], r.lastName?.[0]].filter(Boolean).join('').toUpperCase() || 'U';
@@ -160,9 +161,7 @@ export function EmployeeList() {
             >
               {initials}
             </Avatar>
-            <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
-              <Text strong>{fullName}</Text>
-            </div>
+            <Text strong style={{ whiteSpace: 'nowrap' }}>{fullName}</Text>
           </Space>
         );
       },
