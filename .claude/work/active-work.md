@@ -19,6 +19,18 @@
 - **Left:** import room count can over-refuse one row when an earlier row fails in create for another reason; at-limit badge is a warning line, not red text; Reactivate refusal is a dialog. A plan change's audit row sits under the platform tenant.
 - **Branches:** `dev-claude-w84` and `dev-claude-w84-rebased` can be deleted.
 
+## 2026-11-05 — W-83.6, W-81.1, W-82.1 on `main` (`8a34141a`): krushna's screens on the new look
+
+| Ticket | What landed |
+|---|---|
+| `W-83.6` | Core lists: one strong text per row, ids and codes secondary, section headings plain |
+| `W-81.1` | HRMS screens on `PageHeader` and tokens; timesheet weekends grey, red only for a real problem; hex lint covers `src/hrms` |
+| `W-82.1` | Payroll screens on `PageHeader`; amounts right-aligned via `MoneyText`; hex lint covers `src/payroll` |
+
+- **Dropped at merge:** krushna's own `W-83.5` commit, a duplicate of `02a94f5e`; main's shell and theme (`W-83.5`, `W-83.7`) kept.
+- **Left (cosmetic, krushna):** duplicate back links on six HRMS screens; heading repeated on two payroll screens; pay-run tiles, Form 16 and tax summary amounts not yet `MoneyText`; `breadcrumbs` prop passed to `PageHeader` which ignores it; no alignment test for `W-82.1`.
+- **Next:** krushna resets `feature/ui-professional-specs` to `main`. UI redesign queue (`W-80`–`W-83`) is empty.
+
 ## 2026-11-05 — W-83.5 (`02a94f5e`) and W-83.7 (`e92d7878`) new look on `main`
 
 | Ticket | What |
