@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Drawer, Input, Progress, Select, Space, Table, Tag } from 'antd';
+import { Alert, Button, Card, Drawer, Input, Progress, Select, Space, Table, Tag, Typography, theme } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { ProjectForm } from './ProjectForm.jsx';
 import { COLOR, LABEL, PROJECT_STATUSES, errorMessage, projectService } from './projectService.js';
 import { EMPTY, formatDate, statusLabel } from '@shared/ui/format.js';
+
+const { Text } = Typography;
 
 /**
  * Project list (W-48.1 §5). A caller without `hrms.project.read` (a manager) sees only the projects they manage,
  * so the list asks with `managed=true`; "New project" needs `hrms.project.manage`.
  */
 export function ProjectList() {
+  const { token } = theme.useToken();
   const canReadAll = useCan('hrms.project.read');
   const canManage = useCan('hrms.project.manage');
   const navigate = useNavigate();
@@ -62,7 +66,11 @@ export function ProjectList() {
     {
       title: 'Name',
       dataIndex: 'name',
-      render: (v, r) => <Link to={`/hrms/projects/${r.id}`}>{v}</Link>,
+      render: (v, r) => (
+        <Text strong>
+          <Link to={`/hrms/projects/${r.id}`}>{v}</Link>
+        </Text>
+      ),
     },
     { title: 'Manager', dataIndex: 'manager_name', render: (v) => v || EMPTY },
     {
@@ -84,17 +92,19 @@ export function ProjectList() {
   ];
 
   return (
-    <Card
-      title="Projects"
-      extra={
-        canManage && (
-          <Button type="primary" onClick={() => setCreating(true)}>
-            New project
-          </Button>
-        )
-      }
-    >
-      <Space style={{ marginBottom: 16 }} wrap>
+    <Card variant="borderless">
+      <PageHeader
+        title="Projects"
+        count={String(rows.length)}
+        actions={
+          canManage && (
+            <Button type="primary" onClick={() => setCreating(true)}>
+              New project
+            </Button>
+          )
+        }
+      />
+      <Space style={{ marginBottom: token.margin }} wrap>
         <Input.Search
           aria-label="Search"
           placeholder="Search projects"
@@ -112,7 +122,7 @@ export function ProjectList() {
           options={PROJECT_STATUSES.map((s) => ({ value: s, label: LABEL[s] }))}
         />
       </Space>
-      {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
+      {error && <Alert type="error" message={error} style={{ marginBottom: token.margin }} />}
       <Table
         rowKey="id"
         loading={loading}
@@ -128,7 +138,7 @@ export function ProjectList() {
           width={480}
           destroyOnClose
         >
-          {saveError && <Alert type="error" message={saveError} style={{ marginBottom: 16 }} />}
+          {saveError && <Alert type="error" message={saveError} style={{ marginBottom: token.margin }} />}
           <ProjectForm onSubmit={create} onCancel={() => setCreating(false)} submitting={saving} />
         </Drawer>
       )}

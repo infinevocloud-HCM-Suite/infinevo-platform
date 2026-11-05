@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card, DatePicker, Drawer, Space, Table, Tag } from 'antd';
+import { Alert, Button, Card, DatePicker, Drawer, Space, Table, Tag, Typography, theme } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { requestService } from './requestService.js';
 import { RegularizationForm } from './RegularizationForm.jsx';
 import { FMT, MAX_RANGE_DAYS, STATUS_COLOR, presets, spanDays, stamp, timeOf } from './range.js';
 import { formatDate, statusLabel } from '@shared/ui/format.js';
 
+const { Text } = Typography;
+
 /** The caller's regularization requests, newest first, and a form to ask for one (W-48.5 §5). */
 export function MyRegularizations() {
+  const { token } = theme.useToken();
   const canMark = useCan('hrms.attendance.mark');
   const canReadAll = useCan('core.attendance.read');
   const navigate = useNavigate();
@@ -48,7 +52,7 @@ export function MyRegularizations() {
   };
 
   const columns = [
-    { title: 'Date', dataIndex: 'date', key: 'date', render: (d) => formatDate(d) },
+    { title: 'Date', dataIndex: 'date', key: 'date', render: (d) => <Text strong>{formatDate(d)}</Text> },
     { title: 'In', key: 'in', render: (_, r) => timeOf(r.inAt) },
     { title: 'Out', key: 'out', render: (_, r) => timeOf(r.outAt) },
     { title: 'Reason', dataIndex: 'reason', key: 'reason', ellipsis: true },
@@ -56,7 +60,7 @@ export function MyRegularizations() {
     { title: 'Decided at', key: 'decidedAt', render: (_, r) => stamp(r.decidedAt) },
   ];
 
-  const extra = (
+  const actions = (
     <Space>
       {canReadAll && <Link to="/hrms/regularizations/all">Everyone&apos;s requests</Link>}
       {canMark && (
@@ -68,7 +72,12 @@ export function MyRegularizations() {
   );
 
   return (
-    <Card title="Regularizations" extra={extra}>
+    <Card variant="borderless">
+      <PageHeader
+        title="Regularizations"
+        count={range ? String(rows.length) : undefined}
+        actions={actions}
+      />
       <Space direction="vertical" style={{ width: '100%' }}>
         <DatePicker.RangePicker
           value={range}
@@ -78,7 +87,7 @@ export function MyRegularizations() {
           placeholder={['Pick a range', `at most ${MAX_RANGE_DAYS} days`]}
           presets={presets}
         />
-        {error && <Alert type="error" message={error} showIcon />}
+        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
         <Table
           rowKey="id"
           columns={columns}

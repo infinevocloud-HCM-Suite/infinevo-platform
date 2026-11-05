@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card, DatePicker, Drawer, Space, Table, Tag } from 'antd';
+import { Alert, Button, Card, DatePicker, Drawer, Space, Table, Tag, Typography, theme } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { requestService } from './requestService.js';
 import { OvertimeForm } from './OvertimeForm.jsx';
 import { FMT, MAX_RANGE_DAYS, STATUS_COLOR, presets, spanDays } from './range.js';
 import { formatDate, orEmpty, statusLabel } from '@shared/ui/format.js';
 
+const { Text } = Typography;
+
 /** The caller's overtime requests and a form to ask for one (W-48.5 §5). */
 export function MyOvertime() {
+  const { token } = theme.useToken();
   const canRequest = useCan('hrms.overtime.request');
   const canReadAll = useCan('core.overtime.read');
   const navigate = useNavigate();
@@ -47,23 +51,25 @@ export function MyOvertime() {
   };
 
   const columns = [
-    { title: 'Date', dataIndex: 'overtimeDate', key: 'date', render: (d) => formatDate(d) },
+    { title: 'Date', dataIndex: 'overtimeDate', key: 'date', render: (d) => <Text strong>{formatDate(d)}</Text> },
     { title: 'Hours', dataIndex: 'hours', key: 'hours' },
     { title: 'Remarks', dataIndex: 'remarks', key: 'remarks', ellipsis: true, render: (v) => orEmpty(v) },
     { title: 'Status', key: 'status', render: (_, r) => <Tag color={STATUS_COLOR[r.status]}>{statusLabel(r.status)}</Tag> },
   ];
 
   return (
-    <Card
-      title="Overtime requests"
-      extra={
-        canRequest && (
-          <Button type="primary" onClick={() => setOpen(true)}>
-            New request
-          </Button>
-        )
-      }
-    >
+    <Card variant="borderless">
+      <PageHeader
+        title="Overtime requests"
+        count={range ? String(rows.length) : undefined}
+        actions={
+          canRequest && (
+            <Button type="primary" onClick={() => setOpen(true)}>
+              New request
+            </Button>
+          )
+        }
+      />
       <Space direction="vertical" style={{ width: '100%' }}>
         <DatePicker.RangePicker
           value={range}
@@ -74,7 +80,7 @@ export function MyOvertime() {
           presets={presets}
         />
         {canReadAll && <Link to="/hrms/overtime-requests/all">Everyone&apos;s requests</Link>}
-        {error && <Alert type="error" message={error} showIcon />}
+        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
         <Table
           rowKey="id"
           columns={columns}

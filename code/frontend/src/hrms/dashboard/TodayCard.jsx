@@ -7,7 +7,7 @@ import { hmm, timeOf } from '../attendance/format.js';
 export function TodayCard({ today }) {
   if (!today) return null;
   return (
-    <Card title="Today" extra={<Link to="/hrms/attendance">Attendance</Link>}>
+    <Card variant="borderless" title="Today" extra={<Link to="/hrms/attendance">Attendance</Link>}>
       <Descriptions column={1} size="small">
         <Descriptions.Item label="Status">
           <Tag color={today.clocked_in ? 'green' : 'default'}>{today.clocked_in ? 'Clocked in' : 'Not clocked in'}</Tag>

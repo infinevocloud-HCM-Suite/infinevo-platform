@@ -40,8 +40,22 @@ export function taskRows(projects) {
 export function gridColumns(weekStart, { withProject = true } = {}) {
   const dates = weekStart ? weekDates(weekStart) : [];
   const cols = [];
-  if (withProject) cols.push({ title: 'Project', dataIndex: 'project', key: 'project' });
-  cols.push({ title: 'Task', dataIndex: 'task', key: 'task' });
+  if (withProject) {
+    cols.push({
+      title: 'Project',
+      dataIndex: 'project',
+      key: 'project',
+      render: (v) => React.createElement(Typography.Text, { strong: true }, v),
+    });
+    cols.push({ title: 'Task', dataIndex: 'task', key: 'task' });
+  } else {
+    cols.push({
+      title: 'Task',
+      dataIndex: 'task',
+      key: 'task',
+      render: (v) => React.createElement(Typography.Text, { strong: true }, v),
+    });
+  }
   dates.forEach((date, i) => {
     cols.push({
       title: `${DAY_LABELS[i]} ${date.slice(5)}`,

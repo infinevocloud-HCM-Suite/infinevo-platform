@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Collapse, Descriptions, Space, Spin, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Collapse, Descriptions, Space, Spin, Table, Tag, Typography, theme } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { reviewService } from './reviewService.js';
 import { STATUS_COLOR, STATUS_LABEL, formatHundredths } from '../timesheet/weekGrid.js';
 import { collectDescriptions, dayTotals, gridColumns, sumRows, taskRows } from './reviewGrid.js';
@@ -15,8 +16,10 @@ import { successMsg } from '@shared/ui/msgHelper.js';
 
 /** The one project line an approver decides (W-48.3 §5), opened from the approvals inbox. */
 export function EntryView() {
+  const { token } = theme.useToken();
   const { entryId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const canDecide = useCan('core.approval.decide');
 
@@ -115,8 +118,13 @@ export function EntryView() {
   );
 
   return (
-    <Card title={entry.project_name || entry.project_id} extra={extra}>
-      <Descriptions size="small" column={3} style={{ marginBottom: 16 }}>
+    <Card variant="borderless">
+      <PageHeader
+        title={entry.project_name || entry.project_id}
+        onBack={() => navigate('/approvals')}
+        actions={extra}
+      />
+      <Descriptions size="small" column={3} style={{ marginBottom: token.margin }}>
         <Descriptions.Item label="Employee">{entry.employee_name || entry.employee_id}</Descriptions.Item>
         <Descriptions.Item label="Week">
           {formatDate(entry.week_start_date)} to {formatDate(entry.week_end_date)}

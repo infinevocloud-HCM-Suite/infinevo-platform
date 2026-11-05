@@ -5,7 +5,7 @@ import { Card, Col, List, Row, Statistic } from 'antd';
 export function ReportsCard({ reports }) {
   if (!reports) return null;
   return (
-    <Card title="My team today">
+    <Card variant="borderless" title="My team today">
       <Row gutter={16}>
         <Col span={8}>
           <Statistic title="Reports" value={reports.reports} />
