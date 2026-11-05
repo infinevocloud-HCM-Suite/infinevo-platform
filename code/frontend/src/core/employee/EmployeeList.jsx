@@ -136,9 +136,9 @@ export function EmployeeList() {
       dataIndex: 'employeeNumber',
       key: 'employeeNumber',
       render: (num) => (
-        <span style={{ fontWeight: 600, color: token.colorText, fontFamily: 'monospace' }}>
+        <Text type="secondary" style={{ fontFamily: 'monospace' }}>
           {num}
-        </span>
+        </Text>
       ),
     },
     {
@@ -156,7 +156,6 @@ export function EmployeeList() {
               style={{
                 backgroundColor: token.colorInfoBg,
                 color: token.colorInfoText,
-                fontWeight: 700,
                 fontSize: 12,
               }}
             >

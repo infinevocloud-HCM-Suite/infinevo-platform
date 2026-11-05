@@ -131,12 +131,13 @@ export function WfhPolicies() {
       title: 'Code',
       dataIndex: 'code',
       key: 'code',
-      render: (code) => <Text strong>{code ? humanize(code) : EMPTY}</Text>,
+      render: (code) => <Text type="secondary">{code ? humanize(code) : EMPTY}</Text>,
     },
     {
       title: 'Policy Name',
       dataIndex: 'name',
       key: 'name',
+      render: (name) => <Text strong>{name}</Text>,
     },
     {
       title: 'Annual Quota',
@@ -236,11 +237,11 @@ export function WfhPolicies() {
               <Space size="large">
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Annual Quota</Text>
-                  <div><Text strong style={{ color: token.colorPrimary, fontSize: 15 }}>{defaultPolicy.annualDays || 12} days/yr</Text></div>
+                  <div><Text style={{ color: token.colorPrimary, fontSize: 15 }}>{defaultPolicy.annualDays || 12} days/yr</Text></div>
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Monthly Cap</Text>
-                  <div><Text strong style={{ fontSize: 15 }}>{defaultPolicy.monthlyLimitDays || 2} days/mo</Text></div>
+                  <div><Text style={{ fontSize: 15 }}>{defaultPolicy.monthlyLimitDays || 2} days/mo</Text></div>
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Half-Day</Text>
@@ -248,7 +249,7 @@ export function WfhPolicies() {
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Advance Notice</Text>
-                  <div><Text strong>{defaultPolicy.advanceNoticeDays || 1} day</Text></div>
+                  <div><Text>{defaultPolicy.advanceNoticeDays || 1} day</Text></div>
                 </div>
               </Space>
             </Col>
