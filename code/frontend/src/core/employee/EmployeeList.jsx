@@ -170,7 +170,8 @@ export function EmployeeList() {
       title: 'Work Email',
       dataIndex: 'workEmail',
       key: 'workEmail',
-      render: (email) => (email ? <span>{email}</span> : <span style={{ color: token.colorTextSecondary }}>—</span>),
+      ellipsis: true,
+      render: (email) => (email ? <span title={email}>{email}</span> : <span style={{ color: token.colorTextSecondary }}>—</span>),
     },
     {
       title: 'Department',
@@ -202,7 +203,7 @@ export function EmployeeList() {
       ),
     },
     {
-      title: 'Date of Joining',
+      title: 'Joined',
       dataIndex: 'dateOfJoining',
       key: 'dateOfJoining',
       render: (date) => formatDate(date),
@@ -320,6 +321,7 @@ export function EmployeeList() {
 
       <Table
         rowKey="id"
+        scroll={{ x: 'max-content' }}
         columns={columns}
         dataSource={data}
         loading={loading}
