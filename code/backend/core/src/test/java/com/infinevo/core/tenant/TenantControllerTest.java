@@ -72,7 +72,11 @@ class TenantControllerTest {
                 Instant.parse("2026-01-01T00:00:00Z"),
                 LocalDate.of(2026, 12, 31),
                 10L,
-                new TenantOverview.AdminInvitation("admin@acme.test", TenantOverview.AdminInvitationStatus.PENDING));
+                new TenantOverview.AdminInvitation("admin@acme.test", TenantOverview.AdminInvitationStatus.PENDING),
+                12L,
+                50,
+                "GROWTH",
+                "PRIORITY");
 
         when(tenantQueryService.list()).thenReturn(List.of(overview));
 
@@ -86,7 +90,11 @@ class TenantControllerTest {
                 .andExpect(jsonPath("$[0].modules[0]").value("PAYROLL"))
                 .andExpect(jsonPath("$[0].user_count").value(10))
                 .andExpect(jsonPath("$[0].admin_invitation.email").value("admin@acme.test"))
-                .andExpect(jsonPath("$[0].admin_invitation.status").value("PENDING"));
+                .andExpect(jsonPath("$[0].admin_invitation.status").value("PENDING"))
+                .andExpect(jsonPath("$[0].employee_count").value(12))
+                .andExpect(jsonPath("$[0].employee_limit").value(50))
+                .andExpect(jsonPath("$[0].plan").value("GROWTH"))
+                .andExpect(jsonPath("$[0].support_plan").value("PRIORITY"));
 
         verify(tenantQueryService).list();
     }
@@ -104,7 +112,11 @@ class TenantControllerTest {
                 Instant.parse("2026-01-01T00:00:00Z"),
                 LocalDate.of(2026, 12, 31),
                 10L,
-                new TenantOverview.AdminInvitation("admin@acme.test", TenantOverview.AdminInvitationStatus.PENDING));
+                new TenantOverview.AdminInvitation("admin@acme.test", TenantOverview.AdminInvitationStatus.PENDING),
+                7L,
+                null,
+                null,
+                null);
 
         when(tenantQueryService.getOverview(TENANT_ID)).thenReturn(overview);
 
@@ -112,7 +124,9 @@ class TenantControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tenant_id").value(TENANT_ID.toString()))
                 .andExpect(jsonPath("$.name").value("Acme Corp"))
-                .andExpect(jsonPath("$.user_count").value(10));
+                .andExpect(jsonPath("$.user_count").value(10))
+                .andExpect(jsonPath("$.employee_count").value(7))
+                .andExpect(jsonPath("$.employee_limit").value(org.hamcrest.Matchers.nullValue()));
 
         verify(tenantQueryService).getOverview(TENANT_ID);
     }

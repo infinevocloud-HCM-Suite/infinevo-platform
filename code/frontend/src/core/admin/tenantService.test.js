@@ -85,6 +85,19 @@ describe('tenantService', () => {
       { skipImpersonation: true },
     );
   });
+
+  it('setPlan PUTs { plan, supportPlan, employeeLimit } without the impersonation header (W-84.1)', async () => {
+    const reply = { plan: 'GROWTH', supportPlan: null, employeeLimit: null };
+    apiClient.put.mockResolvedValueOnce({ data: reply });
+    expect(
+      await tenantService.setPlan('t-1', { plan: 'GROWTH', supportPlan: null, employeeLimit: null }),
+    ).toEqual(reply);
+    expect(apiClient.put).toHaveBeenCalledWith(
+      '/v1/tenants/t-1/subscription/plan',
+      { plan: 'GROWTH', supportPlan: null, employeeLimit: null },
+      { skipImpersonation: true },
+    );
+  });
 });
 
 describe('impersonationService', () => {

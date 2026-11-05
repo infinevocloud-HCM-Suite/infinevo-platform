@@ -77,7 +77,7 @@ Platform admin --> TenantList --> GET /api/v1/tenants --> core.list_tenants() (e
 
 | Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| `PUT` | `/api/v1/tenants/{id}/subscription/plan` | `{ "plan": "GROWTH", "supportPlan": "PRIORITY", "employeeLimit": 50 }` any field may be `null` | `SubscriptionResponse` with the three new fields | `core.tenant.provision`, platform tenant only |
+| `PUT` | `/api/v1/tenants/{id}/subscription/plan` | `{ "plan": "GROWTH", "supportPlan": "PRIORITY", "employeeLimit": 50 }` replaces all three; a field sent as `null` or left out is cleared | `SubscriptionResponse` with the three new fields | `core.tenant.provision`, platform tenant only |
 | `GET` | `/api/v1/tenants/{id}/subscription` | — | now carries `plan`, `supportPlan`, `employeeLimit` | unchanged (`:38-46`) |
 | `GET` | `/api/v1/tenants`, `/api/v1/tenants/{id}` | — | `TenantOverview` now carries `employee_count`, `employee_limit` | unchanged |
 
@@ -113,7 +113,7 @@ cd code/frontend && npx vitest run src/core/admin && npm run lint && npm run bui
 | Check | Expected |
 |---|---|
 | `V188` applies on a database at `V187` | Flyway `Successfully applied 1 migration`; `\d core.subscription` shows three new nullable columns and three CHECKs |
-| `PUT …/subscription/plan` as platform admin with `{ "employeeLimit": 25 }` | `200`, body carries `employeeLimit: 25`, `plan` and `supportPlan` unchanged |
+| `PUT …/subscription/plan` as platform admin with `{ "plan": "GROWTH", "supportPlan": "STANDARD", "employeeLimit": 25 }` | `200`, body carries all three. The call replaces all three fields: a field sent as `null` or left out is cleared. The Plan card always sends all three |
 | Same call as a tenant admin | `403` |
 | `{ "employeeLimit": 0 }` | `400` |
 | Tenant list after the change | Employees column reads `N / 25` |

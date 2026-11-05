@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Modal } from 'antd';
+import { errorMsg } from '@shared/ui/msgHelper.js';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -112,6 +114,62 @@ describe('EmployeePage component', () => {
         expect.objectContaining({ status: 'ACTIVE', terminationDate: null })
       );
     });
+  });
+
+  it('W-84.2: Reactivate refused at the employee limit opens Modal.error with the server message', async () => {
+    const message = 'Your plan allows 2 employees and 2 are in use. Contact Infinevo to raise the limit.';
+    const errorSpy = vi.spyOn(Modal, 'error').mockImplementation(() => ({ destroy: vi.fn(), update: vi.fn() }));
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-term-2',
+      employeeNumber: 'EMP-997',
+      firstName: 'Jimmy',
+      lastName: 'Cliff',
+      status: 'TERMINATED',
+    });
+    employeeService.update.mockRejectedValueOnce({ code: 'EMPLOYEE_LIMIT_REACHED', message, status: 409 });
+
+    renderPage('emp-term-2');
+
+    await waitFor(() => expect(document.getElementById('btn-reactivate-employee')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-reactivate-employee'));
+    await waitFor(() => {
+      const confirmBtn = document.querySelector('.ant-modal-confirm-btns .ant-btn-primary');
+      expect(confirmBtn).not.toBeNull();
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() =>
+      expect(errorSpy).toHaveBeenCalledWith({ title: 'Employee limit reached', content: message })
+    );
+    expect(errorMsg).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it('W-84.2: Reactivate refused for any other reason still goes to errorMsg', async () => {
+    const errorSpy = vi.spyOn(Modal, 'error').mockImplementation(() => ({ destroy: vi.fn(), update: vi.fn() }));
+    const err = { code: 'CONFLICT', message: 'Changed by someone else', status: 409 };
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-term-3',
+      employeeNumber: 'EMP-996',
+      firstName: 'Toots',
+      lastName: 'Hibbert',
+      status: 'TERMINATED',
+    });
+    employeeService.update.mockRejectedValueOnce(err);
+
+    renderPage('emp-term-3');
+
+    await waitFor(() => expect(document.getElementById('btn-reactivate-employee')).not.toBeNull());
+    fireEvent.click(document.getElementById('btn-reactivate-employee'));
+    await waitFor(() => {
+      const confirmBtn = document.querySelector('.ant-modal-confirm-btns .ant-btn-primary');
+      expect(confirmBtn).not.toBeNull();
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => expect(errorMsg).toHaveBeenCalledWith(err));
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it('offers Reactivate on a TERMINATED employee to allow reinstatement', async () => {

@@ -4,7 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Card, Descriptions, Switch, Select, Form, Input, Button, Tabs, Tag, Typography, Space, Skeleton,
-  Modal, Alert, theme,
+  Modal, Alert, InputNumber, theme,
 } from 'antd';
 import { NotFound, useCan } from '@shell/screens';
 import { errorMsg } from '@shared/ui/msgHelper.js';
@@ -13,7 +13,10 @@ import { tenantService } from './tenantService.js';
 import { impersonationService } from './impersonationService.js';
 import { started } from './impersonationSlice.js';
 import { AuditTab, AUDIT_HINT } from './AuditTab.jsx';
-import { isPlatformTenant, MODULES, STATUSES, STATUS_COLORS } from './platform.js';
+import {
+  isPlatformTenant, MODULES, STATUSES, STATUS_COLORS, PLANS, PLAN_LABELS, SUPPORT_PLANS,
+  SUPPORT_PLAN_LABELS, employeesText,
+} from './platform.js';
 import { applyResultText } from './countryTemplates.js';
 import { formatDate, formatDateTime, statusLabel } from '@shared/ui/format.js';
 
@@ -24,11 +27,13 @@ export const INVITATION_FORM_PATH = '/users?tab=invitations';
 const LOCKING_STATUSES = ['SUSPENDED', 'CANCELLED'];
 
 /**
- * One tenant, for platform staff (W-65.3 §5): overview, module switches, status, "act as", audit.
+ * One tenant, for platform staff (W-65.3 §5): overview, module switches, plan and employee limit
+ * (W-84.1), status, "act as", audit.
  *
  * Reads `GET /api/v1/tenants/{id}` (`TenantOverview`, snake_case, bare). Revoking a module and
  * suspending ask first: the tenant's data in a revoked module goes read-only (W-12-1 §13 row 1)
- * and a suspended tenant is locked out of every module endpoint.
+ * and a suspended tenant is locked out of every module endpoint. A limit below the current headcount
+ * asks first too: nobody is removed, but adding or reactivating employees is blocked (W-84.2).
  *
  * "Act as" asks for an email, resolved server-side, because a customer's users cannot be listed
  * before a session exists (§5 note, §13 decision 2). A tenant with no user accounts gets a
@@ -54,11 +59,18 @@ export function TenantDetail() {
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [templateResult, setTemplateResult] = useState(null);
   const [form] = Form.useForm();
+  // The Plan card's draft, reset from the overview on every load (W-84.1).
+  const [planDraft, setPlanDraft] = useState({ plan: null, supportPlan: null, employeeLimit: null });
 
   const load = useCallback(async () => {
     try {
       const res = await tenantService.get(id);
       setTenant(res);
+      setPlanDraft({
+        plan: res?.plan ?? null,
+        supportPlan: res?.support_plan ?? null,
+        employeeLimit: res?.employee_limit ?? null,
+      });
       shown.current = true;
       setMissing(false);
       setLoadError(null);
@@ -146,6 +158,41 @@ export function TenantDetail() {
     });
   };
 
+  const employeeCount = Number(tenant.employee_count ?? 0);
+  const hasLimit = typeof tenant.employee_limit === 'number';
+  const overSavedLimit = hasLimit && employeeCount > tenant.employee_limit;
+
+  const applyPlan = async ({ plan, supportPlan, employeeLimit }) => {
+    setBusy(true);
+    try {
+      await tenantService.setPlan(tenant.tenant_id, {
+        plan: plan || null,
+        supportPlan: supportPlan || null,
+        employeeLimit: employeeLimit ?? null,
+      });
+      await load();
+    } catch (err) {
+      errorMsg(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSavePlan = () => {
+    const draft = planDraft;
+    const limit = draft.employeeLimit;
+    if (typeof limit === 'number' && limit < employeeCount) {
+      Modal.confirm({
+        title: 'Set the limit below current headcount?',
+        content: `${tenant.name} has ${employeeCount} employees. Nobody is removed; adding or reactivating an employee is blocked until the count falls below ${limit}.`,
+        okText: 'Set limit',
+        onOk: () => applyPlan(draft),
+      });
+      return;
+    }
+    applyPlan(draft);
+  };
+
   const onActAs = async (values) => {
     setOpening(true);
     try {
@@ -201,6 +248,9 @@ export function TenantDetail() {
         </Descriptions.Item>
         <Descriptions.Item label="Current period ends">{formatDate(tenant.current_period_end)}</Descriptions.Item>
         <Descriptions.Item label="User accounts">{tenant.user_count}</Descriptions.Item>
+        <Descriptions.Item label="Employees">
+          {employeesText(tenant.employee_count, tenant.employee_limit)}
+        </Descriptions.Item>
       </Descriptions>
 
       {!platform && (
@@ -218,6 +268,59 @@ export function TenantDetail() {
               </Space>
             ))}
           </Space>
+        </Card>
+      )}
+
+      {!platform && (
+        <Card size="small" variant="borderless" title="Plan">
+          <Form layout="vertical" style={{ maxWidth: 480 }}>
+            <Form.Item label="Plan">
+              <Select
+                aria-label="Plan"
+                allowClear
+                placeholder="No plan"
+                value={planDraft.plan ?? undefined}
+                disabled={busy}
+                onChange={(v) => setPlanDraft((d) => ({ ...d, plan: v ?? null }))}
+                options={PLANS.map((p) => ({ value: p, label: PLAN_LABELS[p] }))}
+              />
+            </Form.Item>
+            <Form.Item label="Support plan">
+              <Select
+                aria-label="Support plan"
+                allowClear
+                placeholder="No support plan"
+                value={planDraft.supportPlan ?? undefined}
+                disabled={busy}
+                onChange={(v) => setPlanDraft((d) => ({ ...d, supportPlan: v ?? null }))}
+                options={SUPPORT_PLANS.map((p) => ({ value: p, label: SUPPORT_PLAN_LABELS[p] }))}
+              />
+            </Form.Item>
+            <Form.Item label="Employee limit">
+              <InputNumber
+                aria-label="Employee limit"
+                min={1}
+                precision={0}
+                placeholder="No limit"
+                style={{ width: '100%' }}
+                value={planDraft.employeeLimit}
+                disabled={busy}
+                onChange={(v) =>
+                  setPlanDraft((d) => ({ ...d, employeeLimit: typeof v === 'number' ? v : null }))
+                }
+              />
+            </Form.Item>
+            <Space direction="vertical">
+              <Typography.Text type={overSavedLimit ? 'danger' : undefined}>
+                {hasLimit
+                  ? `Employees: ${employeeCount} of ${tenant.employee_limit}`
+                  : `Employees: ${employeeCount}, no limit`}
+              </Typography.Text>
+              <Button type="primary" id="btn-save-plan" disabled={busy} onClick={onSavePlan}>
+                Save plan
+              </Button>
+            </Space>
+          </Form>
         </Card>
       )}
 

@@ -21,3 +21,35 @@ export const STATUS_COLORS = {
   SUSPENDED: 'red',
   CANCELLED: 'default',
 };
+
+/** `SubscriptionPlan` (W-84.1). A subscription may have none. */
+export const PLANS = ['STARTER', 'GROWTH', 'ENTERPRISE'];
+
+export const PLAN_LABELS = {
+  STARTER: 'Starter',
+  GROWTH: 'Growth',
+  ENTERPRISE: 'Enterprise',
+};
+
+/** `SupportPlan` (W-84.1). A subscription may have none. */
+export const SUPPORT_PLANS = ['STANDARD', 'PRIORITY'];
+
+export const SUPPORT_PLAN_LABELS = {
+  STANDARD: 'Standard',
+  PRIORITY: 'Priority',
+};
+
+function isLimit(limit) {
+  return typeof limit === 'number' && Number.isFinite(limit);
+}
+
+/** `"N / M"` when the tenant has an employee limit, `"N"` when it has none (W-84.1). */
+export function employeesText(count, limit) {
+  const n = count ?? 0;
+  return isLimit(limit) ? `${n} / ${limit}` : `${n}`;
+}
+
+/** True when the tenant has an employee limit and is above it (W-84.1). */
+export function overLimit(count, limit) {
+  return isLimit(limit) && Number(count ?? 0) > limit;
+}

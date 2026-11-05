@@ -224,6 +224,11 @@ public final class AuthzTestSchema {
                         executeResource(conn, "db/migration/core/V184__wfh_seed_roles.sql");
                         executeResource(conn, "db/migration/core/V186__wfh_approval_two_stages.sql");
                     }
+                    // W-84.1: plan, support plan and employee limit; list_tenants() and get_tenant_overview()
+                    // report employee_count against the limit (replaces V159's functions).
+                    if (!columnExists(conn, "core", "subscription", "plan")) {
+                        executeResource(conn, "db/migration/core/V188__subscription_plan.sql");
+                    }
                 }
 
             } catch (Exception e) {

@@ -6,7 +6,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Representation of a tenant's subscription and active modules (W-12.1).
+ * Representation of a tenant's subscription and active modules (W-12.1), with its plan, support plan and employee
+ * limit (W-84.1; a {@code null} limit is unlimited).
  */
 public record SubscriptionResponse(
         UUID id,
@@ -15,4 +16,7 @@ public record SubscriptionResponse(
         Set<PlatformModule> modules,
         LocalDate startedOn,
         LocalDate currentPeriodEnd,
-        String externalRef) {}
+        String externalRef,
+        SubscriptionPlan plan,
+        SupportPlan supportPlan,
+        Integer employeeLimit) {}

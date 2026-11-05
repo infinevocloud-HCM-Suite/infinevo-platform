@@ -97,6 +97,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     long countByTenantIdAndWorkLocation_Id(UUID tenantId, UUID workLocationId);
 
     /**
+     * W-84.2: employees in this tenant that are live and not in {@code status} - the employee-limit usage when
+     * {@code status} is {@code TERMINATED}. Filters on {@code (tenant_id, status)}, so it reads through
+     * {@code idx_employee_tenant_status}.
+     */
+    long countByTenantIdAndDeletedFalseAndStatusNot(UUID tenantId, EmploymentStatus status);
+
+    /**
      * Paginated, filtered, free-text search over a tenant's employees (W-13.3, spec section 4).
      *
      * <p>{@code @EntityGraph} fetches the three org master associations in a single join, so the

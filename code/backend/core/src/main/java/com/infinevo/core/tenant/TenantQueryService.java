@@ -62,6 +62,12 @@ public class TenantQueryService {
                 ? TenantOverview.AdminInvitation.NONE
                 : new TenantOverview.AdminInvitation(rs.getString("admin_invitation_email"), adminStatus);
 
+        // W-84.1: V188 adds the employee count against the limit, and the plan labels. A null limit stays null.
+        long employeeCount = rs.getLong("employee_count");
+        Integer employeeLimit = rs.getObject("employee_limit", Integer.class);
+        String plan = rs.getString("plan");
+        String supportPlan = rs.getString("support_plan");
+
         return new TenantOverview(
                 tenantId,
                 name,
@@ -72,7 +78,11 @@ public class TenantQueryService {
                 createdAt,
                 currentPeriodEnd,
                 userCount,
-                adminInvitation);
+                adminInvitation,
+                employeeCount,
+                employeeLimit,
+                plan,
+                supportPlan);
     };
 
     private final JdbcTemplate jdbcTemplate;

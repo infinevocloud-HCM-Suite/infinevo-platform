@@ -16,6 +16,7 @@ import { orgMasterService } from './orgMasterService.js';
 import { roleService } from '../approvals/roleService.js';
 import { employeeInvitationService } from '../invitation/employeeInvitationService.js';
 import * as useCanModule from '@shell/screens';
+import { errorMsg } from '../../shared/ui/msgHelper.js';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -391,6 +392,41 @@ describe('EmployeeCreate component', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /open employee page/i }));
     expect(mockNavigate).toHaveBeenCalledWith('/employees/new-emp-101');
+  });
+
+  it('W-84.2: a create refused at the employee limit shows the server message in an Alert, not a toast, and Save stays enabled', async () => {
+    const message = 'Your plan allows 2 employees and 2 are in use. Contact Infinevo to raise the limit.';
+    employeeService.create.mockRejectedValueOnce({ code: 'EMPLOYEE_LIMIT_REACHED', message, status: 409 });
+
+    renderWithStore(<EmployeeCreate />);
+    fillRequired();
+    fireEvent.click(screen.getByRole('button', { name: /create employee/i }));
+
+    await waitFor(() => expect(document.getElementById('alert-employee-limit')).toBeTruthy());
+    expect(document.getElementById('alert-employee-limit').textContent).toContain(message);
+    expect(errorMsg).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /create employee/i }).disabled).toBe(false)
+    );
+
+    // A retry clears the Alert before the next answer arrives.
+    employeeService.create.mockResolvedValueOnce({ id: 'new-emp-104', employeeNumber: 'EMP001' });
+    fireEvent.click(screen.getByRole('button', { name: /create employee/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/employees/new-emp-104'));
+    expect(document.getElementById('alert-employee-limit')).toBeNull();
+  });
+
+  it('W-84.2: a create refused for any other reason still goes to errorMsg and shows no limit Alert', async () => {
+    const err = { code: 'VALIDATION_FAILED', message: 'Employee number taken', status: 400 };
+    employeeService.create.mockRejectedValueOnce(err);
+
+    renderWithStore(<EmployeeCreate />);
+    fillRequired();
+    fireEvent.click(screen.getByRole('button', { name: /create employee/i }));
+
+    await waitFor(() => expect(errorMsg).toHaveBeenCalledWith(err));
+    expect(document.getElementById('alert-employee-limit')).toBeNull();
   });
 
   it('without core.role.assign offers portal access with the employee role only and sends no roles', async () => {

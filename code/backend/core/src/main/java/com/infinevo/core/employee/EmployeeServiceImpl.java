@@ -80,6 +80,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final UserProfileSyncService userProfileSyncService;
     private final EmployeeEmploymentService employmentService;
 
+    /** W-84.2: the plan's employee limit, checked on create and on a reactivation from {@code TERMINATED}. */
+    private final EmployeeLimitGuard limitGuard;
+
     /** W-73.6: carries {@link EmployeeTerminatedEvent}; {@code null} only in a unit test built by hand. */
     private final ApplicationEventPublisher publisher;
 
@@ -90,7 +93,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             WorkLocationRepository workLocationRepository,
             UserAccountRepository userAccountRepository,
             UserProfileSyncService userProfileSyncService,
-            EmployeeEmploymentService employmentService) {
+            EmployeeEmploymentService employmentService,
+            EmployeeLimitGuard limitGuard) {
         this(
                 employeeRepository,
                 departmentRepository,
@@ -99,6 +103,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 userAccountRepository,
                 userProfileSyncService,
                 employmentService,
+                limitGuard,
                 null);
     }
 
@@ -111,6 +116,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             UserAccountRepository userAccountRepository,
             UserProfileSyncService userProfileSyncService,
             EmployeeEmploymentService employmentService,
+            EmployeeLimitGuard limitGuard,
             @Autowired(required = false) ApplicationEventPublisher publisher) {
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
         this.departmentRepository =
@@ -124,6 +130,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         this.userProfileSyncService =
                 Objects.requireNonNull(userProfileSyncService, "userProfileSyncService must not be null");
         this.employmentService = Objects.requireNonNull(employmentService, "employmentService must not be null");
+        this.limitGuard = Objects.requireNonNull(limitGuard, "limitGuard must not be null");
         this.publisher = publisher;
     }
 
@@ -143,6 +150,11 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new ValidationException(Map.of(
                     "workEmail",
                     "Work email " + fields.workEmail() + " already belongs to an employee in this tenant"));
+        }
+
+        // W-84.2: a record created straight as TERMINATED adds nobody to the count, so it is not gated.
+        if (fields.status() != EmploymentStatus.TERMINATED) {
+            limitGuard.checkRoomFor(1);
         }
 
         Employee employee = new Employee(tenantId, currentActor());
@@ -229,6 +241,11 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new ValidationException(Map.of(
                     "workEmail",
                     "Work email " + fields.workEmail() + " already belongs to an employee in this tenant"));
+        }
+
+        if (employee.getStatus() == EmploymentStatus.TERMINATED && fields.status() != EmploymentStatus.TERMINATED) {
+            // W-84.2: a leaver coming back counts again. SUSPENDED already counts, so leaving it is not checked.
+            limitGuard.checkRoomFor(1);
         }
 
         boolean becomesTerminated =

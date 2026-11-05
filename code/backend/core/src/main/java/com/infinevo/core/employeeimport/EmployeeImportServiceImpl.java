@@ -7,6 +7,7 @@ import com.infinevo.core.authz.Role;
 import com.infinevo.core.authz.RoleRepository;
 import com.infinevo.core.document.DocumentKind;
 import com.infinevo.core.document.DocumentService;
+import com.infinevo.core.employee.EmployeeLimitGuard;
 import com.infinevo.core.employee.EmployeeRepository;
 import com.infinevo.core.employee.EmployeeRequest;
 import com.infinevo.core.employee.EmployeeResponse;
@@ -94,6 +95,10 @@ public class EmployeeImportServiceImpl implements EmployeeImportService {
     private final JobService jobService;
     private final DocumentService documentService;
     private final ObjectProvider<QueueProducer> queueProducers;
+
+    /** W-84.2: the dry run marks rows past the plan's employee limit; the import re-checks through create. */
+    private final EmployeeLimitGuard limitGuard;
+
     private final TransactionTemplate rowTransaction;
 
     /**
@@ -113,6 +118,7 @@ public class EmployeeImportServiceImpl implements EmployeeImportService {
             JobService jobService,
             DocumentService documentService,
             ObjectProvider<QueueProducer> queueProducers,
+            EmployeeLimitGuard limitGuard,
             PlatformTransactionManager transactionManager) {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.invitationService = Objects.requireNonNull(invitationService, "invitationService must not be null");
@@ -127,6 +133,7 @@ public class EmployeeImportServiceImpl implements EmployeeImportService {
         this.jobService = Objects.requireNonNull(jobService, "jobService must not be null");
         this.documentService = Objects.requireNonNull(documentService, "documentService must not be null");
         this.queueProducers = Objects.requireNonNull(queueProducers, "queueProducers must not be null");
+        this.limitGuard = Objects.requireNonNull(limitGuard, "limitGuard must not be null");
         this.rowTransaction = new TransactionTemplate(
                 Objects.requireNonNull(transactionManager, "transactionManager must not be null"));
         this.rowTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -476,7 +483,16 @@ public class EmployeeImportServiceImpl implements EmployeeImportService {
         private final Map<String, Integer> firstRowOfNumber = new HashMap<>();
         private final Map<String, Integer> firstRowOfEmail = new HashMap<>();
 
+        /** W-84.2: the plan's limit, {@code null} when none. */
+        private final Integer employeeLimit;
+
+        /** W-84.2: how many more valid rows fit under the limit; {@code null} when unlimited. */
+        private Integer roomLeft;
+
         Checker(UUID tenantId, List<EmployeeImportRow> rows) {
+            EmployeeLimitGuard.Usage usage = limitGuard.usage();
+            employeeLimit = usage.limit();
+            roomLeft = usage.room();
             takenNumbers = new HashSet<>(employeeRepository.findEmployeeNumbers(tenantId));
             takenEmails = new HashSet<>(employeeRepository.findLiveWorkEmails(tenantId));
             departments = activeMasters(departmentRepository, tenantId);
@@ -578,6 +594,14 @@ public class EmployeeImportServiceImpl implements EmployeeImportService {
 
             if (!errors.isEmpty()) {
                 return Checked.failed(errors);
+            }
+            // W-84.2: last, so a row refused for another reason never uses up room.
+            if (roomLeft != null) {
+                if (roomLeft == 0) {
+                    return Checked.failed(List.of("Over the employee limit (" + employeeLimit
+                            + "). Raise the limit before importing this row"));
+                }
+                roomLeft--;
             }
             takenNumbers.add(number);
             if (email != null) {

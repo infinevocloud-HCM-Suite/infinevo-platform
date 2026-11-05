@@ -26,6 +26,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -102,7 +103,11 @@ class TenantQueryServiceTest {
                 Instant.now(),
                 LocalDate.now().plusMonths(1),
                 5L,
-                TenantOverview.AdminInvitation.NONE);
+                TenantOverview.AdminInvitation.NONE,
+                0L,
+                null,
+                null,
+                null);
 
         when(jdbcTemplate.query(eq("SELECT * FROM core.list_tenants()"), any(RowMapper.class)))
                 .thenReturn(List.of(overview));
@@ -111,6 +116,46 @@ class TenantQueryServiceTest {
 
         assertThat(result).containsExactly(overview);
         verify(jdbcTemplate).query(eq("SELECT * FROM core.list_tenants()"), any(RowMapper.class));
+    }
+
+    @Test
+    @DisplayName("W-84.1: the row mapper reads employee_count, employee_limit, plan and support_plan (V188)")
+    @SuppressWarnings("unchecked")
+    void rowMapper_readsPlanAndEmployeeColumns() throws Exception {
+        TenantContext.set(PLATFORM_TENANT);
+        ArgumentCaptor<RowMapper<TenantOverview>> mapper = ArgumentCaptor.forClass(RowMapper.class);
+        when(jdbcTemplate.query(eq("SELECT * FROM core.list_tenants()"), mapper.capture()))
+                .thenReturn(List.of());
+        tenantQueryService.list();
+
+        java.sql.ResultSet limited = row(12L, 50, "GROWTH", "PRIORITY");
+        TenantOverview mapped = mapper.getValue().mapRow(limited, 0);
+        assertThat(mapped.employeeCount()).isEqualTo(12L);
+        assertThat(mapped.employeeLimit()).isEqualTo(50);
+        assertThat(mapped.plan()).isEqualTo("GROWTH");
+        assertThat(mapped.supportPlan()).isEqualTo("PRIORITY");
+
+        // NULL limit stays null - unlimited - rather than reading as 0.
+        TenantOverview unlimited = mapper.getValue().mapRow(row(3L, null, null, null), 1);
+        assertThat(unlimited.employeeCount()).isEqualTo(3L);
+        assertThat(unlimited.employeeLimit()).isNull();
+        assertThat(unlimited.plan()).isNull();
+        assertThat(unlimited.supportPlan()).isNull();
+    }
+
+    private static java.sql.ResultSet row(long employeeCount, Integer employeeLimit, String plan, String supportPlan)
+            throws Exception {
+        java.sql.ResultSet rs = mock(java.sql.ResultSet.class);
+        when(rs.getObject("tenant_id", UUID.class)).thenReturn(CUSTOMER_TENANT);
+        when(rs.getString("name")).thenReturn("Acme");
+        when(rs.getString("status")).thenReturn("ACTIVE");
+        when(rs.getLong("user_count")).thenReturn(4L);
+        when(rs.getString("admin_invitation_status")).thenReturn("NONE");
+        when(rs.getLong("employee_count")).thenReturn(employeeCount);
+        when(rs.getObject("employee_limit", Integer.class)).thenReturn(employeeLimit);
+        when(rs.getString("plan")).thenReturn(plan);
+        when(rs.getString("support_plan")).thenReturn(supportPlan);
+        return rs;
     }
 
     @Test
@@ -128,7 +173,11 @@ class TenantQueryServiceTest {
                 Instant.now(),
                 LocalDate.now().plusMonths(1),
                 5L,
-                TenantOverview.AdminInvitation.NONE);
+                TenantOverview.AdminInvitation.NONE,
+                0L,
+                null,
+                null,
+                null);
 
         when(jdbcTemplate.query(
                         eq("SELECT * FROM core.get_tenant_overview(?)"), any(RowMapper.class), eq(CUSTOMER_TENANT)))
@@ -245,7 +294,11 @@ class TenantQueryServiceTest {
                 createdAt,
                 null,
                 0L,
-                TenantOverview.AdminInvitation.NONE);
+                TenantOverview.AdminInvitation.NONE,
+                0L,
+                null,
+                null,
+                null);
     }
 
     @Test

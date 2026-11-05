@@ -11,7 +11,9 @@ import { auditService } from './auditService.js';
 import * as screens from '@shell/screens';
 
 vi.mock('./tenantService.js', () => ({
-  tenantService: { get: vi.fn(), setModules: vi.fn(), setStatus: vi.fn(), applyTemplate: vi.fn() },
+  tenantService: {
+    get: vi.fn(), setModules: vi.fn(), setStatus: vi.fn(), setPlan: vi.fn(), applyTemplate: vi.fn(),
+  },
 }));
 vi.mock('./impersonationService.js', () => ({
   impersonationService: { open: vi.fn(), close: vi.fn() },
@@ -30,6 +32,10 @@ const globex = {
   created_at: '2026-09-01T00:00:00Z',
   current_period_end: null,
   user_count: 4,
+  employee_count: 12,
+  employee_limit: 50,
+  plan: null,
+  support_plan: null,
 };
 
 function setup({ overview = globex, session = null } = {}) {
@@ -75,6 +81,7 @@ describe('TenantDetail', () => {
     vi.spyOn(screens, 'useCan').mockImplementation((code) => code === 'core.tenant.impersonate');
     tenantService.setModules.mockResolvedValue({});
     tenantService.setStatus.mockResolvedValue({});
+    tenantService.setPlan.mockResolvedValue({});
     auditService.search.mockResolvedValue({ content: [], totalElements: 0 });
     document.body.querySelectorAll('.ant-modal-root').forEach((n) => n.remove());
   });
@@ -258,6 +265,94 @@ describe('TenantDetail', () => {
     expect(screen.queryByRole('button', { name: 'Act as' })).toBeNull();
     expect(within(document.body).queryByText('Act as')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Apply country template' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Plan' })).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Employee limit' })).toBeNull();
+    expect(document.getElementById('btn-save-plan')).toBeNull();
+  });
+
+  it('W-84.1: shows the employee count against the limit, in the overview and the Plan card', async () => {
+    setup();
+    expect(await screen.findByText('Employees: 12 of 50')).toBeDefined();
+    expect(screen.getByText('12 / 50')).toBeDefined();
+  });
+
+  it('W-84.1: reads "no limit" without a limit, and the overview shows the bare count', async () => {
+    setup({ overview: { ...globex, employee_limit: null } });
+    expect(await screen.findByText('Employees: 12, no limit')).toBeDefined();
+    expect(screen.getByText('12')).toBeDefined();
+  });
+
+  it('W-84.1: marks the count red when the tenant is over its limit', async () => {
+    setup({ overview: { ...globex, employee_count: 55 } });
+    const line = await screen.findByText('Employees: 55 of 50');
+    expect(line.closest('.ant-typography-danger')).not.toBeNull();
+  });
+
+  it('W-84.1: starts from the saved plan, support plan and limit', async () => {
+    setup({ overview: { ...globex, plan: 'ENTERPRISE', support_plan: 'STANDARD' } });
+    const card = (await screen.findByRole('combobox', { name: 'Plan' })).closest('.ant-card');
+    expect(within(card).getByTitle('Enterprise')).toBeDefined();
+    expect(within(card).getByTitle('Standard')).toBeDefined();
+    expect(screen.getByRole('spinbutton', { name: 'Employee limit' }).value).toBe('50');
+  });
+
+  it('W-84.1: "Save plan" sends the picked plan, support plan and limit, then reloads', async () => {
+    setup({ overview: { ...globex, employee_limit: null } });
+    fireEvent.mouseDown(await screen.findByRole('combobox', { name: 'Plan' }));
+    fireEvent.click(await screen.findByTitle('Growth'));
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Support plan' }));
+    fireEvent.click(await screen.findByTitle('Priority'));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Employee limit' }), { target: { value: '50' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+
+    await waitFor(() =>
+      expect(tenantService.setPlan).toHaveBeenCalledWith('tenant-globex', {
+        plan: 'GROWTH',
+        supportPlan: 'PRIORITY',
+        employeeLimit: 50,
+      }),
+    );
+    expect(confirmDialog()).toBeNull();
+    await waitFor(() => expect(tenantService.get).toHaveBeenCalledTimes(2));
+  });
+
+  it('W-84.1: clearing the limit sends employeeLimit null', async () => {
+    setup();
+    const limit = await screen.findByRole('spinbutton', { name: 'Employee limit' });
+    fireEvent.change(limit, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+
+    await waitFor(() =>
+      expect(tenantService.setPlan).toHaveBeenCalledWith('tenant-globex', {
+        plan: null,
+        supportPlan: null,
+        employeeLimit: null,
+      }),
+    );
+  });
+
+  it('W-84.1: asks before setting a limit below the headcount, and only then calls setPlan', async () => {
+    setup();
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Employee limit' }), {
+      target: { value: '10' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+
+    await waitFor(() => expect(confirmDialog()).not.toBeNull());
+    expect(confirmDialog().textContent).toMatch(/Set the limit below current headcount\?/);
+    expect(confirmDialog().textContent).toMatch(
+      /Globex has 12 employees\. Nobody is removed; adding or reactivating an employee is blocked until the count falls below 10\./,
+    );
+    expect(tenantService.setPlan).not.toHaveBeenCalled();
+
+    confirmOk('Set limit');
+    await waitFor(() =>
+      expect(tenantService.setPlan).toHaveBeenCalledWith('tenant-globex', {
+        plan: null,
+        supportPlan: null,
+        employeeLimit: 10,
+      }),
+    );
   });
 
   it('shows NotFound only for a 404 (D-85)', async () => {

@@ -14,4 +14,10 @@ public interface SubscriptionService {
     SubscriptionResponse updateModules(UUID tenantId, Set<PlatformModule> modules);
 
     SubscriptionResponse updateStatus(UUID tenantId, SubscriptionStatus status);
+
+    /**
+     * Sets the tenant's plan, support plan and employee limit (W-84.1). Each value is written as given; {@code null}
+     * clears it, and a {@code null} limit means unlimited. Refused for the platform tenant.
+     */
+    SubscriptionResponse updatePlan(UUID tenantId, PlanUpdateRequest request);
 }

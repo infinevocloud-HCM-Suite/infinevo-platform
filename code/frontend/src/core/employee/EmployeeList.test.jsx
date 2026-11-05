@@ -24,6 +24,7 @@ vi.mock('react-router-dom', async () => {
 vi.mock('./employeeService.js', () => ({
   employeeService: {
     list: vi.fn(),
+    limit: vi.fn(),
     export: vi.fn(),
     downloadFile: vi.fn(),
   },
@@ -87,6 +88,8 @@ describe('EmployeeList component', () => {
       ],
       totalElements: 1,
     });
+    // Default: the limit call fails, so the badge stays on the list total (W-83.2 behaviour).
+    employeeService.limit.mockRejectedValue({ code: 'NETWORK', message: 'offline', status: 0 });
   });
 
   it('renders table rows, sends search q, and handles row navigation', async () => {
@@ -280,5 +283,65 @@ describe('EmployeeList component', () => {
       expect(badge).toBeTruthy();
       expect(screen.queryByText(/Active Staff/i)).toBeNull();
     });
+  });
+
+  it('W-84.2: with a limit the badge reads "N of M employees" and no limit warning shows below it', async () => {
+    employeeService.limit.mockResolvedValue({ limit: 50, used: 12 });
+
+    renderWithStore(<EmployeeList />);
+
+    expect(await screen.findByText('12 of 50 employees')).toBeDefined();
+    expect(employeeService.limit).toHaveBeenCalled();
+    expect(document.getElementById('alert-employee-limit')).toBeNull();
+  });
+
+  it('W-84.2: without a limit the badge reads "N employees" from the server count', async () => {
+    employeeService.limit.mockResolvedValue({ limit: null, used: 12 });
+
+    renderWithStore(<EmployeeList />);
+
+    expect(await screen.findByText('12 employees')).toBeDefined();
+    expect(screen.queryByText(/^\d+ of \d+ employees$/)).toBeNull();
+    expect(document.getElementById('alert-employee-limit')).toBeNull();
+  });
+
+  it('W-84.2: at the limit the badge reads "50 of 50 employees" and the warning Alert shows', async () => {
+    employeeService.limit.mockResolvedValue({ limit: 50, used: 50 });
+
+    renderWithStore(<EmployeeList />);
+
+    expect(await screen.findByText('50 of 50 employees')).toBeDefined();
+    const alert = document.getElementById('alert-employee-limit');
+    expect(alert).not.toBeNull();
+    expect(alert.textContent).toContain(
+      'Your plan allows 50 employees and 50 are in use. Contact Infinevo to raise the limit.'
+    );
+  });
+
+  it('W-84.2: a failed limit call leaves the badge on the list total', async () => {
+    employeeService.list.mockResolvedValue({ content: [], totalElements: 7 });
+    employeeService.limit.mockRejectedValue({ code: 'FORBIDDEN', message: 'no', status: 403 });
+
+    renderWithStore(<EmployeeList />);
+
+    await waitFor(() => expect(employeeService.limit).toHaveBeenCalled());
+    expect(await screen.findByText('7 employees')).toBeDefined();
+    expect(document.getElementById('alert-employee-limit')).toBeNull();
+  });
+
+  it('W-84.2: the limit is fetched again after every successful list load', async () => {
+    employeeService.limit.mockResolvedValue({ limit: 50, used: 12 });
+
+    renderWithStore(<EmployeeList />);
+    expect(await screen.findByText('12 of 50 employees')).toBeDefined();
+    const callsAfterMount = employeeService.limit.mock.calls.length;
+
+    employeeService.limit.mockResolvedValue({ limit: 50, used: 13 });
+    const searchInput = screen.getByPlaceholderText('Search employees...');
+    fireEvent.change(searchInput, { target: { value: 'Asha' } });
+    fireEvent.keyDown(searchInput, { key: 'Enter', code: 'Enter' });
+
+    expect(await screen.findByText('13 of 50 employees')).toBeDefined();
+    expect(employeeService.limit.mock.calls.length).toBeGreaterThan(callsAfterMount);
   });
 });

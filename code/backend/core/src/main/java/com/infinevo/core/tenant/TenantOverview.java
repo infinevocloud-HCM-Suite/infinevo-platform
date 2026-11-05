@@ -10,6 +10,9 @@ import java.util.UUID;
  * Overview of a tenant including subscription status, granted modules, and user count (W-65.1).
  *
  * <p>{@code admin_invitation} is the state of the tenant's administrator invitation (D-42).
+ *
+ * <p>W-84.1 (V188): {@code employee_count} counts employees not soft-deleted and not {@code TERMINATED};
+ * {@code employee_limit} is {@code null} for unlimited; {@code plan} and {@code support_plan} are {@code null} until set.
  */
 public record TenantOverview(
         @JsonProperty("tenant_id") UUID tenantId,
@@ -21,7 +24,11 @@ public record TenantOverview(
         @JsonProperty("created_at") Instant createdAt,
         @JsonProperty("current_period_end") LocalDate currentPeriodEnd,
         @JsonProperty("user_count") long userCount,
-        @JsonProperty("admin_invitation") AdminInvitation adminInvitation) {
+        @JsonProperty("admin_invitation") AdminInvitation adminInvitation,
+        @JsonProperty("employee_count") long employeeCount,
+        @JsonProperty("employee_limit") Integer employeeLimit,
+        @JsonProperty("plan") String plan,
+        @JsonProperty("support_plan") String supportPlan) {
 
     /** Where the tenant's administrator invitation stands, as {@code core.list_tenants()} (V159) reports it. */
     public enum AdminInvitationStatus {

@@ -50,6 +50,67 @@ public final class SubscriptionTestSchema {
             if (!tableExists(conn, "subscription")) {
                 executeResource(conn, "db/migration/core/V034__subscription.sql");
             }
+            applySubscriptionPlan(conn);
+        }
+    }
+
+    /**
+     * W-84.1: brings {@code core.subscription} up to what the entity maps ({@code V188}). The whole script is run
+     * when the tables its {@code core.list_tenants()} reads exist; otherwise only its column and setter sections,
+     * cut out of the real resource, since a SQL function naming a missing table cannot be created.
+     */
+    public static void applySubscriptionPlan(Connection conn) throws Exception {
+        if (columnExistsIn(conn, "subscription", "plan")) {
+            return;
+        }
+        String sql = readV188();
+        boolean listTenantsDependenciesExist = true;
+        for (String table : new String[] {
+            "employee", "user_account", "user_invitation", "user_invitation_role", "role", "subscription_module"
+        }) {
+            listTenantsDependenciesExist &= tableExistsIn(conn, table);
+        }
+        if (!listTenantsDependenciesExist) {
+            int end = sql.indexOf("-- 3.");
+            if (end < 0) {
+                throw new IllegalStateException("V188__subscription_plan.sql no longer has its section 3");
+            }
+            sql = sql.substring(0, end);
+        }
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
+        }
+    }
+
+    private static String readV188() throws Exception {
+        String resource = "db/migration/core/V188__subscription_plan.sql";
+        try (InputStream in = SubscriptionTestSchema.class.getClassLoader().getResourceAsStream(resource)) {
+            if (in == null) {
+                throw new IllegalStateException("Resource not found: " + resource);
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static boolean tableExistsIn(Connection conn, String table) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'core' AND table_name = ?")) {
+            ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean columnExistsIn(Connection conn, String table, String column) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = 'core' AND table_name = ?"
+                        + " AND column_name = ?")) {
+            ps.setString(1, table);
+            ps.setString(2, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 

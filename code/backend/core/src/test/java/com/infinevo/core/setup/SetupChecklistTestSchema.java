@@ -65,6 +65,8 @@ public final class SetupChecklistTestSchema {
                         "db/migration/core/V173__employee_termination_reason.sql"); // BUG-D4-20 columns the Employee
                 // entity maps
             }
+            // W-84.1: the Subscription entity maps V188's columns.
+            com.infinevo.core.subscription.SubscriptionTestSchema.applySubscriptionPlan(conn);
         }
     }
 

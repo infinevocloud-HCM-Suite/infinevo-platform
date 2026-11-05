@@ -3,8 +3,10 @@ package com.infinevo.core.employee;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -62,6 +64,7 @@ class EmployeeServiceImplTest {
     private UserAccountRepository userAccountRepository;
     private UserProfileSyncService userProfileSyncService;
     private EmployeeEmploymentService employmentService;
+    private EmployeeLimitGuard limitGuard;
     private EmployeeServiceImpl service;
 
     @BeforeEach
@@ -74,6 +77,7 @@ class EmployeeServiceImplTest {
         userAccountRepository = mock(UserAccountRepository.class);
         userProfileSyncService = mock(UserProfileSyncService.class);
         employmentService = mock(EmployeeEmploymentService.class);
+        limitGuard = mock(EmployeeLimitGuard.class);
         when(employmentService.find(any(UUID.class))).thenReturn(Optional.empty());
         service = new EmployeeServiceImpl(
                 repository,
@@ -82,7 +86,8 @@ class EmployeeServiceImplTest {
                 workLocationRepository,
                 userAccountRepository,
                 userProfileSyncService,
-                employmentService);
+                employmentService,
+                limitGuard);
 
         when(repository.saveAndFlush(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
         when(repository.save(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
@@ -521,6 +526,7 @@ class EmployeeServiceImplTest {
                 userAccountRepository,
                 userProfileSyncService,
                 employmentService,
+                limitGuard,
                 publisher);
         UUID id = service.create(request("E-1")).id();
         service.update(id, withStatus(EmploymentStatus.SUSPENDED, null));
@@ -771,6 +777,83 @@ class EmployeeServiceImplTest {
                 null,
                 reason,
                 remarks);
+    }
+
+    // --- W-84.2: the employee limit -------------------------------------------------------------
+
+    @Test
+    @DisplayName("W-84.2: create at the limit is refused and nothing is saved")
+    void createAtTheLimitSavesNothing() {
+        doThrow(new EmployeeService.EmployeeLimitReachedException(2, 2))
+                .when(limitGuard)
+                .checkRoomFor(1);
+
+        assertThatThrownBy(() -> service.create(request("E-1")))
+                .isInstanceOf(EmployeeService.EmployeeLimitReachedException.class)
+                .hasMessage("Your plan allows 2 employees and 2 are in use. Contact Infinevo to raise the limit.");
+        verify(repository, never()).save(any(Employee.class));
+        verify(repository, never()).saveAndFlush(any(Employee.class));
+        assertThat(store).isEmpty();
+    }
+
+    @Test
+    @DisplayName("W-84.2: a record created straight as TERMINATED adds nobody, so the limit is not looked at")
+    void createAsTerminatedIsNotGated() {
+        service.create(withStatus(EmploymentStatus.TERMINATED, JOINED.plusYears(1)));
+
+        verify(limitGuard, never()).checkRoomFor(anyInt());
+    }
+
+    @Test
+    @DisplayName("W-84.2: a duplicate number is reported as a duplicate, before the limit is looked at")
+    void duplicateBeforeLimit() {
+        service.create(request("E-1"));
+        doThrow(new EmployeeService.EmployeeLimitReachedException(1, 1))
+                .when(limitGuard)
+                .checkRoomFor(1);
+
+        assertThatThrownBy(() -> service.create(request("E-1")))
+                .isInstanceOf(EmployeeService.DuplicateEmployeeNumberException.class);
+    }
+
+    @Test
+    @DisplayName("W-84.2: TERMINATED to ACTIVE at the limit is refused and the employee stays terminated")
+    void reactivationFromTerminatedAtTheLimitIsRefused() {
+        UUID id = service.create(request("E-1")).id();
+        service.update(id, withStatus(EmploymentStatus.TERMINATED, JOINED.plusYears(1)));
+        doThrow(new EmployeeService.EmployeeLimitReachedException(1, 1))
+                .when(limitGuard)
+                .checkRoomFor(1);
+
+        assertThatThrownBy(() -> service.update(id, withStatus(EmploymentStatus.ACTIVE, null)))
+                .isInstanceOf(EmployeeService.EmployeeLimitReachedException.class);
+        assertThat(store.get(id).getStatus()).isEqualTo(EmploymentStatus.TERMINATED);
+    }
+
+    @Test
+    @DisplayName("W-84.2: SUSPENDED to ACTIVE is not checked; it already counts")
+    void reactivationFromSuspendedIsNotChecked() {
+        UUID id = service.create(request("E-1")).id();
+        service.update(id, withStatus(EmploymentStatus.SUSPENDED, null));
+        org.mockito.Mockito.clearInvocations(limitGuard);
+
+        service.update(id, withStatus(EmploymentStatus.ACTIVE, null));
+
+        verify(limitGuard, never()).checkRoomFor(anyInt());
+    }
+
+    @Test
+    @DisplayName("W-84.2: terminating, an edit that keeps the status, and a soft delete are not checked")
+    void leavingOrStayingIsNotChecked() {
+        UUID id = service.create(request("E-1")).id();
+        org.mockito.Mockito.clearInvocations(limitGuard);
+
+        service.update(id, withStatus(EmploymentStatus.ACTIVE, null));
+        service.update(id, withStatus(EmploymentStatus.TERMINATED, JOINED.plusYears(1)));
+        service.update(id, withStatus(EmploymentStatus.TERMINATED, JOINED.plusYears(1)));
+        service.delete(id);
+
+        verify(limitGuard, never()).checkRoomFor(anyInt());
     }
 
     private static EmployeeRequest withStatus(EmploymentStatus status, LocalDate terminationDate) {

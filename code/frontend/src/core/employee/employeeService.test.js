@@ -68,4 +68,13 @@ describe('employeeService', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/v1/employees/emp-123/access');
     expect(res).toEqual(access);
   });
+
+  it('W-84.2: limit() reads /v1/employees/limit and returns {limit, used}', async () => {
+    apiClient.get.mockResolvedValueOnce({ data: { limit: 50, used: 12 } });
+
+    const res = await employeeService.limit();
+
+    expect(apiClient.get).toHaveBeenCalledWith('/v1/employees/limit');
+    expect(res).toEqual({ limit: 50, used: 12 });
+  });
 });

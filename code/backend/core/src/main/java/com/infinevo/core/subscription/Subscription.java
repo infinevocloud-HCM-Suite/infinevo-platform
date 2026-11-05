@@ -1,5 +1,6 @@
 package com.infinevo.core.subscription;
 
+import com.infinevo.shared.audit.Audited;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,9 +27,13 @@ import java.util.UUID;
  *
  * <p>Contains zero price or currency columns (D-12, DEBT-018): billing stays behind
  * the payment seam ({@link #externalRef}) and does not leak into the core schema.
+ *
+ * <p>{@link Audited} (W-84.1): a change of plan, support plan or employee limit, and of status, is recorded in
+ * {@code core.audit_log} with its old and new values and the actor.
  */
 @Entity
 @Table(name = "subscription", schema = "core")
+@Audited
 public class Subscription {
 
     public static final String ACTOR_SYSTEM = "system";
@@ -53,6 +58,19 @@ public class Subscription {
 
     @Column(name = "external_ref", length = 128)
     private String externalRef;
+
+    // W-84.1 (V188): a billing label, the support tier and the employee limit. All nullable; a null limit is
+    // unlimited.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan", length = 16)
+    private SubscriptionPlan plan;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "support_plan", length = 16)
+    private SupportPlan supportPlan;
+
+    @Column(name = "employee_limit")
+    private Integer employeeLimit;
 
     @OneToMany(mappedBy = "subscription", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<SubscriptionModule> modules = new ArrayList<>();
@@ -132,6 +150,30 @@ public class Subscription {
 
     public void setExternalRef(String externalRef) {
         this.externalRef = externalRef;
+    }
+
+    public SubscriptionPlan getPlan() {
+        return plan;
+    }
+
+    public void setPlan(SubscriptionPlan plan) {
+        this.plan = plan;
+    }
+
+    public SupportPlan getSupportPlan() {
+        return supportPlan;
+    }
+
+    public void setSupportPlan(SupportPlan supportPlan) {
+        this.supportPlan = supportPlan;
+    }
+
+    public Integer getEmployeeLimit() {
+        return employeeLimit;
+    }
+
+    public void setEmployeeLimit(Integer employeeLimit) {
+        this.employeeLimit = employeeLimit;
     }
 
     public List<SubscriptionModule> getModules() {

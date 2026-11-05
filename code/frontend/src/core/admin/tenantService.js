@@ -7,11 +7,13 @@ import { createService } from '@shared/api/createService.js';
  * Every reply here is a bare DTO, not the `{status, message, data}` envelope:
  *   - list, get: `TenantOverview` (snake_case: tenant_id, name, country_code, timezone, status,
  *     modules, created_at, current_period_end, user_count, admin_invitation: { email, status }
- *     with status PENDING | ACCEPTED | NONE) - core TenantController
+ *     with status PENDING | ACCEPTED | NONE, employee_count, employee_limit (null = no limit),
+ *     plan, support_plan (either may be null)) - core TenantController
  *   - create: body `TenantRequest` (snake_case: name, country_code, timezone,
  *     leave_year_start_month, modules, optional admin_email); reply `TenantResponse`
  *     (camelCase: tenantId, name, ..., adminInvitationId) - core TenantController
- *   - subscription, setModules, setStatus: `SubscriptionResponse` - core SubscriptionController
+ *   - subscription, setModules, setStatus, setPlan: `SubscriptionResponse` - core SubscriptionController;
+ *     setPlan sends camelCase `{ plan, supportPlan, employeeLimit }`, any of them null (W-84.1)
  *   - getSummary: `TenantSummaryResponse` (camelCase: total, byStatus, createdLast30Days,
  *     recent[{ id, name, createdAt, status }], waitingForAdmin[{ id, name, adminEmail,
  *     invitationStatus PENDING | EXPIRED, expiresAt }]) - core TenantController (W-73.2)
@@ -19,7 +21,7 @@ import { createService } from '@shared/api/createService.js';
  *   - countryTemplates: `[{ countryCode, sections, version }]` - core CountryTemplateController (W-73.9)
  *   - applyTemplate: `{ countryCode, applied, skipped }` - core TenantController (W-73.9)
  *
- * list, get, create and the two PUTs are platform-tenant endpoints (`core.tenant.provision`), so
+ * list, get, create and the three PUTs are platform-tenant endpoints (`core.tenant.provision`), so
  * they never carry `X-Impersonation`: with it the server binds the customer tenant and checks the
  * acted-as user's permissions, and answers 403. Only `subscription` keeps the header.
  */
@@ -98,6 +100,19 @@ export const tenantService = {
     const res = await apiClient.put(
       `/v1/tenants/${id}/subscription/status`,
       { status },
+      PLATFORM_ONLY,
+    );
+    return res?.data !== undefined ? res.data : res;
+  },
+
+  /**
+   * `PUT /v1/tenants/{id}/subscription/plan` with `{ plan, supportPlan, employeeLimit }` (W-84.1).
+   * Any field may be null; a null `employeeLimit` means no limit.
+   */
+  async setPlan(id, { plan, supportPlan, employeeLimit }) {
+    const res = await apiClient.put(
+      `/v1/tenants/${id}/subscription/plan`,
+      { plan, supportPlan, employeeLimit },
       PLATFORM_ONLY,
     );
     return res?.data !== undefined ? res.data : res;

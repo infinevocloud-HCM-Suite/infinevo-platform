@@ -23,6 +23,8 @@ const rows = [
     modules: ['PAYROLL'],
     created_at: '2026-09-01T00:00:00Z',
     user_count: 3,
+    employee_count: 12,
+    employee_limit: 50,
     admin_invitation: { email: 'boss@acme.example', status: 'PENDING' },
   },
   {
@@ -32,7 +34,20 @@ const rows = [
     modules: ['HRMS'],
     created_at: '2026-09-02T00:00:00Z',
     user_count: 4,
+    employee_count: 12,
+    employee_limit: null,
     admin_invitation: { email: 'hank@globex.example', status: 'ACCEPTED' },
+  },
+  {
+    tenant_id: 'tenant-initech',
+    name: 'Initech',
+    status: 'ACTIVE',
+    modules: ['HRMS', 'PAYROLL'],
+    created_at: '2026-09-03T00:00:00Z',
+    user_count: 2,
+    employee_count: 55,
+    employee_limit: 50,
+    admin_invitation: { email: 'bill@initech.example', status: 'ACCEPTED' },
   },
   {
     tenant_id: PLATFORM_TENANT_ID,
@@ -41,6 +56,8 @@ const rows = [
     modules: [],
     created_at: '2026-09-01T00:00:00Z',
     user_count: 1,
+    employee_count: 0,
+    employee_limit: null,
     admin_invitation: { email: null, status: 'NONE' },
   },
 ];
@@ -83,6 +100,18 @@ describe('TenantList', () => {
     expect(within(rowOf('Acme')).getByText('invited boss@acme.example')).toBeDefined();
     expect(within(rowOf('Globex')).getByText('accepted')).toBeDefined();
     expect(within(rowOf('Infinevo')).getByText('—')).toBeDefined();
+  });
+
+  it('W-84.1: shows employees against the limit, the bare count with none, red when over', async () => {
+    render(<MemoryRouter><TenantList /></MemoryRouter>);
+    await screen.findByText('Acme');
+    expect(screen.getByRole('columnheader', { name: 'Employees' })).toBeDefined();
+
+    const acme = within(rowOf('Acme')).getByText('12 / 50');
+    expect(acme.closest('.ant-typography-danger')).toBeNull();
+    expect(within(rowOf('Globex')).getByText('12')).toBeDefined();
+    const initech = within(rowOf('Initech')).getByText('55 / 50');
+    expect(initech.closest('.ant-typography-danger')).not.toBeNull();
   });
 
   it('adminInvitationLabel reads PENDING, ACCEPTED, NONE and a missing value', () => {

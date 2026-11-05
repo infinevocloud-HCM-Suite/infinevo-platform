@@ -113,6 +113,33 @@ public interface EmployeeService {
         }
     }
 
+    /**
+     * W-84.2: the action would take the tenant past its plan's employee limit. Maps to {@code 409} with code
+     * {@code EMPLOYEE_LIMIT_REACHED}; the message is shown to the user as it stands.
+     */
+    class EmployeeLimitReachedException extends RuntimeException {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        private final int limit;
+        private final long used;
+
+        public EmployeeLimitReachedException(int limit, long used) {
+            super("Your plan allows " + limit + " employees and " + used
+                    + " are in use. Contact Infinevo to raise the limit.");
+            this.limit = limit;
+            this.used = used;
+        }
+
+        public int limit() {
+            return limit;
+        }
+
+        public long used() {
+            return used;
+        }
+    }
+
     /** This tenant already has an employee linked to this user account. Maps to {@code 409}. */
     class DuplicateUserAccountLinkException extends RuntimeException {
         @Serial

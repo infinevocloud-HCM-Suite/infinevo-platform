@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { useCan, useModuleEmployeeTabs } from '@shell/screens';
 import { employeeService } from './employeeService.js';
+import { EMPLOYEE_LIMIT_REACHED } from './limitText.js';
 import { orgMasterService } from './orgMasterService.js';
 import { setMasters } from './employeeSlice.js';
 import { employeeTabs } from './employeeTabs.jsx';
@@ -180,7 +181,12 @@ export function EmployeePage() {
           if (modalInstance) {
             modalInstance.destroy();
           }
-          await errorMsg(err);
+          // W-84.2: the plan's employee limit is reached; say so with the server's message.
+          if (err?.code === EMPLOYEE_LIMIT_REACHED) {
+            Modal.error({ title: 'Employee limit reached', content: err.message });
+          } else {
+            await errorMsg(err);
+          }
         }
       },
     });

@@ -24,6 +24,15 @@ export const employeeService = {
   },
 
   /**
+   * The plan's employee limit and how many places are in use (W-84.2): {limit, used}.
+   * limit is null when the plan sets none; used counts employees not deleted and not terminated.
+   */
+  async limit() {
+    const res = await apiClient.get('/v1/employees/limit');
+    return res.data;
+  },
+
+  /**
    * Fetch one of the 5 detail sections: personal, contact, identification, employment, bank.
    */
   async section(id, name) {

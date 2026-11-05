@@ -38,6 +38,7 @@ import {
 import { successMsg, errorMsg } from '../../shared/ui/msgHelper.js';
 import { toTitleCase } from '../../shared/ui/format.js';
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
+import { EMPLOYEE_LIMIT_REACHED } from './limitText.js';
 
 const { Title, Text } = Typography;
 
@@ -190,6 +191,8 @@ export function EmployeeCreate() {
   const [openPanels, setOpenPanels] = useState([]);
   const [roles, setRoles] = useState([]);
   const [partialFailure, setPartialFailure] = useState(null);
+  // W-84.2: the server's message when the plan's employee limit is reached; Save stays enabled.
+  const [limitError, setLimitError] = useState(null);
 
   useEffect(() => {
     if (!canAssignRoles) return;
@@ -229,6 +232,7 @@ export function EmployeeCreate() {
 
   const handleSubmit = async (values) => {
     setLoading(true);
+    setLimitError(null);
     try {
       const created = await employeeService.create(toCreatePayload(values));
       if (!values.giveAccess) {
@@ -245,7 +249,11 @@ export function EmployeeCreate() {
         setPartialFailure({ employeeId: created.id, message: inviteErr?.message || 'unknown error' });
       }
     } catch (err) {
-      await errorMsg(err);
+      if (err?.code === EMPLOYEE_LIMIT_REACHED) {
+        setLimitError(err.message);
+      } else {
+        await errorMsg(err);
+      }
     } finally {
       setLoading(false);
     }
@@ -270,6 +278,16 @@ export function EmployeeCreate() {
         title="Create New Employee"
         onBack={() => navigate('/employees')}
       />
+
+      {limitError && (
+        <Alert
+          type="error"
+          showIcon
+          id="alert-employee-limit"
+          style={{ marginBottom: token.marginLG }}
+          message={limitError}
+        />
+      )}
 
       {partialFailure && (
         <Alert

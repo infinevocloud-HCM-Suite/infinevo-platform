@@ -9,6 +9,7 @@ import { StatusDot } from '@shared/ui/StatusDot.jsx';
 import { theme as appTheme } from '@shared/theme.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { employeeService } from './employeeService.js';
+import { limitBadgeText, limitReached } from './limitText.js';
 import { employeeImportService } from './employeeImportService.js';
 import { orgMasterService } from './orgMasterService.js';
 import { setMasters } from './employeeSlice.js';
@@ -44,6 +45,20 @@ export function EmployeeList() {
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  // W-84.2: the plan's limit and the places in use, {limit, used}; null until loaded or when the call fails.
+  const [usage, setUsage] = useState(null);
+
+  // A failure leaves the badge on the list total; the limit is advisory here, the server enforces it.
+  const fetchUsage = useCallback(async () => {
+    try {
+      const res = await employeeService.limit();
+      if (res && typeof res.used === 'number') {
+        setUsage({ limit: typeof res.limit === 'number' ? res.limit : null, used: res.used });
+      }
+    } catch {
+      // ignored on purpose
+    }
+  }, []);
 
   // Load masters once per session
   useEffect(() => {
@@ -68,6 +83,7 @@ export function EmployeeList() {
       });
       setData(res.content || []);
       setTotal(res.totalElements || 0);
+      fetchUsage();
     } catch (err) {
       // A failed load must not look like "no employees": say so, and offer a retry.
       setData([]);
@@ -76,7 +92,7 @@ export function EmployeeList() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, statusFilter, includeDeleted, page, pageSize, canDelete]);
+  }, [searchQuery, statusFilter, includeDeleted, page, pageSize, canDelete, fetchUsage]);
 
   useEffect(() => {
     fetchEmployees();
@@ -264,9 +280,19 @@ export function EmployeeList() {
     <Card variant="borderless">
       <PageHeader
         title="Employees"
-        count={`${total} employees`}
+        count={usage ? limitBadgeText(usage.used, usage.limit) : `${total} employees`}
         actions={headerActions}
       />
+
+      {usage && limitReached(usage.used, usage.limit) && (
+        <Alert
+          type="warning"
+          showIcon
+          id="alert-employee-limit"
+          message={`Your plan allows ${usage.limit} employees and ${usage.used} are in use. Contact Infinevo to raise the limit.`}
+          style={{ marginBottom: token.marginLG }}
+        />
+      )}
 
       <div style={{ display: 'flex', gap: token.margin, flexWrap: 'wrap', marginBottom: token.marginLG, alignItems: 'center' }}>
         <Input.Search

@@ -5,6 +5,8 @@ import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
 import java.net.URI;
+import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.MDC;
@@ -53,13 +55,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/employees")
 public class EmployeeController {
 
+    /** W-84.2: the code a client branches on to tell the limit apart from a duplicate number. */
+    static final String EMPLOYEE_LIMIT_REACHED = "EMPLOYEE_LIMIT_REACHED";
+
     private final EmployeeService employeeService;
     private final EmployeeQueryService employeeQueryService;
+    private final EmployeeLimitGuard limitGuard;
 
-    public EmployeeController(EmployeeService employeeService, EmployeeQueryService employeeQueryService) {
+    public EmployeeController(
+            EmployeeService employeeService, EmployeeQueryService employeeQueryService, EmployeeLimitGuard limitGuard) {
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.employeeQueryService =
                 Objects.requireNonNull(employeeQueryService, "employeeQueryService must not be null");
+        this.limitGuard = Objects.requireNonNull(limitGuard, "limitGuard must not be null");
     }
 
     /**
@@ -84,6 +92,17 @@ public class EmployeeController {
         EmployeeResponse created = employeeService.create(request);
         return ResponseEntity.created(URI.create("/api/v1/employees/" + created.id()))
                 .body(created);
+    }
+
+    /**
+     * W-84.2: the plan's employee limit ({@code null} when none) and the live usage, counted as the gate counts
+     * it. Same guard as the list. Declared before {@code /{id}}, and {@code id} is a {@link UUID}, so
+     * {@code limit} is never read as an id.
+     */
+    @GetMapping("/limit")
+    @RequiresAction("core.employee.read")
+    public EmployeeLimitResponse limit() {
+        return EmployeeLimitResponse.from(limitGuard.usage());
     }
 
     @GetMapping("/{id}")
@@ -132,6 +151,17 @@ public class EmployeeController {
     public ResponseEntity<ApiErrorResponse> handleDuplicate(EmployeeService.DuplicateEmployeeNumberException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiErrorResponse.of(ApiError.CONFLICT, e.getMessage(), traceId()));
+    }
+
+    /**
+     * W-84.2: {@code 409} with its own code, {@code EMPLOYEE_LIMIT_REACHED}, so a screen can show the limit
+     * message apart from a duplicate. The envelope is the shared {@link ApiErrorResponse}; the code is not an
+     * {@link ApiError} constant because it belongs to this feature, not to the platform's error vocabulary.
+     */
+    @ExceptionHandler(EmployeeService.EmployeeLimitReachedException.class)
+    public ResponseEntity<ApiErrorResponse> handleLimitReached(EmployeeService.EmployeeLimitReachedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiErrorResponse(EMPLOYEE_LIMIT_REACHED, e.getMessage(), Map.of(), traceId(), Instant.now()));
     }
 
     @ExceptionHandler(EmployeeService.DuplicateUserAccountLinkException.class)

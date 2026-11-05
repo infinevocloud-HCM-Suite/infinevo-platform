@@ -87,6 +87,8 @@ public final class LopTestSchema {
             if (!constraintExists(conn, "uk_lop_policy_tenant_effective_from")) {
                 executeResource(conn, "db/migration/core/V119__lop_policy_unique_effective_from.sql");
             }
+            // W-84.1: the Subscription entity maps V188's columns.
+            com.infinevo.core.subscription.SubscriptionTestSchema.applySubscriptionPlan(conn);
         }
     }
 

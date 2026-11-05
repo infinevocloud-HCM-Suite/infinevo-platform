@@ -5,7 +5,7 @@ import { Table, Tag, Button, Space, Typography, Card } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { LoadError } from '@shared/ui/LoadError.jsx';
 import { tenantService } from './tenantService.js';
-import { isPlatformTenant, STATUS_COLORS } from './platform.js';
+import { isPlatformTenant, STATUS_COLORS, employeesText, overLimit } from './platform.js';
 import { formatDate, statusLabel } from '@shared/ui/format.js';
 
 
@@ -90,6 +90,17 @@ export function TenantList() {
         (modules || []).length === 0
           ? <Typography.Text type="secondary">none</Typography.Text>
           : (modules || []).map((m) => <Tag key={m}>{m}</Tag>),
+    },
+    {
+      // W-84.1: "N / M" against the employee limit, "N" with none; red when over it.
+      title: 'Employees',
+      key: 'employees',
+      render: (_, row) => {
+        const text = employeesText(row.employee_count, row.employee_limit);
+        return overLimit(row.employee_count, row.employee_limit)
+          ? <Typography.Text type="danger">{text}</Typography.Text>
+          : <span>{text}</span>;
+      },
     },
     {
       title: 'Admin',

@@ -7,6 +7,7 @@ import com.infinevo.shared.tenant.TenantContext;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.Types;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -245,6 +246,65 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return toResponse(subscription, activeModules);
     }
 
+    @Override
+    @Transactional
+    public SubscriptionResponse updatePlan(UUID tenantId, PlanUpdateRequest request) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(request, "request must not be null");
+        if (platformTenant.isPlatformTenant(tenantId)) {
+            throw new IllegalArgumentException("Cannot modify the subscription plan for the platform tenant");
+        }
+        if (request.employeeLimit() != null && request.employeeLimit() <= 0) {
+            throw new IllegalArgumentException("employeeLimit must be greater than 0, or null for unlimited");
+        }
+        return asTenant(tenantId, () -> applyPlan(tenantId, request));
+    }
+
+    private SubscriptionResponse applyPlan(UUID tenantId, PlanUpdateRequest request) {
+        // 1. Verify subscription exists
+        Subscription subscription = subscriptionRepository
+                .findByTenantId(tenantId)
+                .orElseThrow(() -> new SubscriptionNotFoundException(tenantId));
+
+        Set<PlatformModule> activeModules =
+                subscriptionModuleRepository.findByTenantIdAndRevokedOnIsNull(tenantId).stream()
+                        .map(SubscriptionModule::getModule)
+                        .collect(Collectors.toSet());
+
+        // 2. No-op check: nothing differs, nothing is written
+        if (subscription.getPlan() == request.plan()
+                && subscription.getSupportPlan() == request.supportPlan()
+                && Objects.equals(subscription.getEmployeeLimit(), request.employeeLimit())) {
+            log.debug("No plan change for tenant {}; skipping write", tenantId);
+            return toResponse(subscription, activeModules);
+        }
+
+        // 3. Cross-tenant write through the SECURITY DEFINER setter (V188), called as set_subscription_status is
+        jdbcTemplate.execute((Connection conn) -> {
+            try (PreparedStatement ps = conn.prepareStatement("SELECT core.set_subscription_plan(?, ?, ?, ?)")) {
+                ps.setObject(1, tenantId);
+                ps.setString(2, request.plan() != null ? request.plan().name() : null);
+                ps.setString(
+                        3, request.supportPlan() != null ? request.supportPlan().name() : null);
+                if (request.employeeLimit() != null) {
+                    ps.setObject(4, request.employeeLimit(), Types.INTEGER);
+                } else {
+                    ps.setNull(4, Types.INTEGER);
+                }
+                ps.execute();
+                return null;
+            }
+        });
+
+        // 4. Set the loaded entity so the audit listener records old and new values on flush. No cache bump:
+        //    nothing permission-related changes.
+        subscription.setPlan(request.plan());
+        subscription.setSupportPlan(request.supportPlan());
+        subscription.setEmployeeLimit(request.employeeLimit());
+
+        return toResponse(subscription, activeModules);
+    }
+
     /**
      * Runs {@code work} with the thread and the open transaction bound to {@code tenantId}, then puts the previous
      * binding back.
@@ -287,6 +347,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 modules,
                 subscription.getStartedOn(),
                 subscription.getCurrentPeriodEnd(),
-                subscription.getExternalRef());
+                subscription.getExternalRef(),
+                subscription.getPlan(),
+                subscription.getSupportPlan(),
+                subscription.getEmployeeLimit());
     }
 }

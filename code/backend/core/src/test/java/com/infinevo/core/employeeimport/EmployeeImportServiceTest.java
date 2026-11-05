@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.infinevo.core.authz.RoleRepository;
 import com.infinevo.core.document.DocumentService;
+import com.infinevo.core.employee.EmployeeLimitGuard;
 import com.infinevo.core.employee.EmployeeRepository;
 import com.infinevo.core.employee.EmployeeRequest;
 import com.infinevo.core.employee.EmployeeResponse;
@@ -58,6 +60,7 @@ class EmployeeImportServiceTest {
     private final JobService jobService = mock(JobService.class);
     private final DocumentService documentService = mock(DocumentService.class);
     private final QueueProducer producer = mock(QueueProducer.class);
+    private final EmployeeLimitGuard limitGuard = mock(EmployeeLimitGuard.class);
     private final AtomicReference<QueueProducer> configuredProducer = new AtomicReference<>(producer);
 
     private EmployeeImportServiceImpl service;
@@ -82,7 +85,9 @@ class EmployeeImportServiceTest {
                 jobService,
                 documentService,
                 producers,
+                limitGuard,
                 tx);
+        when(limitGuard.usage()).thenReturn(new EmployeeLimitGuard.Usage(null, 0));
         TenantContext.set(tenant);
     }
 
@@ -247,6 +252,84 @@ class EmployeeImportServiceTest {
         assertThat(EmployeeImportServiceImpl.cell("say \"x\"")).isEqualTo("\"say \"\"x\"\"\"");
         assertThat(EmployeeImportServiceImpl.cell("=HYPERLINK(1)")).isEqualTo("'=HYPERLINK(1)");
         assertThat(EmployeeImportServiceImpl.cell(null)).isEmpty();
+    }
+
+    // --- W-84.2: the employee limit -------------------------------------------------------------
+
+    private static String validRow(int n) {
+        return "L" + n + ",Asha,,,,2026-04-01,,,,N,\n";
+    }
+
+    @Test
+    @DisplayName("W-84.2: limit 3 with 1 used, five valid rows: the dry run marks rows 3 to 5 over the limit")
+    void dryRunMarksRowsPastTheLimit() {
+        when(limitGuard.usage()).thenReturn(new EmployeeLimitGuard.Usage(3, 1));
+        StringBuilder csv = new StringBuilder(HEADER);
+        for (int n = 1; n <= 5; n++) {
+            csv.append(validRow(n));
+        }
+
+        List<ImportRowResult> results = service.dryRun(EmployeeImportParser.parse(csv.toString()));
+
+        assertThat(results).hasSize(5);
+        assertThat(results.subList(0, 2)).allMatch(r -> r.status() == ImportRowResult.Status.OK);
+        assertThat(results.subList(2, 5))
+                .allMatch(r -> r.status() == ImportRowResult.Status.ERROR)
+                .allMatch(r ->
+                        r.message().equals("Over the employee limit (3). Raise the limit before importing this row"));
+    }
+
+    @Test
+    @DisplayName("W-84.2: a row refused for another reason does not use up room")
+    void invalidRowDoesNotConsumeRoom() {
+        when(limitGuard.usage()).thenReturn(new EmployeeLimitGuard.Usage(3, 1));
+        String csv = HEADER + validRow(1) + BAD + validRow(2) + validRow(3);
+
+        List<ImportRowResult> results = service.dryRun(EmployeeImportParser.parse(csv));
+
+        assertThat(results.get(0).status()).isEqualTo(ImportRowResult.Status.OK);
+        assertThat(results.get(1).status()).isEqualTo(ImportRowResult.Status.ERROR);
+        assertThat(results.get(1).message()).doesNotContain("employee limit");
+        assertThat(results.get(2).status()).isEqualTo(ImportRowResult.Status.OK);
+        assertThat(results.get(3).status()).isEqualTo(ImportRowResult.Status.ERROR);
+        assertThat(results.get(3).message()).startsWith("Over the employee limit (3)");
+    }
+
+    @Test
+    @DisplayName("W-84.2: no limit, no room check: every valid row passes")
+    void unlimitedMarksNothing() {
+        StringBuilder csv = new StringBuilder(HEADER);
+        for (int n = 1; n <= 5; n++) {
+            csv.append(validRow(n));
+        }
+
+        assertThat(service.dryRun(EmployeeImportParser.parse(csv.toString())))
+                .allMatch(r -> r.status() == ImportRowResult.Status.OK);
+    }
+
+    @Test
+    @DisplayName("W-84.2: the import creates the rows that fit; create's own refusal lands on the row as said")
+    void importCreatesTwoAndCarriesCreatesRefusal() {
+        when(limitGuard.usage()).thenReturn(new EmployeeLimitGuard.Usage(3, 1));
+        UUID first = UUID.randomUUID();
+        when(employeeService.create(any(EmployeeRequest.class)))
+                .thenReturn(employee(first))
+                // Someone was added between the dry run and the import: create's own check refuses the second.
+                .thenThrow(new EmployeeService.EmployeeLimitReachedException(3, 3));
+        StringBuilder csv = new StringBuilder(HEADER);
+        for (int n = 1; n <= 5; n++) {
+            csv.append(validRow(n));
+        }
+
+        List<ImportRowResult> results =
+                service.importRows(EmployeeImportParser.parse(csv.toString()), actor, percent -> {});
+
+        verify(employeeService, times(2)).create(any(EmployeeRequest.class));
+        assertThat(results.get(0).status()).isEqualTo(ImportRowResult.Status.OK);
+        assertThat(results.get(1).status()).isEqualTo(ImportRowResult.Status.ERROR);
+        assertThat(results.get(1).message())
+                .isEqualTo("Your plan allows 3 employees and 3 are in use. Contact Infinevo to raise the limit.");
+        assertThat(results.subList(2, 5)).allMatch(r -> r.message().startsWith("Over the employee limit (3)"));
     }
 
     private EmployeeResponse employee(UUID id) {
