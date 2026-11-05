@@ -138,6 +138,37 @@ export function Header({
 
   const userMenu = {
     items: [
+      ...(tagline && !compact
+        ? [
+            {
+              key: 'tagline',
+              disabled: true,
+              label: (
+                <Text type="secondary" data-testid="tenant-tagline" style={{ fontSize: token.fontSizeSM, display: 'block' }}>
+                  {tagline}
+                </Text>
+              ),
+            },
+          ]
+        : []),
+      ...(roles.length > 0 && !compact
+        ? [
+            {
+              key: 'roles',
+              disabled: true,
+              label: (
+                <Space size={4} wrap data-testid="role-chips" style={{ padding: `${token.paddingXXS}px 0` }}>
+                  {roles.map((code) => (
+                    <Tag key={code} color="blue" style={{ marginInlineEnd: 0 }}>
+                      {roleLabel(code)}
+                    </Tag>
+                  ))}
+                </Space>
+              ),
+            },
+          ]
+        : []),
+      ...((tagline && !compact) || (roles.length > 0 && !compact) ? [{ type: 'divider' }] : []),
       ...(onMyProfile ? [{ key: 'profile', label: 'My profile', icon: <IdcardOutlined /> }] : []),
       ...(onGettingStarted ? [{ key: 'welcome', label: 'Getting started', icon: <CompassOutlined /> }] : []),
       { key: 'signout', label: 'Sign out', icon: <LogoutOutlined /> },
@@ -209,26 +240,12 @@ export function Header({
               <Text strong ellipsis={compact} style={{ fontSize: compact ? token.fontSize : token.fontSizeLG }}>
                 {tenantName}
               </Text>
-              {tagline && !compact ? (
-                <Text type="secondary" data-testid="tenant-tagline" style={{ fontSize: token.fontSizeSM }}>
-                  {tagline}
-                </Text>
-              ) : null}
             </div>
           </div>
         ) : (
           <span />
         )}
         <Space size="middle" align="center">
-          {roles.length > 0 && !compact && (
-            <Space size={4} wrap data-testid="role-chips">
-              {roles.map((code) => (
-                <Tag key={code} color="blue" style={{ marginInlineEnd: 0 }}>
-                  {roleLabel(code)}
-                </Tag>
-              ))}
-            </Space>
-          )}
           <Dropdown menu={userMenu} trigger={['click']} placement="bottomRight">
             <Button type="text" aria-label="User menu" data-testid="user-display">
               <Space size="small">
@@ -245,7 +262,12 @@ export function Header({
           banner
           type="warning"
           data-testid="impersonation-banner"
-          style={{ position: 'sticky', top: appTheme.components.Layout.headerHeight, zIndex: 98 }}
+          style={{
+            position: 'sticky',
+            top: appTheme.components.Layout.headerHeight,
+            zIndex: 98,
+            padding: `${token.paddingXS}px ${token.padding}px`,
+          }}
           message={`Acting as ${session.userLabel} in ${session.tenantName} until ${formatExpiry(session.expiresAt)}`}
           action={
             <Button size="small" danger loading={stopping} onClick={stop}>

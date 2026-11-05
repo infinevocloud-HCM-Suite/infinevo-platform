@@ -23,7 +23,7 @@ export function PageHeader({ title, subtitle, count, onBack, backLabel, backProp
         justifyContent: 'space-between',
         gap: token.marginSM,
         paddingBottom: token.paddingSM,
-        marginBottom: token.marginLG,
+        marginBottom: token.margin,
         borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
@@ -67,7 +67,9 @@ export function PageHeader({ title, subtitle, count, onBack, backLabel, backProp
           {subtitle && (
             <div style={{ marginTop: token.marginXXS }}>
               {typeof subtitle === 'string' ? (
-                <Text type="secondary">{subtitle}</Text>
+                <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                  {subtitle}
+                </Text>
               ) : (
                 subtitle
               )}

@@ -35,6 +35,22 @@ describe('AppShell component', () => {
     expect(screen.getByText('No Modules Available')).toBeDefined();
   });
 
+  it('brand block shows the product name only (W-83.5)', () => {
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [],
+      loading: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Infinevo HCM Suite')).toBeDefined();
+    expect(screen.queryByText('Human Capital Management')).toBeNull();
+  });
+
   it('renders NotFound screen on unknown routes when feed has items', () => {
     vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
       items: [{ key: 'core', labelKey: 'Core', path: '/core' }],

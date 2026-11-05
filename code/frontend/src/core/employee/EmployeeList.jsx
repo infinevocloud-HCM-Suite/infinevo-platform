@@ -158,7 +158,6 @@ export function EmployeeList() {
                 color: token.colorInfoText,
                 fontWeight: 700,
                 fontSize: 12,
-                border: `1px solid ${token.colorInfoBorder}`,
               }}
             >
               {initials}

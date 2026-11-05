@@ -130,9 +130,6 @@ export function AppShell() {
         <Typography.Text strong style={{ color: token.colorBgContainer, fontSize: token.fontSizeLG, lineHeight: 1.3 }}>
           Infinevo HCM Suite
         </Typography.Text>
-        <Typography.Text style={{ color: token.colorBgContainer, fontSize: token.fontSizeSM, opacity: 0.75, lineHeight: 1.3 }}>
-          Human Capital Management
-        </Typography.Text>
       </div>
 
       {loading ? (
@@ -199,7 +196,16 @@ export function AppShell() {
             compact={phone}
             onOpenMenu={phone ? () => setMenuOpen(true) : undefined}
           />
-          <Content style={{ padding: phone ? token.paddingSM : token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
+          <Content
+            style={{
+              padding: phone ? token.paddingSM : token.paddingLG,
+              background: token.colorBgLayout,
+              minHeight: `calc(100vh - ${headerHeight}px)`,
+              maxWidth: 1440,
+              margin: '0 auto',
+              width: '100%',
+            }}
+          >
             {!loading && error ? (
               <Result
                 status="500"

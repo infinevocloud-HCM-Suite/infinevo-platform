@@ -29,8 +29,8 @@ export const theme = {
     fontSize: 14,
     fontSizeHeading1: 36,
     fontSizeHeading2: 28,
-    fontSizeHeading3: 22,
-    fontSizeHeading4: 18,
+    fontSizeHeading3: 20,
+    fontSizeHeading4: 16,
     lineHeight: 1.5,
 
     // Space
@@ -60,6 +60,10 @@ export const theme = {
       darkItemBg: '#0f172a',
       darkItemSelectedBg: '#2563eb',
       itemBorderRadius: 6,
+      itemHeight: 40,
+      itemMarginBlock: 2,
+      itemMarginInline: 8,
+      fontSize: 14,
     },
     Card: {
       headerFontSize: 16,
@@ -71,7 +75,10 @@ export const theme = {
       headerBg: '#f8fafc',
       headerColor: '#475569',
       rowHoverBg: '#f0f9ff',
+      cellPaddingBlock: 10,
       cellPaddingInline: 12,
+      cellPaddingBlockSM: 6,
+      cellFontSize: 14,
       borderColor: '#f1f5f9',
       borderRadiusLG: 12,
     },

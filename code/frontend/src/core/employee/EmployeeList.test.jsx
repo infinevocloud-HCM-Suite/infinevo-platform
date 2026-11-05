@@ -101,6 +101,8 @@ describe('EmployeeList component', () => {
     await waitFor(() => {
       expect(screen.getByText('E-101')).toBeDefined();
       expect(screen.getByText('Asha Rao')).toBeDefined();
+      const avatar = screen.getByText('AR');
+      expect(avatar.closest('.ant-avatar-sm')).not.toBeNull();
     });
     // The joining date and status read as words, never the ISO date or the code (D-78).
     expect(screen.getByText('1 Apr 2026')).toBeDefined();
