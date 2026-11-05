@@ -6,7 +6,7 @@
 | **Owner** | Claude (`dev-claude-w83`), reassigned 2026-11-05 |
 | **Apps touched** | `code/frontend` (`src/shared/theme.js`, `src/shared/ui/PageHeader.jsx`, `src/shell`) |
 | **Related gaps** | founder 2026-11-05: "the screen changes are not so visible and professional" |
-| **Status** | In flight |
+| **Status** | Done — on `main` `02a94f5e`, 2026-11-05 |
 | **Blocked by** | nothing (`W-83.1` on main) |
 
 ## What and why
