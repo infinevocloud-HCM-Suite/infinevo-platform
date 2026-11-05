@@ -71,6 +71,7 @@ export const theme = {
       headerBg: '#f8fafc',
       headerColor: '#475569',
       rowHoverBg: '#f0f9ff',
+      cellPaddingInline: 12,
       borderColor: '#f1f5f9',
       borderRadiusLG: 12,
     },
