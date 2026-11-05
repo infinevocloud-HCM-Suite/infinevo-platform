@@ -6,6 +6,20 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-05 — W-83.1–.4 new look on `main` (`25c1ac5f`)
+
+| Ticket | What |
+|---|---|
+| `W-83.1` | Theme values (royal blue, sky blue, slate), `shared/ui/PageHeader`, `shared/ui/MoneyText`, lint rule against hex colours in `shared`, `core`, `shell` |
+| `W-83.2` | First 22 Core screen files on `PageHeader` and tokens; "N employees" badge replaces the wrong "Active Staff" count; headers wrap on a phone |
+| `W-83.3` | Remaining Core screens; 0 hex colours in `src/core` |
+| `W-83.4` | `/me` panels and payslip page; `MoneyText` on amounts |
+
+- Built by Krushna on `feature/ui-professional-specs` (four commits, CI green on each), one read before the squash. Visual only: no backend, route, permission or element id changes. Specs for the six tickets written 2026-11-04 (`87dcdcda`); the branch's W-80/81/82 drafts dropped.
+- **Decisions 2026-11-04 (founder):** timesheet weekends turn grey in `W-81.1` (reverses the `D-137` look); description stays inline and mandatory; Approve and Pay stay two steps; no payslip Download or proof review.
+- **Left:** nine inline `borderRadius` styles (`EmployeeImport`, `MasterTable`, `ApplyWfh`); `EmployeePage` and `MyRequests` keep their own headers; jargon subtitles on `LeaveRequests`, `LeaveTypes`; payroll keeps old blues until `W-82.1`. Not checked in a browser.
+- **Next for krushna:** `W-81.1`, then `W-82.1`, both Ready. **Branches:** `feature/ui-professional-specs` and `dev-claude-w80` can be deleted; krushna resets `dev-krushna` to `main`.
+
 ## 2026-11-03 — W-80.1 phone-friendly shell on `main` (`7feeca1d`)
 
 | Ticket | What |

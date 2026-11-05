@@ -49,6 +49,8 @@ signed-in and public payslip alike. Changing it is not part of a screen restyle.
 | Every server figure, shown as sent. The screen does no new arithmetic | All |
 | The salary setup drawer's calculation and preview (`W-75`) | `salary/SalarySetupDrawer.jsx` |
 
+**Emphasis (`W-83.5`, founder 2026-11-05):** one bold text per table row, the name; ids and codes `type="secondary"`; no `fontWeight` literals. Row height comes from the theme.
+
 ## Out of scope
 
 | Why | Item |

@@ -50,6 +50,8 @@ Red now only means a problem: a day over its limit and an invalid cell stay red.
 The description box stays inline in each day cell, and stays mandatory when hours are entered
 (`D-105`, `hrms/timesheet/weekGrid.js:227`). No popover.
 
+**Emphasis (`W-83.5`, founder 2026-11-05):** one bold text per table row, the name; ids and codes `type="secondary"`; no `fontWeight` literals. Row height comes from the theme.
+
 ## Out of scope
 
 Each of these is new behaviour, and becomes its own ticket only if the founder asks.

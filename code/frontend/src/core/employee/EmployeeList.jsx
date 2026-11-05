@@ -132,6 +132,7 @@ export function EmployeeList() {
   const columns = [
     {
       title: 'Emp ID',
+      width: 110,
       dataIndex: 'employeeNumber',
       key: 'employeeNumber',
       render: (num) => (
@@ -143,13 +144,15 @@ export function EmployeeList() {
     {
       title: 'Name',
       key: 'name',
+      width: 200,
+      ellipsis: true,
       render: (_, r) => {
         const fullName = [r.firstName, r.middleName, r.lastName].filter(Boolean).join(' ');
         const initials = [r.firstName?.[0], r.lastName?.[0]].filter(Boolean).join('').toUpperCase() || 'U';
         return (
           <Space size="middle">
             <Avatar
-              size={32}
+              size="small"
               style={{
                 backgroundColor: token.colorInfoBg,
                 color: token.colorInfoText,
@@ -160,9 +163,7 @@ export function EmployeeList() {
             >
               {initials}
             </Avatar>
-            <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
-              <Text strong>{fullName}</Text>
-            </div>
+            <Text strong ellipsis={{ tooltip: fullName }}>{fullName}</Text>
           </Space>
         );
       },
@@ -171,28 +172,34 @@ export function EmployeeList() {
       title: 'Work Email',
       dataIndex: 'workEmail',
       key: 'workEmail',
-      render: (email) => (email ? <span>{email}</span> : <span style={{ color: token.colorTextSecondary }}>—</span>),
+      width: 220,
+      ellipsis: true,
+      render: (email) => (email ? <span title={email}>{email}</span> : <span style={{ color: token.colorTextSecondary }}>—</span>),
     },
     {
       title: 'Department',
+      width: 130,
       dataIndex: 'departmentId',
       key: 'department',
       render: (id) => (id && masters.departments?.[id]) || '—',
     },
     {
       title: 'Designation',
+      width: 150,
       dataIndex: 'designationId',
       key: 'designation',
       render: (id) => (id && masters.designations?.[id]) || '—',
     },
     {
       title: 'Location',
+      width: 130,
       dataIndex: 'workLocationId',
       key: 'workLocation',
       render: (id) => (id && masters.workLocations?.[id]) || '—',
     },
     {
       title: 'Status',
+      width: 100,
       dataIndex: 'status',
       key: 'status',
       render: (status, r) => (
@@ -203,7 +210,8 @@ export function EmployeeList() {
       ),
     },
     {
-      title: 'Date of Joining',
+      title: 'Joined',
+      width: 100,
       dataIndex: 'dateOfJoining',
       key: 'dateOfJoining',
       render: (date) => formatDate(date),
@@ -321,6 +329,8 @@ export function EmployeeList() {
 
       <Table
         rowKey="id"
+        scroll={{ x: 960 }}
+        tableLayout="fixed"
         columns={columns}
         dataSource={data}
         loading={loading}
