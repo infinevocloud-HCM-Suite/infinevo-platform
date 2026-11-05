@@ -17,14 +17,15 @@ import {
   Tag,
   Divider,
 } from 'antd';
-import { SaveOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { SaveOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { currentFy, fyOptions, formatFyDisplay, normalizeFy } from './financialYear';
 import { taxSettingsService } from './taxSettingsService';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { readError } from './apiError';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function TaxWindowScreen({ initialFy }) {
   const params = useParams();
@@ -113,36 +114,28 @@ export function TaxWindowScreen({ initialFy }) {
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-      <Card
-        title={
-          <Row justify="space-between" align="middle" wrap>
-            <Col>
-              <Space align="center">
-                <SettingOutlined style={{ fontSize: 20, color: '#1677ff' }} />
-                <Title level={4} style={{ margin: 0 }}>
-                  Tax Declaration Window Configuration
-                </Title>
-              </Space>
-            </Col>
-            <Col>
-              <Space align="center">
-                <Text strong>Financial Year:</Text>
-                <Select
-                  value={selectedFy}
-                  onChange={handleFyChange}
-                  options={(() => {
-                    const baseOpts = fyOptions();
-                    return baseOpts.some((opt) => opt.value === selectedFy)
-                      ? baseOpts
-                      : [{ label: selectedFy, value: selectedFy }, ...baseOpts];
-                  })()}
-                  style={{ width: 140 }}
-                  data-testid="fy-select"
-                />
-              </Space>
-            </Col>
-          </Row>
+      <PageHeader
+        title="Tax Declaration Window Configuration"
+        actions={
+          <Space align="center" wrap>
+            <Text strong>Financial Year:</Text>
+            <Select
+              value={selectedFy}
+              onChange={handleFyChange}
+              options={(() => {
+                const baseOpts = fyOptions();
+                return baseOpts.some((opt) => opt.value === selectedFy)
+                  ? baseOpts
+                  : [{ label: selectedFy, value: selectedFy }, ...baseOpts];
+              })()}
+              style={{ width: 140 }}
+              data-testid="fy-select"
+            />
+          </Space>
         }
+      />
+      <Card
+        variant="borderless"
         extra={
           settings && (
             <Tag color={settings.is_locked ? 'error' : isWindowActive() ? 'success' : 'warning'}>

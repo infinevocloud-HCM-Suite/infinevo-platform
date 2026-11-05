@@ -15,6 +15,7 @@ import {
   Row,
   Col,
   Tag,
+  theme,
 } from 'antd';
 import {
   PlusOutlined,
@@ -112,6 +113,7 @@ const countMonthsInclusive = (fromMonth, toMonth) => {
 };
 
 export function HousingSection({ fy, header, editable, onRefresh }) {
+  const { token } = theme.useToken();
   const dispatch = useDispatch();
   const stored = useSelector(selectTaxSection('housing'));
   const storedFy = useSelector(selectTaxFy);
@@ -476,7 +478,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
 
   const errorCardStyle = (hasError) => ({
     marginBottom: 12,
-    ...(hasError ? { borderColor: '#ff4d4f' } : {}),
+    ...(hasError ? { borderColor: token.colorError } : {}),
   });
 
   return (
@@ -490,7 +492,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
         type="inner"
         title={
           <Space align="center">
-            <HomeOutlined style={{ color: '#1677ff' }} />
+            <HomeOutlined style={{ color: token.colorPrimary }} />
             <Text strong>House Rent (HRA Exemption)</Text>
             {header?.is_staying_in_rented_house && <Tag color="green">Opted in Header</Tag>}
           </Space>
@@ -540,7 +542,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
           onRow={(_, index) => ({
             'data-testid': `rent-row-${index}`,
             'data-row-error': rentErrors[index] ? 'true' : 'false',
-            style: rentErrors[index] ? { background: '#fff2f0' } : undefined,
+            style: rentErrors[index] ? { background: token.colorErrorBg } : undefined,
           })}
           locale={{ emptyText: 'No rent declaration rows added. Click "Add Rent Period" to add.' }}
           size="small"
@@ -552,7 +554,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
         type="inner"
         title={
           <Space align="center">
-            <BankOutlined style={{ color: '#52c41a' }} />
+            <BankOutlined style={{ color: token.colorSuccess }} />
             <Text strong>Home Loan Declarations (Section 24b & 80C)</Text>
             {header?.is_repaying_self_occupied_loan && <Tag color="green">Opted in Header</Tag>}
           </Space>
@@ -668,7 +670,7 @@ export function HousingSection({ fy, header, editable, onRefresh }) {
         type="inner"
         title={
           <Space align="center">
-            <ThunderboltOutlined style={{ color: '#fa8c16' }} />
+            <ThunderboltOutlined style={{ color: token.colorWarning }} />
             <Text strong>Let-Out Property Income / Loss</Text>
             {header?.has_let_out_property && <Tag color="green">Opted in Header</Tag>}
           </Space>

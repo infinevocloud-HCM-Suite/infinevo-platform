@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Drawer, Alert, Table, Typography, Space, Spin, Empty, Tag } from 'antd';
 import { payrunService } from './payrunService.js';
-import { formatMoney } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Title, Text } = Typography;
 
@@ -55,24 +55,20 @@ export function LinesDrawer({ open, onClose, payrunId, employee, lines: initialL
       title: 'Code',
       dataIndex: 'component_code',
       key: 'component_code',
-      render: (code, record) => <Text strong>{code || record.componentCode}</Text>,
+      render: (code, record) => <Text type="secondary">{code || record.componentCode}</Text>,
     },
     {
       title: 'Component Name',
       dataIndex: 'component_name',
       key: 'component_name',
-      render: (name, record) => <Text>{name || record.componentName}</Text>,
+      render: (name, record) => <Text strong>{name || record.componentName}</Text>,
     },
     {
       title: 'Amount',
       dataIndex: 'amount',
       key: 'amount',
       align: 'right',
-      render: (amt) => (
-        <Text style={{ fontFamily: 'monospace' }}>
-          {formatMoney(amt)}
-        </Text>
-      ),
+      render: (amt) => <MoneyText value={amt} />,
     },
   ];
 

@@ -215,6 +215,7 @@ export function PayScheduleScreen() {
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       {/* Card 1: Pay Schedule */}
       <Card
+        variant="borderless"
         title={
           <Space>
             <CalendarOutlined style={{ color: token.colorPrimary }} />
@@ -334,6 +335,7 @@ export function PayScheduleScreen() {
 
       {/* Card 2: Loss of Pay (LOP) Basis */}
       <Card
+        variant="borderless"
         title={
           <Space>
             <CalendarOutlined style={{ color: token.colorWarning }} />
@@ -461,6 +463,7 @@ export function PayScheduleScreen() {
 
       {/* Card 3: Period Preview */}
       <Card
+        variant="borderless"
         title={
           <Space>
             <EyeOutlined style={{ color: token.colorInfo }} />

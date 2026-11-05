@@ -8,7 +8,8 @@ import { ClaimForm } from './ClaimForm.jsx';
 import { ClaimDescriptions } from './ClaimDetail.jsx';
 import { claimStatus, deductionStatus, deductionTypeLabel } from './claimLabels.js';
 import { readError } from '../tax/apiError.js';
-import { EMPTY, formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
+import { EMPTY, formatDate, formatMonth } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Text } = Typography;
 
@@ -98,20 +99,20 @@ export function MyClaimsPanel() {
 
   const claimColumns = [
     { title: 'Bill date', dataIndex: 'bill_date', key: 'bill_date', render: (v) => formatDate(v) },
-    { title: 'Component', dataIndex: 'component_name', key: 'component_name', render: (v) => v || EMPTY },
+    { title: 'Component', dataIndex: 'component_name', key: 'component_name', render: (v) => <Text strong>{v || EMPTY}</Text> },
     {
       title: 'Requested',
       dataIndex: 'requested_amount',
       key: 'requested_amount',
       align: 'right',
-      render: (v) => formatMoney(v),
+      render: (v) => <MoneyText value={v} />,
     },
     {
       title: 'Approved',
       dataIndex: 'approved_amount',
       key: 'approved_amount',
       align: 'right',
-      render: (v) => formatMoney(v),
+      render: (v) => <MoneyText value={v} />,
     },
     {
       title: 'Status',
@@ -143,7 +144,7 @@ export function MyClaimsPanel() {
       dataIndex: 'amount',
       key: 'amount',
       align: 'right',
-      render: (v, row) => struck(row, formatMoney(v)),
+      render: (v, row) => struck(row, <MoneyText value={v} />),
     },
     { title: 'Reason', dataIndex: 'reason', key: 'reason', render: (v, row) => struck(row, v || EMPTY) },
     {

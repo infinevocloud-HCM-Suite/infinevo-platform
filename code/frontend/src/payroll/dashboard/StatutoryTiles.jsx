@@ -25,7 +25,7 @@ export function StatutoryTiles({ statutory, fy }) {
         const tile = statutory?.[t.key];
         return (
           <Col key={t.key} xs={24} sm={12} lg={6}>
-            <Card title={t.title} size="small" data-testid={`tile-${t.key}`}>
+            <Card variant="borderless" title={t.title} size="small" data-testid={`tile-${t.key}`}>
               <Descriptions column={1} size="small">
                 <Descriptions.Item label="Employee">{amount(tile?.employee)}</Descriptions.Item>
                 {t.employer && (

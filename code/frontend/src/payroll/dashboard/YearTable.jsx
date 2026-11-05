@@ -1,16 +1,19 @@
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
-import { Card, Table, Tag } from 'antd';
+import { Card, Table, Tag, Typography } from 'antd';
 
 import { runStatus } from './labels.js';
-import { formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
+import { formatDate, formatMonth } from '@shared/ui/format.js';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
+
+const { Text } = Typography;
 
 const statusCell = (s) => {
   const tag = runStatus(s);
   return <Tag color={tag.color}>{tag.label}</Tag>;
 };
 
-const money = (key, title) => ({ title, dataIndex: key, key, align: 'right', render: (v) => formatMoney(v) });
+const money = (key, title) => ({ title, dataIndex: key, key, align: 'right', render: (v) => <MoneyText value={v} /> });
 
 /**
  * The year's months and the recent runs (W-47.5 §5). The months footer is `year_totals` as the
@@ -24,7 +27,7 @@ export function YearTable({ months, yearTotals, recentRuns }) {
   });
 
   const monthColumns = [
-    { title: 'Period', dataIndex: 'period', key: 'period', render: (v) => formatMonth(v) },
+    { title: 'Period', dataIndex: 'period', key: 'period', render: (v) => <Text strong>{formatMonth(v)}</Text> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: statusCell },
     money('gross', 'Gross'),
     money('deductions', 'Deductions'),
@@ -33,7 +36,7 @@ export function YearTable({ months, yearTotals, recentRuns }) {
   ];
 
   const recentColumns = [
-    { title: 'Period', dataIndex: 'period', key: 'period', render: (v) => formatMonth(v) },
+    { title: 'Period', dataIndex: 'period', key: 'period', render: (v) => <Text strong>{formatMonth(v)}</Text> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: statusCell },
     { title: 'Pay date', dataIndex: 'pay_date', key: 'pay_date', render: (v) => formatDate(v) },
     money('net_pay', 'Net pay'),
@@ -41,7 +44,7 @@ export function YearTable({ months, yearTotals, recentRuns }) {
 
   return (
     <>
-      <Card title="This year" style={{ marginBottom: 16 }}>
+      <Card variant="borderless" title="This year" style={{ marginBottom: 16 }}>
         <Table
           rowKey="payrun_id"
           size="small"
@@ -57,23 +60,23 @@ export function YearTable({ months, yearTotals, recentRuns }) {
                   <strong>Paid ({yearTotals.paid_runs} runs)</strong>
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={2} align="right">
-                  {formatMoney(yearTotals.gross)}
+                  <MoneyText value={yearTotals.gross} />
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={3} align="right">
-                  {formatMoney(yearTotals.deductions)}
+                  <MoneyText value={yearTotals.deductions} />
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={4} align="right">
-                  {formatMoney(yearTotals.tax)}
+                  <MoneyText value={yearTotals.tax} />
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={5} align="right">
-                  {formatMoney(yearTotals.net_pay)}
+                  <MoneyText value={yearTotals.net_pay} />
                 </Table.Summary.Cell>
               </Table.Summary.Row>
             ) : null
           }
         />
       </Card>
-      <Card title="Recent runs">
+      <Card variant="borderless" title="Recent runs">
         <Table
           rowKey="payrun_id"
           size="small"

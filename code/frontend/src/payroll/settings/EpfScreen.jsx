@@ -172,6 +172,7 @@ export function EpfScreen() {
 
   return (
     <Card
+      variant="borderless"
       title={
         <Space>
           <SafetyCertificateOutlined style={{ color: token.colorPrimary }} />

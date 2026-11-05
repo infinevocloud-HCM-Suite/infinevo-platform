@@ -19,12 +19,12 @@ import {
   Modal,
   DatePicker,
   Form,
+  theme,
 } from 'antd';
 import {
   LockOutlined,
   PlayCircleOutlined,
   CloseCircleOutlined,
-  ArrowLeftOutlined,
   ReloadOutlined,
   CheckCircleOutlined,
   DollarOutlined,
@@ -33,11 +33,12 @@ import {
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
 import { formatDate, formatMoney, formatMonth } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { payrunService } from './payrunService.js';
 import { startPolling, stopPolling, setRun } from './payrunSlice.js';
 import { RunEmployees } from './RunEmployees.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const STATUS_COLOR_MAP = {
   DRAFT: 'default',
@@ -83,6 +84,7 @@ function approverOf(run) {
 }
 
 export function RunPage() {
+  const { token } = theme.useToken();
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -276,131 +278,118 @@ export function RunPage() {
         ]}
       />
 
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          gap: 16,
-        }}
-      >
-        <Space align="center">
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/payroll/runs')}>
-            Runs
-          </Button>
-          <Title level={3} style={{ margin: 0 }}>
-            Pay Run — {formatMonth(run.period)}
-          </Title>
-          <Tag color={STATUS_COLOR_MAP[status] || 'default'} style={{ fontSize: 14, padding: '4px 10px' }}>
-            {status}
-          </Tag>
-          <Tag color={run.run_type === 'OFF_CYCLE' || run.runType === 'OFF_CYCLE' ? 'purple' : 'blue'}>
-            {run.run_type || run.runType || 'REGULAR'}
-          </Tag>
-        </Space>
-
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={fetchRun} loading={actionLoading}>
-            Refresh
-          </Button>
-
-          <Popconfirm
-            title="Lock this pay run?"
-            description="Locking freezes pay inputs and prepares the run for computation."
-            onConfirm={handleLock}
-            okText="Lock"
-            cancelText="Cancel"
-            disabled={!canLock}
-          >
-            <Button
-              icon={<LockOutlined />}
-              disabled={!canLock}
-              loading={actionLoading}
-            >
-              Lock
+      <PageHeader
+        title={`Pay Run — ${formatMonth(run.period)}`}
+        onBack={() => navigate('/payroll/runs')}
+        backLabel="Runs"
+        actions={
+          <Space wrap>
+            <Tag color={STATUS_COLOR_MAP[status] || 'default'} style={{ fontSize: 14, padding: '4px 10px' }}>
+              {status}
+            </Tag>
+            <Tag color={run.run_type === 'OFF_CYCLE' || run.runType === 'OFF_CYCLE' ? 'purple' : 'blue'}>
+              {run.run_type || run.runType || 'REGULAR'}
+            </Tag>
+            <Button icon={<ReloadOutlined />} onClick={fetchRun} loading={actionLoading}>
+              Refresh
             </Button>
-          </Popconfirm>
 
-          <Popconfirm
-            title="Compute pay run?"
-            description={
-              staleComputing
-                ? 'The previous compute attempt timed out. Recompute now?'
-                : 'Run async computation for all included employees?'
-            }
-            onConfirm={handleCompute}
-            okText="Compute"
-            cancelText="Cancel"
-            disabled={!canCompute}
-          >
+            <Popconfirm
+              title="Lock this pay run?"
+              description="Locking freezes pay inputs and prepares the run for computation."
+              onConfirm={handleLock}
+              okText="Lock"
+              cancelText="Cancel"
+              disabled={!canLock}
+            >
+              <Button
+                icon={<LockOutlined />}
+                disabled={!canLock}
+                loading={actionLoading}
+              >
+                Lock
+              </Button>
+            </Popconfirm>
+
+            <Popconfirm
+              title="Compute pay run?"
+              description={
+                staleComputing
+                  ? 'The previous compute attempt timed out. Recompute now?'
+                  : 'Run async computation for all included employees?'
+              }
+              onConfirm={handleCompute}
+              okText="Compute"
+              cancelText="Cancel"
+              disabled={!canCompute}
+            >
+              <Button
+                type="primary"
+                icon={<PlayCircleOutlined />}
+                disabled={!canCompute}
+                loading={actionLoading}
+              >
+                Compute
+              </Button>
+            </Popconfirm>
+
+            <Popconfirm
+              title="Approve this pay run?"
+              description="Approving freezes the computed figures. The run can no longer be recomputed."
+              onConfirm={handleApprove}
+              okText="Approve"
+              cancelText="Back"
+              disabled={!canApprove}
+            >
+              <Button
+                icon={<CheckCircleOutlined />}
+                disabled={!canApprove}
+                loading={actionLoading}
+              >
+                Approve
+              </Button>
+            </Popconfirm>
+
             <Button
               type="primary"
-              icon={<PlayCircleOutlined />}
-              disabled={!canCompute}
+              icon={<DollarOutlined />}
+              disabled={!canPay}
               loading={actionLoading}
+              onClick={openPayModal}
             >
-              Compute
+              Pay
             </Button>
-          </Popconfirm>
 
-          <Popconfirm
-            title="Approve this pay run?"
-            description="Approving freezes the computed figures. The run can no longer be recomputed."
-            onConfirm={handleApprove}
-            okText="Approve"
-            cancelText="Back"
-            disabled={!canApprove}
-          >
-            <Button
-              icon={<CheckCircleOutlined />}
-              disabled={!canApprove}
-              loading={actionLoading}
-            >
-              Approve
-            </Button>
-          </Popconfirm>
-
-          <Button
-            type="primary"
-            icon={<DollarOutlined />}
-            disabled={!canPay}
-            loading={actionLoading}
-            onClick={openPayModal}
-          >
-            Pay
-          </Button>
-
-          <Popconfirm
-            title="Cancel this pay run?"
-            description="Are you sure you want to cancel this pay run? This action cannot be undone."
-            onConfirm={handleCancel}
-            okText="Yes, Cancel"
-            cancelText="No"
-            okButtonProps={{ danger: true }}
-            disabled={!canCancel}
-          >
-            <Button
-              danger
-              icon={<CloseCircleOutlined />}
+            <Popconfirm
+              title="Cancel this pay run?"
+              description="Are you sure you want to cancel this pay run? This action cannot be undone."
+              onConfirm={handleCancel}
+              okText="Yes, Cancel"
+              cancelText="No"
+              okButtonProps={{ danger: true }}
               disabled={!canCancel}
-              loading={actionLoading}
             >
-              Cancel
-            </Button>
-          </Popconfirm>
+              <Button
+                danger
+                icon={<CloseCircleOutlined />}
+                disabled={!canCancel}
+                loading={actionLoading}
+              >
+                Cancel
+              </Button>
+            </Popconfirm>
 
-          <Button
-            icon={<DownloadOutlined />}
-            loading={exportLoading}
-            onClick={handleExport}
-            data-testid="export-payrun-button"
-          >
-            Export to Excel
-          </Button>
-        </Space>
-      </div>
+            <Button
+              icon={<DownloadOutlined />}
+              loading={exportLoading}
+              onClick={handleExport}
+              data-testid="export-payrun-button"
+            >
+              Export to Excel
+            </Button>
+          </Space>
+        }
+      />
 
       {status === 'FAILED' && (
         <Alert
@@ -464,7 +453,7 @@ export function RunPage() {
       </Modal>
 
       {isComputing && (
-        <Card style={{ marginBottom: 24, background: '#f6ffed', borderColor: '#b7eb8f' }}>
+        <Card variant="borderless" style={{ marginBottom: 24, background: token.colorSuccessBg, borderColor: token.colorSuccessBorder }}>
           <Space direction="vertical" style={{ width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong>
@@ -483,19 +472,19 @@ export function RunPage() {
         </Card>
       )}
 
-      <Card style={{ marginBottom: 24 }}>
+      <Card variant="borderless" style={{ marginBottom: 24 }}>
         <Descriptions column={{ xs: 1, sm: 2, md: 4 }} bordered size="small">
           <Descriptions.Item label="Period">{formatMonth(run.period)}</Descriptions.Item>
           <Descriptions.Item label="Pay Date">
             {formatDate(run.pay_date || run.payDate)}
           </Descriptions.Item>
           <Descriptions.Item label="Included Employees">
-            <Text strong style={{ color: '#52c41a' }}>
+            <Text strong style={{ color: token.colorSuccess }}>
               {run.included_count !== undefined ? run.included_count : run.includedCount || 0}
             </Text>
           </Descriptions.Item>
           <Descriptions.Item label="Skipped Employees">
-            <Text strong style={{ color: '#fa8c16' }}>
+            <Text strong style={{ color: token.colorWarning }}>
               {run.skipped_count !== undefined ? run.skipped_count : run.skippedCount || 0}
             </Text>
           </Descriptions.Item>
@@ -516,29 +505,29 @@ export function RunPage() {
         {isComputed && (
           <Row gutter={16} style={{ marginTop: 20 }}>
             <Col xs={24} sm={8}>
-              <Card type="inner" style={{ textAlign: 'center' }}>
+              <Card type="inner" variant="borderless" style={{ textAlign: 'center' }}>
                 <Statistic
                   title="Total Gross"
                   value={formatMoney(totalGross)}
-                  valueStyle={{ color: '#1677ff' }}
+                  valueStyle={{ color: token.colorPrimary }}
                 />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card type="inner" style={{ textAlign: 'center' }}>
+              <Card type="inner" variant="borderless" style={{ textAlign: 'center' }}>
                 <Statistic
                   title="Total Deductions"
                   value={formatMoney(totalDeductions)}
-                  valueStyle={{ color: '#ff4d4f' }}
+                  valueStyle={{ color: token.colorError }}
                 />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card type="inner" style={{ textAlign: 'center' }}>
+              <Card type="inner" variant="borderless" style={{ textAlign: 'center' }}>
                 <Statistic
                   title="Total Net Pay"
                   value={formatMoney(totalNet)}
-                  valueStyle={{ color: '#52c41a', fontWeight: 'bold' }}
+                  valueStyle={{ color: token.colorSuccess }}
                 />
               </Card>
             </Col>

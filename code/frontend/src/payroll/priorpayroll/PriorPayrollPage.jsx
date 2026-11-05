@@ -17,12 +17,11 @@ import { useCan } from '@shell/screens';
 import { priorPayrollService } from './priorPayrollService';
 import { MidYearBanner } from './MidYearBanner';
 import { currentFy, fyOptions } from '../tax/financialYear';
-import { formatDateTime, formatMoney, formatMonth, statusLabel } from '@shared/ui/format.js';
+import { formatDateTime, formatMonth, statusLabel } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
+import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
-const { Title } = Typography;
-
-// Amounts go through the shared helper: rupee sign, Indian grouping, no float (D-78).
-const formatCurrency = (val) => formatMoney(val);
+const { Text } = Typography;
 
 const fileKey = (f) => (f ? `${f.name}:${f.size}:${f.lastModified}` : '');
 
@@ -239,7 +238,7 @@ export function PriorPayrollPage() {
     {
       title: 'Employee',
       key: 'employee',
-      render: (_, r) => `${r.employee_number} - ${r.employee_name}`,
+      render: (_, r) => <Text strong>{`${r.employee_number} - ${r.employee_name}`}</Text>,
     },
     {
       title: 'Period',
@@ -251,37 +250,43 @@ export function PriorPayrollPage() {
       title: 'Gross',
       dataIndex: 'gross_earnings',
       key: 'gross_earnings',
-      render: formatCurrency,
+      align: 'right',
+      render: (v) => <MoneyText value={v} />,
     },
     {
       title: 'EPF',
       dataIndex: 'epf_employee',
       key: 'epf_employee',
-      render: formatCurrency,
+      align: 'right',
+      render: (v) => <MoneyText value={v} />,
     },
     {
       title: 'ESI',
       dataIndex: 'esi_employee',
       key: 'esi_employee',
-      render: formatCurrency,
+      align: 'right',
+      render: (v) => <MoneyText value={v} />,
     },
     {
       title: 'PT',
       dataIndex: 'professional_tax',
       key: 'professional_tax',
-      render: formatCurrency,
+      align: 'right',
+      render: (v) => <MoneyText value={v} />,
     },
     {
       title: 'TDS',
       dataIndex: 'tds',
       key: 'tds',
-      render: formatCurrency,
+      align: 'right',
+      render: (v) => <MoneyText value={v} />,
     },
     {
       title: 'Net',
       dataIndex: 'net_pay',
       key: 'net_pay',
-      render: formatCurrency,
+      align: 'right',
+      render: (v) => <MoneyText value={v} />,
     },
   ];
 
@@ -307,22 +312,28 @@ export function PriorPayrollPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <MidYearBanner key={bannerKey} fy={fy} />
+      <PageHeader
+        title="Prior Payroll"
+        breadcrumbs={[
+          { label: 'Payroll', to: '/payroll' },
+          { label: 'Prior Payroll' },
+        ]}
+        actions={
+          <Space>
+            <Select
+              value={fy}
+              onChange={handleFyChange}
+              options={fyOptions(2)}
+              style={{ width: 140 }}
+            />
+            <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>
+              Download template
+            </Button>
+          </Space>
+        }
+      />
 
-      <Space align="center" style={{ marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>
-          Prior payroll
-        </Title>
-        <Select
-          value={fy}
-          onChange={handleFyChange}
-          options={fyOptions(2)}
-          style={{ width: 140 }}
-        />
-        <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>
-          Download template
-        </Button>
-      </Space>
+      <MidYearBanner key={bannerKey} fy={fy} />
 
       {error && (
         <Alert
@@ -346,7 +357,7 @@ export function PriorPayrollPage() {
         />
       )}
 
-      <Card title="Upload prior payroll" style={{ marginBottom: 24 }}>
+      <Card variant="borderless" title="Upload prior payroll" style={{ marginBottom: 24 }}>
         <Space direction="vertical" style={{ width: '100%' }}>
           <Upload
             accept=".csv"
@@ -386,6 +397,7 @@ export function PriorPayrollPage() {
 
           {checked?.result && (
             <Card
+              variant="borderless"
               size="small"
               type="inner"
               title="File check result"
@@ -417,7 +429,7 @@ export function PriorPayrollPage() {
         </Space>
       </Card>
 
-      <Card title="Import history" style={{ marginBottom: 24 }}>
+      <Card variant="borderless" title="Import history" style={{ marginBottom: 24 }}>
         <Table
           rowKey="id"
           columns={historyColumns}
@@ -432,7 +444,7 @@ export function PriorPayrollPage() {
         />
       </Card>
 
-      <Card title="Imported months">
+      <Card variant="borderless" title="Imported months">
         <Table
           rowKey="id"
           columns={monthsColumns}

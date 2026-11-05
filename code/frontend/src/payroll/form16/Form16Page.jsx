@@ -30,8 +30,9 @@ import { form16Service } from './form16Service';
 import { Form16StatementView } from './Form16StatementView';
 import { EmployeeSelect } from '../claims/EmployeeSelect';
 import { formatDate } from '../claims/claimLabels';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 const { Dragger } = Upload;
 
 export function Form16Page() {
@@ -207,31 +208,22 @@ export function Form16Page() {
 
   return (
     <div style={{ padding: token.paddingLG }} data-testid="form16-page">
-      {/* Header Bar */}
-      <div style={{ marginBottom: token.marginLG }}>
-        <Row justify="space-between" align="middle" gutter={[16, 16]}>
-          <Col xs={24} md={16}>
-            <Title level={2} style={{ margin: 0 }}>
-              Form 16 Tax Management
-            </Title>
-            <Text type="secondary">
-              Generate employee annual tax deduction statements (Part B) and manage TRACES certificate archives (Part A).
-            </Text>
-          </Col>
-          <Col xs={24} md={8} style={{ textAlign: 'right' }}>
-            <Space>
-              <Text strong>Financial Year:</Text>
-              <Select
-                value={selectedFy}
-                onChange={handleFyChange}
-                options={fyOptions()}
-                style={{ width: 140 }}
-                aria-label="Select Financial Year"
-              />
-            </Space>
-          </Col>
-        </Row>
-      </div>
+      <PageHeader
+        title="Form 16 Tax Management"
+        subtitle="Generate employee annual tax deduction statements (Part B) and manage TRACES certificate archives (Part A)."
+        actions={
+          <Space>
+            <Text strong>Financial Year:</Text>
+            <Select
+              value={selectedFy}
+              onChange={handleFyChange}
+              options={fyOptions()}
+              style={{ width: 140 }}
+              aria-label="Select Financial Year"
+            />
+          </Space>
+        }
+      />
 
       <Tabs
         activeKey={activeTab}
@@ -248,7 +240,7 @@ export function Form16Page() {
             ),
             children: (
               <div>
-                <Card style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
+                <Card variant="borderless" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
                   <Row gutter={[16, 16]} align="middle">
                     <Col xs={24} sm={16} md={18}>
                       <Space orientation="vertical" size="small" style={{ width: '100%' }}>
@@ -322,7 +314,7 @@ export function Form16Page() {
             children: (
               <div>
                 {/* Upload Card */}
-                <Card title="Upload TRACES ZIP Archive" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
+                <Card variant="borderless" title="Upload TRACES ZIP Archive" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
                   <Paragraph type="secondary">
                     Upload the official TRACES Form 16 Part A zip archive downloaded from the Income Tax portal for FY {selectedFy}.
                     The archive will be unpacked, validated, and mapped directly to active employees by PAN.
@@ -393,6 +385,7 @@ export function Form16Page() {
 
                 {/* Certificates Table */}
                 <Card
+                  variant="borderless"
                   title={`Uploaded Part A Certificates — FY ${selectedFy}`}
                   style={{ borderRadius: token.borderRadiusLG }}
                 >
