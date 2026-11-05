@@ -22,8 +22,8 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { leaveTypeService } from './leaveTypeService.js';
 import { PolicyForm } from './PolicyForm.jsx';
 import { formatDate, humanize } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title } = Typography;
 
 /** ExceedBalanceMode as the server sends it (@JsonValue, D-70), and how the summary names it. */
 const EXCEED_BALANCE_LABELS = {
@@ -228,15 +228,13 @@ export function LeaveTypes() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4} style={{ margin: 0 }}>
-            Leave Types
-          </Title>
-        </Col>
-        <Col>
-          {canManage && (
+    <Card variant="borderless">
+      <PageHeader
+        title="Leave Types"
+        subtitle="Configure leave categories, accrual rules, and policy constraints"
+        count={`${types.length} leave types`}
+        actions={
+          canManage && (
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -244,9 +242,9 @@ export function LeaveTypes() {
             >
               Add Leave Type
             </Button>
-          )}
-        </Col>
-      </Row>
+          )
+        }
+      />
 
       <Table
         rowKey="id"

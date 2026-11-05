@@ -1,6 +1,6 @@
 # Shared Frontend Conventions
 
-> **W-45 Architecture Guide.** Follow these guidelines for all screen and module implementations (`W-46`–`W-48`).
+> **W-45 Architecture Guide.** Follow these guidelines for all screen and module implementations (`W-46`–`W-48`, `W-83.1`).
 
 ---
 
@@ -100,7 +100,11 @@ export function MyComponent() {
   );
 }
 ```
-**Never write literal hex values** (e.g. `#1677ff`) or pixel literals directly in screen styles.
+**Never write literal hex values** (e.g. `#1677ff`) or pixel literals directly in screen styles. Enforced by ESLint rule `no-restricted-syntax` (`Literal[value=/#[0-9a-fA-F]{3,8}\b/]`).
+
+### Shared UI Pieces (`W-83.1`)
+- **`PageHeader`** (`@shared/ui/PageHeader.jsx`): All screen headers use `PageHeader` for `title` (level 4), `subtitle`, `count` badge (real data counts only), `onBack` navigation, and `actions`. It wraps automatically (`flexWrap: 'wrap'`) for phone browsers (`W-80.1`).
+- **`MoneyText`** (`@shared/ui/MoneyText.jsx`): All currency displays use `MoneyText` to render `formatMoney` output with `fontVariantNumeric: 'tabular-nums'` so numbers align evenly across columns.
 
 ---
 
@@ -121,10 +125,11 @@ For lightweight inline hints, use Ant Design's `message.info(...)`.
 
 ---
 
-## 6. The Three Forbidden Things
+## 6. Forbidden Patterns & Boundary Rules
 
 | Forbidden Pattern | Why It Is Forbidden | ESLint Rule Enforcing It |
 |---|---|---|
 | **Direct `axios` import** | Bypasses auth token injection, base URL config, and error envelope handling. | `no-restricted-imports` (allowed only in `src/shared/api/client.js`) |
 | **Direct `localStorage` / `sessionStorage`** | Violates token abstraction; leads to desynchronized state and security issues. | `no-restricted-globals` & `no-restricted-syntax` |
 | **Cross-module import** | Violates module boundaries (e.g. `@hrms` importing from `@payroll`). Modules must only depend on `@shared` and `@core`. | `no-restricted-imports` per module folder |
+| **Hard-coded hex colours** | Breaks design system single-source-of-truth; makes redesigns cost 150+ file edits. | `no-restricted-syntax` (`Literal[value=/#[0-9a-fA-F]{3,8}\b/]`) |

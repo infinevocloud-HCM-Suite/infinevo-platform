@@ -9,7 +9,6 @@ import {
   Card,
   Tag,
   Select,
-  theme,
 } from 'antd';
 import { CheckOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
 import { useCan, useHasModule, NotEntitled } from '@shell/screens';
@@ -20,8 +19,9 @@ import { DecideModal } from './DecideModal.jsx';
 import { getItemRoute } from './itemRoutes.js';
 import { flowTypesFor } from './flowTypes.js';
 import { formatDate, humanize } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const FLOW_TYPE_COLORS = {
   LEAVE: 'blue',
@@ -40,8 +40,7 @@ const formatSummary = (str) => {
 };
 
 export function Inbox() {
-  const { token } = theme.useToken();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
   const dispatch = useDispatch();
   const canDecide = useCan('core.approval.decide');
   const hasHrms = useHasModule('HRMS');
@@ -213,34 +212,23 @@ export function Inbox() {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 4 }}>
-            Pending Approvals
-          </Title>
-          <Text type="secondary">
-            Review and decide requests waiting on your approval.
-          </Text>
-        </div>
-
-        <Select
-          id="select-flow-type-filter"
-          allowClear
-          placeholder="Filter by Flow Type"
-          style={{ width: 220 }}
-          value={flowTypeFilter}
-          onChange={(val) => setFlowTypeFilter(val)}
-          options={filterOptions}
-        />
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Pending Approvals"
+        subtitle="Review and decide requests waiting on your approval."
+        count={`${total} pending`}
+        actions={
+          <Select
+            id="select-flow-type-filter"
+            allowClear
+            placeholder="Filter by Flow Type"
+            style={{ width: 220 }}
+            value={flowTypeFilter}
+            onChange={(val) => setFlowTypeFilter(val)}
+            options={filterOptions}
+          />
+        }
+      />
 
       <Table
         dataSource={filteredData}

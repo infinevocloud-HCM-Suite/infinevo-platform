@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { Card, Form, DatePicker, Switch, Radio, Input, Button, Space, Typography, Alert, Row, Col, theme } from 'antd';
-import { ArrowLeftOutlined, SendOutlined, CheckCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { SendOutlined, CheckCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { wfhService } from '../wfh/wfhService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
@@ -120,17 +121,12 @@ export function ApplyWfh({ onSuccess }) {
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: token.paddingMD }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/me/wfh')}
-            data-testid="back-to-wfh-btn"
-          >
-            Back to WFH
-          </Button>
-          <Title level={3} style={{ margin: 0 }}>Apply for Work From Home</Title>
-          <div style={{ width: 80 }} />
-        </div>
+        <PageHeader
+          title="Apply for Work From Home"
+          onBack={() => navigate('/me/wfh')}
+          backLabel="Back to WFH"
+          backProps={{ 'data-testid': 'back-to-wfh-btn' }}
+        />
 
         {!hasAllocation && balance && (
           <Alert
@@ -138,7 +134,7 @@ export function ApplyWfh({ onSuccess }) {
             showIcon
             message="No WFH Quota Allocated"
             description="You do not have an active WFH quota allocated for this year. Submissions are disabled until HR allocates quota."
-            style={{ borderRadius: token.borderRadiusLG }}
+            style={{ borderRadius: 12 }}
             data-testid="no-allocation-warning"
           />
         )}
@@ -169,13 +165,7 @@ export function ApplyWfh({ onSuccess }) {
           />
         )}
 
-        <Card
-          data-testid="apply-wfh-card"
-          style={{
-            borderRadius: token.borderRadiusLG,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-          }}
-        >
+        <Card data-testid="apply-wfh-card" variant="borderless">
           <Form
             form={form}
             layout="vertical"

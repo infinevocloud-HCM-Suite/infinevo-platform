@@ -19,8 +19,9 @@ import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { formatDate, toTitleCase } from '@shared/ui/format.js';
 import { invalidateMasters } from '../employee/employeeSlice.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function MasterTable({ title, service }) {
   const { token } = theme.useToken();
@@ -291,13 +292,11 @@ export function MasterTable({ title, service }) {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <div style={{ marginBottom: token.marginLG }}>
-        <Title level={3} style={{ marginBottom: 4 }}>
-          {title}
-        </Title>
-        <Text type="secondary">Manage your organization&apos;s {title.toLowerCase()} catalogue.</Text>
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title={title}
+        subtitle={`Manage your organization's ${title.toLowerCase()} catalogue.`}
+      />
 
       {canManage && (
         <Card
@@ -320,7 +319,7 @@ export function MasterTable({ title, service }) {
               placeholder="Name (e.g. Engineering)"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              style={{ width: 260 }}
+              style={{ width: 260, borderRadius: 8 }}
               id="input-new-name"
             />
             <Button
@@ -330,6 +329,11 @@ export function MasterTable({ title, service }) {
               disabled={!newCode.trim() || !newName.trim()}
               onClick={handleAdd}
               id="btn-add-master"
+              style={{
+                borderRadius: 8,
+                fontWeight: 500,
+                boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+              }}
             >
               Add {title}
             </Button>

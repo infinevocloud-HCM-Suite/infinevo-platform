@@ -48,7 +48,7 @@ export function EditOwnSection({ employeeId: propEmployeeId }) {
 
   if (loading) {
     return (
-      <Card style={{ borderRadius: token.borderRadiusLG, marginTop: token.marginLG }}>
+      <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG, marginTop: token.marginLG }}>
         <Spin spinning />
       </Card>
     );
@@ -95,6 +95,7 @@ export function EditOwnSection({ employeeId: propEmployeeId }) {
 
   return (
     <Card
+      variant="borderless"
       style={{
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadowTertiary,

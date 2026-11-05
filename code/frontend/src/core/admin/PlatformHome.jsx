@@ -1,3 +1,4 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -21,7 +22,7 @@ import { tenantService } from './tenantService.js';
 import { STATUS_COLORS } from './platform.js';
 import { formatDate, statusLabel, statusTag } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const INVITATION_TAGS = {
   PENDING: { color: 'blue', label: 'Pending' },
@@ -84,17 +85,15 @@ export function PlatformHome() {
   );
 
   const header = (
-    <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: token.marginMD }}>
-      <Title level={3} style={{ margin: 0 }}>
-        Dashboard
-      </Title>
-      {createButton}
-    </Space>
+    <PageHeader
+      title="Dashboard"
+      actions={createButton}
+    />
   );
 
   if (error) {
     return (
-      <Card>
+      <Card variant="borderless">
         {header}
         <Result
           status="error"
@@ -112,7 +111,7 @@ export function PlatformHome() {
 
   if (loading && !data) {
     return (
-      <Card>
+      <Card variant="borderless">
         {header}
         <div style={{ textAlign: 'center', padding: 48 }}>
           <Spin aria-label="Loading" />
@@ -128,7 +127,7 @@ export function PlatformHome() {
 
   if (total === 0) {
     return (
-      <Card>
+      <Card variant="borderless">
         {header}
         <Empty description="No tenants yet. Create the first one to get started.">{createButton}</Empty>
       </Card>
@@ -201,12 +200,12 @@ export function PlatformHome() {
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Card>
+      <Card variant="borderless">
         {header}
         <Row gutter={[token.marginMD, token.marginMD]}>
           {tiles.map((tile) => (
             <Col key={tile.key} xs={24} sm={12} lg={6}>
-              <Card size="small" data-testid={`tile-${tile.key}`}>
+              <Card size="small" variant="borderless" data-testid={`tile-${tile.key}`}>
                 <Statistic title={tile.title} value={tile.value} />
               </Card>
             </Col>
@@ -218,7 +217,7 @@ export function PlatformHome() {
           </Text>
         )}
       </Card>
-      <Card title="Needs attention">
+      <Card variant="borderless" title="Needs attention">
         <Table
           rowKey="id"
           columns={waitingColumns}

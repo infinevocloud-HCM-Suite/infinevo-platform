@@ -254,4 +254,29 @@ describe('EmployeeList component', () => {
       expect(successMsg).toHaveBeenCalledWith('Export downloaded', expect.stringContaining('53'));
     });
   });
+
+  it('filtered to Terminated, the badge reads "N employees" and Active appears nowhere in it (W-83.2)', async () => {
+    employeeService.list.mockResolvedValue({
+      content: [
+        {
+          id: 'emp-2',
+          employeeNumber: 'E-102',
+          firstName: 'Ramesh',
+          lastName: 'Kumar',
+          status: 'TERMINATED',
+          workEmail: 'ramesh@work.com',
+          departmentId: 'd-1',
+          dateOfJoining: '2025-01-01',
+        },
+      ],
+      totalElements: 1,
+    });
+
+    renderWithStore(<EmployeeList />);
+    await waitFor(() => {
+      const badge = screen.getByText('1 employees');
+      expect(badge).toBeTruthy();
+      expect(screen.queryByText(/Active Staff/i)).toBeNull();
+    });
+  });
 });

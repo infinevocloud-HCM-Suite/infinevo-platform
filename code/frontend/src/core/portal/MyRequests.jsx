@@ -233,6 +233,7 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
         loading={loading}
         pagination={{ pageSize: 10 }}
         locale={{ emptyText: 'No leave requests submitted yet.' }}
+        style={{ border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadiusLG, overflow: 'hidden' }}
       />
 
       <Modal

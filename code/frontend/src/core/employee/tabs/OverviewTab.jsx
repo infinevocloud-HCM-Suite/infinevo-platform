@@ -308,7 +308,12 @@ export function OverviewTab({ employee, onUpdate }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: token.margin }}>
         {canUpdate && (
-          <Button icon={<EditOutlined />} onClick={() => setIsEditing(true)} id="btn-edit-overview">
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => setIsEditing(true)}
+            id="btn-edit-overview"
+            style={{ borderRadius: 8, fontWeight: 500 }}
+          >
             Edit Details
           </Button>
         )}

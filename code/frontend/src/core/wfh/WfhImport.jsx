@@ -1,12 +1,13 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useState, useEffect } from 'react';
 import { Card, Upload, Button, Switch, Input, Table, Alert, Space, Typography, Tag, Row, Col, theme } from 'antd';
-import { UploadOutlined, DownloadOutlined, InboxOutlined, FileTextOutlined } from '@ant-design/icons';
+import { UploadOutlined, DownloadOutlined, InboxOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { wfhService } from './wfhService.js';
 import { formatDate } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Dragger } = Upload;
 
 export function WfhImport() {
@@ -151,20 +152,12 @@ export function WfhImport() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
+    <Card variant="borderless">
       <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Title level={4} style={{ margin: 0 }}>
-              <FileTextOutlined style={{ marginRight: 8 }} />
-              Bulk WFH Quota Import
-            </Title>
-            <Text type="secondary">
-              Upload annual quota allocations for multiple employees via CSV. Dry run validates records without saving.
-            </Text>
-          </Col>
-
-          <Col>
+        <PageHeader
+          title="Bulk WFH Quota Import"
+          subtitle="Upload annual quota allocations for multiple employees via CSV. Dry run validates records without saving."
+          actions={
             <Button
               icon={<DownloadOutlined />}
               onClick={handleDownloadTemplate}
@@ -172,10 +165,10 @@ export function WfhImport() {
             >
               Download CSV Template
             </Button>
-          </Col>
-        </Row>
+          }
+        />
 
-        <Card type="inner" title="Import Configuration" style={{ borderRadius: token.borderRadiusLG }}>
+        <Card type="inner" variant="borderless" title="Import Configuration" style={{ borderRadius: token.borderRadiusLG }}>
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Row gutter={16} align="middle">
               <Col xs={24} sm={8}>
@@ -254,7 +247,7 @@ export function WfhImport() {
           </Space>
         </Card>
 
-        <Card type="inner" title="Past Import History" style={{ borderRadius: token.borderRadiusLG }}>
+        <Card type="inner" variant="borderless" title="Past Import History" style={{ borderRadius: token.borderRadiusLG }}>
           <Table
             dataSource={logs}
             columns={logColumns}

@@ -1,3 +1,4 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useEffect, useState } from 'react';
 import { Formik, Form as FormikForm } from 'formik';
 import * as Yup from 'yup';
@@ -9,7 +10,7 @@ import { companyProfileService } from './companyProfileService.js';
 import { documentService } from '../document/documentService.js';
 import { logoFileProblem, resizeLogo } from './logoImage.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const TAGLINE_MAX = 80;
 
@@ -124,13 +125,11 @@ export function CompanyProfile() {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: token.marginLG }}>
-        <Title level={3} style={{ margin: 0 }}>
-          Company profile
-        </Title>
-        <Text type="secondary">What everyone in {profile.name} sees in the header.</Text>
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Company profile"
+        subtitle={`What everyone in ${profile.name} sees in the header.`}
+      />
 
       <Formik
         enableReinitialize
@@ -143,7 +142,7 @@ export function CompanyProfile() {
       >
         {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setFieldValue }) => (
           <FormikForm>
-            <Card>
+            <Card variant="borderless">
               <Row gutter={[token.margin, token.margin]}>
                 <Col xs={24} md={12}>
                   <label htmlFor="company-name">
@@ -239,6 +238,6 @@ export function CompanyProfile() {
           </FormikForm>
         )}
       </Formik>
-    </div>
+    </Card>
   );
 }

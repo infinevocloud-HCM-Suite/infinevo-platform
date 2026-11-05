@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
-import { Card, Form, Button, Space, Typography, Alert, Spin, theme } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons';
+import { Card, Form, Button, Space, Alert, Spin, theme } from 'antd';
+import { SaveOutlined, SendOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { portalService } from '@shell/portal/portalService.js';
@@ -10,8 +10,8 @@ import { leaveTypeService } from '../leave/leaveTypeService.js';
 import { leaveRequestService } from '../leave/leaveRequestService.js';
 import { LeaveRequestFields, normalizeDocumentIds } from '../leave/LeaveRequestFields.jsx';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title } = Typography;
 
 export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSuccess }) {
   const navigate = useNavigate();
@@ -116,26 +116,18 @@ export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSucces
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: token.paddingLG }} data-testid="apply-leave-page">
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <Space align="center" style={{ marginBottom: token.marginMD }}>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/me/leave')}>
-            Back to Leave
-          </Button>
-          <Title level={3} style={{ margin: 0 }}>
-            Apply for Leave
-          </Title>
-        </Space>
+        <PageHeader
+          title="Apply for Leave"
+          onBack={() => navigate('/me/leave')}
+          backLabel="Back to Leave"
+        />
 
         {loading ? (
-          <Card style={{ borderRadius: token.borderRadiusLG, textAlign: 'center', padding: token.paddingXL }}>
+          <Card variant="borderless" style={{ textAlign: 'center', padding: token.paddingXL }}>
             <Spin size="large" tip="Loading eligible leave types..." />
           </Card>
         ) : (
-          <Card
-            style={{
-              borderRadius: token.borderRadiusLG,
-              boxShadow: token.boxShadowTertiary,
-            }}
-          >
+          <Card variant="borderless">
             {errorMessage && (
               <Alert
                 type="error"

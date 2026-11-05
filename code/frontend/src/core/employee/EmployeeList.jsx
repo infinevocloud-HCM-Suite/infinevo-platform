@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, Modal, theme } from 'antd';
-import { PlusOutlined, UserOutlined, UploadOutlined, MailOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, Modal, theme, Avatar } from 'antd';
+import { PlusOutlined, UploadOutlined, MailOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { employeeService } from './employeeService.js';
 import { employeeImportService } from './employeeImportService.js';
@@ -11,7 +12,7 @@ import { orgMasterService } from './orgMasterService.js';
 import { setMasters } from './employeeSlice.js';
 import { formatDate, statusLabel } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const statusColorMap = {
   ACTIVE: 'success',
@@ -133,17 +134,35 @@ export function EmployeeList() {
       title: 'Emp ID',
       dataIndex: 'employeeNumber',
       key: 'employeeNumber',
-      render: (num) => <Text strong>{num}</Text>,
+      render: (num) => (
+        <span style={{ fontWeight: 600, color: token.colorText, fontFamily: 'monospace' }}>
+          {num}
+        </span>
+      ),
     },
     {
       title: 'Name',
       key: 'name',
       render: (_, r) => {
         const fullName = [r.firstName, r.middleName, r.lastName].filter(Boolean).join(' ');
+        const initials = [r.firstName?.[0], r.lastName?.[0]].filter(Boolean).join('').toUpperCase() || 'U';
         return (
-          <Space size="small">
-            <UserOutlined style={{ color: token.colorPrimary }} />
-            <Text>{fullName}</Text>
+          <Space size="middle">
+            <Avatar
+              size={32}
+              style={{
+                backgroundColor: token.colorInfoBg,
+                color: token.colorInfoText,
+                fontWeight: 700,
+                fontSize: 12,
+                border: `1px solid ${token.colorInfoBorder}`,
+              }}
+            >
+              {initials}
+            </Avatar>
+            <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
+              <Text strong>{fullName}</Text>
+            </div>
           </Space>
         );
       },
@@ -152,7 +171,7 @@ export function EmployeeList() {
       title: 'Work Email',
       dataIndex: 'workEmail',
       key: 'workEmail',
-      render: (email) => email || '—',
+      render: (email) => (email ? <span>{email}</span> : <span style={{ color: token.colorTextSecondary }}>—</span>),
     },
     {
       title: 'Department',
@@ -191,41 +210,54 @@ export function EmployeeList() {
     },
   ];
 
+  const headerActions = (
+    <Space wrap>
+      {canExport && (
+        <Button
+          icon={<DownloadOutlined />}
+          onClick={handleExport}
+          loading={exporting}
+          id="btn-export-employees"
+        >
+          Export
+        </Button>
+      )}
+      {canCreate && (
+        <>
+          <Button
+            icon={<MailOutlined />}
+            onClick={handleInviteAll}
+            id="btn-invite-all"
+          >
+            Invite all without access
+          </Button>
+          <Button
+            icon={<UploadOutlined />}
+            onClick={() => navigate('/employees/import')}
+            id="btn-import-employees"
+          >
+            Import
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/employees/new')}
+            id="btn-new-employee"
+          >
+            New Employee
+          </Button>
+        </>
+      )}
+    </Space>
+  );
+
   return (
-    <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: token.marginLG }}>
-        <Title level={4} style={{ margin: 0 }}>Employees</Title>
-        <Space wrap>
-          {canExport && (
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={handleExport}
-              loading={exporting}
-              id="btn-export-employees"
-            >
-              Export
-            </Button>
-          )}
-          {canCreate && (
-            <>
-              <Button icon={<MailOutlined />} onClick={handleInviteAll} id="btn-invite-all">
-                Invite all without access
-              </Button>
-              <Button icon={<UploadOutlined />} onClick={() => navigate('/employees/import')} id="btn-import-employees">
-                Import
-              </Button>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => navigate('/employees/new')}
-                id="btn-new-employee"
-              >
-                New Employee
-              </Button>
-            </>
-          )}
-        </Space>
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Employees"
+        count={`${total} employees`}
+        actions={headerActions}
+      />
 
       <div style={{ display: 'flex', gap: token.margin, flexWrap: 'wrap', marginBottom: token.marginLG, alignItems: 'center' }}>
         <Input.Search
@@ -235,7 +267,7 @@ export function EmployeeList() {
             setSearchQuery(val);
             setPage(1);
           }}
-          style={{ width: 260 }}
+          style={{ width: 280 }}
           id="input-search-employees"
         />
 
@@ -282,7 +314,7 @@ export function EmployeeList() {
               Retry
             </Button>
           }
-          style={{ marginBottom: token.marginLG }}
+          style={{ marginBottom: token.marginLG, borderRadius: 8 }}
           id="alert-employees-load-error"
         />
       )}

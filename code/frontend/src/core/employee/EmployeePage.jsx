@@ -203,6 +203,7 @@ export function EmployeePage() {
   }
 
   const fullName = [employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ');
+  const initials = `${employee.firstName?.[0] || ''}${employee.lastName?.[0] || ''}`.toUpperCase() || 'EM';
   // Both suspended and terminated employees can be reactivated back to ACTIVE.
   const canReactivate = employee.status === 'SUSPENDED' || employee.status === 'TERMINATED';
   const canTerminate = employee.status === 'ACTIVE' || employee.status === 'SUSPENDED';
@@ -236,23 +237,44 @@ export function EmployeePage() {
   return (
     <div>
       {/* Header bar */}
-      <Card variant="borderless" style={{ marginBottom: token.marginLG, borderRadius: token.borderRadiusLG }}>
+      <Card variant="borderless" style={{ marginBottom: token.marginLG }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: token.marginSM }}>
           <Space size="middle">
             <Button
               type="text"
               icon={<ArrowLeftOutlined />}
               onClick={() => navigate('/employees')}
+              
             />
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: token.colorInfoBg,
+                color: token.colorInfoText,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 16,
+                fontWeight: 700,
+                border: `1px solid ${token.colorInfoBorder}`,
+                flexShrink: 0,
+              }}
+            >
+              {initials}
+            </div>
             <div>
               <Space align="center" size="small">
                 <Title level={4} style={{ margin: 0 }}>{fullName}</Title>
-                <Tag color={statusColorMap[employee.status] || 'default'}>{statusLabel(employee.status)}</Tag>
+                <Tag color={statusColorMap[employee.status] || 'default'}>
+                  {statusLabel(employee.status)}
+                </Tag>
                 {(!access || access?.state === 'NONE') && (
                   <>
                     <Tag id="tag-access">No access</Tag>
                     {canInvite && (
-                      <Button size="small" id="btn-invite-employee" onClick={handleInvite}>
+                      <Button size="small" id="btn-invite-employee" onClick={handleInvite} >
                         Invite
                       </Button>
                     )}
@@ -265,7 +287,7 @@ export function EmployeePage() {
                     </Tag>
                     {canInvite && (
                       <>
-                        <Button size="small" id="btn-resend-invitation" onClick={handleResend}>
+                        <Button size="small" id="btn-resend-invitation" onClick={handleResend} >
                           Resend
                         </Button>
                         <Popconfirm
@@ -274,7 +296,7 @@ export function EmployeePage() {
                           okButtonProps={{ danger: true, id: 'btn-confirm-revoke-invitation' }}
                           onConfirm={handleRevoke}
                         >
-                          <Button size="small" danger id="btn-revoke-invitation">
+                          <Button size="small" danger id="btn-revoke-invitation" >
                             Revoke
                           </Button>
                         </Popconfirm>
@@ -304,6 +326,7 @@ export function EmployeePage() {
                 icon={<CalendarOutlined />}
                 onClick={() => navigate(`/employees/${id}/leave`)}
                 id="btn-employee-leave"
+                
               >
                 Leave
               </Button>
@@ -314,6 +337,7 @@ export function EmployeePage() {
                 icon={<MailOutlined />}
                 onClick={handleInvite}
                 id="btn-send-employee-invitation"
+                
               >
                 Send Invitation
               </Button>
@@ -324,6 +348,7 @@ export function EmployeePage() {
                 icon={<MailOutlined />}
                 onClick={handleResend}
                 id="btn-resend-employee-invitation"
+                
               >
                 Resend Invitation
               </Button>
@@ -335,6 +360,7 @@ export function EmployeePage() {
                 icon={<CheckCircleOutlined />}
                 onClick={handleReactivate}
                 id="btn-reactivate-employee"
+                
               >
                 Reactivate
               </Button>
@@ -346,6 +372,7 @@ export function EmployeePage() {
                 icon={<StopOutlined />}
                 onClick={() => setTerminateModalOpen(true)}
                 id="btn-terminate-employee"
+                
               >
                 Terminate
               </Button>
@@ -358,6 +385,7 @@ export function EmployeePage() {
                 icon={<DeleteOutlined />}
                 onClick={handleDelete}
                 id="btn-delete-employee"
+                
               >
                 Delete
               </Button>
@@ -367,7 +395,7 @@ export function EmployeePage() {
       </Card>
 
       {/* Tabs */}
-      <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
+      <Card variant="borderless">
         <Tabs defaultActiveKey="overview" items={tabItems} destroyInactiveTabPane={false} />
       </Card>
 

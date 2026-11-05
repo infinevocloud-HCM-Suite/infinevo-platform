@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Card, Table, Tag, Typography, Breadcrumb, List } from 'antd';
 import { useCan, NotEntitled } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { errorMsg } from '@shared/ui/msgHelper.js';
 import { rolesService } from './rolesService.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /**
- * Roles (D-73): the tenant's roles and the actions each holds, read only. A row expands to its
+ * Roles (D-73, W-83.2): the tenant's roles and the actions each holds, read only. A row expands to its
  * action codes, named from the action catalogue; if the catalogue cannot be read, the codes alone.
  */
 export function RolesScreen() {
@@ -75,12 +76,10 @@ export function RolesScreen() {
   );
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       <Breadcrumb items={[{ title: 'Home' }, { title: 'Roles' }]} style={{ marginBottom: 16 }} />
-      <Title level={3} style={{ marginTop: 0 }}>
-        Roles
-      </Title>
-      <Card>
+      <PageHeader title="Roles" />
+      <Card variant="borderless">
         <Table
           rowKey="id"
           columns={columns}

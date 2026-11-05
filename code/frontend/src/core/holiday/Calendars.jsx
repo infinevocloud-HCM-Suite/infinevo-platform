@@ -12,19 +12,18 @@ import {
   Select,
   Switch,
   Tag,
-  theme,
 } from 'antd';
 import { PlusOutlined, EditOutlined, CalendarOutlined, SearchOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { holidayCalendarService } from './holidayCalendarService.js';
 import { workLocationService } from '../org/workLocationService.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function Calendars() {
-  const { token } = theme.useToken();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
 
@@ -248,44 +247,33 @@ export function Calendars() {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 4 }}>
-            Holiday Calendars
-          </Title>
-          <Text type="secondary">
-            Configure work-location-specific holiday schedules and statutory non-working days.
-          </Text>
-        </div>
-
-        <Space>
-          <Button
-            icon={<SearchOutlined />}
-            onClick={() => navigate('/holidays/lookup')}
-            id="btn-holiday-lookup"
-          >
-            Lookup Holidays
-          </Button>
-          {canManage && (
+    <Card variant="borderless">
+      <PageHeader
+        title="Holiday Calendars"
+        subtitle="Configure work-location-specific holiday schedules and statutory non-working days."
+        count={`${calendars.length} calendars`}
+        actions={
+          <Space>
             <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleOpenCreate}
-              id="btn-create-calendar"
+              icon={<SearchOutlined />}
+              onClick={() => navigate('/holidays/lookup')}
+              id="btn-holiday-lookup"
             >
-              Add Calendar
+              Lookup Holidays
             </Button>
-          )}
-        </Space>
-      </div>
+            {canManage && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleOpenCreate}
+                id="btn-create-calendar"
+              >
+                Create Calendar
+              </Button>
+            )}
+          </Space>
+        }
+      />
 
       <Table
         dataSource={calendars}

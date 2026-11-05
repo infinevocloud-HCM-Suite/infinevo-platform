@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Tabs, Button, Modal, Form, Input, DatePicker, Switch, Radio, Tag, Space, Typography, Descriptions, Row, Col, Timeline, Spin } from 'antd';
-import { SolutionOutlined, PlusOutlined, EyeOutlined } from '@ant-design/icons';
+import { Card, Table, Tabs, Button, Modal, Form, Input, DatePicker, Switch, Radio, Tag, Space, Typography, Descriptions, Timeline, Spin } from 'antd';
+import { PlusOutlined, EyeOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { EmployeePicker } from '../leave/EmployeePicker.jsx';
@@ -8,8 +8,9 @@ import { wfhService } from './wfhService.js';
 import { approvalService } from '../approvals/approvalService.js';
 import { formatDate, humanize } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 
@@ -214,18 +215,13 @@ export function WfhRequests() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4} style={{ margin: 0 }}>
-            <SolutionOutlined style={{ marginRight: 8 }} />
-            WFH Applications
-          </Title>
-          <Text type="secondary">Review tenant-wide and team remote work requests</Text>
-        </Col>
-
-        <Col>
-          {canManage && (
+    <Card variant="borderless">
+      <PageHeader
+        title="WFH Applications"
+        subtitle="Review tenant-wide and team remote work requests"
+        count={`${requests.length} WFH requests`}
+        actions={
+          canManage && (
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -234,9 +230,9 @@ export function WfhRequests() {
             >
               Apply on Behalf
             </Button>
-          )}
-        </Col>
-      </Row>
+          )
+        }
+      />
 
       <Tabs
         activeKey={activeTab}

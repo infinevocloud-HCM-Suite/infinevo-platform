@@ -1,3 +1,4 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
@@ -15,13 +16,13 @@ import {
   Spin,
   theme,
 } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
+import { SaveOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled, NotFound } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { workLocationService } from './workLocationService.js';
 import { invalidateMasters } from '../employee/employeeSlice.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const validationSchema = Yup.object().shape({
   name: Yup.string().trim().required('Location name is required'),
@@ -153,30 +154,20 @@ export function WorkLocationForm() {
 
   if (loading) {
     return (
-      <Card style={{ margin: token.marginLG, textAlign: 'center', padding: token.paddingLG }}>
+      <Card variant="borderless" style={{ textAlign: 'center', padding: token.paddingLG }}>
         <Spin size="large" />
       </Card>
     );
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <div style={{ marginBottom: token.marginLG }}>
-        <Button
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/org/work-locations')}
-          style={{ marginBottom: token.marginSM }}
-        >
-          Back to Work Locations
-        </Button>
-        <Title level={3} style={{ marginTop: 0 }}>
-          {isEdit ? 'Edit Work Location' : 'New Work Location'}
-        </Title>
-        <Text type="secondary">
-          Configure physical address and statutory filing settings for this office.
-        </Text>
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title={isEdit ? 'Edit Work Location' : 'New Work Location'}
+        subtitle="Configure physical address and statutory filing settings for this office."
+        onBack={() => navigate('/org/work-locations')}
+        backLabel="Back to Work Locations"
+      />
 
       <Formik
         initialValues={initialValues}

@@ -18,14 +18,14 @@ import {
   UploadOutlined,
   ExperimentOutlined,
   CloudUploadOutlined,
-  ArrowLeftOutlined,
 } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg } from '@shared/ui/msgHelper.js';
 import { employeeImportService, saveCsv } from './employeeImportService.js';
 import { formatDateTime, statusTag } from '@shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /** How often the history refreshes while a job is queued or running. */
 export const POLL_MS = 3000;
@@ -246,22 +246,20 @@ export function EmployeeImport() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
-        <Space style={{ marginBottom: token.marginLG }}>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/employees')} id="btn-back-employees">
-            Employees
-          </Button>
-          <Title level={4} style={{ margin: 0 }}>
-            Import Employees
-          </Title>
-        </Space>
+      <Card variant="borderless">
+        <PageHeader
+          title="Import Employees"
+          onBack={() => navigate('/employees')}
+          backLabel="Employees"
+          backProps={{ id: 'btn-back-employees' }}
+        />
 
         <Space wrap style={{ marginBottom: token.marginLG }}>
-          <Button icon={<DownloadOutlined />} onClick={handleTemplate} id="btn-import-template">
+          <Button icon={<DownloadOutlined />} onClick={handleTemplate} id="btn-import-template" style={{ borderRadius: 8 }}>
             Download template
           </Button>
           <Upload accept=".csv" maxCount={1} showUploadList={false} beforeUpload={beforeUpload}>
-            <Button icon={<UploadOutlined />} id="btn-import-choose">
+            <Button icon={<UploadOutlined />} id="btn-import-choose" style={{ borderRadius: 8 }}>
               Choose CSV
             </Button>
           </Upload>
@@ -272,6 +270,7 @@ export function EmployeeImport() {
             disabled={!file}
             loading={checking}
             id="btn-import-dry-run"
+            style={{ borderRadius: 8 }}
           >
             Dry run
           </Button>
@@ -282,25 +281,30 @@ export function EmployeeImport() {
             disabled={!canImport}
             loading={importing}
             id="btn-import-start"
+            style={{
+              borderRadius: 8,
+              fontWeight: 500,
+              boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+            }}
           >
             Import
           </Button>
         </Space>
 
         <Text type="secondary" style={{ display: 'block', marginBottom: token.margin }}>
-          Up to 1,000 rows. Rows with give_access Y are invited by email; roles (for example hr;manager) need the
-          Assign roles permission.
+            Up to 1,000 rows. Rows with give_access Y are invited by email; roles (for example hr;manager) need the
+            Assign roles permission.
         </Text>
 
         {error && (
-          <Alert type="error" showIcon message={error} style={{ marginBottom: token.margin }} id="alert-import-error" />
+          <Alert type="error" showIcon message={error} style={{ marginBottom: token.margin, borderRadius: 8 }} id="alert-import-error" />
         )}
 
         {results && (
           <>
             <Space style={{ marginBottom: token.margin }} wrap>
-              <Tag color="success">{counts.ok} OK</Tag>
-              <Tag color={counts.errors ? 'error' : 'default'}>{counts.errors} with errors</Tag>
+              <Tag color="success" style={{ borderRadius: 9999 }}>{counts.ok} OK</Tag>
+              <Tag color={counts.errors ? 'error' : 'default'} style={{ borderRadius: 9999 }}>{counts.errors} with errors</Tag>
               {counts.errors > 0 && counts.ok > 0 && (
                 <Checkbox
                   checked={validOnly}
@@ -318,6 +322,7 @@ export function EmployeeImport() {
               dataSource={errorsFirst(results)}
               pagination={{ pageSize: 50 }}
               data-testid="import-dry-run-table"
+              
             />
           </>
         )}
@@ -326,13 +331,11 @@ export function EmployeeImport() {
       <Card
         variant="borderless"
         title="History"
-        style={{ borderRadius: token.borderRadiusLG }}
         extra={
           <Button size="small" onClick={loadJobs} id="btn-import-history-refresh">
             Refresh
           </Button>
-        }
-      >
+        }>
         <Table
           rowKey="jobId"
           size="small"
@@ -341,6 +344,7 @@ export function EmployeeImport() {
           loading={jobsLoading}
           pagination={false}
           data-testid="import-history-table"
+          
         />
       </Card>
     </Space>

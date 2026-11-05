@@ -8,7 +8,6 @@ import {
   Timeline,
   Tag,
   Button,
-  Space,
   Typography,
   Modal,
   Form,
@@ -16,13 +15,14 @@ import {
   Input,
   theme,
 } from 'antd';
-import { ArrowLeftOutlined, SwapOutlined } from '@ant-design/icons';
+import { SwapOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { EMPTY, formatDate, formatMoney } from '@shared/ui/format.js';
 import { approvalService } from './approvalService.js';
 import { useEmployeeSearch } from './useEmployeeSearch.js';
 import { getItemRoute } from './itemRoutes.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
 const { Title } = Typography;
 
@@ -158,38 +158,24 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
   ];
 
   return (
-    <Card style={{ margin: token.marginLG }} loading={loading}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-        }}
-      >
-        <Space size="middle">
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/approvals')}
-            id="btn-back-to-inbox"
-          >
-            Inbox
-          </Button>
-          <Title level={3} style={{ margin: 0 }}>
-            Approval Instance Details
-          </Title>
-        </Space>
-
-        {canManage && instance?.status === 'PENDING' && (
-          <Button
-            icon={<SwapOutlined />}
-            onClick={() => setReassignOpen(true)}
-            id="btn-open-reassign"
-          >
-            Reassign Step
-          </Button>
-        )}
-      </div>
+    <Card variant="borderless" loading={loading}>
+      <PageHeader
+        title="Approval Instance Details"
+        onBack={() => navigate('/approvals')}
+        backLabel="Inbox"
+        backProps={{ id: 'btn-back-to-inbox' }}
+        actions={
+          canManage && instance?.status === 'PENDING' && (
+            <Button
+              icon={<SwapOutlined />}
+              onClick={() => setReassignOpen(true)}
+              id="btn-open-reassign"
+            >
+              Reassign Step
+            </Button>
+          )
+        }
+      />
 
       {instance && (
         <>
@@ -276,7 +262,7 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
                     <div>
                       <strong>{label}</strong>
                       {reason ? ` — ${reason}` : ''}
-                      <div style={{ color: '#888', fontSize: 12 }}>
+                      <div style={{ color: token.colorTextSecondary, fontSize: 12 }}>
                         {time ? formatDate(time) : ''}
                         {event.reassignedFromEmployeeId
                           ? ` • From: ${personName(event.reassignedFromEmployeeName)}`

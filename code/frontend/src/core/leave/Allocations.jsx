@@ -1,3 +1,4 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useState, useEffect, useCallback } from 'react';
 import {
   Table,
@@ -29,7 +30,7 @@ import { EmployeePicker } from './EmployeePicker.jsx';
 /** Employees per page of the allocations table; balances are read for this page only (D-80). */
 export const ALLOCATIONS_PAGE_SIZE = 15;
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /** The server's default for core.tenant.leave_year_start_month (V033): April. */
 const DEFAULT_LEAVE_YEAR_START_MONTH = 4;
@@ -264,13 +265,11 @@ export function Allocations() {
   };
 
   return (
-    <Card style={{ margin: 24 }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Space align="center" size="middle">
-            <Title level={4} style={{ margin: 0 }}>
-              Leave Allocations
-            </Title>
+    <Card variant="borderless">
+      <PageHeader
+        title="Leave Allocations"
+        actions={
+          <Space>
             <Select
               value={selectedYear}
               onChange={setSelectedYear}
@@ -281,10 +280,6 @@ export function Allocations() {
                 { value: selectedYear + 1, label: String(selectedYear + 1) },
               ]}
             />
-          </Space>
-        </Col>
-        <Col>
-          <Space>
             <Button
               icon={<SyncOutlined />}
               onClick={() => setAccrualModalOpen(true)}
@@ -299,8 +294,8 @@ export function Allocations() {
               Allocate
             </Button>
           </Space>
-        </Col>
-      </Row>
+        }
+      />
 
       <Input.Search
         allowClear

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Modal, Form, Input, Button, Alert } from 'antd';
+import { Modal, Form, Input, Button, Alert,
+  theme } from 'antd';
 import { successMsg } from '@shared/ui/msgHelper.js';
 import { setupService } from './setupService.js';
 
@@ -8,6 +9,7 @@ export function SkipStepModal({ open, step, onClose, onSuccess }) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+  const { token } = theme.useToken();
 
   const handleCancel = () => {
     form.resetFields();
@@ -68,7 +70,7 @@ export function SkipStepModal({ open, step, onClose, onSuccess }) {
         />
       )}
 
-      <p style={{ color: 'rgba(0, 0, 0, 0.65)', marginBottom: 16 }}>
+      <p style={{ color: token.colorTextSecondary, marginBottom: token.margin }}>
         Skipping a step indicates your organization does not require this configuration or
         handles it externally. A reason is required for administrative audit records.
       </p>

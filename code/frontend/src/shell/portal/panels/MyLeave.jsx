@@ -44,6 +44,7 @@ function BalanceCard({ balance, token }) {
   return (
     <Card
       type="inner"
+      variant="borderless"
       data-testid="leave-balance-card"
       style={{ width: '100%', height: '100%' }}
       styles={{ body: { height: '100%', display: 'flex', flexDirection: 'column', gap: token.marginXS } }}
@@ -149,7 +150,7 @@ export function MyLeave({ actions, onNavigate }) {
 
   if (loading) {
     return (
-      <Card data-testid="panel-leave-loading">
+      <Card variant="borderless" data-testid="panel-leave-loading">
         <Skeleton active paragraph={{ rows: 5 }} />
       </Card>
     );
@@ -157,7 +158,7 @@ export function MyLeave({ actions, onNavigate }) {
 
   if (error) {
     return (
-      <Card>
+      <Card variant="borderless">
         <Result
           status="error"
           title="Unable to Load Leave Data"
@@ -219,7 +220,7 @@ export function MyLeave({ actions, onNavigate }) {
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }} data-testid="panel-leave">
       {balances && balances.length > 0 && (
-        <Card title="Leave Balances" style={{ borderRadius: token.borderRadiusLG }}>
+        <Card variant="borderless" title="Leave Balances" style={{ borderRadius: token.borderRadiusLG }}>
           <Row gutter={[16, 16]} align="stretch">
             {[...balances]
               .sort((a, b) => Number(Boolean(a.expired)) - Number(Boolean(b.expired)))
@@ -233,6 +234,7 @@ export function MyLeave({ actions, onNavigate }) {
       )}
 
       <Card
+        variant="borderless"
         title={
           <Space>
             <CalendarOutlined />

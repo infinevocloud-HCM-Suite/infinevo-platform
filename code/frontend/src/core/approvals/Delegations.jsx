@@ -12,7 +12,6 @@ import {
   DatePicker,
   Select,
   Popconfirm,
-  theme,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
@@ -20,8 +19,9 @@ import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { EMPTY, formatDate } from '@shared/ui/format.js';
 import { delegationService } from './delegationService.js';
 import { useEmployeeSearch } from './useEmployeeSearch.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const FLOW_TYPE_OPTIONS = [
   { label: 'Leave', value: 'LEAVE' },
@@ -48,8 +48,7 @@ export function delegationStatus(record, today = new Date().toISOString().split(
 }
 
 export function Delegations({ me: propMe, form: externalForm }) {
-  const { token } = theme.useToken();
-  const canDelegate = useCan('core.approval.delegate');
+    const canDelegate = useCan('core.approval.delegate');
 
   const [loading, setLoading] = useState(false);
   const [delegations, setDelegations] = useState([]);
@@ -212,38 +211,26 @@ export function Delegations({ me: propMe, form: externalForm }) {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 4 }}>
-            Approval Delegations
-          </Title>
-          <Text type="secondary">
-            Delegate your approval authority to a colleague during absence.
-          </Text>
-        </div>
-
-        {canDelegate && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              searchEmployees('');
-              setCreateOpen(true);
-            }}
-            id="btn-new-delegation"
-          >
-            New Delegation
-          </Button>
-        )}
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Approval Delegations"
+        subtitle="Delegate your approval authority to a colleague during absence."
+        actions={
+          canDelegate && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                form.resetFields();
+                setCreateOpen(true);
+              }}
+              id="btn-new-delegation"
+            >
+              New Delegation
+            </Button>
+          )
+        }
+      />
 
       <Table
         dataSource={delegations}

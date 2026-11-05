@@ -1,15 +1,14 @@
 import { useSearchParams } from 'react-router-dom';
-import { Card, Tabs, Typography, Breadcrumb } from 'antd';
+import { Card, Tabs, Breadcrumb } from 'antd';
 import { useCan, NotEntitled } from '@shell/screens';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { UsersTab } from './UsersTab.jsx';
 import { InvitationsTab } from './InvitationsTab.jsx';
-
-const { Title } = Typography;
 
 const TABS = ['users', 'invitations'];
 
 /**
- * Users & access (W-73.4): who has access and as what, on one screen. Two tabs — Users (accounts, roles,
+ * Users & access (W-73.4, W-83.2): who has access and as what, on one screen. Two tabs — Users (accounts, roles,
  * Disable) and Invitations (both kinds, Invite user, Resend, Revoke). `?tab=invitations` opens the second,
  * which is where the old `/invitations/users` and `/invitations/employees` routes now land.
  */
@@ -23,12 +22,10 @@ export function UsersScreen() {
   }
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       <Breadcrumb items={[{ title: 'Home' }, { title: 'Users & access' }]} style={{ marginBottom: 16 }} />
-      <Title level={3} style={{ marginTop: 0 }}>
-        Users &amp; access
-      </Title>
-      <Card>
+      <PageHeader title="Users & access" />
+      <Card variant="borderless">
         <Tabs
           activeKey={tab}
           onChange={(key) => setParams(key === 'users' ? {} : { tab: key }, { replace: true })}

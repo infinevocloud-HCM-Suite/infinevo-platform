@@ -1,14 +1,15 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Form, Button, Space, Typography, Row, Col } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { Card, Form, Button, Space } from 'antd';
+
 import { useCan, NotEntitled } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { LeaveRequestFields, normalizeDocumentIds } from './LeaveRequestFields.jsx';
 import { leaveRequestService } from './leaveRequestService.js';
 import { leaveTypeService } from './leaveTypeService.js';
 
-const { Title, Text } = Typography;
+
 
 export function RecordLeave() {
   const navigate = useNavigate();
@@ -65,28 +66,14 @@ export function RecordLeave() {
   }
 
   return (
-    <Card style={{ margin: 24, maxWidth: 800 }}>
+    <Card variant="borderless" style={{ maxWidth: 800 }}>
       <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space align="center">
-              <Button
-                icon={<ArrowLeftOutlined />}
-                onClick={() => navigate('/leave/requests')}
-              >
-                Back
-              </Button>
-              <Title level={4} style={{ margin: 0 }}>
-                Record Leave on Behalf of Employee
-              </Title>
-            </Space>
-          </Col>
-        </Row>
-
-        <Text type="secondary">
-          Recording leave on behalf creates an immediately approved leave request with no approval
-          workflow.
-        </Text>
+        <PageHeader
+          title="Record Leave on Behalf of Employee"
+          subtitle="Recording leave on behalf creates an immediately approved leave request with no approval workflow."
+          onBack={() => navigate('/leave/requests')}
+          backLabel="Back"
+        />
 
         <Form
           form={form}

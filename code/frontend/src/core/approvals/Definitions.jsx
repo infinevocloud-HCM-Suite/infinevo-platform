@@ -9,7 +9,6 @@ import {
   Select,
   InputNumber,
   Switch,
-  theme,
 } from 'antd';
 import {
   PlusOutlined,
@@ -24,8 +23,9 @@ import { definitionService } from './definitionService.js';
 import { roleService } from './roleService.js';
 import { useEmployeeSearch } from './useEmployeeSearch.js';
 import { flowTypesFor } from './flowTypes.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 // What a definition is saved with when the tenant has none yet (W-15.1 §4 defaults).
 const DEFAULT_ROUTING = { stepOrdering: 'SEQUENTIAL', commentScope: 'PER_STEP' };
@@ -42,8 +42,7 @@ const APPROVER_KINDS = [
 ];
 
 export function Definitions() {
-  const { token } = theme.useToken();
-  const canManage = useCan('core.approval_definition.manage');
+    const canManage = useCan('core.approval_definition.manage');
   const hasHrms = useHasModule('HRMS');
   const hasPayroll = useHasModule('PAYROLL');
 
@@ -336,45 +335,33 @@ export function Definitions() {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 4 }}>
-            Approval Definitions
-          </Title>
-          <Text type="secondary">
-            Configure multi-step approval workflows across organization flow types.
-          </Text>
-        </div>
-
-        {canManage && (
-          <Space>
-            <Button
-              icon={<PlusOutlined />}
-              onClick={handleAddStep}
-              id="btn-add-step"
-            >
-              Add Step
-            </Button>
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={handleSave}
-              loading={saving}
-              id="btn-save-definition"
-            >
-              Save Definition
-            </Button>
-          </Space>
-        )}
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Approval Definitions"
+        subtitle="Configure multi-step approval workflows across organization flow types."
+        actions={
+          canManage && (
+            <Space>
+              <Button
+                icon={<PlusOutlined />}
+                onClick={handleAddStep}
+                id="btn-add-step"
+              >
+                Add Step
+              </Button>
+              <Button
+                type="primary"
+                icon={<SaveOutlined />}
+                onClick={handleSave}
+                loading={saving}
+                id="btn-save-definition"
+              >
+                Save Definition
+              </Button>
+            </Space>
+          )
+        }
+      />
 
       <Tabs
         activeKey={activeFlow}

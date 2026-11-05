@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, DatePicker, Tag, Space, Typography, Row, Col } from 'antd';
-import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, DatePicker, Tag, Space, Typography, Row, Col, theme } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { wfhService } from './wfhService.js';
 import { formatDate, humanize, EMPTY } from '@shared/ui/format.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function WfhPolicies() {
+  const { token } = theme.useToken();
   const canRead = useCan('core.wfh.read');
   const canManage = useCan('core.wfh.manage');
 
@@ -189,18 +191,12 @@ export function WfhPolicies() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4} style={{ margin: 0 }}>
-            <SettingOutlined style={{ marginRight: 8 }} />
-            WFH Policies
-          </Title>
-          <Text type="secondary">Define annual quotas, monthly pacing, and remote work rules</Text>
-        </Col>
-
-        <Col>
-          {canManage && (
+    <Card variant="borderless">
+      <PageHeader
+        title="WFH Policies"
+        subtitle="Define annual quotas, monthly pacing, and remote work rules"
+        actions={
+          canManage && (
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -209,18 +205,17 @@ export function WfhPolicies() {
             >
               Add WFH Policy
             </Button>
-          )}
-        </Col>
-      </Row>
+          )
+        }
+      />
 
       {defaultPolicy && (
         <Card
           type="inner"
           style={{
             marginBottom: 20,
-            background: 'rgba(99, 102, 241, 0.04)',
-            borderColor: 'rgba(99, 102, 241, 0.3)',
-            borderRadius: 8,
+            background: token.colorInfoBg,
+            borderColor: token.colorInfoBorder,
           }}
           data-testid="wfh-default-policy-card"
         >
@@ -241,11 +236,11 @@ export function WfhPolicies() {
               <Space size="large">
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Annual Quota</Text>
-                  <div><Text strong style={{ color: '#6366f1' }}>{defaultPolicy.annualDays || 12} days/yr</Text></div>
+                  <div><Text strong style={{ color: token.colorPrimary, fontSize: 15 }}>{defaultPolicy.annualDays || 12} days/yr</Text></div>
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Monthly Cap</Text>
-                  <div><Text strong>{defaultPolicy.monthlyLimitDays || 2} days/mo</Text></div>
+                  <div><Text strong style={{ fontSize: 15 }}>{defaultPolicy.monthlyLimitDays || 2} days/mo</Text></div>
                 </div>
                 <div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Half-Day</Text>

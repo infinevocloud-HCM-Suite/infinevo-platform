@@ -1,3 +1,70 @@
+const baseRestrictedSyntax = [
+  {
+    selector: "MemberExpression[object.name='window'][property.name='localStorage']",
+    message: 'Direct window.localStorage access is forbidden.',
+  },
+  {
+    selector: "MemberExpression[object.name='window'][property.value='localStorage']",
+    message: "Direct window['localStorage'] access is forbidden.",
+  },
+  {
+    selector: "MemberExpression[object.name='globalThis'][property.name='localStorage']",
+    message: 'Direct globalThis.localStorage access is forbidden.',
+  },
+  {
+    selector: "MemberExpression[object.name='globalThis'][property.value='localStorage']",
+    message: "Direct globalThis['localStorage'] access is forbidden.",
+  },
+  {
+    selector: "MemberExpression[object.name='window'][property.name='sessionStorage']",
+    message: 'Direct window.sessionStorage access is forbidden.',
+  },
+  {
+    selector: "MemberExpression[object.name='window'][property.value='sessionStorage']",
+    message: "Direct window['sessionStorage'] access is forbidden.",
+  },
+  {
+    selector: "MemberExpression[object.name='globalThis'][property.name='sessionStorage']",
+    message: 'Direct globalThis.sessionStorage access is forbidden.',
+  },
+  {
+    selector: "MemberExpression[object.name='globalThis'][property.value='sessionStorage']",
+    message: "Direct globalThis['sessionStorage'] access is forbidden.",
+  },
+  {
+    selector: "MemberExpression[object.name='window'][property.name='__ENV']",
+    message: 'Direct window.__ENV access is forbidden outside src/shared/config.js.',
+  },
+  {
+    selector: "MemberExpression[object.name='window'][property.value='__ENV']",
+    message: "Direct window['__ENV'] access is forbidden outside src/shared/config.js.",
+  },
+  {
+    selector: "MemberExpression[object.name='globalThis'][property.name='__ENV']",
+    message: 'Direct globalThis.__ENV access is forbidden outside src/shared/config.js.',
+  },
+  {
+    selector: "MemberExpression[object.name='globalThis'][property.value='__ENV']",
+    message: "Direct globalThis['__ENV'] access is forbidden outside src/shared/config.js.",
+  },
+  {
+    selector: "MetaProperty[meta.name='import'][property.name='meta']",
+    message: 'Direct import.meta access is forbidden outside src/shared/config.js.',
+  },
+];
+
+const hexColorRestrictedSyntax = [
+  ...baseRestrictedSyntax,
+  {
+    selector: "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+    message: 'Use a theme token, not a hex colour (W-45 §5a).',
+  },
+  {
+    selector: "TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}\\b/]",
+    message: 'Use a theme token, not a hex colour (W-45 §5a).',
+  },
+];
+
 module.exports = {
   root: true,
   env: { browser: true, es2022: true },
@@ -41,61 +108,7 @@ module.exports = {
       },
     ],
     // W-45 §5b: Forbid direct window.localStorage, window.__ENV, and import.meta.env
-    'no-restricted-syntax': [
-      'error',
-      {
-        selector: "MemberExpression[object.name='window'][property.name='localStorage']",
-        message: 'Direct window.localStorage access is forbidden.',
-      },
-      {
-        selector: "MemberExpression[object.name='window'][property.value='localStorage']",
-        message: "Direct window['localStorage'] access is forbidden.",
-      },
-      {
-        selector: "MemberExpression[object.name='globalThis'][property.name='localStorage']",
-        message: 'Direct globalThis.localStorage access is forbidden.',
-      },
-      {
-        selector: "MemberExpression[object.name='globalThis'][property.value='localStorage']",
-        message: "Direct globalThis['localStorage'] access is forbidden.",
-      },
-      {
-        selector: "MemberExpression[object.name='window'][property.name='sessionStorage']",
-        message: 'Direct window.sessionStorage access is forbidden.',
-      },
-      {
-        selector: "MemberExpression[object.name='window'][property.value='sessionStorage']",
-        message: "Direct window['sessionStorage'] access is forbidden.",
-      },
-      {
-        selector: "MemberExpression[object.name='globalThis'][property.name='sessionStorage']",
-        message: 'Direct globalThis.sessionStorage access is forbidden.',
-      },
-      {
-        selector: "MemberExpression[object.name='globalThis'][property.value='sessionStorage']",
-        message: "Direct globalThis['sessionStorage'] access is forbidden.",
-      },
-      {
-        selector: "MemberExpression[object.name='window'][property.name='__ENV']",
-        message: 'Direct window.__ENV access is forbidden outside src/shared/config.js.',
-      },
-      {
-        selector: "MemberExpression[object.name='window'][property.value='__ENV']",
-        message: "Direct window['__ENV'] access is forbidden outside src/shared/config.js.",
-      },
-      {
-        selector: "MemberExpression[object.name='globalThis'][property.name='__ENV']",
-        message: 'Direct globalThis.__ENV access is forbidden outside src/shared/config.js.',
-      },
-      {
-        selector: "MemberExpression[object.name='globalThis'][property.value='__ENV']",
-        message: "Direct globalThis['__ENV'] access is forbidden outside src/shared/config.js.",
-      },
-      {
-        selector: "MetaProperty[meta.name='import'][property.name='meta']",
-        message: 'Direct import.meta access is forbidden outside src/shared/config.js.',
-      },
-    ],
+    'no-restricted-syntax': ['error', ...baseRestrictedSyntax],
   },
   overrides: [
     {
@@ -128,6 +141,13 @@ module.exports = {
             ],
           },
         ],
+      },
+    },
+    {
+      // W-83.1: Enforce theme tokens instead of literal hex colours in shared JSX components
+      files: ['src/shared/**/*.jsx', 'src/core/**/*.jsx', 'src/shell/**/*.jsx'],
+      rules: {
+        'no-restricted-syntax': ['error', ...hexColorRestrictedSyntax],
       },
     },
     {

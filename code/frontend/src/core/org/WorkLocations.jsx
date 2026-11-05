@@ -12,19 +12,18 @@ import {
   Modal,
   Tag,
   Tooltip,
-  theme,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { workLocationService } from './workLocationService.js';
 import { invalidateMasters } from '../employee/employeeSlice.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function WorkLocations() {
-  const { token } = theme.useToken();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
   const dispatch = useDispatch();
   const canManage = useCan('core.org.manage');
 
@@ -212,32 +211,24 @@ export function WorkLocations() {
   }
 
   return (
-    <Card style={{ margin: token.marginLG }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: token.marginLG,
-        }}
-      >
-        <div>
-          <Title level={3} style={{ marginBottom: 4 }}>
-            Work Locations
-          </Title>
-          <Text type="secondary">Manage your organization&apos;s physical office and work locations.</Text>
-        </div>
-        {canManage && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => navigate('/org/work-locations/new')}
-            id="btn-new-location"
-          >
-            New Location
-          </Button>
-        )}
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Work Locations"
+        subtitle="Manage your organization's physical office and work locations."
+        count={`${locations.length} locations`}
+        actions={
+          canManage && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => navigate('/org/work-locations/new')}
+              id="btn-new-location"
+            >
+              New Location
+            </Button>
+          )
+        }
+      />
 
       <Table
         dataSource={locations}

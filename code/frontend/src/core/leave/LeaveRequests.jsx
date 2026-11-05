@@ -11,6 +11,7 @@ import {
   DatePicker,
   Row,
   Col,
+  theme,
 } from 'antd';
 import { PlusOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import { useCan, NotEntitled } from '@shell/screens';
@@ -18,8 +19,9 @@ import { errorMsg } from '@shared/ui/msgHelper.js';
 import { EMPTY, formatDate } from '@shared/ui/format.js';
 import { leaveRequestService } from './leaveRequestService.js';
 import { EmployeePicker } from './EmployeePicker.jsx';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { RangePicker } = DatePicker;
 
 const STATUS_TAGS = {
@@ -33,6 +35,7 @@ const STATUS_TAGS = {
 };
 
 export function LeaveRequests() {
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const canRead = useCan('core.leave.read');
   const canManage = useCan('core.leave.manage');
@@ -161,15 +164,13 @@ export function LeaveRequests() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4} style={{ margin: 0 }}>
-            Leave Requests
-          </Title>
-        </Col>
-        <Col>
-          {canManage && (
+    <Card variant="borderless">
+      <PageHeader
+        title="Leave Requests"
+        subtitle="Monitor and administer organizational leave applications and status tracking"
+        count={`${pagination.total} leave requests`}
+        actions={
+          canManage && (
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -177,12 +178,19 @@ export function LeaveRequests() {
             >
               Record Leave
             </Button>
-          )}
-        </Col>
-      </Row>
+          )
+        }
+      />
 
       {/* Filter Bar */}
-      <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
+      <Card
+        size="small"
+        style={{
+          marginBottom: 16,
+          background: token.colorFillAlter,
+          border: `1px solid ${token.colorBorderSecondary}`,
+        }}
+      >
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={8} md={6}>
             <EmployeePicker

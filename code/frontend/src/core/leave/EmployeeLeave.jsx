@@ -1,3 +1,4 @@
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -11,8 +12,9 @@ import {
   Statistic,
   DatePicker,
   Tag,
+  theme,
 } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+
 import dayjs from 'dayjs';
 import { useCan, NotEntitled } from '@shell/screens';
 import { errorMsg } from '@shared/ui/msgHelper.js';
@@ -20,12 +22,13 @@ import { leaveConsumptionService } from './leaveConsumptionService.js';
 import { employeeService } from '../employee/employeeService.js';
 import { EMPTY, formatDate, formatDateTime, formatMonth } from '@shared/ui/format.js';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export function EmployeeLeave() {
   const { id } = useParams();
   const navigate = useNavigate();
   const canRead = useCan('core.leave.read');
+  const { token } = theme.useToken();
 
   const [employee, setEmployee] = useState(null);
   const [selectedYear, setSelectedYear] = useState(dayjs().year());
@@ -160,27 +163,23 @@ export function EmployeeLeave() {
   ];
 
   return (
-    <Card style={{ margin: 24 }}>
+    <Card variant="borderless">
       <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space align="center">
-              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/employees/${id}`)}>
-                Back
-              </Button>
-              <Title level={4} style={{ margin: 0 }}>
-                {employee
-                  ? `Leave & Loss of Pay: ${employee.firstName || ''} ${employee.lastName || ''}`.trim()
-                  : 'Employee Leave & LOP'}
-              </Title>
-              {employee && <Tag>{employee.employeeNumber}</Tag>}
-            </Space>
-          </Col>
-        </Row>
+        <PageHeader
+          title={
+            employee
+              ? `Leave & Loss of Pay: ${employee.firstName || ''} ${employee.lastName || ''}`.trim()
+              : 'Employee Leave & LOP'
+          }
+          count={employee?.employeeNumber}
+          onBack={() => navigate(`/employees/${id}`)}
+          backLabel="Back"
+        />
 
         {/* Loss of Pay Section */}
         <Card
           type="inner"
+          variant="borderless"
           title="Monthly Loss of Pay (LOP)"
           extra={
             <DatePicker
@@ -200,7 +199,7 @@ export function EmployeeLeave() {
                 title={`Total LOP for ${selectedMonth}`}
                 value={lopData?.totalLopDays ?? 0}
                 precision={1}
-                valueStyle={{ color: '#cf1322' }}
+                valueStyle={{ color: token.colorError }}
                 suffix="day(s)"
               />
             </Col>
@@ -226,6 +225,7 @@ export function EmployeeLeave() {
         {/* Consumption Ledger Section */}
         <Card
           type="inner"
+          variant="borderless"
           title="Consumption Ledger"
           extra={
             <DatePicker

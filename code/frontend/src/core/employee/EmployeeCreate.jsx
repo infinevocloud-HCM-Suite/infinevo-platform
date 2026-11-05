@@ -22,7 +22,7 @@ import {
   Space,
   theme,
 } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
+import { SaveOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { employeeService } from './employeeService.js';
 import { orgMasterService } from './orgMasterService.js';
@@ -37,6 +37,7 @@ import {
 } from './sectionFields.js';
 import { successMsg, errorMsg } from '../../shared/ui/msgHelper.js';
 import { toTitleCase } from '../../shared/ui/format.js';
+import { PageHeader } from '@shared/ui/PageHeader.jsx';
 
 const { Title, Text } = Typography;
 
@@ -264,16 +265,11 @@ export function EmployeeCreate() {
   }));
 
   return (
-    <Card variant="borderless" style={{ borderRadius: token.borderRadiusLG }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: token.marginLG }}>
-        <Button
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/employees')}
-          style={{ marginRight: token.marginSM }}
-        />
-        <Title level={4} style={{ margin: 0 }}>Create New Employee</Title>
-      </div>
+    <Card variant="borderless">
+      <PageHeader
+        title="Create New Employee"
+        onBack={() => navigate('/employees')}
+      />
 
       {partialFailure && (
         <Alert
@@ -544,43 +540,64 @@ export function EmployeeCreate() {
                 ]}
               />
 
-              <Title level={5} style={{ marginTop: token.marginLG }}>Portal access</Title>
-              <Checkbox
-                id="check-giveAccess"
-                checked={values.giveAccess}
-                onChange={(e) => setFieldValue('giveAccess', e.target.checked)}
+              <div
+                style={{
+                  marginTop: token.marginLG,
+                  padding: token.paddingMD,
+                  borderRadius: token.borderRadiusLG,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  background: token.colorFillAlter,
+                }}
               >
-                Give portal access
-              </Checkbox>
-              {values.giveAccess && !canAssignRoles && (
-                <div style={{ marginTop: token.marginSM }}>
-                  <Text strong>Roles: </Text>
-                  <Text id="text-locked-role">Employee</Text>
-                  <div>
-                    <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
+                <Title level={5} style={{ marginTop: 0, marginBottom: 8 }}>Portal access</Title>
+                <Checkbox
+                  id="check-giveAccess"
+                  checked={values.giveAccess}
+                  onChange={(e) => setFieldValue('giveAccess', e.target.checked)}
+                >
+                  <Text strong>Give portal access</Text>
+                </Checkbox>
+                {values.giveAccess && !canAssignRoles && (
+                  <div style={{ marginTop: token.marginSM }}>
+                    <Text strong>Roles: </Text>
+                    <Text id="text-locked-role">Employee</Text>
+                    <div>
+                      <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
+                    </div>
                   </div>
-                </div>
-              )}
-              {values.giveAccess && canAssignRoles && (
-                <div style={{ marginTop: token.marginSM }}>
-                  <label htmlFor="select-roles"><Text strong>Roles</Text></label>
-                  <Select
-                    mode="multiple"
-                    id="select-roles"
-                    style={{ width: '100%' }}
-                    placeholder="Select roles"
-                    optionFilterProp="label"
-                    options={roleOptions(roles)}
-                    value={[employeeRoleId, ...values.roleIds].filter(Boolean)}
-                    onChange={(ids) =>
-                      setFieldValue('roleIds', (ids || []).filter((rid) => rid !== employeeRoleId))
-                    }
-                  />
-                  <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
-                </div>
-              )}
+                )}
+                {values.giveAccess && canAssignRoles && (
+                  <div style={{ marginTop: token.marginSM }}>
+                    <label htmlFor="select-roles"><Text strong>Roles</Text></label>
+                    <Select
+                      mode="multiple"
+                      id="select-roles"
+                      style={{ width: '100%', marginTop: 4 }}
+                      placeholder="Select roles"
+                      optionFilterProp="label"
+                      options={roleOptions(roles)}
+                      value={[employeeRoleId, ...values.roleIds].filter(Boolean)}
+                      onChange={(ids) =>
+                        setFieldValue('roleIds', (ids || []).filter((rid) => rid !== employeeRoleId))
+                      }
+                    />
+                    <div style={{ marginTop: 4 }}>
+                      <Text type="secondary" id="text-access-note">An email goes to the work email.</Text>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-              <div style={{ marginTop: token.marginLG, display: 'flex', justifyContent: 'flex-end', gap: token.marginSM }}>
+              <div
+                style={{
+                  marginTop: token.marginXL,
+                  paddingTop: token.marginMD,
+                  borderTop: `1px solid ${token.colorBorderSecondary}`,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: token.marginSM,
+                }}
+              >
                 <Button onClick={() => navigate('/employees')}>Cancel</Button>
                 <Button
                   type="primary"
