@@ -6,6 +6,19 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-05 — W-84.1 + W-84.2 plans and employee limit on `main` (`27ec17ae`)
+
+| Ticket | What |
+|---|---|
+| `W-84.1` | Plan (Starter/Growth/Enterprise), support plan (Standard/Priority) and employee limit per tenant; platform admin sets them on the tenant page's Plan card; `NULL` limit = unlimited, what every tenant starts with; tenant list shows employees / limit. `V188` |
+| `W-84.2` | Add, CSV import and reactivate from Terminated refused with `409 EMPLOYEE_LIMIT_REACHED` once the live count (not deleted, not Terminated) would pass the limit; `GET /api/v1/employees/limit`; "N of M employees" badge with a warning at the limit |
+
+- Built by Claude on `dev-claude-w84`, one independent read (7 findings: 2 fixed, 5 deferred as cosmetic or out of scope), CI green on the rebased head.
+- **Decisions 2026-11-05 (founder):** the admin types any limit, the plan is a billing label only; `PAST_DUE` keeps blocking nothing; prices stay in `W-94`.
+- **Newly unblocked:** `W-115` (support tickets read the support plan), `W-94` (billing, still waits on prices). `W-116` company locale logged, Priority 1, not specced.
+- **Left:** import room count can over-refuse one row when an earlier row fails in create for another reason; at-limit badge is a warning line, not red text; Reactivate refusal is a dialog. A plan change's audit row sits under the platform tenant.
+- **Branches:** `dev-claude-w84` and `dev-claude-w84-rebased` can be deleted.
+
 ## 2026-11-05 — W-83.5 (`02a94f5e`) and W-83.7 (`e92d7878`) new look on `main`
 
 | Ticket | What |
