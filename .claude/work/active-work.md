@@ -66,6 +66,7 @@
 - `W-76.1` dropped: removing saved rows would have stopped employer PF being paid.
 - Migrated company: ESI employer in CTC turned on (2026-11-01, matches legacy). EDLI / admin structure switches are off, as legacy, so EDLI / admin are no longer paid there.
 - `caj-data-migration-dev` and its `data-migration` image deleted from Azure 2026-11-01 (migration done); its Bicep module, Docker files, CI job and `code/migration/` removed 2026-11-03 (git history keeps them).
+- **Verification 2026-11-03 (sayeed):** Live verified on Azure Dev with `sahmad@infinevocloud.com` (TC-01 to TC-07 PASS: read-only statutory details card, unified drawer editor with LWF/Director, EDLI/admin structure omission, zero-rupee EPS elimination, ESI ceiling guard >21k, and Medical Allowance balancing fallback). Test execution log recorded in `.claude/outputs/2026-10-30-design-statutory-epf-pt-salary-structure.md` and `docs/qa/Infinevo_Manual_QA_Test_Plan.md`.
 - **Left:** LWF not calculated; DOB lookup costs 2 queries per PF+EPS employee per run.
 - **Branches:** `dev-claude-w76` can be deleted.
 
