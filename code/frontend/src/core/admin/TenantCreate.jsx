@@ -1,10 +1,10 @@
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Select, Checkbox, Button, Card, Space } from 'antd';
+import { Form, Input, Select, Checkbox, Button, Card, Space, InputNumber } from 'antd';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { tenantService } from './tenantService.js';
-import { MODULES } from './platform.js';
+import { MODULES, PLANS, PLAN_LABELS, SUPPORT_PLANS, SUPPORT_PLAN_LABELS } from './platform.js';
 import { startsWithLine } from './countryTemplates.js';
 
 const MONTHS = [
@@ -70,8 +70,27 @@ export function TenantCreate() {
       modules: values.modules || [],
     };
     if (adminEmail) body.admin_email = adminEmail;
+    // W-84.1 follow-up: the plan is not part of provisioning, so it is saved straight after the
+    // tenant exists. Only sent when something was chosen; a blank form leaves the tenant unlimited.
+    const plan = {
+      plan: values.plan || null,
+      supportPlan: values.support_plan || null,
+      employeeLimit: values.employee_limit ?? null,
+    };
+    const hasPlan = plan.plan !== null || plan.supportPlan !== null || plan.employeeLimit !== null;
     try {
-      await tenantService.create(body);
+      const created = await tenantService.create(body);
+      if (hasPlan) {
+        try {
+          await tenantService.setPlan(created.tenantId, plan);
+        } catch (planErr) {
+          // The tenant exists; say so rather than reading as "not created".
+          errorMsg(planErr);
+          await successMsg('Tenant created', `${body.name} is ready, but the plan was not saved. Set it on the tenant page.`);
+          navigate(`/admin/tenants/${created.tenantId}`);
+          return;
+        }
+      }
       await successMsg(
         'Tenant created',
         adminEmail
@@ -160,6 +179,27 @@ export function TenantCreate() {
         </Form.Item>
         <Form.Item label="Modules" name="modules">
           <Checkbox.Group options={MODULES.map((m) => ({ value: m, label: m }))} />
+        </Form.Item>
+        <Form.Item label="Plan" name="plan">
+          <Select
+            allowClear
+            placeholder="No plan"
+            options={PLANS.map((p) => ({ value: p, label: PLAN_LABELS[p] }))}
+          />
+        </Form.Item>
+        <Form.Item label="Support plan" name="support_plan">
+          <Select
+            allowClear
+            placeholder="No support plan"
+            options={SUPPORT_PLANS.map((p) => ({ value: p, label: SUPPORT_PLAN_LABELS[p] }))}
+          />
+        </Form.Item>
+        <Form.Item
+          label="Employee limit"
+          name="employee_limit"
+          extra="Leave empty for no limit. Terminated and deleted employees do not count."
+        >
+          <InputNumber min={1} precision={0} placeholder="No limit" style={{ width: 200 }} />
         </Form.Item>
         <Space>
           <Button type="primary" htmlType="submit" loading={saving}>
