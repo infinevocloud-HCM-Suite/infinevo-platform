@@ -119,7 +119,7 @@ export function ApplyWfh({ onSuccess }) {
   const isOverBalance = !hasAllocation || estimatedDays > availableDays;
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: token.paddingMD }}>
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 760, margin: '0 auto', padding: token.paddingMD }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <PageHeader
           title="Apply for Work From Home"
@@ -165,7 +165,7 @@ export function ApplyWfh({ onSuccess }) {
           />
         )}
 
-        <Card data-testid="apply-wfh-card" variant="borderless">
+        <Card data-testid="apply-wfh-card" variant="borderless" className="saas-card">
           <Form
             form={form}
             layout="vertical"
@@ -270,10 +270,11 @@ export function ApplyWfh({ onSuccess }) {
 
             <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
               <Space>
-                <Button onClick={() => navigate('/me/wfh')}>Cancel</Button>
+                <Button className="btn-spring" onClick={() => navigate('/me/wfh')}>Cancel</Button>
                 <Button
                   type="primary"
                   htmlType="submit"
+                  className="btn-spring"
                   icon={<SendOutlined />}
                   loading={loading}
                   disabled={isOverBalance}

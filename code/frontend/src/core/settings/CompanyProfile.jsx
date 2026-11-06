@@ -125,119 +125,137 @@ export function CompanyProfile() {
   };
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Company profile"
-        subtitle={`What everyone in ${profile.name} sees in the header.`}
-      />
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 900, margin: '0 auto' }}>
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Company profile"
+          subtitle={`What everyone in ${profile.name} sees in the header.`}
+        />
 
-      <Formik
-        enableReinitialize
-        initialValues={{
-          tagline: profile.tagline || '',
-          logoDocumentId: profile.logoDocumentId || null,
-        }}
-        validationSchema={validationSchema}
-        onSubmit={handleSubmit}
-      >
-        {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setFieldValue }) => (
-          <FormikForm>
-            <Card variant="borderless">
-              <Row gutter={[token.margin, token.margin]}>
-                <Col xs={24} md={12}>
-                  <label htmlFor="company-name">
-                    <Text strong>Company name</Text>
-                  </label>
-                  <Input id="company-name" value={profile.name || ''} readOnly disabled style={{ marginTop: 4 }} />
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                    Set when the company was created.
-                  </Text>
-                </Col>
-                <Col xs={24} md={12}>
-                  <label htmlFor="company-tagline">
-                    <Text strong>Tagline</Text>
-                  </label>
-                  <Input
-                    id="company-tagline"
-                    name="tagline"
-                    value={values.tagline}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    maxLength={TAGLINE_MAX}
-                    showCount
-                    disabled={!canManage}
-                    placeholder="A line under the company name, or nothing"
-                    status={touched.tagline && errors.tagline ? 'error' : ''}
-                    style={{ marginTop: 4 }}
-                  />
-                  {touched.tagline && errors.tagline && <Text type="danger">{errors.tagline}</Text>}
-                </Col>
-                <Col xs={24}>
-                  <Text strong>Logo</Text>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: token.margin, marginTop: token.marginXS }}>
-                    {values.logoDocumentId && preview ? (
-                      <img
-                        src={preview}
-                        alt="Company logo"
-                        data-testid="logo-preview"
-                        style={{ height: 64, maxWidth: 240, objectFit: 'contain' }}
-                      />
-                    ) : (
-                      <Avatar
-                        size={64}
-                        data-testid="logo-initials"
-                        style={{ background: token.colorPrimary, color: token.colorBgContainer }}
-                      >
-                        {initialsOf(profile.name)}
-                      </Avatar>
-                    )}
-                    {canManage && (
-                      <Space>
-                        <Upload
-                          accept=".png,.jpg,.jpeg,image/png,image/jpeg"
-                          showUploadList={false}
-                          beforeUpload={(file) => chooseLogo(file, setFieldValue)}
+        <Formik
+          enableReinitialize
+          initialValues={{
+            tagline: profile.tagline || '',
+            logoDocumentId: profile.logoDocumentId || null,
+          }}
+          validationSchema={validationSchema}
+          onSubmit={handleSubmit}
+        >
+          {({ values, errors, touched, handleChange, handleBlur, isSubmitting, setFieldValue }) => (
+            <FormikForm>
+              <Card
+                variant="borderless"
+                style={{
+                  background: token.colorFillAlter,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  borderRadius: 12,
+                  padding: 8,
+                }}
+              >
+                <Row gutter={[token.margin, token.margin]}>
+                  <Col xs={24} md={12}>
+                    <label htmlFor="company-name">
+                      <Text strong>Company name</Text>
+                    </label>
+                    <Input id="company-name" value={profile.name || ''} readOnly disabled style={{ marginTop: 4, borderRadius: 8 }} />
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                      Set when the company was created.
+                    </Text>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <label htmlFor="company-tagline">
+                      <Text strong>Tagline</Text>
+                    </label>
+                    <Input
+                      id="company-tagline"
+                      name="tagline"
+                      value={values.tagline}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      maxLength={TAGLINE_MAX}
+                      showCount
+                      disabled={!canManage}
+                      placeholder="A line under the company name, or nothing"
+                      status={touched.tagline && errors.tagline ? 'error' : ''}
+                      style={{ marginTop: 4, borderRadius: 8 }}
+                    />
+                    {touched.tagline && errors.tagline && <Text type="danger">{errors.tagline}</Text>}
+                  </Col>
+                  <Col xs={24}>
+                    <Text strong>Logo</Text>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: token.margin, marginTop: token.marginXS }}>
+                      {values.logoDocumentId && preview ? (
+                        <img
+                          src={preview}
+                          alt="Company logo"
+                          data-testid="logo-preview"
+                          style={{ height: 64, maxWidth: 240, objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <Avatar
+                          size={64}
+                          data-testid="logo-initials"
+                          style={{
+                            background: 'linear-gradient(135deg, var(--brand-blue-hover) 0%, var(--brand-blue) 100%)',
+                            color: token.colorTextLightSolid,
+                            fontWeight: 700,
+                            fontSize: 22,
+                            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+                          }}
                         >
-                          <Button icon={<UploadOutlined />} loading={uploading}>
-                            {values.logoDocumentId ? 'Replace logo' : 'Upload logo'}
-                          </Button>
-                        </Upload>
-                        {values.logoDocumentId && (
-                          <Button
-                            icon={<DeleteOutlined />}
-                            onClick={() => {
-                              setFieldValue('logoDocumentId', null);
-                              setPreview(null);
-                            }}
+                          {initialsOf(profile.name)}
+                        </Avatar>
+                      )}
+                      {canManage && (
+                        <Space>
+                          <Upload
+                            accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                            showUploadList={false}
+                            beforeUpload={(file) => chooseLogo(file, setFieldValue)}
                           >
-                            Remove logo
-                          </Button>
-                        )}
-                      </Space>
-                    )}
+                            <Button className="btn-spring" icon={<UploadOutlined />} loading={uploading}>
+                              {values.logoDocumentId ? 'Replace logo' : 'Upload logo'}
+                            </Button>
+                          </Upload>
+                          {values.logoDocumentId && (
+                            <Button
+                              className="btn-spring"
+                              icon={<DeleteOutlined />}
+                              onClick={() => {
+                                setFieldValue('logoDocumentId', null);
+                                setPreview(null);
+                              }}
+                            >
+                              Remove logo
+                            </Button>
+                          )}
+                        </Space>
+                      )}
+                    </div>
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                      PNG or JPG, at most 512 KB. Without a logo the header shows the company&apos;s initials.
+                    </Text>
+                  </Col>
+                </Row>
+                {canManage && (
+                  <div style={{ marginTop: token.marginLG }}>
+                    <Button
+                      type="primary"
+                      className="btn-spring"
+                      htmlType="submit"
+                      icon={<SaveOutlined />}
+                      loading={isSubmitting}
+                      disabled={uploading}
+                    >
+                      Save
+                    </Button>
                   </div>
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                    PNG or JPG, at most 512 KB. Without a logo the header shows the company&apos;s initials.
-                  </Text>
-                </Col>
-              </Row>
-              {canManage && (
-                <div style={{ marginTop: token.marginLG }}>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<SaveOutlined />}
-                    loading={isSubmitting}
-                    disabled={uploading}
-                  >
-                    Save
-                  </Button>
-                </div>
-              )}
-            </Card>
-          </FormikForm>
-        )}
-      </Formik>
-    </Card>
+                )}
+              </Card>
+            </FormikForm>
+          )}
+        </Formik>
+      </Card>
+    </div>
   );
 }

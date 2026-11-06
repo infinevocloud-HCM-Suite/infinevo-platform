@@ -89,17 +89,17 @@ export function ClaimList() {
   ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+    <div className="saas-page-container fadeSlideUp" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       <PageHeader
         title="Reimbursement claims"
         actions={
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+          <Button icon={<ReloadOutlined />} className="btn-spring" onClick={load} loading={loading}>
             Refresh
           </Button>
         }
       />
 
-      <Card variant="borderless" style={{ marginBottom: 16 }}>
+      <Card variant="borderless" className="saas-card" style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>
           {canSearchEmployees && (
             <Col xs={24} md={8}>
@@ -157,8 +157,9 @@ export function ClaimList() {
           }
         />
       ) : (
-        <Card variant="borderless">
+        <Card variant="borderless" className="saas-card">
           <Table
+            className="saas-table"
             rowKey="id"
             dataSource={rows}
             columns={columns}

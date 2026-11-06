@@ -143,7 +143,7 @@ export function WfhAllocations() {
   ];
 
   return (
-    <Card variant="borderless">
+    <Card variant="borderless" className="saas-card saas-page-container">
       <PageHeader
         title="WFH Allocations"
         subtitle="Manage employee yearly remote work entitlements and pro-rata quotas"
@@ -162,6 +162,11 @@ export function WfhAllocations() {
                 icon={<PlusOutlined />}
                 onClick={() => setModalVisible(true)}
                 data-testid="create-wfh-allocation-btn"
+                className="btn-spring"
+                style={{
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                  fontWeight: 600,
+                }}
               >
                 Allocate Quota
               </Button>

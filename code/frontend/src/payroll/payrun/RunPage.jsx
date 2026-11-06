@@ -269,7 +269,7 @@ export function RunPage() {
   const approver = approverOf(run);
 
   return (
-    <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div className="saas-page-container" style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
       <Breadcrumb
         style={{ marginBottom: 16 }}
         items={[

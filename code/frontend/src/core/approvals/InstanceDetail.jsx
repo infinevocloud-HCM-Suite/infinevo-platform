@@ -158,174 +158,179 @@ export function InstanceDetail({ instanceId: propInstanceId } = {}) {
   ];
 
   return (
-    <Card variant="borderless" loading={loading}>
-      <PageHeader
-        title="Approval Instance Details"
-        onBack={() => navigate('/approvals')}
-        backLabel="Inbox"
-        backProps={{ id: 'btn-back-to-inbox' }}
-        actions={
-          canManage && instance?.status === 'PENDING' && (
-            <Button
-              icon={<SwapOutlined />}
-              onClick={() => setReassignOpen(true)}
-              id="btn-open-reassign"
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless" loading={loading}>
+        <PageHeader
+          title="Approval Instance Details"
+          onBack={() => navigate('/approvals')}
+          backLabel="Inbox"
+          backProps={{ id: 'btn-back-to-inbox' }}
+          actions={
+            canManage && instance?.status === 'PENDING' && (
+              <Button
+                className="btn-spring"
+                icon={<SwapOutlined />}
+                onClick={() => setReassignOpen(true)}
+                id="btn-open-reassign"
+              >
+                Reassign Step
+              </Button>
+            )
+          }
+        />
+
+        {instance && (
+          <>
+            <Descriptions
+              bordered
+              size="small"
+              column={{ xs: 1, sm: 2, md: 3 }}
+              style={{ marginBottom: token.marginLG }}
             >
-              Reassign Step
-            </Button>
-          )
-        }
-      />
-
-      {instance && (
-        <>
-          <Descriptions
-            bordered
-            size="small"
-            column={{ xs: 1, sm: 2, md: 3 }}
-            style={{ marginBottom: token.marginLG }}
-          >
-            <Descriptions.Item label="Instance ID">{instance.id}</Descriptions.Item>
-            <Descriptions.Item label="Flow Type">
-              <Tag color="blue">{instance.flowType}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag color={STATUS_TAGS[instance.status] || 'default'}>
-                {instance.status}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Employee">
-              {personName(instance.subjectEmployeeName)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Subject Reference">
-              {instance.subjectTable ? (
-                getItemRoute(instance.flowType, instance.subjectId) ? (
-                  <Button
-                    type="link"
-                    id="btn-view-subject-item"
-                    style={{ padding: 0, height: 'auto' }}
-                    onClick={() => navigate(getItemRoute(instance.flowType, instance.subjectId), { state: { from: '/approvals' } })}
-                  >
-                    {instance.subjectTable} #{instance.subjectId}
-                  </Button>
+              <Descriptions.Item label="Instance ID">{instance.id}</Descriptions.Item>
+              <Descriptions.Item label="Flow Type">
+                <Tag color="blue">{instance.flowType}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color={STATUS_TAGS[instance.status] || 'default'}>
+                  {instance.status}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Employee">
+                {personName(instance.subjectEmployeeName)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Subject Reference">
+                {instance.subjectTable ? (
+                  getItemRoute(instance.flowType, instance.subjectId) ? (
+                    <Button
+                      type="link"
+                      className="btn-spring"
+                      id="btn-view-subject-item"
+                      style={{ padding: 0, height: 'auto' }}
+                      onClick={() => navigate(getItemRoute(instance.flowType, instance.subjectId), { state: { from: '/approvals' } })}
+                    >
+                      {instance.subjectTable} #{instance.subjectId}
+                    </Button>
+                  ) : (
+                    `${instance.subjectTable} #${instance.subjectId}`
+                  )
                 ) : (
-                  `${instance.subjectTable} #${instance.subjectId}`
-                )
-              ) : (
-                '—'
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Started At">
-              {formatDate(instance.startedAt)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Completed At">
-              {formatDate(instance.completedAt)}
-            </Descriptions.Item>
-          </Descriptions>
+                  '—'
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="Started At">
+                {formatDate(instance.startedAt)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Completed At">
+                {formatDate(instance.completedAt)}
+              </Descriptions.Item>
+            </Descriptions>
 
-          <Text strong style={{ display: 'block', marginTop: token.marginLG, marginBottom: 12, fontSize: token.fontSizeLG }}>
-            Approval Steps
-          </Text>
-          <Table
-            dataSource={instance.steps || []}
-            columns={stepsColumns}
-            rowKey="id"
-            pagination={false}
-            style={{ marginBottom: token.marginLG }}
-          />
+            <Text strong style={{ display: 'block', marginTop: token.marginLG, marginBottom: 12, fontSize: token.fontSizeLG }}>
+              Approval Steps
+            </Text>
+            <Table
+              className="saas-table"
+              dataSource={instance.steps || []}
+              columns={stepsColumns}
+              rowKey="id"
+              pagination={false}
+              style={{ marginBottom: token.marginLG }}
+            />
 
-          <Text strong style={{ display: 'block', marginTop: token.marginLG, marginBottom: 16, fontSize: token.fontSizeLG }}>
-            History Trail
-          </Text>
-          {historyEvents.length > 0 ? (
-            <Timeline
-              items={historyEvents.map((event, idx) => {
-                const label =
-                  event.decision ||
-                  (event.reassignedFromEmployeeId
-                    ? 'REASSIGNED'
-                    : event.eventType ||
-                      `Step ${event.stepIndex !== undefined ? event.stepIndex + 1 : idx + 1}`);
-                const reason = event.comment || event.reassignReason || event.reason || '';
-                const time = event.decidedAt || event.createdAt || event.occurredAt;
-                const color =
-                  label === 'APPROVED'
-                    ? 'green'
-                    : label === 'REJECTED'
-                    ? 'red'
-                    : label === 'REASSIGNED'
-                    ? 'orange'
-                    : 'blue';
-                return {
-                  color,
-                  children: (
-                    <div>
-                      <strong>{label}</strong>
-                      {reason ? ` — ${reason}` : ''}
-                      <div style={{ color: token.colorTextSecondary, fontSize: 12 }}>
-                        {time ? formatDate(time) : ''}
-                        {event.reassignedFromEmployeeId
-                          ? ` • From: ${personName(event.reassignedFromEmployeeName)}`
-                          : ''}
-                        {event.assigneeEmployeeId
-                          ? ` • Assignee: ${personName(event.assigneeName || event.assigneeEmployeeName)}`
-                          : ''}
-                        {event.delegatedFromEmployeeId
-                          ? ` • Delegated from: ${personName(event.delegatedFromEmployeeName)}`
-                          : ''}
-                        {event.escalatedFromEmployeeId
-                          ? ` • Escalated from: ${personName(event.escalatedFromEmployeeName)}`
-                          : ''}
+            <Text strong style={{ display: 'block', marginTop: token.marginLG, marginBottom: 16, fontSize: token.fontSizeLG }}>
+              History Trail
+            </Text>
+            {historyEvents.length > 0 ? (
+              <Timeline
+                items={historyEvents.map((event, idx) => {
+                  const label =
+                    event.decision ||
+                    (event.reassignedFromEmployeeId
+                      ? 'REASSIGNED'
+                      : event.eventType ||
+                        `Step ${event.stepIndex !== undefined ? event.stepIndex + 1 : idx + 1}`);
+                  const reason = event.comment || event.reassignReason || event.reason || '';
+                  const time = event.decidedAt || event.createdAt || event.occurredAt;
+                  const color =
+                    label === 'APPROVED'
+                      ? 'green'
+                      : label === 'REJECTED'
+                      ? 'red'
+                      : label === 'REASSIGNED'
+                      ? 'orange'
+                      : 'blue';
+                  return {
+                    color,
+                    children: (
+                      <div>
+                        <strong>{label}</strong>
+                        {reason ? ` — ${reason}` : ''}
+                        <div style={{ color: token.colorTextSecondary, fontSize: 12 }}>
+                          {time ? formatDate(time) : ''}
+                          {event.reassignedFromEmployeeId
+                            ? ` • From: ${personName(event.reassignedFromEmployeeName)}`
+                            : ''}
+                          {event.assigneeEmployeeId
+                            ? ` • Assignee: ${personName(event.assigneeName || event.assigneeEmployeeName)}`
+                            : ''}
+                          {event.delegatedFromEmployeeId
+                            ? ` • Delegated from: ${personName(event.delegatedFromEmployeeName)}`
+                            : ''}
+                          {event.escalatedFromEmployeeId
+                            ? ` • Escalated from: ${personName(event.escalatedFromEmployeeName)}`
+                            : ''}
+                        </div>
                       </div>
-                    </div>
-                  ),
-                };
-              })}
-            />
-          ) : (
-            <Typography.Text type="secondary">No history events recorded.</Typography.Text>
-          )}
-        </>
-      )}
+                    ),
+                  };
+                })}
+              />
+            ) : (
+              <Typography.Text type="secondary">No history events recorded.</Typography.Text>
+            )}
+          </>
+        )}
 
-      <Modal
-        title="Reassign Step"
-        open={reassignOpen}
-        onOk={handleReassign}
-        onCancel={() => setReassignOpen(false)}
-        confirmLoading={reassigning}
-        okText="Reassign"
-      >
-        <Form form={reassignForm} layout="vertical">
-          <Form.Item
-            name="employeeId"
-            label="New Assignee Employee"
-            rules={[{ required: true, message: 'Please select an employee.' }]}
-          >
-            <Select
-              id="input-reassign-employee"
-              showSearch
-              placeholder="Search employee by name or ID"
-              filterOption={false}
-              loading={searchLoading}
-              onSearch={searchEmployees}
-              onFocus={() => {
-                if (employeeOptions.length === 0) searchEmployees('');
-              }}
-              options={employeeOptions}
-              notFoundContent={searchError || undefined}
-            />
-          </Form.Item>
-          <Form.Item
-            name="reason"
-            label="Reason"
-            rules={[{ required: true, message: 'Please state the reason for reassignment.' }]}
-          >
-            <Input.TextArea id="input-reassign-reason" rows={3} placeholder="Reason for reassignment..." />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </Card>
+        <Modal
+          title="Reassign Step"
+          open={reassignOpen}
+          onOk={handleReassign}
+          onCancel={() => setReassignOpen(false)}
+          confirmLoading={reassigning}
+          okText="Reassign"
+        >
+          <Form form={reassignForm} layout="vertical">
+            <Form.Item
+              name="employeeId"
+              label="New Assignee Employee"
+              rules={[{ required: true, message: 'Please select an employee.' }]}
+            >
+              <Select
+                id="input-reassign-employee"
+                showSearch
+                placeholder="Search employee by name or ID"
+                filterOption={false}
+                loading={searchLoading}
+                onSearch={searchEmployees}
+                onFocus={() => {
+                  if (employeeOptions.length === 0) searchEmployees('');
+                }}
+                options={employeeOptions}
+                notFoundContent={searchError || undefined}
+              />
+            </Form.Item>
+            <Form.Item
+              name="reason"
+              label="Reason"
+              rules={[{ required: true, message: 'Please state the reason for reassignment.' }]}
+            >
+              <Input.TextArea id="input-reassign-reason" rows={3} placeholder="Reason for reassignment..." />
+            </Form.Item>
+          </Form>
+        </Modal>
+      </Card>
+    </div>
   );
 }
 

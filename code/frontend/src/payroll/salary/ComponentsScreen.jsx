@@ -220,6 +220,7 @@ export function ComponentsScreen() {
       label: 'Earnings',
       children: (
         <Table
+          className="saas-table"
           rowKey="id"
           columns={getColumns('earnings')}
           dataSource={data.earnings}
@@ -233,6 +234,7 @@ export function ComponentsScreen() {
       label: 'Deductions',
       children: (
         <Table
+          className="saas-table"
           rowKey="id"
           columns={getColumns('deductions')}
           dataSource={data.deductions}
@@ -246,6 +248,7 @@ export function ComponentsScreen() {
       label: 'Benefits',
       children: (
         <Table
+          className="saas-table"
           rowKey="id"
           columns={getColumns('benefits')}
           dataSource={data.benefits}
@@ -259,6 +262,7 @@ export function ComponentsScreen() {
       label: 'Reimbursements',
       children: (
         <Table
+          className="saas-table"
           rowKey="id"
           columns={getColumns('reimbursements')}
           dataSource={data.reimbursements}
@@ -270,13 +274,15 @@ export function ComponentsScreen() {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="saas-page-container fadeSlideUp">
       <PageHeader
         title="Salary Components"
+        subtitle="Configure catalog of earnings, deductions, fringe benefits, and reimbursement heads."
         actions={
           canManage && (
             <Button
               type="primary"
+              className="btn-spring"
               icon={<PlusOutlined />}
               onClick={() => {
                 setSelectedComponent(null);
@@ -288,7 +294,7 @@ export function ComponentsScreen() {
           )
         }
       />
-      <Card variant="borderless">
+      <Card className="saas-card" variant="borderless">
         <Tabs activeKey={activeTab} items={tabItems} onChange={setActiveTab} />
       </Card>
 

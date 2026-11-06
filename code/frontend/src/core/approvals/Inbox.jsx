@@ -9,6 +9,7 @@ import {
   Card,
   Tag,
   Select,
+  theme,
 } from 'antd';
 import { CheckOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons';
 import { useCan, useHasModule, NotEntitled } from '@shell/screens';
@@ -40,7 +41,8 @@ const formatSummary = (str) => {
 };
 
 export function Inbox() {
-    const navigate = useNavigate();
+  const { token } = theme.useToken();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const canDecide = useCan('core.approval.decide');
   const hasHrms = useHasModule('HRMS');
@@ -176,6 +178,13 @@ export function Inbox() {
                   icon={<CheckOutlined />}
                   onClick={() => handleOpenDecide(record, 'APPROVED')}
                   id={`btn-approve-${record.id}`}
+                  className="btn-spring"
+                  style={{
+                    background: token.colorSuccess,
+                    borderColor: token.colorSuccess,
+                    borderRadius: 6,
+                    fontWeight: 600,
+                  }}
                 >
                   Approve
                 </Button>
@@ -185,6 +194,8 @@ export function Inbox() {
                   icon={<CloseOutlined />}
                   onClick={() => handleOpenDecide(record, 'REJECTED')}
                   id={`btn-reject-${record.id}`}
+                  className="btn-spring"
+                  style={{ borderRadius: 6, fontWeight: 600 }}
                 >
                   Reject
                 </Button>
@@ -212,7 +223,7 @@ export function Inbox() {
   }
 
   return (
-    <Card variant="borderless">
+    <Card variant="borderless" className="saas-card saas-page-container">
       <PageHeader
         title="Pending Approvals"
         subtitle="Review and decide requests waiting on your approval."

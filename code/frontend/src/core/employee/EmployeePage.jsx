@@ -241,9 +241,18 @@ export function EmployeePage() {
   ];
 
   return (
-    <div>
-      {/* Header bar */}
-      <Card variant="borderless" style={{ marginBottom: token.marginLG }}>
+    <div className="saas-page-container">
+      {/* Header bar (W-80 Hero Profile Banner) */}
+      <Card
+        variant="borderless"
+        className="hero-banner saas-card"
+        style={{
+          marginBottom: token.marginLG,
+          background: `linear-gradient(135deg, ${token.colorInfoBg} 0%, ${token.colorBgContainer} 100%)`,
+          border: `1px solid ${token.colorInfoBorder}`,
+          borderRadius: 14,
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: token.marginSM }}>
           <Space size="middle">
             <Button
@@ -331,7 +340,7 @@ export function EmployeePage() {
                 icon={<CalendarOutlined />}
                 onClick={() => navigate(`/employees/${id}/leave`)}
                 id="btn-employee-leave"
-                
+                className="btn-spring"
               >
                 Leave
               </Button>
@@ -342,7 +351,7 @@ export function EmployeePage() {
                 icon={<MailOutlined />}
                 onClick={handleInvite}
                 id="btn-send-employee-invitation"
-                
+                className="btn-spring"
               >
                 Send Invitation
               </Button>
@@ -353,7 +362,7 @@ export function EmployeePage() {
                 icon={<MailOutlined />}
                 onClick={handleResend}
                 id="btn-resend-employee-invitation"
-                
+                className="btn-spring"
               >
                 Resend Invitation
               </Button>
@@ -365,7 +374,7 @@ export function EmployeePage() {
                 icon={<CheckCircleOutlined />}
                 onClick={handleReactivate}
                 id="btn-reactivate-employee"
-                
+                className="btn-spring"
               >
                 Reactivate
               </Button>
@@ -377,7 +386,7 @@ export function EmployeePage() {
                 icon={<StopOutlined />}
                 onClick={() => setTerminateModalOpen(true)}
                 id="btn-terminate-employee"
-                
+                className="btn-spring"
               >
                 Terminate
               </Button>
@@ -390,7 +399,7 @@ export function EmployeePage() {
                 icon={<DeleteOutlined />}
                 onClick={handleDelete}
                 id="btn-delete-employee"
-                
+                className="btn-spring"
               >
                 Delete
               </Button>
@@ -400,7 +409,7 @@ export function EmployeePage() {
       </Card>
 
       {/* Tabs */}
-      <Card variant="borderless">
+      <Card variant="borderless" className="saas-card saas-page-container">
         <Tabs defaultActiveKey="overview" items={tabItems} destroyInactiveTabPane={false} />
       </Card>
 

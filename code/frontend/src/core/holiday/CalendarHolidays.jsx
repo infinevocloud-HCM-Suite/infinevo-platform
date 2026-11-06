@@ -184,11 +184,11 @@ export function CalendarHolidays() {
       width: 140,
       render: (isRestricted) =>
         isRestricted ? (
-          <Tag color="gold" id="tag-restricted">
+          <Tag color="gold" id="tag-restricted" style={{ borderRadius: 6, fontWeight: 500 }}>
             Restricted
           </Tag>
         ) : (
-          <Tag color="blue" id="tag-regular">
+          <Tag color="blue" id="tag-regular" style={{ borderRadius: 6, fontWeight: 500 }}>
             Regular
           </Tag>
         ),
@@ -230,112 +230,118 @@ export function CalendarHolidays() {
   }
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title={calendar?.name || 'Calendar Holidays'}
-        subtitle="Manage specific holidays and restricted dates observed for this calendar."
-        count={calendar?.isDefault ? 'Default Calendar' : undefined}
-        onBack={() => navigate('/holidays')}
-        backLabel="Calendars"
-        backProps={{ id: 'btn-back-calendars' }}
-        actions={
-          <Space>
-            <Select
-              value={selectedYear}
-              onChange={(val) => setSelectedYear(val)}
-              options={yearOptions}
-              style={{ width: 110 }}
-              id="select-year"
-            />
-            {canManage && (
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={handleOpenAdd}
-                id="btn-add-holiday"
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title={calendar?.name || 'Calendar Holidays'}
+          subtitle="Manage specific holidays and restricted dates observed for this calendar."
+          count={calendar?.isDefault ? 'Default Calendar' : undefined}
+          onBack={() => navigate('/holidays')}
+          backLabel="Calendars"
+          backProps={{ id: 'btn-back-calendars' }}
+          actions={
+            <Space>
+              <Select
+                value={selectedYear}
+                onChange={(val) => setSelectedYear(val)}
+                options={yearOptions}
+                style={{ width: 110 }}
+                id="select-year"
+              />
+              {canManage && (
+                <Button
+                  type="primary"
+                  className="btn-spring"
+                  icon={<PlusOutlined />}
+                  onClick={handleOpenAdd}
+                  id="btn-add-holiday"
+                >
+                  Add Holiday
+                </Button>
+              )}
+            </Space>
+          }
+        />
+
+        <Table
+          className="saas-table"
+          dataSource={filteredHolidays}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 25 }}
+        />
+
+        <Modal
+          title="Add Holiday"
+          open={modalOpen}
+          onCancel={handleCloseModal}
+          footer={[
+            <Button key="cancel" className="btn-spring" onClick={handleCloseModal} id="btn-cancel-holiday-modal">
+              Cancel
+            </Button>,
+            <Button
+              key="submit"
+              type="primary"
+              className="btn-spring"
+              loading={submitting}
+              onClick={handleAddHoliday}
+              id="btn-submit-holiday"
+            >
+              Add Holiday
+            </Button>,
+          ]}
+        >
+          <Form form={form} layout="vertical" initialValues={{ isRestricted: false }}>
+            <Form.Item
+              name="name"
+              label="Holiday Name"
+              rules={[
+                { required: true, message: 'Holiday name is required' },
+                { max: 100, message: 'Name must not exceed 100 characters' },
+              ]}
+            >
+              <Input placeholder="e.g. Gandhi Jayanti" id="input-holiday-name" style={{ borderRadius: 8 }} />
+            </Form.Item>
+
+            <Space style={{ display: 'flex' }} align="start">
+              <Form.Item
+                name="from"
+                label="Start Date"
+                rules={[{ required: true, message: 'Start date is required' }]}
               >
-                Add Holiday
-              </Button>
-            )}
-          </Space>
-        }
-      />
+                <DatePicker format="YYYY-MM-DD" id="picker-holiday-from" />
+              </Form.Item>
 
-      <Table
-        dataSource={filteredHolidays}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 25 }}
-      />
-
-      <Modal
-        title="Add Holiday"
-        open={modalOpen}
-        onCancel={handleCloseModal}
-        footer={[
-          <Button key="cancel" onClick={handleCloseModal} id="btn-cancel-holiday-modal">
-            Cancel
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            loading={submitting}
-            onClick={handleAddHoliday}
-            id="btn-submit-holiday"
-          >
-            Add Holiday
-          </Button>,
-        ]}
-      >
-        <Form form={form} layout="vertical" initialValues={{ isRestricted: false }}>
-          <Form.Item
-            name="name"
-            label="Holiday Name"
-            rules={[
-              { required: true, message: 'Holiday name is required' },
-              { max: 100, message: 'Name must not exceed 100 characters' },
-            ]}
-          >
-            <Input placeholder="e.g. Gandhi Jayanti" id="input-holiday-name" />
-          </Form.Item>
-
-          <Space style={{ display: 'flex' }} align="start">
-            <Form.Item
-              name="from"
-              label="Start Date"
-              rules={[{ required: true, message: 'Start date is required' }]}
-            >
-              <DatePicker format="YYYY-MM-DD" id="picker-holiday-from" />
-            </Form.Item>
+              <Form.Item
+                name="to"
+                label="End Date"
+                extra="Defaults to start date for single-day holidays."
+              >
+                <DatePicker format="YYYY-MM-DD" id="picker-holiday-to" />
+              </Form.Item>
+            </Space>
 
             <Form.Item
-              name="to"
-              label="End Date"
-              extra="Defaults to start date for single-day holidays."
+              name="isRestricted"
+              label="Restricted / Optional Holiday"
+              valuePropName="checked"
+              extra="If marked restricted, employees can choose this holiday subject to policy limits."
             >
-              <DatePicker format="YYYY-MM-DD" id="picker-holiday-to" />
+              <Switch id="switch-holiday-restricted" />
             </Form.Item>
-          </Space>
 
-          <Form.Item
-            name="isRestricted"
-            label="Restricted / Optional Holiday"
-            valuePropName="checked"
-            extra="If marked restricted, employees can choose this holiday subject to policy limits."
-          >
-            <Switch id="switch-holiday-restricted" />
-          </Form.Item>
-
-          <Form.Item name="description" label="Description">
-            <Input.TextArea
-              rows={3}
-              placeholder="Optional notes or statutory reference"
-              id="input-holiday-description"
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </Card>
+            <Form.Item name="description" label="Description">
+              <Input.TextArea
+                rows={3}
+                placeholder="Optional notes or statutory reference"
+                id="input-holiday-description"
+                style={{ borderRadius: 8 }}
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
+      </Card>
+    </div>
   );
 }

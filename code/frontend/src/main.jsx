@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider } from 'antd';
 import '@fontsource-variable/inter'; // W-83.7: Inter, bundled, no font call to a third party
+import '@shared/ui/core-ui.css'; // W-80: 10/10 Core UI & Motion Engine
 import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 

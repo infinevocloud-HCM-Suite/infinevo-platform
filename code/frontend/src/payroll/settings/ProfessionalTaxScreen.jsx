@@ -368,9 +368,10 @@ export function ProfessionalTaxScreen() {
         data-testid="pt-override-drawer"
         extra={
           <Space>
-            <Button onClick={closeOverrideDrawer}>Cancel</Button>
+            <Button className="btn-spring" onClick={closeOverrideDrawer}>Cancel</Button>
             <Button
               type="primary"
+              className="btn-spring"
               onClick={() => form.submit()}
               loading={overrideSaving}
               data-testid="save-override-button"

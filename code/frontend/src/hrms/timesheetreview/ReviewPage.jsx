@@ -135,57 +135,61 @@ export function ReviewPage() {
   const byProject = current?.by === 'projectId';
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Timesheet review"
-        count={data.total_elements != null ? String(data.total_elements) : undefined}
-      />
-      <Tabs
-        activeKey={tab}
-        onChange={(k) => {
-          setTab(k);
-          setSubject(undefined);
-          setPage(0);
-        }}
-        items={tabs.map((t) => ({ key: t.key, label: t.label }))}
-      />
-      <Space wrap style={{ marginBottom: token.margin }}>
-        <RangePicker value={range} onChange={reset(setRange)} />
-        <Select
-          aria-label="Status"
-          style={{ width: 160 }}
-          value={status}
-          onChange={reset(setStatus)}
-          options={REVIEW_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Timesheet review"
+          subtitle="Review and approve weekly employee timesheets with project cost allocations."
+          count={data.total_elements != null ? String(data.total_elements) : undefined}
         />
-        <Select
-          aria-label={byProject ? 'Project' : 'Employee'}
-          placeholder={byProject ? 'Any project' : 'Any employee'}
-          allowClear
-          style={{ width: 220 }}
-          value={subject}
-          onChange={reset(setSubject)}
-          options={options}
+        <Tabs
+          activeKey={tab}
+          onChange={(k) => {
+            setTab(k);
+            setSubject(undefined);
+            setPage(0);
+          }}
+          items={tabs.map((t) => ({ key: t.key, label: t.label }))}
         />
-      </Space>
-      {error && <Typography.Text type="danger">{error}</Typography.Text>}
-      <Table
-        rowKey="id"
-        loading={loading}
-        columns={columns}
-        dataSource={data.content || []}
-        onRow={(r) => ({
-          onClick: () => navigate(`/hrms/timesheet-review/${r.id}`),
-          style: { cursor: 'pointer' },
-        })}
-        pagination={{
-          current: page + 1,
-          pageSize: PAGE_SIZE,
-          total: data.total_elements || 0,
-          showSizeChanger: false,
-          onChange: (p) => setPage(p - 1),
-        }}
-      />
-    </Card>
+        <Space wrap style={{ marginBottom: token.margin }}>
+          <RangePicker value={range} onChange={reset(setRange)} />
+          <Select
+            aria-label="Status"
+            style={{ width: 160 }}
+            value={status}
+            onChange={reset(setStatus)}
+            options={REVIEW_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
+          />
+          <Select
+            aria-label={byProject ? 'Project' : 'Employee'}
+            placeholder={byProject ? 'Any project' : 'Any employee'}
+            allowClear
+            style={{ width: 220 }}
+            value={subject}
+            onChange={reset(setSubject)}
+            options={options}
+          />
+        </Space>
+        {error && <Typography.Text type="danger">{error}</Typography.Text>}
+        <Table
+          className="saas-table"
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={data.content || []}
+          onRow={(r) => ({
+            onClick: () => navigate(`/hrms/timesheet-review/${r.id}`),
+            style: { cursor: 'pointer' },
+          })}
+          pagination={{
+            current: page + 1,
+            pageSize: PAGE_SIZE,
+            total: data.total_elements || 0,
+            showSizeChanger: false,
+            onChange: (p) => setPage(p - 1),
+          }}
+        />
+      </Card>
+    </div>
   );
 }

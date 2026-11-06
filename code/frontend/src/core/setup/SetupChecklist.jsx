@@ -11,6 +11,7 @@ import {
   Space,
   Spin,
   Alert,
+  theme,
 } from 'antd';
 import { useCan, useHasModule, NotEntitled } from '@shell/screens';
 import { setupService } from './setupService.js';
@@ -72,6 +73,7 @@ function renderStepDetails(step) {
 }
 
 export function SetupChecklist() {
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const location = useLocation();
   const canRead = useCan('core.tenant.read');
@@ -197,7 +199,7 @@ export function SetupChecklist() {
   const progressPercentage = checklistData?.progressPercentage ?? 0;
 
   return (
-    <div style={{ padding: '24px', maxWidth: 1000, margin: '0 auto' }}>
+    <div className="saas-page-container fadeSlideUp" style={{ padding: '24px', maxWidth: 1000, margin: '0 auto' }}>
       <div id="heading-setup-checklist">
         <PageHeader
           title="Setup Checklist"
@@ -206,7 +208,7 @@ export function SetupChecklist() {
       </div>
 
       {checklistData && (
-        <Card variant="borderless" style={{ marginBottom: 24 }} id="card-setup-progress">
+        <Card className="saas-card" variant="borderless" style={{ marginBottom: 24 }} id="card-setup-progress">
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong style={{ fontSize: 16 }}>
@@ -217,7 +219,7 @@ export function SetupChecklist() {
                 {checklistData.totalCount} total
               </Text>
             </div>
-            <Progress percent={progressPercentage} status="active" />
+            <Progress percent={progressPercentage} status="active" strokeColor={token.colorPrimary} />
             {checklistData.newCount > 0 && (
               <Alert
                 type="info"
@@ -233,6 +235,7 @@ export function SetupChecklist() {
       {groups.map((group) => (
         <Card
           key={group.key}
+          className="saas-card"
           variant="borderless"
           title={group.title}
           style={{ marginBottom: 24 }}
@@ -255,6 +258,7 @@ export function SetupChecklist() {
                   <Button
                     key="open"
                     type="link"
+                    className="btn-spring"
                     onClick={() => navigate(path)}
                     id={`btn-open-step-${step.code.toLowerCase().replace(/_/g, '-')}`}
                   >
@@ -267,6 +271,7 @@ export function SetupChecklist() {
                   <Button
                     key="skip"
                     danger
+                    className="btn-spring"
                     onClick={() => setSkipModalStep(step)}
                     id={`btn-skip-step-${step.code.toLowerCase().replace(/_/g, '-')}`}
                   >

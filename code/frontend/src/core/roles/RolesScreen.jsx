@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Tag, Typography, Breadcrumb, List } from 'antd';
+import { Card, Table, Tag, Typography, Breadcrumb, List, theme } from 'antd';
 import { useCan, NotEntitled } from '@shell/screens';
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { errorMsg } from '@shared/ui/msgHelper.js';
@@ -12,6 +12,7 @@ const { Text } = Typography;
  * action codes, named from the action catalogue; if the catalogue cannot be read, the codes alone.
  */
 export function RolesScreen() {
+  const { token } = theme.useToken();
   const canRead = useCan('core.role.read');
   const [roles, setRoles] = useState([]);
   const [catalogue, setCatalogue] = useState({});
@@ -40,19 +41,46 @@ export function RolesScreen() {
   }
 
   const columns = [
-    { title: 'Role', dataIndex: 'name', key: 'name' },
-    { title: 'Code', dataIndex: 'code', key: 'code' },
+    {
+      title: 'Role',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name) => <Text strong style={{ color: token.colorText }}>{name}</Text>,
+    },
+    {
+      title: 'Code',
+      dataIndex: 'code',
+      key: 'code',
+      render: (code) => (
+        <Tag style={{ borderRadius: 6, fontWeight: 600, background: token.colorInfoBg, color: token.colorInfoText, borderColor: token.colorInfoBorder }}>
+          {code}
+        </Tag>
+      ),
+    },
     {
       title: 'System?',
       dataIndex: 'system',
       key: 'system',
-      render: (system) => (system ? <Tag color="blue">System</Tag> : <Tag>Custom</Tag>),
+      render: (system) =>
+        system ? (
+          <Tag color="blue" style={{ borderRadius: 6, fontWeight: 500 }}>
+            System
+          </Tag>
+        ) : (
+          <Tag style={{ borderRadius: 6, fontWeight: 500 }}>
+            Custom
+          </Tag>
+        ),
     },
     {
       title: 'Actions held',
       dataIndex: 'actionCodes',
       key: 'actionCodes',
-      render: (codes) => (codes || []).length,
+      render: (codes) => (
+        <Tag style={{ borderRadius: 12, fontWeight: 600, background: token.colorFillSecondary, color: token.colorTextSecondary, padding: '2px 8px' }}>
+          {(codes || []).length}
+        </Tag>
+      ),
     },
   ];
 
@@ -76,11 +104,12 @@ export function RolesScreen() {
   );
 
   return (
-    <div>
+    <div className="saas-page-container fadeSlideUp">
       <Breadcrumb items={[{ title: 'Home' }, { title: 'Roles' }]} style={{ marginBottom: 16 }} />
-      <PageHeader title="Roles" />
-      <Card variant="borderless">
+      <PageHeader title="Roles" subtitle="View assigned system and custom security roles with permissions matrix." />
+      <Card className="saas-card" variant="borderless">
         <Table
+          className="saas-table"
           rowKey="id"
           columns={columns}
           dataSource={roles}

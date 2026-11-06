@@ -96,6 +96,7 @@ export function EditOwnSection({ employeeId: propEmployeeId }) {
   return (
     <Card
       variant="borderless"
+      className="saas-card fadeSlideUp"
       style={{
         borderRadius: token.borderRadiusLG,
         boxShadow: token.boxShadowTertiary,

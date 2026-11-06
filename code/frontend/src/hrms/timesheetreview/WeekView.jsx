@@ -36,83 +36,86 @@ export function WeekView() {
   const descriptions = collectDescriptions(rows, dates);
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Timesheet"
-        onBack={() => navigate('/hrms/timesheet-review')}
-        actions={<Link to="/hrms/timesheet-review">Back to review</Link>}
-      />
-      <Descriptions size="small" column={3} style={{ marginBottom: token.margin }}>
-        <Descriptions.Item label="Employee">{sheet.employee_name || sheet.employee_id}</Descriptions.Item>
-        <Descriptions.Item label="Week">
-          {formatDate(sheet.week_start_date)} to {formatDate(sheet.week_end_date)}
-        </Descriptions.Item>
-        <Descriptions.Item label="Status">
-          <Tag color={STATUS_COLOR[sheet.status]}>{STATUS_LABEL[sheet.status] || statusLabel(sheet.status)}</Tag>
-        </Descriptions.Item>
-      </Descriptions>
-      <Space wrap style={{ marginBottom: token.margin }}>
-        {(sheet.projects || []).map((p) => (
-          <Link key={p.id} to={`/hrms/timesheet-review/entries/${p.id}`}>
-            <Tag color={STATUS_COLOR[p.status]} style={{ cursor: 'pointer' }}>
-              {p.project_name || p.project_id}: {STATUS_LABEL[p.status] || statusLabel(p.status)}
-            </Tag>
-          </Link>
-        ))}
-      </Space>
-      <Table
-        rowKey="key"
-        size="small"
-        pagination={false}
-        columns={cols}
-        dataSource={rows}
-        summary={() => (
-          <Table.Summary.Row>
-            <Table.Summary.Cell index={0} colSpan={2}>
-              Total
-            </Table.Summary.Cell>
-            {totals.map((t, i) => (
-              <Table.Summary.Cell key={dates[i]} index={i + 2} align="right">
-                {formatHundredths(t)}
-              </Table.Summary.Cell>
-            ))}
-            <Table.Summary.Cell index={9} align="right">
-              {formatHundredths(sumRows(rows))}
-            </Table.Summary.Cell>
-          </Table.Summary.Row>
-        )}
-      />
-      {descriptions.length > 0 && (
-        <Collapse
-          ghost
-          defaultActiveKey={['descriptions']}
-          style={{ marginTop: 16 }}
-          items={[
-            {
-              key: 'descriptions',
-              label: <Typography.Text strong>Work descriptions ({descriptions.length})</Typography.Text>,
-              children: (
-                <Descriptions size="small" column={1} bordered>
-                  {descriptions.map((item, idx) => (
-                    <Descriptions.Item
-                      key={idx}
-                      label={`${formatDate(item.date)} · ${item.project ? `${item.project} / ` : ''}${item.task} (${formatHundredths(item.hours)}h)`}
-                    >
-                      <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>{item.description}</Typography.Text>
-                    </Descriptions.Item>
-                  ))}
-                </Descriptions>
-              ),
-            },
-          ]}
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Timesheet"
+          onBack={() => navigate('/hrms/timesheet-review')}
+          actions={<Link to="/hrms/timesheet-review">Back to review</Link>}
         />
-      )}
-      {rejected.map((p) => (
-        <Typography.Paragraph key={p.id} type="danger" style={{ marginTop: 12 }}>
-          {p.project_name || p.project_id} rejected: {p.rejection_reason}
-        </Typography.Paragraph>
-      ))}
-    </Card>
+        <Descriptions size="small" column={3} style={{ marginBottom: token.margin }}>
+          <Descriptions.Item label="Employee">{sheet.employee_name || sheet.employee_id}</Descriptions.Item>
+          <Descriptions.Item label="Week">
+            {formatDate(sheet.week_start_date)} to {formatDate(sheet.week_end_date)}
+          </Descriptions.Item>
+          <Descriptions.Item label="Status">
+            <Tag color={STATUS_COLOR[sheet.status]}>{STATUS_LABEL[sheet.status] || statusLabel(sheet.status)}</Tag>
+          </Descriptions.Item>
+        </Descriptions>
+        <Space wrap style={{ marginBottom: token.margin }}>
+          {(sheet.projects || []).map((p) => (
+            <Link key={p.id} to={`/hrms/timesheet-review/entries/${p.id}`}>
+              <Tag color={STATUS_COLOR[p.status]} style={{ cursor: 'pointer' }}>
+                {p.project_name || p.project_id}: {STATUS_LABEL[p.status] || statusLabel(p.status)}
+              </Tag>
+            </Link>
+          ))}
+        </Space>
+        <Table
+          className="saas-table"
+          rowKey="key"
+          size="small"
+          pagination={false}
+          columns={cols}
+          dataSource={rows}
+          summary={() => (
+            <Table.Summary.Row>
+              <Table.Summary.Cell index={0} colSpan={2}>
+                Total
+              </Table.Summary.Cell>
+              {totals.map((t, i) => (
+                <Table.Summary.Cell key={dates[i]} index={i + 2} align="right">
+                  {formatHundredths(t)}
+                </Table.Summary.Cell>
+              ))}
+              <Table.Summary.Cell index={9} align="right">
+                {formatHundredths(sumRows(rows))}
+              </Table.Summary.Cell>
+            </Table.Summary.Row>
+          )}
+        />
+        {descriptions.length > 0 && (
+          <Collapse
+            ghost
+            defaultActiveKey={['descriptions']}
+            style={{ marginTop: 16 }}
+            items={[
+              {
+                key: 'descriptions',
+                label: <Typography.Text strong>Work descriptions ({descriptions.length})</Typography.Text>,
+                children: (
+                  <Descriptions size="small" column={1} bordered>
+                    {descriptions.map((item, idx) => (
+                      <Descriptions.Item
+                        key={idx}
+                        label={`${formatDate(item.date)} · ${item.project ? `${item.project} / ` : ''}${item.task} (${formatHundredths(item.hours)}h)`}
+                      >
+                        <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>{item.description}</Typography.Text>
+                      </Descriptions.Item>
+                    ))}
+                  </Descriptions>
+                ),
+              },
+            ]}
+          />
+        )}
+        {rejected.map((p) => (
+          <Typography.Paragraph key={p.id} type="danger" style={{ marginTop: 12 }}>
+            {p.project_name || p.project_id} rejected: {p.rejection_reason}
+          </Typography.Paragraph>
+        ))}
+      </Card>
+    </div>
   );
 }
 

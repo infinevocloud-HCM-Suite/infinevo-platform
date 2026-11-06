@@ -501,6 +501,7 @@ export function SalarySetupDrawer({
   const renderEarnings = () => (
     <Card
       size="small"
+      className="saas-card"
       title="Earnings"
       style={{ marginBottom: 16 }}
       extra={
@@ -794,7 +795,7 @@ export function SalarySetupDrawer({
   );
 
   const renderStatutory = () => (
-    <Card size="small" title="Statutory" style={{ marginBottom: 16 }}>
+    <Card size="small" className="saas-card" title="Statutory" style={{ marginBottom: 16 }}>
       {profileState === 'error' && (
         <Alert
           type="error"
@@ -897,6 +898,7 @@ export function SalarySetupDrawer({
   const renderSummary = () => (
     <Card
       size="small"
+      className="saas-card"
       title={
         <Space>
           <span>Summary</span>
@@ -922,6 +924,7 @@ export function SalarySetupDrawer({
         <>
           <Table
             id="table-salary-preview-components"
+            className="saas-table"
             dataSource={componentRows}
             rowKey={(r, i) => `${r.componentId}-${i}`}
             pagination={false}
@@ -988,11 +991,12 @@ export function SalarySetupDrawer({
       footer={
         <div style={{ textAlign: 'right' }}>
           <Space>
-            <Button onClick={onClose}>Cancel</Button>
+            <Button className="btn-spring" onClick={onClose}>Cancel</Button>
             {canManage && (
               <Button
                 id="btn-salary-version-submit"
                 type="primary"
+                className="btn-spring"
                 loading={submitting}
                 disabled={saveBlocked}
                 onClick={handleSave}
@@ -1023,7 +1027,7 @@ export function SalarySetupDrawer({
         initialValues={{ earnings: [], benefits: [], reimbursements: [], statutory: EMPTY_PROFILE }}
         onValuesChange={schedulePreview}
       >
-        <Card size="small" title="Basics" style={{ marginBottom: 16 }}>
+        <Card size="small" className="saas-card" title="Basics" style={{ marginBottom: 16 }}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item

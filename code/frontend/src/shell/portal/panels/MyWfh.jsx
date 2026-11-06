@@ -43,10 +43,13 @@ function WfhBalanceCard({ balance, token }) {
     <Card
       type="inner"
       variant="borderless"
+      className="saas-card card-lift"
       data-testid="wfh-balance-card"
       style={{
         width: '100%',
         borderRadius: token.borderRadiusLG,
+        border: '1px solid rgba(186,230,253,0.7)',
+        background: `linear-gradient(180deg, ${token.colorBgContainer} 0%, ${token.colorFillAlter} 100%)`,
       }}
       styles={{ body: { display: 'flex', flexDirection: 'column', gap: token.marginSM } }}
     >
@@ -362,7 +365,7 @@ export function MyWfh({ onNavigate }) {
   const availableDaysCount = hasAllocation ? Number(balance?.availableDays || 0) : 0;
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+    <Space direction="vertical" size="large" style={{ width: '100%' }} className="fadeSlideUp">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <Title level={4} style={{ margin: 0 }}>Work From Home (WFH)</Title>
@@ -371,6 +374,7 @@ export function MyWfh({ onNavigate }) {
 
         <Button
           type="primary"
+          className="btn-spring"
           icon={<PlusOutlined />}
           data-testid="apply-wfh-btn"
           disabled={!hasAllocation || availableDaysCount <= 0}
@@ -391,11 +395,13 @@ export function MyWfh({ onNavigate }) {
 
       <Card
         variant="borderless"
+        className="saas-card"
         title="WFH History & Requests"
         data-testid="wfh-requests-card"
         style={{ borderRadius: token.borderRadiusLG }}
       >
         <Table
+          className="saas-table"
           dataSource={requests}
           columns={columns}
           rowKey="id"

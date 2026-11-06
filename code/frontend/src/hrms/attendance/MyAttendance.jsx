@@ -111,9 +111,9 @@ export function MyAttendance() {
   ];
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }}>
+    <Space direction="vertical" style={{ width: '100%' }} className="saas-page-container">
       <ClockCard onDay={onDay} />
-      <Card variant="borderless">
+      <Card variant="borderless" className="saas-card">
         <PageHeader
           title="My days"
           actions={

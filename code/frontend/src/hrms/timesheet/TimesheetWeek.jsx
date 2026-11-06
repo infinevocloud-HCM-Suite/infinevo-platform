@@ -554,7 +554,7 @@ function WeekGrid({ weekStart }) {
         />
       )}
 
-      <Card variant="borderless">
+      <Card variant="borderless" className="saas-card saas-page-container">
         <Table
           rowKey="key"
           size="small"

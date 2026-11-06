@@ -203,36 +203,39 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
   const canCancel = !isReadOnly && canManage && request.status === 'APPROVED';
 
   return (
-    <Card variant="borderless" style={{ maxWidth: 900 }}>
-      <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <PageHeader
-          title="Leave Request Details"
-          count={statusConfig.label}
-          onBack={() => navigate(effectiveBackPath)}
-          backLabel="Back"
-          actions={
-            <Space>
-              {canWithdraw && (
-                <Button
-                  danger
-                  icon={<StopOutlined />}
-                  onClick={() => handleOpenActionModal('withdraw')}
-                >
-                  Withdraw
-                </Button>
-              )}
-              {canCancel && (
-                <Button
-                  danger
-                  icon={<CloseCircleOutlined />}
-                  onClick={() => handleOpenActionModal('cancel')}
-                >
-                  Cancel Leave
-                </Button>
-              )}
-            </Space>
-          }
-        />
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 900, margin: '0 auto' }}>
+      <Card className="saas-card" variant="borderless">
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <PageHeader
+            title="Leave Request Details"
+            count={statusConfig.label}
+            onBack={() => navigate(effectiveBackPath)}
+            backLabel="Back"
+            actions={
+              <Space>
+                {canWithdraw && (
+                  <Button
+                    danger
+                    className="btn-spring"
+                    icon={<StopOutlined />}
+                    onClick={() => handleOpenActionModal('withdraw')}
+                  >
+                    Withdraw
+                  </Button>
+                )}
+                {canCancel && (
+                  <Button
+                    danger
+                    className="btn-spring"
+                    icon={<CloseCircleOutlined />}
+                    onClick={() => handleOpenActionModal('cancel')}
+                  >
+                    Cancel Leave
+                  </Button>
+                )}
+              </Space>
+            }
+          />
 
         <Descriptions bordered column={{ xs: 1, sm: 2, md: 2 }}>
           <Descriptions.Item label="Employee">
@@ -351,6 +354,7 @@ export function LeaveRequestDetail({ readOnly = false, backPath = null }) {
         />
       </Modal>
     </Card>
+    </div>
   );
 }
 

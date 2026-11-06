@@ -335,47 +335,52 @@ export function Definitions() {
   }
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Approval Definitions"
-        subtitle="Configure multi-step approval workflows across organization flow types."
-        actions={
-          canManage && (
-            <Space>
-              <Button
-                icon={<PlusOutlined />}
-                onClick={handleAddStep}
-                id="btn-add-step"
-              >
-                Add Step
-              </Button>
-              <Button
-                type="primary"
-                icon={<SaveOutlined />}
-                onClick={handleSave}
-                loading={saving}
-                id="btn-save-definition"
-              >
-                Save Definition
-              </Button>
-            </Space>
-          )
-        }
-      />
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Approval Definitions"
+          subtitle="Configure multi-step approval workflows across organization flow types."
+          actions={
+            canManage && (
+              <Space>
+                <Button
+                  className="btn-spring"
+                  icon={<PlusOutlined />}
+                  onClick={handleAddStep}
+                  id="btn-add-step"
+                >
+                  Add Step
+                </Button>
+                <Button
+                  type="primary"
+                  className="btn-spring"
+                  icon={<SaveOutlined />}
+                  onClick={handleSave}
+                  loading={saving}
+                  id="btn-save-definition"
+                >
+                  Save Definition
+                </Button>
+              </Space>
+            )
+          }
+        />
 
-      <Tabs
-        activeKey={activeFlow}
-        onChange={(key) => setActiveFlow(key)}
-        items={flowTypes.map((f) => ({ key: f.key, label: f.label }))}
-      />
+        <Tabs
+          activeKey={activeFlow}
+          onChange={(key) => setActiveFlow(key)}
+          items={flowTypes.map((f) => ({ key: f.key, label: f.label }))}
+        />
 
-      <Table
-        dataSource={steps}
-        columns={columns}
-        rowKey="stepIndex"
-        pagination={false}
-        loading={loading}
-      />
-    </Card>
+        <Table
+          className="saas-table"
+          dataSource={steps}
+          columns={columns}
+          rowKey="stepIndex"
+          pagination={false}
+          loading={loading}
+        />
+      </Card>
+    </div>
   );
 }

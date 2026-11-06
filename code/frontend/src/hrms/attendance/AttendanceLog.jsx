@@ -124,42 +124,46 @@ export function AttendanceLog() {
   ];
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Attendance Log"
-        subtitle="Review employee clock-in sessions, worked hours, and daily attendance logs"
-      />
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <Space wrap>
-          <DatePicker.RangePicker
-            value={range}
-            onChange={onRange}
-            allowClear={false}
-            aria-label="Range"
-            placeholder={['Pick a range', 'at most 31 days']}
-            presets={[{ label: 'This week', value: () => weekOf(dayjs()) }]}
-          />
-          <Select
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            placeholder="All employees"
-            style={{ minWidth: 220 }}
-            options={options}
-            value={employeeId}
-            onChange={(v) => setEmployeeId(v || undefined)}
-            aria-label="Employee"
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Attendance Log"
+          subtitle="Review employee clock-in sessions, worked hours, and daily attendance logs"
+        />
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Space wrap>
+            <DatePicker.RangePicker
+              value={range}
+              onChange={onRange}
+              allowClear={false}
+              aria-label="Range"
+              placeholder={['Pick a range', 'at most 31 days']}
+              presets={[{ label: 'This week', value: () => weekOf(dayjs()) }]}
+              style={{ borderRadius: 8 }}
+            />
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="All employees"
+              style={{ minWidth: 220 }}
+              options={options}
+              value={employeeId}
+              onChange={(v) => setEmployeeId(v || undefined)}
+              aria-label="Employee"
+            />
+          </Space>
+          {error && <Alert type="error" message={error} showIcon />}
+          <Table
+            className="saas-table"
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={loading}
+            locale={{ emptyText: range ? 'No sessions in this range' : 'Pick a range to load sessions' }}
           />
         </Space>
-        {error && <Alert type="error" message={error} showIcon />}
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={rows}
-          loading={loading}
-          locale={{ emptyText: range ? 'No sessions in this range' : 'Pick a range to load sessions' }}
-        />
-      </Space>
-    </Card>
+      </Card>
+    </div>
   );
 }

@@ -481,6 +481,7 @@ export function EpfScreen() {
         <Form.Item style={{ marginTop: 16 }}>
           <Button
             type="primary"
+            className="btn-spring"
             htmlType="submit"
             icon={<SaveOutlined />}
             loading={saving}

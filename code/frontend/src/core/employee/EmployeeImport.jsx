@@ -245,8 +245,8 @@ export function EmployeeImport() {
   ];
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Card variant="borderless">
+    <Space direction="vertical" size="large" style={{ width: '100%' }} className="saas-page-container">
+      <Card variant="borderless" className="saas-card">
         <PageHeader
           title="Import Employees"
           onBack={() => navigate('/employees')}
@@ -255,11 +255,11 @@ export function EmployeeImport() {
         />
 
         <Space wrap style={{ marginBottom: token.marginLG }}>
-          <Button icon={<DownloadOutlined />} onClick={handleTemplate} id="btn-import-template" style={{ borderRadius: 8 }}>
+          <Button icon={<DownloadOutlined />} onClick={handleTemplate} id="btn-import-template" className="btn-spring" style={{ borderRadius: 8 }}>
             Download template
           </Button>
           <Upload accept=".csv" maxCount={1} showUploadList={false} beforeUpload={beforeUpload}>
-            <Button icon={<UploadOutlined />} id="btn-import-choose" style={{ borderRadius: 8 }}>
+            <Button icon={<UploadOutlined />} id="btn-import-choose" className="btn-spring" style={{ borderRadius: 8 }}>
               Choose CSV
             </Button>
           </Upload>
@@ -270,6 +270,7 @@ export function EmployeeImport() {
             disabled={!file}
             loading={checking}
             id="btn-import-dry-run"
+            className="btn-spring"
             style={{ borderRadius: 8 }}
           >
             Dry run
@@ -281,10 +282,11 @@ export function EmployeeImport() {
             disabled={!canImport}
             loading={importing}
             id="btn-import-start"
+            className="btn-spring"
             style={{
               borderRadius: 8,
               fontWeight: 500,
-              boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
             }}
           >
             Import

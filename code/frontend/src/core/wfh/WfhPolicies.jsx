@@ -192,7 +192,7 @@ export function WfhPolicies() {
   ];
 
   return (
-    <Card variant="borderless">
+    <Card variant="borderless" className="saas-card saas-page-container">
       <PageHeader
         title="WFH Policies"
         subtitle="Define annual quotas, monthly pacing, and remote work rules"
@@ -203,6 +203,11 @@ export function WfhPolicies() {
               icon={<PlusOutlined />}
               onClick={handleOpenCreate}
               data-testid="create-wfh-policy-btn"
+              className="btn-spring"
+              style={{
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                fontWeight: 600,
+              }}
             >
               Add WFH Policy
             </Button>

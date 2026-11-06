@@ -45,8 +45,9 @@ function BalanceCard({ balance, token }) {
     <Card
       type="inner"
       variant="borderless"
+      className="saas-card card-lift"
       data-testid="leave-balance-card"
-      style={{ width: '100%', height: '100%' }}
+      style={{ width: '100%', height: '100%', border: '1px solid rgba(186,230,253,0.6)', background: `linear-gradient(180deg, ${token.colorBgContainer} 0%, ${token.colorFillAlter} 100%)` }}
       styles={{ body: { height: '100%', display: 'flex', flexDirection: 'column', gap: token.marginXS } }}
     >
       <Space size={4} style={{ minWidth: 0 }}>
@@ -218,9 +219,9 @@ export function MyLeave({ actions, onNavigate }) {
   ];
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }} data-testid="panel-leave">
+    <Space direction="vertical" size="large" style={{ width: '100%' }} data-testid="panel-leave" className="fadeSlideUp">
       {balances && balances.length > 0 && (
-        <Card variant="borderless" title="Leave Balances" style={{ borderRadius: token.borderRadiusLG }}>
+        <Card variant="borderless" className="saas-card" title="Leave Balances" style={{ borderRadius: token.borderRadiusLG }}>
           <Row gutter={[16, 16]} align="stretch">
             {[...balances]
               .sort((a, b) => Number(Boolean(a.expired)) - Number(Boolean(b.expired)))
@@ -235,6 +236,7 @@ export function MyLeave({ actions, onNavigate }) {
 
       <Card
         variant="borderless"
+        className="saas-card"
         title={
           <Space>
             <CalendarOutlined />
@@ -245,6 +247,7 @@ export function MyLeave({ actions, onNavigate }) {
           actions?.ApplyLeave ? (
             <Button
               type="primary"
+              className="btn-spring"
               icon={<PlusOutlined />}
               onClick={() => {
                 if (onNavigate) {
@@ -271,6 +274,7 @@ export function MyLeave({ actions, onNavigate }) {
           />
         ) : (
           <Table
+            className="saas-table"
             dataSource={requests}
             columns={columns}
             rowKey={(r, index) => r.id || index}
@@ -280,7 +284,7 @@ export function MyLeave({ actions, onNavigate }) {
         )}
         {requests.length < requestTotal && (
           <div style={{ textAlign: 'center', marginTop: token.marginSM }}>
-            <Button onClick={loadMoreRequests} loading={loadingMore} id="btn-leave-load-more">
+            <Button onClick={loadMoreRequests} loading={loadingMore} className="btn-spring" id="btn-leave-load-more">
               Load more ({requests.length} of {requestTotal})
             </Button>
           </div>

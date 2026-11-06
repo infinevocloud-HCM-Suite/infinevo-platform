@@ -228,7 +228,7 @@ export function LeaveTypes() {
   ];
 
   return (
-    <Card variant="borderless">
+    <Card variant="borderless" className="saas-card saas-page-container">
       <PageHeader
         title="Leave Types"
         subtitle="Configure leave categories, accrual rules, and policy constraints"
@@ -239,6 +239,11 @@ export function LeaveTypes() {
               type="primary"
               icon={<PlusOutlined />}
               onClick={handleOpenCreate}
+              className="btn-spring"
+              style={{
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                fontWeight: 600,
+              }}
             >
               Add Leave Type
             </Button>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Alert, Button, Card, Space, Spin, Timeline, Typography } from 'antd';
+import { Alert, Button, Card, Space, Spin, Timeline, Typography, theme } from 'antd';
 import { attendanceService } from './attendanceService.js';
 import { hmm, timeOf } from './format.js';
 import { formatDate } from '@shared/ui/format.js';
@@ -11,6 +11,7 @@ import { StatusTag } from '@shared/ui/StatusTag.jsx';
  * only and is never sent anywhere.
  */
 export function ClockCard({ onDay }) {
+  const { token } = theme.useToken();
   const [today, setToday] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -80,7 +81,16 @@ export function ClockCard({ onDay }) {
   const sessions = today?.sessions || [];
 
   return (
-    <Card variant="borderless" title={`Today${today?.date ? ` — ${formatDate(today.date)}` : ''}`}>
+    <Card
+      variant="borderless"
+      className="saas-card hero-banner"
+      style={{
+        background: `linear-gradient(135deg, ${token.colorInfoBg} 0%, ${token.colorBgContainer} 100%)`,
+        border: `1px solid ${token.colorInfoBorder}`,
+        borderRadius: 14,
+      }}
+      title={`Today${today?.date ? ` — ${formatDate(today.date)}` : ''}`}
+    >
       <Space direction="vertical" style={{ width: '100%' }}>
         {error && <Alert type="error" message={error} showIcon />}
         {isStale && (

@@ -12,6 +12,7 @@ import {
   Modal,
   Tag,
   Tooltip,
+  theme,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
@@ -23,7 +24,8 @@ import { PageHeader } from '@shared/ui/PageHeader.jsx';
 const { Text } = Typography;
 
 export function WorkLocations() {
-    const navigate = useNavigate();
+  const { token } = theme.useToken();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const canManage = useCan('core.org.manage');
 
@@ -112,7 +114,11 @@ export function WorkLocations() {
       dataIndex: 'code',
       key: 'code',
       width: 140,
-      render: (code) => <Tag>{code}</Tag>,
+      render: (code) => (
+        <Tag style={{ borderRadius: 6, fontWeight: 600, background: token.colorInfoBg, color: token.colorInfoText, borderColor: token.colorInfoBorder }}>
+          {code}
+        </Tag>
+      ),
     },
     {
       title: 'Name',
@@ -211,53 +217,57 @@ export function WorkLocations() {
   }
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Work Locations"
-        subtitle="Manage your organization's physical office and work locations."
-        count={`${locations.length} locations`}
-        actions={
-          canManage && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => navigate('/org/work-locations/new')}
-              id="btn-new-location"
-            >
-              New Location
-            </Button>
-          )
-        }
-      />
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Work Locations"
+          subtitle="Manage your organization's physical office and work locations."
+          count={`${locations.length} locations`}
+          actions={
+            canManage && (
+              <Button
+                type="primary"
+                className="btn-spring"
+                icon={<PlusOutlined />}
+                onClick={() => navigate('/org/work-locations/new')}
+                id="btn-new-location"
+              >
+                New Location
+              </Button>
+            )
+          }
+        />
 
-      <Table
-        dataSource={locations}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 15 }}
-      />
+        <Table
+          className="saas-table"
+          dataSource={locations}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 15 }}
+        />
 
-      <Modal
-        title="Cannot Delete Work Location"
-        open={conflictModal.open}
-        onCancel={() => setConflictModal({ open: false, message: '', record: null })}
-        footer={[
-          <Button key="cancel" onClick={() => setConflictModal({ open: false, message: '', record: null })}>
-            Cancel
-          </Button>,
-          <Button key="deactivate" type="primary" onClick={handleDeactivateInstead} id="btn-deactivate-instead">
-            Deactivate Instead
-          </Button>,
-        ]}
-      >
-        <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
-          <Text type="danger">{conflictModal.message}</Text>
-          {/* The reason is the server's sentence above - in use, or the filing address - so
-              this line only offers the way out and does not guess at the reason. */}
-          <Text>You can deactivate this location instead of deleting it.</Text>
-        </Space>
-      </Modal>
-    </Card>
+        <Modal
+          title="Cannot Delete Work Location"
+          open={conflictModal.open}
+          onCancel={() => setConflictModal({ open: false, message: '', record: null })}
+          footer={[
+            <Button key="cancel" className="btn-spring" onClick={() => setConflictModal({ open: false, message: '', record: null })}>
+              Cancel
+            </Button>,
+            <Button key="deactivate" type="primary" className="btn-spring" onClick={handleDeactivateInstead} id="btn-deactivate-instead">
+              Deactivate Instead
+            </Button>,
+          ]}
+        >
+          <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
+            <Text type="danger">{conflictModal.message}</Text>
+            {/* The reason is the server's sentence above - in use, or the filing address - so
+                this line only offers the way out and does not guess at the reason. */}
+            <Text>You can deactivate this location instead of deleting it.</Text>
+          </Space>
+        </Modal>
+      </Card>
+    </div>
   );
 }

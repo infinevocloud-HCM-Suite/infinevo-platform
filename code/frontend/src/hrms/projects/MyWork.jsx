@@ -75,10 +75,10 @@ export function MyWork() {
   ];
 
   return (
-    <>
+    <div className="saas-page-container fadeSlideUp">
       <PageHeader title="My work" subtitle="My assigned projects and tasks" />
       {error && <Alert type="error" message={error} style={{ marginBottom: token.margin }} />}
-      <Card variant="borderless" title="My projects" loading={loading} style={{ marginBottom: token.margin }}>
+      <Card className="saas-card" variant="borderless" title="My projects" loading={loading} style={{ marginBottom: token.margin }}>
         {projects.length === 0 ? (
           <Empty description="No projects" />
         ) : (
@@ -86,20 +86,22 @@ export function MyWork() {
             {projects.map((p) => (
               <Col key={p.id} xs={24} sm={12} lg={8}>
                 <Card
+                  className="elevate-card"
                   variant="borderless"
                   size="small"
                   title={p.name}
-                  extra={<Tag color={COLOR[p.status]}>{LABEL[p.status]}</Tag>}
+                  extra={<Tag color={COLOR[p.status]} style={{ borderRadius: 6, fontWeight: 500 }}>{LABEL[p.status]}</Tag>}
+                  style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, background: token.colorFillAlter }}
                 >
-                  <Progress percent={p.progress ?? 0} size="small" />
-                  <div>End date: {formatDate(p.end_date)}</div>
+                  <Progress percent={p.progress ?? 0} size="small" strokeColor={token.colorPrimary} />
+                  <div style={{ marginTop: 8, fontSize: 13, color: token.colorTextSecondary }}>End date: {formatDate(p.end_date)}</div>
                 </Card>
               </Col>
             ))}
           </Row>
         )}
       </Card>
-      <Card variant="borderless" title="My tasks" loading={loading}>
+      <Card className="saas-card" variant="borderless" title="My tasks" loading={loading}>
         {TASK_STATUSES.map((s) => {
           const group = tasks.filter((t) => t.status === s);
           if (group.length === 0) return null;
@@ -109,6 +111,7 @@ export function MyWork() {
                 {LABEL[s]} ({group.length})
               </Typography.Title>
               <Table
+                className="saas-table"
                 rowKey="id"
                 size="small"
                 columns={columns}
@@ -121,6 +124,6 @@ export function MyWork() {
         })}
         {!loading && tasks.length === 0 && <Empty description="No tasks" />}
       </Card>
-    </>
+    </div>
   );
 }

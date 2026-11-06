@@ -225,29 +225,36 @@ export function LeaveImport() {
   ];
 
   return (
-    <Card variant="borderless">
-      <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <PageHeader
-          title="Bulk Leave Import"
-          subtitle="Upload a spreadsheet (.xlsx or .csv) to bulk allocate initial leave balances or annual allotments across employees. Dry run validates records without writing to the database."
-        />
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <PageHeader
+            title="Bulk Leave Import"
+            subtitle="Upload a spreadsheet (.xlsx or .csv) to bulk allocate initial leave balances or annual allotments across employees. Dry run validates records without writing to the database."
+          />
 
-        {/* Upload & Configuration Card */}
-        <Card
-          type="inner"
-          variant="borderless"
-          title="Import Configuration"
-          extra={
-            <Button
-              aria-label="Download Sample Template"
-              icon={<DownloadOutlined aria-hidden="true" />}
-              onClick={handleDownloadSample}
-              loading={downloadingTemplate}
-            >
-              Download Sample Template
-            </Button>
-          }
-        >
+          {/* Upload & Configuration Card */}
+          <Card
+            type="inner"
+            variant="borderless"
+            title="Import Configuration"
+            style={{
+              background: token.colorFillAlter,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              borderRadius: 12,
+            }}
+            extra={
+              <Button
+                className="btn-spring"
+                aria-label="Download Sample Template"
+                icon={<DownloadOutlined aria-hidden="true" />}
+                onClick={handleDownloadSample}
+                loading={downloadingTemplate}
+              >
+                Download Sample Template
+              </Button>
+            }
+          >
           <Row gutter={24} align="middle">
             <Col xs={24} sm={12} md={6}>
               <Text strong>Leave Year:</Text>
@@ -373,5 +380,6 @@ export function LeaveImport() {
         </Card>
       </Space>
     </Card>
+    </div>
   );
 }

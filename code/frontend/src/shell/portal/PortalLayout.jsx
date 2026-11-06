@@ -200,7 +200,7 @@ export function PortalLayout() {
   const allTabs = panels.length > 0 ? [...tabItems, holidayTab] : tabItems;
 
   return (
-    <div style={{ width: '100%' }} data-testid="portal-layout">
+    <div className="saas-page-container" style={{ width: '100%' }} data-testid="portal-layout">
       <div style={{ marginBottom: token.marginMD }}>
         <Title level={2} style={{ margin: 0 }}>
           Employee Self-Service
@@ -210,6 +210,7 @@ export function PortalLayout() {
 
       <Card
         variant="borderless"
+        className="saas-card"
         style={{
           borderRadius: token.borderRadiusLG,
         }}

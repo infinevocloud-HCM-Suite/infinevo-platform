@@ -103,6 +103,7 @@ export function RegularizationDetail() {
         <>
           <Button
             type="primary"
+            className="btn-spring"
             size="small"
             icon={<CheckOutlined />}
             onClick={() => handleOpenDecide('APPROVED')}
@@ -112,6 +113,7 @@ export function RegularizationDetail() {
           </Button>
           <Button
             danger
+            className="btn-spring"
             size="small"
             icon={<CloseOutlined />}
             onClick={() => handleOpenDecide('REJECTED')}
@@ -126,43 +128,45 @@ export function RegularizationDetail() {
   );
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Regularization"
-        onBack={() => {
-          if (location.state?.from === '/approvals') navigate('/approvals');
-          else navigate('/hrms/regularizations');
-        }}
-        actions={extra}
-      />
-      <Descriptions size="small" column={2} bordered>
-        <Descriptions.Item label="Employee">{item.employeeName || EMPTY}</Descriptions.Item>
-        <Descriptions.Item label="Date">{formatDate(item.date)}</Descriptions.Item>
-        <Descriptions.Item label="Status">
-          <Tag color={STATUS_COLOR[item.status]}>{item.status}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="In">{timeOf(item.inAt)}</Descriptions.Item>
-        <Descriptions.Item label="Out">{timeOf(item.outAt)}</Descriptions.Item>
-        <Descriptions.Item label="Reason" span={2}>
-          {item.reason}
-        </Descriptions.Item>
-        <Descriptions.Item label="Decided at">{stamp(item.decidedAt)}</Descriptions.Item>
-        {/* D-79: the reply names the decider; the id alone is never shown. */}
-        <Descriptions.Item label="Decided by">{item.decidedByName || EMPTY}</Descriptions.Item>
-        <Descriptions.Item label="Decision comment" span={2}>
-          {item.decisionComment || '—'}
-        </Descriptions.Item>
-      </Descriptions>
-      {step && (
-        <DecideModal
-          open={decideModal.open}
-          decision={decideModal.decision}
-          step={step}
-          onCancel={() => setDecideModal({ open: false, decision: 'APPROVED' })}
-          onSuccess={handleDecideSuccess}
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 880, margin: '0 auto' }}>
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Regularization"
+          onBack={() => {
+            if (location.state?.from === '/approvals') navigate('/approvals');
+            else navigate('/hrms/regularizations');
+          }}
+          actions={extra}
         />
-      )}
-    </Card>
+        <Descriptions size="small" column={2} bordered>
+          <Descriptions.Item label="Employee">{item.employeeName || EMPTY}</Descriptions.Item>
+          <Descriptions.Item label="Date">{formatDate(item.date)}</Descriptions.Item>
+          <Descriptions.Item label="Status">
+            <Tag color={STATUS_COLOR[item.status]}>{item.status}</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="In">{timeOf(item.inAt)}</Descriptions.Item>
+          <Descriptions.Item label="Out">{timeOf(item.outAt)}</Descriptions.Item>
+          <Descriptions.Item label="Reason" span={2}>
+            {item.reason}
+          </Descriptions.Item>
+          <Descriptions.Item label="Decided at">{stamp(item.decidedAt)}</Descriptions.Item>
+          {/* D-79: the reply names the decider; the id alone is never shown. */}
+          <Descriptions.Item label="Decided by">{item.decidedByName || EMPTY}</Descriptions.Item>
+          <Descriptions.Item label="Decision comment" span={2}>
+            {item.decisionComment || '—'}
+          </Descriptions.Item>
+        </Descriptions>
+        {step && (
+          <DecideModal
+            open={decideModal.open}
+            decision={decideModal.decision}
+            step={step}
+            onCancel={() => setDecideModal({ open: false, decision: 'APPROVED' })}
+            onSuccess={handleDecideSuccess}
+          />
+        )}
+      </Card>
+    </div>
   );
 }
 

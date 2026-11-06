@@ -78,52 +78,57 @@ export function RegularizationLog() {
   ];
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Everyone's regularizations"
-        count={range ? String(rows.length) : undefined}
-      />
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <Space wrap>
-          <DatePicker.RangePicker
-            value={range}
-            onChange={onRange}
-            allowClear={false}
-            aria-label="Range"
-            placeholder={['Pick a range', `at most ${MAX_RANGE_DAYS} days`]}
-            presets={presets}
-          />
-          <Select
-            allowClear
-            placeholder="All statuses"
-            style={{ minWidth: 160 }}
-            options={STATUSES}
-            value={status}
-            onChange={(v) => setStatus(v || undefined)}
-            aria-label="Status"
-          />
-          <Select
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            placeholder="All employees"
-            style={{ minWidth: 220 }}
-            options={options}
-            value={employeeId}
-            onChange={(v) => setEmployeeId(v || undefined)}
-            aria-label="Employee"
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Everyone's regularizations"
+          subtitle="Audit and manage all employee attendance regularization submissions."
+          count={range ? String(rows.length) : undefined}
+        />
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Space wrap>
+            <DatePicker.RangePicker
+              value={range}
+              onChange={onRange}
+              allowClear={false}
+              aria-label="Range"
+              placeholder={['Pick a range', `at most ${MAX_RANGE_DAYS} days`]}
+              presets={presets}
+              style={{ borderRadius: 8 }}
+            />
+            <Select
+              allowClear
+              placeholder="All statuses"
+              style={{ minWidth: 160 }}
+              options={STATUSES}
+              value={status}
+              onChange={(v) => setStatus(v || undefined)}
+              aria-label="Status"
+            />
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="All employees"
+              style={{ minWidth: 220 }}
+              options={options}
+              value={employeeId}
+              onChange={(v) => setEmployeeId(v || undefined)}
+              aria-label="Employee"
+            />
+          </Space>
+          {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
+          <Table
+            className="saas-table"
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={loading}
+            onRow={(r) => ({ onClick: () => navigate(`/hrms/regularizations/${r.id}`), style: { cursor: 'pointer' } })}
+            locale={{ emptyText: range ? 'No requests in this range' : 'Pick a range to load requests' }}
           />
         </Space>
-        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={rows}
-          loading={loading}
-          onRow={(r) => ({ onClick: () => navigate(`/hrms/regularizations/${r.id}`), style: { cursor: 'pointer' } })}
-          locale={{ emptyText: range ? 'No requests in this range' : 'Pick a range to load requests' }}
-        />
-      </Space>
-    </Card>
+      </Card>
+    </div>
   );
 }

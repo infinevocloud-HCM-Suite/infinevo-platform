@@ -156,16 +156,16 @@ export function DeductionList() {
   const reasonText = reason.trim();
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+    <div className="saas-page-container fadeSlideUp" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       <PageHeader
         title="Salary deductions"
         actions={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+            <Button icon={<ReloadOutlined />} className="btn-spring" onClick={load} loading={loading}>
               Refresh
             </Button>
             {canManage && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setGridOpen(true)}>
+              <Button type="primary" className="btn-spring" icon={<PlusOutlined />} onClick={() => setGridOpen(true)}>
                 Enter deductions
               </Button>
             )}
@@ -173,7 +173,7 @@ export function DeductionList() {
         }
       />
 
-      <Card variant="borderless" style={{ marginBottom: 16 }}>
+      <Card variant="borderless" className="saas-card" style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>
           <Col xs={24} md={8}>
             <Text type="secondary">Employee</Text>
@@ -244,8 +244,9 @@ export function DeductionList() {
           }
         />
       ) : (
-        <Card variant="borderless">
+        <Card variant="borderless" className="saas-card">
           <Table
+            className="saas-table"
             rowKey="id"
             dataSource={rows}
             columns={columns}

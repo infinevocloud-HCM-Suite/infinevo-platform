@@ -106,74 +106,81 @@ export function AttendanceSettings() {
   };
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Attendance settings"
-        actions={pref?.isDefault ? <Tag color="blue">Using defaults</Tag> : null}
-      />
-      {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
-      {saved && <Alert type="success" message="Saved" showIcon style={{ marginBottom: token.margin }} />}
-      <Form layout="vertical" onFinish={formik.handleSubmit} disabled={!canManage}>
-        <Form.Item {...item('hoursCalculation', 'Hours calculation')}>
-          <Radio.Group
-            value={formik.values.hoursCalculation}
-            onChange={(e) => formik.setFieldValue('hoursCalculation', e.target.value)}
-          >
-            <Radio value="FIRST_IN_LAST_OUT">First in, last out</Radio>
-            <Radio value="EVERY_SESSION">Every session</Radio>
-          </Radio.Group>
-        </Form.Item>
-        <Form.Item {...item('fullDayMinimumHours', 'Full-day minimum hours')}>
-          <InputNumber
-            aria-label="Full-day minimum hours"
-            min={0}
-            max={24}
-            step={0.25}
-            value={formik.values.fullDayMinimumHours}
-            onChange={setNum('fullDayMinimumHours')}
-          />
-        </Form.Item>
-        <Form.Item {...item('halfDayMinimumHours', 'Half-day minimum hours')}>
-          <InputNumber
-            aria-label="Half-day minimum hours"
-            min={0}
-            max={24}
-            step={0.25}
-            value={formik.values.halfDayMinimumHours}
-            onChange={setNum('halfDayMinimumHours')}
-          />
-        </Form.Item>
-        <Form.Item {...item('regularizationWindowDays', 'Regularization window (days)')}>
-          <InputNumber
-            aria-label="Regularization window"
-            min={0}
-            precision={0}
-            value={formik.values.regularizationWindowDays}
-            onChange={setNum('regularizationWindowDays')}
-          />
-        </Form.Item>
-        <Form.Item {...item('maxRegularizationsPerMonth', 'Regularizations per month')}>
-          <InputNumber
-            aria-label="Regularizations per month"
-            min={0}
-            precision={0}
-            value={formik.values.maxRegularizationsPerMonth}
-            onChange={setNum('maxRegularizationsPerMonth')}
-          />
-        </Form.Item>
-        <Form.Item label="Allow regularization without a session">
-          <Switch
-            aria-label="Allow regularization without a session"
-            checked={formik.values.allowRegularizationWithoutSession}
-            onChange={(v) => formik.setFieldValue('allowRegularizationWithoutSession', v)}
-          />
-        </Form.Item>
-        {canManage && (
-          <Button type="primary" htmlType="submit" loading={formik.isSubmitting}>
-            Save
-          </Button>
-        )}
-      </Form>
-    </Card>
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 800, margin: '0 auto' }}>
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Attendance settings"
+          subtitle="Configure hours calculation rules, daily attendance thresholds, and regularization windows."
+          actions={pref?.isDefault ? <Tag color="blue" style={{ borderRadius: 6 }}>Using defaults</Tag> : null}
+        />
+        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
+        {saved && <Alert type="success" message="Saved" showIcon style={{ marginBottom: token.margin }} />}
+        <Form layout="vertical" onFinish={formik.handleSubmit} disabled={!canManage}>
+          <Form.Item {...item('hoursCalculation', 'Hours calculation')}>
+            <Radio.Group
+              value={formik.values.hoursCalculation}
+              onChange={(e) => formik.setFieldValue('hoursCalculation', e.target.value)}
+            >
+              <Radio value="FIRST_IN_LAST_OUT">First in, last out</Radio>
+              <Radio value="EVERY_SESSION">Every session</Radio>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item {...item('fullDayMinimumHours', 'Full-day minimum hours')}>
+            <InputNumber
+              aria-label="Full-day minimum hours"
+              min={0}
+              max={24}
+              step={0.25}
+              value={formik.values.fullDayMinimumHours}
+              onChange={setNum('fullDayMinimumHours')}
+              style={{ borderRadius: 8, width: 200 }}
+            />
+          </Form.Item>
+          <Form.Item {...item('halfDayMinimumHours', 'Half-day minimum hours')}>
+            <InputNumber
+              aria-label="Half-day minimum hours"
+              min={0}
+              max={24}
+              step={0.25}
+              value={formik.values.halfDayMinimumHours}
+              onChange={setNum('halfDayMinimumHours')}
+              style={{ borderRadius: 8, width: 200 }}
+            />
+          </Form.Item>
+          <Form.Item {...item('regularizationWindowDays', 'Regularization window (days)')}>
+            <InputNumber
+              aria-label="Regularization window"
+              min={0}
+              precision={0}
+              value={formik.values.regularizationWindowDays}
+              onChange={setNum('regularizationWindowDays')}
+              style={{ borderRadius: 8, width: 200 }}
+            />
+          </Form.Item>
+          <Form.Item {...item('maxRegularizationsPerMonth', 'Regularizations per month')}>
+            <InputNumber
+              aria-label="Regularizations per month"
+              min={0}
+              precision={0}
+              value={formik.values.maxRegularizationsPerMonth}
+              onChange={setNum('maxRegularizationsPerMonth')}
+              style={{ borderRadius: 8, width: 200 }}
+            />
+          </Form.Item>
+          <Form.Item label="Allow regularization without a session">
+            <Switch
+              aria-label="Allow regularization without a session"
+              checked={formik.values.allowRegularizationWithoutSession}
+              onChange={(v) => formik.setFieldValue('allowRegularizationWithoutSession', v)}
+            />
+          </Form.Item>
+          {canManage && (
+            <Button type="primary" className="btn-spring" htmlType="submit" loading={formik.isSubmitting}>
+              Save
+            </Button>
+          )}
+        </Form>
+      </Card>
+    </div>
   );
 }

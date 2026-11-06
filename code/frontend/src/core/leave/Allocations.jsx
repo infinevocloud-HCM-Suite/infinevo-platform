@@ -265,56 +265,61 @@ export function Allocations() {
   };
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Leave Allocations"
-        actions={
-          <Space>
-            <Select
-              value={selectedYear}
-              onChange={setSelectedYear}
-              style={{ width: 120 }}
-              options={[
-                { value: selectedYear - 1, label: String(selectedYear - 1) },
-                { value: selectedYear, label: String(selectedYear) },
-                { value: selectedYear + 1, label: String(selectedYear + 1) },
-              ]}
-            />
-            <Button
-              icon={<SyncOutlined />}
-              onClick={() => setAccrualModalOpen(true)}
-            >
-              Run Accrual As Of
-            </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleOpenAllocate}
-            >
-              Allocate
-            </Button>
-          </Space>
-        }
-      />
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Leave Allocations"
+          subtitle="Configure and inspect employee leave allowances, carry-forwards, and annual accruals."
+          actions={
+            <Space>
+              <Select
+                value={selectedYear}
+                onChange={setSelectedYear}
+                style={{ width: 120 }}
+                options={[
+                  { value: selectedYear - 1, label: String(selectedYear - 1) },
+                  { value: selectedYear, label: String(selectedYear) },
+                  { value: selectedYear + 1, label: String(selectedYear + 1) },
+                ]}
+              />
+              <Button
+                className="btn-spring"
+                icon={<SyncOutlined />}
+                onClick={() => setAccrualModalOpen(true)}
+              >
+                Run Accrual As Of
+              </Button>
+              <Button
+                type="primary"
+                className="btn-spring"
+                icon={<PlusOutlined />}
+                onClick={handleOpenAllocate}
+              >
+                Allocate
+              </Button>
+            </Space>
+          }
+        />
 
-      <Input.Search
-        allowClear
-        placeholder="Search employee by name or number"
-        aria-label="Search employees"
-        style={{ maxWidth: 360, marginBottom: 16 }}
-        onSearch={(q) => setEmployeeQuery((q || '').trim())}
-      />
+        <Input.Search
+          allowClear
+          placeholder="Search employee by name or number"
+          aria-label="Search employees"
+          style={{ maxWidth: 360, marginBottom: 16 }}
+          onSearch={(q) => setEmployeeQuery((q || '').trim())}
+        />
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={employees}
-        loading={loading}
-        expandable={{ expandedRowRender }}
-        pagination={{ ...employeePage, showSizeChanger: false }}
-        onChange={(p) => loadData(p.current, p.pageSize)}
-        scroll={{ x: 'max-content' }}
-      />
+        <Table
+          className="saas-table"
+          rowKey="id"
+          columns={columns}
+          dataSource={employees}
+          loading={loading}
+          expandable={{ expandedRowRender }}
+          pagination={{ ...employeePage, showSizeChanger: false }}
+          onChange={(p) => loadData(p.current, p.pageSize)}
+          scroll={{ x: 'max-content' }}
+        />
 
       {/* Manual Allocate Modal */}
       <Modal
@@ -407,5 +412,6 @@ export function Allocations() {
         </Form.Item>
       </Modal>
     </Card>
+    </div>
   );
 }

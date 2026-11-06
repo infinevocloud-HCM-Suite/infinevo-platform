@@ -83,10 +83,11 @@ export function MyProfile({ actions }) {
   return (
     // Antd 5's Space reads `direction`; the old `orientation` was ignored, which laid the groups and
     // the edit panel side by side and squeezed every value into a one-letter column (D-56, D-58).
-    <Row gutter={[token.marginLG, token.marginLG]} data-testid="panel-profile">
+    <Row gutter={[token.marginLG, token.marginLG]} data-testid="panel-profile" className="fadeSlideUp">
       <Col span={24}>
         <Card
           variant="borderless"
+          className="saas-card"
           style={{
             borderRadius: token.borderRadiusLG,
           }}
@@ -98,11 +99,15 @@ export function MyProfile({ actions }) {
               flexWrap: 'wrap',
               gap: token.marginMD,
               marginBottom: token.marginLG,
+              padding: '20px 24px',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, rgba(37,99,235,0.05) 0%, rgba(56,189,248,0.08) 100%)',
+              border: '1px solid rgba(186,230,253,0.5)',
             }}
           >
-            <Avatar size={64} icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary, flexShrink: 0 }} />
+            <Avatar size={68} icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary, flexShrink: 0, boxShadow: '0 4px 12px rgba(37,99,235,0.25)' }} />
             <Space align="center" size="middle" wrap>
-              <Title level={3} style={{ margin: 0 }}>
+              <Title level={3} style={{ margin: 0, fontWeight: 700 }}>
                 {fullName || 'Employee'}
               </Title>
               <StatusTag status={employee.status} />

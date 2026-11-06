@@ -64,7 +64,7 @@ export function MyRegularizations() {
     <Space>
       {canReadAll && <Link to="/hrms/regularizations/all">Everyone&apos;s requests</Link>}
       {canMark && (
-        <Button type="primary" onClick={() => setOpen(true)}>
+        <Button type="primary" className="btn-spring" onClick={() => setOpen(true)}>
           New request
         </Button>
       )}
@@ -72,39 +72,44 @@ export function MyRegularizations() {
   );
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Regularizations"
-        count={range ? String(rows.length) : undefined}
-        actions={actions}
-      />
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <DatePicker.RangePicker
-          value={range}
-          onChange={onRange}
-          allowClear={false}
-          aria-label="Range"
-          placeholder={['Pick a range', `at most ${MAX_RANGE_DAYS} days`]}
-          presets={presets}
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Regularizations"
+          subtitle="Submit and track punch corrections, missed swipes, and attendance regularizations."
+          count={range ? String(rows.length) : undefined}
+          actions={actions}
         />
-        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={rows}
-          loading={loading}
-          onRow={(r) => ({ onClick: () => navigate(`/hrms/regularizations/${r.id}`), style: { cursor: 'pointer' } })}
-          locale={{ emptyText: range ? 'No requests in this range' : 'Pick a range to load requests' }}
-        />
-      </Space>
-      <Drawer title="New regularization" open={open} onClose={() => setOpen(false)} destroyOnClose width={420}>
-        <RegularizationForm
-          onSaved={() => {
-            setOpen(false);
-            if (range) load(range);
-          }}
-        />
-      </Drawer>
-    </Card>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <DatePicker.RangePicker
+            value={range}
+            onChange={onRange}
+            allowClear={false}
+            aria-label="Range"
+            placeholder={['Pick a range', `at most ${MAX_RANGE_DAYS} days`]}
+            presets={presets}
+            style={{ borderRadius: 8 }}
+          />
+          {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
+          <Table
+            className="saas-table"
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={loading}
+            onRow={(r) => ({ onClick: () => navigate(`/hrms/regularizations/${r.id}`), style: { cursor: 'pointer' } })}
+            locale={{ emptyText: range ? 'No requests in this range' : 'Pick a range to load requests' }}
+          />
+        </Space>
+        <Drawer title="New regularization" open={open} onClose={() => setOpen(false)} destroyOnClose width={420}>
+          <RegularizationForm
+            onSaved={() => {
+              setOpen(false);
+              if (range) load(range);
+            }}
+          />
+        </Drawer>
+      </Card>
+    </div>
   );
 }

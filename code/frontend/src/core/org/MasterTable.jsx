@@ -193,7 +193,11 @@ export function MasterTable({ title, service }) {
             />
           );
         }
-        return <Tag>{text}</Tag>;
+        return (
+          <Tag style={{ borderRadius: 6, fontWeight: 600, background: token.colorInfoBg, color: token.colorInfoText, borderColor: token.colorInfoBorder }}>
+            {text}
+          </Tag>
+        );
       },
     },
     {
@@ -292,85 +296,90 @@ export function MasterTable({ title, service }) {
   }
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title={title}
-        subtitle={`Manage your organization's ${title.toLowerCase()} catalogue.`}
-      />
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title={title}
+          subtitle={`Manage your organization's ${title.toLowerCase()} catalogue.`}
+        />
 
-      {canManage && (
-        <Card
-          size="small"
-          style={{
-            marginBottom: token.marginLG,
-            background: token.colorBgContainer,
-            border: `1px solid ${token.colorBorderSecondary}`,
-          }}
+        {canManage && (
+          <Card
+            size="small"
+            style={{
+              marginBottom: token.marginLG,
+              background: token.colorFillAlter,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              borderRadius: 12,
+            }}
+          >
+            <Space wrap size="middle">
+              <Input
+                placeholder="Code (e.g. ENG)"
+                value={newCode}
+                onChange={(e) => setNewCode(e.target.value)}
+                style={{ width: 160, borderRadius: 8 }}
+                id="input-new-code"
+              />
+              <Input
+                placeholder="Name (e.g. Engineering)"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                style={{ width: 260, borderRadius: 8 }}
+                id="input-new-name"
+              />
+              <Button
+                type="primary"
+                className="btn-spring"
+                icon={<PlusOutlined />}
+                loading={adding}
+                disabled={!newCode.trim() || !newName.trim()}
+                onClick={handleAdd}
+                id="btn-add-master"
+                style={{
+                  borderRadius: 8,
+                  fontWeight: 500,
+                  boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
+                }}
+              >
+                Add {title}
+              </Button>
+            </Space>
+          </Card>
+        )}
+
+        <Table
+          className="saas-table"
+          dataSource={items}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 15 }}
+        />
+
+        <Modal
+          title="Cannot Delete Record"
+          open={conflictModal.open}
+          onCancel={() => setConflictModal({ open: false, message: '', record: null })}
+          footer={[
+            <Button key="cancel" className="btn-spring" onClick={() => setConflictModal({ open: false, message: '', record: null })}>
+              Cancel
+            </Button>,
+            <Button key="deactivate" type="primary" className="btn-spring" onClick={handleDeactivateInstead} id="btn-deactivate-instead">
+              Deactivate Instead
+            </Button>,
+          ]}
         >
-          <Space wrap size="middle">
-            <Input
-              placeholder="Code (e.g. ENG)"
-              value={newCode}
-              onChange={(e) => setNewCode(e.target.value)}
-              style={{ width: 160 }}
-              id="input-new-code"
-            />
-            <Input
-              placeholder="Name (e.g. Engineering)"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              style={{ width: 260, borderRadius: 8 }}
-              id="input-new-name"
-            />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              loading={adding}
-              disabled={!newCode.trim() || !newName.trim()}
-              onClick={handleAdd}
-              id="btn-add-master"
-              style={{
-                borderRadius: 8,
-                fontWeight: 500,
-                boxShadow: '0 1px 2px 0 rgba(37, 99, 235, 0.2)',
-              }}
-            >
-              Add {title}
-            </Button>
+          <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
+            <Text type="danger">{conflictModal.message}</Text>
+            <Text>
+              This {title.toLowerCase()} is assigned to active employees or records. You can deactivate it to prevent
+              new assignments while keeping existing references intact.
+            </Text>
           </Space>
-        </Card>
-      )}
-
-      <Table
-        dataSource={items}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 15 }}
-      />
-
-      <Modal
-        title="Cannot Delete Record"
-        open={conflictModal.open}
-        onCancel={() => setConflictModal({ open: false, message: '', record: null })}
-        footer={[
-          <Button key="cancel" onClick={() => setConflictModal({ open: false, message: '', record: null })}>
-            Cancel
-          </Button>,
-          <Button key="deactivate" type="primary" onClick={handleDeactivateInstead} id="btn-deactivate-instead">
-            Deactivate Instead
-          </Button>,
-        ]}
-      >
-        <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
-          <Text type="danger">{conflictModal.message}</Text>
-          <Text>
-            This {title.toLowerCase()} is assigned to active employees or records. You can deactivate it to prevent
-            new assignments while keeping existing references intact.
-          </Text>
-        </Space>
-      </Modal>
-    </Card>
+        </Modal>
+      </Card>
+    </div>
   );
 }
 

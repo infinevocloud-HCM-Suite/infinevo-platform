@@ -58,46 +58,51 @@ export function MyOvertime() {
   ];
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Overtime requests"
-        count={range ? String(rows.length) : undefined}
-        actions={
-          canRequest && (
-            <Button type="primary" onClick={() => setOpen(true)}>
-              New request
-            </Button>
-          )
-        }
-      />
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <DatePicker.RangePicker
-          value={range}
-          onChange={onRange}
-          allowClear={false}
-          aria-label="Range"
-          placeholder={['Pick a range', `at most ${MAX_RANGE_DAYS} days`]}
-          presets={presets}
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Overtime requests"
+          subtitle="Submit and monitor extra hours and overtime compensation claims."
+          count={range ? String(rows.length) : undefined}
+          actions={
+            canRequest && (
+              <Button type="primary" className="btn-spring" onClick={() => setOpen(true)}>
+                New request
+              </Button>
+            )
+          }
         />
-        {canReadAll && <Link to="/hrms/overtime-requests/all">Everyone&apos;s requests</Link>}
-        {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={rows}
-          loading={loading}
-          onRow={(r) => ({ onClick: () => navigate(`/hrms/overtime-requests/${r.id}`), style: { cursor: 'pointer' } })}
-          locale={{ emptyText: range ? 'No requests in this range' : 'Pick a range to load requests' }}
-        />
-      </Space>
-      <Drawer title="New overtime request" open={open} onClose={() => setOpen(false)} destroyOnClose width={420}>
-        <OvertimeForm
-          onSaved={() => {
-            setOpen(false);
-            if (range) load(range);
-          }}
-        />
-      </Drawer>
-    </Card>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <DatePicker.RangePicker
+            value={range}
+            onChange={onRange}
+            allowClear={false}
+            aria-label="Range"
+            placeholder={['Pick a range', `at most ${MAX_RANGE_DAYS} days`]}
+            presets={presets}
+            style={{ borderRadius: 8 }}
+          />
+          {canReadAll && <Link to="/hrms/overtime-requests/all">Everyone&apos;s requests</Link>}
+          {error && <Alert type="error" message={error} showIcon style={{ marginBottom: token.margin }} />}
+          <Table
+            className="saas-table"
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={loading}
+            onRow={(r) => ({ onClick: () => navigate(`/hrms/overtime-requests/${r.id}`), style: { cursor: 'pointer' } })}
+            locale={{ emptyText: range ? 'No requests in this range' : 'Pick a range to load requests' }}
+          />
+        </Space>
+        <Drawer title="New overtime request" open={open} onClose={() => setOpen(false)} destroyOnClose width={420}>
+          <OvertimeForm
+            onSaved={() => {
+              setOpen(false);
+              if (range) load(range);
+            }}
+          />
+        </Drawer>
+      </Card>
+    </div>
   );
 }

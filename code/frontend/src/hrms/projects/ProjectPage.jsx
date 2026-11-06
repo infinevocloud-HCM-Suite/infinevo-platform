@@ -104,82 +104,90 @@ export function ProjectPage() {
   );
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title={project.name}
-        onBack={() => navigate('/hrms/projects')}
-        actions={
-          <Space wrap>
-            <Tag color={COLOR[project.status]}>{LABEL[project.status] || project.status}</Tag>
-            {canManage && (
-              <>
-                <Select
-                  aria-label="Project status"
-                  value={project.status}
-                  onChange={changeStatus}
-                  style={{ width: 140 }}
-                  options={PROJECT_STATUSES.map((s) => ({
-                    value: s,
-                    label: LABEL[s],
-                  }))}
-                />
-                <Button onClick={() => setEditing(true)}>Edit</Button>
-                <Popconfirm title="Delete this project?" onConfirm={remove} okText="Delete">
-                  <Button danger>Delete</Button>
-                </Popconfirm>
-              </>
-            )}
-          </Space>
-        }
-      />
-      {error && <Alert type="error" message={error} style={{ marginBottom: token.margin }} />}
-      <div style={{ maxWidth: 400, marginBottom: token.margin }}>
-        {canManage ? (
-          <Slider
-            aria-label="Progress"
-            min={0}
-            max={100}
-            value={progress}
-            onChange={setProgress}
-            onChangeComplete={saveProgress}
-          />
-        ) : (
-          <Progress percent={project.progress ?? 0} />
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title={project.name}
+          onBack={() => navigate('/hrms/projects')}
+          actions={
+            <Space wrap>
+              <Tag color={COLOR[project.status]} style={{ borderRadius: 6, fontWeight: 500 }}>
+                {LABEL[project.status] || project.status}
+              </Tag>
+              {canManage && (
+                <>
+                  <Select
+                    aria-label="Project status"
+                    value={project.status}
+                    onChange={changeStatus}
+                    style={{ width: 140 }}
+                    options={PROJECT_STATUSES.map((s) => ({
+                      value: s,
+                      label: LABEL[s],
+                    }))}
+                  />
+                  <Button className="btn-spring" onClick={() => setEditing(true)}>
+                    Edit
+                  </Button>
+                  <Popconfirm title="Delete this project?" onConfirm={remove} okText="Delete">
+                    <Button danger className="btn-spring">
+                      Delete
+                    </Button>
+                  </Popconfirm>
+                </>
+              )}
+            </Space>
+          }
+        />
+        {error && <Alert type="error" message={error} style={{ marginBottom: token.margin }} />}
+        <div style={{ maxWidth: 400, marginBottom: token.margin }}>
+          {canManage ? (
+            <Slider
+              aria-label="Progress"
+              min={0}
+              max={100}
+              value={progress}
+              onChange={setProgress}
+              onChangeComplete={saveProgress}
+            />
+          ) : (
+            <Progress percent={project.progress ?? 0} />
+          )}
+        </div>
+        <Tabs
+          items={[
+            { key: 'details', label: 'Details', children: details },
+            {
+              key: 'team',
+              label: 'Team',
+              children: (
+                <TeamTab projectId={id} assignments={assignments} canManage={canManage} onChange={load} />
+              ),
+            },
+            {
+              key: 'tasks',
+              label: 'Tasks',
+              children: <TasksTab projectId={id} team={team} canManage={canManage} />,
+            },
+          ]}
+        />
+        {canManage && (
+          <Drawer
+            title="Edit project"
+            open={editing}
+            onClose={() => setEditing(false)}
+            width={480}
+            destroyOnClose
+          >
+            <ProjectForm
+              initial={project}
+              onSubmit={save}
+              onCancel={() => setEditing(false)}
+              submitting={saving}
+            />
+          </Drawer>
         )}
-      </div>
-      <Tabs
-        items={[
-          { key: 'details', label: 'Details', children: details },
-          {
-            key: 'team',
-            label: 'Team',
-            children: (
-              <TeamTab projectId={id} assignments={assignments} canManage={canManage} onChange={load} />
-            ),
-          },
-          {
-            key: 'tasks',
-            label: 'Tasks',
-            children: <TasksTab projectId={id} team={team} canManage={canManage} />,
-          },
-        ]}
-      />
-      {canManage && (
-        <Drawer
-          title="Edit project"
-          open={editing}
-          onClose={() => setEditing(false)}
-          width={480}
-          destroyOnClose
-        >
-          <ProjectForm
-            initial={project}
-            onSubmit={save}
-            onCancel={() => setEditing(false)}
-            submitting={saving}
-          />
-        </Drawer>
-      )}
-    </Card>
+      </Card>
+    </div>
   );
 }

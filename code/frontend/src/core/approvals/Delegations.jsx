@@ -211,85 +211,89 @@ export function Delegations({ me: propMe, form: externalForm }) {
   }
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Approval Delegations"
-        subtitle="Delegate your approval authority to a colleague during absence."
-        actions={
-          canDelegate && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                form.resetFields();
-                setCreateOpen(true);
-              }}
-              id="btn-new-delegation"
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Approval Delegations"
+          subtitle="Delegate your approval authority to a colleague during absence."
+          actions={
+            canDelegate && (
+              <Button
+                type="primary"
+                className="btn-spring"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  form.resetFields();
+                  setCreateOpen(true);
+                }}
+                id="btn-new-delegation"
+              >
+                New Delegation
+              </Button>
+            )
+          }
+        />
+
+        <Table
+          className="saas-table"
+          dataSource={delegations}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+        />
+
+        <Modal
+          title="Create Approval Delegation"
+          open={createOpen}
+          onOk={handleCreate}
+          onCancel={() => setCreateOpen(false)}
+          confirmLoading={creating}
+          okText="Create"
+        >
+          <Form form={form} layout="vertical">
+            <Form.Item
+              name="delegateEmployeeId"
+              label="Delegate Employee"
+              rules={[{ required: true, message: 'Please specify the delegate employee.' }]}
             >
-              New Delegation
-            </Button>
-          )
-        }
-      />
+              <Select
+                id="input-delegate-employee"
+                showSearch
+                placeholder="Search employee by name or ID"
+                filterOption={false}
+                loading={searchLoading}
+                onSearch={searchEmployees}
+                onFocus={() => { if (employeeOptions.length === 0) searchEmployees(''); }}
+                options={employeeOptions}
+                notFoundContent={searchError || undefined}
+              />
+            </Form.Item>
 
-      <Table
-        dataSource={delegations}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-      />
+            <Form.Item
+              name="dates"
+              label="Delegation Period"
+              rules={[{ required: true, message: 'Please select start and end dates.' }]}
+            >
+              <DatePicker.RangePicker id="picker-delegation-range" style={{ width: '100%' }} />
+            </Form.Item>
 
-      <Modal
-        title="Create Approval Delegation"
-        open={createOpen}
-        onOk={handleCreate}
-        onCancel={() => setCreateOpen(false)}
-        confirmLoading={creating}
-        okText="Create"
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="delegateEmployeeId"
-            label="Delegate Employee"
-            rules={[{ required: true, message: 'Please specify the delegate employee.' }]}
-          >
-            <Select
-              id="input-delegate-employee"
-              showSearch
-              placeholder="Search employee by name or ID"
-              filterOption={false}
-              loading={searchLoading}
-              onSearch={searchEmployees}
-              onFocus={() => { if (employeeOptions.length === 0) searchEmployees(''); }}
-              options={employeeOptions}
-              notFoundContent={searchError || undefined}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="dates"
-            label="Delegation Period"
-            rules={[{ required: true, message: 'Please select start and end dates.' }]}
-          >
-            <DatePicker.RangePicker id="picker-delegation-range" style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            name="flowTypes"
-            label="Flow Types"
-            rules={[{ required: true, message: 'Please select at least one flow type.' }]}
-          >
-            <Select
-              id="select-delegation-flows"
-              mode="multiple"
-              placeholder="Select flow types"
-              options={FLOW_TYPE_OPTIONS}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </Card>
+            <Form.Item
+              name="flowTypes"
+              label="Flow Types"
+              rules={[{ required: true, message: 'Please select at least one flow type.' }]}
+            >
+              <Select
+                id="select-delegation-flows"
+                mode="multiple"
+                placeholder="Select flow types"
+                options={FLOW_TYPE_OPTIONS}
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
+      </Card>
+    </div>
   );
 }
 

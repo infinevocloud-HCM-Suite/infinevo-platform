@@ -111,7 +111,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+    <div className="saas-page-container" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       <PageHeader
         title="Payroll dashboard"
         actions={

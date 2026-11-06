@@ -123,11 +123,11 @@ export function HolidayLookup() {
       width: 140,
       render: (isRestricted) =>
         isRestricted ? (
-          <Tag color="gold" id="tag-restricted">
+          <Tag color="gold" id="tag-restricted" style={{ borderRadius: 6, fontWeight: 500 }}>
             Restricted
           </Tag>
         ) : (
-          <Tag color="blue" id="tag-regular">
+          <Tag color="blue" id="tag-regular" style={{ borderRadius: 6, fontWeight: 500 }}>
             Regular
           </Tag>
         ),
@@ -145,61 +145,65 @@ export function HolidayLookup() {
   }
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Holiday Range Lookup"
-        subtitle="Query applicable holidays exactly as the leave and pay run engines resolve them for a given location and period."
-        onBack={() => navigate('/holidays')}
-        backLabel="Calendars"
-        backProps={{ id: 'btn-back-calendars' }}
-      />
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Holiday Range Lookup"
+          subtitle="Query applicable holidays exactly as the leave and pay run engines resolve them for a given location and period."
+          onBack={() => navigate('/holidays')}
+          backLabel="Calendars"
+          backProps={{ id: 'btn-back-calendars' }}
+        />
 
-      <Form layout="inline" style={{ marginBottom: token.marginLG, gap: token.marginMD }}>
-        <Form.Item label="Work Location">
-          <Select
-            allowClear
-            loading={loadingLocations}
-            placeholder="All / Default Location"
-            value={selectedLocation}
-            onChange={(val) => setSelectedLocation(val)}
-            style={{ width: 240 }}
-            id="select-lookup-location"
-            options={locations.map((loc) => ({
-              label: loc.name,
-              value: loc.id,
-            }))}
-          />
-        </Form.Item>
+        <Form layout="inline" style={{ marginBottom: token.marginLG, gap: token.marginMD }}>
+          <Form.Item label="Work Location">
+            <Select
+              allowClear
+              loading={loadingLocations}
+              placeholder="All / Default Location"
+              value={selectedLocation}
+              onChange={(val) => setSelectedLocation(val)}
+              style={{ width: 240 }}
+              id="select-lookup-location"
+              options={locations.map((loc) => ({
+                label: loc.name,
+                value: loc.id,
+              }))}
+            />
+          </Form.Item>
 
-        <Form.Item label="Date Range">
-          <RangePicker
-            value={dateRange}
-            onChange={(vals) => setDateRange(vals)}
-            format="YYYY-MM-DD"
-            id="picker-lookup-range"
-          />
-        </Form.Item>
+          <Form.Item label="Date Range">
+            <RangePicker
+              value={dateRange}
+              onChange={(vals) => setDateRange(vals)}
+              format="YYYY-MM-DD"
+              id="picker-lookup-range"
+            />
+          </Form.Item>
 
-        <Form.Item>
-          <Button
-            type="primary"
-            icon={<SearchOutlined />}
-            loading={querying}
-            onClick={handleQuery}
-            id="btn-submit-lookup"
-          >
-            Query
-          </Button>
-        </Form.Item>
-      </Form>
+          <Form.Item>
+            <Button
+              type="primary"
+              className="btn-spring"
+              icon={<SearchOutlined />}
+              loading={querying}
+              onClick={handleQuery}
+              id="btn-submit-lookup"
+            >
+              Query
+            </Button>
+          </Form.Item>
+        </Form>
 
-      <Table
-        dataSource={holidays}
-        columns={columns}
-        rowKey="id"
-        loading={querying}
-        pagination={{ pageSize: 25 }}
-      />
-    </Card>
+        <Table
+          className="saas-table"
+          dataSource={holidays}
+          columns={columns}
+          rowKey="id"
+          loading={querying}
+          pagination={{ pageSize: 25 }}
+        />
+      </Card>
+    </div>
   );
 }

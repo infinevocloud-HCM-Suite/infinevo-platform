@@ -16,6 +16,7 @@ export function PageHeader({ title, subtitle, count, onBack, backLabel, backProp
 
   return (
     <div
+      className="saas-page-header"
       style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -53,11 +54,14 @@ export function PageHeader({ title, subtitle, count, onBack, backLabel, backProp
             </Title>
             {count && (
               <Tag
+                className="metric-chip"
                 style={{
                   backgroundColor: token.colorInfoBg,
                   borderColor: token.colorInfoBorder,
                   color: token.colorInfoText,
                   marginInlineStart: token.marginXXS,
+                  borderRadius: 9999,
+                  fontWeight: 600,
                 }}
               >
                 {count}

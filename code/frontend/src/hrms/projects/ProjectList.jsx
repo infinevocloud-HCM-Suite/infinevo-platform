@@ -92,56 +92,60 @@ export function ProjectList() {
   ];
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Projects"
-        count={String(rows.length)}
-        actions={
-          canManage && (
-            <Button type="primary" onClick={() => setCreating(true)}>
-              New project
-            </Button>
-          )
-        }
-      />
-      <Space style={{ marginBottom: token.margin }} wrap>
-        <Input.Search
-          aria-label="Search"
-          placeholder="Search projects"
-          allowClear
-          onSearch={setSearch}
-          style={{ width: 240 }}
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Projects"
+          subtitle="Track organizational initiatives, deliverable deadlines, team assignments, and budgets."
+          count={String(rows.length)}
+          actions={
+            canManage && (
+              <Button type="primary" className="btn-spring" onClick={() => setCreating(true)}>
+                New project
+              </Button>
+            )
+          }
         />
-        <Select
-          aria-label="Status"
-          placeholder="Status"
-          allowClear
-          value={status}
-          onChange={setStatus}
-          style={{ width: 160 }}
-          options={PROJECT_STATUSES.map((s) => ({ value: s, label: LABEL[s] }))}
+        <Space style={{ marginBottom: token.margin }} wrap>
+          <Input.Search
+            aria-label="Search"
+            placeholder="Search projects"
+            allowClear
+            onSearch={setSearch}
+            style={{ width: 240, borderRadius: 8 }}
+          />
+          <Select
+            aria-label="Status"
+            placeholder="Status"
+            allowClear
+            value={status}
+            onChange={setStatus}
+            style={{ width: 160 }}
+            options={PROJECT_STATUSES.map((s) => ({ value: s, label: LABEL[s] }))}
+          />
+        </Space>
+        {error && <Alert type="error" message={error} style={{ marginBottom: token.margin }} />}
+        <Table
+          className="saas-table"
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={rows}
+          pagination={{ pageSize: 20 }}
         />
-      </Space>
-      {error && <Alert type="error" message={error} style={{ marginBottom: token.margin }} />}
-      <Table
-        rowKey="id"
-        loading={loading}
-        columns={columns}
-        dataSource={rows}
-        pagination={{ pageSize: 20 }}
-      />
-      {canManage && (
-        <Drawer
-          title="New project"
-          open={creating}
-          onClose={() => setCreating(false)}
-          width={480}
-          destroyOnClose
-        >
-          {saveError && <Alert type="error" message={saveError} style={{ marginBottom: token.margin }} />}
-          <ProjectForm onSubmit={create} onCancel={() => setCreating(false)} submitting={saving} />
-        </Drawer>
-      )}
-    </Card>
+        {canManage && (
+          <Drawer
+            title="New project"
+            open={creating}
+            onClose={() => setCreating(false)}
+            width={480}
+            destroyOnClose
+          >
+            {saveError && <Alert type="error" message={saveError} style={{ marginBottom: token.margin }} />}
+            <ProjectForm onSubmit={create} onCancel={() => setCreating(false)} submitting={saving} />
+          </Drawer>
+        )}
+      </Card>
+    </div>
   );
 }

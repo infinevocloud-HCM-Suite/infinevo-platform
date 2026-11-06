@@ -113,7 +113,7 @@ export function TaxWindowScreen({ initialFy }) {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
       <PageHeader
         title="Tax Declaration Window Configuration"
         actions={
@@ -136,6 +136,7 @@ export function TaxWindowScreen({ initialFy }) {
       />
       <Card
         variant="borderless"
+        className="saas-card"
         extra={
           settings && (
             <Tag color={settings.is_locked ? 'error' : isWindowActive() ? 'success' : 'warning'}>
@@ -316,6 +317,7 @@ export function TaxWindowScreen({ initialFy }) {
               <Space>
                 <Button
                   icon={<ReloadOutlined />}
+                  className="btn-spring"
                   onClick={() => loadSettings(selectedFy)}
                   disabled={loading || saving}
                 >
@@ -324,6 +326,7 @@ export function TaxWindowScreen({ initialFy }) {
                 <Button
                   type="primary"
                   htmlType="submit"
+                  className="btn-spring"
                   icon={<SaveOutlined />}
                   loading={saving}
                   disabled={loading}

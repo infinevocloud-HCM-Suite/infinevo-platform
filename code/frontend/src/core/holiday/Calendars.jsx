@@ -247,108 +247,114 @@ export function Calendars() {
   }
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Holiday Calendars"
-        subtitle="Configure work-location-specific holiday schedules and statutory non-working days."
-        count={`${calendars.length} calendars`}
-        actions={
-          <Space>
-            <Button
-              icon={<SearchOutlined />}
-              onClick={() => navigate('/holidays/lookup')}
-              id="btn-holiday-lookup"
-            >
-              Lookup Holidays
-            </Button>
-            {canManage && (
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Holiday Calendars"
+          subtitle="Configure work-location-specific holiday schedules and statutory non-working days."
+          count={`${calendars.length} calendars`}
+          actions={
+            <Space>
+              <Button
+                className="btn-spring"
+                icon={<SearchOutlined />}
+                onClick={() => navigate('/holidays/lookup')}
+                id="btn-holiday-lookup"
+              >
+                Lookup Holidays
+              </Button>
+              {canManage && (
+                <Button
+                  type="primary"
+                  className="btn-spring"
+                  icon={<PlusOutlined />}
+                  onClick={handleOpenCreate}
+                  id="btn-create-calendar"
+                >
+                  Create Calendar
+                </Button>
+              )}
+            </Space>
+          }
+        />
+
+        <Table
+          className="saas-table"
+          dataSource={calendars}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 15 }}
+        />
+
+        <Drawer
+          title={editingCalendar ? 'Edit Holiday Calendar' : 'Create Holiday Calendar'}
+          width={480}
+          open={drawerOpen}
+          onClose={handleCloseDrawer}
+          extra={
+            <Space>
+              <Button className="btn-spring" onClick={handleCloseDrawer} id="btn-cancel-drawer">
+                Cancel
+              </Button>
               <Button
                 type="primary"
-                icon={<PlusOutlined />}
-                onClick={handleOpenCreate}
-                id="btn-create-calendar"
+                className="btn-spring"
+                loading={saving}
+                onClick={handleSave}
+                id="btn-save-calendar"
               >
-                Create Calendar
+                Save
               </Button>
-            )}
-          </Space>
-        }
-      />
-
-      <Table
-        dataSource={calendars}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 15 }}
-      />
-
-      <Drawer
-        title={editingCalendar ? 'Edit Holiday Calendar' : 'Create Holiday Calendar'}
-        width={480}
-        open={drawerOpen}
-        onClose={handleCloseDrawer}
-        extra={
-          <Space>
-            <Button onClick={handleCloseDrawer} id="btn-cancel-drawer">
-              Cancel
-            </Button>
-            <Button
-              type="primary"
-              loading={saving}
-              onClick={handleSave}
-              id="btn-save-calendar"
+            </Space>
+          }
+        >
+          <Form form={form} layout="vertical">
+            <Form.Item
+              name="name"
+              label="Calendar Name"
+              rules={[
+                { required: true, message: 'Calendar name is required' },
+                { max: 100, message: 'Name must not exceed 100 characters' },
+              ]}
             >
-              Save
-            </Button>
-          </Space>
-        }
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="name"
-            label="Calendar Name"
-            rules={[
-              { required: true, message: 'Calendar name is required' },
-              { max: 100, message: 'Name must not exceed 100 characters' },
-            ]}
-          >
-            <Input placeholder="e.g. Bengaluru Office 2026" id="input-calendar-name" />
-          </Form.Item>
+              <Input placeholder="e.g. Bengaluru Office 2026" id="input-calendar-name" style={{ borderRadius: 8 }} />
+            </Form.Item>
 
-          <Form.Item
-            name="isDefault"
-            label="Default Calendar"
-            valuePropName="checked"
-            extra={
-              !editingCalendar && hasDefaultCalendar
-                ? "A default calendar already exists for this tenant. This new calendar will be created as location-specific (you can promote it to default later via Edit)."
-                : "If marked default, employees without an explicit location calendar will fall back to this calendar."
-            }
-          >
-            <Switch
-              id="switch-calendar-default"
-              disabled={!editingCalendar && hasDefaultCalendar}
-            />
-          </Form.Item>
+            <Form.Item
+              name="isDefault"
+              label="Default Calendar"
+              valuePropName="checked"
+              extra={
+                !editingCalendar && hasDefaultCalendar
+                  ? "A default calendar already exists for this tenant. This new calendar will be created as location-specific (you can promote it to default later via Edit)."
+                  : "If marked default, employees without an explicit location calendar will fall back to this calendar."
+              }
+            >
+              <Switch
+                id="switch-calendar-default"
+                disabled={!editingCalendar && hasDefaultCalendar}
+              />
+            </Form.Item>
 
-          <Form.Item
-            name="workLocationIds"
-            label="Assigned Work Locations"
-            extra="Select the offices/work locations that observe this holiday calendar."
-          >
-            <Select
-              mode="multiple"
-              placeholder="Select work locations"
-              id="select-work-locations"
-              options={workLocations.map((loc) => ({
-                label: loc.name,
-                value: loc.id,
-              }))}
-            />
-          </Form.Item>
-        </Form>
-      </Drawer>
-    </Card>
+            <Form.Item
+              name="workLocationIds"
+              label="Assigned Work Locations"
+              extra="Select the offices/work locations that observe this holiday calendar."
+            >
+              <Select
+                mode="multiple"
+                placeholder="Select work locations"
+                id="select-work-locations"
+                options={workLocations.map((loc) => ({
+                  label: loc.name,
+                  value: loc.id,
+                }))}
+              />
+            </Form.Item>
+          </Form>
+        </Drawer>
+      </Card>
+    </div>
   );
 }

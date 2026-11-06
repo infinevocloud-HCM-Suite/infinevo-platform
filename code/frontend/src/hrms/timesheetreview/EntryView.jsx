@@ -95,6 +95,7 @@ export function EntryView() {
         <>
           <Button
             type="primary"
+            className="btn-spring"
             size="small"
             icon={<CheckOutlined />}
             onClick={() => handleOpenDecide('APPROVED')}
@@ -104,6 +105,7 @@ export function EntryView() {
           </Button>
           <Button
             danger
+            className="btn-spring"
             size="small"
             icon={<CloseOutlined />}
             onClick={() => handleOpenDecide('REJECTED')}
@@ -118,81 +120,84 @@ export function EntryView() {
   );
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title={entry.project_name || entry.project_id}
-        onBack={() => navigate('/approvals')}
-        actions={extra}
-      />
-      <Descriptions size="small" column={3} style={{ marginBottom: token.margin }}>
-        <Descriptions.Item label="Employee">{entry.employee_name || entry.employee_id}</Descriptions.Item>
-        <Descriptions.Item label="Week">
-          {formatDate(entry.week_start_date)} to {formatDate(entry.week_end_date)}
-        </Descriptions.Item>
-        <Descriptions.Item label="Status">
-          <Tag color={STATUS_COLOR[entry.status]}>{STATUS_LABEL[entry.status] || statusLabel(entry.status)}</Tag>
-        </Descriptions.Item>
-      </Descriptions>
-      <Table
-        rowKey="key"
-        size="small"
-        pagination={false}
-        columns={cols}
-        dataSource={rows}
-        summary={() => (
-          <Table.Summary.Row>
-            <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
-            {totals.map((t, i) => (
-              <Table.Summary.Cell key={dates[i]} index={i + 1} align="right">
-                {formatHundredths(t)}
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title={entry.project_name || entry.project_id}
+          onBack={() => navigate('/approvals')}
+          actions={extra}
+        />
+        <Descriptions size="small" column={3} style={{ marginBottom: token.margin }}>
+          <Descriptions.Item label="Employee">{entry.employee_name || entry.employee_id}</Descriptions.Item>
+          <Descriptions.Item label="Week">
+            {formatDate(entry.week_start_date)} to {formatDate(entry.week_end_date)}
+          </Descriptions.Item>
+          <Descriptions.Item label="Status">
+            <Tag color={STATUS_COLOR[entry.status]}>{STATUS_LABEL[entry.status] || statusLabel(entry.status)}</Tag>
+          </Descriptions.Item>
+        </Descriptions>
+        <Table
+          className="saas-table"
+          rowKey="key"
+          size="small"
+          pagination={false}
+          columns={cols}
+          dataSource={rows}
+          summary={() => (
+            <Table.Summary.Row>
+              <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+              {totals.map((t, i) => (
+                <Table.Summary.Cell key={dates[i]} index={i + 1} align="right">
+                  {formatHundredths(t)}
+                </Table.Summary.Cell>
+              ))}
+              <Table.Summary.Cell index={8} align="right">
+                {formatHundredths(sumRows(rows))}
               </Table.Summary.Cell>
-            ))}
-            <Table.Summary.Cell index={8} align="right">
-              {formatHundredths(sumRows(rows))}
-            </Table.Summary.Cell>
-          </Table.Summary.Row>
+            </Table.Summary.Row>
+          )}
+        />
+        {descriptions.length > 0 && (
+          <Collapse
+            ghost
+            defaultActiveKey={['descriptions']}
+            style={{ marginTop: 16 }}
+            items={[
+              {
+                key: 'descriptions',
+                label: <Typography.Text strong>Work descriptions ({descriptions.length})</Typography.Text>,
+                children: (
+                  <Descriptions size="small" column={1} bordered>
+                    {descriptions.map((item, idx) => (
+                      <Descriptions.Item
+                        key={idx}
+                        label={`${formatDate(item.date)} · ${item.task} (${formatHundredths(item.hours)}h)`}
+                      >
+                        <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>{item.description}</Typography.Text>
+                      </Descriptions.Item>
+                    ))}
+                  </Descriptions>
+                ),
+              },
+            ]}
+          />
         )}
-      />
-      {descriptions.length > 0 && (
-        <Collapse
-          ghost
-          defaultActiveKey={['descriptions']}
-          style={{ marginTop: 16 }}
-          items={[
-            {
-              key: 'descriptions',
-              label: <Typography.Text strong>Work descriptions ({descriptions.length})</Typography.Text>,
-              children: (
-                <Descriptions size="small" column={1} bordered>
-                  {descriptions.map((item, idx) => (
-                    <Descriptions.Item
-                      key={idx}
-                      label={`${formatDate(item.date)} · ${item.task} (${formatHundredths(item.hours)}h)`}
-                    >
-                      <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>{item.description}</Typography.Text>
-                    </Descriptions.Item>
-                  ))}
-                </Descriptions>
-              ),
-            },
-          ]}
-        />
-      )}
-      {entry.rejection_reason && (
-        <Typography.Paragraph type="danger" style={{ marginTop: 12 }}>
-          Rejected: {entry.rejection_reason}
-        </Typography.Paragraph>
-      )}
-      {step && (
-        <DecideModal
-          open={decideModal.open}
-          decision={decideModal.decision}
-          step={step}
-          onCancel={() => setDecideModal({ open: false, decision: 'APPROVED' })}
-          onSuccess={handleDecideSuccess}
-        />
-      )}
-    </Card>
+        {entry.rejection_reason && (
+          <Typography.Paragraph type="danger" style={{ marginTop: 12 }}>
+            Rejected: {entry.rejection_reason}
+          </Typography.Paragraph>
+        )}
+        {step && (
+          <DecideModal
+            open={decideModal.open}
+            decision={decideModal.decision}
+            step={step}
+            onCancel={() => setDecideModal({ open: false, decision: 'APPROVED' })}
+            onSuccess={handleDecideSuccess}
+          />
+        )}
+      </Card>
+    </div>
   );
 }
 

@@ -142,7 +142,7 @@ export function Form16StatementView({ statement }) {
       </style>
 
       {/* Header and Print action */}
-      <Card style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
+      <Card variant="borderless" className="saas-card" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col xs={24} md={18}>
             <Space orientation="vertical" size={2}>
@@ -161,7 +161,7 @@ export function Form16StatementView({ statement }) {
             </Space>
           </Col>
           <Col xs={24} md={6} style={{ textAlign: 'right' }} className="no-print">
-            <Button icon={<PrinterOutlined />} onClick={handlePrint} type="primary" ghost>
+            <Button icon={<PrinterOutlined />} className="btn-spring" onClick={handlePrint} type="primary" ghost>
               Print Statement
             </Button>
           </Col>
@@ -178,7 +178,8 @@ export function Form16StatementView({ statement }) {
                 <span>Employer / Deductor Details</span>
               </Space>
             }
-            bordered
+            variant="borderless"
+            className="saas-card"
             size="small"
             style={{ height: '100%', borderRadius: token.borderRadiusLG }}
           >
@@ -205,7 +206,8 @@ export function Form16StatementView({ statement }) {
                 <span>Employee / Deductee Details</span>
               </Space>
             }
-            bordered
+            variant="borderless"
+            className="saas-card"
             size="small"
             style={{ height: '100%', borderRadius: token.borderRadiusLG }}
           >
@@ -225,7 +227,7 @@ export function Form16StatementView({ statement }) {
       {/* Summary Metrics */}
       <Row gutter={[16, 16]} style={{ marginBottom: token.marginMD }}>
         <Col xs={24} sm={8}>
-          <Card bordered size="small" style={{ borderRadius: token.borderRadiusLG, background: token.colorFillAlter }}>
+          <Card variant="borderless" className="saas-card" size="small" style={{ borderRadius: token.borderRadiusLG, background: token.colorFillAlter }}>
             <Statistic
               title="Annual Tax Payable"
               value={`₹${formatAmount(annualTax)}`}
@@ -234,7 +236,7 @@ export function Form16StatementView({ statement }) {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card bordered size="small" style={{ borderRadius: token.borderRadiusLG, background: token.colorFillAlter }}>
+          <Card variant="borderless" className="saas-card" size="small" style={{ borderRadius: token.borderRadiusLG, background: token.colorFillAlter }}>
             <Statistic
               title="Total TDS Deducted"
               value={`₹${formatAmount(totalDeducted)}`}
@@ -243,7 +245,7 @@ export function Form16StatementView({ statement }) {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card bordered size="small" style={{ borderRadius: token.borderRadiusLG, background: token.colorFillAlter }}>
+          <Card variant="borderless" className="saas-card" size="small" style={{ borderRadius: token.borderRadiusLG, background: token.colorFillAlter }}>
             <Statistic
               title={balanceNumber > 0 ? 'Balance Tax Payable' : balanceNumber < 0 ? 'Tax Refundable' : 'Balance Payable'}
               value={`₹${formatAmount(Math.abs(balanceNumber))}`}
@@ -257,9 +259,11 @@ export function Form16StatementView({ statement }) {
       <Card
         title="Summary of Tax Deducted at Source (Quarterly)"
         style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}
-        bordered
+        variant="borderless"
+        className="saas-card"
       >
         <Table
+          className="saas-table"
           columns={quarterColumns}
           dataSource={quarterData}
           pagination={false}
@@ -283,7 +287,8 @@ export function Form16StatementView({ statement }) {
       <Card
         title="Part B — Details of Salary Paid and Tax Deducted"
         style={{ borderRadius: token.borderRadiusLG }}
-        bordered
+        variant="borderless"
+        className="saas-card"
       >
         {breakdownNote === 'OFFICER_OVERRIDE' && (
           <Alert
@@ -297,6 +302,7 @@ export function Form16StatementView({ statement }) {
 
         {breakdownRows.length > 0 ? (
           <Table
+            className="saas-table"
             columns={breakdownColumns}
             dataSource={breakdownRows}
             pagination={false}

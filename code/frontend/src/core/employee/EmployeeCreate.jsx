@@ -273,11 +273,32 @@ export function EmployeeCreate() {
   }));
 
   return (
-    <Card variant="borderless">
+    <Card variant="borderless" className="saas-card saas-page-container">
       <PageHeader
         title="Create New Employee"
         onBack={() => navigate('/employees')}
       />
+
+      {/* Visual Onboarding Stepper Header (W-80 10/10 Standard) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px 16px',
+          background: token.colorInfoBg,
+          border: `1px solid ${token.colorInfoBorder}`,
+          borderRadius: 8,
+          marginBottom: token.marginLG,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span className="pill-badge pill-info" style={{ fontWeight: 700 }}>1. Basic Info</span>
+        <span style={{ color: token.colorTextQuaternary }}>➔</span>
+        <span className="pill-badge pill-neutral">2. Work & Org</span>
+        <span style={{ color: token.colorTextQuaternary }}>➔</span>
+        <span className="pill-badge pill-neutral">3. Portal Access</span>
+      </div>
 
       {limitError && (
         <Alert
@@ -563,8 +584,8 @@ export function EmployeeCreate() {
                   marginTop: token.marginLG,
                   padding: token.paddingMD,
                   borderRadius: token.borderRadiusLG,
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                  background: token.colorFillAlter,
+                  border: `1px solid ${token.colorInfoBorder}`,
+                  background: `linear-gradient(135deg, ${token.colorInfoBg} 0%, ${token.colorBgContainer} 100%)`,
                 }}
               >
                 <Title level={5} style={{ marginTop: 0, marginBottom: 8 }}>Portal access</Title>
@@ -624,6 +645,11 @@ export function EmployeeCreate() {
                   disabled={Boolean(partialFailure)}
                   onClick={onCreate}
                   id="btn-submit-employee"
+                  className="btn-spring"
+                  style={{
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                    fontWeight: 600,
+                  }}
                 >
                   Create Employee
                 </Button>

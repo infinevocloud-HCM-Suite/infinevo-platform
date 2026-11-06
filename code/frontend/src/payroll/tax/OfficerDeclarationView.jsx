@@ -122,13 +122,14 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
   const regime = header?.tax_regime || 'NEW';
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
       <PageHeader
         title="Officer Declaration Review"
         subtitle={header?.employee_name ? `${header.employee_name} (${header.financial_year || selectedFy})` : undefined}
         actions={
           <Button
             icon={<ReloadOutlined />}
+            className="btn-spring"
             onClick={() => fetchDeclaration(empId, selectedFy)}
             disabled={!validEmpId || loading}
           >
@@ -138,6 +139,7 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
       />
       <Card
         variant="borderless"
+        className="saas-card"
         title={
           <Row justify="space-between" align="middle" wrap>
             <Col>
@@ -149,7 +151,7 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
               </Space>
             </Col>
             <Col>
-              <Tag color="purple" style={{ fontSize: 13, padding: '4px 10px' }}>
+              <Tag color="purple" style={{ fontSize: 13, padding: '4px 10px', borderRadius: 12, fontWeight: 500 }}>
                 Officer Mode (Read-Only)
               </Tag>
             </Col>
@@ -158,6 +160,7 @@ export function OfficerDeclarationView({ employeeId: propEmployeeId, fy: propFy 
         extra={
           <Button
             icon={<ReloadOutlined />}
+            className="btn-spring"
             onClick={() => fetchDeclaration(empId, selectedFy)}
             disabled={!validEmpId || loading}
           >

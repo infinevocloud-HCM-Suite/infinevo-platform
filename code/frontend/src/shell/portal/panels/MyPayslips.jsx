@@ -56,7 +56,7 @@ export function MyPayslips() {
       key: 'view',
       align: 'right',
       render: (_, row) => (
-        <Button size="small" onClick={() => navigate(`/me/payslips/${encodeURIComponent(row.payrun_id)}`)}>
+        <Button size="small" className="btn-spring" onClick={() => navigate(`/me/payslips/${encodeURIComponent(row.payrun_id)}`)}>
           View
         </Button>
       ),
@@ -82,6 +82,7 @@ export function MyPayslips() {
   } else {
     body = (
       <Table
+        className="saas-table"
         rowKey="payrun_id"
         columns={columns}
         dataSource={rows}
@@ -104,6 +105,7 @@ export function MyPayslips() {
   return (
     <Card
       variant="borderless"
+      className="saas-card fadeSlideUp"
       title={
         <Space>
           <DollarOutlined style={{ color: token.colorPrimary }} />

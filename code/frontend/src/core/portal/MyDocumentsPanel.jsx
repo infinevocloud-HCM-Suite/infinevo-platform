@@ -104,6 +104,7 @@ export function MyDocumentsPanel() {
       render: (_, doc) => (
         <Button
           type="text"
+          className="btn-spring"
           icon={<DownloadOutlined />}
           onClick={() => handleDownload(doc.id)}
           id={`btn-download-${doc.id}`}
@@ -116,6 +117,8 @@ export function MyDocumentsPanel() {
 
   return (
     <Card
+      variant="borderless"
+      className="saas-card fadeSlideUp"
       title={
         <Space>
           <FileTextOutlined />
@@ -126,6 +129,7 @@ export function MyDocumentsPanel() {
       data-testid="panel-documents"
     >
       <Table
+        className="saas-table"
         dataSource={documents}
         columns={columns}
         rowKey="id"

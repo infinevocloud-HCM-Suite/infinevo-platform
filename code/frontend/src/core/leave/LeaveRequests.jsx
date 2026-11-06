@@ -164,88 +164,94 @@ export function LeaveRequests() {
   ];
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Leave Requests"
-        subtitle="Monitor and administer organizational leave applications and status tracking"
-        count={`${pagination.total} leave requests`}
-        actions={
-          canManage && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => navigate('/leave/requests/new')}
-            >
-              Record Leave
-            </Button>
-          )
-        }
-      />
+    <div className="saas-page-container fadeSlideUp">
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Leave Requests"
+          subtitle="Monitor and administer organizational leave applications and status tracking"
+          count={`${pagination.total} leave requests`}
+          actions={
+            canManage && (
+              <Button
+                type="primary"
+                className="btn-spring"
+                icon={<PlusOutlined />}
+                onClick={() => navigate('/leave/requests/new')}
+              >
+                Record Leave
+              </Button>
+            )
+          }
+        />
 
-      {/* Filter Bar */}
-      <Card
-        size="small"
-        style={{
-          marginBottom: 16,
-          background: token.colorFillAlter,
-          border: `1px solid ${token.colorBorderSecondary}`,
-        }}
-      >
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} sm={8} md={6}>
-            <EmployeePicker
-              placeholder="Filter by employee"
-              ariaLabel="Filter by employee"
-              style={{ width: '100%' }}
-              value={employeeFilter}
-              onChange={(v) => setEmployeeFilter(v ?? null)}
-            />
-          </Col>
-          <Col xs={24} sm={8} md={6}>
-            <Select
-              allowClear
-              placeholder="Filter by status"
-              style={{ width: '100%' }}
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={[
-                { value: 'DRAFT', label: 'Draft' },
-                { value: 'PENDING', label: 'Pending Approval' },
-                { value: 'APPROVED', label: 'Approved' },
-                { value: 'REJECTED', label: 'Rejected' },
-                { value: 'WITHDRAWN', label: 'Withdrawn' },
-                { value: 'CANCELLED', label: 'Cancelled' },
-              ]}
-            />
-          </Col>
-          <Col xs={24} sm={8} md={8}>
-            <RangePicker
-              style={{ width: '100%' }}
-              value={dateRange}
-              onChange={setDateRange}
-              format="YYYY-MM-DD"
-            />
-          </Col>
-          <Col xs={24} sm={24} md={4} style={{ textAlign: 'right' }}>
-            <Button
-              type="primary"
-              icon={<SearchOutlined />}
-              onClick={() => loadRequests(1, pagination.pageSize)}
-            >
-              Filter
-            </Button>
-          </Col>
-        </Row>
+        {/* Filter Bar */}
+        <Card
+          size="small"
+          style={{
+            marginBottom: 16,
+            background: token.colorFillAlter,
+            border: `1px solid ${token.colorBorderSecondary}`,
+            borderRadius: 12,
+          }}
+        >
+          <Row gutter={[16, 16]} align="middle">
+            <Col xs={24} sm={8} md={6}>
+              <EmployeePicker
+                placeholder="Filter by employee"
+                ariaLabel="Filter by employee"
+                style={{ width: '100%' }}
+                value={employeeFilter}
+                onChange={(v) => setEmployeeFilter(v ?? null)}
+              />
+            </Col>
+            <Col xs={24} sm={8} md={6}>
+              <Select
+                allowClear
+                placeholder="Filter by status"
+                style={{ width: '100%' }}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'DRAFT', label: 'Draft' },
+                  { value: 'PENDING', label: 'Pending Approval' },
+                  { value: 'APPROVED', label: 'Approved' },
+                  { value: 'REJECTED', label: 'Rejected' },
+                  { value: 'WITHDRAWN', label: 'Withdrawn' },
+                  { value: 'CANCELLED', label: 'Cancelled' },
+                ]}
+              />
+            </Col>
+            <Col xs={24} sm={8} md={8}>
+              <RangePicker
+                style={{ width: '100%' }}
+                value={dateRange}
+                onChange={setDateRange}
+                format="YYYY-MM-DD"
+              />
+            </Col>
+            <Col xs={24} sm={24} md={4} style={{ textAlign: 'right' }}>
+              <Button
+                type="primary"
+                className="btn-spring"
+                icon={<SearchOutlined />}
+                onClick={() => loadRequests(1, pagination.pageSize)}
+              >
+                Filter
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+
+        <Table
+          className="saas-table"
+          rowKey="id"
+          columns={columns}
+          dataSource={requests}
+          loading={loading}
+          pagination={pagination}
+          onChange={handleTableChange}
+        />
       </Card>
-
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={requests}
-        loading={loading}
-        pagination={pagination}
-        onChange={handleTableChange}
-      />
-    </Card>
+    </div>
   );
 }

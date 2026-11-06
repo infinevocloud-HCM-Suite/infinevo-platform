@@ -176,6 +176,7 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
             <Button
               type="link"
               size="small"
+              className="btn-spring"
               icon={<EyeOutlined />}
               onClick={() => navigate(`/me/leave/requests/${record.id}`)}
               id={`btn-view-${record.id}`}
@@ -187,6 +188,7 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
               <Button
                 type="primary"
                 size="small"
+                className="btn-spring"
                 icon={<SendOutlined />}
                 onClick={() => handleSubmitDraft(record.id)}
                 id={`btn-submit-${record.id}`}
@@ -199,6 +201,7 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
               <Button
                 danger
                 size="small"
+                className="btn-spring"
                 icon={<StopOutlined />}
                 onClick={() => handleOpenActionModal('withdraw', record.id)}
                 id={`btn-withdraw-${record.id}`}
@@ -211,6 +214,7 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
               <Button
                 danger
                 size="small"
+                className="btn-spring"
                 icon={<CloseCircleOutlined />}
                 onClick={() => handleOpenActionModal('cancel', record.id)}
                 id={`btn-cancel-${record.id}`}
@@ -227,6 +231,7 @@ export function MyRequests({ requests: propRequests, onRefresh }) {
   return (
     <div data-testid="my-requests-table">
       <Table
+        className="saas-table"
         dataSource={requests}
         columns={columns}
         rowKey={(r, index) => r.id || index}

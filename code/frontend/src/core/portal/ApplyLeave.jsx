@@ -114,7 +114,7 @@ export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSucces
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: token.paddingLG }} data-testid="apply-leave-page">
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 800, margin: '0 auto', padding: token.paddingLG }} data-testid="apply-leave-page">
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <PageHeader
           title="Apply for Leave"
@@ -123,11 +123,11 @@ export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSucces
         />
 
         {loading ? (
-          <Card variant="borderless" style={{ textAlign: 'center', padding: token.paddingXL }}>
+          <Card variant="borderless" className="saas-card" style={{ textAlign: 'center', padding: token.paddingXL }}>
             <Spin size="large" tip="Loading eligible leave types..." />
           </Card>
         ) : (
-          <Card variant="borderless">
+          <Card variant="borderless" className="saas-card">
             {errorMessage && (
               <Alert
                 type="error"
@@ -157,6 +157,7 @@ export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSucces
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: token.marginSM, marginTop: token.marginLG }}>
                 <Button
                   icon={<SaveOutlined />}
+                  className="btn-spring"
                   loading={submitting}
                   onClick={() => {
                     form.validateFields()
@@ -169,6 +170,7 @@ export function ApplyLeave({ employeeId: propEmployeeId, initialValues, onSucces
                 </Button>
                 <Button
                   type="primary"
+                  className="btn-spring"
                   icon={<SendOutlined />}
                   loading={submitting}
                   htmlType="submit"

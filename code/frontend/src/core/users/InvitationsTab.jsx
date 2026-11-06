@@ -133,7 +133,7 @@ export function InvitationsTab() {
           />
         </Space>
         {canManage && (
-          <Button type="primary" id="btn-invite-user" onClick={openDrawer}>
+          <Button type="primary" className="btn-spring" id="btn-invite-user" onClick={openDrawer}>
             Invite user
           </Button>
         )}
@@ -185,8 +185,8 @@ export function InvitationsTab() {
             </Text>
           )}
           <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-            <Button onClick={() => setDrawerOpen(false)}>Cancel</Button>
-            <Button type="primary" htmlType="submit" id="btn-submit-invite" loading={submitting}>
+            <Button className="btn-spring" onClick={() => setDrawerOpen(false)}>Cancel</Button>
+            <Button type="primary" className="btn-spring" htmlType="submit" id="btn-submit-invite" loading={submitting}>
               Send invitation
             </Button>
           </Space>

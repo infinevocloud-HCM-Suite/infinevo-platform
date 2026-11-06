@@ -51,7 +51,7 @@ export function PayslipPage() {
   }, [load]);
 
   const back = (
-    <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/me/payslips')}>
+    <Button icon={<ArrowLeftOutlined />} className="btn-spring" onClick={() => navigate('/me/payslips')}>
       Back to payslips
     </Button>
   );
@@ -93,7 +93,7 @@ export function PayslipPage() {
   const run = payslip.run || {};
 
   return (
-    <div style={{ width: '100%', padding: token.paddingLG }} data-testid="payslip-page">
+    <div className="saas-page-container fadeSlideUp" style={{ width: '100%', padding: token.paddingLG }} data-testid="payslip-page">
       <style>
         {`
           @media print {
@@ -123,6 +123,7 @@ export function PayslipPage() {
             <Space>
               <Button
                 type="primary"
+                className="btn-spring"
                 icon={<PrinterOutlined />}
                 onClick={handlePrint}
                 data-testid="print-payslip-btn"

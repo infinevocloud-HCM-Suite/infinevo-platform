@@ -188,12 +188,12 @@ export function RunList() {
   ];
 
   return (
-    <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
+    <div className="saas-page-container" style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
       <PageHeader
         title="Pay Runs"
         actions={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={fetchRuns} loading={loading}>
+            <Button icon={<ReloadOutlined />} onClick={fetchRuns} loading={loading} className="btn-spring">
               Refresh
             </Button>
             {canExecute && (
@@ -206,12 +206,18 @@ export function RunList() {
                     setIs409Conflict(false);
                     setCreateModalOpen(true);
                   }}
+                  className="btn-spring"
+                  style={{
+                    boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                    fontWeight: 600,
+                  }}
                 >
                   New Run
                 </Button>
                 <Button
                   icon={<ThunderboltOutlined />}
                   onClick={() => navigate('/payroll/runs/new-off-cycle')}
+                  className="btn-spring"
                 >
                   New Off-Cycle Run
                 </Button>

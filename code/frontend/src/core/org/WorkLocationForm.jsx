@@ -161,60 +161,63 @@ export function WorkLocationForm() {
   }
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title={isEdit ? 'Edit Work Location' : 'New Work Location'}
-        subtitle="Configure physical address and statutory filing settings for this office."
-        onBack={() => navigate('/org/work-locations')}
-        backLabel="Back to Work Locations"
-      />
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 880, margin: '0 auto' }}>
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title={isEdit ? 'Edit Work Location' : 'New Work Location'}
+          subtitle="Configure physical address and statutory filing settings for this office."
+          onBack={() => navigate('/org/work-locations')}
+          backLabel="Back to Work Locations"
+        />
 
-      <Formik
-        initialValues={initialValues}
-        validationSchema={validationSchema}
-        enableReinitialize={true}
-        onSubmit={handleSubmit}
-      >
-        {({ values, errors, touched, handleChange, setFieldValue, isSubmitting }) => (
-          <FormikForm noValidate>
-            <Row gutter={[24, 16]}>
-              <Col xs={24} sm={12}>
-                <label htmlFor="input-name" style={{ display: 'block', marginBottom: 4 }}>
-                  <Text strong>Location Name *</Text>
-                </label>
-                <Input
-                  id="input-name"
-                  name="name"
-                  placeholder="e.g. Bengaluru HQ"
-                  value={values.name}
-                  onChange={handleChange}
-                  status={touched.name && errors.name ? 'error' : ''}
-                />
-                {touched.name && errors.name && (
-                  <Text type="danger" style={{ fontSize: 12 }}>
-                    {errors.name}
-                  </Text>
-                )}
-              </Col>
+        <Formik
+          initialValues={initialValues}
+          validationSchema={validationSchema}
+          enableReinitialize={true}
+          onSubmit={handleSubmit}
+        >
+          {({ values, errors, touched, handleChange, setFieldValue, isSubmitting }) => (
+            <FormikForm noValidate>
+              <Row gutter={[24, 16]}>
+                <Col xs={24} sm={12}>
+                  <label htmlFor="input-name" style={{ display: 'block', marginBottom: 4 }}>
+                    <Text strong>Location Name *</Text>
+                  </label>
+                  <Input
+                    id="input-name"
+                    name="name"
+                    placeholder="e.g. Bengaluru HQ"
+                    value={values.name}
+                    onChange={handleChange}
+                    status={touched.name && errors.name ? 'error' : ''}
+                    style={{ borderRadius: 8 }}
+                  />
+                  {touched.name && errors.name && (
+                    <Text type="danger" style={{ fontSize: 12 }}>
+                      {errors.name}
+                    </Text>
+                  )}
+                </Col>
 
-              <Col xs={24} sm={12}>
-                <label htmlFor="input-code" style={{ display: 'block', marginBottom: 4 }}>
-                  <Text strong>Location Code *</Text>
-                </label>
-                <Input
-                  id="input-code"
-                  name="code"
-                  placeholder="e.g. BLR"
-                  value={values.code}
-                  onChange={handleChange}
-                  status={touched.code && errors.code ? 'error' : ''}
-                />
-                {touched.code && errors.code && (
-                  <Text type="danger" style={{ fontSize: 12 }}>
-                    {errors.code}
-                  </Text>
-                )}
-              </Col>
+                <Col xs={24} sm={12}>
+                  <label htmlFor="input-code" style={{ display: 'block', marginBottom: 4 }}>
+                    <Text strong>Location Code *</Text>
+                  </label>
+                  <Input
+                    id="input-code"
+                    name="code"
+                    placeholder="e.g. BLR"
+                    value={values.code}
+                    onChange={handleChange}
+                    status={touched.code && errors.code ? 'error' : ''}
+                    style={{ borderRadius: 8 }}
+                  />
+                  {touched.code && errors.code && (
+                    <Text type="danger" style={{ fontSize: 12 }}>
+                      {errors.code}
+                    </Text>
+                  )}
+                </Col>
 
               <Col xs={24}>
                 <label htmlFor="input-addressLine1" style={{ display: 'block', marginBottom: 4 }}>
@@ -375,9 +378,10 @@ export function WorkLocationForm() {
             </Row>
 
             <div style={{ marginTop: token.marginLG, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-              <Button onClick={() => navigate('/org/work-locations')}>Cancel</Button>
+              <Button className="btn-spring" onClick={() => navigate('/org/work-locations')}>Cancel</Button>
               <Button
                 type="primary"
+                className="btn-spring"
                 htmlType="submit"
                 icon={<SaveOutlined />}
                 loading={isSubmitting}
@@ -390,5 +394,6 @@ export function WorkLocationForm() {
         )}
       </Formik>
     </Card>
+    </div>
   );
 }

@@ -79,9 +79,9 @@ export function EmployeeForm16Panel() {
   }, [selectedFy, loadData]);
 
   return (
-    <div data-testid="employee-form16-panel">
+    <div data-testid="employee-form16-panel" className="fadeSlideUp">
       {/* Header with FY Picker */}
-      <Card style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
+      <Card variant="borderless" className="saas-card" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col xs={24} sm={16}>
             <Title level={4} style={{ margin: 0 }}>
@@ -117,6 +117,7 @@ export function EmployeeForm16Panel() {
               </Space>
             }
             variant="borderless"
+            className="saas-card"
             style={{ height: '100%', borderRadius: token.borderRadiusLG }}
           >
             {loading ? (
@@ -148,6 +149,7 @@ export function EmployeeForm16Panel() {
               </Space>
             }
             variant="borderless"
+            className="saas-card"
             style={{ height: '100%', borderRadius: token.borderRadiusLG }}
           >
             {partALoading ? (
@@ -164,6 +166,7 @@ export function EmployeeForm16Panel() {
                 />
                 <Button
                   type="primary"
+                  className="btn-spring"
                   icon={<DownloadOutlined />}
                   href={partA.link}
                   target="_blank"

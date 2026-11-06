@@ -322,6 +322,7 @@ export function PayScheduleScreen() {
           <Form.Item style={{ marginBottom: 0 }}>
             <Button
               type="primary"
+              className="btn-spring"
               htmlType="submit"
               icon={<SaveOutlined />}
               loading={scheduleSaving}
@@ -450,6 +451,7 @@ export function PayScheduleScreen() {
           <Form.Item style={{ marginBottom: 0 }}>
             <Button
               type="primary"
+              className="btn-spring"
               htmlType="submit"
               icon={<SaveOutlined />}
               loading={lopSaving}

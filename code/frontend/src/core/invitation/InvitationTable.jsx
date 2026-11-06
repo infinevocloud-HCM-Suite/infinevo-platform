@@ -86,6 +86,7 @@ export function InvitationTable({
           <Space size="small">
             <Button
               size="small"
+              className="btn-spring"
               id={`btn-resend-${record.id}`}
               loading={resendingId === record.id}
               onClick={() => onResend?.(record.id, record)}
@@ -103,6 +104,7 @@ export function InvitationTable({
               <Button
                 size="small"
                 danger
+                className="btn-spring"
                 id={`btn-revoke-${record.id}`}
                 loading={revokingId === record.id}
               >
@@ -117,6 +119,7 @@ export function InvitationTable({
 
   return (
     <Table
+      className="saas-table"
       rowKey="id"
       columns={columns}
       dataSource={data}

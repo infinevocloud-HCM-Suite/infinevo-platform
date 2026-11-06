@@ -96,10 +96,13 @@ export function AuditTab({ enabled }) {
           <DatePicker showTime />
         </Form.Item>
         <Form.Item>
-          <Button htmlType="submit">Search</Button>
+          <Button type="primary" className="btn-spring" htmlType="submit">
+            Search
+          </Button>
         </Form.Item>
       </Form>
       <Table
+        className="saas-table"
         rowKey="id"
         columns={columns}
         dataSource={data.content}

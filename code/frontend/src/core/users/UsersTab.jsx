@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Table, Tag, Button, Space, Input, Drawer, Form, Select, Alert, Popconfirm, Typography, message } from 'antd';
+import { Table, Tag, Button, Space, Input, Drawer, Form, Select, Alert, Popconfirm, Typography, message, theme } from 'antd';
 import { useCan } from '@shell/screens';
 import { userService } from './userService.js';
 
@@ -12,6 +12,7 @@ const { Text } = Typography;
  * the server's 409 — your own tenant-admin, the last tenant-admin — is shown as it comes.
  */
 export function UsersTab() {
+  const { token } = theme.useToken();
   const canAssign = useCan('core.role.assign');
 
   const [users, setUsers] = useState([]);
@@ -112,7 +113,15 @@ export function UsersTab() {
       title: 'Roles',
       key: 'roles',
       render: (_, u) =>
-        u.roles.length ? u.roles.map((r) => <Tag key={r.id}>{r.name || r.code}</Tag>) : <Text type="secondary">None</Text>,
+        u.roles.length ? (
+          u.roles.map((r) => (
+            <Tag key={r.id} style={{ borderRadius: 6, background: token.colorInfoBg, color: token.colorInfoText, borderColor: token.colorInfoBorder }}>
+              {r.name || r.code}
+            </Tag>
+          ))
+        ) : (
+          <Text type="secondary">None</Text>
+        ),
     },
     {
       title: 'Employee',
@@ -122,7 +131,16 @@ export function UsersTab() {
     {
       title: 'Status',
       key: 'status',
-      render: (_, u) => (u.enabled ? <Tag color="success">Active</Tag> : <Tag color="default">Disabled</Tag>),
+      render: (_, u) =>
+        u.enabled ? (
+          <Tag color="success" style={{ borderRadius: 12, fontWeight: 500, padding: '2px 10px' }}>
+            Active
+          </Tag>
+        ) : (
+          <Tag color="default" style={{ borderRadius: 12, fontWeight: 500, padding: '2px 10px' }}>
+            Disabled
+          </Tag>
+        ),
     },
     {
       title: 'Actions',
@@ -130,7 +148,7 @@ export function UsersTab() {
       render: (_, u) => (
         <Space size="small">
           {canAssign && (
-            <Button size="small" id={`btn-change-roles-${u.id}`} onClick={() => openRoles(u)}>
+            <Button size="small" className="btn-spring" id={`btn-change-roles-${u.id}`} onClick={() => openRoles(u)}>
               Change roles
             </Button>
           )}
@@ -142,12 +160,12 @@ export function UsersTab() {
               okButtonProps={{ danger: true, id: `btn-confirm-disable-${u.id}` }}
               onConfirm={() => toggle(u)}
             >
-              <Button size="small" danger id={`btn-disable-${u.id}`} loading={busyId === u.id}>
+              <Button size="small" danger className="btn-spring" id={`btn-disable-${u.id}`} loading={busyId === u.id}>
                 Disable
               </Button>
             </Popconfirm>
           ) : (
-            <Button size="small" id={`btn-enable-${u.id}`} loading={busyId === u.id} onClick={() => toggle(u)}>
+            <Button size="small" className="btn-spring" id={`btn-enable-${u.id}`} loading={busyId === u.id} onClick={() => toggle(u)}>
               Enable
             </Button>
           )}
@@ -169,6 +187,7 @@ export function UsersTab() {
       />
       {error && <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />}
       <Table
+        className="saas-table"
         rowKey="id"
         columns={columns}
         dataSource={users}

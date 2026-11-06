@@ -62,7 +62,7 @@ export function SettingsLayout({ children }) {
     SETTINGS_MENU_ITEMS[0].key;
 
   return (
-    <div style={{ width: '100%' }}>
+    <div className="saas-page-container fadeSlideUp" style={{ width: '100%' }}>
       <PageHeader
         title="Payroll Settings"
         subtitle="Configure organization-wide payroll schedules, statutory settings, and benefits."
@@ -73,11 +73,13 @@ export function SettingsLayout({ children }) {
       />
 
       <Layout
+        className="saas-card"
         style={{
           background: token.colorBgContainer,
-          borderRadius: token.borderRadiusLG,
-          boxShadow: token.boxShadowTertiary,
+          borderRadius: 14,
+          border: `1px solid ${token.colorBorderSecondary}`,
           overflow: 'hidden',
+          boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
         }}
       >
         <Sider
@@ -96,7 +98,7 @@ export function SettingsLayout({ children }) {
           />
         </Sider>
 
-        <Content style={{ padding: token.paddingLG, minHeight: 520 }}>
+        <Content style={{ padding: token.paddingLG, minHeight: 520, background: token.colorBgContainer }}>
           {children || <Outlet />}
         </Content>
       </Layout>

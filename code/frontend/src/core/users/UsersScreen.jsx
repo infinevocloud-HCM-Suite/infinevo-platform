@@ -22,10 +22,10 @@ export function UsersScreen() {
   }
 
   return (
-    <div>
+    <div className="saas-page-container fadeSlideUp">
       <Breadcrumb items={[{ title: 'Home' }, { title: 'Users & access' }]} style={{ marginBottom: 16 }} />
-      <PageHeader title="Users & access" />
-      <Card variant="borderless">
+      <PageHeader title="Users & access" subtitle="Manage user accounts, roles, access status, and invitations." />
+      <Card className="saas-card" variant="borderless">
         <Tabs
           activeKey={tab}
           onChange={(key) => setParams(key === 'users' ? {} : { tab: key }, { replace: true })}

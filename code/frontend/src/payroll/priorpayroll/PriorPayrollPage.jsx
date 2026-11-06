@@ -311,7 +311,7 @@ export function PriorPayrollPage() {
   const isCheckValid = Boolean(checked && checked.fileKey === fileKey(file));
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="saas-page-container fadeSlideUp" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       <PageHeader
         title="Prior Payroll"
         breadcrumbs={[
@@ -326,7 +326,7 @@ export function PriorPayrollPage() {
               options={fyOptions(2)}
               style={{ width: 140 }}
             />
-            <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>
+            <Button icon={<DownloadOutlined />} className="btn-spring" onClick={handleDownloadTemplate}>
               Download template
             </Button>
           </Space>
@@ -357,7 +357,7 @@ export function PriorPayrollPage() {
         />
       )}
 
-      <Card variant="borderless" title="Upload prior payroll" style={{ marginBottom: 24 }}>
+      <Card variant="borderless" className="saas-card" title="Upload prior payroll" style={{ marginBottom: 24 }}>
         <Space direction="vertical" style={{ width: '100%' }}>
           <Upload
             accept=".csv"
@@ -368,11 +368,12 @@ export function PriorPayrollPage() {
               setChecked(null);
             }}
           >
-            <Button icon={<UploadOutlined />}>Choose a .csv file</Button>
+            <Button icon={<UploadOutlined />} className="btn-spring">Choose a .csv file</Button>
           </Upload>
 
           <Space style={{ marginTop: 8 }}>
             <Button
+              className="btn-spring"
               onClick={handleCheckFile}
               disabled={!file || busy || !canExecute}
               loading={busy}
@@ -387,6 +388,7 @@ export function PriorPayrollPage() {
             >
               <Button
                 type="primary"
+                className="btn-spring"
                 disabled={!isCheckValid || busy || !canExecute}
                 loading={busy}
               >
@@ -398,6 +400,7 @@ export function PriorPayrollPage() {
           {checked?.result && (
             <Card
               variant="borderless"
+              className="saas-card"
               size="small"
               type="inner"
               title="File check result"
@@ -418,6 +421,7 @@ export function PriorPayrollPage() {
               {checked.result.rows_failed > 0 && checked.result.error_document_id && (
                 <Button
                   danger
+                  className="btn-spring"
                   style={{ marginTop: 8 }}
                   onClick={handleDownloadErrors}
                 >
@@ -429,8 +433,9 @@ export function PriorPayrollPage() {
         </Space>
       </Card>
 
-      <Card variant="borderless" title="Import history" style={{ marginBottom: 24 }}>
+      <Card variant="borderless" className="saas-card" title="Import history" style={{ marginBottom: 24 }}>
         <Table
+          className="saas-table"
           rowKey="id"
           columns={historyColumns}
           dataSource={importsData.content}
@@ -444,8 +449,9 @@ export function PriorPayrollPage() {
         />
       </Card>
 
-      <Card variant="borderless" title="Imported months">
+      <Card variant="borderless" className="saas-card" title="Imported months">
         <Table
+          className="saas-table"
           rowKey="id"
           columns={monthsColumns}
           dataSource={monthsData.content}

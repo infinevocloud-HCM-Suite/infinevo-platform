@@ -111,7 +111,7 @@ export function ClaimDetail() {
         title="Could not load the claim"
         subTitle={error.message}
         extra={
-          <Button type="primary" onClick={load}>
+          <Button type="primary" className="btn-spring" onClick={load}>
             Retry
           </Button>
         }
@@ -120,14 +120,14 @@ export function ClaimDetail() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
+    <div className="saas-page-container fadeSlideUp" style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
       <PageHeader
         title="Reimbursement claim"
         subtitle={claim?.employee_name ? `${claim.employee_name} · ${claim.component_name || ''}` : undefined}
         onBack={() => navigate('/payroll/claims')}
         backLabel="Claims"
       />
-      <Card variant="borderless">
+      <Card variant="borderless" className="saas-card">
         <ClaimDescriptions claim={claim} showApprovalLink />
       </Card>
     </div>

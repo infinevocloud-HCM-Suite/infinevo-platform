@@ -16,10 +16,13 @@ export function AuditLogScreen() {
   }
 
   return (
-    <div>
+    <div className="saas-page-container fadeSlideUp">
       <Breadcrumb items={[{ title: 'Home' }, { title: 'Audit log' }]} style={{ marginBottom: 16 }} />
-      <PageHeader title="Audit log" />
-      <Card variant="borderless">
+      <PageHeader
+        title="Audit log"
+        subtitle="Complete forensic trail of user actions, entity updates, and system operations."
+      />
+      <Card className="saas-card" variant="borderless">
         <AuditTab enabled />
       </Card>
     </div>

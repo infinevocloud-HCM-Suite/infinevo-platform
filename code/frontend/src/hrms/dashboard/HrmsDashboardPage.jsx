@@ -114,7 +114,7 @@ export function HrmsDashboardPage() {
   }
 
   return (
-    <div style={{ padding: token.paddingLG, maxWidth: 1200, margin: '0 auto' }}>
+    <div className="saas-page-container" style={{ padding: token.paddingLG, maxWidth: 1200, margin: '0 auto' }}>
       <PageHeader title="Dashboard" />
       {body}
     </div>

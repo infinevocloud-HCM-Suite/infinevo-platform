@@ -93,6 +93,7 @@ export function OvertimeDetail() {
         <>
           <Button
             type="primary"
+            className="btn-spring"
             size="small"
             icon={<CheckOutlined />}
             onClick={() => handleOpenDecide('APPROVED')}
@@ -102,6 +103,7 @@ export function OvertimeDetail() {
           </Button>
           <Button
             danger
+            className="btn-spring"
             size="small"
             icon={<CloseOutlined />}
             onClick={() => handleOpenDecide('REJECTED')}
@@ -116,39 +118,41 @@ export function OvertimeDetail() {
   );
 
   return (
-    <Card variant="borderless">
-      <PageHeader
-        title="Overtime request"
-        onBack={() => {
-          if (location.state?.from === '/approvals') navigate('/approvals');
-          else navigate('/hrms/overtime-requests');
-        }}
-        actions={extra}
-      />
-      <Descriptions size="small" column={2} bordered>
-        <Descriptions.Item label="Date">{formatDate(item.overtimeDate)}</Descriptions.Item>
-        <Descriptions.Item label="Status">
-          <Tag color={STATUS_COLOR[item.status]}>{statusLabel(item.status)}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="Hours">{item.hours}</Descriptions.Item>
-        <Descriptions.Item label="Amount">{formatMoney(item.amount)}</Descriptions.Item>
-        <Descriptions.Item label="Source">{humanize(item.source)}</Descriptions.Item>
-        {item.postedPeriod && <Descriptions.Item label="Posted period">{formatMonth(item.postedPeriod)}</Descriptions.Item>}
-        <Descriptions.Item label="Remarks" span={2}>
-          {item.remarks || '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Requested at">{stamp(item.createdAt)}</Descriptions.Item>
-      </Descriptions>
-      {step && (
-        <DecideModal
-          open={decideModal.open}
-          decision={decideModal.decision}
-          step={step}
-          onCancel={() => setDecideModal({ open: false, decision: 'APPROVED' })}
-          onSuccess={handleDecideSuccess}
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 880, margin: '0 auto' }}>
+      <Card className="saas-card" variant="borderless">
+        <PageHeader
+          title="Overtime request"
+          onBack={() => {
+            if (location.state?.from === '/approvals') navigate('/approvals');
+            else navigate('/hrms/overtime-requests');
+          }}
+          actions={extra}
         />
-      )}
-    </Card>
+        <Descriptions size="small" column={2} bordered>
+          <Descriptions.Item label="Date">{formatDate(item.overtimeDate)}</Descriptions.Item>
+          <Descriptions.Item label="Status">
+            <Tag color={STATUS_COLOR[item.status]}>{statusLabel(item.status)}</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="Hours">{item.hours}</Descriptions.Item>
+          <Descriptions.Item label="Amount">{formatMoney(item.amount)}</Descriptions.Item>
+          <Descriptions.Item label="Source">{humanize(item.source)}</Descriptions.Item>
+          {item.postedPeriod && <Descriptions.Item label="Posted period">{formatMonth(item.postedPeriod)}</Descriptions.Item>}
+          <Descriptions.Item label="Remarks" span={2}>
+            {item.remarks || '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Requested at">{stamp(item.createdAt)}</Descriptions.Item>
+        </Descriptions>
+        {step && (
+          <DecideModal
+            open={decideModal.open}
+            decision={decideModal.decision}
+            step={step}
+            onCancel={() => setDecideModal({ open: false, decision: 'APPROVED' })}
+            onSuccess={handleDecideSuccess}
+          />
+        )}
+      </Card>
+    </div>
   );
 }
 

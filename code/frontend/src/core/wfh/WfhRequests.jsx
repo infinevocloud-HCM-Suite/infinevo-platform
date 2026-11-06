@@ -215,7 +215,7 @@ export function WfhRequests() {
   ];
 
   return (
-    <Card variant="borderless">
+    <Card variant="borderless" className="saas-card saas-page-container">
       <PageHeader
         title="WFH Applications"
         subtitle="Review tenant-wide and team remote work requests"
@@ -227,6 +227,11 @@ export function WfhRequests() {
               icon={<PlusOutlined />}
               onClick={() => setModalVisible(true)}
               data-testid="apply-on-behalf-btn"
+              className="btn-spring"
+              style={{
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                fontWeight: 600,
+              }}
             >
               Apply on Behalf
             </Button>

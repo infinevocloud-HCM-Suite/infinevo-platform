@@ -66,41 +66,43 @@ export function RecordLeave() {
   }
 
   return (
-    <Card variant="borderless" style={{ maxWidth: 800 }}>
-      <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <PageHeader
-          title="Record Leave on Behalf of Employee"
-          subtitle="Recording leave on behalf creates an immediately approved leave request with no approval workflow."
-          onBack={() => navigate('/leave/requests')}
-          backLabel="Back"
-        />
-
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          initialValues={{ isHalfDay: false }}
-        >
-          <LeaveRequestFields
-            form={form}
-            leaveTypes={eligibleTypes}
-            onEmployeeChange={handleEmployeeChange}
-            isHalfDay={isHalfDay}
-            onHalfDayChange={setIsHalfDay}
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 800, margin: '0 auto' }}>
+      <Card className="saas-card" variant="borderless">
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <PageHeader
+            title="Record Leave on Behalf of Employee"
+            subtitle="Recording leave on behalf creates an immediately approved leave request with no approval workflow."
+            onBack={() => navigate('/leave/requests')}
+            backLabel="Back"
           />
 
-          <Form.Item style={{ marginTop: 24 }}>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={submitting}>
-                Record Leave
-              </Button>
-              <Button onClick={() => navigate('/leave/requests')}>
-                Cancel
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Space>
-    </Card>
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleSubmit}
+            initialValues={{ isHalfDay: false }}
+          >
+            <LeaveRequestFields
+              form={form}
+              leaveTypes={eligibleTypes}
+              onEmployeeChange={handleEmployeeChange}
+              isHalfDay={isHalfDay}
+              onHalfDayChange={setIsHalfDay}
+            />
+
+            <Form.Item style={{ marginTop: 24 }}>
+              <Space>
+                <Button type="primary" className="btn-spring" htmlType="submit" loading={submitting}>
+                  Record Leave
+                </Button>
+                <Button className="btn-spring" onClick={() => navigate('/leave/requests')}>
+                  Cancel
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Space>
+      </Card>
+    </div>
   );
 }

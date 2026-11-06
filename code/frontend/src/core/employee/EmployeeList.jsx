@@ -242,6 +242,7 @@ export function EmployeeList() {
           onClick={handleExport}
           loading={exporting}
           id="btn-export-employees"
+          className="btn-spring"
         >
           Export
         </Button>
@@ -252,6 +253,7 @@ export function EmployeeList() {
             icon={<MailOutlined />}
             onClick={handleInviteAll}
             id="btn-invite-all"
+            className="btn-spring"
           >
             Invite all without access
           </Button>
@@ -259,6 +261,7 @@ export function EmployeeList() {
             icon={<UploadOutlined />}
             onClick={() => navigate('/employees/import')}
             id="btn-import-employees"
+            className="btn-spring"
           >
             Import
           </Button>
@@ -267,6 +270,11 @@ export function EmployeeList() {
             icon={<PlusOutlined />}
             onClick={() => navigate('/employees/new')}
             id="btn-new-employee"
+            className="btn-spring"
+            style={{
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+              fontWeight: 600,
+            }}
           >
             New Employee
           </Button>
@@ -276,7 +284,7 @@ export function EmployeeList() {
   );
 
   return (
-    <Card variant="borderless">
+    <Card variant="borderless" className="saas-card saas-page-container">
       <PageHeader
         title="Employees"
         count={usage ? limitBadgeText(usage.used, usage.limit) : `${total} employees`}

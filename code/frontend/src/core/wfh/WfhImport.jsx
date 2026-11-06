@@ -152,7 +152,7 @@ export function WfhImport() {
   ];
 
   return (
-    <Card variant="borderless">
+    <Card variant="borderless" className="saas-card saas-page-container">
       <Space direction="vertical" style={{ width: '100%' }} size="large">
         <PageHeader
           title="Bulk WFH Quota Import"

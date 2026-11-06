@@ -309,6 +309,7 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
       children: (
         <Card
           variant="borderless"
+          className="saas-card"
           title={
           <Row justify="space-between" align="middle" wrap gutter={[12, 12]}>
             <Col>
@@ -396,11 +397,12 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
               {/* Action Bar & Regime Controls */}
               <div
                 style={{
-                  background: token.colorFillAlter,
-                  padding: '16px 20px',
-                  borderRadius: token.borderRadiusLG,
+                  background: 'linear-gradient(135deg, rgba(37,99,235,0.03) 0%, rgba(56,189,248,0.06) 100%)',
+                  padding: '18px 22px',
+                  borderRadius: 12,
                   marginBottom: 20,
-                  border: `1px solid ${token.colorBorderSecondary}`,
+                  border: '1px solid rgba(186,230,253,0.7)',
+                  boxShadow: '0 2px 8px rgba(37,99,235,0.03)',
                 }}
               >
                 <Row justify="space-between" align="middle" gutter={[16, 16]}>
@@ -408,12 +410,13 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
                     <Space direction="vertical" size={4}>
                       <Space align="center" wrap>
                         <Text strong>Selected Regime:</Text>
-                        <Tag color={header.tax_regime === 'NEW' ? 'cyan' : 'magenta'}>
+                        <Tag color={header.tax_regime === 'NEW' ? 'cyan' : 'magenta'} style={{ borderRadius: 12, fontWeight: 600 }}>
                           {header.tax_regime === 'NEW' ? 'New Tax Regime' : 'Old Tax Regime'}
                         </Tag>
                         {canChangeRegime && (
                           <Button
                             size="small"
+                            className="btn-spring"
                             icon={<SwapOutlined />}
                             onClick={handleOpenRegimeModal}
                             data-testid="change-regime-btn"
@@ -443,6 +446,7 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
                         >
                           <Button
                             icon={<UnlockOutlined />}
+                            className="btn-spring"
                             loading={reopening}
                             disabled={!canReopen}
                             data-testid="reopen-declaration-btn"
@@ -464,6 +468,7 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
                           <Button
                             type="primary"
                             icon={<SendOutlined />}
+                            className="btn-spring"
                             loading={submitting}
                             disabled={!isEditable}
                             data-testid="submit-declaration-btn"
@@ -474,7 +479,7 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
                       )}
 
                       {isSubmitted && (
-                        <Tag icon={<CheckCircleOutlined />} color="success" style={{ padding: '6px 12px' }}>
+                        <Tag icon={<CheckCircleOutlined />} color="success" style={{ padding: '6px 12px', borderRadius: 12, fontWeight: 600 }}>
                           Submitted
                         </Tag>
                       )}
@@ -547,7 +552,7 @@ export function DeclarationPage({ initialFy, renderSection, defaultTab }) {
 ];
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
+    <div className="saas-page-container fadeSlideUp" style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px' }}>
       <PageHeader
         title="Tax Declaration"
         subtitle={`Financial Year ${formatFyDisplay(selectedFy)}`}

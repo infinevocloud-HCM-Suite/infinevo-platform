@@ -207,7 +207,7 @@ export function Form16Page() {
   ];
 
   return (
-    <div style={{ padding: token.paddingLG }} data-testid="form16-page">
+    <div className="saas-page-container fadeSlideUp" style={{ padding: token.paddingLG }} data-testid="form16-page">
       <PageHeader
         title="Form 16 Tax Management"
         subtitle="Generate employee annual tax deduction statements (Part B) and manage TRACES certificate archives (Part A)."
@@ -240,7 +240,7 @@ export function Form16Page() {
             ),
             children: (
               <div>
-                <Card variant="borderless" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
+                <Card variant="borderless" className="saas-card" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
                   <Row gutter={[16, 16]} align="middle">
                     <Col xs={24} sm={16} md={18}>
                       <Space orientation="vertical" size="small" style={{ width: '100%' }}>
@@ -260,6 +260,7 @@ export function Form16Page() {
                     <Col xs={24} sm={8} md={6} style={{ alignSelf: 'flex-end' }}>
                       <Button
                         type="primary"
+                        className="btn-spring"
                         icon={<SearchOutlined />}
                         onClick={handleGenerateStatement}
                         loading={statementLoading}
@@ -314,7 +315,7 @@ export function Form16Page() {
             children: (
               <div>
                 {/* Upload Card */}
-                <Card variant="borderless" title="Upload TRACES ZIP Archive" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
+                <Card variant="borderless" className="saas-card" title="Upload TRACES ZIP Archive" style={{ marginBottom: token.marginMD, borderRadius: token.borderRadiusLG }}>
                   <Paragraph type="secondary">
                     Upload the official TRACES Form 16 Part A zip archive downloaded from the Income Tax portal for FY {selectedFy}.
                     The archive will be unpacked, validated, and mapped directly to active employees by PAN.
@@ -373,6 +374,7 @@ export function Form16Page() {
                   <div style={{ marginTop: token.marginMD, textAlign: 'right' }}>
                     <Button
                       type="primary"
+                      className="btn-spring"
                       icon={<UploadOutlined />}
                       onClick={handleUploadZip}
                       loading={uploading}
@@ -386,10 +388,12 @@ export function Form16Page() {
                 {/* Certificates Table */}
                 <Card
                   variant="borderless"
+                  className="saas-card"
                   title={`Uploaded Part A Certificates — FY ${selectedFy}`}
                   style={{ borderRadius: token.borderRadiusLG }}
                 >
                   <Table
+                    className="saas-table"
                     columns={certificateColumns}
                     dataSource={certificates.map((row, idx) => ({ ...row, key: row.document_id || idx }))}
                     loading={certificatesLoading}
