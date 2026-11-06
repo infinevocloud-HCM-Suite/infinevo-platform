@@ -10,7 +10,7 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return { ...actual, useNavigate: () => mockNavigate };
 });
-vi.mock('./tenantService.js', () => ({ tenantService: { create: vi.fn(), countryTemplates: vi.fn() } }));
+vi.mock('./tenantService.js', () => ({ tenantService: { create: vi.fn(), countryTemplates: vi.fn(), setPlan: vi.fn() } }));
 vi.mock('@shared/ui/msgHelper.js', () => ({
   successMsg: vi.fn().mockResolvedValue(undefined),
   errorMsg: vi.fn(),
@@ -81,6 +81,46 @@ describe('TenantCreate', () => {
     expect(successMsg).toHaveBeenCalledWith(
       'Tenant created',
       'Initech is ready. An invitation was sent to boss@initech.example.',
+    );
+    // W-84.1 follow-up: nothing chosen under Plan, so the tenant is left unlimited and no plan call is made.
+    expect(tenantService.setPlan).not.toHaveBeenCalled();
+  });
+
+  it('W-84.1: a plan, support plan and employee limit chosen on the form are saved right after the tenant is created', async () => {
+    tenantService.create.mockResolvedValue({ tenantId: 't-9', adminInvitationId: 'inv-1' });
+    tenantService.setPlan.mockResolvedValue({});
+    render(<MemoryRouter><TenantCreate /></MemoryRouter>);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Initech' } });
+    fireEvent.change(screen.getByLabelText('Administrator email'), { target: { value: 'boss@initech.example' } });
+    fireEvent.change(screen.getByLabelText('Employee limit'), { target: { value: '25' } });
+    fireEvent.click(screen.getByRole('button', { name: /create tenant/i }));
+
+    await waitFor(() => expect(tenantService.setPlan).toHaveBeenCalledWith('t-9', {
+      plan: null,
+      supportPlan: null,
+      employeeLimit: 25,
+    }));
+    expect(tenantService.setPlan.mock.invocationCallOrder[0]).toBeGreaterThan(
+      tenantService.create.mock.invocationCallOrder[0],
+    );
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/admin/tenants'));
+  });
+
+  it('W-84.1: when the plan cannot be saved the tenant still counts as created and the page opens the tenant', async () => {
+    tenantService.create.mockResolvedValue({ tenantId: 't-9', adminInvitationId: 'inv-1' });
+    tenantService.setPlan.mockRejectedValue({ code: 'FORBIDDEN', message: 'no' });
+    render(<MemoryRouter><TenantCreate /></MemoryRouter>);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Initech' } });
+    fireEvent.change(screen.getByLabelText('Administrator email'), { target: { value: 'boss@initech.example' } });
+    fireEvent.change(screen.getByLabelText('Employee limit'), { target: { value: '25' } });
+    fireEvent.click(screen.getByRole('button', { name: /create tenant/i }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/admin/tenants/t-9'));
+    expect(successMsg).toHaveBeenCalledWith(
+      'Tenant created',
+      'Initech is ready, but the plan was not saved. Set it on the tenant page.',
     );
   });
 
