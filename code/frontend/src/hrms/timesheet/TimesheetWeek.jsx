@@ -311,13 +311,14 @@ function WeekGrid({ weekStart }) {
       title: (
         <span
           data-testid={`day-header-${date}`}
+          className={`timesheet-day-header ${isWeekend ? 'timesheet-day-header-weekend' : 'timesheet-day-header-workday'}`}
           style={isWeekend ? { color: token.colorTextSecondary, fontWeight: 600 } : undefined}
         >
           {dayjs(date).format('ddd DD/MM')}
         </span>
       ),
       key: date,
-      width: 140,
+      width: 145,
       render: (_, row) => {
         const cell = row.cells[date] || { hours: '', description: '' };
         const editable = isEditable(row.projectId);
@@ -328,14 +329,10 @@ function WeekGrid({ weekStart }) {
         return (
           <div
             data-testid={`day-box-${date}`}
+            className={`timesheet-day-box ${isWeekend ? 'timesheet-day-box-weekend' : 'timesheet-day-box-workday'}`}
             style={{
-              background: isWeekend ? token.colorBgLayout : token.colorBgContainer,
-              border: `1px solid ${isWeekend ? token.colorBorderSecondary : token.colorBorder}`,
-              borderRadius: 6,
-              padding: 6,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
+              backgroundColor: isWeekend ? token.colorBgLayout : token.colorBgContainer,
+              borderColor: isWeekend ? token.colorBorderSecondary : token.colorBorder,
             }}
           >
             {editable ? (
@@ -348,16 +345,13 @@ function WeekGrid({ weekStart }) {
                 precision={2}
                 value={cell.hours === '' ? null : cell.hours}
                 status={hoursInvalid ? 'error' : undefined}
-                style={{
-                  width: '100%',
-                  textAlign: 'center',
-                }}
+                className="timesheet-input-hours"
                 placeholder="0"
                 onChange={(value) => updateCell(row.key, date, { hours: value ?? '' })}
               />
             ) : (
-              <div style={{ textAlign: 'center' }}>
-                <Text type={hoursInvalid ? 'danger' : undefined}>{formatHours(cell.hours)}</Text>
+              <div style={{ textAlign: 'center', padding: '4px 0' }}>
+                <Text strong type={hoursInvalid ? 'danger' : undefined}>{formatHours(cell.hours)}</Text>
               </div>
             )}
             {editable ? (
@@ -368,15 +362,12 @@ function WeekGrid({ weekStart }) {
                 maxLength={500}
                 value={cell.description || ''}
                 status={descInvalid ? 'error' : undefined}
-                style={{
-                  width: '100%',
-                  fontSize: 12,
-                }}
+                className="timesheet-input-desc"
                 onChange={(e) => updateCell(row.key, date, { description: e.target.value })}
               />
             ) : (
               cell.description ? (
-                <Text type="secondary" style={{ fontSize: 12, display: 'block', whiteSpace: 'pre-wrap' }}>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', whiteSpace: 'pre-wrap', padding: '0 4px' }}>
                   {cell.description}
                 </Text>
               ) : null
@@ -428,18 +419,13 @@ function WeekGrid({ weekStart }) {
   }
 
   const summary = () => (
-    <Table.Summary.Row>
+    <Table.Summary.Row className="timesheet-summary-row">
       <Table.Summary.Cell index={0} colSpan={2}>
-        <Text strong>Day total</Text>
+        <div style={{ padding: '6px 8px', fontWeight: 700, color: token.colorText }}>Day total</div>
       </Table.Summary.Cell>
-      {dates.map((date, i) => {
-        const isWeekend = dayjs(date).day() === 0 || dayjs(date).day() === 6;
-        return (
-          <Table.Summary.Cell
-            index={i + 2}
-            key={date}
-            style={isWeekend ? { background: token.colorBgLayout, borderColor: token.colorBorderSecondary } : undefined}
-          >
+      {dates.map((date, i) => (
+        <Table.Summary.Cell index={i + 2} key={date}>
+          <div className="timesheet-day-total-pill">
             <Text
               strong
               type={totals[date] > DAY_LIMIT_HUNDREDTHS ? 'danger' : undefined}
@@ -447,13 +433,14 @@ function WeekGrid({ weekStart }) {
             >
               {formatHundredths(totals[date])}
             </Text>
-          </Table.Summary.Cell>
-        );
-      })}
+          </div>
+        </Table.Summary.Cell>
+      ))}
       <Table.Summary.Cell index={9}>
-        <Text strong data-testid="week-total">
-          {formatHundredths(gridTotal(rows))}
-        </Text>
+        <div className="timesheet-week-total-badge">
+          <span>Total:</span>
+          <Text strong data-testid="week-total">{formatHundredths(gridTotal(rows))}</Text>
+        </div>
       </Table.Summary.Cell>
       {anyEditable && <Table.Summary.Cell index={10} />}
     </Table.Summary.Row>
@@ -478,11 +465,12 @@ function WeekGrid({ weekStart }) {
       {currentEmployee?.employeeNumber && (
         <div style={{ marginBottom: 16 }}>
           <Space align="center">
-            <Text type="secondary">Employee ID:</Text>
+            <Text type="secondary" style={{ fontWeight: 600 }}>Employee ID:</Text>
             <Input
               readOnly
               value={currentEmployee.employeeNumber}
-              style={{ width: 120, backgroundColor: token.colorFillAlter }}
+              className="timesheet-emp-pill"
+              style={{ width: 110 }}
             />
           </Space>
         </div>
