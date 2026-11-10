@@ -106,4 +106,17 @@ public interface PayRunService {
      * @throws IllegalArgumentException if paidOn is in the future or before period start
      */
     PayRunResponse pay(UUID id, LocalDate paidOn);
+
+    /**
+     * Writes the scheduled earnings due in the run's month onto the ledger (W-73.6
+     * {@code ScheduledEarningService.materialise}) for a schedule added after the run was created,
+     * or dated into a month whose run already existed. Regular {@code DRAFT} runs only: locking the
+     * run locks the month's inputs, and the ledger would redirect a later row to the next open
+     * month. Idempotent, so a second call writes nothing. The first compute reads the rows.
+     *
+     * @return how many ledger rows this call wrote
+     * @throws ScheduledEarningsRefreshRefusedException for an off-cycle run, or a regular run no
+     *     longer {@code DRAFT}
+     */
+    ScheduledEarningsRefreshResponse refreshScheduledEarnings(UUID id);
 }

@@ -175,6 +175,18 @@ public class PayRunController {
                 .body(PayRunApiResponse.accepted("Pay run computation queued", accepted));
     }
 
+    @PostMapping("/{id}/refresh-scheduled-earnings")
+    @RequiresAction("payroll.run.execute")
+    public ResponseEntity<PayRunApiResponse<ScheduledEarningsRefreshResponse>> refreshScheduledEarnings(
+            @PathVariable("id") UUID id) {
+        ScheduledEarningsRefreshResponse result = payRunService.refreshScheduledEarnings(id);
+        return ResponseEntity.ok(PayRunApiResponse.ok(
+                result.written() == 0
+                        ? "No scheduled earnings were due for this month"
+                        : result.written() + " scheduled earning(s) written to the ledger",
+                result));
+    }
+
     @GetMapping("/{id}/employees/{employeeId}/lines")
     @RequiresAction("payroll.run.read")
     public ResponseEntity<PayRunApiResponse<EmployeePayRunLinesResponse>> lines(
@@ -209,6 +221,7 @@ public class PayRunController {
         DuplicatePayRunException.class,
         IllegalPayRunTransitionException.class,
         PayRunComputeInProgressException.class,
+        ScheduledEarningsRefreshRefusedException.class,
         com.infinevo.payroll.priorpayroll.PriorPayrollExistsException.class
     })
     public ResponseEntity<ApiErrorResponse> handleConflict(RuntimeException ex) {

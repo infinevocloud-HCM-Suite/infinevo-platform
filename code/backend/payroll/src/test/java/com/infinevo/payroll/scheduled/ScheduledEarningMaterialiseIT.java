@@ -10,8 +10,10 @@ import com.infinevo.core.payinput.PayInputResponse;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.payroll.PayrollTestApp;
 import com.infinevo.payroll.PayrollTestSchema;
+import com.infinevo.payroll.payrun.PayRunResponse;
 import com.infinevo.payroll.payrun.PayRunService;
 import com.infinevo.payroll.payrun.PayRunTestSchema;
+import com.infinevo.payroll.payrun.ScheduledEarningsRefreshRefusedException;
 import com.infinevo.payroll.schedule.PayDayRule;
 import com.infinevo.payroll.schedule.PayScheduleRequest;
 import com.infinevo.payroll.schedule.PayScheduleService;
@@ -227,16 +229,14 @@ class ScheduledEarningMaterialiseIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("A past month, a component without the Scheduled flag, 13 instalments or a zero amount are refused")
+    @DisplayName(
+            "A locked past month, a component without the Scheduled flag, 13 instalments or a zero amount are refused")
     void createRules() {
+        YearMonth lastMonth = THIS_MONTH.minusMonths(1);
+        payInputService.lock(lastMonth);
         assertThatThrownBy(() -> scheduledEarnings.create(
                         employee,
-                        new ScheduledEarningRequest(
-                                bonus,
-                                new BigDecimal("100"),
-                                THIS_MONTH.minusMonths(1).toString(),
-                                1,
-                                null)))
+                        new ScheduledEarningRequest(bonus, new BigDecimal("100"), lastMonth.toString(), 1, null)))
                 .isInstanceOf(ScheduledEarningService.ValidationException.class)
                 .satisfies(e -> assertThat(((ScheduledEarningService.ValidationException) e).fieldErrors())
                         .containsKey("firstPeriod"));
@@ -259,6 +259,49 @@ class ScheduledEarningMaterialiseIT extends AbstractIntegrationTest {
                 .satisfies(e -> assertThat(((ScheduledEarningService.ValidationException) e).fieldErrors())
                         .containsKey("amount"));
         assertThat(scheduledEarnings.listForEmployee(employee)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("A schedule dated into a past month whose run is still a draft: refresh on the run writes it once;"
+            + " an off-cycle run and a locked run refuse the refresh")
+    void pastMonthIntoOpenRunViaRefresh() {
+        YearMonth lastMonth = THIS_MONTH.minusMonths(1);
+        PayRunResponse run = payRunService.create(lastMonth);
+        assertThat(payInputService.forEmployee(employee, lastMonth).rows()).isEmpty();
+
+        ScheduledEarningResponse scheduled = scheduledEarnings.create(
+                employee,
+                new ScheduledEarningRequest(bonus, new BigDecimal("1200"), lastMonth.toString(), 1, "Arrear"));
+        assertThat(scheduled.nextPeriod()).isEqualTo(lastMonth.toString());
+
+        assertThat(payRunService.refreshScheduledEarnings(run.id()).written()).isEqualTo(1);
+        assertThat(payRunService.refreshScheduledEarnings(run.id()).written()).isZero();
+
+        List<PayInputResponse> inputs =
+                payInputService.forEmployee(employee, lastMonth).rows();
+        assertThat(inputs).hasSize(1);
+        assertThat(inputs.get(0).kind()).isEqualTo(PayInputKind.ONE_TIME_PAYOUT);
+        assertThat(inputs.get(0).amount()).isEqualByComparingTo("1200.00");
+        assertThat(inputs.get(0).sourceRef())
+                .isEqualTo(ScheduledEarningInstalments.sourceRef(scheduled.id(), lastMonth));
+        assertThat(scheduledEarnings.listForEmployee(employee).get(0).status()).isEqualTo(ScheduledEarningStatus.PAID);
+
+        PayRunResponse offCycle = payRunService.createOffCycle(lastMonth.atDay(15), List.of(employee), null);
+        assertThatThrownBy(() -> payRunService.refreshScheduledEarnings(offCycle.id()))
+                .isInstanceOf(ScheduledEarningsRefreshRefusedException.class);
+
+        // Once locked, the month's inputs are closed: a refresh is refused rather than redirected,
+        // and a new schedule for the month is refused at create.
+        scheduledEarnings.create(
+                employee, new ScheduledEarningRequest(bonus, new BigDecimal("500"), lastMonth.toString(), 1, "late"));
+        payRunService.lock(run.id());
+        assertThatThrownBy(() -> scheduledEarnings.create(
+                        employee,
+                        new ScheduledEarningRequest(bonus, new BigDecimal("700"), lastMonth.toString(), 1, "later")))
+                .isInstanceOf(ScheduledEarningService.ValidationException.class);
+        assertThatThrownBy(() -> payRunService.refreshScheduledEarnings(run.id()))
+                .isInstanceOf(ScheduledEarningsRefreshRefusedException.class);
+        assertThat(payInputService.forEmployee(employee, lastMonth).rows()).hasSize(1);
     }
 
     @Test

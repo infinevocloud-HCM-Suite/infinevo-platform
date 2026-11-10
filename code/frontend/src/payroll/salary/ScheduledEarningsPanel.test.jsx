@@ -74,14 +74,17 @@ describe('ScheduledEarningsPanel (W-73.6 §7)', () => {
     ).toBeNull();
   });
 
-  it('refuses a first month before the current one, and accepts this month or later', async () => {
+  it('accepts a past month (an arrear into a still-open run), this month and later; the server decides', async () => {
     const current = dayjs().format('YYYY-MM');
-    const schema = buildScheduledEarningSchema(current);
+    const schema = buildScheduledEarningSchema();
     const base = { componentId: 'e-bonus', amount: '30000', instalments: 1, reason: '' };
 
     await expect(
       schema.validate({ ...base, firstPeriod: dayjs().subtract(1, 'month').format('YYYY-MM') })
-    ).rejects.toThrow(`First month must be ${current} or later`);
+    ).resolves.toBeTruthy();
+    await expect(schema.validate({ ...base, firstPeriod: 'not-a-month' })).rejects.toThrow(
+      'First month must be a month'
+    );
     await expect(schema.validate({ ...base, firstPeriod: current })).resolves.toBeTruthy();
     await expect(
       schema.validate({ ...base, firstPeriod: dayjs().add(1, 'month').format('YYYY-MM') })
@@ -89,7 +92,7 @@ describe('ScheduledEarningsPanel (W-73.6 §7)', () => {
   });
 
   it('refuses a zero amount and more than twelve instalments', async () => {
-    const schema = buildScheduledEarningSchema(dayjs().format('YYYY-MM'));
+    const schema = buildScheduledEarningSchema();
     const next = dayjs().add(1, 'month').format('YYYY-MM');
     await expect(
       schema.validate({ componentId: 'e-bonus', amount: '0', firstPeriod: next, instalments: 1 })
@@ -100,7 +103,7 @@ describe('ScheduledEarningsPanel (W-73.6 §7)', () => {
   });
 
   it('refuses more than 2 decimals and an amount under 0.01 per instalment (F-3, F-4)', async () => {
-    const schema = buildScheduledEarningSchema(dayjs().format('YYYY-MM'));
+    const schema = buildScheduledEarningSchema();
     const next = dayjs().add(1, 'month').format('YYYY-MM');
     const base = { componentId: 'e-bonus', firstPeriod: next };
     await expect(schema.validate({ ...base, amount: '100.005', instalments: 1 })).rejects.toThrow(

@@ -47,10 +47,11 @@ export function scheduledComponents(earnings) {
 }
 
 /**
- * The add form's rules (spec §4): a Scheduled component, a positive amount, a first month that is
- * {@code currentMonth} or later, and 1-12 instalments. {@code currentMonth} is `YYYY-MM`.
+ * The add form's rules (spec §4): a Scheduled component, a positive amount, a first month, and 1-12
+ * instalments. A past month is allowed (W-73.6 follow-up: an arrear for a month whose run is still
+ * a draft); the server refuses one that is locked, approved or paid.
  */
-export function buildScheduledEarningSchema(currentMonth) {
+export function buildScheduledEarningSchema() {
   return Yup.object().shape({
     componentId: Yup.string().required('Choose a scheduled earning component'),
     amount: Yup.string()
@@ -65,8 +66,7 @@ export function buildScheduledEarningSchema(currentMonth) {
       }),
     firstPeriod: Yup.string()
       .required('First month is required')
-      .matches(/^\d{4}-\d{2}$/, 'First month must be a month')
-      .test('not-past', `First month must be ${currentMonth} or later`, (v) => !v || v >= currentMonth),
+      .matches(/^\d{4}-\d{2}$/, 'First month must be a month'),
     instalments: Yup.number()
       .required('Instalments are required')
       .integer('Instalments must be a whole number')
@@ -76,8 +76,8 @@ export function buildScheduledEarningSchema(currentMonth) {
   });
 }
 
-function AddScheduledEarningDrawer({ open, onClose, onSaved, employeeId, components, currentMonth }) {
-  const schema = buildScheduledEarningSchema(currentMonth);
+function AddScheduledEarningDrawer({ open, onClose, onSaved, employeeId, components }) {
+  const schema = buildScheduledEarningSchema();
   const options = components.map((c) => ({
     value: c.id,
     label: `${c.name || c.code}${c.name && c.code ? ` (${c.code})` : ''}`,
@@ -172,7 +172,6 @@ function AddScheduledEarningDrawer({ open, onClose, onSaved, employeeId, compone
                   format={MONTH_FORMAT}
                   allowClear={false}
                   value={values.firstPeriod ? dayjs(values.firstPeriod, MONTH_FORMAT) : null}
-                  disabledDate={(d) => d && d.format(MONTH_FORMAT) < currentMonth}
                   onChange={(d) => {
                     setFieldValue('firstPeriod', d ? d.format(MONTH_FORMAT) : '');
                     setFieldTouched('firstPeriod', true, false);
@@ -242,7 +241,6 @@ AddScheduledEarningDrawer.propTypes = {
   onSaved: PropTypes.func,
   employeeId: PropTypes.string.isRequired,
   components: PropTypes.array.isRequired,
-  currentMonth: PropTypes.string.isRequired,
 };
 
 /**
@@ -256,7 +254,6 @@ export function ScheduledEarningsPanel({ employeeId }) {
   const earnings = useSelector((state) => state.salary?.components?.earnings) || [];
   const loadedAt = useSelector((state) => state.salary?.loadedAt);
   const components = scheduledComponents(earnings);
-  const currentMonth = dayjs().format(MONTH_FORMAT);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -434,7 +431,6 @@ export function ScheduledEarningsPanel({ employeeId }) {
           onSaved={load}
           employeeId={employeeId}
           components={components}
-          currentMonth={currentMonth}
         />
       )}
     </Card>

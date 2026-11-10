@@ -1,6 +1,7 @@
 package com.infinevo.payroll.payrun;
 
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +22,10 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
     /** W-30.2: only a regular run blocks another regular run for the period; off-cycle runs are many. */
     boolean existsByTenantIdAndPeriodAndRunTypeAndStatusNot(
             UUID tenantId, String period, PayRunType runType, PayRunStatus status);
+
+    /** A regular run for the period in one of the given statuses — "is this month already paid?" */
+    boolean existsByTenantIdAndPeriodAndRunTypeAndStatusIn(
+            UUID tenantId, String period, PayRunType runType, Collection<PayRunStatus> statuses);
 
     Page<PayRun> findByTenantId(UUID tenantId, Pageable pageable);
 

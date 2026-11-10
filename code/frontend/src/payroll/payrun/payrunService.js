@@ -96,6 +96,16 @@ export const payrunService = {
   },
 
   /**
+   * Write the scheduled earnings due in the run's month onto the ledger (W-73.6 follow-up): for a
+   * schedule added after the run was created, or dated into a month whose run already existed.
+   * Regular runs before APPROVED only; idempotent. Returns { written }.
+   */
+  async refreshScheduledEarnings(id) {
+    const res = await apiClient.post(`${BASE_PATH}/${id}/refresh-scheduled-earnings`);
+    return unwrap(res);
+  },
+
+  /**
    * Lock a draft run.
    */
   async lock(id) {

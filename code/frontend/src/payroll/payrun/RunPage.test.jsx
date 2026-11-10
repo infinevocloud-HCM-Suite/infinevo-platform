@@ -19,6 +19,7 @@ vi.mock('./payrunService.js', () => ({
   payrunService: {
     get: vi.fn(),
     compute: vi.fn(),
+    refreshScheduledEarnings: vi.fn(),
     lock: vi.fn(),
     cancel: vi.fn(),
     approve: vi.fn(),
@@ -92,7 +93,11 @@ describe('RunPage component (W-47.2 §7)', () => {
       const approveBtn = screen.getByRole('button', { name: /approve/i });
       const payBtn = screen.getByRole('button', { name: /pay$/i });
       const cancelBtn = screen.getByRole('button', { name: /cancel/i });
+      const refreshScheduledBtn = screen.getByRole('button', { name: /refresh scheduled earnings/i });
 
+      // W-73.6 follow-up: a regular run takes new schedules only while DRAFT (Lock closes the month).
+      const canRefreshScheduled = s.status === 'DRAFT';
+      expect(refreshScheduledBtn.hasAttribute('disabled')).toBe(!canRefreshScheduled);
       expect(lockBtn.hasAttribute('disabled')).toBe(!s.canLock);
       expect(computeBtn.hasAttribute('disabled')).toBe(!s.canCompute);
       expect(approveBtn.hasAttribute('disabled')).toBe(!s.canApprove);
@@ -142,6 +147,35 @@ describe('RunPage component (W-47.2 §7)', () => {
 
     const computeBtn = screen.getByRole('button', { name: /compute/i });
     expect(computeBtn.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('Refresh scheduled earnings writes the month\'s schedules and says how many; hidden on an off-cycle run', async () => {
+    payrunService.get.mockResolvedValue({ id: 'run-sched', period: '2026-09', status: 'DRAFT' });
+    payrunService.refreshScheduledEarnings.mockResolvedValueOnce({ written: 1 });
+
+    const { unmount } = renderRunPage('run-sched');
+    const btn = await screen.findByRole('button', { name: /refresh scheduled earnings/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(payrunService.refreshScheduledEarnings).toHaveBeenCalledWith('run-sched');
+      expect(
+        screen.getByText('1 scheduled earning written to the ledger. Lock and compute the run to include it.')
+      ).toBeDefined();
+    });
+    unmount();
+
+    payrunService.get.mockResolvedValue({
+      id: 'run-oc',
+      period: '2026-09',
+      status: 'DRAFT',
+      run_type: 'OFF_CYCLE',
+    });
+    renderRunPage('run-oc');
+    await waitFor(() => {
+      expect(screen.getByText('Pay Run — Sep 2026')).toBeDefined();
+    });
+    expect(screen.queryByRole('button', { name: /refresh scheduled earnings/i })).toBeNull();
   });
 
   it('re-fetches pay run when a 409 conflict occurs on Lock', async () => {

@@ -5,11 +5,15 @@ import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.core.payinput.PayInputCommand;
 import com.infinevo.core.payinput.PayInputKind;
+import com.infinevo.core.payinput.PayInputPeriodLockRepository;
 import com.infinevo.core.payinput.PayInputRepository;
 import com.infinevo.core.payinput.PayInputResponse;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.payroll.component.Earning;
 import com.infinevo.payroll.component.EarningRepository;
+import com.infinevo.payroll.payrun.PayRunRepository;
+import com.infinevo.payroll.payrun.PayRunStatus;
+import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.shared.money.Money;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
@@ -69,6 +73,8 @@ public class ScheduledEarningServiceImpl implements ScheduledEarningService {
     private final EmployeeService employeeService;
     private final PayInputService payInputService;
     private final PayInputRepository payInputs;
+    private final PayInputPeriodLockRepository periodLocks;
+    private final PayRunRepository payRuns;
     private final Clock clock;
 
     /** One transaction per instalment in {@link #materialise}: a bad row rolls back alone (W-73.6 F-3). */
@@ -84,8 +90,19 @@ public class ScheduledEarningServiceImpl implements ScheduledEarningService {
             EmployeeService employeeService,
             PayInputService payInputService,
             PayInputRepository payInputs,
+            PayInputPeriodLockRepository periodLocks,
+            PayRunRepository payRuns,
             PlatformTransactionManager transactionManager) {
-        this(schedules, earnings, employeeService, payInputService, payInputs, transactionManager, Clock.systemUTC());
+        this(
+                schedules,
+                earnings,
+                employeeService,
+                payInputService,
+                payInputs,
+                periodLocks,
+                payRuns,
+                transactionManager,
+                Clock.systemUTC());
     }
 
     ScheduledEarningServiceImpl(
@@ -94,9 +111,13 @@ public class ScheduledEarningServiceImpl implements ScheduledEarningService {
             EmployeeService employeeService,
             PayInputService payInputService,
             PayInputRepository payInputs,
+            PayInputPeriodLockRepository periodLocks,
+            PayRunRepository payRuns,
             PlatformTransactionManager transactionManager,
             Clock clock) {
         this.schedules = Objects.requireNonNull(schedules, "schedules must not be null");
+        this.periodLocks = Objects.requireNonNull(periodLocks, "periodLocks must not be null");
+        this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
         this.earnings = Objects.requireNonNull(earnings, "earnings must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.payInputService = Objects.requireNonNull(payInputService, "payInputService must not be null");
@@ -165,9 +186,14 @@ public class ScheduledEarningServiceImpl implements ScheduledEarningService {
         } else {
             try {
                 firstPeriod = YearMonth.parse(request.firstPeriod().trim());
-                YearMonth current = YearMonth.now(clock);
-                if (firstPeriod.isBefore(current)) {
-                    errors.put("firstPeriod", "firstPeriod must be " + current + " or later");
+                // A past month is fine while its pay can still change: an arrear for a month whose
+                // regular run is still a draft, or has not been created. Once the month's inputs are
+                // locked, or its regular run is approved or paid, nothing more may be paid into it.
+                if (firstPeriod.isBefore(YearMonth.now(clock)) && isClosed(tenantId, firstPeriod)) {
+                    errors.put(
+                            "firstPeriod",
+                            "firstPeriod " + firstPeriod
+                                    + " is already locked, approved or paid; choose a month whose pay run is still open");
                 }
             } catch (DateTimeParseException e) {
                 errors.put("firstPeriod", "firstPeriod must be a month as yyyy-MM");
@@ -255,6 +281,16 @@ public class ScheduledEarningServiceImpl implements ScheduledEarningService {
         }
         row.cancel(clip(trimToNull(reason)), currentActor());
         return single(tenantId, schedules.save(row));
+    }
+
+    /** The month's inputs are locked, or its regular run is approved or paid (W-73.6 follow-up). */
+    private boolean isClosed(UUID tenantId, YearMonth period) {
+        return periodLocks.existsByTenantIdAndPeriodAndRunRefIsNull(tenantId, period)
+                || payRuns.existsByTenantIdAndPeriodAndRunTypeAndStatusIn(
+                        tenantId,
+                        period.toString(),
+                        PayRunType.REGULAR,
+                        List.of(PayRunStatus.APPROVED, PayRunStatus.PAID));
     }
 
     /**

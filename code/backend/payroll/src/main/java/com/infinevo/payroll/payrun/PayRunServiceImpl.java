@@ -893,6 +893,25 @@ public class PayRunServiceImpl implements PayRunService {
         return name.isBlank() ? emp.employeeNumber() : name;
     }
 
+    /** Not {@code @Transactional}: materialise commits each instalment in its own transaction. */
+    @Override
+    public ScheduledEarningsRefreshResponse refreshScheduledEarnings(UUID id) {
+        PayRun run = readTransaction.execute(status -> require(id));
+        // DRAFT only: lock() locks the month's inputs, after which the ledger redirects any new row
+        // to the next open month - the instalment would be marked paid here and land elsewhere.
+        if (run.getRunType() != PayRunType.REGULAR || run.getStatus() != PayRunStatus.DRAFT) {
+            throw new ScheduledEarningsRefreshRefusedException(id, run.getRunType(), run.getStatus());
+        }
+        int written = scheduledEarningService == null ? 0 : scheduledEarningService.materialise(run.getPeriod());
+        log.info(
+                "Refreshed scheduled earnings for pay run {} ({}) in tenant {}: {} written",
+                run.getId(),
+                run.getPeriod(),
+                run.getTenantId(),
+                written);
+        return new ScheduledEarningsRefreshResponse(written);
+    }
+
     private PayRun require(UUID id) {
         Objects.requireNonNull(id, "id must not be null");
         UUID tenantId = TenantContext.require();

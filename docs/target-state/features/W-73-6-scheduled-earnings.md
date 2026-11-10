@@ -82,7 +82,9 @@ employee terminated --> remaining SCHEDULED rows -> CANCELLED (reason "terminate
 | POST | same | `{componentId, amount, firstPeriod, instalments, reason}` | `201` | `payroll.structure.update` |
 | POST | `/api/v1/scheduled-earnings/{id}/pause` · `/resume` · `/cancel` | `{reason?}` | `200` | `payroll.structure.update` |
 
-Rules: `firstPeriod` ≥ current period; cannot cancel a `PAID` row; pause only `SCHEDULED`.
+Rules: `firstPeriod` is any month whose pay inputs are not locked and whose regular run is not `APPROVED` or `PAID` (follow-up 2026-11-10: a past month whose run is still a draft takes an arrear; before that the rule was ≥ current period); cannot cancel a `PAID` row; pause only `SCHEDULED`.
+
+`POST /api/v1/payroll/payruns/{id}/refresh-scheduled-earnings` (`payroll.run.execute`, follow-up 2026-11-10): writes the month's due schedules to the ledger for a regular `DRAFT` run - the "Refresh scheduled earnings" button of §11. Idempotent; `409` for an off-cycle run or one past `DRAFT`, because Lock closes the month's inputs.
 
 ## 5. Frontend changes
 
@@ -112,7 +114,8 @@ Rules: `firstPeriod` ≥ current period; cannot cancel a `PAID` row; pause only 
 | Unit | `ScheduledEarningSplitTest` | 10,000 ÷ 3 → 3,333.33 · 3,333.33 · 3,333.34 |
 | Integration | `ScheduledEarningMaterialiseIT` | run created → one pay input; second call → none; last instalment → `PAID`; termination → `CANCELLED` |
 | Integration | `PayRunScheduledLineIT` | the line appears on the run, taxable, through the unchanged contributor |
-| Unit | `ScheduledEarningsPanel.test.jsx` | only scheduled components offered; past month refused |
+| Unit | `ScheduledEarningsPanel.test.jsx` | only scheduled components offered; a past month accepted (the server decides) |
+| Unit | `RunPage.test.jsx` | "Refresh scheduled earnings" enabled only on a regular `DRAFT` run, hidden off-cycle; reports the count |
 
 ## 8. Verification
 

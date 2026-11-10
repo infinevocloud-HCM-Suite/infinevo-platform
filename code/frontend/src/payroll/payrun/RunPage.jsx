@@ -29,6 +29,7 @@ import {
   CheckCircleOutlined,
   DollarOutlined,
   DownloadOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
@@ -98,6 +99,7 @@ export function RunPage() {
   const [loading, setLoading] = useState(!runFromStore);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [refreshNotice, setRefreshNotice] = useState(null);
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [paidOn, setPaidOn] = useState(null);
   const [payNotice, setPayNotice] = useState(null);
@@ -179,6 +181,23 @@ export function RunPage() {
   };
 
   const handleCompute = () => runAction(() => payrunService.compute(id), 'Compute failed');
+  // W-73.6 follow-up: a schedule added after the run was created, or dated into this month, lands
+  // on the ledger only through this; the first compute then reads it.
+  const handleRefreshScheduled = async () => {
+    setRefreshNotice(null);
+    const result = await runAction(
+      () => payrunService.refreshScheduledEarnings(id),
+      'Refresh scheduled earnings failed'
+    );
+    if (result) {
+      const written = result.written ?? 0;
+      setRefreshNotice(
+        written === 0
+          ? 'No scheduled earnings were due for this month.'
+          : `${written} scheduled earning${written === 1 ? '' : 's'} written to the ledger. Lock and compute the run to include ${written === 1 ? 'it' : 'them'}.`
+      );
+    }
+  };
   const handleLock = () => runAction(() => payrunService.lock(id), 'Lock failed');
   const handleCancel = () => runAction(() => payrunService.cancel(id), 'Cancel failed');
   const handleApprove = () => runAction(() => payrunService.approve(id), 'Approve failed');
@@ -251,6 +270,9 @@ export function RunPage() {
       (isComputing && staleComputing));
 
   const canLock = canExecute && status === 'DRAFT';
+  const isRegular = (run.run_type || run.runType || 'REGULAR') === 'REGULAR';
+  // DRAFT only: Lock closes the month's inputs, so a later refresh could not land in this run.
+  const canRefreshScheduled = canExecute && isRegular && status === 'DRAFT';
   // APPROVED can still be cancelled; PAID never can (W-36.2 §13 decision 9).
   const canCancel = canExecute && (status === 'DRAFT' || status === 'LOCKED' || status === 'APPROVED');
   const canApprove = canApproveAction && status === 'COMPUTED';
@@ -293,6 +315,18 @@ export function RunPage() {
             <Button icon={<ReloadOutlined />} onClick={fetchRun} loading={actionLoading}>
               Refresh
             </Button>
+
+            {isRegular && (
+              <Button
+                id="btn-refresh-scheduled-earnings"
+                icon={<ScheduleOutlined />}
+                onClick={handleRefreshScheduled}
+                disabled={!canRefreshScheduled}
+                loading={actionLoading}
+              >
+                Refresh scheduled earnings
+              </Button>
+            )}
 
             <Popconfirm
               title="Lock this pay run?"
@@ -397,6 +431,18 @@ export function RunPage() {
           description={failureReason || 'The server did not record a reason.'}
           type="error"
           showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {refreshNotice && (
+        <Alert
+          message="Scheduled earnings"
+          description={refreshNotice}
+          type="info"
+          showIcon
+          closable
+          onClose={() => setRefreshNotice(null)}
           style={{ marginBottom: 16 }}
         />
       )}
