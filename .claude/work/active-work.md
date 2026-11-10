@@ -6,6 +6,19 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-10 — W-73.6 follow-up on `main` (`1ebaf508`): arrear into a still-open month
+
+| What | Where |
+|---|---|
+| A scheduled earning may start in a past month unless its inputs are locked or its regular run is APPROVED or PAID | `ScheduledEarningServiceImpl.create`, `isClosed` |
+| "Refresh scheduled earnings" on a regular DRAFT run writes the month's due schedules to the ledger; `POST …/payruns/{id}/refresh-scheduled-earnings`; 409 past DRAFT | `PayRunServiceImpl.refreshScheduledEarnings`, `RunPage.jsx` |
+
+- Built by Claude on `dev-claude-w73-6`, one independent read (one defect fixed: refresh after Lock would have redirected the row to the next month), CI green on `9fcd84bd`. Spec §4 and §7 amended.
+- **Migrated company, data fix 2026-11-10 (rows tagged `claim-fix-2026-11-10`):** the five legacy-approved reimbursement claims had no ledger row, so no target run could pick them up; one `REIMBURSEMENT` pay input each was posted to `2026-09` and the claims linked. The Sept 2026 run is still DRAFT: lock and compute to include them.
+- **Why the arrear route:** legacy had no arrear handling either, and the target has no ARREAR ledger kind. For the one September joiner-arrear the officer ticks Scheduled on the Arrear component, schedules it for `2026-09` on the Salary tab, presses the new button on the Sept run, then locks and computes.
+- **Left:** no lower bound on a past month (a month with no run and no lock passes; the instalment lands in a later run as overdue); payslip prints "One-time payout" for a scheduled instalment; nine consultants carry a different name in legacy payroll (the payee) than in HRMS, and only the HRMS name was migrated — a payee-name field is its own ticket.
+- **Branches:** `dev-claude-w73-6` and `dev-claude-w84` can be deleted.
+
 ## 2026-11-05 — W-84.1 + W-84.2 plans and employee limit on `main` (`27ec17ae`)
 
 | Ticket | What |
