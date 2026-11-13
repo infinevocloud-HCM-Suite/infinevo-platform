@@ -93,6 +93,7 @@ export function RunPage() {
   const canExecute = useCan('payroll.run.execute');
   const canApproveAction = useCan('payroll.run.approve');
   const canPayAction = useCan('payroll.payslip.publish');
+  const canExportBankFile = useCan('payroll.bank_file.export');
 
   const runFromStore = useSelector((state) => state.payrun?.byId?.[id]);
   const [localRun, setLocalRun] = useState(null);
@@ -104,6 +105,7 @@ export function RunPage() {
   const [paidOn, setPaidOn] = useState(null);
   const [payNotice, setPayNotice] = useState(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [downloadingBankFile, setDownloadingBankFile] = useState(false);
   // The error of the last read, kept whole so a 404 can be told from every other failure (D-83).
   const [loadError, setLoadError] = useState(null);
 
@@ -217,6 +219,26 @@ export function RunPage() {
     }
   };
 
+  const handleDownloadBankFile = async () => {
+    setDownloadingBankFile(true);
+    setActionError(null);
+    try {
+      const blob = await payrunService.exportBankFile(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bank_salary_file_${run.period}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setActionError(err?.message || 'Failed to download bank file');
+    } finally {
+      setDownloadingBankFile(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
@@ -277,6 +299,7 @@ export function RunPage() {
   const canCancel = canExecute && (status === 'DRAFT' || status === 'LOCKED' || status === 'APPROVED');
   const canApprove = canApproveAction && status === 'COMPUTED';
   const canPay = canPayAction && status === 'APPROVED';
+  const canDownloadBankFile = canExportBankFile && (status === 'APPROVED' || status === 'PAID');
 
   const progressDone = run.progress_done !== undefined ? run.progress_done : run.progressDone || 0;
   const progressTotal = run.progress_total !== undefined ? run.progress_total : run.progressTotal || 0;
@@ -393,6 +416,17 @@ export function RunPage() {
             >
               Pay
             </Button>
+
+            {canDownloadBankFile && (
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={handleDownloadBankFile}
+                loading={downloadingBankFile}
+                data-testid="download-bank-file-btn"
+              >
+                Download Bank File
+              </Button>
+            )}
 
             <Popconfirm
               title="Cancel this pay run?"

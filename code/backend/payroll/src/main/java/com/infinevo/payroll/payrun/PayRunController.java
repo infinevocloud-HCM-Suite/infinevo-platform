@@ -2,6 +2,9 @@ package com.infinevo.payroll.payrun;
 
 import com.infinevo.core.report.ReportColumn;
 import com.infinevo.core.report.XlsxStreamingWriter;
+import com.infinevo.payroll.payrun.bankfile.BankFileInvalidStatusException;
+import com.infinevo.payroll.payrun.bankfile.BankFileResult;
+import com.infinevo.payroll.payrun.bankfile.BankFileService;
 import com.infinevo.payroll.payslip.PayRunPaymentRequest;
 import com.infinevo.payroll.schedule.NoPayScheduleException;
 import com.infinevo.shared.authz.RequiresAction;
@@ -53,9 +56,11 @@ public class PayRunController {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final PayRunService payRunService;
+    private final BankFileService bankFileService;
 
-    public PayRunController(PayRunService payRunService) {
+    public PayRunController(PayRunService payRunService, BankFileService bankFileService) {
         this.payRunService = Objects.requireNonNull(payRunService, "payRunService must not be null");
+        this.bankFileService = Objects.requireNonNull(bankFileService, "bankFileService must not be null");
     }
 
     @PostMapping
@@ -212,6 +217,25 @@ public class PayRunController {
                 PayRunApiResponse.ok("Pay run paid successfully", payRunService.pay(id, request.paidOn())));
     }
 
+    @GetMapping("/{id}/bank-file")
+    @RequiresAction("payroll.bank_file.export")
+    public ResponseEntity<byte[]> exportBankFile(@PathVariable("id") UUID id) {
+        BankFileResult result = bankFileService.generate(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.filename() + "\"")
+                .header("X-BankFile-Total-Employees", String.valueOf(result.totalEmployees()))
+                .header("X-BankFile-Exported-Employees", String.valueOf(result.exportedEmployees()))
+                .header("X-BankFile-Omitted-Employees", String.valueOf(result.omittedEmployees()))
+                .header("X-BankFile-File-Total", result.fileTotal().toPlainString())
+                .header("X-BankFile-Run-Net-Pay", result.runNetPay().toPlainString())
+                .header(
+                        HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS,
+                        HttpHeaders.CONTENT_DISPOSITION
+                                + ", X-BankFile-Total-Employees, X-BankFile-Exported-Employees, X-BankFile-Omitted-Employees, X-BankFile-File-Total, X-BankFile-Run-Net-Pay")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(result.content());
+    }
+
     @ExceptionHandler(PayRunNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(PayRunNotFoundException ex) {
         return error(HttpStatus.NOT_FOUND, ApiError.NOT_FOUND, ex.getMessage());
@@ -222,7 +246,8 @@ public class PayRunController {
         IllegalPayRunTransitionException.class,
         PayRunComputeInProgressException.class,
         ScheduledEarningsRefreshRefusedException.class,
-        com.infinevo.payroll.priorpayroll.PriorPayrollExistsException.class
+        com.infinevo.payroll.priorpayroll.PriorPayrollExistsException.class,
+        BankFileInvalidStatusException.class
     })
     public ResponseEntity<ApiErrorResponse> handleConflict(RuntimeException ex) {
         return error(HttpStatus.CONFLICT, ApiError.CONFLICT, ex.getMessage());

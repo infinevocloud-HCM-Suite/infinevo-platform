@@ -189,4 +189,16 @@ export const payrunService = {
     const data = res?.data !== undefined ? res.data : res;
     return data?.content || (Array.isArray(data) ? data : []);
   },
+
+  /**
+   * Download bank salary payment file for an approved or paid pay run as Blob (W-88).
+   * @param {string} id Payrun ID
+   * @returns {Promise<Blob>}
+   */
+  async exportBankFile(id) {
+    const res = await apiClient.get(`${BASE_PATH}/${id}/bank-file`, {
+      responseType: 'blob',
+    });
+    return res.data;
+  },
 };
