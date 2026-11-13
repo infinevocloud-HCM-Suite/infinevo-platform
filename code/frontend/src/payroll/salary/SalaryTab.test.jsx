@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
@@ -49,7 +49,12 @@ vi.mock('@shared/ui/msgHelper.js', () => ({
   errorMsg: vi.fn().mockResolvedValue(true),
 }));
 
-function renderTab(employeeId = 'emp-1', { canManage = true } = {}) {
+const DEFAULT_EARNINGS = [{ id: 'e1', name: 'Basic', code: 'BASIC' }];
+
+function renderTab(
+  employeeId = 'emp-1',
+  { canManage = true, earnings = DEFAULT_EARNINGS, benefits = [], reimbursements = [] } = {}
+) {
   const store = configureStore({
     reducer: {
       salary: salaryReducer,
@@ -57,10 +62,10 @@ function renderTab(employeeId = 'emp-1', { canManage = true } = {}) {
     preloadedState: {
       salary: {
         components: {
-          earnings: [{ id: 'e1', name: 'Basic', code: 'BASIC' }],
+          earnings,
           deductions: [],
-          benefits: [],
-          reimbursements: [],
+          benefits,
+          reimbursements,
         },
         loadedAt: Date.now(),
       },
@@ -202,6 +207,99 @@ describe('SalaryTab component (W-47.1a §7)', () => {
       expect(screen.getAllByText('600000').length).toBeGreaterThan(0);
       expect(screen.getAllByText('50000').length).toBeGreaterThan(0);
     });
+  });
+
+  it('the structure list shows the component type from the catalogue, "—" for an unknown component (W-117)', async () => {
+    salaryService.asOf.mockResolvedValueOnce({
+      id: 'v1',
+      effectiveFrom: '2026-10-01',
+      annualCtc: '600000',
+      monthlyCtc: '50000',
+      earnings: [
+        {
+          componentId: 'e1',
+          componentCode: 'BASIC',
+          componentName: 'Basic Salary',
+          calculationType: 'FLAT',
+          value: '50000',
+          monthlyAmount: '50000',
+          annualAmount: '600000',
+          enabled: true,
+        },
+        {
+          componentId: 'e2',
+          componentCode: 'RETENTION',
+          componentName: 'Retention Bonus',
+          calculationType: 'FLAT',
+          value: '1000',
+          monthlyAmount: '1000',
+          annualAmount: '12000',
+          enabled: true,
+        },
+        {
+          componentId: 'gone',
+          componentCode: 'OLD_ALLOW',
+          componentName: 'Old Allowance',
+          calculationType: 'FLAT',
+          value: '500',
+          monthlyAmount: '500',
+          annualAmount: '6000',
+          enabled: true,
+        },
+      ],
+      benefits: [
+        {
+          componentId: 'b1',
+          componentCode: 'GRATUITY',
+          componentName: 'Gratuity',
+          calculationType: 'FLAT',
+          value: '2000',
+          monthlyAmount: '2000',
+          annualAmount: '24000',
+          enabled: true,
+        },
+      ],
+      reimbursements: [
+        {
+          componentId: 'r1',
+          componentCode: 'FUEL',
+          componentName: 'Fuel',
+          calculationType: 'FLAT',
+          value: '1500',
+          monthlyAmount: '1500',
+          annualAmount: '18000',
+          enabled: true,
+        },
+      ],
+    });
+    salaryService.versions.mockResolvedValueOnce([{ id: 'v1', effectiveFrom: '2026-10-01', cancelled: false }]);
+
+    renderTab('emp-1', {
+      earnings: [
+        { id: 'e1', name: 'Basic', code: 'BASIC' },
+        { id: 'e2', name: 'Retention Bonus', code: 'RETENTION', scheduledEarning: true },
+      ],
+      benefits: [{ id: 'b1', name: 'Gratuity', code: 'GRATUITY' }],
+      reimbursements: [{ id: 'r1', name: 'Fuel', code: 'FUEL', fbpComponent: true }],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Retention Bonus')).toBeDefined();
+    });
+    expect(screen.getAllByRole('columnheader', { name: 'Component type' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Calculation' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('columnheader', { name: 'Code' })).toBeNull();
+
+    const rowOf = (name) => screen.getByText(name).closest('tr');
+    expect(within(rowOf('Basic Salary')).getByTestId('component-type').textContent).toBe('Fixed');
+    expect(within(rowOf('Retention Bonus')).getByTestId('component-type').textContent).toBe('Scheduled');
+    const unknown = rowOf('Old Allowance');
+    expect(within(unknown).queryByTestId('component-type')).toBeNull();
+    expect(unknown.querySelector('td').textContent).toBe('—');
+    expect(screen.queryByText('OLD_ALLOW')).toBeNull();
+    // A benefit or reimbursement is looked up in its own catalogue, not the earnings one.
+    expect(within(rowOf('Gratuity')).getByTestId('component-type').textContent).toBe('Benefit');
+    expect(within(rowOf('Fuel')).getByTestId('component-type').textContent).toBe('FBP');
   });
 
   it('after save the displayed monthly CTC is the mocked server value, not a client sum', async () => {

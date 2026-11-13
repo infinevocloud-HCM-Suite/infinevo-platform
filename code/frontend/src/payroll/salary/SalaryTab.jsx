@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import {
   Card,
@@ -22,6 +23,8 @@ import { salaryService } from './salaryService.js';
 import { StatutoryProfileCard } from './StatutoryProfileCard.jsx';
 import { ScheduledEarningsPanel } from './ScheduledEarningsPanel.jsx';
 import { SalarySetupDrawer } from './SalarySetupDrawer.jsx';
+import { fetchActiveComponents } from './salarySlice.js';
+import { componentTypeTag } from './componentType.js';
 import { StatutoryContributionsTable } from './StatutoryContributionsTable.jsx';
 import { statutoryService } from '../settings/statutoryService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
@@ -30,12 +33,16 @@ import { MoneyText } from '@shared/ui/MoneyText.jsx';
 
 const { Title, Text } = Typography;
 
+const NO_COMPONENTS = { earnings: [], benefits: [], reimbursements: [] };
+
 export function SalaryTab({ employeeId: propEmployeeId, employee }) {
   const params = useParams();
   const employeeId = propEmployeeId || employee?.id || params?.id;
 
   const canRead = useCan('payroll.salary.read');
   const canManage = useCan('payroll.salary.manage');
+  const dispatch = useDispatch();
+  const catalogue = useSelector((state) => state.salary?.components) || NO_COMPONENTS;
 
   const [asOfDate, setAsOfDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [currentVersion, setCurrentVersion] = useState(null);
@@ -50,6 +57,11 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
   // The company's EPF and ESI switches decide which employer lines the structure shows (W-76.2).
   const [companyEpf, setCompanyEpf] = useState(null);
   const [companyEsi, setCompanyEsi] = useState(null);
+
+  // The earning catalogue, for the Component type column (W-117), as SalarySetupDrawer loads it.
+  useEffect(() => {
+    if (canRead) dispatch(fetchActiveComponents());
+  }, [canRead, dispatch]);
 
   useEffect(() => {
     if (!canRead) return undefined;
@@ -117,13 +129,18 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
     });
   };
 
-  const componentColumns = [
+  // W-117: the structure item carries no type flags, so the component is looked up in the catalogue
+  // of its kind. A component deleted since the version was written is not there and shows '—'.
+  const componentColumns = (kind) => [
     {
-      title: 'Code',
-      dataIndex: 'componentCode',
-      key: 'componentCode',
-      width: 120,
-      render: (c) => <Text type="secondary">{c}</Text>,
+      title: 'Component type',
+      dataIndex: 'componentId',
+      key: 'componentType',
+      width: 160,
+      render: (id) => {
+        const component = (catalogue[kind] || []).find((c) => c.id === id);
+        return component ? componentTypeTag(component, kind) : EMPTY;
+      },
     },
     {
       title: 'Name',
@@ -132,7 +149,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
       render: (n) => <Text strong>{n}</Text>,
     },
     {
-      title: 'Type',
+      title: 'Calculation',
       dataIndex: 'calculationType',
       key: 'calculationType',
       width: 120,
@@ -348,7 +365,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
             <Title level={5}>Earnings</Title>
             <Table
               dataSource={currentVersion.earnings || []}
-              columns={componentColumns}
+              columns={componentColumns('earnings')}
               rowKey={(r) => r.componentId || r.id}
               pagination={false}
               size="small"
@@ -361,7 +378,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
                 <Title level={5}>Benefits</Title>
                 <Table
                   dataSource={currentVersion.benefits || []}
-                  columns={componentColumns}
+                  columns={componentColumns('benefits')}
                   rowKey={(r) => r.componentId || r.id}
                   pagination={false}
                   size="small"
@@ -376,7 +393,7 @@ export function SalaryTab({ employeeId: propEmployeeId, employee }) {
                 <Title level={5}>Reimbursements</Title>
                 <Table
                   dataSource={currentVersion.reimbursements || []}
-                  columns={componentColumns}
+                  columns={componentColumns('reimbursements')}
                   rowKey={(r) => r.componentId || r.id}
                   pagination={false}
                   size="small"

@@ -87,13 +87,13 @@ const PREVIEW = {
   balancingComponentId: 'special',
 };
 
-function renderDrawer(props = {}, { canManage = true } = {}) {
+function renderDrawer(props = {}, { canManage = true, catalogue = CATALOGUE } = {}) {
   vi.spyOn(useCanModule, 'useCan').mockReturnValue(canManage);
   const store = configureStore({
     reducer: { salary: salaryReducer },
     preloadedState: {
       salary: {
-        components: { earnings: CATALOGUE, deductions: [], benefits: [], reimbursements: [] },
+        components: { earnings: catalogue, deductions: [], benefits: [], reimbursements: [] },
         loadedAt: Date.now(),
         loading: false,
         error: null,
@@ -142,13 +142,39 @@ describe('SalarySetupDrawer (W-75.2 §7)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('earning-row-2')).toBeDefined();
     }, SLOW);
-    expect(within(screen.getByTestId('earning-row-0')).getByText('Basic (BASIC)')).toBeDefined();
+    // W-117: the option reads the name and the component type; the code is no longer shown.
+    const basic = within(screen.getByTestId('earning-row-0'));
+    expect(basic.getByText('Basic')).toBeDefined();
+    expect(basic.getByText('Fixed')).toBeDefined();
+    expect(basic.queryByText('Basic (BASIC)')).toBeNull();
     expect(within(screen.getByTestId('earning-row-0')).getByDisplayValue('50.0000')).toBeDefined();
-    expect(within(screen.getByTestId('earning-row-1')).getByText('House Rent Allowance (HRA)')).toBeDefined();
+    expect(within(screen.getByTestId('earning-row-1')).getByText('House Rent Allowance')).toBeDefined();
     const special = within(screen.getByTestId('earning-row-2'));
-    expect(special.getByText('Special Allowance (SPECIAL)')).toBeDefined();
+    expect(special.getByText('Special Allowance')).toBeDefined();
     expect(special.getByText('Balances to CTC')).toBeDefined();
     expect(screen.queryByTestId('earning-row-3')).toBeNull();
+  });
+
+  it('the dropdown option for a variable earning carries its type (W-117)', async () => {
+    renderDrawer(
+      {},
+      {
+        catalogue: [
+          ...CATALOGUE,
+          earning('QINC', 'Quarterly Incentive', { variable: true, earningFrequency: 'QUARTERLY' }),
+        ],
+      }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('earning-row-0')).toBeDefined();
+    }, SLOW);
+    fireEvent.mouseDown(within(screen.getByTestId('earning-row-0')).getAllByRole('combobox')[0]);
+
+    const option = await screen.findByText('Quarterly Incentive', { selector: '.ant-select-item-option-content span' });
+    const content = option.closest('.ant-select-item-option-content');
+    expect(content.textContent).toBe('Quarterly Incentive Variable · Quarterly');
+    expect(content.textContent).not.toContain('QINC');
   });
 
   it('typing the CTC calls preview once, after the debounce, and the summary shows the take-home', async () => {

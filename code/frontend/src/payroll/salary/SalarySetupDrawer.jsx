@@ -26,6 +26,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
 import { fetchActiveComponents } from './salarySlice.js';
+import { componentType } from './componentType.js';
 import { salaryService } from './salaryService.js';
 import { statutoryProfileService } from './statutoryProfileService.js';
 import { statutoryService } from '../settings/statutoryService.js';
@@ -552,7 +553,7 @@ export function SalarySetupDrawer({
                       <Select placeholder="Component" disabled={isBalancing}>
                         {earningCatalogue.map((comp) => (
                           <Select.Option key={comp.id} value={comp.id}>
-                            {comp.name} ({comp.code})
+                            <span>{comp.name}</span> <Text type="secondary">{componentType(comp).label}</Text>
                           </Select.Option>
                         ))}
                       </Select>
@@ -713,7 +714,7 @@ export function SalarySetupDrawer({
                       <Select placeholder="Component">
                         {availableItems.map((comp) => (
                           <Select.Option key={comp.id} value={comp.id}>
-                            {comp.name} ({comp.code})
+                            <span>{comp.name}</span> <Text type="secondary">{componentType(comp, fieldName).label}</Text>
                           </Select.Option>
                         ))}
                       </Select>

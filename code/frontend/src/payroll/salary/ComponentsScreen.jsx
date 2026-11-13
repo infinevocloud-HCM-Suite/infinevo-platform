@@ -16,6 +16,7 @@ import { useCan, NotEntitled } from '@shell/screens';
 import { componentService } from './componentService.js';
 import { ComponentDrawer } from './ComponentDrawer.jsx';
 import { invalidateComponents } from './salarySlice.js';
+import { componentTypeTag } from './componentType.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { MoneyText } from '@shared/ui/MoneyText.jsx';
@@ -105,12 +106,16 @@ export function ComponentsScreen() {
           </div>
         ),
       },
-      {
-        title: 'Code',
-        dataIndex: 'code',
-        key: 'code',
-        render: (code) => <Text type="secondary">{code}</Text>,
-      },
+      // W-117: the code is shown in the row's drawer; earnings show their type here instead.
+      ...(kind === 'earnings'
+        ? [
+            {
+              title: 'Type',
+              key: 'componentType',
+              render: (_, record) => componentTypeTag(record),
+            },
+          ]
+        : []),
       {
         title: 'Calculation Type',
         dataIndex: 'calculationType',
