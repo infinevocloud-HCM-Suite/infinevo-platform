@@ -6,6 +6,17 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-13 — D-139 employee list keeps its place on `main` (`bbe2bdf8`)
+
+| What | Where |
+|---|---|
+| The employee list's page, size, search, status and deleted filters live in the URL; a row click hands that URL to the employee page, whose back arrow returns to the same page with the row highlighted. The search box suggests matching employees after two letters and picking one opens that employee | `EmployeeList.jsx`, `EmployeePage.jsx`, `core-ui.css` |
+
+- Built by Claude on `dev-claude-d139`, one independent read (one minor defect fixed), CI green on `77a45b09`. Frontend only.
+- **Left:** list → employee → Leave → back to the employee loses the list URL, so the back arrow then goes to plain `/employees`; delete returns to the plain list.
+- **Note:** Sayeed's commit `0eeb390e` on `main` also uses the numbers D-138 and D-139 for leave balance work that has no tracker row; those need their own numbers.
+- **Branches:** `dev-claude-d139` reset to `main`; it can be deleted.
+
 ## 2026-11-13 — W-117 component type on the salary screens on `main` (`1f7b703c`)
 
 | What | Where |
