@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import dayjs from 'dayjs';
-import { Button, DatePicker, Drawer, Form, Input, InputNumber, Select, message } from 'antd';
+import { Button, DatePicker, Drawer, Form, Input, InputNumber, Modal, Select } from 'antd';
 import { errorMsg, successMsg } from '@shared/ui/msgHelper.js';
 import { formatMonth } from '@shared/ui/format.js';
 import { employeeLabel, lossOfPayService } from './lossOfPayService.js';
@@ -53,7 +53,14 @@ export function LossOfPayDrawer({ open, onClose, onSaved }) {
       });
       const posted = saved?.posted_period;
       if (posted && posted !== period) {
-        message.warning(`${formatMonth(period)} is locked; posted to ${formatMonth(posted)}`);
+        // D-142: a locked month is not an error on the server, so say it in a dialog the user must
+        // dismiss, not a toast. The list then opens on the month where the entry landed.
+        Modal.warning({
+          title: `${formatMonth(period)} is locked`,
+          content: `The pay run for ${formatMonth(period)} is locked, so this loss of pay was posted to ${formatMonth(
+            posted
+          )} and will be deducted in that month's run. Reverse it there if that is not what you want.`,
+        });
       } else {
         successMsg('Loss of pay recorded');
       }

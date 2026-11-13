@@ -188,9 +188,13 @@ export function LossOfPayLog() {
         <LossOfPayDrawer
           open={adding}
           onClose={() => setAdding(false)}
-          onSaved={() => {
+          onSaved={(saved) => {
             setAdding(false);
-            load(month);
+            // D-142: an entry that landed in a later month (the chosen one was locked) is listed
+            // there, so show that month; otherwise reload this one.
+            const posted = saved?.posted_period;
+            if (posted && posted !== month.format(MONTH)) setMonth(dayjs(posted, MONTH));
+            else load(month);
           }}
         />
       )}

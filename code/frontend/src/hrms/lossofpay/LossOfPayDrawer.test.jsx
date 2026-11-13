@@ -80,9 +80,10 @@ describe('LossOfPayDrawer (D-140)', () => {
       const onSaved = renderIt();
       await fill();
       fireEvent.click(screen.getByTestId('lop-save'));
-      const text = `${dayjs().format('MMM YYYY')} is locked; posted to ${dayjs().add(1, 'month').format('MMM YYYY')}`;
-      expect(await screen.findByText(text)).toBeTruthy();
-      expect(onSaved).toHaveBeenCalled();
+      // D-142: a dialog, not a toast - the user must dismiss it.
+      expect((await screen.findAllByText(`${dayjs().format('MMM YYYY')} is locked`)).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(new RegExp(`posted to ${dayjs().add(1, 'month').format('MMM YYYY')}`)).length).toBeGreaterThan(0);
+      expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ posted_period: nextMonth }));
       expect(successMsg).not.toHaveBeenCalled();
     },
     T
