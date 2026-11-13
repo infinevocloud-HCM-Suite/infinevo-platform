@@ -46,9 +46,10 @@ class PayRunComputeQueryCountIT extends AbstractIntegrationTest {
      * (the version, its three line lists, FBP declarations, one catalogue lookup per component and the
      * statutory lines), one is the contributor's catalogue read, one is W-36.1's active TDS record read,
      * the rest are the row read and write. The bound is per employee and independent of how many employees
-     * the run holds.
+     * the run holds. D-141 adds at most two: the company TDS switch and the employee's TDS flag, read once
+     * per employee either when a TDS line would be written or when the "No TDS record" note would be.
      */
-    private static final int SELECTS_PER_EMPLOYEE = 32;
+    private static final int SELECTS_PER_EMPLOYEE = 34;
 
     public static class StatementCounter implements StatementInspector {
         static final AtomicInteger SELECTS = new AtomicInteger();

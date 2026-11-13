@@ -127,6 +127,9 @@ public final class LeaveTestSchema {
             if (!columnExists(conn, "pay_input_period_lock", "run_ref")) {
                 executeResource(conn, "db/migration/core/V060__pay_input_run_ref.sql");
             }
+            if (!columnExists(conn, "pay_input", "note")) {
+                executeResource(conn, "db/migration/core/V191__pay_input_note.sql");
+            }
             if (!tableExists(conn, "leave_consumption")) {
                 executeResource(conn, "db/migration/core/V132__leave_consumption.sql");
             }

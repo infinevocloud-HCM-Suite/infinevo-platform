@@ -18,6 +18,7 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/settings/epf',
       '/payroll/settings/esi',
       '/payroll/settings/professional-tax',
+      '/payroll/settings/tds',
       '/payroll/settings/fbp',
       '/payroll/settings/tax-declaration',
       '/payroll/settings/tax-declaration/:year',

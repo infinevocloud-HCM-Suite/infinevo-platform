@@ -71,6 +71,9 @@ export function StatutoryProfileCard({ employeeId }) {
           <Descriptions.Item label="Employee State Insurance (ESI)">{yesNo(p.eligibleForEsi)}</Descriptions.Item>
           <Descriptions.Item label="Labour Welfare Fund (LWF)">{yesNo(p.eligibleForLwf)}</Descriptions.Item>
           <Descriptions.Item label="Director">{yesNo(p.director)}</Descriptions.Item>
+          <Descriptions.Item label="TDS applicable">
+            <span data-testid="statutory-tds-applicable">{yesNo(p.tdsApplicable !== false)}</span>
+          </Descriptions.Item>
           <Descriptions.Item label="PF account number">{text(p.pfAccountNumber)}</Descriptions.Item>
           <Descriptions.Item label="UAN">{text(p.uan)}</Descriptions.Item>
           <Descriptions.Item label="ESI number">{text(p.esiNumber)}</Descriptions.Item>

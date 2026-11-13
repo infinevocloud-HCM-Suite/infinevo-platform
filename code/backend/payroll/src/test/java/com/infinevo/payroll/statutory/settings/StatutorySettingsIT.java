@@ -31,6 +31,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  *   <li>PUT creates the setting row.
  *   <li>Second PUT updates the same row (count stays 1).
  *   <li>GET returns the numbers as numbers (BigDecimal with scale 4).
+ *   <li>D-141: TDS is on by default without a row; PUT off then GET off; a second PUT keeps one row.
  * </ul>
  */
 @SpringBootTest(classes = PayrollTestApp.class)
@@ -232,6 +233,32 @@ class StatutorySettingsIT extends AbstractIntegrationTest {
         assertThat(fetched.id()).isEqualTo(created.id());
         assertThat(fetched.isEnabled()).isFalse();
         assertThat(fetched.wageCeiling()).isEqualByComparingTo(new BigDecimal("25000.0000"));
+    }
+
+    @Test
+    @DisplayName("D-141 TDS lifecycle: default on without writing, PUT off then GET off, upsert keeps one row")
+    void tdsLifecycle() throws Exception {
+        TenantContext.set(TENANT_A);
+
+        TdsSettingResponse initial = settingsService.tds(TENANT_A);
+        assertThat(initial.source()).isEqualTo(SettingSource.DEFAULT);
+        assertThat(initial.enabled()).isTrue();
+        assertThat(rawRowCount("tds_setting")).isEqualTo(0);
+
+        TdsSettingResponse off = settingsService.saveTds(new TdsSettingRequest(false));
+        assertThat(off.source()).isEqualTo(SettingSource.PERSISTED);
+        assertThat(off.id()).isNotNull();
+        assertThat(off.enabled()).isFalse();
+        assertThat(rawRowCount("tds_setting")).isEqualTo(1);
+
+        TdsSettingResponse fetchedOff = settingsService.tds(TENANT_A);
+        assertThat(fetchedOff.source()).isEqualTo(SettingSource.PERSISTED);
+        assertThat(fetchedOff.enabled()).isFalse();
+
+        TdsSettingResponse on = settingsService.saveTds(new TdsSettingRequest(true));
+        assertThat(on.id()).isEqualTo(off.id());
+        assertThat(on.enabled()).isTrue();
+        assertThat(rawRowCount("tds_setting")).isEqualTo(1);
     }
 
     private static int rawRowCount(String table) throws SQLException {

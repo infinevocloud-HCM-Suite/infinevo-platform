@@ -49,6 +49,25 @@ describe('StatutoryProfileCard - read view (W-76.2)', () => {
     expect(value('ESI number')).toBe('Not set');
   });
 
+  it('D-141: shows TDS applicable Yes when the flag is true', async () => {
+    statutoryProfileService.get.mockResolvedValueOnce({ ...PROFILE, tdsApplicable: true });
+
+    render(<StatutoryProfileCard employeeId="emp-1" />);
+
+    await waitFor(() => expect(screen.getByText('100123456789')).toBeDefined());
+    expect(screen.getByTestId('statutory-tds-applicable').textContent).toBe('Yes');
+    expect(value('TDS applicable')).toBe('Yes');
+  });
+
+  it('D-141: shows TDS applicable No when the flag is false', async () => {
+    statutoryProfileService.get.mockResolvedValueOnce({ ...PROFILE, tdsApplicable: false });
+
+    render(<StatutoryProfileCard employeeId="emp-1" />);
+
+    await waitFor(() => expect(screen.getByText('100123456789')).toBeDefined());
+    expect(screen.getByTestId('statutory-tds-applicable').textContent).toBe('No');
+  });
+
   it('has no inputs and no Save, and points the officer to the drawer', async () => {
     statutoryProfileService.get.mockResolvedValueOnce(PROFILE);
 

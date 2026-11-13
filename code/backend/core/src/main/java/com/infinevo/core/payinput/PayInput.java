@@ -39,6 +39,9 @@ public class PayInput {
 
     public static final String ACTOR_SYSTEM = "system";
 
+    /** {@code V191__pay_input_note.sql}: {@code note VARCHAR(200)}. */
+    public static final int NOTE_MAX_LENGTH = 200;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
@@ -76,6 +79,13 @@ public class PayInput {
     /** The row this one reverses, or {@code null} for an original entry. */
     @Column(name = "reverses_id", updatable = false)
     private UUID reversesId;
+
+    /**
+     * The human reason for a hand-entered row, or a reversal's reason (D-140, {@code V191}). Display
+     * only: it takes no part in idempotency, which is {@code sourceRef}'s job.
+     */
+    @Column(name = "note", length = NOTE_MAX_LENGTH, updatable = false)
+    private String note;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -118,6 +128,35 @@ public class PayInput {
             UUID runRef,
             UUID reversesId,
             String actor) {
+        this(
+                tenantId,
+                employeeId,
+                period,
+                kind,
+                quantity,
+                amount,
+                sourceModule,
+                sourceRef,
+                runRef,
+                reversesId,
+                actor,
+                null);
+    }
+
+    /** As the run-tagged constructor, plus a human {@code note} (D-140). */
+    public PayInput(
+            UUID tenantId,
+            UUID employeeId,
+            YearMonth period,
+            PayInputKind kind,
+            BigDecimal quantity,
+            BigDecimal amount,
+            String sourceModule,
+            String sourceRef,
+            UUID runRef,
+            UUID reversesId,
+            String actor,
+            String note) {
         this.tenantId = tenantId;
         this.employeeId = employeeId;
         this.period = period;
@@ -128,6 +167,7 @@ public class PayInput {
         this.sourceRef = sourceRef;
         this.runRef = runRef;
         this.reversesId = reversesId;
+        this.note = note;
         this.createdBy = actor != null ? actor : ACTOR_SYSTEM;
         this.updatedBy = actor != null ? actor : ACTOR_SYSTEM;
     }
@@ -182,6 +222,11 @@ public class PayInput {
 
     public UUID getReversesId() {
         return reversesId;
+    }
+
+    /** The human reason for this row, or {@code null} (D-140). */
+    public String getNote() {
+        return note;
     }
 
     /** Whether this row is a correction of another rather than an original entry. */

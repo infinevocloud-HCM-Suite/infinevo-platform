@@ -37,6 +37,7 @@ class StatutorySettingsRlsIT extends AbstractIntegrationTest {
 
     private UUID epfRowB;
     private UUID esiRowB;
+    private UUID tdsRowB;
 
     @BeforeAll
     static void initSchema() throws Exception {
@@ -57,6 +58,7 @@ class StatutorySettingsRlsIT extends AbstractIntegrationTest {
         // Seed custom settings for Tenant B using migrationConnection
         epfRowB = seedEpf(TENANT_B, "EPF-B-CUSTOM", new BigDecimal("10.0000"), new BigDecimal("18000.0000"));
         esiRowB = seedEsi(TENANT_B, "ESI-B-CUSTOM", new BigDecimal("1.0000"), new BigDecimal("25000.0000"));
+        tdsRowB = seedTdsOff(TENANT_B);
     }
 
     @AfterEach
@@ -66,10 +68,10 @@ class StatutorySettingsRlsIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Unbound app_user sees no rows in epf_setting and esi_setting")
+    @DisplayName("Unbound app_user sees no rows in epf_setting, esi_setting and tds_setting")
     void unboundConnectionSeesNothing() throws SQLException {
         try (Connection conn = PayrollTestSchema.appConnection()) {
-            for (String table : new String[] {"epf_setting", "esi_setting"}) {
+            for (String table : new String[] {"epf_setting", "esi_setting", "tds_setting"}) {
                 try (Statement stmt = conn.createStatement();
                         ResultSet rs = stmt.executeQuery("SELECT count(*) FROM payroll." + table)) {
                     rs.next();
@@ -89,11 +91,13 @@ class StatutorySettingsRlsIT extends AbstractIntegrationTest {
 
             assertThat(countVisibleById(conn, "epf_setting", epfRowB)).isZero();
             assertThat(countVisibleById(conn, "esi_setting", esiRowB)).isZero();
+            assertThat(countVisibleById(conn, "tds_setting", tdsRowB)).isZero();
 
             // Control: Tenant B sees its own rows
             PayrollTestSchema.bindTenant(conn, TENANT_B);
             assertThat(countVisibleById(conn, "epf_setting", epfRowB)).isEqualTo(1);
             assertThat(countVisibleById(conn, "esi_setting", esiRowB)).isEqualTo(1);
+            assertThat(countVisibleById(conn, "tds_setting", tdsRowB)).isEqualTo(1);
         }
     }
 
@@ -127,6 +131,33 @@ class StatutorySettingsRlsIT extends AbstractIntegrationTest {
         assertThat(esiB.registrationNumber()).isEqualTo("ESI-B-CUSTOM");
         assertThat(esiB.employeeRate()).isEqualByComparingTo(new BigDecimal("1.0000"));
         assertThat(esiB.wageCeiling()).isEqualByComparingTo(new BigDecimal("25000.0000"));
+    }
+
+    @Test
+    @DisplayName("D-141: Tenant A reads the TDS switch as the default, on, never as Tenant B's row, off")
+    void tenantASeesTdsDefaultThroughService() {
+        TenantContext.set(TENANT_A);
+        TdsSettingResponse tdsA = settingsService.tds(TENANT_A);
+        assertThat(tdsA.source()).isEqualTo(SettingSource.DEFAULT);
+        assertThat(tdsA.enabled()).isTrue();
+
+        TenantContext.set(TENANT_B);
+        TdsSettingResponse tdsB = settingsService.tds(TENANT_B);
+        assertThat(tdsB.source()).isEqualTo(SettingSource.PERSISTED);
+        assertThat(tdsB.id()).isEqualTo(tdsRowB);
+        assertThat(tdsB.enabled()).isFalse();
+    }
+
+    private static UUID seedTdsOff(UUID tenantId) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (Connection conn = PayrollTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO payroll.tds_setting (id, tenant_id, is_enabled) VALUES (?, ?, false)")) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenantId);
+            ps.executeUpdate();
+            return id;
+        }
     }
 
     private static UUID seedEpf(UUID tenantId, String regNumber, BigDecimal empRate, BigDecimal ceiling)

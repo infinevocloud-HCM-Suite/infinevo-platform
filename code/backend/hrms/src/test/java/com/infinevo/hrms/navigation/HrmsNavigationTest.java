@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.infinevo.core.holiday.HolidayCalendarController;
 import com.infinevo.core.navigation.NavigationCatalogue.ItemDefinition;
 import com.infinevo.core.overtime.OvertimeController;
+import com.infinevo.core.payinput.PayInputController;
 import com.infinevo.hrms.attendance.AttendancePreferenceController;
 import com.infinevo.hrms.attendance.ClockController;
 import com.infinevo.hrms.attendance.RegularizationController;
@@ -52,7 +53,7 @@ class HrmsNavigationTest {
     }
 
     @Test
-    @DisplayName("HRMS contributes dashboard plus twelve group items, as the specs' tables say")
+    @DisplayName("HRMS contributes dashboard plus thirteen group items, as the specs' tables say")
     void groupItemsPlusDashboard() {
         assertItem(
                 HrmsNavigation.DASHBOARD,
@@ -61,7 +62,7 @@ class HrmsNavigationTest {
                 "/hrms/dashboard",
                 "/api/v1/hrms/dashboard",
                 "hrms.project.read_own");
-        assertThat(items).hasSize(12);
+        assertThat(items).hasSize(13);
         assertItem(
                 items.get(0),
                 "hrms.timesheets",
@@ -146,6 +147,24 @@ class HrmsNavigationTest {
                 "/hrms/overtime-requests/all",
                 "/api/v1/overtime",
                 "core.overtime.read");
+        assertItem(
+                items.get(12),
+                "hrms.loss_of_pay",
+                "nav.hrms.loss_of_pay",
+                "/hrms/loss-of-pay",
+                "/api/v1/pay-inputs",
+                "core.pay_input.write");
+        assertThat(items.get(12)).isSameAs(HrmsNavigation.LOSS_OF_PAY);
+    }
+
+    @Test
+    @DisplayName("D-140: loss of pay sits right after everyone's overtime and reads core's pay input list")
+    void lossOfPayFollowsOvertimeAllAndIsARealGet() {
+        assertThat(items.indexOf(HrmsNavigation.LOSS_OF_PAY)).isEqualTo(items.indexOf(HrmsNavigation.OVERTIME_ALL) + 1);
+        // The menu shows the item to whoever may record a pay input; the list it reads is guarded by read, which
+        // every role holding write also holds (V177 payroll-officer, V189 hr).
+        Method list = getMapping(PayInputController.class, HrmsNavigation.LOSS_OF_PAY.targetEndpoint());
+        assertThat(list.getAnnotation(RequiresAction.class).value()).isEqualTo("core.pay_input.read");
     }
 
     @Test

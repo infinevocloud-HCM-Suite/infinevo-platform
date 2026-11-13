@@ -8,6 +8,8 @@ import com.infinevo.payroll.payrun.PayLineContributor;
 import com.infinevo.payroll.payrun.PayRunEmployeeContext;
 import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
+import com.infinevo.payroll.salary.EmployeeStatutoryProfileService;
+import com.infinevo.payroll.statutory.settings.StatutorySettingsService;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import com.infinevo.shared.money.Money;
 import java.math.BigDecimal;
@@ -26,6 +28,11 @@ import org.springframework.stereotype.Component;
  * {@code "TDS"} per included employee with an active TDS record whose effective period has arrived.
  * The amount spreads the remaining annual tax across the remaining months of the financial year.
  * Runs at {@code @Order(500)}, after statutory lines (400).
+ *
+ * <p>D-141: no line, and no "No TDS record" note, when the company switch "Deduct TDS in pay run" is off
+ * or the employee is not TDS applicable. The tax record is untouched; switched back on, the next run
+ * spreads what remains of the annual tax over the months left, because year-to-date counts only the
+ * TDS lines actually written.
  */
 @Component
 @Order(500)
@@ -37,12 +44,22 @@ public class TaxLineContributor implements PayLineContributor {
     private final EmployeeTdsService tdsService;
     private final EmployeePayRunLineRepository lineRepository;
     private final PriorPayrollTaxQuery priorTax;
+    private final StatutorySettingsService statutorySettingsService;
+    private final EmployeeStatutoryProfileService employeeStatutoryProfileService;
 
     public TaxLineContributor(
-            EmployeeTdsService tdsService, EmployeePayRunLineRepository lineRepository, PriorPayrollTaxQuery priorTax) {
+            EmployeeTdsService tdsService,
+            EmployeePayRunLineRepository lineRepository,
+            PriorPayrollTaxQuery priorTax,
+            StatutorySettingsService statutorySettingsService,
+            EmployeeStatutoryProfileService employeeStatutoryProfileService) {
         this.tdsService = Objects.requireNonNull(tdsService, "tdsService must not be null");
         this.lineRepository = Objects.requireNonNull(lineRepository, "lineRepository must not be null");
         this.priorTax = Objects.requireNonNull(priorTax, "priorTax must not be null");
+        this.statutorySettingsService =
+                Objects.requireNonNull(statutorySettingsService, "statutorySettingsService must not be null");
+        this.employeeStatutoryProfileService = Objects.requireNonNull(
+                employeeStatutoryProfileService, "employeeStatutoryProfileService must not be null");
     }
 
     @Override
@@ -63,6 +80,10 @@ public class TaxLineContributor implements PayLineContributor {
         EmployeeTds record = recordOpt.get();
         YearMonth effectiveFrom = YearMonth.parse(record.getEffectiveFromPeriod());
         if (ctx.period().isBefore(effectiveFrom)) {
+            return List.of();
+        }
+        // D-141: read after the record so an employee with nothing to deduct costs no extra query (W-55).
+        if (!deductsTds(ctx)) {
             return List.of();
         }
 
@@ -92,13 +113,33 @@ public class TaxLineContributor implements PayLineContributor {
         return List.of(line);
     }
 
-    /** A regular run with no active record for the year says so on the employee's row (§2, §3). */
+    /**
+     * A regular run with no active record for the year says so on the employee's row (§2, §3), unless
+     * TDS is switched off for the company or the employee (D-141), when no record is expected.
+     */
     @Override
     public String note(PayRunEmployeeContext ctx) {
         if (ctx.runType() == PayRunType.OFF_CYCLE) {
             return null;
         }
         String fy = FinancialYear.of(ctx.period().atDay(1)).label();
-        return tdsService.active(ctx.employee().id(), fy).isPresent() ? null : "No TDS record for " + fy;
+        if (tdsService.active(ctx.employee().id(), fy).isPresent() || !deductsTds(ctx)) {
+            return null;
+        }
+        return "No TDS record for " + fy;
+    }
+
+    /**
+     * D-141: the company switch first, then the employee flag. The profile on the context is used when the
+     * run carries it; otherwise it is read, and an employee with no saved profile counts as applicable.
+     */
+    private boolean deductsTds(PayRunEmployeeContext ctx) {
+        if (!statutorySettingsService.tds(ctx.tenantId()).enabled()) {
+            return false;
+        }
+        if (ctx.statutoryProfile() != null) {
+            return ctx.statutoryProfile().tdsApplicable();
+        }
+        return employeeStatutoryProfileService.isTdsApplicable(ctx.employee().id());
     }
 }

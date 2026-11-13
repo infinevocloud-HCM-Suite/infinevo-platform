@@ -62,7 +62,8 @@ final class PayInputTestSchema {
                         "core/V026__employee_user_account.sql",
                         "core/V031__pay_input.sql",
                         "core/V032__pay_input_period_lock.sql",
-                        "core/V060__pay_input_run_ref.sql"
+                        "core/V060__pay_input_run_ref.sql",
+                        "core/V191__pay_input_note.sql" // D-140: the note column PayInput maps
                     }) {
                         executeResource(conn, "db/migration/" + script);
                     }

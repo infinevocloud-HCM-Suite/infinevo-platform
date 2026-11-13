@@ -99,6 +99,39 @@ class EmployeeStatutoryProfileServiceTest {
         assertThat(saved.esiNumber()).isNull();
     }
 
+    @Test
+    @DisplayName("D-141: tdsApplicable false saves false; omitted leaves a new profile on and a saved one unchanged")
+    void tdsApplicable() {
+        assertThat(service.upsert(EMPLOYEE, request(null, null, null)).tdsApplicable())
+                .isTrue();
+
+        StatutoryProfileResponse off = service.upsert(EMPLOYEE, tdsRequest(false));
+        assertThat(off.tdsApplicable()).isFalse();
+
+        EmployeeStatutoryProfile saved = new EmployeeStatutoryProfile(TENANT, EMPLOYEE, "test");
+        saved.setTdsApplicable(false);
+        when(repository.findByTenantIdAndEmployeeId(TENANT, EMPLOYEE)).thenReturn(Optional.of(saved));
+        assertThat(service.upsert(EMPLOYEE, request(null, null, null)).tdsApplicable())
+                .isFalse();
+        assertThat(service.upsert(EMPLOYEE, tdsRequest(true)).tdsApplicable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("D-141: isTdsApplicable is true with no saved profile and reads the saved flag otherwise")
+    void isTdsApplicableReadsFlag() {
+        assertThat(service.isTdsApplicable(EMPLOYEE)).isTrue();
+
+        EmployeeStatutoryProfile saved = new EmployeeStatutoryProfile(TENANT, EMPLOYEE, "test");
+        saved.setTdsApplicable(false);
+        when(repository.findByTenantIdAndEmployeeId(TENANT, EMPLOYEE)).thenReturn(Optional.of(saved));
+        assertThat(service.isTdsApplicable(EMPLOYEE)).isFalse();
+    }
+
+    private static StatutoryProfileRequest tdsRequest(boolean tdsApplicable) {
+        return new StatutoryProfileRequest(
+                true, false, false, true, true, false, false, null, null, null, tdsApplicable);
+    }
+
     private static StatutoryProfileRequest request(String pfAccountNumber, String uan, String esiNumber) {
         return new StatutoryProfileRequest(
                 true, false, false, true, true, false, false, pfAccountNumber, uan, esiNumber);

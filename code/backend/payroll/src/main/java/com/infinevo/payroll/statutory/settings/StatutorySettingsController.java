@@ -65,6 +65,22 @@ public class StatutorySettingsController {
                 StatutoryApiResponse.ok("ESI settings saved successfully", statutorySettingsService.saveEsi(request)));
     }
 
+    /** D-141: the company switch "Deduct TDS in pay run". */
+    @GetMapping("/tds")
+    @RequiresAction("payroll.salary.read")
+    public ResponseEntity<StatutoryApiResponse<TdsSettingResponse>> getTds() {
+        UUID tenantId = TenantContext.require();
+        return ResponseEntity.ok(
+                StatutoryApiResponse.ok("TDS settings retrieved successfully", statutorySettingsService.tds(tenantId)));
+    }
+
+    @PutMapping("/tds")
+    @RequiresAction("payroll.settings.manage")
+    public ResponseEntity<StatutoryApiResponse<TdsSettingResponse>> putTds(@RequestBody TdsSettingRequest request) {
+        return ResponseEntity.ok(
+                StatutoryApiResponse.ok("TDS settings saved successfully", statutorySettingsService.saveTds(request)));
+    }
+
     @ExceptionHandler(StatutorySettingsValidationException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(StatutorySettingsValidationException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

@@ -37,4 +37,8 @@ describe('hrms routes (D-72)', () => {
     ]);
     expect(paths).toEqual(expect.arrayContaining(['/hrms/regularizations/:id', '/hrms/overtime-requests/:id']));
   });
+
+  it('D-140: the loss of pay menu item mounts the loss of pay log', () => {
+    expect(mounted([{ key: 'hrms.loss_of_pay', path: '/hrms/loss-of-pay' }])).toEqual(['/hrms/loss-of-pay']);
+  });
 });

@@ -13,6 +13,22 @@ const SECTION_CONFIGS = [
   { key: 'REIMBURSEMENT', title: 'Reimbursements', color: 'purple' },
 ];
 
+/** "2.50" as "2.5" - day figures trimmed as text, never through a float. */
+const days = (v) => {
+  const text = String(v);
+  return text.includes('.') ? text.replace(/\.?0+$/, '') : text;
+};
+
+/** "Paid days N · LOP days N · Payable days N" from the run row, only the figures it carries (D-140). */
+function daysLine(employee) {
+  const parts = [
+    ['Paid days', employee?.paid_days],
+    ['LOP days', employee?.lop_days],
+    ['Payable days', employee?.payable_days],
+  ].filter(([, v]) => v != null && v !== '');
+  return parts.map(([label, v]) => `${label} ${days(v)}`).join(' · ');
+}
+
 export function LinesDrawer({ open, onClose, payrunId, employee, lines: initialLines, computationError: initialError }) {
   const [loading, setLoading] = useState(false);
   const [lines, setLines] = useState(initialLines || []);
@@ -101,6 +117,12 @@ export function LinesDrawer({ open, onClose, payrunId, employee, lines: initialL
               showIcon
               style={{ marginBottom: 20 }}
             />
+          )}
+
+          {daysLine(employee) && (
+            <Text type="secondary" data-testid="lines-days" style={{ display: 'block', marginBottom: 16 }}>
+              {daysLine(employee)}
+            </Text>
           )}
 
           {SECTION_CONFIGS.map(({ key, title, color }) => {

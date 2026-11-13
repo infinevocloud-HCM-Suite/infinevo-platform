@@ -10,6 +10,7 @@ import {
   GiftOutlined,
   FileDoneOutlined,
   FileTextOutlined,
+  AuditOutlined,
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -34,6 +35,11 @@ export const SETTINGS_MENU_ITEMS = [
     key: '/payroll/settings/professional-tax',
     icon: <BankOutlined />,
     label: 'Professional Tax',
+  },
+  {
+    key: '/payroll/settings/tds',
+    icon: <AuditOutlined />,
+    label: 'TDS',
   },
   {
     key: '/payroll/settings/fbp',

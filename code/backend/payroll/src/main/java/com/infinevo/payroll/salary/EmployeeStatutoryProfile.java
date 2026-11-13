@@ -61,6 +61,10 @@ public class EmployeeStatutoryProfile {
     @Column(name = "is_director", nullable = false)
     private boolean director = false;
 
+    /** D-141: TDS is deducted in the pay run for this employee; off holds the line, the tax record stays. */
+    @Column(name = "is_tds_applicable", nullable = false)
+    private boolean tdsApplicable = true;
+
     @Column(name = "pf_account_number", length = 32)
     private String pfAccountNumber;
 
@@ -171,6 +175,14 @@ public class EmployeeStatutoryProfile {
 
     public void setDirector(boolean director) {
         this.director = director;
+    }
+
+    public boolean isTdsApplicable() {
+        return tdsApplicable;
+    }
+
+    public void setTdsApplicable(boolean tdsApplicable) {
+        this.tdsApplicable = tdsApplicable;
     }
 
     public String getPfAccountNumber() {

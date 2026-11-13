@@ -260,6 +260,12 @@ class RoleCatalogueIT {
                 assertThat(holds(conn, tenant, "hr", "core.leave.manage"))
                         .as("L-08 (V177): core.leave.manage granted to hr")
                         .isTrue();
+                assertThat(holds(conn, tenant, "hr", "core.pay_input.write"))
+                        .as("D-140 (V189): core.pay_input.write granted to hr")
+                        .isTrue();
+                assertThat(holds(conn, tenant, "hr", "core.pay_input.read"))
+                        .as("D-140 (V189): core.pay_input.read granted to hr")
+                        .isTrue();
             }
         }
     }

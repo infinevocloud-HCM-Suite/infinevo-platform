@@ -137,4 +137,29 @@ describe('LinesDrawer component (W-47.2 §7)', () => {
     expect(screen.queryByText('₹ 70,000.00')).toBeNull();
     expect(screen.queryByText('Total Earnings')).toBeNull();
   });
+  it('shows the paid, LOP and payable days the run row carries (D-140)', async () => {
+    payrunService.lines.mockResolvedValueOnce({ employee_id: 'emp-1', computation_error: null, lines: [] });
+
+    render(
+      <LinesDrawer
+        open={true}
+        onClose={vi.fn()}
+        payrunId="run-1"
+        employee={{ employee_id: 'emp-1', employee_number: 'EMP001', paid_days: 27.5, lop_days: '2.50', payable_days: '30.00' }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('lines-days').textContent).toBe('Paid days 27.5 · LOP days 2.5 · Payable days 30');
+    });
+  });
+
+  it('shows no days line when the row carries no day figures', async () => {
+    payrunService.lines.mockResolvedValueOnce({ employee_id: 'emp-1', computation_error: null, lines: [] });
+
+    render(<LinesDrawer open={true} onClose={vi.fn()} payrunId="run-1" employee={{ employee_id: 'emp-1' }} />);
+
+    await waitFor(() => expect(screen.getByText('Earnings')).toBeDefined());
+    expect(screen.queryByTestId('lines-days')).toBeNull();
+  });
 });
