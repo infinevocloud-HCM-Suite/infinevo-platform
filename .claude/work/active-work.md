@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-13 — W-117 component type on the salary screens on `main` (`1f7b703c`)
+
+| What | Where |
+|---|---|
+| Components list, the employee's Salary tab and the salary setup dropdown show a component's type — Fixed, Variable with its frequency, Scheduled, One-time, FBP — in place of its code; the code stays in the row's drawer | `componentType.js`, `ComponentsScreen.jsx`, `SalaryTab.jsx`, `SalarySetupDrawer.jsx` |
+
+- Built by Claude on `dev-claude-w117`, one independent read (no defects, three low notes), CI green on `c59170af`. Frontend only.
+- **Left:** a deactivated component still on a structure shows a dash like a deleted one, because the catalogue returns active components only.
+- **Newly unblocked:** nothing — no ticket waited on `W-117`.
+- **Branches:** `dev-claude-w117` reset to `main`; it can be deleted.
+
+
 ## 2026-11-10 — W-73.6 follow-up on `main` (`1ebaf508`): arrear into a still-open month
 
 | What | Where |
