@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,12 +47,14 @@ class PayRunGuardIT {
     private static final String EXECUTE = "payroll.run.execute";
 
     private PayRunService payRunService;
+    private com.infinevo.payroll.payrun.bankfile.BankFileService bankFileService;
     private PermissionService permissionService;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         payRunService = mock(PayRunService.class);
+        bankFileService = mock(com.infinevo.payroll.payrun.bankfile.BankFileService.class);
         permissionService = mock(PermissionService.class);
         doAnswer(invocation -> {
                     String action = invocation.getArgument(0);
@@ -63,7 +66,7 @@ class PayRunGuardIT {
                 .when(permissionService)
                 .require(any());
 
-        AspectJProxyFactory factory = new AspectJProxyFactory(new PayRunController(payRunService));
+        AspectJProxyFactory factory = new AspectJProxyFactory(new PayRunController(payRunService, bankFileService));
         factory.setProxyTargetClass(true);
         factory.addAspect(new RequiresActionAspect(permissionService));
         PayRunController controller = factory.getProxy();
@@ -194,6 +197,30 @@ class PayRunGuardIT {
         given(payRunService.compute(noQueue))
                 .willThrow(new PayRunEnqueueException(noQueue, "no queue is configured", null));
         mvc.perform(post("/api/v1/payroll/payruns/{id}/compute", noQueue)).andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    @DisplayName("W-88: bank-file needs payroll.bank_file.export and answers 200; without it answers 403")
+    void bankFileExportGuard() throws Exception {
+        UUID id = UUID.randomUUID();
+        given(permissionService.holds("payroll.bank_file.export")).willReturn(false);
+        mvc.perform(get("/api/v1/payroll/payruns/{id}/bank-file", id)).andExpect(status().isForbidden());
+
+        given(permissionService.holds("payroll.bank_file.export")).willReturn(true);
+        given(bankFileService.generate(id))
+                .willReturn(new com.infinevo.payroll.payrun.bankfile.BankFileResult(
+                        "dummy-csv".getBytes(),
+                        "bank_salary_file_2026-04.csv",
+                        1,
+                        1,
+                        0,
+                        BigDecimal.TEN,
+                        BigDecimal.TEN,
+                        List.of()));
+
+        mvc.perform(get("/api/v1/payroll/payruns/{id}/bank-file", id))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes("dummy-csv".getBytes()));
     }
 
     private static PayRunResponse sample(UUID id) {

@@ -25,6 +25,7 @@ vi.mock('./payrunService.js', () => ({
     approve: vi.fn(),
     pay: vi.fn(),
     export: vi.fn().mockResolvedValue(new Blob(['fake-excel-content'])),
+    exportBankFile: vi.fn(),
     employees: vi.fn().mockResolvedValue({ content: [], totalElements: 0 }),
     employeeNames: vi.fn().mockResolvedValue(new Map()),
     lines: vi.fn().mockResolvedValue({ lines: [] }),
@@ -267,6 +268,103 @@ describe('RunPage component (W-47.2 §7)', () => {
       expect(screen.getByRole('button', { name: /pay$/i }).hasAttribute('disabled')).toBe(true);
       unmount();
     }
+  });
+
+  it('renders "Download Bank File" button for APPROVED and PAID statuses (W-88)', async () => {
+    for (const status of ['APPROVED', 'PAID']) {
+      payrunService.employees.mockResolvedValue({ content: [], totalElements: 0 });
+      payrunService.get.mockResolvedValueOnce({
+        id: `run-bank-${status}`,
+        period: '2026-10',
+        status,
+        included_count: 5,
+        skipped_count: 0,
+      });
+
+      const { unmount } = renderRunPage(`run-bank-${status}`);
+      await waitFor(() => {
+        expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+      });
+
+      const bankBtn = screen.getByTestId('download-bank-file-btn');
+      expect(bankBtn).toBeDefined();
+      expect(bankBtn.textContent).toContain('Download Bank File');
+
+      unmount();
+    }
+  });
+
+  it('hides "Download Bank File" button for non-finalized statuses (W-88)', async () => {
+    const unfinalizedStatuses = ['DRAFT', 'LOCKED', 'COMPUTING', 'COMPUTED', 'FAILED', 'CANCELLED'];
+    for (const status of unfinalizedStatuses) {
+      payrunService.employees.mockResolvedValue({ content: [], totalElements: 0 });
+      payrunService.get.mockResolvedValueOnce({
+        id: `run-unfin-${status}`,
+        period: '2026-10',
+        status,
+        compute_started_at: new Date().toISOString(),
+        included_count: 5,
+        skipped_count: 0,
+      });
+
+      const { unmount } = renderRunPage(`run-unfin-${status}`);
+      await waitFor(() => {
+        expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+      });
+
+      expect(screen.queryByTestId('download-bank-file-btn')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('calls exportBankFile and initiates download when "Download Bank File" is clicked (W-88)', async () => {
+    window.URL.createObjectURL = vi.fn(() => 'blob:mock-file-url');
+    window.URL.revokeObjectURL = vi.fn();
+
+    const mockBlob = new Blob(['col1,col2\nval1,val2'], { type: 'text/csv' });
+    payrunService.exportBankFile.mockResolvedValueOnce(mockBlob);
+
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-dl-1',
+      period: '2026-10',
+      status: 'APPROVED',
+      included_count: 5,
+      skipped_count: 0,
+    });
+
+    renderRunPage('run-dl-1');
+
+    await waitFor(() => {
+      expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+    });
+
+    const bankBtn = screen.getByTestId('download-bank-file-btn');
+    fireEvent.click(bankBtn);
+
+    await waitFor(() => {
+      expect(payrunService.exportBankFile).toHaveBeenCalledWith('run-dl-1');
+      expect(window.URL.createObjectURL).toHaveBeenCalledWith(mockBlob);
+    });
+  });
+
+  it('hides "Download Bank File" button when user lacks payroll.bank_file.export action (W-88)', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockImplementation((action) => action !== 'payroll.bank_file.export');
+
+    payrunService.employees.mockResolvedValue({ content: [], totalElements: 0 });
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-bank-no-perm',
+      period: '2026-10',
+      status: 'APPROVED',
+      included_count: 5,
+      skipped_count: 0,
+    });
+
+    renderRunPage('run-bank-no-perm');
+    await waitFor(() => {
+      expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+    });
+
+    expect(screen.queryByTestId('download-bank-file-btn')).toBeNull();
   });
 });
 
