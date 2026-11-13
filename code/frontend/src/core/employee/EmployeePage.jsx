@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Card, Tabs, Button, Tag, Space, Typography, Modal, Spin, Popconfirm, Skeleton, theme } from 'antd';
 import {
@@ -32,8 +32,15 @@ const statusColorMap = {
 export function EmployeePage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const { token } = theme.useToken();
+  // D-139: the list that opened this page hands over its URL (page, filters, this row) in router
+  // state; the back arrow returns there. Opened directly, there is none and the plain list is next.
+  const backTo =
+    typeof location.state?.from === 'string' && location.state.from.startsWith('/employees')
+      ? location.state.from
+      : '/employees';
 
   const canUpdate = useCan('core.employee.update');
   const canDelete = useCan('core.employee.delete');
@@ -258,7 +265,8 @@ export function EmployeePage() {
             <Button
               type="text"
               icon={<ArrowLeftOutlined />}
-              onClick={() => navigate('/employees')}
+              onClick={() => navigate(backTo)}
+              id="btn-back-to-employees"
               
             />
             <div
