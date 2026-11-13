@@ -6,6 +6,18 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-13 — D-140 manual loss of pay and D-141 TDS switches on `main` (`30b8fbaf`)
+
+| What | Where |
+|---|---|
+| HR enters loss of pay days by hand on HRMS › Loss of pay; rows post to the pay input ledger as LOP_DAYS and the next regular run deducts them; reversible. The ledger gains a `note` column (V191); hr gets `core.pay_input.read/write` (V189) | `hrms/lossofpay/`, `HrmsNavigation.java`, `core/payinput/` |
+| TDS company switch (`payroll.tds_setting`, V190) at Payroll › Settings › TDS; per-employee "TDS applicable" on the statutory profile; the pay run writes no TDS line when either is off | `statutory/settings/`, `salary/EmployeeStatutoryProfile*`, `tds/TaxLineContributor.java`, `payroll/settings/TdsScreen.jsx` |
+
+- Built by Claude on `dev-claude-d140-d141`, one independent read (three defects fixed), CI green on `6bda8a6a`.
+- **Left:** unpaid leave type that writes LOP on approval; the Loss of pay screen does not show a month's locked state (a locked month posts to the next open month with a warning); manual LOP is not shown separately from leave LOP on the slip; the run row has no `payable_days`.
+- **For the migrated company:** switch company TDS off at Settings › TDS and recompute October to remove the TDS catch-up.
+- **Branches:** `dev-claude-d140-d141` reset to `main`.
+
 ## 2026-11-13 — D-139 employee list keeps its place on `main` (`bbe2bdf8`)
 
 | What | Where |
