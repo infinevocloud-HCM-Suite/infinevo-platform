@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,9 +14,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit test for {@link LeaveBalanceService} (W-16.2, spec section 7).
+ * Unit test for {@link LeaveBalanceService} (W-16.2, spec section 7, D-138).
  * Covers:
  * - remaining = entitlement + accrued + carried_forward - consumed
+ * - available = remaining - pending (D-138)
  * - half-days survive precision calculations without truncation
  * - carry-forward days stop counting after carry_forward_expires_on
  */
@@ -28,6 +30,7 @@ class LeaveBalanceServiceTest {
     private LeaveAllocationRepository allocationRepository;
     private LeaveTypeRepository leaveTypeRepository;
     private LeaveConsumptionRepository consumptionRepository;
+    private LeaveRequestRepository leaveRequestRepository;
     private LeaveBalanceService balanceService;
 
     @BeforeEach
@@ -35,7 +38,9 @@ class LeaveBalanceServiceTest {
         allocationRepository = mock(LeaveAllocationRepository.class);
         leaveTypeRepository = mock(LeaveTypeRepository.class);
         consumptionRepository = mock(LeaveConsumptionRepository.class);
-        balanceService = new LeaveBalanceServiceImpl(allocationRepository, leaveTypeRepository, consumptionRepository);
+        leaveRequestRepository = mock(LeaveRequestRepository.class);
+        balanceService = new LeaveBalanceServiceImpl(
+                allocationRepository, leaveTypeRepository, consumptionRepository, leaveRequestRepository);
 
         LeaveType leaveType = new LeaveType(
                 TENANT_ID, "AL", "Annual Leave", true, LeaveUnit.DAYS, true, LocalDate.of(2026, 1, 1), null, true);
@@ -79,6 +84,88 @@ class LeaveBalanceServiceTest {
 
         // 12.50 + 2.50 + 5.50 - 0 = 20.50
         assertThat(balance.remainingDays()).isEqualByComparingTo("20.50");
+    }
+
+    @Test
+    @DisplayName("D-138: Pending leave requests deduct from available balance while remaining balance stays unconsumed")
+    void pendingRequestsDeductFromAvailableBalance() {
+        LocalDate evalDate = LocalDate.of(2026, 6, 15);
+
+        LeaveAllocation allocation = new LeaveAllocation(
+                TENANT_ID,
+                EMPLOYEE_ID,
+                LEAVE_TYPE_ID,
+                "2026",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                new BigDecimal("12.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ONE,
+                UUID.randomUUID());
+
+        when(allocationRepository
+                        .findFirstByTenantIdAndEmployeeIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
+                                TENANT_ID, EMPLOYEE_ID, LEAVE_TYPE_ID, evalDate, evalDate))
+                .thenReturn(Optional.of(allocation));
+
+        LeaveRequest pendingReq = mock(LeaveRequest.class);
+        when(pendingReq.getWorkingDays()).thenReturn(new BigDecimal("3.00"));
+        when(pendingReq.getFromDate()).thenReturn(LocalDate.of(2026, 6, 20));
+        when(pendingReq.getToDate()).thenReturn(LocalDate.of(2026, 6, 22));
+
+        when(leaveRequestRepository.findByTenantIdAndEmployeeIdAndLeaveTypeIdAndStatus(
+                        TENANT_ID, EMPLOYEE_ID, LEAVE_TYPE_ID, LeaveRequestStatus.PENDING))
+                .thenReturn(List.of(pendingReq));
+
+        Optional<LeaveBalanceResponse> balanceOpt =
+                balanceService.getBalance(TENANT_ID, EMPLOYEE_ID, LEAVE_TYPE_ID, evalDate);
+        assertThat(balanceOpt).isPresent();
+        LeaveBalanceResponse balance = balanceOpt.get();
+
+        assertThat(balance.remainingDays()).isEqualByComparingTo("12.00");
+        assertThat(balance.pendingDays()).isEqualByComparingTo("3.00");
+        assertThat(balance.availableDays()).isEqualByComparingTo("9.00");
+    }
+
+    @Test
+    @DisplayName(
+            "D-138: When request is rejected or withdrawn, it is excluded from pending requests, restoring available balance")
+    void rejectedOrWithdrawnRequestRestoresAvailableBalance() {
+        LocalDate evalDate = LocalDate.of(2026, 6, 15);
+
+        LeaveAllocation allocation = new LeaveAllocation(
+                TENANT_ID,
+                EMPLOYEE_ID,
+                LEAVE_TYPE_ID,
+                "2026",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                new BigDecimal("12.00"),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                BigDecimal.ONE,
+                UUID.randomUUID());
+
+        when(allocationRepository
+                        .findFirstByTenantIdAndEmployeeIdAndLeaveTypeIdAndYearStartDateLessThanEqualAndYearEndDateGreaterThanEqual(
+                                TENANT_ID, EMPLOYEE_ID, LEAVE_TYPE_ID, evalDate, evalDate))
+                .thenReturn(Optional.of(allocation));
+
+        // When rejected, repository returns no PENDING requests
+        when(leaveRequestRepository.findByTenantIdAndEmployeeIdAndLeaveTypeIdAndStatus(
+                        TENANT_ID, EMPLOYEE_ID, LEAVE_TYPE_ID, LeaveRequestStatus.PENDING))
+                .thenReturn(List.of());
+
+        Optional<LeaveBalanceResponse> balanceOpt =
+                balanceService.getBalance(TENANT_ID, EMPLOYEE_ID, LEAVE_TYPE_ID, evalDate);
+        assertThat(balanceOpt).isPresent();
+        LeaveBalanceResponse balance = balanceOpt.get();
+
+        assertThat(balance.pendingDays()).isEqualByComparingTo("0.00");
+        assertThat(balance.availableDays()).isEqualByComparingTo("12.00");
     }
 
     @Test

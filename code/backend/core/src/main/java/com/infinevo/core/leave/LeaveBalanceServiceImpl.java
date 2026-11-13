@@ -23,21 +23,31 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
     private final LeaveAllocationRepository allocationRepository;
     private final LeaveTypeRepository leaveTypeRepository;
     private final LeaveConsumptionRepository leaveConsumptionRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
 
     public LeaveBalanceServiceImpl(
             LeaveAllocationRepository allocationRepository, LeaveTypeRepository leaveTypeRepository) {
-        this(allocationRepository, leaveTypeRepository, null);
+        this(allocationRepository, leaveTypeRepository, null, null);
+    }
+
+    public LeaveBalanceServiceImpl(
+            LeaveAllocationRepository allocationRepository,
+            LeaveTypeRepository leaveTypeRepository,
+            LeaveConsumptionRepository leaveConsumptionRepository) {
+        this(allocationRepository, leaveTypeRepository, leaveConsumptionRepository, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
     public LeaveBalanceServiceImpl(
             LeaveAllocationRepository allocationRepository,
             LeaveTypeRepository leaveTypeRepository,
-            LeaveConsumptionRepository leaveConsumptionRepository) {
+            LeaveConsumptionRepository leaveConsumptionRepository,
+            LeaveRequestRepository leaveRequestRepository) {
         this.allocationRepository =
                 Objects.requireNonNull(allocationRepository, "allocationRepository must not be null");
         this.leaveTypeRepository = Objects.requireNonNull(leaveTypeRepository, "leaveTypeRepository must not be null");
         this.leaveConsumptionRepository = leaveConsumptionRepository;
+        this.leaveRequestRepository = leaveRequestRepository;
     }
 
     @Override
@@ -109,6 +119,32 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
         // remaining = entitlement + accrued + carried_forward - consumed (W-16.2 spec section 3 & 7)
         BigDecimal remaining = entitlement.add(accrued).add(carried).subtract(consumed);
 
+        // Sum pending leave requests for this allocation year (D-138)
+        BigDecimal pending = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (leaveRequestRepository != null && allocation.getLeaveTypeId() != null) {
+            List<LeaveRequest> pendingRequests =
+                    leaveRequestRepository.findByTenantIdAndEmployeeIdAndLeaveTypeIdAndStatus(
+                            tenantId,
+                            allocation.getEmployeeId(),
+                            allocation.getLeaveTypeId(),
+                            LeaveRequestStatus.PENDING);
+            for (LeaveRequest req : pendingRequests) {
+                if (req.getWorkingDays() != null
+                        && (allocation.getYearStartDate() == null
+                                || !req.getFromDate().isBefore(allocation.getYearStartDate()))
+                        && (allocation.getYearEndDate() == null
+                                || !req.getToDate().isAfter(allocation.getYearEndDate()))) {
+                    pending = pending.add(req.getWorkingDays());
+                }
+            }
+            pending = pending.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal available = remaining.subtract(pending);
+        if (available.compareTo(BigDecimal.ZERO) < 0) {
+            available = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
         // An ended or switched-off leave type is history: its days still show, marked expired (W-77.1).
         // Judged on the earlier of asOf and today: Allocations asks as of 31 December, and a type
         // that is still running today has not ended yet.
@@ -130,7 +166,9 @@ public class LeaveBalanceServiceImpl implements LeaveBalanceService {
                 remaining,
                 allocation.getCarryForwardExpiresOn(),
                 validTo,
-                expired);
+                expired,
+                pending,
+                available);
     }
 
     @Override

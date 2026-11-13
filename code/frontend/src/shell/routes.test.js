@@ -107,4 +107,8 @@ describe('portalRoutes', () => {
   it('D-74: registers the payslip page beneath the payslips panel', () => {
     expect(portalRoutes.map((r) => r.path)).toContain('/me/payslips/:payrunId');
   });
+
+  it('D-139: registers the leave balance detail page beneath the portal', () => {
+    expect(portalRoutes.map((r) => r.path)).toContain('/me/leave-balance');
+  });
 });

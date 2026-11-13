@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Card, Table, Row, Col, Skeleton, Result, Button, Typography, Space, Progress, Tag, theme } from 'antd';
-import { CalendarOutlined, PlusOutlined } from '@ant-design/icons';
+import { CalendarOutlined, PlusOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { portalService } from '../portalService.js';
 import { EMPTY, formatDate } from '../../../shared/ui/format.js';
 import { renderStatus } from '../../../shared/ui/StatusTag.jsx';
@@ -34,11 +34,15 @@ function showDays(value) {
  * One leave type's balance as an equal-height card with a meter of days used out of the year's
  * total (D-53). Total is what was used plus what remains, which is the server's own working:
  * remaining = entitlement + accrued + carried forward - consumed (LeaveBalanceResponse).
+ * D-138: available = remaining - pending. Displays availableDays as the primary metric,
+ * with a badge indicating pending approval days.
  * A balance on an ended or switched-off leave type is tagged Expired (W-77.2).
  */
 function BalanceCard({ balance, token }) {
   const used = days(balance.consumedDays);
   const remaining = days(balance.remainingDays);
+  const pending = days(balance.pendingDays);
+  const available = balance.availableDays !== undefined ? days(balance.availableDays) : Math.max(0, remaining - pending);
   const total = used + remaining;
   const percent = total > 0 ? Math.round((used / total) * 100) : 0;
   return (
@@ -64,10 +68,17 @@ function BalanceCard({ balance, token }) {
             color: balance.expired ? token.colorTextDisabled : token.colorPrimary,
           }}
         >
-          {showDays(remaining)}
+          {showDays(available)}
         </Text>
         <Text type="secondary">{balance.expired ? ' days (expired)' : ' days available'}</Text>
       </div>
+      {pending > 0 && (
+        <div>
+          <Tag color="warning" icon={<ClockCircleOutlined />}>
+            {showDays(pending)} pending
+          </Tag>
+        </div>
+      )}
       <Progress
         percent={percent}
         showInfo={false}
@@ -221,7 +232,27 @@ export function MyLeave({ actions, onNavigate }) {
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }} data-testid="panel-leave" className="fadeSlideUp">
       {balances && balances.length > 0 && (
-        <Card variant="borderless" className="saas-card" title="Leave Balances" style={{ borderRadius: token.borderRadiusLG }}>
+        <Card
+          variant="borderless"
+          className="saas-card"
+          title="Leave Balances"
+          extra={
+            <Button
+              id="btn-leave-balance"
+              icon={<CalendarOutlined />}
+              onClick={() => {
+                if (onNavigate) {
+                  onNavigate('/me/leave-balance');
+                } else if (typeof window !== 'undefined') {
+                  window.location.href = '/me/leave-balance';
+                }
+              }}
+            >
+              Leave Balance
+            </Button>
+          }
+          style={{ borderRadius: token.borderRadiusLG }}
+        >
           <Row gutter={[16, 16]} align="stretch">
             {[...balances]
               .sort((a, b) => Number(Boolean(a.expired)) - Number(Boolean(b.expired)))

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MyLeave } from './MyLeave.jsx';
 import { portalService } from '../portalService.js';
 
@@ -78,5 +78,41 @@ describe('Portal panels read the fields the server sends (W-25)', () => {
     expect(second.textContent).toContain('Comp Off');
     expect(second.textContent).toContain('Expired');
     expect(second.textContent).toContain('days (expired)');
+  });
+
+  it('D-138: MyLeave displays available days deducting pending requests and displays pending badge', async () => {
+    vi.spyOn(portalService, 'getLeaveRequests').mockResolvedValue({ content: [], totalElements: 0 });
+    vi.spyOn(portalService, 'getLeaveBalances').mockResolvedValue([
+      {
+        leaveTypeId: 'type-cl',
+        leaveTypeName: 'Casual Leave',
+        entitlementDays: 12,
+        consumedDays: 0,
+        remainingDays: 12,
+        pendingDays: 3,
+        availableDays: 9,
+        expired: false,
+      },
+    ]);
+
+    render(<MyLeave />);
+
+    await waitFor(() => expect(screen.getByTestId('leave-balance-card')).toBeDefined());
+    expect(screen.getByText('9')).toBeDefined();
+    expect(screen.getByText('3 pending')).toBeDefined();
+  });
+
+  it('D-139: MyLeave renders Leave Balance button navigating to /me/leave-balance', async () => {
+    const handleNavigate = vi.fn();
+    vi.spyOn(portalService, 'getLeaveRequests').mockResolvedValue({ content: [], totalElements: 0 });
+    vi.spyOn(portalService, 'getLeaveBalances').mockResolvedValue([
+      { leaveTypeId: 'type-cl', leaveTypeName: 'Casual Leave', remainingDays: 10 },
+    ]);
+
+    render(<MyLeave onNavigate={handleNavigate} />);
+
+    await waitFor(() => expect(screen.getByText('Leave Balance')).toBeDefined());
+    fireEvent.click(screen.getByText('Leave Balance'));
+    expect(handleNavigate).toHaveBeenCalledWith('/me/leave-balance');
   });
 });
