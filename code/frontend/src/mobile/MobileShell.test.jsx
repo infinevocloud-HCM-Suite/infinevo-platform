@@ -69,14 +69,15 @@ describe('MobileShell', () => {
     expect(screen.getByText('Custom Mobile View')).toBeTruthy();
   });
 
-  it('renders placeholder screen for queued mobile attendance route (/me/attendance)', () => {
+  it('mounts MobileAttendanceScreen on /me/attendance (W-98.2)', () => {
     render(
       <MemoryRouter initialEntries={['/me/attendance']}>
         <MobileShell />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Mobile Attendance')).toBeTruthy();
-    expect(screen.getByText('W-98.2')).toBeTruthy();
+    expect(
+      screen.getByTestId('mobile-attendance-loading') || screen.getByTestId('mobile-attendance-screen'),
+    ).toBeTruthy();
   });
 });

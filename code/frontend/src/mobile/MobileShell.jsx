@@ -6,6 +6,7 @@ import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useMe } from '../shell/auth/useMe.js';
 import { logout } from '../shell/auth/keycloak.js';
 import { MobileTabBar } from './MobileTabBar.jsx';
+import { MobileAttendanceScreen } from './attendance/MobileAttendanceScreen.jsx';
 import { PortalLayout } from '../shell/portal/PortalLayout.jsx';
 import { ApplyLeave } from '../core/portal/ApplyLeave.jsx';
 import { ApplyWfh } from '../core/portal/ApplyWfh.jsx';
@@ -106,16 +107,7 @@ export function MobileShell({ children = null }) {
             <Route path="/me" element={<PortalLayout />} />
             <Route path="/me/profile" element={<PortalLayout />} />
             <Route path="/me/:panelId" element={<PortalLayout />} />
-            <Route
-              path="/me/attendance"
-              element={
-                <MobilePlaceholder
-                  title="Mobile Attendance"
-                  description="Clock-in/out and shift tracking is ready for W-98.2."
-                  ticketId="W-98.2"
-                />
-              }
-            />
+            <Route path="/me/attendance" element={<MobileAttendanceScreen />} />
             <Route
               path="/me/leave"
               element={

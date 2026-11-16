@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,14 +38,14 @@ public class ClockController {
 
     @PostMapping("/clock-in")
     @RequiresAction("hrms.attendance.mark")
-    public ResponseEntity<ClockSessionResponse> clockIn() {
-        return ResponseEntity.status(HttpStatus.CREATED).body(clockService.clockIn());
+    public ResponseEntity<ClockSessionResponse> clockIn(@RequestBody(required = false) ClockRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(clockService.clockIn(request));
     }
 
     @PostMapping("/clock-out")
     @RequiresAction("hrms.attendance.mark")
-    public ResponseEntity<ClockOutResponse> clockOut() {
-        return ResponseEntity.ok(clockService.clockOut());
+    public ResponseEntity<ClockOutResponse> clockOut(@RequestBody(required = false) ClockRequest request) {
+        return ResponseEntity.ok(clockService.clockOut(request));
     }
 
     @GetMapping("/today")

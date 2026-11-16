@@ -33,6 +33,17 @@ describe('attendanceService (W-48.4 §7)', () => {
     expect(apiClient.post).toHaveBeenCalledWith(`${B}/clock-out`);
   });
 
+  it('clockIn and clockOut forward geolocation payload when provided', async () => {
+    const payload = { latitude: 12.9716, longitude: 77.5946, accuracyMeters: 15.0 };
+    apiClient.post.mockResolvedValueOnce(bare({ id: 's2' }));
+    expect(await attendanceService.clockIn(payload)).toEqual({ id: 's2' });
+    expect(apiClient.post).toHaveBeenCalledWith(`${B}/clock-in`, payload);
+
+    apiClient.post.mockResolvedValueOnce(bare({ status: 'PRESENT' }));
+    expect(await attendanceService.clockOut(payload)).toEqual({ status: 'PRESENT' });
+    expect(apiClient.post).toHaveBeenCalledWith(`${B}/clock-out`, payload);
+  });
+
   it('mySessions sends the range', async () => {
     apiClient.get.mockResolvedValueOnce(bare([{ id: 's1' }]));
     expect(await attendanceService.mySessions('2026-10-01', '2026-10-31')).toEqual([{ id: 's1' }]);

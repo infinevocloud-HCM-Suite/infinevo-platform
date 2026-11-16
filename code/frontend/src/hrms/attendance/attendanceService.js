@@ -14,13 +14,13 @@ export const attendanceService = {
     return res.data;
   },
 
-  async clockIn() {
-    const res = await apiClient.post(`${BASE}/clock-in`);
+  async clockIn(payload) {
+    const res = await (payload ? apiClient.post(`${BASE}/clock-in`, payload) : apiClient.post(`${BASE}/clock-in`));
     return res.data;
   },
 
-  async clockOut() {
-    const res = await apiClient.post(`${BASE}/clock-out`);
+  async clockOut(payload) {
+    const res = await (payload ? apiClient.post(`${BASE}/clock-out`, payload) : apiClient.post(`${BASE}/clock-out`));
     return res.data;
   },
 

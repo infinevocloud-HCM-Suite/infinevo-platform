@@ -302,6 +302,31 @@ class ClockServiceTest {
         assertThat(results.get(0).remarks()).isEqualTo("Work From Home");
     }
 
+    @Test
+    @DisplayName("clockIn and clockOut accept optional geolocation coordinates (W-98.2)")
+    void clockWithGeolocationCoordinates() {
+        when(clockSessions.findByTenantIdAndEmployeeIdAndClockOutAtIsNullAndVoidedAtIsNull(TENANT, EMPLOYEE))
+                .thenReturn(Optional.empty());
+
+        ClockRequest inReq = new ClockRequest(12.9716, 77.5946, 15.0);
+        ClockSessionResponse inResp = service.clockIn(inReq);
+        assertThat(inResp).isNotNull();
+        assertThat(inResp.employeeId()).isEqualTo(EMPLOYEE);
+        assertThat(inResp.attendanceDate()).isEqualTo(LocalDate.of(2026, 4, 15));
+
+        ClockSession open = new ClockSession(
+                TENANT, EMPLOYEE, LocalDate.of(2026, 4, 15), clock.instant(), SessionOrigin.CLOCK, "test");
+        when(clockSessions.findByTenantIdAndEmployeeIdAndClockOutAtIsNullAndVoidedAtIsNull(TENANT, EMPLOYEE))
+                .thenReturn(Optional.of(open));
+        ClockDayResponse day = new ClockDayResponse(LocalDate.of(2026, 4, 15), 480, AttendanceStatus.PRESENT, true);
+        when(clockDayService.rederive(EMPLOYEE, LocalDate.of(2026, 4, 15))).thenReturn(day);
+
+        ClockRequest outReq = new ClockRequest(12.9718, 77.5948, 20.0);
+        ClockOutResponse outResp = service.clockOut(outReq);
+        assertThat(outResp).isNotNull();
+        assertThat(outResp.status()).isEqualTo(AttendanceStatus.PRESENT);
+    }
+
     private static class MutableClock extends Clock {
         private Instant instant;
 

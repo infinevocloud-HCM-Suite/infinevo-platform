@@ -95,6 +95,12 @@ public class ClockServiceImpl implements ClockService {
     @Override
     @Transactional
     public ClockSessionResponse clockIn() {
+        return clockIn(null);
+    }
+
+    @Override
+    @Transactional
+    public ClockSessionResponse clockIn(ClockRequest request) {
         EmployeeResponse employee = requireCurrentEmployee();
         UUID tenantId = TenantContext.require();
         Instant now = clock.instant();
@@ -122,6 +128,12 @@ public class ClockServiceImpl implements ClockService {
     @Override
     @Transactional
     public ClockOutResponse clockOut() {
+        return clockOut(null);
+    }
+
+    @Override
+    @Transactional
+    public ClockOutResponse clockOut(ClockRequest request) {
         EmployeeResponse employee = requireCurrentEmployee();
         UUID tenantId = TenantContext.require();
         Instant now = clock.instant();

@@ -21,12 +21,26 @@ public interface ClockService {
     ClockSessionResponse clockIn();
 
     /**
+     * Opens a new clock session carrying optional geolocation coordinates (W-98.2 §4.1).
+     */
+    default ClockSessionResponse clockIn(ClockRequest request) {
+        return clockIn();
+    }
+
+    /**
      * Closes the active clock session for the authenticated employee and re-derives day attendance.
      *
      * @throws ClockConflictException if no session is open or session duration exceeds 24 hours
      * @throws org.springframework.security.access.AccessDeniedException if user is not linked to an employee
      */
     ClockOutResponse clockOut();
+
+    /**
+     * Closes the active clock session carrying optional geolocation coordinates (W-98.2 §4.1).
+     */
+    default ClockOutResponse clockOut(ClockRequest request) {
+        return clockOut();
+    }
 
     /**
      * Returns today's clock status, open session, and worked minutes for the authenticated employee.
