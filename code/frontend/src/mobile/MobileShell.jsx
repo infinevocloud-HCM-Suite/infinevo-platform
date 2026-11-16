@@ -7,6 +7,7 @@ import { useMe } from '../shell/auth/useMe.js';
 import { logout } from '../shell/auth/keycloak.js';
 import { MobileTabBar } from './MobileTabBar.jsx';
 import { MobileAttendanceScreen } from './attendance/MobileAttendanceScreen.jsx';
+import { MobileLeaveScreen } from './leave/MobileLeaveScreen.jsx';
 import { PortalLayout } from '../shell/portal/PortalLayout.jsx';
 import { ApplyLeave } from '../core/portal/ApplyLeave.jsx';
 import { ApplyWfh } from '../core/portal/ApplyWfh.jsx';
@@ -108,16 +109,7 @@ export function MobileShell({ children = null }) {
             <Route path="/me/profile" element={<PortalLayout />} />
             <Route path="/me/:panelId" element={<PortalLayout />} />
             <Route path="/me/attendance" element={<MobileAttendanceScreen />} />
-            <Route
-              path="/me/leave"
-              element={
-                <MobilePlaceholder
-                  title="Mobile Leave & Balances"
-                  description="Leave balance carousel and touch-apply sheet is ready for W-98.3."
-                  ticketId="W-98.3"
-                />
-              }
-            />
+            <Route path="/me/leave" element={<MobileLeaveScreen />} />
             <Route path="/me/leave/apply" element={<ApplyLeave />} />
             <Route path="/me/leave-balance" element={<LeaveBalanceDetail />} />
             <Route path="/me/wfh/apply" element={<ApplyWfh />} />

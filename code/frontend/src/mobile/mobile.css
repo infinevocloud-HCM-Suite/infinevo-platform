@@ -336,4 +336,59 @@ body.mobile-native {
   border-bottom: none;
 }
 
+/* ==========================================================================
+   Mobile Leave Screen Styles (W-98.3)
+   ========================================================================== */
+
+.mobile-leave-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-leave-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+.mobile-leave-carousel::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+.mobile-leave-balance-card {
+  scroll-snap-align: start;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mobile-leave-balance-card:active {
+  transform: scale(0.98);
+}
+
+.mobile-leave-request-card {
+  transition: box-shadow 0.15s ease;
+}
+
+.mobile-drawer-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: #d1d5db;
+  margin: 0 auto 8px auto;
+}
+
+.mobile-apply-leave-drawer .ant-drawer-content {
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  overflow: hidden;
+}
+
+.mobile-fab-container button:active {
+  transform: scale(0.96);
+}
+
+
 

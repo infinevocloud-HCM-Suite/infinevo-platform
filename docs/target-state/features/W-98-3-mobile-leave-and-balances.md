@@ -7,7 +7,7 @@
 | **Owner** | krushna (`dev-krushna`) |
 | **Apps touched** | `code/frontend` (`src/mobile/leave/`, `src/mobile/MobileTabBar.jsx`), `code/backend/core` |
 | **Related gaps** | founder 2026-11-13 planned product roadmap (`W-98` Mobile app slice 3: Leave) |
-| **Status** | **In Review (pending manager approval)** |
+| **Status** | **Built — In Review (pending manager review on feature/krushna-specs)** |
 | **Approved by** | — (pending manager review) |
 | **Approved on** | — |
 | **Blocked by** | `W-98.1` (mobile foundation & auth container) |

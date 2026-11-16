@@ -80,4 +80,16 @@ describe('MobileShell', () => {
       screen.getByTestId('mobile-attendance-loading') || screen.getByTestId('mobile-attendance-screen'),
     ).toBeTruthy();
   });
+
+  it('mounts MobileLeaveScreen on /me/leave (W-98.3)', () => {
+    render(
+      <MemoryRouter initialEntries={['/me/leave']}>
+        <MobileShell />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByTestId('mobile-leave-loading') || screen.getByTestId('mobile-leave-screen'),
+    ).toBeTruthy();
+  });
 });
