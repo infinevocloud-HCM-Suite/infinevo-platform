@@ -41,11 +41,12 @@
   "overrides": {
     "brace-expansion": "^1.1.21",
     "follow-redirects": "^1.16.2",
+    "tar": "^7.5.23",
     "vite": "^8.3.3"
   },
   "devDependencies": {
     "@capacitor/android": "^6.2.3",
-    "@capacitor/cli": "^6.2.3",
+    "@capacitor/cli": "^7.6.10",
     "@capacitor/ios": "^6.2.3",
     "@playwright/test": "1.64.0",
     "@testing-library/dom": "^10.4.2",
