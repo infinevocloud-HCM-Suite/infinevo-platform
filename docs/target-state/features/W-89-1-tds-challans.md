@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` | 1 |
-| Flyway migration | `V189__tds_challans.sql` | 1 |
+| Flyway migration | `V192__tds_challans.sql` | 1 |
 | Externally testable behaviour | Payroll officer records government tax deposit challans and allocates deposited amounts to pay run TDS deductions | 1 |
 | Frontend area | none (UI in `W-89.4`) | 1 |
 
@@ -60,7 +60,7 @@ Payroll Officer --> POST /api/v1/payroll/compliance/challans/{id}/allocate (payR
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `payroll/V189__tds_challans.sql` | Create `payroll.tds_challan` and `payroll.tds_challan_allocation` with RLS policies and indexes | yes | yes (drop tables on rollback) |
+| `payroll/V192__tds_challans.sql` | Create `payroll.tds_challan` and `payroll.tds_challan_allocation` with RLS policies and indexes | yes | yes (drop tables on rollback) |
 
 ### Table: `payroll.tds_challan`
 ```sql
