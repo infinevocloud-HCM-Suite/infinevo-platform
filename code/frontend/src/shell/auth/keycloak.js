@@ -1,5 +1,13 @@
 import Keycloak from 'keycloak-js';
+import { Capacitor } from '@capacitor/core';
 import { config } from '../../shared/config.js';
+import {
+  initMobileAuth,
+  getValidMobileToken,
+  mobileLogout,
+  getMobileTokenParsed,
+  isMobileAuthenticated,
+} from '../../mobile/mobileAuth.js';
 
 export const keycloak = new Keycloak({
   url: config.keycloak.url,
@@ -18,8 +26,19 @@ const MIN_TOKEN_VALIDITY_SECONDS = 30;
  * Runs before the app renders. `login-required` means an unauthenticated visitor is
  * redirected to Keycloak rather than shown a local login form - the platform has no
  * local login (W-10 deletes the /api/v1/auth/login exemption).
+ *
+ * In native Capacitor container, delegates to PKCE system browser and deep-link flow.
  */
 export function initAuth() {
+  if (Capacitor.isNativePlatform()) {
+    return initMobileAuth().then(() => {
+      keycloak.authenticated = isMobileAuthenticated();
+      keycloak.tokenParsed = getMobileTokenParsed();
+      tokenArrived();
+      return true;
+    });
+  }
+
   return keycloak.init({
     onLoad: 'login-required',
     pkceMethod: 'S256',
@@ -32,8 +51,18 @@ export function initAuth() {
 /**
  * A token that is valid now, refreshing it first if it is about to expire. Returns null
  * when the refresh token itself has expired, having started a fresh login redirect.
+ *
+ * In native Capacitor container, delegates to getValidMobileToken().
  */
 export async function getValidToken() {
+  if (Capacitor.isNativePlatform()) {
+    const token = await getValidMobileToken();
+    keycloak.authenticated = Boolean(token);
+    keycloak.token = token;
+    keycloak.tokenParsed = getMobileTokenParsed();
+    return token;
+  }
+
   if (!keycloak.authenticated) {
     return null;
   }
@@ -48,6 +77,10 @@ export async function getValidToken() {
 }
 
 export function logout(options = {}) {
+  if (Capacitor.isNativePlatform()) {
+    return mobileLogout(options);
+  }
+
   const redirectUri =
     options.redirectUri ??
     (typeof window !== 'undefined' && window.location?.origin
@@ -70,7 +103,7 @@ let seenTenant = false;
 let lastTenantId = null;
 
 function currentTenantId() {
-  return keycloak.tokenParsed?.tenant_id ?? null;
+  return keycloak.tokenParsed?.tenant_id ?? getMobileTokenParsed()?.tenant_id ?? null;
 }
 
 function tokenArrived() {

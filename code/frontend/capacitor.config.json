@@ -1,0 +1,14 @@
+{
+  "appId": "com.infinevo.app",
+  "appName": "Infinevo",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "App": {
+      "deepLinkingScheme": "infinevo"
+    }
+  }
+}
+

@@ -926,7 +926,7 @@ Logged for later building. **Each has an owner since 2026-11-13 (see Assignments
 
 | # | Ticket | What it is | Status |
 |---|---|---|---|
-| #— | `W-98` Mobile app | Android and iOS app for attendance, leave, payslips, approvals. Split into `W-98.1`–`W-98.5`. All 5 sub-specs proposed (`W-98.1` shell, `W-98.2` attendance, `W-98.3` leave, `W-98.4` payslips, `W-98.5` approvals). Size L | Proposed (pending manager approval, `dev-krushna`). Specs `docs/target-state/features/W-98-1-mobile-shell-and-auth.md` through `W-98-5-mobile-approvals-inbox.md` |
+| #— | `W-98` Mobile app | Android and iOS app for attendance, leave, payslips, approvals. Split into `W-98.1`–`W-98.5`. `W-98.1` (mobile shell & PKCE auth) built on `feature/krushna-specs` (100% tests/lint green). Sub-specs `W-98.2`–`W-98.5` proposed. Size L | `W-98.1` built (`feature/krushna-specs`, pending manager review, `dev-krushna`). Specs `docs/target-state/features/W-98-1-mobile-shell-and-auth.md` through `W-98-5-mobile-approvals-inbox.md` |
 | #— | `W-99` Biometric integration | Bring punches from attendance devices. Size L | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 4 in their order). |
 | #— | `W-100` Geo-fencing and selfie clock-in | Clock in only near the office, with an optional selfie. Size M | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 2 in their order). |
 | #— | `W-101` Shift rosters | Shift types, rosters, and late or early rules; only start and end times per employee exist today. Size L | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 3 in their order). |

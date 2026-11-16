@@ -9,11 +9,16 @@ import { BrowserRouter } from 'react-router-dom';
 
 import { store } from '@shell/store';
 import { AppShell } from '@shell/AppShell';
+import { Capacitor } from '@capacitor/core';
 import { initAuth, getValidToken } from '@shell/auth/keycloak';
 import { theme } from '@shared/theme';
 import { setTokenProvider } from '@shared/api/client';
 import { publicRoutes as corePublicRoutes } from '@core';
 import { publicRoutes as payrollPublicRoutes } from '@payroll';
+
+const MobileShell = React.lazy(() =>
+  import('./mobile/MobileShell.jsx').then((m) => ({ default: m.MobileShell })),
+);
 
 export const publicRoutes = [
   ...(Array.isArray(corePublicRoutes) ? corePublicRoutes : []),
@@ -60,13 +65,21 @@ export function bootstrap(
   return initAuth().then(() => {
     setTokenProvider(getValidToken);
 
+    const isNative = Capacitor.isNativePlatform();
+
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <React.StrictMode>
         <Provider store={store}>
           <ConfigProvider theme={theme}>
             <BrowserRouter>
-              <AppShell />
+              {isNative ? (
+                <React.Suspense fallback={null}>
+                  <MobileShell />
+                </React.Suspense>
+              ) : (
+                <AppShell />
+              )}
             </BrowserRouter>
           </ConfigProvider>
         </Provider>

@@ -7,7 +7,7 @@
 | **Owner** | krushna (`dev-krushna`) |
 | **Apps touched** | `code/frontend` (`package.json`, `capacitor.config.ts`, `android/`, `ios/`, `src/mobile/`, `src/shell/auth/keycloak.js`) |
 | **Related gaps** | founder 2026-11-13 planned product roadmap ("Priority 2 — competing with Keka: `W-98` Mobile app") |
-| **Status** | **In Review (pending manager approval)** |
+| **Status** | **Built — In Review (pending manager review on feature/krushna-specs)** |
 | **Approved by** | — (pending manager review) |
 | **Approved on** | — |
 | **Blocked by** | nothing |

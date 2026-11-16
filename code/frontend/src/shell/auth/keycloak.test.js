@@ -3,7 +3,9 @@
  * the two Keycloak callbacks it owns. No network - `init` is never called.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { keycloak, onTenantChange, logout } from './keycloak.js';
+import { Capacitor } from '@capacitor/core';
+import { keycloak, onTenantChange, logout, initAuth, getValidToken } from './keycloak.js';
+import * as mobileAuth from '../../mobile/mobileAuth.js';
 
 function tokenFor(tenantId) {
   keycloak.tokenParsed = tenantId === undefined ? undefined : { sub: 'u1', tenant_id: tenantId };
@@ -68,5 +70,48 @@ describe('logout', () => {
     expect(logoutSpy).toHaveBeenCalledWith({
       redirectUri: 'https://auth.infinevo.com/login',
     });
+  });
+});
+
+describe('native Capacitor mobile delegation', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('delegates initAuth to initMobileAuth when running on native container', async () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const initMobileSpy = vi.spyOn(mobileAuth, 'initMobileAuth').mockResolvedValue({
+      accessToken: 'mobile-token-abc',
+      tokenParsed: { tenant_id: 'tenant-mob' },
+    });
+    vi.spyOn(mobileAuth, 'isMobileAuthenticated').mockReturnValue(true);
+    vi.spyOn(mobileAuth, 'getMobileTokenParsed').mockReturnValue({ tenant_id: 'tenant-mob' });
+
+    const result = await initAuth();
+    expect(result).toBe(true);
+    expect(initMobileSpy).toHaveBeenCalledTimes(1);
+    expect(keycloak.authenticated).toBe(true);
+    expect(keycloak.tokenParsed).toEqual({ tenant_id: 'tenant-mob' });
+  });
+
+  it('delegates getValidToken to getValidMobileToken when on native platform', async () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const getMobileTokenSpy = vi
+      .spyOn(mobileAuth, 'getValidMobileToken')
+      .mockResolvedValue('valid-mobile-token-123');
+    vi.spyOn(mobileAuth, 'getMobileTokenParsed').mockReturnValue({ sub: 'user-mob' });
+
+    const token = await getValidToken();
+    expect(token).toBe('valid-mobile-token-123');
+    expect(getMobileTokenSpy).toHaveBeenCalledTimes(1);
+    expect(keycloak.token).toBe('valid-mobile-token-123');
+  });
+
+  it('delegates logout to mobileLogout when on native platform', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const mobileLogoutSpy = vi.spyOn(mobileAuth, 'mobileLogout').mockImplementation(() => {});
+
+    logout({ redirectUri: 'custom' });
+    expect(mobileLogoutSpy).toHaveBeenCalledTimes(1);
   });
 });
