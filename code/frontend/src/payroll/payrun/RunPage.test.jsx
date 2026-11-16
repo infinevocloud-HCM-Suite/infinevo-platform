@@ -447,7 +447,7 @@ describe('RunPage for a finance login (D-82)', () => {
     const { rerender } = renderAt('run-draft');
 
     const draftBtn = await screen.findByTestId('statutory-returns-dropdown');
-    expect(draftBtn.closest('button')).toBeDisabled();
+    expect(draftBtn.closest('button').hasAttribute('disabled')).toBe(true);
 
     payrunService.get.mockResolvedValueOnce({
       id: 'run-comp',
@@ -466,7 +466,7 @@ describe('RunPage for a finance login (D-82)', () => {
     );
 
     const compBtn = await screen.findByTestId('statutory-returns-dropdown');
-    expect(compBtn.closest('button')).not.toBeDisabled();
+    expect(compBtn.closest('button').hasAttribute('disabled')).toBe(false);
   });
 
   const renderAt = (runId) =>
