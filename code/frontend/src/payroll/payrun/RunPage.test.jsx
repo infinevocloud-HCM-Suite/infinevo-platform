@@ -448,10 +448,11 @@ describe('RunPage for a finance login (D-82)', () => {
       status: 'DRAFT',
     });
 
-    const { rerender } = renderAt('run-draft');
+    const { unmount } = renderAt('run-draft');
 
     const draftBtn = await screen.findByTestId('statutory-returns-dropdown');
     expect(draftBtn.closest('button').hasAttribute('disabled')).toBe(true);
+    unmount();
 
     payrunService.get.mockResolvedValueOnce({
       id: 'run-comp',
@@ -459,15 +460,7 @@ describe('RunPage for a finance login (D-82)', () => {
       status: 'COMPUTED',
     });
 
-    rerender(
-      <Provider store={store}>
-        <MemoryRouter initialEntries={['/payroll/runs/run-comp']}>
-          <Routes>
-            <Route path="/payroll/runs/:id" element={<RunPage />} />
-          </Routes>
-        </MemoryRouter>
-      </Provider>
-    );
+    renderAt('run-comp');
 
     const compBtn = await screen.findByTestId('statutory-returns-dropdown');
     expect(compBtn.closest('button').hasAttribute('disabled')).toBe(false);
