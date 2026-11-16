@@ -438,6 +438,10 @@ describe('RunPage for a finance login (D-82)', () => {
   });
 
   it('disables statutory returns dropdown on DRAFT and enables on COMPUTED (W-95)', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockImplementation(
+      (a) => a === 'payroll.run.read' || a === 'payroll.statutory_report.read'
+    );
+
     payrunService.get.mockResolvedValueOnce({
       id: 'run-draft',
       period: '2026-10',
@@ -467,6 +471,19 @@ describe('RunPage for a finance login (D-82)', () => {
 
     const compBtn = await screen.findByTestId('statutory-returns-dropdown');
     expect(compBtn.closest('button').hasAttribute('disabled')).toBe(false);
+  });
+
+  it('keeps statutory returns dropdown disabled on COMPUTED without payroll.statutory_report.read', async () => {
+    // finance user has payroll.run.read and payroll.run.approve only
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-no-perm',
+      period: '2026-10',
+      status: 'COMPUTED',
+    });
+
+    renderAt('run-no-perm');
+    const btn = await screen.findByTestId('statutory-returns-dropdown');
+    expect(btn.closest('button').hasAttribute('disabled')).toBe(true);
   });
 
   const renderAt = (runId) =>
