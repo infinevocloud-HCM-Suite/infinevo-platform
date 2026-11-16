@@ -16,4 +16,8 @@ public class PayFigureNotComputedException extends RuntimeException {
         super("Pay run " + payrunId + " has no figure for employee " + employeeId
                 + (computationError == null ? ": not computed" : ": " + computationError));
     }
+
+    public PayFigureNotComputedException(UUID payrunId, PayRunStatus status) {
+        super("Pay run " + payrunId + " is in status " + status + ": figures not computed");
+    }
 }

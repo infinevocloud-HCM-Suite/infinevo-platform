@@ -6,7 +6,7 @@
 | **Owner** | sayeed (`dev-sayeed`) |
 | **Apps touched** | `code/backend/payroll`, `code/frontend` (`src/payroll/payrun`) |
 | **Related gaps** | `DEV-TRACKER.md` row `W-95`; legacy `legacy/Payroll-Bend-SBoot/.../ExcelReportService.java:225-248` (lump-sum totals only, no periodic statutory returns) |
-| **Status** | Proposed — Awaiting Founder Approval |
+| **Status** | Implemented — Ready for Review |
 | **Blocked by** | nothing |
 
 ---
