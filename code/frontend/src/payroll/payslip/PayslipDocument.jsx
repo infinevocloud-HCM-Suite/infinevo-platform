@@ -43,17 +43,39 @@ export function PayslipDocument({ payslip, testIdPrefix = 'payslip' }) {
 
   // Ensure standard statutory deductions (Income Tax, EPF Contribution, Professional Tax) appear matching legacy layout
   const rawDeductions = payslip.deductions || [];
-  const findDeduction = (patterns) => {
-    return rawDeductions.find((d) => {
-      const code = String(d?.code || '').toUpperCase();
-      const name = String(d?.name || '').toUpperCase();
-      return patterns.some((p) => code.includes(p) || name.includes(p));
-    });
+
+  const isPt = (d) => {
+    const code = String(d?.code || '').toUpperCase();
+    const name = String(d?.name || '').toUpperCase();
+    return (
+      code === 'PT' ||
+      code === 'PROFESSIONAL_TAX' ||
+      name.includes('PROFESSIONAL TAX') ||
+      name === 'PT'
+    );
   };
 
-  const taxItem = findDeduction(['TDS', 'INCOME TAX', 'INCOMETAX', 'TAX']);
-  const epfItem = findDeduction(['EPF', 'PF', 'PROVIDENT']);
-  const ptItem = findDeduction(['PROFESSIONAL_TAX', 'PROFESSIONAL TAX', 'PT']);
+  const ptItem = rawDeductions.find(isPt);
+
+  const epfItem = rawDeductions.find((d) => {
+    if (d === ptItem) return false;
+    const code = String(d?.code || '').toUpperCase();
+    const name = String(d?.name || '').toUpperCase();
+    return ['EPF', 'PF', 'PROVIDENT'].some((p) => code.includes(p) || name.includes(p));
+  });
+
+  const taxItem = rawDeductions.find((d) => {
+    if (d === ptItem || d === epfItem || isPt(d)) return false;
+    const code = String(d?.code || '').toUpperCase();
+    const name = String(d?.name || '').toUpperCase();
+    return (
+      ['TDS', 'INCOME TAX', 'INCOMETAX', 'INCOME_TAX', 'TAX DEDUCTED'].some(
+        (p) => code.includes(p) || name.includes(p)
+      ) ||
+      code === 'TAX' ||
+      code === 'IT'
+    );
+  });
 
   const standardDeductions = [
     {
