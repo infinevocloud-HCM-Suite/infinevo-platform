@@ -47,7 +47,7 @@ CREATE TABLE payroll.tds_challan_allocation (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id),
     challan_id UUID NOT NULL REFERENCES payroll.tds_challan(id) ON DELETE CASCADE,
-    pay_run_id UUID NOT NULL REFERENCES payroll.pay_run(id),
+    pay_run_id UUID NOT NULL REFERENCES payroll.payrun(id),
     employee_id UUID NOT NULL REFERENCES core.employee(id),
     allocated_tax NUMERIC(14,2) NOT NULL CHECK (allocated_tax >= 0),
     allocated_cess NUMERIC(14,2) NOT NULL DEFAULT 0.00 CHECK (allocated_cess >= 0),
