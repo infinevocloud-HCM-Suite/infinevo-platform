@@ -27,6 +27,9 @@ public interface PayRunRepository extends JpaRepository<PayRun, UUID> {
     boolean existsByTenantIdAndPeriodAndRunTypeAndStatusIn(
             UUID tenantId, String period, PayRunType runType, Collection<PayRunStatus> statuses);
 
+    List<PayRun> findByTenantIdAndPeriodInAndStatusIn(
+            UUID tenantId, Collection<String> periods, Collection<PayRunStatus> statuses);
+
     Page<PayRun> findByTenantId(UUID tenantId, Pageable pageable);
 
     Page<PayRun> findByTenantIdAndStatus(UUID tenantId, PayRunStatus status, Pageable pageable);

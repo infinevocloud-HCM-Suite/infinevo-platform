@@ -1,6 +1,7 @@
 package com.infinevo.payroll.payrun;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -79,4 +80,14 @@ public interface EmployeePayRunLineRepository extends JpaRepository<EmployeePayR
             @Param("employeeId") UUID employeeId,
             @Param("periodFrom") String periodFrom,
             @Param("periodTo") String periodTo);
+
+    @Query(
+            """
+            SELECT l FROM EmployeePayRunLine l
+            WHERE l.tenantId = :tenantId
+              AND l.payrunId IN :payrunIds
+              AND l.source = com.infinevo.payroll.payrun.LineSource.TAX
+            """)
+    List<EmployeePayRunLine> findTaxLinesByPayrunIds(
+            @Param("tenantId") UUID tenantId, @Param("payrunIds") Collection<UUID> payrunIds);
 }
