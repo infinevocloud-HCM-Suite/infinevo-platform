@@ -8,6 +8,7 @@ import { logout } from '../shell/auth/keycloak.js';
 import { MobileTabBar } from './MobileTabBar.jsx';
 import { MobileAttendanceScreen } from './attendance/MobileAttendanceScreen.jsx';
 import { MobileLeaveScreen } from './leave/MobileLeaveScreen.jsx';
+import { MobilePayslipsScreen } from './payslips/MobilePayslipsScreen.jsx';
 import { PortalLayout } from '../shell/portal/PortalLayout.jsx';
 import { ApplyLeave } from '../core/portal/ApplyLeave.jsx';
 import { ApplyWfh } from '../core/portal/ApplyWfh.jsx';
@@ -113,16 +114,7 @@ export function MobileShell({ children = null }) {
             <Route path="/me/leave/apply" element={<ApplyLeave />} />
             <Route path="/me/leave-balance" element={<LeaveBalanceDetail />} />
             <Route path="/me/wfh/apply" element={<ApplyWfh />} />
-            <Route
-              path="/me/payslips"
-              element={
-                <MobilePlaceholder
-                  title="Mobile Payslips"
-                  description="Monthly payslip breakdown and signed PDF download is ready for W-98.4."
-                  ticketId="W-98.4"
-                />
-              }
-            />
+            <Route path="/me/payslips" element={<MobilePayslipsScreen />} />
             <Route path="/me/payslips/:payrunId" element={<PayslipPage />} />
             <Route
               path="/me/approvals"

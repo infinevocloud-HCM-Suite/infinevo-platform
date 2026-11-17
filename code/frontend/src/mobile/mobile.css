@@ -390,5 +390,38 @@ body.mobile-native {
   transform: scale(0.96);
 }
 
+/* ==========================================================================
+   Mobile Payslips Screen Styles (W-98.4)
+   ========================================================================== */
+
+.mobile-payslips-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-payslip-showcase {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mobile-payslip-history-card {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  cursor: pointer;
+}
+
+.mobile-payslip-history-card:active {
+  transform: scale(0.985);
+}
+
+.mobile-payslip-detail-drawer .ant-drawer-content {
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  overflow: hidden;
+}
+
+.mobile-payslip-sheet-content {
+  overflow-y: auto;
+}
+
+
 
 
