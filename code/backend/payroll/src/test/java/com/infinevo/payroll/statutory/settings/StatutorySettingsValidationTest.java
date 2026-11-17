@@ -3,6 +3,7 @@ package com.infinevo.payroll.statutory.settings;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.shared.tenant.TenantContext;
@@ -23,6 +24,7 @@ class StatutorySettingsValidationTest {
 
     private EpfSettingRepository epfRepository;
     private EsiSettingRepository esiRepository;
+    private TdsSettingRepository tdsRepository;
     private StatutorySettingsService service;
 
     private static final UUID TENANT_ID = UUID.randomUUID();
@@ -31,7 +33,8 @@ class StatutorySettingsValidationTest {
     void setUp() {
         epfRepository = mock(EpfSettingRepository.class);
         esiRepository = mock(EsiSettingRepository.class);
-        service = new StatutorySettingsServiceImpl(epfRepository, esiRepository);
+        tdsRepository = mock(TdsSettingRepository.class);
+        service = new StatutorySettingsServiceImpl(epfRepository, esiRepository, tdsRepository);
         TenantContext.set(TENANT_ID);
     }
 
@@ -230,5 +233,28 @@ class StatutorySettingsValidationTest {
         BigDecimal contribution = wage.multiply(employeeRate).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
 
         assertThat(contribution).isEqualByComparingTo(new BigDecimal("1800.0000"));
+    }
+
+    @Test
+    @DisplayName("D-141: TDS is on by default when the tenant has no row, and nothing is written")
+    void tdsDefaultsToEnabled() {
+        when(tdsRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.empty());
+
+        TdsSettingResponse response = service.tds(TENANT_ID);
+
+        assertThat(response.enabled()).isTrue();
+        assertThat(response.id()).isNull();
+        assertThat(response.tenantId()).isEqualTo(TENANT_ID);
+        assertThat(response.source()).isEqualTo(SettingSource.DEFAULT);
+    }
+
+    @Test
+    @DisplayName("D-141: saving TDS without enabled is a field error and touches nothing")
+    void tdsNullEnabledRejected() {
+        assertThatThrownBy(() -> service.saveTds(new TdsSettingRequest(null)))
+                .isInstanceOf(StatutorySettingsValidationException.class)
+                .satisfies(ex -> assertThat(((StatutorySettingsValidationException) ex).getFieldErrors())
+                        .containsKey("enabled"));
+        verifyNoInteractions(tdsRepository);
     }
 }

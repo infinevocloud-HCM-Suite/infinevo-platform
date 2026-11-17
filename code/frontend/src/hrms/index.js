@@ -54,6 +54,9 @@ const OvertimeLog = lazy(() =>
 const OvertimeDetail = lazy(() =>
   import('./requests/OvertimeDetail.jsx').then((m) => ({ default: m.OvertimeDetail }))
 );
+const LossOfPayLog = lazy(() =>
+  import('./lossofpay/LossOfPayLog.jsx').then((m) => ({ default: m.LossOfPayLog }))
+);
 const MyWork = lazy(() => import('./projects/MyWork.jsx').then((m) => ({ default: m.MyWork })));
 
 // HRMS module entry point (W-45 §5, W-48.2 §5). The week grid sits beneath `/hrms/timesheets`, the menu path
@@ -83,6 +86,8 @@ export const routes = [
   // W-68 §5: HR overtime list. `/all` before `/:id`.
   { path: '/hrms/overtime-requests/all', element: React.createElement(OvertimeLog) },
   { path: '/hrms/overtime-requests/:id', mountWith: ['/approvals', '/hrms/overtime-requests/all'], element: React.createElement(OvertimeDetail) },
+  // D-140: HR's manual loss of pay (feed `hrms.loss_of_pay`).
+  { path: '/hrms/loss-of-pay', element: React.createElement(LossOfPayLog) },
 ];
 
 export const reducers = {};

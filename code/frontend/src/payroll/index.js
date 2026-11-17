@@ -31,6 +31,9 @@ const EsiScreen = lazy(() =>
 const ProfessionalTaxScreen = lazy(() =>
   import('./settings/ProfessionalTaxScreen.jsx').then((m) => ({ default: m.ProfessionalTaxScreen }))
 );
+const TdsScreen = lazy(() =>
+  import('./settings/TdsScreen.jsx').then((m) => ({ default: m.TdsScreen }))
+);
 const FbpPlanScreen = lazy(() =>
   import('./settings/FbpPlanScreen.jsx').then((m) => ({ default: m.FbpPlanScreen }))
 );
@@ -104,6 +107,10 @@ export const routes = [
   {
     path: '/payroll/settings/professional-tax',
     element: React.createElement(SettingsLayout, null, React.createElement(ProfessionalTaxScreen)),
+  },
+  {
+    path: '/payroll/settings/tds',
+    element: React.createElement(SettingsLayout, null, React.createElement(TdsScreen)),
   },
   {
     path: '/payroll/settings/fbp',

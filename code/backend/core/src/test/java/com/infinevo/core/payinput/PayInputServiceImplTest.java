@@ -259,4 +259,78 @@ class PayInputServiceImplTest {
         assertThatThrownBy(() -> service.reverse(UUID.randomUUID(), "mistake"))
                 .isInstanceOf(PayInputService.NotFoundException.class);
     }
+
+    @Test
+    @DisplayName("D-140: a note is stored on the row and returned with created_by")
+    void noteIsStoredAndReturned() {
+        PayInputResponse response = service.record(new PayInputCommand(
+                UUID.randomUUID(),
+                PERIOD,
+                PayInputKind.LOP_DAYS,
+                BigDecimal.ONE,
+                null,
+                "core",
+                "manual-lop:1",
+                null,
+                "Unpaid absence"));
+
+        assertThat(response.note()).isEqualTo("Unpaid absence");
+        assertThat(response.createdBy()).isEqualTo(PayInput.ACTOR_SYSTEM);
+    }
+
+    @Test
+    @DisplayName("D-140: a note of exactly 200 characters is accepted; 201 is refused on the note field")
+    void noteOverTwoHundredIsRefused() {
+        UUID employeeId = UUID.randomUUID();
+        assertThat(service.record(new PayInputCommand(
+                                employeeId,
+                                PERIOD,
+                                PayInputKind.LOP_DAYS,
+                                BigDecimal.ONE,
+                                null,
+                                "core",
+                                "manual-lop:2",
+                                null,
+                                "x".repeat(200)))
+                        .note())
+                .hasSize(200);
+
+        assertThatThrownBy(() -> service.record(new PayInputCommand(
+                        employeeId,
+                        PERIOD,
+                        PayInputKind.LOP_DAYS,
+                        BigDecimal.ONE,
+                        null,
+                        "core",
+                        "manual-lop:3",
+                        null,
+                        "x".repeat(201))))
+                .isInstanceOf(PayInputService.ValidationException.class)
+                .satisfies(e -> assertThat(((PayInputService.ValidationException) e).fieldErrors())
+                        .containsKey("note"));
+    }
+
+    @Test
+    @DisplayName("D-140: a reversal's note is its own reason, never the original's note, cut to 200")
+    void reversalNoteIsTheReason() {
+        UUID originalId = UUID.randomUUID();
+        PayInput original = new PayInput(
+                TENANT,
+                UUID.randomUUID(),
+                PERIOD,
+                PayInputKind.LOP_DAYS,
+                BigDecimal.ONE,
+                null,
+                "core",
+                "manual-lop:4",
+                null,
+                null,
+                "admin",
+                "Original reason");
+        when(payInputs.findByIdAndTenantId(eq(originalId), eq(TENANT))).thenReturn(java.util.Optional.of(original));
+
+        assertThat(service.reverse(originalId, "Wrong employee").note()).isEqualTo("Wrong employee");
+        assertThat(service.reverse(originalId, "y".repeat(250)).note()).isEqualTo("y".repeat(200));
+        assertThat(service.reverse(originalId, null).note()).isNull();
+    }
 }

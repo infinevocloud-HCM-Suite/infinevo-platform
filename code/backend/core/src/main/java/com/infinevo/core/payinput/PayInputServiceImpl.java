@@ -77,7 +77,8 @@ public class PayInputServiceImpl implements PayInputService {
                 command.sourceRef(),
                 command.runRef(),
                 null,
-                currentActor());
+                currentActor(),
+                blankToNull(command.note()));
 
         PayInput saved = insert(input, command.sourceModule(), command.sourceRef());
         log.info(
@@ -180,7 +181,8 @@ public class PayInputServiceImpl implements PayInputService {
                 original.getSourceRef(),
                 reversalRunRef,
                 original.getId(),
-                currentActor());
+                currentActor(),
+                reversalNote(reason));
 
         // The idempotency index is scoped to non-reversal rows (V031), so this insert cannot collide
         // with the row it reverses even when both share the same (source_module, source_ref) - that
@@ -308,9 +310,28 @@ public class PayInputServiceImpl implements PayInputService {
             fieldErrors.put("amount", "amount must be positive");
         }
 
+        if (command.note() != null && command.note().strip().length() > PayInput.NOTE_MAX_LENGTH) {
+            fieldErrors.put("note", "note must be at most " + PayInput.NOTE_MAX_LENGTH + " characters");
+        }
+
         if (!fieldErrors.isEmpty()) {
             throw new ValidationException(fieldErrors);
         }
+    }
+
+    /**
+     * A reversal's {@code note} is its own reason and nothing copied from the original (D-140),
+     * truncated rather than refused so a long reason never blocks a correction.
+     */
+    private static String reversalNote(String reason) {
+        String note = blankToNull(reason);
+        return note != null && note.length() > PayInput.NOTE_MAX_LENGTH
+                ? note.substring(0, PayInput.NOTE_MAX_LENGTH)
+                : note;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     /** Whether an index name appears anywhere in a throwable's cause chain. */

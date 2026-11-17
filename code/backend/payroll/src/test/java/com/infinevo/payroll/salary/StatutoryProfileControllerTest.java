@@ -3,6 +3,7 @@ package com.infinevo.payroll.salary;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -97,5 +98,57 @@ class StatutoryProfileControllerTest {
                                 true, true, true, true, true, false, false, "PF123", "UAN123", "ESI123"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    @DisplayName("D-141: PUT carries tdsApplicable through; GET reports it")
+    void tdsApplicableRoundTrips() throws Exception {
+        StatutoryProfileResponse response = new StatutoryProfileResponse(
+                UUID.randomUUID(), employeeId, true, true, false, false, false, false, false, null, null, null, false);
+        when(service.upsert(eq(employeeId), any())).thenReturn(response);
+        when(service.get(employeeId)).thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/payroll/employees/{id}/statutory-profile", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eligibleForPf\": true, \"eligibleForPt\": true, \"tdsApplicable\": false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tdsApplicable").value(false));
+        verify(service)
+                .upsert(
+                        employeeId,
+                        new StatutoryProfileRequest(true, true, null, null, null, null, null, null, null, null, false));
+
+        mockMvc.perform(get("/api/v1/payroll/employees/{id}/statutory-profile", employeeId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tdsApplicable").value(false));
+    }
+
+    @Test
+    @DisplayName("D-141: PUT without tdsApplicable passes null, which leaves the saved value alone")
+    void tdsApplicableOmittedIsNull() throws Exception {
+        when(service.upsert(eq(employeeId), any()))
+                .thenReturn(new StatutoryProfileResponse(
+                        UUID.randomUUID(),
+                        employeeId,
+                        true,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        null,
+                        null,
+                        null));
+
+        mockMvc.perform(put("/api/v1/payroll/employees/{id}/statutory-profile", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eligibleForPf\": true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tdsApplicable").value(true));
+        verify(service)
+                .upsert(
+                        employeeId,
+                        new StatutoryProfileRequest(true, null, null, null, null, null, null, null, null, null, null));
     }
 }

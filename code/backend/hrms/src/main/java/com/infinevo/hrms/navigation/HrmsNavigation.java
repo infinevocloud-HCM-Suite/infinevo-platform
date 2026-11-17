@@ -132,6 +132,18 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "core.overtime.read");
 
+    /**
+     * Loss-of-pay days entered by hand, for HR (D-140): core's {@code PayInputController} {@code GET
+     * /api/v1/pay-inputs}, the period list the screen reads. The item shows to whoever may record a pay input.
+     */
+    public static final ItemDefinition LOSS_OF_PAY = new ItemDefinition(
+            "hrms.loss_of_pay",
+            "nav.hrms.loss_of_pay",
+            "/hrms/loss-of-pay",
+            "/api/v1/pay-inputs",
+            PlatformModule.HRMS,
+            "core.pay_input.write");
+
     /** The tenant's holiday calendars (W-46.3b): core's {@code HolidayCalendarController} {@code GET /api/v1/holiday-calendars}. */
     public static final ItemDefinition HOLIDAYS = new ItemDefinition(
             "hrms.holidays",
@@ -154,7 +166,8 @@ public class HrmsNavigation implements NavigationContributor {
             OVERTIME_REQUESTS,
             HOLIDAYS,
             REGULARIZATIONS_ALL,
-            OVERTIME_ALL);
+            OVERTIME_ALL,
+            LOSS_OF_PAY);
 
     /**
      * The one HRMS menu group (D-34). No action of its own: the feed hides it when every screen inside

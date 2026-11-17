@@ -53,7 +53,8 @@ public class PayInputController {
                 request.amount() != null ? Money.of(request.amount()) : null,
                 "core",
                 request.sourceRef(),
-                request.runRef());
+                request.runRef(),
+                request.note());
         PayInputResponse created = payInputService.record(command);
         return ResponseEntity.created(URI.create("/api/v1/pay-inputs/" + created.id()))
                 .body(created);

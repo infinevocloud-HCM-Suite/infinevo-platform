@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Table, Input, Select, Switch, Button, Tag, Space, Typography, Card, Alert, Modal, theme, Avatar } from 'antd';
+import { Table, Input, AutoComplete, Select, Switch, Button, Tag, Space, Typography, Card, Alert, Modal, theme, Avatar } from 'antd';
 import { PlusOutlined, UploadOutlined, MailOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useCan } from '@shell/screens';
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
@@ -23,6 +23,40 @@ const statusColorMap = {
   TERMINATED: 'error',
 };
 
+const STATUSES = ['ACTIVE', 'SUSPENDED', 'TERMINATED'];
+const DEFAULT_PAGE_SIZE = 25;
+
+/**
+ * D-139: the list's view lives in the URL query - `page`, `size`, `q`, `status`, `deleted` and
+ * `focus` (the row last opened) - so the back arrow from an employee, a reload and a shared link
+ * all land on the same page with the same filters. A missing or malformed value is the default.
+ */
+export function readListView(params) {
+  const page = Number.parseInt(params.get('page') || '', 10);
+  const size = Number.parseInt(params.get('size') || '', 10);
+  const status = params.get('status');
+  return {
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+    pageSize: Number.isInteger(size) && size > 0 ? size : DEFAULT_PAGE_SIZE,
+    searchQuery: params.get('q') || '',
+    statusFilter: STATUSES.includes(status) ? status : undefined,
+    includeDeleted: params.get('deleted') === '1',
+    focusId: params.get('focus') || null,
+  };
+}
+
+/** The query for a view, defaults left out so the plain `/employees` stays the first page. */
+export function writeListView(view) {
+  const next = {};
+  if (view.page > 1) next.page = String(view.page);
+  if (view.pageSize !== DEFAULT_PAGE_SIZE) next.size = String(view.pageSize);
+  if (view.searchQuery) next.q = view.searchQuery;
+  if (view.statusFilter) next.status = view.statusFilter;
+  if (view.includeDeleted) next.deleted = '1';
+  if (view.focusId) next.focus = view.focusId;
+  return next;
+}
+
 export function EmployeeList() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -38,15 +72,68 @@ export function EmployeeList() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState(undefined);
-  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const view = readListView(params);
+  const { page, pageSize, searchQuery, statusFilter, includeDeleted, focusId } = view;
+  // One setter for the view: a filter change goes back to page 1 and drops the focused row.
+  const setView = useCallback(
+    (changes) => setParams(writeListView({ ...readListView(params), ...changes }), { replace: true }),
+    [params, setParams]
+  );
+  const focusedRowRef = useRef(null);
+  // D-139: suggestions under the search box, fetched after a short pause in typing; picking one
+  // opens that employee, Enter still filters the list on the typed text.
+  const [suggestions, setSuggestions] = useState([]);
+  const suggestTimer = useRef(null);
+  const suggestSeq = useRef(0);
   const [exporting, setExporting] = useState(false);
   const [loadError, setLoadError] = useState(null);
   // W-84.2: the plan's limit and the places in use, {limit, used}; null until loaded or when the call fails.
   const [usage, setUsage] = useState(null);
+
+  const openEmployee = useCallback(
+    (id) => {
+      const query = new URLSearchParams(writeListView({ ...view, focusId: id })).toString();
+      const from = query ? `/employees?${query}` : '/employees';
+      navigate(`/employees/${id}`, { state: { from } });
+    },
+    [navigate, view]
+  );
+
+  const suggest = useCallback(
+    (text) => {
+      clearTimeout(suggestTimer.current);
+      const q = (text || '').trim();
+      if (q.length < 2) {
+        setSuggestions([]);
+        return;
+      }
+      suggestTimer.current = setTimeout(async () => {
+        const seq = ++suggestSeq.current;
+        try {
+          const res = await employeeService.list({
+            q,
+            status: statusFilter || undefined,
+            includeDeleted: canDelete ? includeDeleted : false,
+            page: 0,
+            size: 8,
+            sort: 'employeeNumber,asc',
+          });
+          if (seq !== suggestSeq.current) return; // a later keystroke already answered
+          setSuggestions(
+            (res.content || []).map((r) => {
+              const name = [r.firstName, r.middleName, r.lastName].filter(Boolean).join(' ');
+              return { value: `${r.employeeNumber} · ${name}`, id: r.id, name };
+            })
+          );
+        } catch {
+          setSuggestions([]);
+        }
+      }, 300);
+    },
+    [statusFilter, includeDeleted, canDelete]
+  );
+  useEffect(() => () => clearTimeout(suggestTimer.current), []);
 
   // A failure leaves the badge on the list total; the limit is advisory here, the server enforces it.
   const fetchUsage = useCallback(async () => {
@@ -97,6 +184,13 @@ export function EmployeeList() {
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
+
+  // Back from an employee: bring the row that was opened into view once the page has loaded.
+  useEffect(() => {
+    if (!loading && focusId && focusedRowRef.current && typeof focusedRowRef.current.scrollIntoView === 'function') {
+      focusedRowRef.current.scrollIntoView({ block: 'center' });
+    }
+  }, [loading, focusId, data]);
 
   // W-73.7: one job inviting every active employee with a work email and no account or live invitation,
   // with the employee role only. The count comes first so the confirm says how many will get an email.
@@ -302,25 +396,31 @@ export function EmployeeList() {
       )}
 
       <div style={{ display: 'flex', gap: token.margin, flexWrap: 'wrap', marginBottom: token.marginLG, alignItems: 'center' }}>
-        <Input.Search
-          placeholder="Search employees..."
-          allowClear
-          onSearch={(val) => {
-            setSearchQuery(val);
-            setPage(1);
-          }}
+        <AutoComplete
+          key={searchQuery}
+          defaultValue={searchQuery}
+          options={suggestions}
+          onSearch={suggest}
+          onSelect={(_, option) => openEmployee(option.id)}
           style={{ width: 280 }}
           id="input-search-employees"
-        />
+          data-testid="employee-search-suggest"
+        >
+          <Input.Search
+            placeholder="Search employees..."
+            allowClear
+            onSearch={(val) => {
+              setSuggestions([]);
+              setView({ searchQuery: val, page: 1, focusId: null });
+            }}
+          />
+        </AutoComplete>
 
         <Select
           placeholder="Filter by Status"
           allowClear
           value={statusFilter}
-          onChange={(val) => {
-            setStatusFilter(val);
-            setPage(1);
-          }}
+          onChange={(val) => setView({ statusFilter: val, page: 1, focusId: null })}
           style={{ width: 160 }}
           options={[
             { value: 'ACTIVE', label: 'Active' },
@@ -335,10 +435,7 @@ export function EmployeeList() {
             <Text type="secondary">Include deleted:</Text>
             <Switch
               checked={includeDeleted}
-              onChange={(checked) => {
-                setIncludeDeleted(checked);
-                setPage(1);
-              }}
+              onChange={(checked) => setView({ includeDeleted: checked, page: 1, focusId: null })}
               id="switch-include-deleted"
             />
           </Space>
@@ -375,15 +472,16 @@ export function EmployeeList() {
           pageSize,
           total,
           showSizeChanger: true,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
+          onChange: (p, ps) => setView({ page: ps === pageSize ? p : 1, pageSize: ps, focusId: null }),
         }}
+        // D-139: the row click records itself in the list URL and hands that URL to the employee
+        // page, whose back arrow returns here. The row is highlighted until the view changes.
+        rowClassName={(record) => (record.id === focusId ? 'employee-row-focused' : '')}
         onRow={(record) => ({
-          onClick: () => navigate(`/employees/${record.id}`),
+          onClick: () => openEmployee(record.id),
           style: { cursor: 'pointer' },
           'data-testid': `employee-row-${record.id}`,
+          ref: record.id === focusId ? focusedRowRef : undefined,
         })}
       />
     </Card>

@@ -62,6 +62,7 @@ const EMPTY_PROFILE = {
   eligibleForEsi: false,
   eligibleForLwf: false,
   director: false,
+  tdsApplicable: true,
   pfAccountNumber: '',
   uan: '',
   esiNumber: '',
@@ -124,6 +125,8 @@ function profilePayload(statutory = {}) {
     pfAccountNumber: trimmed(statutory.pfAccountNumber),
     uan: trimmed(statutory.uan),
     esiNumber: trimmed(statutory.esiNumber),
+    // D-141: TDS is on unless switched off for this employee.
+    tdsApplicable: statutory.tdsApplicable !== false,
   };
 }
 
@@ -405,6 +408,8 @@ export function SalarySetupDrawer({
             eligibleForEsi: Boolean(data.eligibleForEsi),
             eligibleForLwf: Boolean(data.eligibleForLwf),
             director: Boolean(data.director),
+            // D-141: a profile saved before the flag existed reads as TDS applicable.
+            tdsApplicable: data.tdsApplicable !== false,
             pfAccountNumber: data.pfAccountNumber || '',
             uan: data.uan || '',
             esiNumber: data.esiNumber || '',
@@ -855,6 +860,14 @@ export function SalarySetupDrawer({
           </Form.Item>
           <Form.Item name={['statutory', 'director']} valuePropName="checked" style={{ marginBottom: 4 }}>
             <Checkbox id="chk-statutory-director">Director</Checkbox>
+          </Form.Item>
+          <Form.Item
+            name={['statutory', 'tdsApplicable']}
+            valuePropName="checked"
+            style={{ marginBottom: 4 }}
+            extra="Off: no TDS is deducted for this employee in pay runs"
+          >
+            <Checkbox id="chk-statutory-tds">TDS applicable</Checkbox>
           </Form.Item>
         </Col>
       </Row>

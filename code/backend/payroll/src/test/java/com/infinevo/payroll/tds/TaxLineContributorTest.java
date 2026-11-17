@@ -3,6 +3,8 @@ package com.infinevo.payroll.tds;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -17,7 +19,12 @@ import com.infinevo.payroll.payrun.PayRunDays;
 import com.infinevo.payroll.payrun.PayRunEmployeeContext;
 import com.infinevo.payroll.payrun.PayRunType;
 import com.infinevo.payroll.priorpayroll.PriorPayrollTaxQuery;
+import com.infinevo.payroll.salary.EmployeeStatutoryProfileService;
 import com.infinevo.payroll.salary.SalaryVersionResponse;
+import com.infinevo.payroll.salary.StatutoryProfileResponse;
+import com.infinevo.payroll.statutory.settings.SettingSource;
+import com.infinevo.payroll.statutory.settings.StatutorySettingsService;
+import com.infinevo.payroll.statutory.settings.TdsSettingResponse;
 import com.infinevo.payroll.taxcalc.TaxRegime;
 import com.infinevo.payroll.taxdeclaration.FinancialYear;
 import java.math.BigDecimal;
@@ -45,6 +52,7 @@ import org.junit.jupiter.api.Test;
  *   <li>No active record ⇒ no line</li>
  *   <li>March with remaining 1,234.5 ⇒ one line of 1,234.5000</li>
  *   <li>W-38.2: imported TDS counts in ytd — 60,000 ⇒ 10,000.0000, 70,000 ⇒ 8,333.3333, ≥ annual ⇒ no line</li>
+ *   <li>D-141: company TDS off, or the employee not TDS applicable ⇒ no line and no note</li>
  * </ul>
  */
 class TaxLineContributorTest {
@@ -58,6 +66,8 @@ class TaxLineContributorTest {
 
     private EmployeePayRunLineRepository lineRepository;
     private PriorPayrollTaxQuery priorTax;
+    private StatutorySettingsService statutorySettingsService;
+    private EmployeeStatutoryProfileService profileService;
     private TaxLineContributor contributor;
 
     @BeforeEach
@@ -66,7 +76,12 @@ class TaxLineContributorTest {
         lineRepository = mock(EmployeePayRunLineRepository.class);
         priorTax = mock(PriorPayrollTaxQuery.class);
         when(priorTax.total(any(), any(), any())).thenReturn(BigDecimal.ZERO);
-        contributor = new TaxLineContributor(tdsService, lineRepository, priorTax);
+        statutorySettingsService = mock(StatutorySettingsService.class);
+        profileService = mock(EmployeeStatutoryProfileService.class);
+        companyTds(true);
+        when(profileService.isTdsApplicable(EMPLOYEE_ID)).thenReturn(true);
+        contributor =
+                new TaxLineContributor(tdsService, lineRepository, priorTax, statutorySettingsService, profileService);
     }
 
     @Test
@@ -250,6 +265,93 @@ class TaxLineContributorTest {
 
         when(priorTax.total(TENANT, EMPLOYEE_ID, FY_2026)).thenReturn(new BigDecimal("130000.0000"));
         assertThat(contributor.contribute(context(period))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("D-141: company TDS off ⇒ no line with an active record, and no note without one")
+    void companySwitchOffHoldsLineAndNote() {
+        YearMonth period = YearMonth.of(2026, 10);
+        companyTds(false);
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027"))
+                .thenReturn(Optional.of(record("2026-2027", new BigDecimal("120000.0000"), "2026-04")));
+
+        assertThat(contributor.contribute(context(period))).isEmpty();
+        assertThat(contributor.note(context(period))).isNull();
+        verifyNoInteractions(lineRepository);
+
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027")).thenReturn(Optional.empty());
+        assertThat(contributor.note(context(period))).isNull();
+        verify(profileService, never()).isTdsApplicable(any());
+    }
+
+    @Test
+    @DisplayName("D-141: employee not TDS applicable ⇒ no line with an active record, and no note without one")
+    void employeeFlagOffHoldsLineAndNote() {
+        YearMonth period = YearMonth.of(2026, 10);
+        when(profileService.isTdsApplicable(EMPLOYEE_ID)).thenReturn(false);
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027"))
+                .thenReturn(Optional.of(record("2026-2027", new BigDecimal("120000.0000"), "2026-04")));
+
+        assertThat(contributor.contribute(context(period))).isEmpty();
+        verifyNoInteractions(lineRepository);
+
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027")).thenReturn(Optional.empty());
+        assertThat(contributor.note(context(period))).isNull();
+    }
+
+    @Test
+    @DisplayName("D-141: the profile carried on the context decides, without a read")
+    void profileOnContextDecides() {
+        YearMonth period = YearMonth.of(2026, 10);
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027"))
+                .thenReturn(Optional.of(record("2026-2027", new BigDecimal("120000.0000"), "2026-04")));
+        when(lineRepository.sumTaxLines(TENANT, EMPLOYEE_ID, "2026-04", "2026-10", PAYRUN_ID))
+                .thenReturn(new BigDecimal("60000.0000"));
+
+        assertThat(contributor.contribute(context(period).withStatutoryProfile(profile(false))))
+                .isEmpty();
+        assertThat(contributor.contribute(context(period).withStatutoryProfile(profile(true))))
+                .hasSize(1);
+        verify(profileService, never()).isTdsApplicable(any());
+    }
+
+    @Test
+    @DisplayName("D-141: both switches on ⇒ unchanged, 10,000.0000 in October and the note when no record")
+    void bothOnUnchanged() {
+        YearMonth period = YearMonth.of(2026, 10);
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027"))
+                .thenReturn(Optional.of(record("2026-2027", new BigDecimal("120000.0000"), "2026-04")));
+        when(lineRepository.sumTaxLines(TENANT, EMPLOYEE_ID, "2026-04", "2026-10", PAYRUN_ID))
+                .thenReturn(new BigDecimal("60000.0000"));
+
+        List<PayLine> lines = contributor.contribute(context(period));
+        assertThat(lines).hasSize(1);
+        assertThat(lines.get(0).amount().raw()).isEqualByComparingTo("10000.0000");
+
+        when(tdsService.active(EMPLOYEE_ID, "2026-2027")).thenReturn(Optional.empty());
+        assertThat(contributor.note(context(period))).isEqualTo("No TDS record for 2026-2027");
+    }
+
+    private void companyTds(boolean enabled) {
+        when(statutorySettingsService.tds(TENANT))
+                .thenReturn(new TdsSettingResponse(null, TENANT, enabled, null, null, SettingSource.DEFAULT));
+    }
+
+    private static StatutoryProfileResponse profile(boolean tdsApplicable) {
+        return new StatutoryProfileResponse(
+                UUID.randomUUID(),
+                EMPLOYEE_ID,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                null,
+                null,
+                null,
+                tdsApplicable);
     }
 
     private static EmployeeTds record(String fy, BigDecimal annualTax, String effectiveFrom) {

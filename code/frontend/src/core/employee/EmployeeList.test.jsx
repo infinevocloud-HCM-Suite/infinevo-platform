@@ -48,14 +48,14 @@ vi.mock('./orgMasterService.js', () => ({
   },
 }));
 
-function renderWithStore(ui, { initialState } = {}) {
+function renderWithStore(ui, { initialState, route = '/employees' } = {}) {
   const store = configureStore({
     reducer: { employee: employeeReducer },
     preloadedState: initialState,
   });
   return render(
     <Provider store={store}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
     </Provider>
   );
 }
@@ -127,7 +127,50 @@ describe('EmployeeList component', () => {
     // Row click navigates to /employees/:id
     const row = screen.getByTestId('employee-row-emp-1');
     fireEvent.click(row);
-    expect(mockNavigate).toHaveBeenCalledWith('/employees/emp-1');
+    // D-139: the list hands its own URL, with the opened row, to the employee page for its back arrow.
+    expect(mockNavigate).toHaveBeenCalledWith('/employees/emp-1', {
+      state: { from: '/employees?q=Asha&focus=emp-1' },
+    });
+  });
+
+  it('D-139: the list view comes from the URL, the focused row is highlighted, and a filter change resets to page 1', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+
+    renderWithStore(<EmployeeList />, { route: '/employees?page=3&size=10&status=ACTIVE&q=rao&focus=emp-1' });
+
+    await waitFor(() => {
+      expect(employeeService.list).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2, size: 10, status: 'ACTIVE', q: 'rao' })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('employee-row-emp-1').className).toContain('employee-row-focused');
+    });
+    expect(screen.getByPlaceholderText('Search employees...').value).toBe('rao');
+
+    // Changing the status filter goes back to page 1 and drops the focus.
+    employeeService.list.mockClear();
+    const select = document.querySelector('#select-status-filter');
+    fireEvent.mouseDown(select.querySelector('.ant-select-selector') || select);
+    fireEvent.click(await screen.findByText('Terminated'));
+    await waitFor(() => {
+      expect(employeeService.list).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 0, size: 10, status: 'TERMINATED', q: 'rao' })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('employee-row-emp-1').className).not.toContain('employee-row-focused');
+    });
+  });
+
+  it('D-139: a malformed URL falls back to the first page and the defaults', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    renderWithStore(<EmployeeList />, { route: '/employees?page=abc&size=-5&status=NOPE' });
+    await waitFor(() => {
+      expect(employeeService.list).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 0, size: 25, status: undefined, q: undefined })
+      );
+    });
   });
 
   it('does not render "Include deleted" switch when user lacks core.employee.delete', async () => {
@@ -343,5 +386,43 @@ describe('EmployeeList component', () => {
 
     expect(await screen.findByText('13 of 50 employees')).toBeDefined();
     expect(employeeService.limit.mock.calls.length).toBeGreaterThan(callsAfterMount);
+  });
+  it('D-139: typing in the search box suggests matching employees and picking one opens that employee', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    renderWithStore(<EmployeeList />, { route: '/employees?page=2&status=ACTIVE' });
+    await screen.findByText('E-101');
+    const callsAfterMount = employeeService.list.mock.calls.length;
+
+    const searchInput = screen.getByPlaceholderText('Search employees...');
+    // The e2e suite fills the box by this id; the suggestion wrapper must not swallow it.
+    expect(document.getElementById('input-search-employees')).toBe(searchInput);
+    fireEvent.change(searchInput, { target: { value: 'As' } });
+
+    // Suggestions come from the same list call, limited to a few rows, with the current filters.
+    await waitFor(() => {
+      expect(employeeService.list.mock.calls.length).toBeGreaterThan(callsAfterMount);
+    });
+    expect(employeeService.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ q: 'As', size: 8, page: 0, status: 'ACTIVE' })
+    );
+    const options = await screen.findAllByText('E-101 · Asha Rao');
+    // antd renders the option in an a11y list and in the visible dropdown; click the visible one.
+    fireEvent.click(options[options.length - 1]);
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/employees/emp-1',
+      { state: { from: '/employees?page=2&status=ACTIVE&focus=emp-1' } }
+    );
+  });
+
+  it('D-139: one letter brings no suggestions', async () => {
+    vi.spyOn(useCanModule, 'useCan').mockReturnValue(true);
+    renderWithStore(<EmployeeList />);
+    await screen.findByText('E-101');
+    const callsAfterMount = employeeService.list.mock.calls.length;
+    fireEvent.change(screen.getByPlaceholderText('Search employees...'), { target: { value: 'A' } });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(employeeService.list.mock.calls.length).toBe(callsAfterMount);
+    expect(screen.queryByText('E-101 · Asha Rao')).toBeNull();
   });
 });

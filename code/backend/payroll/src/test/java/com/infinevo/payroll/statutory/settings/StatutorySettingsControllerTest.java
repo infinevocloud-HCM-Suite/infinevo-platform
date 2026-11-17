@@ -1,15 +1,19 @@
 package com.infinevo.payroll.statutory.settings;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -186,5 +190,64 @@ class StatutorySettingsControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors.employeeRate").value("must be between 0 and 100"));
+    }
+
+    @Test
+    @DisplayName("D-141: GET /api/v1/payroll/settings/tds returns the default, enabled")
+    void getTdsSuccess() throws Exception {
+        when(settingsService.tds(TENANT_ID)).thenReturn(TdsSettingResponse.defaultSettings(TENANT_ID));
+
+        mvc.perform(get("/api/v1/payroll/settings/tds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("TDS settings retrieved successfully"))
+                .andExpect(jsonPath("$.data.tenantId").value(TENANT_ID.toString()))
+                .andExpect(jsonPath("$.data.enabled").value(true))
+                .andExpect(jsonPath("$.data.source").value("DEFAULT"));
+    }
+
+    @Test
+    @DisplayName("D-141: PUT /api/v1/payroll/settings/tds saves the switch")
+    void putTdsSuccess() throws Exception {
+        when(settingsService.saveTds(any()))
+                .thenReturn(new TdsSettingResponse(
+                        UUID.randomUUID(), TENANT_ID, false, Instant.now(), "officer", SettingSource.PERSISTED));
+
+        mvc.perform(put("/api/v1/payroll/settings/tds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\": false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("TDS settings saved successfully"))
+                .andExpect(jsonPath("$.data.enabled").value(false))
+                .andExpect(jsonPath("$.data.source").value("PERSISTED"));
+        verify(settingsService).saveTds(new TdsSettingRequest(false));
+    }
+
+    @Test
+    @DisplayName("D-141: PUT /api/v1/payroll/settings/tds without enabled returns 400")
+    void putTdsWithoutEnabledReturns400() throws Exception {
+        when(settingsService.saveTds(new TdsSettingRequest(null)))
+                .thenThrow(new StatutorySettingsValidationException("enabled", "enabled is required"));
+
+        mvc.perform(put("/api/v1/payroll/settings/tds")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors.enabled").value("enabled is required"));
+    }
+
+    @Test
+    @DisplayName("D-141: TDS read needs payroll.salary.read, save needs payroll.settings.manage")
+    void tdsActions() throws Exception {
+        assertThat(StatutorySettingsController.class
+                        .getMethod("getTds")
+                        .getAnnotation(RequiresAction.class)
+                        .value())
+                .isEqualTo("payroll.salary.read");
+        assertThat(StatutorySettingsController.class
+                        .getMethod("putTds", TdsSettingRequest.class)
+                        .getAnnotation(RequiresAction.class)
+                        .value())
+                .isEqualTo("payroll.settings.manage");
     }
 }

@@ -9,7 +9,8 @@ import java.util.UUID;
 /**
  * {@code POST /api/v1/pay-inputs} request body (W-19 §4). {@code amount} is plain
  * {@code BigDecimal} here — JSON has no {@code Money} — and is wrapped at the controller boundary
- * before it reaches {@link PayInputCommand}.
+ * before it reaches {@link PayInputCommand}. {@code note} is the optional human reason (D-140), at
+ * most 200 characters; it is shown, never used as a key.
  */
 public record PayInputRequest(
         @JsonProperty("employee_id") @JsonAlias("employeeId") UUID employeeId,
@@ -18,4 +19,5 @@ public record PayInputRequest(
         @JsonProperty("quantity") BigDecimal quantity,
         @JsonProperty("amount") BigDecimal amount,
         @JsonProperty("source_ref") @JsonAlias("sourceRef") String sourceRef,
-        @JsonProperty("run_ref") @JsonAlias("runRef") UUID runRef) {}
+        @JsonProperty("run_ref") @JsonAlias("runRef") UUID runRef,
+        @JsonProperty("note") String note) {}

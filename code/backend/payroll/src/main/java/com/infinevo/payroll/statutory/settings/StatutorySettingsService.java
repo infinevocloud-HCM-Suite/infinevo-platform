@@ -28,4 +28,15 @@ public interface StatutorySettingsService {
      * Saves or updates the ESI setting for the current tenant context.
      */
     EsiSettingResponse saveEsi(EsiSettingRequest request);
+
+    /**
+     * D-141: the company TDS switch for the given tenant, or the default (enabled) if none is saved.
+     * Does NOT write anything to the database when returning the default.
+     */
+    TdsSettingResponse tds(UUID tenantId);
+
+    /**
+     * D-141: saves or updates the company TDS switch for the current tenant context.
+     */
+    TdsSettingResponse saveTds(TdsSettingRequest request);
 }

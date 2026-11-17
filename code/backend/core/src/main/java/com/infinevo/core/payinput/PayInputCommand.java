@@ -22,6 +22,8 @@ import java.util.UUID;
  * @param runRef the run this input is tagged to, or {@code null} for the regular run (W-30.1). A
  *     tagged input obeys its run's lock, not the period's, and is invisible to {@code forPeriod}
  *     and {@code forEmployee} — only {@code forRun(runRef)} reads it
+ * @param note a human reason for a hand-entered row, at most 200 characters, or {@code null}
+ *     (D-140). Shown, never used as a key
  */
 public record PayInputCommand(
         UUID employeeId,
@@ -31,7 +33,21 @@ public record PayInputCommand(
         Money amount,
         String sourceModule,
         String sourceRef,
-        UUID runRef) {
+        UUID runRef,
+        String note) {
+
+    /** Tagged or untagged, with no note: the shape before D-140. */
+    public PayInputCommand(
+            UUID employeeId,
+            YearMonth period,
+            PayInputKind kind,
+            BigDecimal quantity,
+            Money amount,
+            String sourceModule,
+            String sourceRef,
+            UUID runRef) {
+        this(employeeId, period, kind, quantity, amount, sourceModule, sourceRef, runRef, null);
+    }
 
     /** Untagged — the regular run reads it. */
     public PayInputCommand(
@@ -42,6 +58,6 @@ public record PayInputCommand(
             Money amount,
             String sourceModule,
             String sourceRef) {
-        this(employeeId, period, kind, quantity, amount, sourceModule, sourceRef, null);
+        this(employeeId, period, kind, quantity, amount, sourceModule, sourceRef, null, null);
     }
 }

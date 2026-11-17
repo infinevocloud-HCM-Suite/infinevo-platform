@@ -22,13 +22,18 @@ public class StatutorySettingsServiceImpl implements StatutorySettingsService {
 
     private final EpfSettingRepository epfSettingRepository;
     private final EsiSettingRepository esiSettingRepository;
+    private final TdsSettingRepository tdsSettingRepository;
 
     public StatutorySettingsServiceImpl(
-            EpfSettingRepository epfSettingRepository, EsiSettingRepository esiSettingRepository) {
+            EpfSettingRepository epfSettingRepository,
+            EsiSettingRepository esiSettingRepository,
+            TdsSettingRepository tdsSettingRepository) {
         this.epfSettingRepository =
                 Objects.requireNonNull(epfSettingRepository, "epfSettingRepository must not be null");
         this.esiSettingRepository =
                 Objects.requireNonNull(esiSettingRepository, "esiSettingRepository must not be null");
+        this.tdsSettingRepository =
+                Objects.requireNonNull(tdsSettingRepository, "tdsSettingRepository must not be null");
     }
 
     @Override
@@ -117,6 +122,34 @@ public class StatutorySettingsServiceImpl implements StatutorySettingsService {
 
         EsiSetting saved = esiSettingRepository.save(entity);
         return EsiSettingResponse.from(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TdsSettingResponse tds(UUID tenantId) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        return tdsSettingRepository
+                .findByTenantId(tenantId)
+                .map(TdsSettingResponse::from)
+                .orElseGet(() -> TdsSettingResponse.defaultSettings(tenantId));
+    }
+
+    @Override
+    public TdsSettingResponse saveTds(TdsSettingRequest request) {
+        Objects.requireNonNull(request, "request must not be null");
+        UUID tenantId = TenantContext.require();
+        if (request.enabled() == null) {
+            throw new StatutorySettingsValidationException("enabled", "enabled is required");
+        }
+
+        String actor = resolveActor();
+        TdsSetting entity =
+                tdsSettingRepository.findByTenantId(tenantId).orElseGet(() -> new TdsSetting(tenantId, actor));
+        entity.setUpdatedBy(actor);
+        entity.setEnabled(request.enabled());
+
+        TdsSetting saved = tdsSettingRepository.save(entity);
+        return TdsSettingResponse.from(saved);
     }
 
     private void validateEpfRequest(EpfSettingRequest request) {

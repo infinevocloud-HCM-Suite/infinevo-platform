@@ -6,6 +6,35 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-13 — D-142 locked-month loss of pay on `main` (`d281593f`)
+
+- A loss of pay entry for a locked month is stored under the next open month. The screen now says so in a dialog and shows that month. Frontend only, `hrms/lossofpay/`.
+- **Open question for the founder:** refuse a locked month outright instead of posting forward. The ledger treats every input kind this way, so it would be a core change.
+- **Branches:** `dev-claude-d142` reset to `main`.
+
+## 2026-11-13 — D-140 manual loss of pay and D-141 TDS switches on `main` (`30b8fbaf`)
+
+| What | Where |
+|---|---|
+| HR enters loss of pay days by hand on HRMS › Loss of pay; rows post to the pay input ledger as LOP_DAYS and the next regular run deducts them; reversible. The ledger gains a `note` column (V191); hr gets `core.pay_input.read/write` (V189) | `hrms/lossofpay/`, `HrmsNavigation.java`, `core/payinput/` |
+| TDS company switch (`payroll.tds_setting`, V190) at Payroll › Settings › TDS; per-employee "TDS applicable" on the statutory profile; the pay run writes no TDS line when either is off | `statutory/settings/`, `salary/EmployeeStatutoryProfile*`, `tds/TaxLineContributor.java`, `payroll/settings/TdsScreen.jsx` |
+
+- Built by Claude on `dev-claude-d140-d141`, one independent read (three defects fixed), CI green on `6bda8a6a`.
+- **Left:** unpaid leave type that writes LOP on approval; the Loss of pay screen does not show a month's locked state (a locked month posts to the next open month with a warning); manual LOP is not shown separately from leave LOP on the slip; the run row has no `payable_days`.
+- **For the migrated company:** switch company TDS off at Settings › TDS and recompute October to remove the TDS catch-up.
+- **Branches:** `dev-claude-d140-d141` reset to `main`.
+
+## 2026-11-13 — D-139 employee list keeps its place on `main` (`bbe2bdf8`)
+
+| What | Where |
+|---|---|
+| The employee list's page, size, search, status and deleted filters live in the URL; a row click hands that URL to the employee page, whose back arrow returns to the same page with the row highlighted. The search box suggests matching employees after two letters and picking one opens that employee | `EmployeeList.jsx`, `EmployeePage.jsx`, `core-ui.css` |
+
+- Built by Claude on `dev-claude-d139`, one independent read (one minor defect fixed), CI green on `77a45b09`. Frontend only.
+- **Left:** list → employee → Leave → back to the employee loses the list URL, so the back arrow then goes to plain `/employees`; delete returns to the plain list.
+- **Note:** Sayeed's commit `0eeb390e` on `main` also uses the numbers D-138 and D-139 for leave balance work that has no tracker row; those need their own numbers.
+- **Branches:** `dev-claude-d139` reset to `main`; it can be deleted.
+
 ## 2026-11-13 — W-117 component type on the salary screens on `main` (`1f7b703c`)
 
 | What | Where |

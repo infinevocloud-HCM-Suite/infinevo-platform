@@ -239,7 +239,9 @@ describe('SalarySetupDrawer (W-75.2 §7)', () => {
     expect(payload).not.toHaveProperty('statutoryProfile');
 
     const [, profile] = statutoryProfileService.save.mock.calls[0];
-    expect(Object.keys(profile)).toHaveLength(10);
+    // D-141 adds tdsApplicable to the ten W-76.2 fields.
+    expect(Object.keys(profile)).toHaveLength(11);
+    expect(profile.tdsApplicable).toBe(true);
     expect(profile).toMatchObject({ eligibleForPf: true, eligibleForEps: true, eligibleForPt: true });
     expect(profile).toMatchObject({ eligibleForLwf: false, director: false });
 
@@ -269,6 +271,28 @@ describe('SalarySetupDrawer (W-75.2 §7)', () => {
     await waitFor(() => expect(statutoryProfileService.save).toHaveBeenCalledTimes(1), SLOW);
     const [, profile] = statutoryProfileService.save.mock.calls[0];
     expect(profile).toMatchObject({ eligibleForLwf: true, director: true });
+  });
+
+  it('D-141: loads TDS applicable, defaults it on, and sends tdsApplicable false when unticked', async () => {
+    renderDrawer();
+    // The beforeEach profile has no tdsApplicable: a profile saved before D-141 reads as applicable.
+    await waitFor(() => expect(document.getElementById('chk-statutory-tds').checked).toBe(true), SLOW);
+    expect(screen.getByText('Off: no TDS is deducted for this employee in pay runs')).toBeDefined();
+
+    fireEvent.click(document.getElementById('chk-statutory-tds'));
+    fireEvent.change(document.getElementById('input-annual-ctc'), { target: { value: '600000' } });
+    await waitFor(() => expect(document.getElementById('btn-salary-version-submit').disabled).toBe(false), SLOW);
+    fireEvent.click(document.getElementById('btn-salary-version-submit'));
+
+    await waitFor(() => expect(statutoryProfileService.save).toHaveBeenCalledTimes(1), SLOW);
+    const [, profile] = statutoryProfileService.save.mock.calls[0];
+    expect(profile.tdsApplicable).toBe(false);
+  });
+
+  it('D-141: a profile with tdsApplicable false loads unticked', async () => {
+    statutoryProfileService.get.mockResolvedValue({ eligibleForPf: true, tdsApplicable: false, uan: '' });
+    renderDrawer();
+    await waitFor(() => expect(document.getElementById('chk-statutory-tds').checked).toBe(false), SLOW);
   });
 
   it('keeps the drawer open with the server message when the salary save fails after the profile saved', async () => {

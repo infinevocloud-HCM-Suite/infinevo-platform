@@ -134,6 +134,11 @@ public final class PayrollTestSchema {
                     st.execute("ALTER TABLE payroll.esi_setting NO FORCE ROW LEVEL SECURITY");
                 }
             }
+            // D-141: the company TDS switch and the employee flag on the statutory profile, which the
+            // EmployeeStatutoryProfile entity maps; needs core.employee_personal (V015) and V050.
+            if (!tableExists(conn, "payroll", "tds_setting")) {
+                executeResource(conn, "db/migration/payroll/V190__tds_switches.sql");
+            }
             if (!tableExists(conn, "reference", "state")) {
                 executeResource(conn, "db/migration/reference/V003__reference_lookups.sql");
             }
@@ -215,6 +220,9 @@ public final class PayrollTestSchema {
             }
             if (!columnExists(conn, "core", "pay_input_period_lock", "run_ref")) {
                 executeResource(conn, "db/migration/core/V060__pay_input_run_ref.sql");
+            }
+            if (!columnExists(conn, "core", "pay_input", "note")) {
+                executeResource(conn, "db/migration/core/V191__pay_input_note.sql");
             }
             if (!tableExists(conn, "core", "document")) {
                 executeResource(conn, "db/migration/core/V037__document.sql");
@@ -360,6 +368,9 @@ public final class PayrollTestSchema {
             }
             if (tableExists(conn, "payroll", "esi_setting")) {
                 st.execute("DELETE FROM payroll.esi_setting");
+            }
+            if (tableExists(conn, "payroll", "tds_setting")) {
+                st.execute("DELETE FROM payroll.tds_setting");
             }
             if (tableExists(conn, "payroll", "org_pt_override_slab")) {
                 st.execute("DELETE FROM payroll.org_pt_override_slab");

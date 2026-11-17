@@ -22,7 +22,38 @@ public record PayInputResponse(
         @JsonProperty("source_ref") String sourceRef,
         @JsonProperty("run_ref") UUID runRef,
         @JsonProperty("reverses_id") UUID reversesId,
-        @JsonProperty("created_at") Instant createdAt) {
+        @JsonProperty("created_at") Instant createdAt,
+        @JsonProperty("created_by") String createdBy,
+        @JsonProperty("note") String note) {
+
+    /** The shape before D-140, with no {@code createdBy} and no {@code note}. Kept for existing callers. */
+    public PayInputResponse(
+            UUID id,
+            UUID employeeId,
+            YearMonth postedPeriod,
+            PayInputKind kind,
+            BigDecimal quantity,
+            BigDecimal amount,
+            String sourceModule,
+            String sourceRef,
+            UUID runRef,
+            UUID reversesId,
+            Instant createdAt) {
+        this(
+                id,
+                employeeId,
+                postedPeriod,
+                kind,
+                quantity,
+                amount,
+                sourceModule,
+                sourceRef,
+                runRef,
+                reversesId,
+                createdAt,
+                null,
+                null);
+    }
 
     static PayInputResponse from(PayInput entity) {
         return new PayInputResponse(
@@ -36,6 +67,8 @@ public record PayInputResponse(
                 entity.getSourceRef(),
                 entity.getRunRef(),
                 entity.getReversesId(),
-                entity.getCreatedAt());
+                entity.getCreatedAt(),
+                entity.getCreatedBy(),
+                entity.getNote());
     }
 }

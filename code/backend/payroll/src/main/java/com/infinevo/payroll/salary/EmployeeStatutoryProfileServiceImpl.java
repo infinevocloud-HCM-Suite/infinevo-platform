@@ -75,6 +75,9 @@ public class EmployeeStatutoryProfileServiceImpl implements EmployeeStatutoryPro
         profile.setEligibleForEps(Boolean.TRUE.equals(request.eligibleForEps()));
         profile.setContributesEpsOnHigherWages(Boolean.TRUE.equals(request.contributesEpsOnHigherWages()));
         profile.setDirector(Boolean.TRUE.equals(request.director()));
+        if (request.tdsApplicable() != null) {
+            profile.setTdsApplicable(request.tdsApplicable());
+        }
         profile.setPfAccountNumber(pfAccountNumber);
         profile.setUan(uan);
         profile.setEsiNumber(esiNumber);
@@ -82,6 +85,16 @@ public class EmployeeStatutoryProfileServiceImpl implements EmployeeStatutoryPro
 
         EmployeeStatutoryProfile saved = statutoryProfileRepository.save(profile);
         return StatutoryProfileResponse.from(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isTdsApplicable(UUID employeeId) {
+        UUID tenantId = TenantContext.require();
+        return statutoryProfileRepository
+                .findByTenantIdAndEmployeeId(tenantId, employeeId)
+                .map(EmployeeStatutoryProfile::isTdsApplicable)
+                .orElse(true);
     }
 
     /** Refuses a number longer than its column, so it is a field error and never a database failure (D-132). */

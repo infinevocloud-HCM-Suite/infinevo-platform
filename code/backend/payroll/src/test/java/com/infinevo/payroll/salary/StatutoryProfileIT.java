@@ -77,6 +77,36 @@ class StatutoryProfileIT extends AbstractIntegrationTest {
         assertThat(profile.pfAccountNumber()).isNull();
         assertThat(profile.uan()).isNull();
         assertThat(profile.esiNumber()).isNull();
+        assertThat(profile.tdsApplicable()).isTrue();
+        assertThat(statutoryProfileService.isTdsApplicable(employeeId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("D-141: tdsApplicable false round-trips; a later save without it leaves it false; true turns it on")
+    void tdsApplicableRoundTrips() {
+        TenantContext.set(TENANT_A);
+
+        StatutoryProfileResponse created = statutoryProfileService.upsert(
+                employeeId,
+                new StatutoryProfileRequest(true, true, false, false, true, false, false, null, null, null));
+        assertThat(created.tdsApplicable()).isTrue();
+
+        StatutoryProfileResponse off = statutoryProfileService.upsert(
+                employeeId,
+                new StatutoryProfileRequest(true, true, false, false, true, false, false, null, null, null, false));
+        assertThat(off.tdsApplicable()).isFalse();
+        assertThat(statutoryProfileService.get(employeeId).tdsApplicable()).isFalse();
+        assertThat(statutoryProfileService.isTdsApplicable(employeeId)).isFalse();
+
+        statutoryProfileService.upsert(
+                employeeId,
+                new StatutoryProfileRequest(true, true, false, false, true, false, false, null, null, null));
+        assertThat(statutoryProfileService.get(employeeId).tdsApplicable()).isFalse();
+
+        statutoryProfileService.upsert(
+                employeeId,
+                new StatutoryProfileRequest(true, true, false, false, true, false, false, null, null, null, true));
+        assertThat(statutoryProfileService.isTdsApplicable(employeeId)).isTrue();
     }
 
     @Test

@@ -475,3 +475,9 @@
 }
 
 
+
+/* D-139: the employee row last opened, when the list is returned to from the employee page. */
+.ant-table-tbody > tr.employee-row-focused > td {
+  background: var(--brand-blue-soft, rgba(37, 99, 235, 0.08));
+  box-shadow: inset 3px 0 0 var(--brand-blue);
+}

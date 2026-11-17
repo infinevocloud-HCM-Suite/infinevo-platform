@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Modal } from 'antd';
 import { errorMsg } from '@shared/ui/msgHelper.js';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { EmployeePage } from './EmployeePage.jsx';
@@ -66,10 +66,11 @@ describe('EmployeePage component', () => {
     });
   });
 
-  function renderPage(employeeId) {
+  function renderPage(employeeId, { from } = {}) {
+    const entry = from ? { pathname: `/employees/${employeeId}`, state: { from } } : `/employees/${employeeId}`;
     return render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={[`/employees/${employeeId}`]}>
+        <MemoryRouter initialEntries={[entry]}>
           <Routes>
             <Route path="/employees/:id" element={<EmployeePage />} />
           </Routes>
@@ -77,6 +78,45 @@ describe('EmployeePage component', () => {
       </Provider>
     );
   }
+
+  // D-139: a probe route at /employees shows where the back arrow landed, query included.
+  function renderPageWithListProbe(employeeId, { from } = {}) {
+    const entry = from ? { pathname: `/employees/${employeeId}`, state: { from } } : `/employees/${employeeId}`;
+    function ListProbe() {
+      const location = useLocation();
+      return <div data-testid="list-probe">{location.pathname + location.search}</div>;
+    }
+    return render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={[entry]}>
+          <Routes>
+            <Route path="/employees" element={<ListProbe />} />
+            <Route path="/employees/:id" element={<EmployeePage />} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+  }
+
+  it('D-139: the back arrow returns to the list URL it was opened from', async () => {
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-back-1', employeeNumber: 'E-7', firstName: 'Back', lastName: 'Arrow', status: 'ACTIVE',
+    });
+    renderPageWithListProbe('emp-back-1', { from: '/employees?page=3&status=ACTIVE&focus=emp-back-1' });
+    await screen.findByText('E-7');
+    fireEvent.click(document.querySelector('#btn-back-to-employees'));
+    expect((await screen.findByTestId('list-probe')).textContent).toBe('/employees?page=3&status=ACTIVE&focus=emp-back-1');
+  });
+
+  it('D-139: opened directly, the back arrow goes to the plain list', async () => {
+    employeeService.get.mockResolvedValueOnce({
+      id: 'emp-back-2', employeeNumber: 'E-8', firstName: 'No', lastName: 'State', status: 'ACTIVE',
+    });
+    renderPageWithListProbe('emp-back-2');
+    await screen.findByText('E-8');
+    fireEvent.click(document.querySelector('#btn-back-to-employees'));
+    expect((await screen.findByTestId('list-probe')).textContent).toBe('/employees');
+  });
 
   it('offers Reactivate and Terminate on a SUSPENDED employee, and Reactivate sends ACTIVE', async () => {
     employeeService.get.mockResolvedValueOnce({
