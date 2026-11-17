@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Avatar, Dropdown, Button, Card, Typography, Empty } from 'antd';
+import { Avatar, Dropdown, Button } from 'antd';
 import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useMe } from '../shell/auth/useMe.js';
 import { logout } from '../shell/auth/keycloak.js';
@@ -9,40 +9,13 @@ import { MobileTabBar } from './MobileTabBar.jsx';
 import { MobileAttendanceScreen } from './attendance/MobileAttendanceScreen.jsx';
 import { MobileLeaveScreen } from './leave/MobileLeaveScreen.jsx';
 import { MobilePayslipsScreen } from './payslips/MobilePayslipsScreen.jsx';
+import { MobileApprovalsScreen } from './approvals/MobileApprovalsScreen.jsx';
 import { PortalLayout } from '../shell/portal/PortalLayout.jsx';
 import { ApplyLeave } from '../core/portal/ApplyLeave.jsx';
 import { ApplyWfh } from '../core/portal/ApplyWfh.jsx';
 import { LeaveBalanceDetail } from '../core/portal/LeaveBalanceDetail.jsx';
 import { PayslipPage } from '../shell/portal/PayslipPage.jsx';
 import './mobile.css';
-
-const { Text, Title } = Typography;
-
-function MobilePlaceholder({ title, description, ticketId }) {
-  return (
-    <div style={{ padding: '24px 8px' }}>
-      <Card style={{ borderRadius: 12, textAlign: 'center' }}>
-        <Empty
-          description={
-            <div style={{ marginTop: 8 }}>
-              <Title level={4} style={{ marginBottom: 4 }}>{title}</Title>
-              <Text type="secondary">{description}</Text>
-              <div style={{ marginTop: 12 }}>
-                <Text code>{ticketId}</Text>
-              </div>
-            </div>
-          }
-        />
-      </Card>
-    </div>
-  );
-}
-
-MobilePlaceholder.propTypes = {
-  title: PropTypes.string.isRequired,
-  description: PropTypes.string.isRequired,
-  ticketId: PropTypes.string.isRequired,
-};
 
 export function MobileShell({ children = null }) {
   const me = useMe();
@@ -116,16 +89,7 @@ export function MobileShell({ children = null }) {
             <Route path="/me/wfh/apply" element={<ApplyWfh />} />
             <Route path="/me/payslips" element={<MobilePayslipsScreen />} />
             <Route path="/me/payslips/:payrunId" element={<PayslipPage />} />
-            <Route
-              path="/me/approvals"
-              element={
-                <MobilePlaceholder
-                  title="Mobile Approvals"
-                  description="Manager approvals inbox and 1-tap decisions is ready for W-98.5."
-                  ticketId="W-98.5"
-                />
-              }
-            />
+            <Route path="/me/approvals" element={<MobileApprovalsScreen />} />
             <Route path="*" element={<Navigate to="/me" replace />} />
           </Routes>
         )}

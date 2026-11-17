@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Badge } from 'antd';
 import {
   HomeOutlined,
   ClockCircleOutlined,
@@ -9,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import { useCan } from '../shell/navigation/useCan.js';
 
-export function MobileTabBar({ canApproveOverride = undefined }) {
+export function MobileTabBar({ canApproveOverride = undefined, pendingBadgeCount = 0 }) {
   const location = useLocation();
   const navigate = useNavigate();
   const canDecideApproval = useCan('core.approval.decide');
@@ -50,7 +51,11 @@ export function MobileTabBar({ canApproveOverride = undefined }) {
       key: 'approvals',
       label: 'Approvals',
       path: '/me/approvals',
-      icon: <CheckCircleOutlined className="mobile-tab-icon" />,
+      icon: (
+        <Badge count={pendingBadgeCount} size="small" offset={[4, -2]}>
+          <CheckCircleOutlined className="mobile-tab-icon" />
+        </Badge>
+      ),
     });
   }
 
@@ -86,4 +91,5 @@ export function MobileTabBar({ canApproveOverride = undefined }) {
 
 MobileTabBar.propTypes = {
   canApproveOverride: PropTypes.bool,
+  pendingBadgeCount: PropTypes.number,
 };
