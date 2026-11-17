@@ -99,7 +99,12 @@ describe('PublicPayslip component', () => {
 
     // Check earnings & deductions
     expect(screen.getByTestId('public-payslip-earnings').textContent).toContain('Basic Salary');
-    expect(screen.getByTestId('public-payslip-deductions').textContent).toContain('Provident Fund (EPF)');
+    const deductionsText = screen.getByTestId('public-payslip-deductions').textContent;
+    expect(deductionsText).toContain('Income Tax');
+    expect(deductionsText).toContain('Provident Fund (EPF)');
+    expect(deductionsText).toContain('Professional Tax (PT)');
+    const ptMatches = deductionsText.match(/Professional Tax/g) || [];
+    expect(ptMatches.length).toBe(1);
 
     // Check net pay and gross
     const totalsCard = screen.getByTestId('public-payslip-totals');
