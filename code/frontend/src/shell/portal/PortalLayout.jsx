@@ -11,12 +11,14 @@ import {
   AppstoreOutlined,
   GiftOutlined,
   HomeOutlined,
+  CheckSquareOutlined,
 } from '@ant-design/icons';
 import { portalService } from './portalService.js';
 import { MyProfile } from './panels/MyProfile.jsx';
 import { MyLeave } from './panels/MyLeave.jsx';
 import { MyWfh } from './panels/MyWfh.jsx';
 import { MyPayslips } from './panels/MyPayslips.jsx';
+import { MyOnboarding } from './panels/MyOnboarding.jsx';
 import { portalPanels as hrmsPortalPanels } from '../../hrms/index.js';
 import { portalPanels as payrollPortalPanels } from '../../payroll/index.js';
 import { leaveActions, profileActions, MyDocumentsPanel } from '../../core/portal/index.js';
@@ -33,6 +35,7 @@ const PANEL_ICONS = {
   taxDeclaration: <FileTextOutlined />,
   claims: <WalletOutlined />,
   fbp: <GiftOutlined />,
+  onboarding: <CheckSquareOutlined />,
 };
 
 const PANEL_COMPONENTS = {
@@ -41,6 +44,7 @@ const PANEL_COMPONENTS = {
   wfh: MyWfh,
   documents: MyDocumentsPanel,
   payslips: MyPayslips,
+  onboarding: MyOnboarding,
 };
 
 const modulePanels = [...(hrmsPortalPanels || []), ...(payrollPortalPanels || [])];

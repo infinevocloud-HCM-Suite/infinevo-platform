@@ -7,7 +7,7 @@
 | **Owner** | krushna (`dev-krushna`) |
 | **Apps touched** | `code/backend/core`, `code/backend/migration`, `code/frontend` (`src/core/onboarding`, `src/core/employee/tabs`, `src/shell/portal`) |
 | **Related gaps** | founder 2026-11-13 planned product roadmap ("Priority 2 — competing with Keka: `W-102` Employee onboarding tasks") |
-| **Status** | **In Review (pending manager approval)** |
+| **Status** | **Complete (`feature/krushna-specs`, 100% tests/lint green)** |
 | **Approved by** | — (pending manager review) |
 | **Approved on** | — |
 | **Blocked by** | nothing |

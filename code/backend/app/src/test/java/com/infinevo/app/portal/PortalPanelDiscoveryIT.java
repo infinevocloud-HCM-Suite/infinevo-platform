@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
+import com.infinevo.core.portal.OnboardingPanelProvider;
 import com.infinevo.core.portal.PanelDescriptor;
 import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.core.portal.PortalPanelService;
@@ -91,9 +92,9 @@ class PortalPanelDiscoveryIT {
     private TimesheetService timesheetService;
 
     @Test
-    @DisplayName("PortalPanelService discovers all 9 providers including module providers from payroll and hrms")
+    @DisplayName("PortalPanelService discovers all 10 providers including module providers from payroll and hrms")
     void discoversAllEightProviders() {
-        assertThat(providers).hasSize(9);
+        assertThat(providers).hasSize(10);
 
         List<String> codes = providers.stream().map(PortalPanelProvider::code).toList();
         assertThat(codes)
@@ -102,6 +103,7 @@ class PortalPanelDiscoveryIT {
                         "leave",
                         "documents",
                         "wfh",
+                        "onboarding",
                         "payslips",
                         "taxDeclaration",
                         "timesheet",
@@ -117,6 +119,8 @@ class PortalPanelDiscoveryIT {
         assertThat(providers.stream().anyMatch(p -> p instanceof FbpPanelProvider))
                 .isTrue();
         assertThat(providers.stream().anyMatch(p -> p instanceof WfhPanelProvider))
+                .isTrue();
+        assertThat(providers.stream().anyMatch(p -> p instanceof OnboardingPanelProvider))
                 .isTrue();
     }
 
@@ -157,9 +161,19 @@ class PortalPanelDiscoveryIT {
         List<PanelDescriptor> panels = portalPanelService.getPanels();
         List<String> panelCodes = panels.stream().map(PanelDescriptor::code).toList();
 
-        // Acme sees profile, leave, documents, wfh, payslips, taxDeclaration, claims, fbp - but NOT timesheet
+        // Acme sees profile, leave, documents, wfh, onboarding, payslips, taxDeclaration, claims, fbp - but NOT
+        // timesheet
         assertThat(panelCodes)
-                .containsExactly("profile", "leave", "documents", "wfh", "payslips", "taxDeclaration", "claims", "fbp");
+                .containsExactly(
+                        "profile",
+                        "leave",
+                        "documents",
+                        "wfh",
+                        "onboarding",
+                        "payslips",
+                        "taxDeclaration",
+                        "claims",
+                        "fbp");
 
         // W-47.4: an HRMS-only tenant never sees the claims panel
         when(entitlementService.holds(PlatformModule.PAYROLL)).thenReturn(false);
@@ -169,6 +183,6 @@ class PortalPanelDiscoveryIT {
                 .toList();
         assertThat(hrmsOnly)
                 .doesNotContain("claims", "payslips", "taxDeclaration", "fbp")
-                .contains("timesheet", "wfh");
+                .contains("timesheet", "wfh", "onboarding");
     }
 }

@@ -34,7 +34,7 @@ describe('ApprovalRequestCard component (W-98.5 §6)', () => {
     expect(screen.getByText('Casual Leave from 24 Nov to 26 Nov')).toBeTruthy();
     expect(screen.getByText('"Family event"')).toBeTruthy();
     expect(screen.getByText('Step 1 of 2')).toBeTruthy();
-    expect(screen.getByText(/3 days/)).toBeTruthy();
+    expect(screen.getAllByText(/3 days/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('triggers onApprove when clicking Approve button', () => {

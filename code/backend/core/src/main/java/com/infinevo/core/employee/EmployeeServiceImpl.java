@@ -86,6 +86,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     /** W-73.6: carries {@link EmployeeTerminatedEvent}; {@code null} only in a unit test built by hand. */
     private final ApplicationEventPublisher publisher;
 
+    /** W-102: auto-assigns onboarding task checklist on employee create. */
+    @Autowired(required = false)
+    private com.infinevo.core.onboarding.OnboardingService onboardingService;
+
     public EmployeeServiceImpl(
             EmployeeRepository employeeRepository,
             DepartmentRepository departmentRepository,
@@ -134,6 +138,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         this.publisher = publisher;
     }
 
+    void setOnboardingService(com.infinevo.core.onboarding.OnboardingService onboardingService) {
+        this.onboardingService = onboardingService;
+    }
+
     @Override
     @Transactional
     public EmployeeResponse create(EmployeeRequest request) {
@@ -162,6 +170,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         assign(employee, request, tenantId);
         Employee saved = save(employee, fields.employeeNumber());
         writeEmploymentTerms(saved.getId(), request);
+        if (onboardingService != null) {
+            onboardingService.assignDefaultTasks(saved, currentActor());
+        }
         return EmployeeResponse.from(saved);
     }
 
