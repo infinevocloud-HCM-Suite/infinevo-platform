@@ -40,6 +40,9 @@ const FbpPlanScreen = lazy(() =>
 const FbpDeclarationTab = lazy(() =>
   import('./settings/FbpDeclarationTab.jsx').then((m) => ({ default: m.FbpDeclarationTab }))
 );
+const GuidedStatutorySetup = lazy(() =>
+  import('./settings/GuidedStatutorySetup.jsx').then((m) => ({ default: m.GuidedStatutorySetup }))
+);
 
 const TaxWindowScreen = lazy(() =>
   import('./tax/TaxWindowScreen.jsx').then((m) => ({ default: m.TaxWindowScreen }))
@@ -111,6 +114,10 @@ export const routes = [
   {
     path: '/payroll/settings/tds',
     element: React.createElement(SettingsLayout, null, React.createElement(TdsScreen)),
+  },
+  {
+    path: '/payroll/settings/guided-setup',
+    element: React.createElement(SettingsLayout, null, React.createElement(GuidedStatutorySetup)),
   },
   {
     path: '/payroll/settings/fbp',

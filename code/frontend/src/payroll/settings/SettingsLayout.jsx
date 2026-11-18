@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { Layout, Menu, theme } from 'antd';
+import { Layout, Menu, Alert, Button, theme } from 'antd';
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import {
   CalendarOutlined,
@@ -11,6 +11,7 @@ import {
   FileDoneOutlined,
   FileTextOutlined,
   AuditOutlined,
+  CompassOutlined,
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -55,6 +56,11 @@ export const SETTINGS_MENU_ITEMS = [
     key: '/payroll/settings/form-16',
     icon: <FileTextOutlined />,
     label: 'Form 16',
+  },
+  {
+    key: '/payroll/settings/guided-setup',
+    icon: <CompassOutlined />,
+    label: 'Guided Setup Wizard',
   },
 ];
 
@@ -105,6 +111,29 @@ export function SettingsLayout({ children }) {
         </Sider>
 
         <Content style={{ padding: token.paddingLG, minHeight: 520, background: token.colorBgContainer }}>
+          {!location.pathname.includes('/payroll/settings/guided-setup') && (
+            <Alert
+              message="First time setting up statutory compliance?"
+              description={
+                <span>
+                  Establish your EPF, ESI, and state Professional Tax rules in minutes with our step-by-step wizard.{' '}
+                  <Button
+                    type="link"
+                    style={{ padding: 0 }}
+                    onClick={() => navigate('/payroll/settings/guided-setup')}
+                    data-testid="link-launch-guided-setup"
+                  >
+                    Launch Guided Setup Wizard →
+                  </Button>
+                </span>
+              }
+              type="info"
+              showIcon
+              closable
+              style={{ marginBottom: token.marginMD }}
+              data-testid="banner-guided-setup"
+            />
+          )}
           {children || <Outlet />}
         </Content>
       </Layout>

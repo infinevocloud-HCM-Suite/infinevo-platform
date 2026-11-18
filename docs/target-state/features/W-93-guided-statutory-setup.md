@@ -6,7 +6,7 @@
 | **Owner** | sayeed (`dev-sayeed`) |
 | **Apps touched** | `code/backend/payroll`, `code/frontend` (`src/payroll/settings`) |
 | **Related gaps** | `DEV-TRACKER.md` row `W-93`; legacy lacked setup assistance (`legacy/Payroll-Bend-SBoot/.../OrgStatutoryController.java:23-35` returned raw config DTO without guidance) |
-| **Status** | Draft - Awaiting Approval |
+| **Status** | Implemented - In Review |
 | **Blocked by** | nothing |
 
 ---
