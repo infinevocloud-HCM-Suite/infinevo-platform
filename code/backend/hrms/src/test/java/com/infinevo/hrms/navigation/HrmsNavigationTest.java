@@ -11,6 +11,8 @@ import com.infinevo.hrms.attendance.ClockController;
 import com.infinevo.hrms.attendance.RegularizationController;
 import com.infinevo.hrms.dashboard.HrmsDashboardController;
 import com.infinevo.hrms.overtime.OvertimeRequestController;
+import com.infinevo.hrms.performance.PerformanceCycleController;
+import com.infinevo.hrms.performance.PerformanceReviewController;
 import com.infinevo.hrms.project.ProjectController;
 import com.infinevo.hrms.timesheet.TimesheetController;
 import com.infinevo.shared.authz.RequiresAction;
@@ -62,7 +64,7 @@ class HrmsNavigationTest {
                 "/hrms/dashboard",
                 "/api/v1/hrms/dashboard",
                 "hrms.project.read_own");
-        assertThat(items).hasSize(13);
+        assertThat(items).hasSize(15);
         assertItem(
                 items.get(0),
                 "hrms.timesheets",
@@ -135,26 +137,40 @@ class HrmsNavigationTest {
                 "core.holiday.read");
         assertItem(
                 items.get(10),
+                "hrms.performance_cycles",
+                "nav.hrms.performance_cycles",
+                "/hrms/performance-cycles",
+                "/api/v1/performance/cycles",
+                "hrms.performance.manage");
+        assertItem(
+                items.get(11),
+                "hrms.performance_reviews",
+                "nav.hrms.performance_reviews",
+                "/hrms/performance-reviews",
+                "/api/v1/performance/reviews/team",
+                "hrms.performance.review_team");
+        assertItem(
+                items.get(12),
                 "hrms.regularizations_all",
                 "nav.hrms.regularizations_all",
                 "/hrms/regularizations/all",
                 "/api/v1/hrms/attendance/regularizations",
                 "core.attendance.read");
         assertItem(
-                items.get(11),
+                items.get(13),
                 "hrms.overtime_all",
                 "nav.hrms.overtime_all",
                 "/hrms/overtime-requests/all",
                 "/api/v1/overtime",
                 "core.overtime.read");
         assertItem(
-                items.get(12),
+                items.get(14),
                 "hrms.loss_of_pay",
                 "nav.hrms.loss_of_pay",
                 "/hrms/loss-of-pay",
                 "/api/v1/pay-inputs",
                 "core.pay_input.write");
-        assertThat(items.get(12)).isSameAs(HrmsNavigation.LOSS_OF_PAY);
+        assertThat(items.get(14)).isSameAs(HrmsNavigation.LOSS_OF_PAY);
     }
 
     @Test
@@ -171,15 +187,22 @@ class HrmsNavigationTest {
     @DisplayName("D-72: HR reaches everyone's regularizations and overtime from GETs guarded by the item's action")
     void allRequestListsAreGuardedGets() {
         Method regularizations =
-                getMapping(RegularizationController.class, items.get(10).targetEndpoint());
+                getMapping(RegularizationController.class, HrmsNavigation.REGULARIZATIONS_ALL.targetEndpoint());
         assertThat(regularizations.getAnnotation(RequiresAction.class).value()).isEqualTo("core.attendance.read");
         assertThat(RegularizationController.class
                         .getAnnotation(RequiresModule.class)
                         .value())
                 .isEqualTo(PlatformModule.HRMS);
         // Everyone's overtime is core's list (W-68); the menu item still sits under HRMS.
-        Method overtime = getMapping(OvertimeController.class, items.get(11).targetEndpoint());
+        Method overtime = getMapping(OvertimeController.class, HrmsNavigation.OVERTIME_ALL.targetEndpoint());
         assertThat(overtime.getAnnotation(RequiresAction.class).value()).isEqualTo("core.overtime.read");
+    }
+
+    @Test
+    @DisplayName("W-106.1: performance cycles and team reviews are GETs guarded by their respective actions")
+    void performanceEndpointsAreReal() {
+        assertGuardedGet(PerformanceCycleController.class, HrmsNavigation.PERFORMANCE_CYCLES);
+        assertGuardedGet(PerformanceReviewController.class, HrmsNavigation.PERFORMANCE_REVIEWS);
     }
 
     @Test

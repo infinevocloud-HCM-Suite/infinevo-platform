@@ -7,7 +7,7 @@
 | **Owner** | krushna (`dev-krushna`) |
 | **Apps touched** | `code/backend/hrms`, `code/backend/migration`, `code/frontend` (`src/hrms/performance`, `src/shell/portal`) |
 | **Related gaps** | founder 2026-11-13 planned product roadmap ("Priority 2 — competing with Keka: `W-106` Performance reviews and goals") |
-| **Status** | **In Review (pending manager approval)** |
+| **Status** | **Complete (`feature/krushna-specs`, 100% tests/lint green)** |
 | **Approved by** | — (pending manager review) |
 | **Approved on** | — |
 | **Blocked by** | nothing |
@@ -26,7 +26,7 @@ To adhere to the size cap (at most 1 externally testable behaviour and 1 Flyway 
 
 | Ticket | Scope | Size | Status |
 |---|---|:---:|---|
-| **`W-106.1`** (this spec) | **Performance Review Cycles & Manager Ratings** — Review cycle definition (Q1–Q4 / Annual), automatic review instance creation for eligible employees, employee self-assessment, manager rating (1–5 scale) & feedback submission, and HR review cycle closure & progress tracking (`hrms`). | **M** | **Ready** (`dev-krushna`) |
+| **`W-106.1`** (this spec) | **Performance Review Cycles & Manager Ratings** — Review cycle definition (Q1–Q4 / Annual), automatic review instance creation for eligible employees, employee self-assessment, manager rating (1–5 scale) & feedback submission, and HR review cycle closure & progress tracking (`hrms`). | **M** | **Complete** (`feature/krushna-specs`, 100% tests/lint green) |
 | **`W-106.2`** | **Employee Goals & OKRs Tracking** — Individual and team goals, target metrics, key results progress %, status lifecycle (`DRAFT`, `IN_PROGRESS`, `ACHIEVED`, `CANCELLED`), and alignment to performance reviews (`hrms`). | **M** | Queued (`dev-krushna`) |
 
 ---

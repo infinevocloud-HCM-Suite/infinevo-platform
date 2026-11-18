@@ -153,6 +153,24 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "core.holiday.read");
 
+    /** HR Performance Review Cycles administration (W-106.1): {@code PerformanceCycleController}'s {@code GET /api/v1/performance/cycles}. */
+    public static final ItemDefinition PERFORMANCE_CYCLES = new ItemDefinition(
+            "hrms.performance_cycles",
+            "nav.hrms.performance_cycles",
+            "/hrms/performance-cycles",
+            "/api/v1/performance/cycles",
+            PlatformModule.HRMS,
+            "hrms.performance.manage");
+
+    /** Manager Team Performance Reviews (W-106.1): {@code PerformanceReviewController}'s {@code GET /api/v1/performance/reviews/team}. */
+    public static final ItemDefinition PERFORMANCE_REVIEWS = new ItemDefinition(
+            "hrms.performance_reviews",
+            "nav.hrms.performance_reviews",
+            "/hrms/performance-reviews",
+            "/api/v1/performance/reviews/team",
+            PlatformModule.HRMS,
+            "hrms.performance.review_team");
+
     /** The module's screens, in menu order (excluding top-level dashboard, D-110). */
     public static final List<ItemDefinition> LEAVES = List.of(
             TIMESHEETS,
@@ -165,6 +183,8 @@ public class HrmsNavigation implements NavigationContributor {
             REGULARIZATIONS,
             OVERTIME_REQUESTS,
             HOLIDAYS,
+            PERFORMANCE_CYCLES,
+            PERFORMANCE_REVIEWS,
             REGULARIZATIONS_ALL,
             OVERTIME_ALL,
             LOSS_OF_PAY);

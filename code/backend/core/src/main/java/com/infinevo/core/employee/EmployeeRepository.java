@@ -49,6 +49,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
      */
     List<Employee> findByTenantIdAndIdIn(UUID tenantId, Collection<UUID> ids);
 
+    /** Live employees in this tenant in the given status (W-106.1). */
+    List<Employee> findByTenantIdAndDeletedFalseAndStatus(UUID tenantId, EmploymentStatus status);
+
     /** The live employee linked to this user account in this tenant, if there is one (W-13.4). */
     Optional<Employee> findByTenantIdAndUserAccountIdAndDeletedFalse(UUID tenantId, UUID userAccountId);
 
