@@ -56,6 +56,11 @@ export const SETTINGS_MENU_ITEMS = [
     icon: <FileTextOutlined />,
     label: 'Form 16',
   },
+  {
+    key: '/payroll/settings/form-24q',
+    icon: <AuditOutlined />,
+    label: 'Form 24Q (TDS)',
+  },
 ];
 
 export function SettingsLayout({ children }) {

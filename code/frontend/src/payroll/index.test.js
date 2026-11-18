@@ -31,6 +31,9 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/tax/form-16',
       '/payroll/form-16',
       '/payroll/settings/form-16',
+      '/payroll/form24q',
+      '/payroll/tax/form-24q',
+      '/payroll/settings/form-24q',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
   });
@@ -54,6 +57,21 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
 
     const mainForm16 = routes.find((r) => r.path === '/payroll/tax/form-16');
     expect(mainForm16.mountWith).toEqual(['/payroll/runs', '/payroll/dashboard', '/payroll/settings']);
+  });
+
+  it('W-89.4: /payroll/tax/form-24q and /payroll/settings/form-24q redirect to /payroll/form24q', () => {
+    const form24qAlias = routes.find((r) => r.path === '/payroll/tax/form-24q');
+    expect(form24qAlias.element.type).toBe(Navigate);
+    expect(form24qAlias.element.props).toEqual({ to: '/payroll/form24q', replace: true });
+    expect(form24qAlias.mountWith).toEqual(['/payroll/runs', '/payroll/dashboard', '/payroll/settings']);
+
+    const settingsForm24q = routes.find((r) => r.path === '/payroll/settings/form-24q');
+    expect(settingsForm24q.element.type).toBe(Navigate);
+    expect(settingsForm24q.element.props).toEqual({ to: '/payroll/form24q', replace: true });
+    expect(settingsForm24q.mountWith).toEqual(['/payroll/runs', '/payroll/dashboard', '/payroll/settings']);
+
+    const mainForm24q = routes.find((r) => r.path === '/payroll/form24q');
+    expect(mainForm24q.mountWith).toEqual(['/payroll/runs', '/payroll/dashboard', '/payroll/settings']);
   });
 
   it('registers the payrun, tax, salary, and settings slices', () => {

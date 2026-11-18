@@ -53,6 +53,9 @@ const DeclarationPage = lazy(() =>
 const Form16Page = lazy(() =>
   import('./form16/Form16Page.jsx').then((m) => ({ default: m.Form16Page }))
 );
+const Form24QPage = lazy(() =>
+  import('./form24q/Form24QPage.jsx').then((m) => ({ default: m.Form24QPage }))
+);
 const PriorPayrollPage = lazy(() =>
   import('./priorpayroll/PriorPayrollPage.jsx').then((m) => ({ default: m.PriorPayrollPage }))
 );
@@ -146,6 +149,21 @@ export const routes = [
   {
     path: '/payroll/settings/form-16',
     element: React.createElement(Navigate, { to: '/payroll/tax/form-16', replace: true }),
+    mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
+  {
+    path: '/payroll/form24q',
+    element: React.createElement(Form24QPage),
+    mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
+  {
+    path: '/payroll/tax/form-24q',
+    element: React.createElement(Navigate, { to: '/payroll/form24q', replace: true }),
+    mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
+  {
+    path: '/payroll/settings/form-24q',
+    element: React.createElement(Navigate, { to: '/payroll/form24q', replace: true }),
     mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
   },
 ];
