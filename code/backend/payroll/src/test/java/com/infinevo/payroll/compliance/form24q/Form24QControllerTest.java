@@ -27,11 +27,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
- * Controller unit tests for {@link Form24QController} (W-89.2).
+ * Controller unit tests for {@link Form24QController} (W-89.2, W-89.3).
  */
 class Form24QControllerTest {
 
     private Form24QAnnexure1Service annexure1Service;
+    private Form24QAnnexure2Service annexure2Service;
     private MockMvc mvc;
 
     private static final UUID TENANT_ID = UUID.randomUUID();
@@ -39,7 +40,8 @@ class Form24QControllerTest {
     @BeforeEach
     void setUp() {
         annexure1Service = mock(Form24QAnnexure1Service.class);
-        Form24QController controller = new Form24QController(annexure1Service);
+        annexure2Service = mock(Form24QAnnexure2Service.class);
+        Form24QController controller = new Form24QController(annexure1Service, annexure2Service);
 
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
@@ -143,5 +145,56 @@ class Form24QControllerTest {
         mvc.perform(get("/api/v1/payroll/compliance/24q/{fy}/{quarter}/annexure-1", "2026-2027", "Q1"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/payroll/compliance/24q/{fy}/annexure-2 returns 200 with preview")
+    void previewAnnexure2_returnsOk() throws Exception {
+        Annexure2PreviewResponse preview = new Annexure2PreviewResponse(
+                "2026-2027",
+                "2027-2028",
+                "BLRE12345F",
+                "ABCDE1234F",
+                "Company Ltd",
+                1,
+                new BigDecimal("1200000.00"),
+                new BigDecimal("897600.00"),
+                new BigDecimal("98300.80"),
+                new BigDecimal("98300.80"),
+                BigDecimal.ZERO,
+                Collections.emptyList());
+
+        when(annexure2Service.previewAnnexure2("2026-2027")).thenReturn(preview);
+
+        mvc.perform(get("/api/v1/payroll/compliance/24q/{fy}/annexure-2", "2026-2027"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.data.financialYear").value("2026-2027"))
+                .andExpect(jsonPath("$.data.totalEmployees").value(1));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/payroll/compliance/24q/{fy}/{quarter}/annexure-2 with non-Q4 throws 400")
+    void previewAnnexure2_nonQ4_returns400() throws Exception {
+        mvc.perform(get("/api/v1/payroll/compliance/24q/{fy}/{quarter}/annexure-2", "2026-2027", "Q2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.message")
+                        .value("Annexure II is an annual statement applicable exclusively to Quarter 4 (Q4)"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/payroll/compliance/24q/{fy}/annexure-2/export returns CSV attachment")
+    void exportAnnexure2_csv_returnsAttachment() throws Exception {
+        byte[] csvBytes = "Sl No,Employee Code\r\n1,\"EMP001\"\r\n".getBytes(StandardCharsets.UTF_8);
+        when(annexure2Service.exportAnnexure2(eq("2026-2027"), eq("CSV"))).thenReturn(csvBytes);
+
+        mvc.perform(get("/api/v1/payroll/compliance/24q/{fy}/annexure-2/export", "2026-2027")
+                        .param("format", "CSV"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/csv;charset=UTF-8"))
+                .andExpect(header().string(
+                                "Content-Disposition", "attachment; filename=\"24Q_2026-2027_Q4_Annexure2.csv\""))
+                .andExpect(content().bytes(csvBytes));
     }
 }

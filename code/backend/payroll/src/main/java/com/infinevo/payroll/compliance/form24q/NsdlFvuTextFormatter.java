@@ -198,4 +198,100 @@ public final class NsdlFvuTextFormatter {
         }
         return fyOrAy.replace("-", "");
     }
+
+    public static byte[] formatAnnexure2(Annexure2PreviewResponse preview) {
+        StringBuilder sb = new StringBuilder();
+        int lineNo = 1;
+
+        // FH: File Header
+        sb.append("FH^").append(lineNo++).append("^NSDL-24Q^R^1.0^ASCII^^^^^^^^^^^\r\n");
+
+        int batchNo = 1;
+        String fyCode = toNsdlYear(preview.financialYear());
+        String ayCode = toNsdlYear(preview.assessmentYear());
+
+        // BH: Batch Header
+        sb.append("BH^")
+                .append(lineNo++)
+                .append("^")
+                .append(batchNo)
+                .append("^24Q^^^")
+                .append(preview.tan() != null ? preview.tan() : "")
+                .append("^")
+                .append(preview.pan() != null ? preview.pan() : "")
+                .append("^")
+                .append(fyCode)
+                .append("^")
+                .append(ayCode)
+                .append("^Q4^")
+                .append(preview.companyName() != null ? preview.companyName() : "")
+                .append("^^^^^")
+                .append(formatAmount(preview.totalGrossSalary()))
+                .append("^")
+                .append(formatAmount(preview.totalTdsDeducted()))
+                .append("^")
+                .append(formatAmount(preview.totalTaxPayable()))
+                .append("^\r\n");
+
+        int sdIndex = 1;
+        for (SalaryDetailRecord r : preview.records()) {
+            sb.append("SD^")
+                    .append(lineNo++)
+                    .append("^")
+                    .append(batchNo)
+                    .append("^")
+                    .append(sdIndex++)
+                    .append("^02^")
+                    .append(r.pan() != null ? r.pan() : "PANNOTAVBL")
+                    .append("^")
+                    .append(r.employeeName() != null ? r.employeeName() : "")
+                    .append("^")
+                    .append("NEW".equalsIgnoreCase(r.regime()) ? "Y" : "N")
+                    .append("^")
+                    .append(formatDate(r.employmentFrom()))
+                    .append("^")
+                    .append(formatDate(r.employmentTo()))
+                    .append("^")
+                    .append(formatAmount(r.grossSalary()))
+                    .append("^")
+                    .append(formatAmount(r.exemptionsSection10()))
+                    .append("^")
+                    .append(formatAmount(r.standardDeduction()))
+                    .append("^")
+                    .append(formatAmount(r.professionalTax()))
+                    .append("^")
+                    .append(formatAmount(r.totalDeductionsSection16()))
+                    .append("^")
+                    .append(formatAmount(r.incomeChargeableUnderSalaries()))
+                    .append("^")
+                    .append(formatAmount(r.housePropertyIncome()))
+                    .append("^")
+                    .append(formatAmount(r.otherIncome()))
+                    .append("^")
+                    .append(formatAmount(r.grossTotalIncome()))
+                    .append("^")
+                    .append(formatAmount(r.chapterViaDeductions()))
+                    .append("^")
+                    .append(formatAmount(r.totalTaxableIncome()))
+                    .append("^")
+                    .append(formatAmount(r.taxOnTotalIncome()))
+                    .append("^")
+                    .append(formatAmount(r.rebate87A()))
+                    .append("^")
+                    .append(formatAmount(r.surcharge()))
+                    .append("^")
+                    .append(formatAmount(r.cess()))
+                    .append("^")
+                    .append(formatAmount(r.relief89()))
+                    .append("^")
+                    .append(formatAmount(r.totalTaxPayable()))
+                    .append("^")
+                    .append(formatAmount(r.totalTdsDeducted()))
+                    .append("^")
+                    .append(formatAmount(r.prevEmployerTds()))
+                    .append("^\r\n");
+        }
+
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
 }

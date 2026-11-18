@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * REST controller for Form 24Q Quarterly compliance operations (W-89.2).
+ * REST controller for Form 24Q Quarterly compliance operations (W-89.2, W-89.3).
  */
 @RestController
 @RequestMapping("/api/v1/payroll/compliance/24q")
@@ -31,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class Form24QController {
 
     private final Form24QAnnexure1Service annexure1Service;
+    private final Form24QAnnexure2Service annexure2Service;
 
-    public Form24QController(Form24QAnnexure1Service annexure1Service) {
+    public Form24QController(Form24QAnnexure1Service annexure1Service, Form24QAnnexure2Service annexure2Service) {
         this.annexure1Service = Objects.requireNonNull(annexure1Service, "annexure1Service must not be null");
+        this.annexure2Service = Objects.requireNonNull(annexure2Service, "annexure2Service must not be null");
     }
 
     @GetMapping("/{fy}/{quarter}/annexure-1")
@@ -65,6 +67,61 @@ public class Form24QController {
         headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
 
         return new ResponseEntity<>(content, headers, HttpStatus.OK);
+    }
+
+    @GetMapping("/{fy}/annexure-2")
+    @RequiresAction("payroll.tax.view")
+    public ResponseEntity<ApiResponse<Annexure2PreviewResponse>> previewAnnexure2(
+            @PathVariable("fy") String financialYear) {
+        Annexure2PreviewResponse response = annexure2Service.previewAnnexure2(financialYear);
+        return ResponseEntity.ok(ApiResponse.ok("Form 24Q Annexure II preview generated successfully", response));
+    }
+
+    @GetMapping("/{fy}/{quarter}/annexure-2")
+    @RequiresAction("payroll.tax.view")
+    public ResponseEntity<ApiResponse<Annexure2PreviewResponse>> previewAnnexure2Quarter(
+            @PathVariable("fy") String financialYear, @PathVariable("quarter") String quarter) {
+        validateQ4(quarter);
+        return previewAnnexure2(financialYear);
+    }
+
+    @GetMapping("/{fy}/annexure-2/export")
+    @RequiresAction("payroll.tax.view")
+    public ResponseEntity<byte[]> exportAnnexure2(
+            @PathVariable("fy") String financialYear,
+            @RequestParam(name = "format", defaultValue = "CSV") String format) {
+        byte[] content = annexure2Service.exportAnnexure2(financialYear, format);
+
+        String normalizedFormat = format.trim().toUpperCase();
+        String extension = "TXT".equals(normalizedFormat) ? "txt" : "csv";
+        MediaType mediaType = "TXT".equals(normalizedFormat)
+                ? MediaType.parseMediaType("text/plain; charset=UTF-8")
+                : MediaType.parseMediaType("text/csv; charset=UTF-8");
+
+        String filename = String.format("24Q_%s_Q4_Annexure2.%s", financialYear, extension);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(mediaType);
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
+
+        return new ResponseEntity<>(content, headers, HttpStatus.OK);
+    }
+
+    @GetMapping("/{fy}/{quarter}/annexure-2/export")
+    @RequiresAction("payroll.tax.view")
+    public ResponseEntity<byte[]> exportAnnexure2Quarter(
+            @PathVariable("fy") String financialYear,
+            @PathVariable("quarter") String quarter,
+            @RequestParam(name = "format", defaultValue = "CSV") String format) {
+        validateQ4(quarter);
+        return exportAnnexure2(financialYear, format);
+    }
+
+    private void validateQ4(String quarter) {
+        if (!"Q4".equalsIgnoreCase(quarter)) {
+            throw new Form24QValidationException(
+                    "Annexure II is an annual statement applicable exclusively to Quarter 4 (Q4)");
+        }
     }
 
     @ExceptionHandler(Form24QValidationException.class)
