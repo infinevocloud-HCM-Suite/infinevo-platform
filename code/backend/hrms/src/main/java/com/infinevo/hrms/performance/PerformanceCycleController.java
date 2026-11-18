@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controller for managing performance review cycles (W-106.1).
+ * Controller for managing performance review cycles and cycle lifecycle (W-106.1).
  */
 @RestController
 @RequestMapping("/api/v1/performance/cycles")
