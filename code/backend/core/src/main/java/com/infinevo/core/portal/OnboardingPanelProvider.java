@@ -3,8 +3,9 @@ package com.infinevo.core.portal;
 import com.infinevo.core.onboarding.EmployeeOnboardingTaskRepository;
 import com.infinevo.shared.entitlement.PlatformModule;
 import com.infinevo.shared.tenant.TenantContext;
-import java.util.Objects;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,7 +17,12 @@ public class OnboardingPanelProvider implements PortalPanelProvider {
     private final EmployeeOnboardingTaskRepository taskRepository;
 
     public OnboardingPanelProvider(EmployeeOnboardingTaskRepository taskRepository) {
-        this.taskRepository = Objects.requireNonNull(taskRepository, "taskRepository must not be null");
+        this.taskRepository = taskRepository;
+    }
+
+    @Autowired
+    public OnboardingPanelProvider(ObjectProvider<EmployeeOnboardingTaskRepository> taskRepositoryProvider) {
+        this(taskRepositoryProvider != null ? taskRepositoryProvider.getIfAvailable() : null);
     }
 
     @Override
@@ -31,7 +37,7 @@ public class OnboardingPanelProvider implements PortalPanelProvider {
 
     @Override
     public PanelDescriptor panel(UUID employeeId) {
-        if (employeeId == null) {
+        if (employeeId == null || taskRepository == null) {
             return null;
         }
         UUID tenantId = TenantContext.current().orElse(null);
