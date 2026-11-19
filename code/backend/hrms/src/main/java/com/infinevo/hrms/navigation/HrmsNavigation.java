@@ -171,6 +171,15 @@ public class HrmsNavigation implements NavigationContributor {
             PlatformModule.HRMS,
             "hrms.performance.review_team");
 
+    /** Manager Team Goals & OKRs (W-106.2): {@code EmployeeGoalController}'s {@code GET /api/v1/hrms/goals/team}. */
+    public static final ItemDefinition TEAM_GOALS = new ItemDefinition(
+            "hrms.team_goals",
+            "nav.hrms.team_goals",
+            "/hrms/team-goals",
+            "/api/v1/hrms/goals/team",
+            PlatformModule.HRMS,
+            "hrms.goal.review_team");
+
     /** The module's screens, in menu order (excluding top-level dashboard, D-110). */
     public static final List<ItemDefinition> LEAVES = List.of(
             TIMESHEETS,
@@ -185,6 +194,7 @@ public class HrmsNavigation implements NavigationContributor {
             HOLIDAYS,
             PERFORMANCE_CYCLES,
             PERFORMANCE_REVIEWS,
+            TEAM_GOALS,
             REGULARIZATIONS_ALL,
             OVERTIME_ALL,
             LOSS_OF_PAY);

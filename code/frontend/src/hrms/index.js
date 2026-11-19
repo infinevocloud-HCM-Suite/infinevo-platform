@@ -64,8 +64,14 @@ const PerformanceCyclesScreen = lazy(() =>
 const TeamReviewsScreen = lazy(() =>
   import('./performance/TeamReviewsScreen.jsx').then((m) => ({ default: m.TeamReviewsScreen }))
 );
+const TeamGoalsScreen = lazy(() =>
+  import('./performance/TeamGoalsScreen.jsx').then((m) => ({ default: m.TeamGoalsScreen }))
+);
 const MyReviews = lazy(() =>
   import('../shell/portal/panels/MyReviews.jsx').then((m) => ({ default: m.MyReviews }))
+);
+const MyGoals = lazy(() =>
+  import('../shell/portal/panels/MyGoals.jsx').then((m) => ({ default: m.MyGoals }))
 );
 
 // HRMS module entry point (W-45 §5, W-48.2 §5). The week grid sits beneath `/hrms/timesheets`, the menu path
@@ -97,9 +103,10 @@ export const routes = [
   { path: '/hrms/overtime-requests/:id', mountWith: ['/approvals', '/hrms/overtime-requests/all'], element: React.createElement(OvertimeDetail) },
   // D-140: HR's manual loss of pay (feed `hrms.loss_of_pay`).
   { path: '/hrms/loss-of-pay', element: React.createElement(LossOfPayLog) },
-  // W-106.1 §5: Performance review cycles and team reviews
+  // W-106.1 & W-106.2: Performance review cycles, team reviews, and team goals
   { path: '/hrms/performance-cycles', element: React.createElement(PerformanceCyclesScreen) },
   { path: '/hrms/performance-reviews', element: React.createElement(TeamReviewsScreen) },
+  { path: '/hrms/team-goals', element: React.createElement(TeamGoalsScreen) },
 ];
 
 export const reducers = {};
@@ -109,4 +116,5 @@ export const reducers = {};
 export const portalPanels = [
   { code: 'timesheet', component: MyTimesheetPanel },
   { code: 'reviews', component: MyReviews },
+  { code: 'goals', component: MyGoals },
 ];

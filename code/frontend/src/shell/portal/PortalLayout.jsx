@@ -13,6 +13,7 @@ import {
   HomeOutlined,
   CheckSquareOutlined,
   StarOutlined,
+  TrophyOutlined,
 } from '@ant-design/icons';
 import { portalService } from './portalService.js';
 import { MyProfile } from './panels/MyProfile.jsx';
@@ -38,6 +39,7 @@ const PANEL_ICONS = {
   fbp: <GiftOutlined />,
   onboarding: <CheckSquareOutlined />,
   reviews: <StarOutlined />,
+  goals: <TrophyOutlined />,
 };
 
 const PANEL_COMPONENTS = {

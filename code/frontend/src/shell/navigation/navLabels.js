@@ -27,6 +27,7 @@ export const NAV_LABELS = {
   'nav.hrms.overtime_requests': 'Overtime requests',
   'nav.hrms.performance_cycles': 'Performance cycles',
   'nav.hrms.performance_reviews': 'Team reviews',
+  'nav.hrms.team_goals': 'Team goals',
   'nav.hrms.projects': 'Projects',
   'nav.hrms.regularizations': 'Regularisations',
   'nav.hrms.regularizations_all': 'All regularisations',

@@ -27,7 +27,7 @@ To adhere to the size cap (at most 1 externally testable behaviour and 1 Flyway 
 | Ticket | Scope | Size | Status |
 |---|---|:---:|---|
 | **`W-106.1`** (this spec) | **Performance Review Cycles & Manager Ratings** — Review cycle definition (Q1–Q4 / Annual), automatic review instance creation for eligible employees, employee self-assessment, manager rating (1–5 scale) & feedback submission, and HR review cycle closure & progress tracking (`hrms`). | **M** | **Complete** (`feature/krushna-specs`, 100% tests/lint green) |
-| **`W-106.2`** | **Employee Goals & OKRs Tracking** — Individual and team goals, target metrics, key results progress %, status lifecycle (`DRAFT`, `IN_PROGRESS`, `ACHIEVED`, `CANCELLED`), and alignment to performance reviews (`hrms`). | **M** | Queued (`dev-krushna`) |
+| **`W-106.2`** | **Employee Goals & OKRs Tracking** — Individual and team goals, target metrics, key results progress %, status lifecycle (`DRAFT`, `IN_PROGRESS`, `ACHIEVED`, `CANCELLED`), and alignment to performance reviews (`hrms`). | **M** | **Complete** (`feature/krushna-specs`, 100% tests/lint green) |
 
 ---
 
