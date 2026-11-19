@@ -244,7 +244,7 @@ export function RunPage() {
       if (omitted > 0 || isShortfall) {
         Modal.confirm({
           title: 'Bank File Payout Shortfall Warning',
-          icon: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
+          icon: <ExclamationCircleOutlined style={{ color: token.colorWarning }} />,
           content: (
             <div>
               <p>
@@ -258,7 +258,7 @@ export function RunPage() {
                   <br />
                   <strong>Run Net Pay:</strong> ₹{runNetPay.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   <br />
-                  <span style={{ color: '#cf1322' }}>
+                  <span style={{ color: token.colorError }}>
                     Shortfall: ₹{(runNetPay - fileTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </p>
