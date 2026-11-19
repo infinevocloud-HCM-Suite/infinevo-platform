@@ -914,7 +914,7 @@ Logged for later building. **Each has an owner since 2026-11-13 (see Assignments
 | #— | `W-89` Form 24Q | Quarterly TDS return data and export. Size L | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 2 in their order). Waits on CA review |
 | #— | `W-90` Full and final settlement | Final pay on exit: dues, leave encashment, recoveries. Size L | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 3 in their order). Waits on CA review |
 | #— | `W-91` Gratuity | Eligibility, calculation and payout on exit. Size M | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 4 in their order). Waits on CA review |
-| #— | `W-92` Labour Welfare Fund | Calculate LWF in the pay run by state; only the employee tick exists today. Size M | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 4 in their order). Waits on CA review |
+| #— | `W-92` Labour Welfare Fund | Calculate LWF in the pay run by state; only the employee tick exists today. Spec `W-92-labour-welfare-fund.md` written 2026-11-18. Size M. 1 migration (`V192`) | Spec ready. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 4 in their order) |
 | #— | `W-93` Guided statutory setup | Setup questions for the tenant admin that turn on the right rules. Spec `W-93-guided-statutory-setup.md` implemented on `dev-sayeed`. Size M. No table | **In review** (`dev-sayeed`, sayeed) |
 | #— | `W-94` Billing and GST invoices | Generate GST invoices and record payments. Size L | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 6 in their order). After `W-84.1`; waits on final prices |
 | #— | `W-95` ESI and PT return reports | Monthly and periodic statutory reports; check first what already exists. Spec `W-95-esi-and-pt-return-reports.md` implemented on `dev-sayeed`. Size M. No table | **In review** (`dev-sayeed`, sayeed) |
@@ -942,9 +942,9 @@ Logged for later building. **Each has an owner since 2026-11-13 (see Assignments
 | #— | `W-107` Accounting integration | Export or sync payroll entries to Tally and Zoho Books. Size M | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 7 in their order). |
 | #— | `W-108` Customer API and webhooks | Secure access for customers' own systems. Size L | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 8 in their order). |
 | #— | `W-109` Helpdesk | Employee queries raised to HR and tracked. Size M | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 5 in their order). |
-| #— | `W-110` Surveys | Polls and employee feedback. Size S | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 6 in their order). |
-| #— | `W-111` Asset tracking | Laptops and other items assigned to employees. Size S | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 7 in their order). |
-| #— | `W-112` Hiring | Job openings, candidates, interviews, offers. Size L | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 5 in their order). |
+| #— | `W-110` Surveys | Polls and employee feedback. Spec `W-110-surveys.md` written 2026-11-19. Size S. 1 migration (`V194`) | Spec ready. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 6 in their order) |
+| #— | `W-111` Asset tracking | Laptops and other items assigned to employees. Spec `W-111-asset-tracking.md` written 2026-11-19. Size S. 1 migration (`V195`) | Spec ready. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 7 in their order) |
+| #— | `W-112` Hiring | Job openings, candidates, interviews, offers. Spec `W-112-hiring.md` written 2026-11-19. Size L (progressive phases W-112.1–W-112.4). 1 migration (`V193`) | Spec ready. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 5 in their order) |
 | #— | `W-114` Infinevo HCM AI helper | Agentic in-app assistant that answers HR and payroll questions and carries out tasks such as applying leave. Works only within the signed-in user's tenant and permissions; the user confirms before anything changes; every action is audited. Size L | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 1 in their order). |
 
 `W-96`, `W-105` and `W-113` are infrastructure, in [INFRA-TRACKER.md](INFRA-TRACKER.md).
