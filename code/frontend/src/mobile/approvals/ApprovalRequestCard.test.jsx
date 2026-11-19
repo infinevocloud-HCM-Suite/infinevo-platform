@@ -17,7 +17,7 @@ describe('ApprovalRequestCard component (W-98.5 §6)', () => {
     daysCount: 3,
   };
 
-  it('renders employee info, flow type tag, and request summary', () => {
+  it('renders employee info, flow type tag, and request summary without employee code', () => {
     render(
       <ApprovalRequestCard
         item={sampleItem}
@@ -29,12 +29,15 @@ describe('ApprovalRequestCard component (W-98.5 §6)', () => {
 
     expect(screen.getByTestId('approval-card-step-101')).toBeTruthy();
     expect(screen.getByText('Priya Sharma')).toBeTruthy();
-    expect(screen.getByText('ID: EMP-045')).toBeTruthy();
+    // Employee code must not be shown
+    expect(screen.queryByText('EMP-045')).toBeNull();
+    expect(screen.queryByText(/ID:/)).toBeNull();
     expect(screen.getByText('Leave')).toBeTruthy();
     expect(screen.getByText('Casual Leave from 24 Nov to 26 Nov')).toBeTruthy();
     expect(screen.getByText('"Family event"')).toBeTruthy();
     expect(screen.getByText('Step 1 of 2')).toBeTruthy();
-    expect(screen.getAllByText(/3 days/).length).toBeGreaterThanOrEqual(1);
+    // Exact match assertion (W-98.5 code gaps)
+    expect(screen.getByText('3 days')).toBeTruthy();
   });
 
   it('triggers onApprove when clicking Approve button', () => {
@@ -51,6 +54,7 @@ describe('ApprovalRequestCard component (W-98.5 §6)', () => {
     const approveBtn = screen.getByTestId('btn-quick-approve-step-101');
     fireEvent.click(approveBtn);
 
+    expect(handleApprove).toHaveBeenCalledTimes(1);
     expect(handleApprove).toHaveBeenCalledWith(sampleItem);
   });
 
@@ -68,6 +72,7 @@ describe('ApprovalRequestCard component (W-98.5 §6)', () => {
     const rejectBtn = screen.getByTestId('btn-quick-reject-step-101');
     fireEvent.click(rejectBtn);
 
+    expect(handleReject).toHaveBeenCalledTimes(1);
     expect(handleReject).toHaveBeenCalledWith(sampleItem);
   });
 
@@ -83,7 +88,7 @@ describe('ApprovalRequestCard component (W-98.5 §6)', () => {
     );
 
     fireEvent.click(screen.getByTestId('approval-card-step-101'));
+    expect(handleClick).toHaveBeenCalledTimes(1);
     expect(handleClick).toHaveBeenCalledWith(sampleItem);
   });
 });
-

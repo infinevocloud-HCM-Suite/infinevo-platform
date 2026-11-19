@@ -69,6 +69,24 @@ public class ClockSession {
     @Column(name = "regularization_id", updatable = false)
     private UUID regularizationId;
 
+    @Column(name = "in_latitude", precision = 9, scale = 6)
+    private Double inLatitude;
+
+    @Column(name = "in_longitude", precision = 9, scale = 6)
+    private Double inLongitude;
+
+    @Column(name = "in_accuracy_m", precision = 8, scale = 2)
+    private Double inAccuracyM;
+
+    @Column(name = "out_latitude", precision = 9, scale = 6)
+    private Double outLatitude;
+
+    @Column(name = "out_longitude", precision = 9, scale = 6)
+    private Double outLongitude;
+
+    @Column(name = "out_accuracy_m", precision = 8, scale = 2)
+    private Double outAccuracyM;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -134,6 +152,18 @@ public class ClockSession {
         this.updatedBy = actor != null ? actor : "system";
     }
 
+    public void recordInLocation(Double latitude, Double longitude, Double accuracyMeters) {
+        this.inLatitude = latitude;
+        this.inLongitude = longitude;
+        this.inAccuracyM = accuracyMeters;
+    }
+
+    public void recordOutLocation(Double latitude, Double longitude, Double accuracyMeters) {
+        this.outLatitude = latitude;
+        this.outLongitude = longitude;
+        this.outAccuracyM = accuracyMeters;
+    }
+
     public void voidSession(VoidReason reason, Instant voidedAt, String actor) {
         this.voidReason = Objects.requireNonNull(reason, "reason must not be null");
         this.voidedAt = Objects.requireNonNull(voidedAt, "voidedAt must not be null");
@@ -178,6 +208,30 @@ public class ClockSession {
 
     public UUID getRegularizationId() {
         return regularizationId;
+    }
+
+    public Double getInLatitude() {
+        return inLatitude;
+    }
+
+    public Double getInLongitude() {
+        return inLongitude;
+    }
+
+    public Double getInAccuracyM() {
+        return inAccuracyM;
+    }
+
+    public Double getOutLatitude() {
+        return outLatitude;
+    }
+
+    public Double getOutLongitude() {
+        return outLongitude;
+    }
+
+    public Double getOutAccuracyM() {
+        return outAccuracyM;
     }
 
     public Instant getCreatedAt() {

@@ -313,6 +313,9 @@ class ClockServiceTest {
         assertThat(inResp).isNotNull();
         assertThat(inResp.employeeId()).isEqualTo(EMPLOYEE);
         assertThat(inResp.attendanceDate()).isEqualTo(LocalDate.of(2026, 4, 15));
+        assertThat(inResp.inLatitude()).isEqualTo(12.9716);
+        assertThat(inResp.inLongitude()).isEqualTo(77.5946);
+        assertThat(inResp.inAccuracyM()).isEqualTo(15.0);
 
         ClockSession open = new ClockSession(
                 TENANT, EMPLOYEE, LocalDate.of(2026, 4, 15), clock.instant(), SessionOrigin.CLOCK, "test");
@@ -325,6 +328,63 @@ class ClockServiceTest {
         ClockOutResponse outResp = service.clockOut(outReq);
         assertThat(outResp).isNotNull();
         assertThat(outResp.status()).isEqualTo(AttendanceStatus.PRESENT);
+        assertThat(outResp.session().outLatitude()).isEqualTo(12.9718);
+        assertThat(outResp.session().outLongitude()).isEqualTo(77.5948);
+        assertThat(outResp.session().outAccuracyM()).isEqualTo(20.0);
+    }
+
+    @Test
+    @DisplayName("clockIn and clockOut accept null coordinates")
+    void clockWithNullCoordinates() {
+        when(clockSessions.findByTenantIdAndEmployeeIdAndClockOutAtIsNullAndVoidedAtIsNull(TENANT, EMPLOYEE))
+                .thenReturn(Optional.empty());
+
+        ClockSessionResponse inResp = service.clockIn(new ClockRequest(null, null, null));
+        assertThat(inResp).isNotNull();
+        assertThat(inResp.inLatitude()).isNull();
+        assertThat(inResp.inLongitude()).isNull();
+        assertThat(inResp.inAccuracyM()).isNull();
+
+        ClockSession open = new ClockSession(
+                TENANT, EMPLOYEE, LocalDate.of(2026, 4, 15), clock.instant(), SessionOrigin.CLOCK, "test");
+        when(clockSessions.findByTenantIdAndEmployeeIdAndClockOutAtIsNullAndVoidedAtIsNull(TENANT, EMPLOYEE))
+                .thenReturn(Optional.of(open));
+        ClockDayResponse day = new ClockDayResponse(LocalDate.of(2026, 4, 15), 480, AttendanceStatus.PRESENT, true);
+        when(clockDayService.rederive(EMPLOYEE, LocalDate.of(2026, 4, 15))).thenReturn(day);
+
+        ClockOutResponse outResp = service.clockOut(new ClockRequest(null, null, null));
+        assertThat(outResp).isNotNull();
+        assertThat(outResp.session().outLatitude()).isNull();
+        assertThat(outResp.session().outLongitude()).isNull();
+        assertThat(outResp.session().outAccuracyM()).isNull();
+    }
+
+    @Test
+    @DisplayName("out-of-range coordinates are rejected with ValidationException")
+    void outOfRangeCoordinatesRejected() {
+        // Latitude > 90
+        org.junit.jupiter.api.Assertions.assertThrows(
+                ClockService.ValidationException.class, () -> service.clockIn(new ClockRequest(91.0, 77.0, 10.0)));
+
+        // Latitude < -90
+        org.junit.jupiter.api.Assertions.assertThrows(
+                ClockService.ValidationException.class, () -> service.clockIn(new ClockRequest(-91.0, 77.0, 10.0)));
+
+        // Longitude > 180
+        org.junit.jupiter.api.Assertions.assertThrows(
+                ClockService.ValidationException.class, () -> service.clockIn(new ClockRequest(12.0, 181.0, 10.0)));
+
+        // Longitude < -180
+        org.junit.jupiter.api.Assertions.assertThrows(
+                ClockService.ValidationException.class, () -> service.clockIn(new ClockRequest(12.0, -181.0, 10.0)));
+
+        // Accuracy < 0
+        org.junit.jupiter.api.Assertions.assertThrows(
+                ClockService.ValidationException.class, () -> service.clockIn(new ClockRequest(12.0, 77.0, -1.0)));
+
+        // Same for clockOut
+        org.junit.jupiter.api.Assertions.assertThrows(
+                ClockService.ValidationException.class, () -> service.clockOut(new ClockRequest(95.0, 77.0, 10.0)));
     }
 
     private static class MutableClock extends Clock {

@@ -79,6 +79,7 @@ public final class HrmsProjectTestSchema {
                         "core/V030__attendance.sql",
                         "core/V033__tenant_locale_columns.sql",
                         "hrms/V123__clock_session.sql",
+                        "hrms/V198__clock_session_location.sql",
                         "hrms/V124__attendance_regularization.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
@@ -88,6 +89,7 @@ public final class HrmsProjectTestSchema {
                         "core/V030__attendance.sql",
                         "core/V033__tenant_locale_columns.sql",
                         "hrms/V123__clock_session.sql",
+                        "hrms/V198__clock_session_location.sql",
                         "hrms/V124__attendance_regularization.sql"
                     }) {
                         executeResource(conn, "db/migration/" + script);
@@ -98,6 +100,10 @@ public final class HrmsProjectTestSchema {
                 // V185: a task may repeat on a project line. IF EXISTS keeps it safe on a database prepared earlier.
                 try (var drop = conn.createStatement()) {
                     drop.execute("DROP INDEX IF EXISTS hrms.uk_tte_tenant_entry_task");
+                }
+                if (tableExists(conn, "hrms", "clock_session")
+                        && !columnExists(conn, "hrms", "clock_session", "in_latitude")) {
+                    executeResource(conn, "db/migration/hrms/V198__clock_session_location.sql");
                 }
                 if (!tableExists(conn, "core", "overtime_request")) {
                     // W-40.6: core's overtime and pay input ledger, the hrms.overtime.request code, and the grant list
@@ -248,6 +254,19 @@ public final class HrmsProjectTestSchema {
                 conn.prepareStatement("SELECT 1 FROM pg_tables WHERE schemaname = ? AND tablename = ?")) {
             ps.setString(1, schema);
             ps.setString(2, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String schema, String table, String column)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, schema);
+            ps.setString(2, table);
+            ps.setString(3, column);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }

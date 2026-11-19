@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mobileAttendanceService } from './mobileAttendanceService.js';
+import { mobileAttendanceService, CONSENT_KEY } from './mobileAttendanceService.js';
 import { Geolocation } from '@capacitor/geolocation';
 import { Haptics } from '@capacitor/haptics';
+import { Preferences } from '@capacitor/preferences';
 import { attendanceService } from '../../hrms/attendance/attendanceService.js';
+
+vi.mock('@capacitor/preferences', () => ({
+  Preferences: {
+    get: vi.fn(),
+    set: vi.fn(),
+  },
+}));
 
 vi.mock('@capacitor/geolocation', () => ({
   Geolocation: {
@@ -108,6 +116,27 @@ describe('mobileAttendanceService (W-98.2 §6)', () => {
 
       expect(attendanceService.mySessions).toHaveBeenCalledWith('2026-11-10', '2026-11-16');
       expect(res).toHaveLength(1);
+    });
+  });
+
+  describe('consent management', () => {
+    it('returns true when consent value is stored as true', async () => {
+      Preferences.get.mockResolvedValueOnce({ value: 'true' });
+      const consented = await mobileAttendanceService.hasLocationConsent();
+      expect(consented).toBe(true);
+      expect(Preferences.get).toHaveBeenCalledWith({ key: CONSENT_KEY });
+    });
+
+    it('returns false when consent is not stored or false', async () => {
+      Preferences.get.mockResolvedValueOnce({ value: null });
+      const consented = await mobileAttendanceService.hasLocationConsent();
+      expect(consented).toBe(false);
+    });
+
+    it('stores consent=true in preferences', async () => {
+      Preferences.set.mockResolvedValueOnce();
+      await mobileAttendanceService.grantLocationConsent();
+      expect(Preferences.set).toHaveBeenCalledWith({ key: CONSENT_KEY, value: 'true' });
     });
   });
 });

@@ -101,6 +101,7 @@ public class ClockServiceImpl implements ClockService {
     @Override
     @Transactional
     public ClockSessionResponse clockIn(ClockRequest request) {
+        validateCoordinates(request);
         EmployeeResponse employee = requireCurrentEmployee();
         UUID tenantId = TenantContext.require();
         Instant now = clock.instant();
@@ -121,6 +122,10 @@ public class ClockServiceImpl implements ClockService {
 
         ClockSession newSession =
                 new ClockSession(tenantId, employee.id(), today, now, SessionOrigin.CLOCK, currentActor());
+        if (request != null
+                && (request.latitude() != null || request.longitude() != null || request.accuracyMeters() != null)) {
+            newSession.recordInLocation(request.latitude(), request.longitude(), request.accuracyMeters());
+        }
         newSession = clockSessions.save(newSession);
         return ClockSessionResponse.from(newSession);
     }
@@ -134,6 +139,7 @@ public class ClockServiceImpl implements ClockService {
     @Override
     @Transactional
     public ClockOutResponse clockOut(ClockRequest request) {
+        validateCoordinates(request);
         EmployeeResponse employee = requireCurrentEmployee();
         UUID tenantId = TenantContext.require();
         Instant now = clock.instant();
@@ -148,10 +154,43 @@ public class ClockServiceImpl implements ClockService {
         }
 
         openSession.close(now, currentActor());
+        if (request != null
+                && (request.latitude() != null || request.longitude() != null || request.accuracyMeters() != null)) {
+            openSession.recordOutLocation(request.latitude(), request.longitude(), request.accuracyMeters());
+        }
         openSession = clockSessions.save(openSession);
 
         ClockDayResponse day = clockDayService.rederive(employee.id(), openSession.getAttendanceDate());
         return new ClockOutResponse(ClockSessionResponse.from(openSession), day);
+    }
+
+    private void validateCoordinates(ClockRequest request) {
+        if (request == null) {
+            return;
+        }
+        if (request.latitude() != null) {
+            if (request.latitude().isNaN()
+                    || request.latitude().isInfinite()
+                    || request.latitude() < -90.0
+                    || request.latitude() > 90.0) {
+                throw new ValidationException("Latitude must be between -90 and 90");
+            }
+        }
+        if (request.longitude() != null) {
+            if (request.longitude().isNaN()
+                    || request.longitude().isInfinite()
+                    || request.longitude() < -180.0
+                    || request.longitude() > 180.0) {
+                throw new ValidationException("Longitude must be between -180 and 180");
+            }
+        }
+        if (request.accuracyMeters() != null) {
+            if (request.accuracyMeters().isNaN()
+                    || request.accuracyMeters().isInfinite()
+                    || request.accuracyMeters() < 0.0) {
+                throw new ValidationException("Accuracy must be non-negative");
+            }
+        }
     }
 
     @Override

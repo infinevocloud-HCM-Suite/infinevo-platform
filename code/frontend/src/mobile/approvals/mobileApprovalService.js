@@ -5,22 +5,25 @@ function unwrapEnvelope(res) {
   return body && typeof body === 'object' && 'data' in body ? body.data : body;
 }
 
+const KNOWN_FLOW_TYPES = ['LEAVE', 'WORK_FROM_HOME', 'REGULARIZATION', 'OVERTIME'];
+
 /**
- * Mobile Approval Service (W-98.5 §4.2)
- * Mobile client for retrieving aggregated pending approval instances
+ * Mobile Approval Service (W-98.5)
+ * Mobile client for retrieving paged pending approval instances
  * and executing 1-tap Approve and Reject actions.
  */
 export const mobileApprovalService = {
   /**
    * Fetches pending approval tasks assigned to the caller.
+   * Uses 20-per-page paging and derives counts from server totalElements.
    *
    * @param {Object} params
    * @param {number} [params.page=0]
-   * @param {number} [params.size=50]
+   * @param {number} [params.size=20]
    * @param {string} [params.flowType=null]
-   * @returns {Promise<{ rows: Array, total: number, countsByType: Object }>}
+   * @returns {Promise<{ rows: Array, total: number, totalElements: number, totalPages: number, hasMore: boolean, unfilteredTotal: number, countsByType: Object }>}
    */
-  async getPendingApprovals({ page = 0, size = 50, flowType = null } = {}) {
+  async getPendingApprovals({ page = 0, size = 20, flowType = null } = {}) {
     const res = await apiClient.get('/v1/approvals/pending', {
       params: { page, size },
     });
@@ -32,29 +35,18 @@ export const mobileApprovalService = {
       ? data.content
       : [];
 
-    const total =
+    const totalElements =
       data?.totalElements !== undefined
         ? Number(data.totalElements)
         : items.length;
 
-    const countsByType = {
-      ALL: total,
-      LEAVE: 0,
-      WORK_FROM_HOME: 0,
-      REGULARIZATION: 0,
-      OVERTIME: 0,
-      REIMBURSEMENT: 0,
-      TIMESHEET: 0,
-      OTHER: 0,
-    };
+    const totalPages =
+      data?.totalPages !== undefined
+        ? Number(data.totalPages)
+        : Math.ceil(totalElements / size);
 
     const normalized = items.map((item) => {
       const type = (item.flowType || 'GENERAL').toUpperCase();
-      if (countsByType[type] !== undefined) {
-        countsByType[type] += 1;
-      } else {
-        countsByType.OTHER += 1;
-      }
 
       return {
         id: item.id, // step ID
@@ -63,7 +55,6 @@ export const mobileApprovalService = {
         summary: item.summary || item.itemRef || 'Approval Request',
         itemRef: item.itemRef || '',
         subjectEmployeeName: item.subjectEmployeeName || 'Employee',
-        subjectEmployeeId: item.subjectEmployeeId || '',
         stepIndex: item.stepIndex ?? 0,
         totalSteps: item.totalSteps ?? 1,
         createdAt: item.createdAt || '',
@@ -73,15 +64,39 @@ export const mobileApprovalService = {
       };
     });
 
-    const filtered =
-      flowType && flowType !== 'ALL'
-        ? normalized.filter((item) => item.flowType === flowType.toUpperCase())
-        : normalized;
+    let filtered = normalized;
+    if (flowType && flowType !== 'ALL') {
+      if (flowType === 'OTHER') {
+        filtered = normalized.filter((item) => !KNOWN_FLOW_TYPES.includes(item.flowType));
+      } else {
+        filtered = normalized.filter((item) => item.flowType === flowType.toUpperCase());
+      }
+    }
+
+    const countsByType = {
+      ALL: totalElements,
+      LEAVE: 0,
+      WORK_FROM_HOME: 0,
+      REGULARIZATION: 0,
+      OVERTIME: 0,
+      OTHER: 0,
+    };
+
+    normalized.forEach((item) => {
+      if (KNOWN_FLOW_TYPES.includes(item.flowType)) {
+        countsByType[item.flowType] = (countsByType[item.flowType] || 0) + 1;
+      } else {
+        countsByType.OTHER = (countsByType.OTHER || 0) + 1;
+      }
+    });
 
     return {
       rows: filtered,
       total: filtered.length,
-      unfilteredTotal: total,
+      totalElements,
+      totalPages,
+      hasMore: page + 1 < totalPages,
+      unfilteredTotal: totalElements,
       countsByType,
     };
   },
@@ -163,4 +178,3 @@ export const mobileApprovalService = {
     return unwrapEnvelope(res);
   },
 };
-

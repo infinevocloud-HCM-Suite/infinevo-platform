@@ -1,7 +1,9 @@
 package com.infinevo.shared.security;
 
 import jakarta.servlet.DispatcherType;
+import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -9,6 +11,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * The one security filter chain: a JWT resource server and nothing else (W-10, spec section 4).
@@ -47,7 +52,10 @@ public class ResourceServerConfig {
     public static final String HEALTH_SUBPATHS = "/actuator/health/**";
 
     @Bean
-    public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http, ObjectProvider<JwtDecoder> jwtDecoders)
+    public SecurityFilterChain apiSecurityFilterChain(
+            HttpSecurity http,
+            ObjectProvider<JwtDecoder> jwtDecoders,
+            @Value("${infinevo.security.cors.allowed-origins:}") List<String> allowedOrigins)
             throws Exception {
 
         JwtDecoder jwtDecoder = jwtDecoders.getIfAvailable();
@@ -60,6 +68,7 @@ public class ResourceServerConfig {
         }
 
         http.csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource(allowedOrigins)))
                 // Stateless: the token is the session. Nothing is kept between requests, so a
                 // replica can be replaced mid-flight without logging anyone out.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -87,5 +96,22 @@ public class ResourceServerConfig {
                 .formLogin(form -> form.disable());
 
         return http.build();
+    }
+
+    private CorsConfigurationSource corsConfigurationSource(List<String> allowedOrigins) {
+        CorsConfiguration config = new CorsConfiguration();
+        List<String> origins = allowedOrigins != null
+                ? allowedOrigins.stream().filter(s -> !s.isBlank()).toList()
+                : List.of();
+        if (origins.isEmpty()) {
+            return request -> null;
+        }
+        config.setAllowedOrigins(origins);
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowCredentials(false);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }

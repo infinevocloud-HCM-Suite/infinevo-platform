@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -58,6 +59,12 @@ public class PayslipController {
     @RequiresAction("payroll.payslip.read_own")
     public ResponseEntity<PayslipApiResponse<PayslipResponse>> own(@PathVariable("payrunId") UUID payrunId) {
         return ResponseEntity.ok(PayslipApiResponse.ok("Payslip retrieved successfully", payslipService.own(payrunId)));
+    }
+
+    @PostMapping("/api/v1/me/payslips/{payrunId}/link")
+    @RequiresAction("payroll.payslip.read_own")
+    public ResponseEntity<PayslipLinkService.LinkToken> linkForOwn(@PathVariable("payrunId") UUID payrunId) {
+        return ResponseEntity.ok(payslipService.linkForOwn(payrunId));
     }
 
     @ExceptionHandler(PayslipNotFoundException.class)

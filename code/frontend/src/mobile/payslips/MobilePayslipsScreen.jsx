@@ -40,10 +40,45 @@ function formatDate(date) {
 }
 
 /**
+ * Calculates Indian Financial Year (April to March) from period string (e.g. "2026-10" -> "FY 2026-27").
+ */
+export function getFinancialYear(period) {
+  if (!period) return 'Other';
+  const text = String(period).trim();
+  const match = text.match(/^(\d{4})-(\d{2})/);
+  if (!match) return 'Other';
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  if (month >= 4) {
+    const nextYearShort = String(year + 1).slice(-2);
+    return `FY ${year}-${nextYearShort}`;
+  } else {
+    const prevYear = year - 1;
+    const yearShort = String(year).slice(-2);
+    return `FY ${prevYear}-${yearShort}`;
+  }
+}
+
+/**
+ * Groups payslip list items by Financial Year, newest financial years first.
+ */
+export function groupPayslipsByFY(items) {
+  const groups = {};
+  for (const item of items) {
+    const fy = getFinancialYear(item.period);
+    if (!groups[fy]) {
+      groups[fy] = [];
+    }
+    groups[fy].push(item);
+  }
+  return groups;
+}
+
+/**
  * Mobile Payslips Screen (W-98.4 §4.2)
  * Clean touch-first dashboard featuring:
  * 1. Latest payslip showcase banner with 1-tap download & details.
- * 2. Chronological monthly history list with itemized drawers.
+ * 2. Monthly history list grouped by Indian financial year (April to March).
  * 3. Pull-to-refresh and native PDF export.
  */
 export function MobilePayslipsScreen() {
@@ -103,6 +138,8 @@ export function MobilePayslipsScreen() {
     }
   };
 
+  const grouped = groupPayslipsByFY(payslips);
+
   return (
     <div className="mobile-payslips-container" data-testid="mobile-payslips-screen">
       {/* Screen Header */}
@@ -131,7 +168,7 @@ export function MobilePayslipsScreen() {
         />
       </div>
 
-      {errorBanner && (
+      {errorBanner && payslips.length > 0 && (
         <Alert
           type="error"
           showIcon
@@ -150,8 +187,27 @@ export function MobilePayslipsScreen() {
           <Spin size="large" />
           <div style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Loading payslips...</div>
         </div>
+      ) : errorBanner && payslips.length === 0 ? (
+        <Card
+          style={{ borderRadius: 14, textAlign: 'center', padding: '40px 16px' }}
+          data-testid="payslips-error-view"
+        >
+          <Alert
+            type="error"
+            showIcon
+            message="Failed to load payslips"
+            description={errorBanner}
+            style={{ marginBottom: 16, textAlign: 'left' }}
+          />
+          <Button type="primary" onClick={handleRefresh}>
+            Retry
+          </Button>
+        </Card>
       ) : payslips.length === 0 ? (
-        <Card style={{ borderRadius: 14, textAlign: 'center', padding: '40px 16px' }}>
+        <Card
+          style={{ borderRadius: 14, textAlign: 'center', padding: '40px 16px' }}
+          data-testid="payslips-empty-view"
+        >
           <Empty
             description={
               <div>
@@ -263,71 +319,75 @@ export function MobilePayslipsScreen() {
             </Card>
           )}
 
-          {/* Past Months History List */}
-          <div style={{ marginBottom: 12 }}>
-            <Title level={5} style={{ margin: 0, fontWeight: 600, color: '#1e293b' }}>
-              Past Payslips ({payslips.length})
-            </Title>
-          </div>
-
+          {/* Past Months History List Grouped by Financial Year */}
           <div className="mobile-payslips-history-list" data-testid="payslips-history-list">
-            <Space direction="vertical" style={{ width: '100%' }} size={10}>
-              {payslips.map((item) => (
-                <Card
-                  key={item.payrunId}
-                  className="mobile-payslip-history-card"
-                  hoverable
-                  style={{
-                    borderRadius: 12,
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                  }}
-                  styles={{ body: { padding: '14px 16px' } }}
-                  onClick={() => handleOpenDetail(item.payrunId)}
-                  data-testid={`payslip-item-${item.payrunId}`}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 10,
-                          backgroundColor: '#f0f5ff',
-                          color: '#2f54eb',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 18,
-                        }}
-                      >
-                        <FilePdfOutlined />
-                      </div>
-                      <div>
-                        <Text strong style={{ fontSize: 14, display: 'block', color: '#0f172a' }}>
-                          {formatMonthTitle(item.period)}
-                        </Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          Paid: {formatDate(item.paidOn)}
-                        </Text>
-                      </div>
-                    </div>
+            {Object.entries(grouped).map(([fy, items]) => (
+              <div key={fy} style={{ marginBottom: 20 }} data-testid={`fy-group-${fy}`}>
+                <div style={{ marginBottom: 10 }}>
+                  <Title level={5} style={{ margin: 0, fontWeight: 700, color: '#334155' }}>
+                    {fy} ({items.length})
+                  </Title>
+                </div>
 
-                    <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
-                          <MoneyText value={item.netPay} />
+                <Space direction="vertical" style={{ width: '100%' }} size={10}>
+                  {items.map((item) => (
+                    <Card
+                      key={item.payrunId}
+                      className="mobile-payslip-history-card"
+                      hoverable
+                      style={{
+                        borderRadius: 12,
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                      }}
+                      styles={{ body: { padding: '14px 16px' } }}
+                      onClick={() => handleOpenDetail(item.payrunId)}
+                      data-testid={`payslip-item-${item.payrunId}`}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 10,
+                              backgroundColor: '#f0f5ff',
+                              color: '#2f54eb',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: 18,
+                            }}
+                          >
+                            <FilePdfOutlined />
+                          </div>
+                          <div>
+                            <Text strong style={{ fontSize: 14, display: 'block', color: '#0f172a' }}>
+                              {formatMonthTitle(item.period)}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              Paid: {formatDate(item.paidOn)}
+                            </Text>
+                          </div>
                         </div>
-                        <Tag color="success" style={{ fontSize: 10, borderRadius: 4, margin: 0 }}>
-                          Paid
-                        </Tag>
+
+                        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+                              <MoneyText value={item.netPay} />
+                            </div>
+                            <Tag color="success" style={{ fontSize: 10, borderRadius: 4, margin: 0 }}>
+                              Paid
+                            </Tag>
+                          </div>
+                          <RightOutlined style={{ color: '#94a3b8', fontSize: 12 }} />
+                        </div>
                       </div>
-                      <RightOutlined style={{ color: '#94a3b8', fontSize: 12 }} />
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </Space>
+                    </Card>
+                  ))}
+                </Space>
+              </div>
+            ))}
           </div>
         </>
       )}

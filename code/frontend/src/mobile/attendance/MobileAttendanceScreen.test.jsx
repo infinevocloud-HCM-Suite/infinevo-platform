@@ -10,12 +10,17 @@ vi.mock('./mobileAttendanceService.js', () => ({
     getWeeklyHistory: vi.fn(),
     clockIn: vi.fn(),
     clockOut: vi.fn(),
+    hasLocationConsent: vi.fn(),
+    grantLocationConsent: vi.fn(),
   },
 }));
 
-describe('MobileAttendanceScreen component (W-98.2 §6)', () => {
+describe('MobileAttendanceScreen component (W-98.2 §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: consent already given
+    mobileAttendanceService.hasLocationConsent.mockResolvedValue(true);
+    mobileAttendanceService.grantLocationConsent.mockResolvedValue();
     mobileAttendanceService.getCoordinates.mockResolvedValue({
       status: 'granted',
       latitude: 12.9716,
@@ -103,7 +108,57 @@ describe('MobileAttendanceScreen component (W-98.2 §6)', () => {
     expect(screen.getByText('You are currently clocked in')).toBeTruthy();
   });
 
-  it('renders recent attendance rows from history', async () => {
+  it('shows consent notice once before first location request and remembers consent', async () => {
+    mobileAttendanceService.hasLocationConsent.mockResolvedValueOnce(false);
+    mobileAttendanceService.getToday.mockResolvedValueOnce({
+      date: '2026-11-16',
+      openSession: null,
+      sessions: [],
+      workedMinutes: 0,
+    });
+
+    render(<MobileAttendanceScreen />);
+
+    // Consent notice is displayed with exact required text
+    expect(await screen.findByTestId('location-consent-banner')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Infinevo records your location only at the moment you clock in or out, so your employer can see where the punch was made. It is not tracked at any other time.'
+      )
+    ).toBeTruthy();
+
+    // Click "I Understand" to grant consent
+    const grantBtn = screen.getByTestId('consent-grant-btn');
+    fireEvent.click(grantBtn);
+
+    await waitFor(() => {
+      expect(mobileAttendanceService.grantLocationConsent).toHaveBeenCalled();
+      expect(screen.queryByTestId('location-consent-banner')).toBeNull();
+    });
+  });
+
+  it('displays "Location not recorded" when location permission is denied or coordinates null', async () => {
+    mobileAttendanceService.getToday.mockResolvedValueOnce({
+      date: '2026-11-16',
+      openSession: null,
+      sessions: [],
+      workedMinutes: 0,
+    });
+    mobileAttendanceService.getCoordinates.mockResolvedValueOnce({
+      status: 'denied',
+      latitude: null,
+      longitude: null,
+      accuracyMeters: null,
+    });
+
+    render(<MobileAttendanceScreen />);
+
+    expect(await screen.findByTestId('gps-chip')).toBeTruthy();
+    expect(screen.getByTestId('gps-chip').textContent).toContain('Location not recorded');
+    expect(screen.getByTestId('punch-button').textContent).toContain('Location not recorded');
+  });
+
+  it('renders exactly seven day rows in recent activity card', async () => {
     mobileAttendanceService.getToday.mockResolvedValueOnce({
       date: '2026-11-16',
       openSession: null,
@@ -125,8 +180,33 @@ describe('MobileAttendanceScreen component (W-98.2 §6)', () => {
     render(<MobileAttendanceScreen />);
 
     const rows = await screen.findAllByTestId('history-row');
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(7);
     expect(screen.getAllByText('8:00')).toHaveLength(2);
+  });
+
+  it('leaves button in previous state and shows error when punch fails', async () => {
+    mobileAttendanceService.getToday.mockResolvedValueOnce({
+      date: '2026-11-16',
+      openSession: null,
+      sessions: [],
+      workedMinutes: 0,
+    });
+    mobileAttendanceService.clockIn.mockRejectedValueOnce(new Error('Network error during punch'));
+
+    render(<MobileAttendanceScreen />);
+
+    const punchBtn = await screen.findByTestId('punch-button');
+    expect(punchBtn.getAttribute('aria-label')).toBe('Clock In');
+
+    fireEvent.click(punchBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Network error during punch')).toBeTruthy();
+    });
+
+    // Button remains Clock In (not flipped or left disabled)
+    expect(punchBtn.getAttribute('aria-label')).toBe('Clock In');
+    expect(punchBtn.textContent).toContain('CLOCK IN');
   });
 
   it('displays stale session alert when open session is > 24 hours old', async () => {

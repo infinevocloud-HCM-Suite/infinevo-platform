@@ -77,13 +77,16 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
       "redirectUris": [
-        "${KC_WEB_ORIGIN}/*"
+        "${KC_WEB_ORIGIN}/*",
+        "infinevo://auth-callback"
       ],
       "webOrigins": [
-        "${KC_WEB_ORIGIN}"
+        "${KC_WEB_ORIGIN}",
+        "https://localhost",
+        "capacitor://localhost"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "${KC_WEB_ORIGIN}/*",
+        "post.logout.redirect.uris": "${KC_WEB_ORIGIN}/*##infinevo://auth-callback",
         "pkce.code.challenge.method": "S256"
       },
       "protocolMappers": [

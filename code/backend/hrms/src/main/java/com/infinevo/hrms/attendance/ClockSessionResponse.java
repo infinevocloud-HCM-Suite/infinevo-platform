@@ -6,8 +6,9 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Clock session response payload (W-40.3). {@code employeeName} is read for display at reply time (W-48.4 §4): filled
+ * Clock session response payload (W-40.3, W-98.2 §4). {@code employeeName} is read for display at reply time (W-48.4 §4): filled
  * on the HR log ({@code allSessions}), null on the caller's own sessions.
+ * Geolocation coordinates and accuracy are recorded for mobile punches (W-98.2).
  */
 public record ClockSessionResponse(
         UUID id,
@@ -21,7 +22,13 @@ public record ClockSessionResponse(
         Instant voidedAt,
         VoidReason voidReason,
         String dayStatus,
-        String remarks) {
+        String remarks,
+        Double inLatitude,
+        Double inLongitude,
+        Double inAccuracyM,
+        Double outLatitude,
+        Double outLongitude,
+        Double outAccuracyM) {
 
     public ClockSessionResponse(
             UUID id,
@@ -45,6 +52,46 @@ public record ClockSessionResponse(
                 origin,
                 voidedAt,
                 voidReason,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    public ClockSessionResponse(
+            UUID id,
+            UUID employeeId,
+            String employeeName,
+            LocalDate attendanceDate,
+            Instant clockInAt,
+            Instant clockOutAt,
+            Integer workedMinutes,
+            SessionOrigin origin,
+            Instant voidedAt,
+            VoidReason voidReason,
+            String dayStatus,
+            String remarks) {
+        this(
+                id,
+                employeeId,
+                employeeName,
+                attendanceDate,
+                clockInAt,
+                clockOutAt,
+                workedMinutes,
+                origin,
+                voidedAt,
+                voidReason,
+                dayStatus,
+                remarks,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null);
     }
@@ -77,6 +124,12 @@ public record ClockSessionResponse(
                 session.getVoidedAt(),
                 session.getVoidReason(),
                 dayStatus,
-                remarks);
+                remarks,
+                session.getInLatitude(),
+                session.getInLongitude(),
+                session.getInAccuracyM(),
+                session.getOutLatitude(),
+                session.getOutLongitude(),
+                session.getOutAccuracyM());
     }
 }

@@ -114,7 +114,6 @@ describe('MobilePayslipDetailSheet component (W-98.4 §6)', () => {
       expect(mobilePayslipService.downloadAndSharePayslip).toHaveBeenCalledWith({
         payrunId: 'pr-101',
         period: '2026-10',
-        payslipData: mockPayslipData,
       });
     });
   });

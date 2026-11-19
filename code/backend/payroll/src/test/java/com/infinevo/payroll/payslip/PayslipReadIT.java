@@ -4,6 +4,7 @@ import static com.infinevo.payroll.payrun.PayRunTestSchema.TENANT_A;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -216,5 +217,14 @@ public class PayslipReadIT extends AbstractIntegrationTest {
         // Another payrunId under /me that employee does not own is 404
         UUID randomRunId = UUID.randomUUID();
         mvc.perform(get("/api/v1/me/payslips/" + randomRunId)).andExpect(status().isNotFound());
+
+        // POST /api/v1/me/payslips/{payrunId}/link returns 200 {token, expires_at}
+        mvc.perform(post("/api/v1/me/payslips/" + run.id() + "/link"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString())
+                .andExpect(jsonPath("$.expires_at").isString());
+
+        // Unknown payrunId for link is 404
+        mvc.perform(post("/api/v1/me/payslips/" + randomRunId + "/link")).andExpect(status().isNotFound());
     }
 }

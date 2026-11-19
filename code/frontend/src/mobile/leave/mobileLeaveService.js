@@ -3,8 +3,8 @@ import dayjs from 'dayjs';
 
 /**
  * Mobile Leave Service (W-98.3 §4.2)
- * Wraps leave balances, request history, and bottom-sheet leave applications
- * for mobile touch clients.
+ * Wraps leave balances, request history, bottom-sheet applications,
+ * withdrawal of pending requests, and cancellation of approved requests.
  */
 export const mobileLeaveService = {
   /**
@@ -62,15 +62,21 @@ export const mobileLeaveService = {
 
   /**
    * Submits a leave application.
-   * Payload: { leaveTypeId, fromDate, toDate, isHalfDay, halfDayPeriod, reason, submit: true }
+   * Half-day period is normalized to "first" or "second" (W-98.3 §2).
    */
   async applyLeave(payload) {
+    let halfDayPeriod = null;
+    if (payload.isHalfDay) {
+      const p = String(payload.halfDayPeriod || '').toLowerCase();
+      halfDayPeriod = p === 'second' || p === 'second_half' ? 'second' : 'first';
+    }
+
     const body = {
       leaveTypeId: payload.leaveTypeId,
       fromDate: payload.fromDate,
       toDate: payload.isHalfDay ? payload.fromDate : payload.toDate || payload.fromDate,
       isHalfDay: !!payload.isHalfDay,
-      halfDayPeriod: payload.isHalfDay ? payload.halfDayPeriod || 'FIRST_HALF' : null,
+      halfDayPeriod,
       reason: payload.reason || '',
       submit: payload.submit !== undefined ? payload.submit : true,
     };
@@ -80,7 +86,18 @@ export const mobileLeaveService = {
   },
 
   /**
-   * Cancels a pending or approved leave request.
+   * Withdraws a PENDING leave request (W-98.3 §4).
+   * Status transitions to WITHDRAWN.
+   */
+  async withdrawLeave(requestId, reason = 'Withdrawn via mobile app') {
+    if (!requestId) throw new Error('requestId is required to withdraw leave');
+    const res = await apiClient.post(`/v1/leave-requests/${requestId}/withdraw`, { reason });
+    return res?.data !== undefined ? res.data : res;
+  },
+
+  /**
+   * Cancels a future-dated APPROVED leave request (W-98.3 §4).
+   * Status transitions to CANCELLED.
    */
   async cancelLeave(requestId, reason = 'Cancelled via mobile app') {
     if (!requestId) throw new Error('requestId is required to cancel leave');
@@ -101,4 +118,3 @@ export const mobileLeaveService = {
     return end.diff(start, 'day') + 1;
   },
 };
-

@@ -185,6 +185,21 @@ public class PayslipReleaseIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.data.earnings").isArray())
                 .andExpect(jsonPath("$.data.link.expires_at").isNotEmpty());
 
+        // 5b. Open payslip by signed link with format=pdf returns application/pdf binary stream
+        byte[] pdfBytes = mvc.perform(
+                        get(PublicEndpoints.PAYSLIP_OPEN).param("t", token).param("format", "pdf"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"payslip-2026-07.pdf\""))
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+        assertThat(new String(pdfBytes, 0, 4, java.nio.charset.StandardCharsets.US_ASCII))
+                .isEqualTo("%PDF");
+
         // 6. A paid run stays paid (W-36.2 §10): cancel is refused and the link still opens
         TenantContext.set(TENANT_A);
         assertThatThrownBy(() -> payRunService.cancel(run.id())).isInstanceOf(IllegalPayRunTransitionException.class);

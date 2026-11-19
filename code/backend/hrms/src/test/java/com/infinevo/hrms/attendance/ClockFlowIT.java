@@ -356,6 +356,58 @@ class ClockFlowIT extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName(
+            "Clock-in with coordinates returns 201, /sessions/mine returns them, and latitude 91 returns 400 (W-98.2)")
+    void clockWithCoordinatesAndMineSessions() throws Exception {
+        Instant t1 = Instant.parse("2026-10-15T09:00:00Z");
+        HrmsTestApp.CUSTOM_CLOCK.set(Clock.fixed(t1, ZoneOffset.UTC));
+
+        // 1. Out of range latitude returns 400 VALIDATION_FAILED
+        ClockRequest invalidReq = new ClockRequest(91.0, 77.5946, 15.0);
+        mvc.perform(authed(post("/api/v1/hrms/attendance/clock-in"), employeeUser)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        // 2. Valid coordinates return 201
+        ClockRequest validIn = new ClockRequest(12.9716, 77.5946, 15.0);
+        mvc.perform(authed(post("/api/v1/hrms/attendance/clock-in"), employeeUser)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validIn)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.inLatitude").value(12.9716))
+                .andExpect(jsonPath("$.inLongitude").value(77.5946))
+                .andExpect(jsonPath("$.inAccuracyM").value(15.0));
+
+        // 3. Clock-out with coordinates
+        Instant t2 = Instant.parse("2026-10-15T17:00:00Z");
+        HrmsTestApp.CUSTOM_CLOCK.set(Clock.fixed(t2, ZoneOffset.UTC));
+        ClockRequest validOut = new ClockRequest(12.9718, 77.5948, 20.0);
+        mvc.perform(authed(post("/api/v1/hrms/attendance/clock-out"), employeeUser)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validOut)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.session.outLatitude").value(12.9718))
+                .andExpect(jsonPath("$.session.outLongitude").value(77.5948))
+                .andExpect(jsonPath("$.session.outAccuracyM").value(20.0));
+
+        // 4. /sessions/mine returns the coordinates
+        mvc.perform(authed(
+                        get("/api/v1/hrms/attendance/sessions/mine")
+                                .param("from", "2026-10-15")
+                                .param("to", "2026-10-15"),
+                        employeeUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].inLatitude").value(12.9716))
+                .andExpect(jsonPath("$[0].inLongitude").value(77.5946))
+                .andExpect(jsonPath("$[0].inAccuracyM").value(15.0))
+                .andExpect(jsonPath("$[0].outLatitude").value(12.9718))
+                .andExpect(jsonPath("$[0].outLongitude").value(77.5948))
+                .andExpect(jsonPath("$[0].outAccuracyM").value(20.0));
+    }
+
     private static int countSessions(UUID tenantId, UUID employeeId, LocalDate date) throws SQLException {
         try (Connection conn = HrmsAttendanceTestSchema.migrationConnection();
                 PreparedStatement ps = conn.prepareStatement(

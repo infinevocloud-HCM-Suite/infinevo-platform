@@ -24,24 +24,32 @@ import { successMsg, errorMsg } from '../../shared/ui/msgHelper.js';
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+const KNOWN_FLOW_TYPES = ['LEAVE', 'WORK_FROM_HOME', 'REGULARIZATION', 'OVERTIME'];
+
 const FILTER_SEGMENTS = [
   { label: 'All', value: 'ALL' },
   { label: 'Leave', value: 'LEAVE' },
   { label: 'WFH', value: 'WORK_FROM_HOME' },
   { label: 'Regularization', value: 'REGULARIZATION' },
   { label: 'Overtime', value: 'OVERTIME' },
+  { label: 'Other', value: 'OTHER' },
 ];
 
 /**
- * Mobile Approvals Screen (W-98.5 §4.2)
- * Clean touch dashboard with category filter segments,
- * 1-tap Approve/Reject decisions, and audit trail drawers.
+ * Mobile Approvals Screen (W-98.5)
+ * Paged approvals inbox with category filters, 1-tap Approve/Reject decisions,
+ * graceful 400 already-decided recovery, and detailed audit history drawer.
  */
 export function MobileApprovalsScreen() {
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalElements, setTotalElements] = useState(0);
+  const [countsByType, setCountsByType] = useState({ ALL: 0 });
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [errorBanner, setErrorBanner] = useState(null);
 
@@ -64,10 +72,16 @@ export function MobileApprovalsScreen() {
       setErrorBanner(null);
       const res = await mobileApprovalService.getPendingApprovals({
         page: 0,
-        size: 50,
+        size: 20,
       });
       setItems(res.rows || []);
-      const total = res.unfilteredTotal ?? res.rows?.length ?? 0;
+      setPage(0);
+      setHasMore(Boolean(res.hasMore));
+      const total = res.totalElements ?? res.unfilteredTotal ?? res.rows?.length ?? 0;
+      setTotalElements(total);
+      if (res.countsByType) {
+        setCountsByType(res.countsByType);
+      }
       dispatch(setPendingCount(total));
     } catch (err) {
       setErrorBanner(err?.message || 'Failed to load approvals');
@@ -86,10 +100,42 @@ export function MobileApprovalsScreen() {
     loadData();
   };
 
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const res = await mobileApprovalService.getPendingApprovals({
+        page: nextPage,
+        size: 20,
+      });
+      setItems((prev) => [...prev, ...(res.rows || [])]);
+      setPage(nextPage);
+      setHasMore(Boolean(res.hasMore));
+    } catch (err) {
+      errorMsg(err?.message || 'Failed to load more approvals');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const filteredItems = useMemo(() => {
     if (selectedCategory === 'ALL') return items;
+    if (selectedCategory === 'OTHER') {
+      return items.filter((item) => !KNOWN_FLOW_TYPES.includes(item.flowType));
+    }
     return items.filter((item) => item.flowType === selectedCategory);
   }, [items, selectedCategory]);
+
+  const segmentOptions = useMemo(() => {
+    return FILTER_SEGMENTS.map((seg) => {
+      const count = countsByType[seg.value] ?? (seg.value === 'ALL' ? totalElements : 0);
+      return {
+        label: count !== undefined ? `${seg.label} (${count})` : seg.label,
+        value: seg.value,
+      };
+    });
+  }, [countsByType, totalElements]);
 
   const handleOpenApprove = (item) => {
     setDecisionModal({
@@ -136,6 +182,7 @@ export function MobileApprovalsScreen() {
 
       // Remove decided item from local list
       setItems((prev) => prev.filter((i) => i.id !== item.id));
+      setTotalElements((prev) => Math.max(0, prev - 1));
       dispatch(decrementPendingCount());
 
       setDecisionModal({
@@ -151,8 +198,23 @@ export function MobileApprovalsScreen() {
         decision === 'APPROVED' ? 'Request Approved' : 'Request Rejected'
       );
     } catch (err) {
-      setDecisionModal((prev) => ({ ...prev, submitting: false }));
-      errorMsg(err?.message || 'Failed to submit decision');
+      const is400 = err?.response?.status === 400 || err?.status === 400;
+      if (is400) {
+        setDecisionModal({
+          open: false,
+          decision: 'APPROVED',
+          item: null,
+          comment: '',
+          error: '',
+          submitting: false,
+        });
+        errorMsg('This request was already decided');
+        // Reload list to drop stale card
+        loadData();
+      } else {
+        setDecisionModal((prev) => ({ ...prev, submitting: false }));
+        errorMsg(err?.response?.data?.message || err?.message || 'Failed to submit decision');
+      }
     }
   };
 
@@ -177,7 +239,7 @@ export function MobileApprovalsScreen() {
             Approvals
           </Title>
           <Badge
-            count={items.length}
+            count={totalElements}
             style={{
               backgroundColor: '#1677ff',
               fontWeight: 600,
@@ -194,7 +256,7 @@ export function MobileApprovalsScreen() {
         />
       </div>
 
-      {errorBanner && (
+      {errorBanner && items.length > 0 && (
         <Alert
           type="error"
           showIcon
@@ -208,133 +270,187 @@ export function MobileApprovalsScreen() {
         />
       )}
 
-      {/* Segmented Filter Pills */}
-      <div className="mobile-approvals-segmented" style={{ marginBottom: 16 }}>
-        <Segmented
-          block
-          options={FILTER_SEGMENTS.map((seg) => {
-            const count =
-              seg.value === 'ALL'
-                ? items.length
-                : items.filter((i) => i.flowType === seg.value).length;
-            return {
-              label: `${seg.label}${count > 0 ? ` (${count})` : ''}`,
-              value: seg.value,
-            };
-          })}
-          value={selectedCategory}
-          onChange={setSelectedCategory}
-          data-testid="approval-segment-filter"
-        />
-      </div>
-
-      {/* Main Approvals Feed */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }} data-testid="approvals-loading">
           <Spin size="large" />
-          <div style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>
-            Checking pending requests...
-          </div>
+          <div style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Loading pending approvals...</div>
         </div>
-      ) : filteredItems.length === 0 ? (
-        <Card style={{ borderRadius: 14, textAlign: 'center', padding: '40px 16px' }}>
+      ) : errorBanner && items.length === 0 ? (
+        <Card
+          style={{ borderRadius: 14, textAlign: 'center', padding: '40px 16px' }}
+          data-testid="approvals-error-view"
+        >
+          <Alert
+            type="error"
+            showIcon
+            message="Failed to load approvals"
+            description={errorBanner}
+            style={{ marginBottom: 16, textAlign: 'left' }}
+          />
+          <Button type="primary" onClick={handleRefresh}>
+            Retry
+          </Button>
+        </Card>
+      ) : items.length === 0 ? (
+        <Card
+          style={{ borderRadius: 14, textAlign: 'center', padding: '40px 16px' }}
+          data-testid="approvals-empty-view"
+        >
           <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
               <div>
-                <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>
+                <Text strong style={{ fontSize: 16, display: 'block', marginBottom: 4 }}>
                   All Caught Up!
                 </Text>
                 <Text type="secondary" style={{ fontSize: 13 }}>
-                  No pending requests waiting for your approval in this category.
+                  Nothing to approve. When team members submit requests, they will appear here.
                 </Text>
               </div>
             }
           />
         </Card>
       ) : (
-        <div className="mobile-approvals-feed" data-testid="approvals-feed">
-          {filteredItems.map((item) => (
-            <ApprovalRequestCard
-              key={item.id}
-              item={item}
-              onApprove={handleOpenApprove}
-              onReject={handleOpenReject}
-              onClick={handleCardClick}
+        <>
+          {/* Category Filter Segments */}
+          <div
+            style={{
+              marginBottom: 16,
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              paddingBottom: 4,
+            }}
+          >
+            <Segmented
+              options={segmentOptions}
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              block
+              size="middle"
+              style={{ minWidth: 420 }}
             />
-          ))}
-        </div>
+          </div>
+
+          {/* Pending Cards List */}
+          <div className="mobile-approvals-feed" data-testid="approvals-feed">
+            {filteredItems.length === 0 ? (
+              <Card style={{ borderRadius: 12, textAlign: 'center', padding: '30px 16px' }}>
+                <Empty description="No requests in this category" />
+              </Card>
+            ) : (
+              filteredItems.map((item) => (
+                <ApprovalRequestCard
+                  key={item.id}
+                  item={item}
+                  onApprove={handleOpenApprove}
+                  onReject={handleOpenReject}
+                  onClick={handleCardClick}
+                />
+              ))
+            )}
+
+            {/* Next page loader */}
+            {hasMore && (
+              <div style={{ textAlign: 'center', marginTop: 16, marginBottom: 24 }}>
+                <Button
+                  onClick={handleLoadMore}
+                  loading={loadingMore}
+                  data-testid="btn-load-more-approvals"
+                  style={{ borderRadius: 8 }}
+                >
+                  Load More
+                </Button>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
-      {/* Full Details Drawer */}
-      <MobileApprovalDetailDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        item={selectedItem}
-        onApprove={handleOpenApprove}
-        onReject={handleOpenReject}
-      />
-
-      {/* Decision Confirmation Modal */}
+      {/* Confirmation Modal for 1-Tap Decision */}
       <Modal
         open={decisionModal.open}
         title={
           decisionModal.decision === 'APPROVED'
-            ? 'Approve Request'
-            : 'Reject Request'
+            ? 'Confirm Approval'
+            : 'Confirm Rejection'
         }
         onCancel={() =>
-          setDecisionModal((prev) => ({ ...prev, open: false, error: '' }))
+          !decisionModal.submitting &&
+          setDecisionModal((prev) => ({ ...prev, open: false }))
         }
-        onOk={handleConfirmDecision}
-        confirmLoading={decisionModal.submitting}
-        okText={decisionModal.decision === 'APPROVED' ? 'Confirm Approval' : 'Confirm Rejection'}
-        okButtonProps={
-          decisionModal.decision === 'APPROVED'
-            ? {
-                style: {
-                  backgroundColor: '#52c41a',
-                  borderColor: '#52c41a',
-                },
-                'data-testid': 'modal-confirm-approve',
-              }
-            : {
-                danger: true,
-                'data-testid': 'modal-confirm-reject',
-              }
-        }
-      >
-        <div style={{ margin: '16px 0' }}>
-          <Text style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>
-            {decisionModal.decision === 'APPROVED'
-              ? 'Add an optional approval comment:'
-              : 'Please enter a reason for rejecting this request:'}
-          </Text>
-          <TextArea
-            rows={3}
-            value={decisionModal.comment}
-            onChange={(e) =>
-              setDecisionModal((prev) => ({
-                ...prev,
-                comment: e.target.value,
-                error: '',
-              }))
-            }
-            placeholder={
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => setDecisionModal((prev) => ({ ...prev, open: false }))}
+            disabled={decisionModal.submitting}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            danger={decisionModal.decision === 'REJECTED'}
+            loading={decisionModal.submitting}
+            onClick={handleConfirmDecision}
+            data-testid={
               decisionModal.decision === 'APPROVED'
-                ? 'Optional notes for employee...'
-                : 'Reason required (e.g. Coverage required, project deadlines)...'
+                ? 'modal-confirm-approve'
+                : 'modal-confirm-reject'
             }
-            data-testid="decision-comment-input"
-          />
-          {decisionModal.error && (
-            <Text type="danger" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
-              {decisionModal.error}
+          >
+            {decisionModal.decision === 'APPROVED' ? 'Approve' : 'Reject'}
+          </Button>,
+        ]}
+      >
+        {decisionModal.item && (
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ fontSize: 14 }}>
+              {decisionModal.item.subjectEmployeeName}
             </Text>
-          )}
+            <div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>
+              {decisionModal.item.summary}
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginBottom: 8 }}>
+          <Text style={{ fontSize: 13 }}>
+            {decisionModal.decision === 'APPROVED'
+              ? 'Comment (optional):'
+              : 'Reason for rejection (required):'}
+          </Text>
         </div>
+
+        <TextArea
+          rows={3}
+          value={decisionModal.comment}
+          onChange={(e) =>
+            setDecisionModal((prev) => ({ ...prev, comment: e.target.value, error: '' }))
+          }
+          placeholder={
+            decisionModal.decision === 'APPROVED'
+              ? 'e.g. Approved. Have a good break!'
+              : 'e.g. Critical deployment window, please reschedule.'
+          }
+          data-testid="decision-comment-input"
+        />
+
+        {decisionModal.error && (
+          <div style={{ color: '#cf1322', fontSize: 12, marginTop: 6 }}>
+            {decisionModal.error}
+          </div>
+        )}
       </Modal>
+
+      {/* Slide-up detailed audit drawer */}
+      <MobileApprovalDetailDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        instanceId={selectedItem?.instanceId}
+        onDecided={() => {
+          setDrawerOpen(false);
+          loadData();
+        }}
+      />
     </div>
   );
 }
-

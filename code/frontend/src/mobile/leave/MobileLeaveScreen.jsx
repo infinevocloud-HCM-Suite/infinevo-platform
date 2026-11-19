@@ -19,6 +19,7 @@ import {
   ClockCircleOutlined,
   CheckCircleOutlined,
   StopOutlined,
+  UndoOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { mobileLeaveService } from './mobileLeaveService.js';
@@ -49,10 +50,15 @@ function renderStatusTag(status) {
         </Tag>
       );
     case 'CANCELLED':
-    case 'WITHDRAWN':
       return (
         <Tag icon={<StopOutlined />} style={{ borderRadius: 6 }}>
-          {status === 'CANCELLED' ? 'Cancelled' : 'Withdrawn'}
+          Cancelled
+        </Tag>
+      );
+    case 'WITHDRAWN':
+      return (
+        <Tag icon={<UndoOutlined />} style={{ borderRadius: 6 }}>
+          Withdrawn
         </Tag>
       );
     default:
@@ -63,7 +69,8 @@ function renderStatusTag(status) {
 /**
  * Mobile Leave Screen (W-98.3 §4.2)
  * Clean touch dashboard with swipeable balance cards, chronological history,
- * 1-tap cancellation, and floating "+ Apply Leave" bottom sheet action.
+ * separate Withdraw (PENDING) and Cancel (future APPROVED) actions,
+ * and floating "+ Apply Leave" bottom sheet action.
  */
 export function MobileLeaveScreen() {
   const [loading, setLoading] = useState(true);
@@ -72,7 +79,7 @@ export function MobileLeaveScreen() {
   const [requests, setRequests] = useState([]);
   const [errorBanner, setErrorBanner] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [cancellingId, setCancellingId] = useState(null);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -101,8 +108,21 @@ export function MobileLeaveScreen() {
     loadData();
   };
 
+  const handleWithdrawRequest = async (requestId) => {
+    setActionLoadingId(requestId);
+    try {
+      await mobileLeaveService.withdrawLeave(requestId, 'Withdrawn from mobile app');
+      await successMsg('Leave Request Withdrawn', 'Your leave request has been withdrawn.');
+      await loadData();
+    } catch (err) {
+      await errorMsg(err);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const handleCancelRequest = async (requestId) => {
-    setCancellingId(requestId);
+    setActionLoadingId(requestId);
     try {
       await mobileLeaveService.cancelLeave(requestId, 'Cancelled from mobile app');
       await successMsg('Leave Request Cancelled', 'The leave request has been cancelled.');
@@ -110,17 +130,14 @@ export function MobileLeaveScreen() {
     } catch (err) {
       await errorMsg(err);
     } finally {
-      setCancellingId(null);
+      setActionLoadingId(null);
     }
   };
 
-  const canCancel = (request) => {
-    if (request.status === 'PENDING') return true;
-    if (request.status === 'APPROVED') {
-      const start = dayjs(request.fromDate);
-      return start.isValid() && (start.isAfter(dayjs(), 'day') || start.isSame(dayjs(), 'day'));
-    }
-    return false;
+  const isFutureApproved = (req) => {
+    if (req.status !== 'APPROVED') return false;
+    const start = dayjs(req.fromDate);
+    return start.isValid() && start.isAfter(dayjs(), 'day');
   };
 
   if (loading) {
@@ -131,6 +148,26 @@ export function MobileLeaveScreen() {
       >
         <Spin size="large" />
         <Text type="secondary">Loading leave details...</Text>
+      </div>
+    );
+  }
+
+  // Error view when initial load failed
+  if (errorBanner && balances.length === 0 && requests.length === 0) {
+    return (
+      <div className="mobile-leave-container" data-testid="mobile-leave-error" style={{ padding: 16 }}>
+        <Alert
+          type="error"
+          message="Failed to load leave records"
+          description={errorBanner}
+          showIcon
+          action={
+            <Button size="small" danger onClick={loadData} data-testid="leave-retry-btn">
+              Retry
+            </Button>
+          }
+          style={{ marginTop: 24, borderRadius: 8 }}
+        />
       </div>
     );
   }
@@ -220,7 +257,7 @@ export function MobileLeaveScreen() {
         {requests.length === 0 ? (
           <Card style={{ borderRadius: 12, textAlign: 'center', padding: '24px 0' }}>
             <Empty
-              description="No leave requests submitted yet."
+              description="No leave requests yet"
               image={Empty.PRESENTED_IMAGE_SIMPLE}
             />
           </Card>
@@ -228,14 +265,23 @@ export function MobileLeaveScreen() {
           <Space direction="vertical" size={10} style={{ width: '100%' }}>
             {requests.map((req) => {
               const isHalf = !!req.isHalfDay;
-              const dateRange =
-                req.fromDate === req.toDate || !req.toDate
-                  ? dayjs(req.fromDate).format('DD MMM YYYY')
-                  : `${dayjs(req.fromDate).format('DD MMM')} – ${dayjs(req.toDate).format('DD MMM YYYY')}`;
-
+              const periodLabel =
+                req.halfDayPeriod?.toLowerCase() === 'second' || req.halfDayPeriod === 'SECOND_HALF'
+                  ? 'Second Half'
+                  : 'First Half';
+              const daysNum = Number(req.daysCount ?? req.days ?? (isHalf ? 0.5 : 1));
               const countStr = isHalf
-                ? `0.5 day (${req.halfDayPeriod === 'FIRST_HALF' ? '1st Half' : '2nd Half'})`
-                : `${req.daysCount ?? 1} ${(req.daysCount ?? 1) === 1 ? 'day' : 'days'}`;
+                ? `0.5 Day (${periodLabel})`
+                : `${daysNum} ${daysNum === 1 ? 'Day' : 'Days'}`;
+
+              const dateRange =
+                req.fromDate === req.toDate || !req.toDate || isHalf
+                  ? req.fromDate
+                  : `${req.fromDate} - ${req.toDate}`;
+
+              const isPending = req.status === 'PENDING';
+              const canCancelApproved = isFutureApproved(req);
+              const isActing = actionLoadingId === req.id;
 
               return (
                 <Card
@@ -272,15 +318,41 @@ export function MobileLeaveScreen() {
                     </div>
                   )}
 
-                  {canCancel(req) && (
+                  {/* PENDING -> Withdraw button */}
+                  {isPending && (
+                    <div style={{ marginTop: 10, textAlign: 'right' }}>
+                      <Popconfirm
+                        title="Withdraw Leave Request"
+                        description="Are you sure you want to withdraw this pending leave application?"
+                        onConfirm={() => handleWithdrawRequest(req.id)}
+                        okText="Yes, Withdraw"
+                        cancelText="Keep"
+                        okButtonProps={{ danger: true, loading: isActing }}
+                      >
+                        <Button
+                          size="small"
+                          danger
+                          type="text"
+                          icon={<UndoOutlined />}
+                          data-testid="btn-withdraw-leave"
+                          disabled={isActing}
+                        >
+                          Withdraw Request
+                        </Button>
+                      </Popconfirm>
+                    </div>
+                  )}
+
+                  {/* Future APPROVED -> Cancel button */}
+                  {canCancelApproved && (
                     <div style={{ marginTop: 10, textAlign: 'right' }}>
                       <Popconfirm
                         title="Cancel Leave Request"
-                        description="Are you sure you want to cancel this leave application?"
+                        description="Are you sure you want to cancel this approved leave application?"
                         onConfirm={() => handleCancelRequest(req.id)}
                         okText="Yes, Cancel"
                         cancelText="Keep"
-                        okButtonProps={{ danger: true, loading: cancellingId === req.id }}
+                        okButtonProps={{ danger: true, loading: isActing }}
                       >
                         <Button
                           size="small"
@@ -288,6 +360,7 @@ export function MobileLeaveScreen() {
                           type="text"
                           icon={<CloseCircleOutlined />}
                           data-testid="btn-cancel-leave"
+                          disabled={isActing}
                         >
                           Cancel Request
                         </Button>

@@ -33,8 +33,11 @@ try {
 
 const errors = [];
 
-// 1. Raw string checks
-if (/localhost/i.test(rawContent)) {
+// 1. Raw string checks — mobile webview origins (https://localhost, capacitor://localhost) are allowed (W-98.1)
+const filteredContent = rawContent
+  .replaceAll('"https://localhost"', '""')
+  .replaceAll('"capacitor://localhost"', '""');
+if (/localhost/i.test(filteredContent)) {
   errors.push("Forbidden string 'localhost' found in realm file.");
 }
 

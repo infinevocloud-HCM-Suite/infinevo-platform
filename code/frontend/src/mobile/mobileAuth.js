@@ -2,7 +2,9 @@ import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
 import { App } from '@capacitor/app';
 import { Preferences } from '@capacitor/preferences';
+import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
 import { config } from '../shared/config.js';
+import { mobilePayslipService } from './payslips/mobilePayslipService.js';
 
 const KEY_ACCESS_TOKEN = 'infinevo_access_token';
 const KEY_REFRESH_TOKEN = 'infinevo_refresh_token';
@@ -24,6 +26,32 @@ let currentTokens = {
 let authPromiseResolve = null;
 let authPromiseReject = null;
 let appUrlListenerAttached = false;
+let browserListener = null;
+
+async function getSecureItem(key) {
+  try {
+    const res = await SecureStoragePlugin.get({ key });
+    return res?.value || null;
+  } catch {
+    return null;
+  }
+}
+
+async function setSecureItem(key, value) {
+  if (value) {
+    await SecureStoragePlugin.set({ key, value });
+  } else {
+    await SecureStoragePlugin.remove({ key }).catch(() => {});
+  }
+}
+
+async function removeSecureItem(key) {
+  try {
+    await SecureStoragePlugin.remove({ key });
+  } catch {
+    // Ignore key not found
+  }
+}
 
 /**
  * Base64-URL encode a buffer without padding.
@@ -42,17 +70,15 @@ function base64UrlEncode(buffer) {
 
 /**
  * Generate a random 64-character PKCE code verifier (RFC 7636).
+ * Fails with clear error if crypto.getRandomValues is missing — no weaker fallback.
  */
 export function generateCodeVerifier(length = 64) {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  const randomValues = new Uint8Array(length);
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    crypto.getRandomValues(randomValues);
-  } else {
-    for (let i = 0; i < length; i++) {
-      randomValues[i] = Math.floor(Math.random() * 256);
-    }
+  if (typeof crypto === 'undefined' || !crypto.getRandomValues) {
+    throw new Error('Secure random generator (crypto.getRandomValues) is not available');
   }
+  const randomValues = new Uint8Array(length);
+  crypto.getRandomValues(randomValues);
   let result = '';
   for (let i = 0; i < length; i++) {
     result += charset[randomValues[i] % charset.length];
@@ -62,16 +88,16 @@ export function generateCodeVerifier(length = 64) {
 
 /**
  * Derive code challenge from verifier using SHA-256.
+ * Fails with clear error if crypto.subtle.digest is missing — no weaker fallback.
  */
 export async function generateCodeChallenge(verifier) {
+  if (typeof crypto === 'undefined' || !crypto.subtle || !crypto.subtle.digest) {
+    throw new Error('Cryptographic digest (crypto.subtle.digest) is not available');
+  }
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
-  if (typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest) {
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    return base64UrlEncode(digest);
-  }
-  // Fallback for mock/test environments without SubtleCrypto
-  return btoa(verifier).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return base64UrlEncode(digest);
 }
 
 /**
@@ -95,26 +121,26 @@ export function parseJwt(token) {
 }
 
 /**
- * Persist tokens in Capacitor Preferences storage.
+ * Persist tokens in Keystore/Keychain secure storage; non-secret metadata in Preferences.
  */
 async function saveTokens(tokens) {
   currentTokens = {
     ...tokens,
     tokenParsed: parseJwt(tokens.accessToken),
   };
-  await Preferences.set({ key: KEY_ACCESS_TOKEN, value: tokens.accessToken || '' });
-  await Preferences.set({ key: KEY_REFRESH_TOKEN, value: tokens.refreshToken || '' });
-  await Preferences.set({ key: KEY_ID_TOKEN, value: tokens.idToken || '' });
+  await setSecureItem(KEY_ACCESS_TOKEN, tokens.accessToken || '');
+  await setSecureItem(KEY_REFRESH_TOKEN, tokens.refreshToken || '');
+  await setSecureItem(KEY_ID_TOKEN, tokens.idToken || '');
   await Preferences.set({ key: KEY_EXPIRES_AT, value: String(tokens.expiresAt || 0) });
 }
 
 /**
- * Load tokens from Capacitor Preferences storage into memory.
+ * Load tokens from secure storage into memory.
  */
 async function loadStoredTokens() {
-  const { value: accessToken } = await Preferences.get({ key: KEY_ACCESS_TOKEN });
-  const { value: refreshToken } = await Preferences.get({ key: KEY_REFRESH_TOKEN });
-  const { value: idToken } = await Preferences.get({ key: KEY_ID_TOKEN });
+  const accessToken = await getSecureItem(KEY_ACCESS_TOKEN);
+  const refreshToken = await getSecureItem(KEY_REFRESH_TOKEN);
+  const idToken = await getSecureItem(KEY_ID_TOKEN);
   const { value: expiresAtStr } = await Preferences.get({ key: KEY_EXPIRES_AT });
 
   if (accessToken) {
@@ -131,7 +157,7 @@ async function loadStoredTokens() {
 }
 
 /**
- * Clear stored credentials.
+ * Clear stored credentials from secure storage and preferences.
  */
 export async function clearStoredTokens() {
   currentTokens = {
@@ -141,9 +167,9 @@ export async function clearStoredTokens() {
     expiresAt: 0,
     tokenParsed: null,
   };
-  await Preferences.remove({ key: KEY_ACCESS_TOKEN });
-  await Preferences.remove({ key: KEY_REFRESH_TOKEN });
-  await Preferences.remove({ key: KEY_ID_TOKEN });
+  await removeSecureItem(KEY_ACCESS_TOKEN);
+  await removeSecureItem(KEY_REFRESH_TOKEN);
+  await removeSecureItem(KEY_ID_TOKEN);
   await Preferences.remove({ key: KEY_EXPIRES_AT });
   await Preferences.remove({ key: KEY_PKCE_VERIFIER });
   await Preferences.remove({ key: KEY_PKCE_STATE });
@@ -272,6 +298,22 @@ export async function startMobileLogin() {
       state,
     }).toString();
 
+  if (browserListener) {
+    try {
+      await browserListener.remove();
+    } catch {
+      // Ignore
+    }
+  }
+
+  browserListener = await Browser.addListener('browserFinished', () => {
+    if (authPromiseReject) {
+      authPromiseReject(new Error('cancelled'));
+      authPromiseResolve = null;
+      authPromiseReject = null;
+    }
+  });
+
   await Browser.open({ url: authUrl, windowName: '_system' });
 }
 
@@ -282,15 +324,15 @@ export async function initMobileAuth() {
   setupDeepLinkListener();
 
   const stored = await loadStoredTokens();
-  if (stored?.accessToken) {
-    // Check if current token or refreshed token is valid
+  if (stored?.refreshToken) {
     const valid = await getValidMobileToken();
     if (valid) {
-      return stored;
+      return currentTokens;
     }
   }
 
-  // Need user login
+  await clearStoredTokens();
+
   return new Promise((resolve, reject) => {
     authPromiseResolve = resolve;
     authPromiseReject = reject;
@@ -348,17 +390,42 @@ export async function getValidMobileToken() {
     }
   }
 
-  // Both tokens invalid/expired
+  // Refresh failed: clear tokens and start a fresh login flow
   await clearStoredTokens();
+  await startMobileLogin().catch(() => {});
   return null;
 }
 
 /**
- * Mobile sign out.
+ * Mobile sign out:
+ * 1. Revokes refresh token at Keycloak
+ * 2. Ends SSO session with id_token_hint
+ * 3. Clears secure storage
+ * 4. Reloads window / shows sign in
  */
 export async function mobileLogout() {
+  if (!currentTokens.refreshToken || !currentTokens.idToken) {
+    await loadStoredTokens();
+  }
+  const refreshToken = currentTokens.refreshToken;
   const idToken = currentTokens.idToken;
-  await clearStoredTokens();
+
+  if (refreshToken) {
+    try {
+      const revokeUrl = `${config.keycloak.url}/realms/${config.keycloak.realm}/protocol/openid-connect/revoke`;
+      const body = new URLSearchParams();
+      body.append('client_id', config.keycloak.clientId);
+      body.append('token', refreshToken);
+      body.append('token_type_hint', 'refresh_token');
+      await fetch(revokeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      });
+    } catch {
+      // Best effort
+    }
+  }
 
   if (idToken) {
     try {
@@ -367,14 +434,26 @@ export async function mobileLogout() {
           id_token_hint: idToken,
           post_logout_redirect_uri: 'infinevo://auth-callback',
         }).toString();
-      await fetch(logoutUrl, { method: 'GET' });
+      await Browser.open({ url: logoutUrl, windowName: '_system' });
     } catch {
-      // Best effort logout
+      // Best effort
     }
   }
 
-  if (typeof window !== 'undefined') {
-    window.location.reload();
+  await clearStoredTokens();
+
+  try {
+    await mobilePayslipService.cleanup();
+  } catch {
+    // Best effort cleanup
+  }
+
+  if (typeof window !== 'undefined' && window.location && typeof window.location.reload === 'function') {
+    try {
+      window.location.reload();
+    } catch {
+      // Ignore in JSDOM / non-browser test environment
+    }
   }
 }
 
@@ -389,4 +468,3 @@ export function getMobileTokenParsed() {
 export function isMobileAuthenticated() {
   return Boolean(currentTokens.accessToken);
 }
-

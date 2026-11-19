@@ -54,7 +54,7 @@ export function ApplyLeaveDrawer({ open, onClose, balances = [], onSuccess, pres
       form.setFieldsValue({
         leaveTypeId: defaultType,
         isHalfDay: false,
-        halfDayPeriod: 'FIRST_HALF',
+        halfDayPeriod: 'first',
         fromDate: dayjs(),
         toDate: dayjs(),
         reason: '',
@@ -198,10 +198,10 @@ export function ApplyLeaveDrawer({ open, onClose, balances = [], onSuccess, pres
             rules={[{ required: true, message: 'Select period' }]}
           >
             <Radio.Group buttonStyle="solid" style={{ width: '100%', display: 'flex' }}>
-              <Radio.Button value="FIRST_HALF" style={{ flex: 1, textAlign: 'center' }}>
+              <Radio.Button value="first" style={{ flex: 1, textAlign: 'center' }}>
                 First Half (Morning)
               </Radio.Button>
-              <Radio.Button value="SECOND_HALF" style={{ flex: 1, textAlign: 'center' }}>
+              <Radio.Button value="second" style={{ flex: 1, textAlign: 'center' }}>
                 Second Half (Afternoon)
               </Radio.Button>
             </Radio.Group>

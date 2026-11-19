@@ -1,12 +1,37 @@
 import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+import { Preferences } from '@capacitor/preferences';
 import { attendanceService } from '../../hrms/attendance/attendanceService.js';
+
+export const CONSENT_KEY = 'infinevo_attendance_location_consent_granted';
 
 /**
  * Mobile Attendance Service (W-98.2 §4.2).
- * Wraps Capacitor Geolocation, Haptics, and Attendance API calls for native mobile self-service.
+ * Wraps Capacitor Geolocation, Haptics, Preferences, and Attendance API calls for native mobile self-service.
  */
 export const mobileAttendanceService = {
+  /**
+   * Checks whether the employee has granted location consent before.
+   */
+  async hasLocationConsent() {
+    try {
+      const { value } = await Preferences.get({ key: CONSENT_KEY });
+      return value === 'true';
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * Records employee location consent in device preferences.
+   */
+  async grantLocationConsent() {
+    try {
+      await Preferences.set({ key: CONSENT_KEY, value: 'true' });
+    } catch {
+      // Non-fatal
+    }
+  },
   /**
    * Captures device GPS coordinates with a 5-second timeout.
    * If permission is denied or GPS times out, returns null coordinates without blocking the employee.

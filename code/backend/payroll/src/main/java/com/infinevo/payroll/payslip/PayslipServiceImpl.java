@@ -16,6 +16,7 @@ import com.infinevo.payroll.salary.EmployeeStatutoryProfileRepository;
 import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ public class PayslipServiceImpl implements PayslipService {
     private final EmployeeService employeeService;
     private final JdbcTemplate jdbcTemplate;
     private final EmployeeStatutoryProfileRepository statutoryProfiles;
+    private final PayslipLinkService linkService;
 
     @Autowired
     public PayslipServiceImpl(
@@ -51,13 +53,15 @@ public class PayslipServiceImpl implements PayslipService {
             EmployeePayRunLineRepository lines,
             EmployeeService employeeService,
             JdbcTemplate jdbcTemplate,
-            @Autowired(required = false) EmployeeStatutoryProfileRepository statutoryProfiles) {
+            @Autowired(required = false) EmployeeStatutoryProfileRepository statutoryProfiles,
+            @Autowired(required = false) @org.springframework.context.annotation.Lazy PayslipLinkService linkService) {
         this.employeePayRuns = Objects.requireNonNull(employeePayRuns, "employeePayRuns must not be null");
         this.payRuns = Objects.requireNonNull(payRuns, "payRuns must not be null");
         this.lines = Objects.requireNonNull(lines, "lines must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate must not be null");
         this.statutoryProfiles = statutoryProfiles;
+        this.linkService = linkService;
     }
 
     public PayslipServiceImpl(
@@ -66,7 +70,7 @@ public class PayslipServiceImpl implements PayslipService {
             EmployeePayRunLineRepository lines,
             EmployeeService employeeService,
             JdbcTemplate jdbcTemplate) {
-        this(employeePayRuns, payRuns, lines, employeeService, jdbcTemplate, null);
+        this(employeePayRuns, payRuns, lines, employeeService, jdbcTemplate, null, null);
     }
 
     @Override
@@ -153,7 +157,7 @@ public class PayslipServiceImpl implements PayslipService {
                 .orElseThrow(() -> new PayslipNotFoundException("Pay run not found: " + payrunId));
 
         if (payRun.getStatus() != PayRunStatus.PAID) {
-            throw new PayslipNotFoundException(
+            throw new PayslipConflictException(
                     "Payslip is only available for PAID runs, status was " + payRun.getStatus());
         }
 
@@ -167,6 +171,38 @@ public class PayslipServiceImpl implements PayslipService {
         }
 
         return buildPayslipResponse(tenantId, payRun, employeePayRun, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PayslipLinkService.LinkToken linkForOwn(UUID payrunId) {
+        Objects.requireNonNull(payrunId, "payrunId must not be null");
+        if (linkService == null) {
+            throw new IllegalStateException("PayslipLinkService is not configured");
+        }
+        UUID tenantId = TenantContext.require();
+        EmployeeResponse employee = employeeService
+                .currentEmployee()
+                .orElseThrow(() -> new PayslipForbiddenException("No employee linked to current user"));
+
+        PayRun payRun = payRuns.findByIdAndTenantId(payrunId, tenantId)
+                .orElseThrow(() -> new PayslipNotFoundException("Pay run not found: " + payrunId));
+
+        if (payRun.getStatus() != PayRunStatus.PAID) {
+            throw new PayslipConflictException(
+                    "Payslip is only available for PAID runs, status was " + payRun.getStatus());
+        }
+
+        EmployeePayRun employeePayRun = employeePayRuns
+                .findByTenantIdAndPayrunIdAndEmployeeId(tenantId, payrunId, employee.id())
+                .orElseThrow(() ->
+                        new PayslipNotFoundException("Employee " + employee.id() + " not in pay run " + payrunId));
+
+        if (employeePayRun.getInclusionStatus() == InclusionStatus.SKIPPED) {
+            throw new PayslipNotFoundException("Employee was skipped in pay run " + payrunId);
+        }
+
+        return linkService.generateToken(employeePayRun.getId(), Duration.ofMinutes(5));
     }
 
     private PayslipResponse buildPayslipResponse(

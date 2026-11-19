@@ -39,4 +39,9 @@ public interface PayslipService {
      * Employee read of own payslip for a specific pay run (PAID only).
      */
     PayslipResponse own(UUID payrunId);
+
+    /**
+     * Generates a 5-minute signed link token for the caller's own payslip in the given pay run (W-98.4 §4).
+     */
+    PayslipLinkService.LinkToken linkForOwn(UUID payrunId);
 }

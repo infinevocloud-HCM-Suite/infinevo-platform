@@ -1,12 +1,13 @@
 package com.infinevo.payroll.payslip;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Signs and verifies public payslip links (W-36.2 §4).
+ * Signs and verifies public payslip links (W-36.2 §4, W-98.4 §4).
  *
  * <p><strong>Token shape:</strong> {@code {tenantId}.{employeePayrunId}.{expiresEpochSecond}.{signature}},
  * every part URL-safe. The signed message is the first three parts behind the fixed domain prefix
@@ -21,9 +22,13 @@ public interface PayslipLinkService {
         }
     }
 
+    record LinkToken(@JsonProperty("token") String token, @JsonProperty("expires_at") Instant expiresAt) {}
+
     record PayslipClaims(UUID tenantId, UUID employeePayrunId, Instant expiresAt) {}
 
     SignedLink signedLink(UUID employeePayrunId, Duration ttl);
+
+    LinkToken generateToken(UUID employeePayrunId, Duration ttl);
 
     Optional<PayslipClaims> verify(String token);
 }

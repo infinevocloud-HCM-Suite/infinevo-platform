@@ -81,7 +81,6 @@ export function MobilePayslipDetailSheet({
       await mobilePayslipService.downloadAndSharePayslip({
         payrunId,
         period: payslip?.run?.period,
-        payslipData: payslip,
       });
       successMsg('Payslip PDF ready to share');
     } catch (err) {

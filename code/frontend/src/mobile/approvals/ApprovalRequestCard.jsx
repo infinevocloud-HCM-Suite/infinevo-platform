@@ -44,8 +44,8 @@ function formatWaitingSince(dateStr) {
 
 /**
  * Touch-optimized Approval Request Card (W-98.5 §4.2)
- * Features employee monogram, request details, waiting time badge,
- * and 1-tap Approve & Reject buttons.
+ * Features employee name, flow type tag, request summary,
+ * and 1-tap Approve & Reject buttons. No employee code is shown.
  */
 export function ApprovalRequestCard({ item, onApprove, onReject, onClick }) {
   const employeeName = item.subjectEmployeeName || 'Employee';
@@ -97,11 +97,6 @@ export function ApprovalRequestCard({ item, onApprove, onReject, onClick }) {
             <Text strong style={{ fontSize: 14, display: 'block', lineHeight: 1.3 }}>
               {employeeName}
             </Text>
-            {item.subjectEmployeeId && (
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                ID: {item.subjectEmployeeId}
-              </Text>
-            )}
           </div>
         </div>
 
@@ -215,4 +210,3 @@ ApprovalRequestCard.propTypes = {
   onReject: PropTypes.func.isRequired,
   onClick: PropTypes.func,
 };
-

@@ -78,7 +78,7 @@ public class PayslipLinkServiceImpl implements PayslipLinkService {
 
     @Override
     @Transactional(readOnly = true)
-    public SignedLink signedLink(UUID employeePayrunId, Duration ttl) {
+    public LinkToken generateToken(UUID employeePayrunId, Duration ttl) {
         Objects.requireNonNull(employeePayrunId, "employeePayrunId must not be null");
         if (ttl == null || ttl.isZero() || ttl.isNegative()) {
             throw new IllegalArgumentException("A payslip link needs a positive lifetime");
@@ -98,8 +98,19 @@ public class PayslipLinkServiceImpl implements PayslipLinkService {
                 Base64.getUrlEncoder().withoutPadding().encodeToString(sign(tenantId, employeePayrunId, expires));
         String linkToken = tenantId + SEPARATOR + employeePayrunId + SEPARATOR + expires + SEPARATOR + encodedSignature;
         log.info(
-                "Issued a link to employee payrun {} in tenant {}, expiring {}", employeePayrunId, tenantId, expiresAt);
-        return new SignedLink(baseUrl + "?t=" + linkToken, expiresAt);
+                "Issued a link token to employee payrun {} in tenant {}, expiring {}",
+                employeePayrunId,
+                tenantId,
+                expiresAt);
+        return new LinkToken(linkToken, expiresAt);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SignedLink signedLink(UUID employeePayrunId, Duration ttl) {
+        LinkToken linkToken = generateToken(employeePayrunId, ttl);
+        String sep = baseUrl.contains("?") ? "&" : "?";
+        return new SignedLink(baseUrl + sep + "t=" + linkToken.token(), linkToken.expiresAt());
     }
 
     @Override

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Button, Alert, Tag, Spin, Typography, Space } from 'antd';
 import {
   EnvironmentOutlined,
@@ -7,6 +7,7 @@ import {
   HistoryOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { mobileAttendanceService } from './mobileAttendanceService.js';
 import { ShiftTimer } from './ShiftTimer.jsx';
 import { hmm, timeOf } from '../../hrms/attendance/format.js';
@@ -15,14 +16,70 @@ import { StatusTag } from '@shared/ui/StatusTag.jsx';
 
 const { Title, Text } = Typography;
 
+/**
+ * Builds exactly 7 calendar day rows from the given target date (newest to oldest).
+ * Each row aggregates that day's sessions, total worked time, and status.
+ */
+export function buildLast7Days(todayDateStr, rawSessions = []) {
+  const baseDate = todayDateStr ? dayjs(todayDateStr) : dayjs();
+
+  const byDate = new Map();
+  for (const s of rawSessions) {
+    if (!s.attendanceDate) continue;
+    const list = byDate.get(s.attendanceDate) || [];
+    list.push(s);
+    byDate.set(s.attendanceDate, list);
+  }
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = baseDate.subtract(i, 'day');
+    const dateStr = d.format('YYYY-MM-DD');
+    const daySessions = byDate.get(dateStr) || [];
+    const liveSessions = daySessions.filter((s) => !s.voidedAt);
+
+    const workedMinutes = liveSessions.reduce((sum, s) => sum + (s.workedMinutes || 0), 0);
+    const ins = liveSessions.map((s) => s.clockInAt).filter(Boolean).sort();
+    const outs = liveSessions.map((s) => s.clockOutAt).filter(Boolean).sort();
+    const firstIn = ins[0] || null;
+    const lastOut = outs[outs.length - 1] || null;
+
+    let status = null;
+    if (daySessions.length > 0 && daySessions[0].dayStatus) {
+      status = daySessions[0].dayStatus;
+    } else if (workedMinutes > 0) {
+      status = 'PRESENT';
+    } else {
+      const dayOfWeek = d.day(); // 0: Sunday, 6: Saturday
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        status = 'WEEKEND';
+      } else {
+        status = 'ABSENT';
+      }
+    }
+
+    days.push({
+      date: dateStr,
+      firstIn,
+      lastOut,
+      workedMinutes,
+      dayStatus: status,
+      sessionCount: daySessions.length,
+    });
+  }
+
+  return days;
+}
+
 export function MobileAttendanceScreen() {
   const [today, setToday] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [locationStatus, setLocationStatus] = useState('checking'); // 'checking' | 'granted' | 'denied' | 'unavailable'
+  const [locationStatus, setLocationStatus] = useState('checking'); // 'checking' | 'granted' | 'denied' | 'unavailable' | 'timeout'
   const [coords, setCoords] = useState(null);
+  const [consentGiven, setConsentGiven] = useState(false);
 
   const checkLocation = useCallback(async () => {
     setLocationStatus('checking');
@@ -30,8 +87,17 @@ export function MobileAttendanceScreen() {
     setLocationStatus(result.status);
     if (result.latitude != null) {
       setCoords(result);
+    } else {
+      setCoords(null);
     }
+    return result;
   }, []);
+
+  const handleGrantConsent = async () => {
+    await mobileAttendanceService.grantLocationConsent();
+    setConsentGiven(true);
+    await checkLocation();
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -52,7 +118,14 @@ export function MobileAttendanceScreen() {
 
   useEffect(() => {
     loadData();
-    checkLocation();
+    mobileAttendanceService.hasLocationConsent().then((consented) => {
+      setConsentGiven(consented);
+      if (consented) {
+        checkLocation();
+      } else {
+        setLocationStatus('unavailable');
+      }
+    });
   }, [loadData, checkLocation]);
 
   const openSession = today?.openSession;
@@ -69,12 +142,21 @@ export function MobileAttendanceScreen() {
     setBusy(true);
     setError(null);
     try {
-      // Re-capture fresh coordinates before punch
-      const freshCoords = await mobileAttendanceService.getCoordinates();
+      let punchCoords = coords;
+      if (consentGiven) {
+        punchCoords = await mobileAttendanceService.getCoordinates();
+        if (punchCoords?.latitude != null) {
+          setCoords(punchCoords);
+          setLocationStatus('granted');
+        } else {
+          setCoords(null);
+          setLocationStatus(punchCoords?.status || 'unavailable');
+        }
+      }
       if (isClockedIn && !isStale) {
-        await mobileAttendanceService.clockOut(freshCoords);
+        await mobileAttendanceService.clockOut(punchCoords);
       } else {
-        await mobileAttendanceService.clockIn(freshCoords);
+        await mobileAttendanceService.clockIn(punchCoords);
       }
       await loadData();
     } catch (err) {
@@ -83,6 +165,10 @@ export function MobileAttendanceScreen() {
       setBusy(false);
     }
   };
+
+  const dayRows = useMemo(() => {
+    return buildLast7Days(today?.date, history);
+  }, [today?.date, history]);
 
   if (loading && !today) {
     return (
@@ -97,6 +183,7 @@ export function MobileAttendanceScreen() {
   const firstIn = sessions.length ? sessions[0].clockInAt : openSession?.clockInAt;
   const lastOut = sessions.length ? sessions[sessions.length - 1].clockOutAt : null;
   const workedMinutes = today?.workedMinutes || 0;
+  const hasLocation = locationStatus === 'granted' && coords?.latitude != null;
 
   return (
     <div className="mobile-attendance-screen" data-testid="mobile-attendance-screen">
@@ -112,15 +199,30 @@ export function MobileAttendanceScreen() {
         </div>
 
         <div className="mobile-gps-chip" data-testid="gps-chip">
-          {locationStatus === 'granted' ? (
+          {hasLocation ? (
             <Tag color="success" icon={<EnvironmentOutlined />}>GPS Active</Tag>
-          ) : locationStatus === 'denied' ? (
-            <Tag color="warning" icon={<CompassOutlined />}>GPS Denied</Tag>
           ) : (
-            <Tag color="default" icon={<CompassOutlined />}>GPS Off</Tag>
+            <Tag color="default" icon={<CompassOutlined />}>Location not recorded</Tag>
           )}
         </div>
       </div>
+
+      {/* Consent Notice - Shown before first location capture */}
+      {!consentGiven && (
+        <Alert
+          type="info"
+          showIcon
+          data-testid="location-consent-banner"
+          message="Location Permission Required"
+          description="Infinevo records your location only at the moment you clock in or out, so your employer can see where the punch was made. It is not tracked at any other time."
+          action={
+            <Button size="small" type="primary" onClick={handleGrantConsent} data-testid="consent-grant-btn">
+              I Understand
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       {error && (
         <Alert
@@ -170,7 +272,7 @@ export function MobileAttendanceScreen() {
                 {isClockedIn && !isStale ? 'CLOCK OUT' : 'CLOCK IN'}
               </span>
               <span className="mobile-punch-time-label">
-                {coords?.latitude != null ? 'Location tagged' : '1-Tap Punch'}
+                {hasLocation ? 'Location tagged' : 'Location not recorded'}
               </span>
             </div>
           )}
@@ -195,12 +297,12 @@ export function MobileAttendanceScreen() {
         </div>
       </Card>
 
-      {/* Weekly Recent Attendance History */}
+      {/* Weekly Recent Attendance History: exactly 7 days */}
       <Card
         className="mobile-recent-card"
         title={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span><HistoryOutlined style={{ marginRight: 6 }} />Recent Activity</span>
+            <span><HistoryOutlined style={{ marginRight: 6 }} />Recent Activity (Last 7 Days)</span>
             <Button
               type="text"
               size="small"
@@ -211,38 +313,25 @@ export function MobileAttendanceScreen() {
           </div>
         }
       >
-        {history.length === 0 ? (
-          <Text type="secondary" style={{ textAlign: 'center', display: 'block', padding: '16px 0' }}>
-            No recent attendance punches recorded.
-          </Text>
-        ) : (
-          <Space direction="vertical" style={{ width: '100%' }} size={10}>
-            {history.slice(0, 7).map((session, idx) => (
-              <div key={session.id || idx} className="mobile-history-row" data-testid="history-row">
-                <div>
-                  <Text strong>{session.attendanceDate ? formatDate(session.attendanceDate) : '—'}</Text>
-                  <div style={{ fontSize: 12, color: '#8c8c8c' }}>
-                    {timeOf(session.clockInAt)} - {timeOf(session.clockOutAt)}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <Text style={{ display: 'block', fontSize: 13, fontWeight: 500 }}>
-                    {hmm(session.workedMinutes)}
-                  </Text>
-                  {session.dayStatus ? (
-                    <StatusTag status={session.dayStatus} />
-                  ) : (
-                    <Tag color={session.clockOutAt ? 'blue' : 'processing'}>
-                      {session.clockOutAt ? 'Completed' : 'Running'}
-                    </Tag>
-                  )}
+        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+          {dayRows.map((day) => (
+            <div key={day.date} className="mobile-history-row" data-testid="history-row">
+              <div>
+                <Text strong>{formatDate(day.date)}</Text>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+                  {day.firstIn ? `${timeOf(day.firstIn)} - ${timeOf(day.lastOut)}` : 'No punch recorded'}
                 </div>
               </div>
-            ))}
-          </Space>
-        )}
+              <div style={{ textAlign: 'right' }}>
+                <Text style={{ display: 'block', fontSize: 13, fontWeight: 500 }}>
+                  {hmm(day.workedMinutes)}
+                </Text>
+                <StatusTag status={day.dayStatus} />
+              </div>
+            </div>
+          ))}
+        </Space>
       </Card>
     </div>
   );
 }
-

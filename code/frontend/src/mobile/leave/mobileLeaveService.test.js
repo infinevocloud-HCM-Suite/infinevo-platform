@@ -9,7 +9,7 @@ vi.mock('../../shared/api/client.js', () => ({
   },
 }));
 
-describe('mobileLeaveService (W-98.3 §6)', () => {
+describe('mobileLeaveService (W-98.3 §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -121,7 +121,7 @@ describe('mobileLeaveService (W-98.3 §6)', () => {
       expect(result.id).toBe('req-created-1');
     });
 
-    it('syncs toDate to fromDate and sends halfDayPeriod when isHalfDay is true', async () => {
+    it('syncs toDate to fromDate and sends lowercase "second" or "first" when isHalfDay is true', async () => {
       apiClient.post.mockResolvedValueOnce({ data: { id: 'req-created-2', status: 'PENDING' } });
 
       const payload = {
@@ -129,7 +129,7 @@ describe('mobileLeaveService (W-98.3 §6)', () => {
         fromDate: '2026-11-25',
         toDate: '2026-11-30',
         isHalfDay: true,
-        halfDayPeriod: 'SECOND_HALF',
+        halfDayPeriod: 'second',
         reason: 'Doctor checkup',
       };
 
@@ -139,19 +139,52 @@ describe('mobileLeaveService (W-98.3 §6)', () => {
         fromDate: '2026-11-25',
         toDate: '2026-11-25',
         isHalfDay: true,
-        halfDayPeriod: 'SECOND_HALF',
+        halfDayPeriod: 'second',
         reason: 'Doctor checkup',
         submit: true,
       });
     });
+
+    it('normalizes legacy FIRST_HALF/SECOND_HALF to lowercase first/second', async () => {
+      apiClient.post.mockResolvedValueOnce({ data: { id: 'req-created-3', status: 'PENDING' } });
+
+      await mobileLeaveService.applyLeave({
+        leaveTypeId: 'type-sl',
+        fromDate: '2026-11-25',
+        isHalfDay: true,
+        halfDayPeriod: 'FIRST_HALF',
+      });
+
+      expect(apiClient.post).toHaveBeenCalledWith('/v1/leave-requests', expect.objectContaining({
+        halfDayPeriod: 'first',
+      }));
+    });
+  });
+
+  describe('withdrawLeave', () => {
+    it('posts to withdraw endpoint with reason for PENDING request', async () => {
+      apiClient.post.mockResolvedValueOnce({ data: { id: 'req-1', status: 'WITHDRAWN' } });
+
+      const result = await mobileLeaveService.withdrawLeave('req-1', 'Changed mind');
+      expect(apiClient.post).toHaveBeenCalledWith('/v1/leave-requests/req-1/withdraw', {
+        reason: 'Changed mind',
+      });
+      expect(result.status).toBe('WITHDRAWN');
+    });
+
+    it('throws error when requestId is missing', async () => {
+      await expect(mobileLeaveService.withdrawLeave(null)).rejects.toThrow(
+        'requestId is required to withdraw leave'
+      );
+    });
   });
 
   describe('cancelLeave', () => {
-    it('posts to cancel endpoint with reason', async () => {
-      apiClient.post.mockResolvedValueOnce({ data: { id: 'req-1', status: 'CANCELLED' } });
+    it('posts to cancel endpoint with reason for APPROVED request', async () => {
+      apiClient.post.mockResolvedValueOnce({ data: { id: 'req-2', status: 'CANCELLED' } });
 
-      const result = await mobileLeaveService.cancelLeave('req-1', 'Changed plans');
-      expect(apiClient.post).toHaveBeenCalledWith('/v1/leave-requests/req-1/cancel', {
+      const result = await mobileLeaveService.cancelLeave('req-2', 'Changed plans');
+      expect(apiClient.post).toHaveBeenCalledWith('/v1/leave-requests/req-2/cancel', {
         reason: 'Changed plans',
       });
       expect(result.status).toBe('CANCELLED');
@@ -183,4 +216,3 @@ describe('mobileLeaveService (W-98.3 §6)', () => {
     });
   });
 });
-

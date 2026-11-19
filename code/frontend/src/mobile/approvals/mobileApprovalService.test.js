@@ -9,13 +9,13 @@ vi.mock('../../shared/api/client.js', () => ({
   },
 }));
 
-describe('mobileApprovalService (W-98.5 §6)', () => {
+describe('mobileApprovalService (W-98.5 §7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('getPendingApprovals', () => {
-    it('retrieves and aggregates pending approval instances with flow type counts', async () => {
+    it('uses 20 per page by default and maps server totalElements to counts', async () => {
       const mockPending = [
         {
           id: 'step-1',
@@ -23,7 +23,6 @@ describe('mobileApprovalService (W-98.5 §6)', () => {
           flowType: 'LEAVE',
           summary: 'Casual Leave (2 days)',
           subjectEmployeeName: 'Priya Sharma',
-          subjectEmployeeId: 'EMP-045',
           stepIndex: 0,
           totalSteps: 2,
           createdAt: '2026-11-15T10:00:00Z',
@@ -36,7 +35,6 @@ describe('mobileApprovalService (W-98.5 §6)', () => {
           flowType: 'WORK_FROM_HOME',
           summary: 'WFH Request (1 day)',
           subjectEmployeeName: 'Rahul Verma',
-          subjectEmployeeId: 'EMP-088',
           stepIndex: 0,
           totalSteps: 1,
           createdAt: '2026-11-16T08:30:00Z',
@@ -46,24 +44,40 @@ describe('mobileApprovalService (W-98.5 §6)', () => {
       ];
 
       apiClient.get.mockResolvedValueOnce({
-        data: { content: mockPending, totalElements: 2 },
+        data: { content: mockPending, totalElements: 45, totalPages: 3 },
       });
 
       const res = await mobileApprovalService.getPendingApprovals();
 
       expect(apiClient.get).toHaveBeenCalledWith('/v1/approvals/pending', {
-        params: { page: 0, size: 50 },
+        params: { page: 0, size: 20 },
       });
       expect(res.rows).toHaveLength(2);
       expect(res.total).toBe(2);
+      // Counts use server totalElements
+      expect(res.totalElements).toBe(45);
+      expect(res.countsByType.ALL).toBe(45);
       expect(res.countsByType.LEAVE).toBe(1);
       expect(res.countsByType.WORK_FROM_HOME).toBe(1);
-      expect(res.countsByType.ALL).toBe(2);
+      expect(res.hasMore).toBe(true);
       expect(res.rows[0].subjectEmployeeName).toBe('Priya Sharma');
       expect(res.rows[0].daysCount).toBe(2);
     });
 
-    it('filters items by flowType when specified', async () => {
+    it('passes explicit paging parameters', async () => {
+      apiClient.get.mockResolvedValueOnce({
+        data: { content: [], totalElements: 30, totalPages: 3 },
+      });
+
+      const res = await mobileApprovalService.getPendingApprovals({ page: 2, size: 10 });
+
+      expect(apiClient.get).toHaveBeenCalledWith('/v1/approvals/pending', {
+        params: { page: 2, size: 10 },
+      });
+      expect(res.hasMore).toBe(false);
+    });
+
+    it('filters items by flowType when specified, including OTHER for unmapped types', async () => {
       const mockPending = [
         {
           id: 'step-1',
@@ -74,20 +88,21 @@ describe('mobileApprovalService (W-98.5 §6)', () => {
         {
           id: 'step-2',
           instanceId: 'inst-2',
-          flowType: 'OVERTIME',
-          summary: 'Overtime',
+          flowType: 'REIMBURSEMENT',
+          summary: 'Expense Claim',
         },
       ];
 
-      apiClient.get.mockResolvedValueOnce({ data: mockPending });
-
-      const res = await mobileApprovalService.getPendingApprovals({
-        flowType: 'LEAVE',
+      apiClient.get.mockResolvedValueOnce({
+        data: { content: mockPending, totalElements: 2 },
       });
 
-      expect(res.rows).toHaveLength(1);
-      expect(res.rows[0].flowType).toBe('LEAVE');
-      expect(res.unfilteredTotal).toBe(2);
+      const resOther = await mobileApprovalService.getPendingApprovals({
+        flowType: 'OTHER',
+      });
+
+      expect(resOther.rows).toHaveLength(1);
+      expect(resOther.rows[0].flowType).toBe('REIMBURSEMENT');
     });
   });
 
@@ -125,39 +140,39 @@ describe('mobileApprovalService (W-98.5 §6)', () => {
   });
 
   describe('decide', () => {
-    it('submits APPROVED decision with optional comment', async () => {
+    it('submits APPROVED decision with stepId in URL and decision in body', async () => {
       apiClient.post.mockResolvedValueOnce({ data: { success: true } });
 
       const res = await mobileApprovalService.decide({
-        stepId: 'step-1',
+        stepId: 'step-xyz-123',
         decision: 'APPROVED',
-        comment: 'Looks good',
+        comment: 'Approved as discussed',
       });
 
       expect(apiClient.post).toHaveBeenCalledWith(
-        '/v1/approvals/steps/step-1/decide',
+        '/v1/approvals/steps/step-xyz-123/decide',
         {
           decision: 'APPROVED',
-          comment: 'Looks good',
+          comment: 'Approved as discussed',
         }
       );
       expect(res.success).toBe(true);
     });
 
-    it('submits REJECTED decision with mandatory reason', async () => {
+    it('submits REJECTED decision with stepId in URL and required reason', async () => {
       apiClient.post.mockResolvedValueOnce({ data: { success: true } });
 
       const res = await mobileApprovalService.decide({
-        stepId: 'step-1',
+        stepId: 'step-xyz-456',
         decision: 'REJECTED',
-        comment: 'Sprint deadline',
+        comment: 'Sprint deadline conflict',
       });
 
       expect(apiClient.post).toHaveBeenCalledWith(
-        '/v1/approvals/steps/step-1/decide',
+        '/v1/approvals/steps/step-xyz-456/decide',
         {
           decision: 'REJECTED',
-          comment: 'Sprint deadline',
+          comment: 'Sprint deadline conflict',
         }
       );
       expect(res.success).toBe(true);
@@ -173,7 +188,7 @@ describe('mobileApprovalService (W-98.5 §6)', () => {
       ).rejects.toThrow('Rejection reason is required');
     });
 
-    it('throws error when decision is invalid', async () => {
+    it('throws error when decision is neither APPROVED nor REJECTED', async () => {
       await expect(
         mobileApprovalService.decide({
           stepId: 'step-1',
@@ -181,6 +196,14 @@ describe('mobileApprovalService (W-98.5 §6)', () => {
         })
       ).rejects.toThrow('Decision must be either APPROVED or REJECTED');
     });
+
+    it('throws error when stepId is empty', async () => {
+      await expect(
+        mobileApprovalService.decide({
+          stepId: '',
+          decision: 'APPROVED',
+        })
+      ).rejects.toThrow('Step ID is required');
+    });
   });
 });
-

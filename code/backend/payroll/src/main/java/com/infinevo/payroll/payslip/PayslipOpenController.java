@@ -35,14 +35,23 @@ public class PayslipOpenController {
 
     private final PayslipLinkService linkService;
     private final PayslipService payslipService;
+    private final PayslipPdfWriter pdfWriter;
 
-    public PayslipOpenController(PayslipLinkService linkService, PayslipService payslipService) {
+    public PayslipOpenController(
+            PayslipLinkService linkService, PayslipService payslipService, PayslipPdfWriter pdfWriter) {
         this.linkService = Objects.requireNonNull(linkService, "linkService must not be null");
         this.payslipService = Objects.requireNonNull(payslipService, "payslipService must not be null");
+        this.pdfWriter = pdfWriter;
+    }
+
+    public PayslipOpenController(PayslipLinkService linkService, PayslipService payslipService) {
+        this(linkService, payslipService, new PayslipPdfWriter());
     }
 
     @GetMapping(PublicEndpoints.PAYSLIP_OPEN)
-    public ResponseEntity<?> open(@RequestParam(value = "t", required = false) String tokenValue) {
+    public ResponseEntity<?> open(
+            @RequestParam(value = "t", required = false) String tokenValue,
+            @RequestParam(value = "format", required = false) String format) {
         Optional<PayslipLinkService.PayslipClaims> claims = linkService.verify(tokenValue);
         if (claims.isEmpty()) {
             return error(HttpStatus.NOT_FOUND, ApiError.NOT_FOUND, NOT_A_LINK);
@@ -55,6 +64,21 @@ public class PayslipOpenController {
             PayslipResponse payslip = payslipService.render(
                     tenantId, employeePayrunId, claims.get().expiresAt());
             log.info("Served payslip {} in tenant {} by signed link", employeePayrunId, tenantId);
+
+            if (format != null && "pdf".equalsIgnoreCase(format.trim())) {
+                byte[] pdfBytes = (pdfWriter != null ? pdfWriter : new PayslipPdfWriter()).write(payslip);
+                String period = payslip.run() != null && payslip.run().period() != null
+                        ? payslip.run().period()
+                        : "download";
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .cacheControl(CacheControl.noStore())
+                        .header("Content-Disposition", "attachment; filename=\"payslip-" + period + ".pdf\"")
+                        .header("Referrer-Policy", "no-referrer")
+                        .header("X-Content-Type-Options", "nosniff")
+                        .body(pdfBytes);
+            }
+
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_JSON)
                     .cacheControl(CacheControl.noStore())
