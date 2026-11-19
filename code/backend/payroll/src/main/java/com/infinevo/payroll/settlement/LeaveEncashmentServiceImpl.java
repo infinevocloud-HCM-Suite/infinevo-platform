@@ -1,5 +1,7 @@
 package com.infinevo.payroll.settlement;
 
+import com.infinevo.core.employee.EmployeeResponse;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.leave.LeaveBalanceResponse;
 import com.infinevo.core.leave.LeaveBalanceService;
 import com.infinevo.payroll.salary.EmployeeSalaryService;
@@ -9,6 +11,7 @@ import com.infinevo.shared.tenant.TenantContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -20,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Implementation of {@link LeaveEncashmentService} (W-90.1).
  * Calculates leave encashment value using the Basic (+ DA) / Divisor daily rate,
- * enforces Section 10(10AA) statutory exemption ceiling (₹25,00,000), and records settlements.
+ * enforces Section 10(10AA) statutory 4-limit exemption rules, and records settlements.
  */
 @Service
 public class LeaveEncashmentServiceImpl implements LeaveEncashmentService {
@@ -33,14 +36,17 @@ public class LeaveEncashmentServiceImpl implements LeaveEncashmentService {
     private final LeaveEncashmentRepository repository;
     private final LeaveBalanceService leaveBalanceService;
     private final EmployeeSalaryService salaryService;
+    private final EmployeeService employeeService;
 
     public LeaveEncashmentServiceImpl(
             LeaveEncashmentRepository repository,
             LeaveBalanceService leaveBalanceService,
-            EmployeeSalaryService salaryService) {
+            EmployeeSalaryService salaryService,
+            EmployeeService employeeService) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.leaveBalanceService = Objects.requireNonNull(leaveBalanceService, "leaveBalanceService");
         this.salaryService = Objects.requireNonNull(salaryService, "salaryService");
+        this.employeeService = Objects.requireNonNull(employeeService, "employeeService");
     }
 
     @Override
@@ -182,8 +188,18 @@ public class LeaveEncashmentServiceImpl implements LeaveEncashmentService {
         }
 
         // 4. Compute gross amount and statutory exemption under Section 10(10AA)
+        // Non-government employees exempt least of 4 limits:
+        // (1) Actual leave encashment received
+        // (2) Statutory ceiling of ₹25,00,000
+        // (3) 10 months' average salary (Basic + DA) preceding exit
+        // (4) Cash equivalent of earned leave (max 30 days per completed year of service)
         BigDecimal grossAmount = encashableDays.multiply(perDayRate).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal taxExemptAmount = grossAmount.min(STATUTORY_CEILING).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal limit1 = grossAmount;
+        BigDecimal limit2 = STATUTORY_CEILING;
+        BigDecimal limit3 = resolveTenMonthsAverageSalary(employeeId, exitDate);
+        BigDecimal limit4 = resolveEarnedLeaveServiceCap(employeeId, exitDate, perDayRate, encashableDays);
+
+        BigDecimal taxExemptAmount = limit1.min(limit2).min(limit3).min(limit4).setScale(2, RoundingMode.HALF_UP);
         BigDecimal taxableAmount =
                 grossAmount.subtract(taxExemptAmount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
 
@@ -203,6 +219,44 @@ public class LeaveEncashmentServiceImpl implements LeaveEncashmentService {
                 taxableAmount,
                 STATUTORY_CEILING,
                 status);
+    }
+
+    private BigDecimal resolveTenMonthsAverageSalary(UUID employeeId, LocalDate exitDate) {
+        BigDecimal sumBasicAndDa = BigDecimal.ZERO;
+        int evaluatedMonths = 0;
+        for (int i = 1; i <= 10; i++) {
+            LocalDate asOf = exitDate.minusMonths(i);
+            try {
+                BigDecimal monthly = resolveMonthlyBasicAndDa(employeeId, asOf);
+                sumBasicAndDa = sumBasicAndDa.add(monthly);
+                evaluatedMonths++;
+            } catch (Exception ignored) {
+                // If date precedes salary records, continue
+            }
+        }
+        if (evaluatedMonths == 0) {
+            BigDecimal current = resolveMonthlyBasicAndDa(employeeId, exitDate);
+            return current.multiply(BigDecimal.TEN).setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal avgMonthly = sumBasicAndDa.divide(BigDecimal.valueOf(evaluatedMonths), 2, RoundingMode.HALF_UP);
+        return avgMonthly.multiply(BigDecimal.TEN).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveEarnedLeaveServiceCap(
+            UUID employeeId, LocalDate exitDate, BigDecimal perDayRate, BigDecimal encashableDays) {
+        long completedYears = 0;
+        try {
+            EmployeeResponse employee = employeeService.get(employeeId);
+            if (employee != null && employee.dateOfJoining() != null && !exitDate.isBefore(employee.dateOfJoining())) {
+                completedYears = ChronoUnit.YEARS.between(employee.dateOfJoining(), exitDate);
+            }
+        } catch (Exception e) {
+            log.warn("Could not retrieve date of joining for employee {}: {}", employeeId, e.getMessage());
+        }
+
+        BigDecimal maxDays = BigDecimal.valueOf(Math.max(0, completedYears) * 30L);
+        BigDecimal qualifyingDays = encashableDays.min(maxDays);
+        return qualifyingDays.multiply(perDayRate).setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal resolveMonthlyBasicAndDa(UUID employeeId, LocalDate date) {

@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.infinevo.core.employee.EmployeeResponse;
+import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.leave.LeaveBalanceResponse;
 import com.infinevo.core.leave.LeaveBalanceService;
 import com.infinevo.payroll.component.CalculationType;
@@ -36,6 +38,7 @@ class LeaveEncashmentServiceTest {
     private LeaveEncashmentRepository repository;
     private LeaveBalanceService leaveBalanceService;
     private EmployeeSalaryService salaryService;
+    private EmployeeService employeeService;
     private LeaveEncashmentServiceImpl service;
 
     @BeforeEach
@@ -44,8 +47,13 @@ class LeaveEncashmentServiceTest {
         repository = mock(LeaveEncashmentRepository.class);
         leaveBalanceService = mock(LeaveBalanceService.class);
         salaryService = mock(EmployeeSalaryService.class);
+        employeeService = mock(EmployeeService.class);
 
-        service = new LeaveEncashmentServiceImpl(repository, leaveBalanceService, salaryService);
+        EmployeeResponse defaultEmp = mock(EmployeeResponse.class);
+        when(defaultEmp.dateOfJoining()).thenReturn(LocalDate.of(2015, 1, 1));
+        when(employeeService.get(any())).thenReturn(defaultEmp);
+
+        service = new LeaveEncashmentServiceImpl(repository, leaveBalanceService, salaryService, employeeService);
     }
 
     @AfterEach
@@ -285,5 +293,101 @@ class LeaveEncashmentServiceTest {
         assertThatThrownBy(() -> service.recordSettlement(request))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already exists");
+    }
+
+    @Test
+    @DisplayName("Applies Section 10(10AA) Limit 3 (10 months average salary cap) when binding")
+    void estimateEncashment_Limit3TenMonthsAverageSalaryBinds() {
+        // Basic: ₹20,000/month. 10 months avg salary = ₹2,00,000.
+        // Accrued days: 120 days at ₹20,000/30 = ₹666.67/day -> Gross = ₹80,000.
+        // Let's make gross higher than 10 months salary:
+        // Say basic was ₹15,000 for past 10 months, but suddenly last month became ₹60,000
+        when(salaryService.getAsOf(eq(employeeId), eq(exitDate)))
+                .thenReturn(buildSalaryVersion(BigDecimal.valueOf(60000), BigDecimal.ZERO));
+        for (int i = 1; i <= 10; i++) {
+            when(salaryService.getAsOf(eq(employeeId), eq(exitDate.minusMonths(i))))
+                    .thenReturn(buildSalaryVersion(BigDecimal.valueOf(15000), BigDecimal.ZERO));
+        }
+
+        // 100 days at ₹2,000/day = ₹2,00,000 gross.
+        // Limit 1 (Actual): ₹2,00,000
+        // Limit 2 (Ceiling): ₹25,00,000
+        // Limit 3 (10 mo avg salary): 10 * ₹15,000 = ₹1,50,000
+        // Limit 4 (Service cap): 11 years * 30 days = 330 days * ₹2,000 = ₹6,60,000
+        // Minimum is Limit 3: ₹1,50,000!
+        LeaveBalanceResponse elBalance = new LeaveBalanceResponse(
+                employeeId,
+                elTypeId,
+                "EL",
+                "Earned Leave",
+                "2026-2027",
+                BigDecimal.valueOf(100),
+                BigDecimal.valueOf(100),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(100),
+                null,
+                null,
+                false,
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(100));
+
+        when(leaveBalanceService.getBalancesForEmployee(eq(tenantId), eq(employeeId), eq(exitDate)))
+                .thenReturn(List.of(elBalance));
+
+        LeaveEncashmentEstimateRequest request =
+                new LeaveEncashmentEstimateRequest(employeeId, exitDate, elTypeId, BigDecimal.valueOf(100), 30);
+
+        LeaveEncashmentResponse res = service.estimateEncashment(request);
+
+        assertThat(res.grossEncashmentAmount()).isEqualByComparingTo(BigDecimal.valueOf(200000.00));
+        // Exemption should be capped at ₹1,50,000 by Limit 3!
+        assertThat(res.taxExemptAmount()).isEqualByComparingTo(BigDecimal.valueOf(150000.00));
+        assertThat(res.taxableAmount()).isEqualByComparingTo(BigDecimal.valueOf(50000.00));
+    }
+
+    @Test
+    @DisplayName("Applies Section 10(10AA) Limit 4 (Completed years tenure cap) when tenure is short")
+    void estimateEncashment_Limit4TenureEarnedLeaveCapBinds() {
+        // Employee with 1 year tenure: max allowed statutory leave is 1 * 30 = 30 days.
+        EmployeeResponse shortTenureEmp = mock(EmployeeResponse.class);
+        when(shortTenureEmp.dateOfJoining())
+                .thenReturn(exitDate.minusYears(1).minusDays(10)); // exactly 1 completed year
+        when(employeeService.get(eq(employeeId))).thenReturn(shortTenureEmp);
+
+        when(salaryService.getAsOf(eq(employeeId), eq(exitDate)))
+                .thenReturn(buildSalaryVersion(BigDecimal.valueOf(60000), BigDecimal.ZERO));
+
+        // Company allowed employee to carry 60 days of leave
+        LeaveBalanceResponse elBalance = new LeaveBalanceResponse(
+                employeeId,
+                elTypeId,
+                "EL",
+                "Earned Leave",
+                "2026-2027",
+                BigDecimal.valueOf(60),
+                BigDecimal.valueOf(60),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(60),
+                null,
+                null,
+                false,
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(60));
+
+        when(leaveBalanceService.getBalancesForEmployee(eq(tenantId), eq(employeeId), eq(exitDate)))
+                .thenReturn(List.of(elBalance));
+
+        LeaveEncashmentEstimateRequest request =
+                new LeaveEncashmentEstimateRequest(employeeId, exitDate, elTypeId, BigDecimal.valueOf(60), 30);
+
+        LeaveEncashmentResponse res = service.estimateEncashment(request);
+
+        // Gross: 60 days * 2,000 = ₹1,20,000
+        assertThat(res.grossEncashmentAmount()).isEqualByComparingTo(BigDecimal.valueOf(120000.00));
+        // Limit 4 caps qualifying days to 1 year * 30 = 30 days * 2,000 = ₹60,000!
+        assertThat(res.taxExemptAmount()).isEqualByComparingTo(BigDecimal.valueOf(60000.00));
+        assertThat(res.taxableAmount()).isEqualByComparingTo(BigDecimal.valueOf(60000.00));
     }
 }
