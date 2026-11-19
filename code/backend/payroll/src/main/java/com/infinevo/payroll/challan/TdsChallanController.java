@@ -39,7 +39,9 @@ public class TdsChallanController {
     }
 
     @PostMapping
-    @RequiresAction("payroll.settings.manage")
+    @RequiresAction(
+            value = "payroll.tax.manage",
+            anyOf = {"payroll.settings.manage"})
     public ResponseEntity<ApiResponse<TdsChallanResponse>> create(@RequestBody TdsChallanRequest request) {
         TdsChallanResponse response = challanService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -48,8 +50,8 @@ public class TdsChallanController {
 
     @GetMapping
     @RequiresAction(
-            value = "payroll.settings.manage",
-            anyOf = {"payroll.statutory_report.read"})
+            value = "payroll.tax.manage",
+            anyOf = {"payroll.tax.view", "payroll.settings.manage", "payroll.statutory_report.read"})
     public ResponseEntity<ApiResponse<List<TdsChallanResponse>>> list(
             @RequestParam("financialYear") String financialYear,
             @RequestParam(value = "quarter", required = false) String quarter) {
@@ -59,8 +61,8 @@ public class TdsChallanController {
 
     @GetMapping("/{id}")
     @RequiresAction(
-            value = "payroll.settings.manage",
-            anyOf = {"payroll.statutory_report.read"})
+            value = "payroll.tax.manage",
+            anyOf = {"payroll.tax.view", "payroll.settings.manage", "payroll.statutory_report.read"})
     public ResponseEntity<ApiResponse<TdsChallanResponse>> get(@PathVariable("id") UUID id) {
         TdsChallanResponse response = challanService
                 .findById(id)
@@ -69,7 +71,9 @@ public class TdsChallanController {
     }
 
     @PutMapping("/{id}")
-    @RequiresAction("payroll.settings.manage")
+    @RequiresAction(
+            value = "payroll.tax.manage",
+            anyOf = {"payroll.settings.manage"})
     public ResponseEntity<ApiResponse<TdsChallanResponse>> update(
             @PathVariable("id") UUID id, @RequestBody TdsChallanRequest request) {
         TdsChallanResponse response = challanService.update(id, request);
@@ -77,14 +81,18 @@ public class TdsChallanController {
     }
 
     @DeleteMapping("/{id}")
-    @RequiresAction("payroll.settings.manage")
+    @RequiresAction(
+            value = "payroll.tax.manage",
+            anyOf = {"payroll.settings.manage"})
     public ResponseEntity<Void> delete(@PathVariable("id") UUID id) {
         challanService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/allocate")
-    @RequiresAction("payroll.settings.manage")
+    @RequiresAction(
+            value = "payroll.tax.manage",
+            anyOf = {"payroll.settings.manage"})
     public ResponseEntity<ApiResponse<TdsChallanResponse>> allocate(
             @PathVariable("id") UUID id, @RequestBody ChallanAllocationRequest request) {
         TdsChallanResponse response = challanService.allocate(id, request);
@@ -93,8 +101,8 @@ public class TdsChallanController {
 
     @GetMapping("/{id}/allocations")
     @RequiresAction(
-            value = "payroll.settings.manage",
-            anyOf = {"payroll.statutory_report.read"})
+            value = "payroll.tax.manage",
+            anyOf = {"payroll.tax.view", "payroll.settings.manage", "payroll.statutory_report.read"})
     public ResponseEntity<ApiResponse<List<TdsChallanAllocation>>> listAllocations(@PathVariable("id") UUID id) {
         List<TdsChallanAllocation> list = challanService.listAllocations(id);
         return ResponseEntity.ok(ApiResponse.ok("TDS Challan allocations retrieved successfully", list));
