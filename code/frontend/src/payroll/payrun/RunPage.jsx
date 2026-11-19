@@ -30,6 +30,7 @@ import {
   DollarOutlined,
   DownloadOutlined,
   ScheduleOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useCan } from '@shell/screens';
@@ -219,19 +220,62 @@ export function RunPage() {
     }
   };
 
+  const triggerBankFileDownload = (blob) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bank_salary_file_${run.period}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleDownloadBankFile = async () => {
     setDownloadingBankFile(true);
     setActionError(null);
     try {
       const blob = await payrunService.exportBankFile(id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `bank_salary_file_${run.period}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const omitted = blob?.omittedEmployees || 0;
+      const fileTotal = blob?.fileTotal != null ? Number(blob.fileTotal) : null;
+      const runNetPay = blob?.runNetPay != null ? Number(blob.runNetPay) : null;
+      const isShortfall = fileTotal != null && runNetPay != null && fileTotal < runNetPay;
+
+      if (omitted > 0 || isShortfall) {
+        Modal.confirm({
+          title: 'Bank File Payout Shortfall Warning',
+          icon: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
+          content: (
+            <div>
+              <p>
+                {omitted > 0
+                  ? `${omitted} employee(s) were omitted from the bank file (e.g. missing or unverified bank account / IFSC details).`
+                  : 'The total payout in the bank file is less than the pay run net pay.'}
+              </p>
+              {fileTotal != null && runNetPay != null && (
+                <p>
+                  <strong>File Total:</strong> ₹{fileTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <br />
+                  <strong>Run Net Pay:</strong> ₹{runNetPay.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <br />
+                  <span style={{ color: '#cf1322' }}>
+                    Shortfall: ₹{(runNetPay - fileTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </p>
+              )}
+              <p>Do you want to proceed with downloading this bank file?</p>
+            </div>
+          ),
+          okText: 'Download Anyway',
+          okType: 'primary',
+          cancelText: 'Cancel',
+          onOk() {
+            triggerBankFileDownload(blob);
+          },
+        });
+      } else {
+        triggerBankFileDownload(blob);
+      }
     } catch (err) {
       setActionError(err?.message || 'Failed to download bank file');
     } finally {

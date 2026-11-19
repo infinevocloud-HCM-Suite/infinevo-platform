@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import dayjs from 'dayjs';
+import { Modal } from 'antd';
 import { RunPage, isPaidOnAllowed } from './RunPage.jsx';
 import payrunReducer from './payrunSlice.js';
 import { payrunService } from './payrunService.js';
@@ -345,6 +346,52 @@ describe('RunPage component (W-47.2 §7)', () => {
       expect(payrunService.exportBankFile).toHaveBeenCalledWith('run-dl-1');
       expect(window.URL.createObjectURL).toHaveBeenCalledWith(mockBlob);
     });
+  });
+
+  it('shows confirmation modal before download when employees are omitted from bank file (W-88)', async () => {
+    window.URL.createObjectURL = vi.fn(() => 'blob:mock-file-url');
+    window.URL.revokeObjectURL = vi.fn();
+    let capturedConfirmOptions = null;
+    const modalConfirmSpy = vi.spyOn(Modal, 'confirm').mockImplementation((options) => {
+      capturedConfirmOptions = options;
+      return { destroy: vi.fn(), update: vi.fn() };
+    });
+
+    const mockBlob = new Blob(['col1,col2\nval1,val2'], { type: 'text/csv' });
+    mockBlob.omittedEmployees = 2;
+    mockBlob.fileTotal = '80000.00';
+    mockBlob.runNetPay = '100000.00';
+    payrunService.exportBankFile.mockResolvedValueOnce(mockBlob);
+
+    payrunService.get.mockResolvedValueOnce({
+      id: 'run-dl-omitted',
+      period: '2026-10',
+      status: 'APPROVED',
+      included_count: 5,
+      skipped_count: 0,
+    });
+
+    renderRunPage('run-dl-omitted');
+
+    await waitFor(() => {
+      expect(screen.getByText('Pay Run — Oct 2026')).toBeDefined();
+    });
+
+    const bankBtn = screen.getByTestId('download-bank-file-btn');
+    fireEvent.click(bankBtn);
+
+    await waitFor(() => {
+      expect(payrunService.exportBankFile).toHaveBeenCalledWith('run-dl-omitted');
+      expect(modalConfirmSpy).toHaveBeenCalled();
+    });
+
+    expect(capturedConfirmOptions.title).toBe('Bank File Payout Shortfall Warning');
+    expect(capturedConfirmOptions.okText).toBe('Download Anyway');
+    expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+
+    capturedConfirmOptions.onOk();
+    expect(window.URL.createObjectURL).toHaveBeenCalledWith(mockBlob);
+    modalConfirmSpy.mockRestore();
   });
 
   it('hides "Download Bank File" button when user lacks payroll.bank_file.export action (W-88)', async () => {

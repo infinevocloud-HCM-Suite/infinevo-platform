@@ -199,6 +199,15 @@ export const payrunService = {
     const res = await apiClient.get(`${BASE_PATH}/${id}/bank-file`, {
       responseType: 'blob',
     });
-    return res.data;
+    const blob = res.data;
+    if (blob && typeof blob === 'object') {
+      const getHeader = (name) => res.headers?.[name.toLowerCase()] ?? res.headers?.[name];
+      blob.totalEmployees = Number(getHeader('X-BankFile-Total-Employees') || 0);
+      blob.exportedEmployees = Number(getHeader('X-BankFile-Exported-Employees') || 0);
+      blob.omittedEmployees = Number(getHeader('X-BankFile-Omitted-Employees') || 0);
+      blob.fileTotal = getHeader('X-BankFile-File-Total') ?? null;
+      blob.runNetPay = getHeader('X-BankFile-Run-Net-Pay') ?? null;
+    }
+    return blob;
   },
 };
