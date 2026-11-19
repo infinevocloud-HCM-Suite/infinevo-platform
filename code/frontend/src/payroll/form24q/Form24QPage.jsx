@@ -323,6 +323,13 @@ export function Form24QPage() {
           </Space>
         }
       >
+        <Alert
+          type="info"
+          showIcon
+          message="Notice on NSDL e-TDS FVU Format"
+          description="The exported e-TDS text files (.txt) are formatted according to NSDL Form 24Q specifications. Ensure the file is validated via the official Income Tax Department NSDL FVU utility and reviewed by your Chartered Accountant (CA) prior to filing."
+          style={{ marginBottom: 16 }}
+        />
         <Row gutter={[24, 24]}>
           <Col xs={24} md={12}>
             <Card

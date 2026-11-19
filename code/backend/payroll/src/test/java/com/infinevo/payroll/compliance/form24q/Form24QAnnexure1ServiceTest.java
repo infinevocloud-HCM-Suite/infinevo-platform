@@ -14,6 +14,7 @@ import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.core.employee.detail.EmployeeIdentificationResponse;
 import com.infinevo.core.employee.detail.EmployeeIdentificationService;
 import com.infinevo.payroll.challan.TdsChallan;
+import com.infinevo.payroll.challan.TdsChallanAllocation;
 import com.infinevo.payroll.challan.TdsChallanAllocationRepository;
 import com.infinevo.payroll.challan.TdsChallanRepository;
 import com.infinevo.payroll.form16.exception.DeductorNotSetException;
@@ -141,18 +142,25 @@ class Form24QAnnexure1ServiceTest {
                         TENANT_ID, "2026-2027", "Q1"))
                 .thenReturn(List.of(challan));
 
-        when(challanAllocationRepository.findByTenantIdAndChallanIdIn(eq(TENANT_ID), anyCollection()))
-                .thenReturn(Collections.emptyList());
-
         UUID payRunId = UUID.randomUUID();
+        UUID empId = UUID.randomUUID();
+
+        TdsChallanAllocation alloc = mock(TdsChallanAllocation.class);
+        when(alloc.getChallanId()).thenReturn(challanId);
+        when(alloc.getPayRunId()).thenReturn(payRunId);
+        when(alloc.getEmployeeId()).thenReturn(empId);
+        when(alloc.getAllocatedTax()).thenReturn(new BigDecimal("5000.00"));
+        when(alloc.getAllocatedCess()).thenReturn(BigDecimal.ZERO);
+
+        when(challanAllocationRepository.findByTenantIdAndChallanIdIn(eq(TENANT_ID), anyCollection()))
+                .thenReturn(List.of(alloc));
+
         PayRun payRun = mock(PayRun.class);
         when(payRun.getId()).thenReturn(payRunId);
         when(payRun.getPayDate()).thenReturn(LocalDate.of(2026, 4, 30));
 
         when(payRunRepository.findByTenantIdAndPeriodInAndStatusIn(eq(TENANT_ID), anyCollection(), anyCollection()))
                 .thenReturn(List.of(payRun));
-
-        UUID empId = UUID.randomUUID();
         UUID empPayRunId = UUID.randomUUID();
         EmployeePayRun empRun = mock(EmployeePayRun.class);
         when(empRun.getId()).thenReturn(empPayRunId);
@@ -238,6 +246,93 @@ class Form24QAnnexure1ServiceTest {
         assertThat(deductee.sectionCode()).isEqualTo("92B(1A)"); // New regime
         assertThat(deductee.grossAmount()).isEqualByComparingTo(new BigDecimal("75000.00"));
         assertThat(deductee.tdsAmount()).isEqualByComparingTo(new BigDecimal("5000.00"));
+        assertThat(deductee.totalTaxDeposited()).isEqualByComparingTo(new BigDecimal("5000.00"));
+        assertThat(deductee.matchedChallanId()).isEqualTo(challanId);
+        assertThat(deductee.challanSerialNumberInBatch()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Unallocated deductee has zero deposited tax and marks preview unreconciled")
+    void previewAnnexure1_unallocatedDeductee_depositedIsZeroAndNotReconciled() {
+        TaxDeductorResponse deductor = mock(TaxDeductorResponse.class);
+        when(deductor.tan()).thenReturn("BLRE12345F");
+        when(deductor.pan()).thenReturn("ABCDE1234F");
+        when(deductor.signatoryName()).thenReturn("Alice Signatory");
+        when(taxDeductorService.current()).thenReturn(Optional.of(deductor));
+
+        UUID challanId = UUID.randomUUID();
+        TdsChallan challan = mock(TdsChallan.class);
+        when(challan.getId()).thenReturn(challanId);
+        when(challan.getBsrCode()).thenReturn("0210045");
+        when(challan.getChallanSerialNo()).thenReturn("12345");
+        when(challan.getTenderDate()).thenReturn(LocalDate.of(2026, 7, 5));
+        when(challan.getTaxAmount()).thenReturn(new BigDecimal("50000.00"));
+        when(challan.getSurchargeAmount()).thenReturn(BigDecimal.ZERO);
+        when(challan.getCessAmount()).thenReturn(BigDecimal.ZERO);
+        when(challan.getInterestAmount()).thenReturn(BigDecimal.ZERO);
+        when(challan.getFeePenaltyAmount()).thenReturn(BigDecimal.ZERO);
+        when(challan.getTotalAmount()).thenReturn(new BigDecimal("50000.00"));
+        when(challan.getMinorHead()).thenReturn("200");
+
+        when(challanRepository.findByTenantIdAndFinancialYearAndQuarterOrderByTenderDateAsc(
+                        TENANT_ID, "2026-2027", "Q1"))
+                .thenReturn(List.of(challan));
+
+        // No allocations recorded for this challan
+        when(challanAllocationRepository.findByTenantIdAndChallanIdIn(eq(TENANT_ID), anyCollection()))
+                .thenReturn(Collections.emptyList());
+
+        UUID payRunId = UUID.randomUUID();
+        PayRun payRun = mock(PayRun.class);
+        when(payRun.getId()).thenReturn(payRunId);
+        when(payRun.getPayDate()).thenReturn(LocalDate.of(2026, 4, 30));
+
+        when(payRunRepository.findByTenantIdAndPeriodInAndStatusIn(eq(TENANT_ID), anyCollection(), anyCollection()))
+                .thenReturn(List.of(payRun));
+
+        UUID empId = UUID.randomUUID();
+        UUID empPayRunId = UUID.randomUUID();
+        EmployeePayRun empRun = mock(EmployeePayRun.class);
+        when(empRun.getId()).thenReturn(empPayRunId);
+        when(empRun.getPayrunId()).thenReturn(payRunId);
+        when(empRun.getEmployeeId()).thenReturn(empId);
+        when(empRun.getGrossEarnings()).thenReturn(new BigDecimal("75000.00"));
+
+        when(employeePayRunRepository.findByTenantIdAndPayrunIdInAndInclusionStatus(
+                        eq(TENANT_ID), anyCollection(), eq(InclusionStatus.INCLUDED)))
+                .thenReturn(List.of(empRun));
+
+        EmployeePayRunLine taxLine = mock(EmployeePayRunLine.class);
+        when(taxLine.getEmployeePayrunId()).thenReturn(empPayRunId);
+        when(taxLine.getAmount()).thenReturn(new BigDecimal("5000.00"));
+
+        when(payRunLineRepository.findTaxLinesByPayrunIds(eq(TENANT_ID), anyCollection()))
+                .thenReturn(List.of(taxLine));
+
+        EmployeeResponse empResp = mock(EmployeeResponse.class);
+        when(empResp.employeeNumber()).thenReturn("EMP001");
+        when(empResp.firstName()).thenReturn("John");
+        when(empResp.lastName()).thenReturn("Doe");
+        when(employeeService.get(empId)).thenReturn(empResp);
+
+        EmployeeIdentificationResponse idResp = mock(EmployeeIdentificationResponse.class);
+        when(idResp.panNumber()).thenReturn("ABCDE1234F");
+        when(employeeIdentificationService.find(empId)).thenReturn(Optional.of(idResp));
+
+        EmployeeTds tds = mock(EmployeeTds.class);
+        when(tds.getRegime()).thenReturn(TaxRegime.NEW);
+        when(employeeTdsRepository.findActive(TENANT_ID, empId, "2026-2027")).thenReturn(Optional.of(tds));
+
+        Annexure1PreviewResponse preview = service.previewAnnexure1("2026-2027", "Q1");
+
+        assertThat(preview.totalTdsDeducted()).isEqualByComparingTo(new BigDecimal("5000.00"));
+        assertThat(preview.totalTdsDeposited()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(preview.isReconciled()).isFalse();
+
+        DeducteeDetailRecord deductee = preview.deductees().get(0);
+        assertThat(deductee.totalTaxDeposited()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(deductee.matchedChallanId()).isNull();
+        assertThat(deductee.challanSerialNumberInBatch()).isZero();
     }
 
     @Test

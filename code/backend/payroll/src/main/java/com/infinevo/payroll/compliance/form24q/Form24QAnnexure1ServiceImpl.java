@@ -151,8 +151,11 @@ public class Form24QAnnexure1ServiceImpl implements Form24QAnnexure1Service {
         BigDecimal totalTdsDeducted = BigDecimal.ZERO;
         BigDecimal totalTdsDeposited = BigDecimal.ZERO;
 
-        UUID defaultChallanId =
-                challanEntities.isEmpty() ? null : challanEntities.get(0).getId();
+        Map<UUID, Integer> challanSerialById = new HashMap<>();
+        int cIdx = 1;
+        for (TdsChallan c : challanEntities) {
+            challanSerialById.put(c.getId(), cIdx++);
+        }
 
         for (EmployeePayRun er : employeeRuns) {
             BigDecimal tdsAmount = taxAmountByEmployeeRunId.getOrDefault(er.getId(), BigDecimal.ZERO);
@@ -208,17 +211,20 @@ public class Form24QAnnexure1ServiceImpl implements Form24QAnnexure1Service {
             }
 
             // Matching Challan & Allocated Deposit
-            UUID matchedChallanId = defaultChallanId;
-            BigDecimal deposited = tdsAmount; // default to deducted if challan exists
+            UUID matchedChallanId = null;
+            BigDecimal deposited = BigDecimal.ZERO;
 
             Map<UUID, TdsChallanAllocation> runAllocs = allocationByPayRunAndEmployee.get(er.getPayrunId());
             if (runAllocs != null && runAllocs.containsKey(employeeId)) {
                 TdsChallanAllocation alloc = runAllocs.get(employeeId);
                 matchedChallanId = alloc.getChallanId();
-                deposited = alloc.getAllocatedTax().add(alloc.getAllocatedCess());
-            } else if (challanEntities.isEmpty()) {
-                deposited = BigDecimal.ZERO;
+                BigDecimal allocTax = alloc.getAllocatedTax() != null ? alloc.getAllocatedTax() : BigDecimal.ZERO;
+                BigDecimal allocCess = alloc.getAllocatedCess() != null ? alloc.getAllocatedCess() : BigDecimal.ZERO;
+                deposited = allocTax.add(allocCess);
             }
+
+            int challanSerialInBatch =
+                    matchedChallanId != null ? challanSerialById.getOrDefault(matchedChallanId, 0) : 0;
 
             BigDecimal grossAmount = er.getGrossEarnings() != null ? er.getGrossEarnings() : BigDecimal.ZERO;
 
@@ -244,7 +250,7 @@ public class Form24QAnnexure1ServiceImpl implements Form24QAnnexure1Service {
                     reasonCode,
                     null,
                     matchedChallanId,
-                    1));
+                    challanSerialInBatch));
         }
 
         // 6. Build Challan Detail Records
@@ -262,9 +268,6 @@ public class Form24QAnnexure1ServiceImpl implements Form24QAnnexure1Service {
             totalChallanAmount = totalChallanAmount.add(cTotal);
 
             int dCount = deducteesPerChallan.getOrDefault(c.getId(), 0L).intValue();
-            if (challanSerial == 1 && challanEntities.size() == 1) {
-                dCount = deducteeRecords.size();
-            }
 
             challanRecords.add(new ChallanDetailRecord(
                     c.getId(),
@@ -283,9 +286,15 @@ public class Form24QAnnexure1ServiceImpl implements Form24QAnnexure1Service {
                     dCount));
         }
 
+        boolean allDeducteesAllocated = deducteeRecords.isEmpty()
+                || deducteeRecords.stream()
+                        .allMatch(d -> d.matchedChallanId() != null
+                                && d.totalTaxDeposited().compareTo(d.totalTaxDeducted()) >= 0);
+
         boolean isReconciled = totalChallanAmount.compareTo(totalTdsDeducted) >= 0
                 && totalTdsDeposited.compareTo(totalTdsDeducted) >= 0
-                && !challanEntities.isEmpty();
+                && !challanEntities.isEmpty()
+                && allDeducteesAllocated;
 
         return new Annexure1PreviewResponse(
                 fy.label(),
