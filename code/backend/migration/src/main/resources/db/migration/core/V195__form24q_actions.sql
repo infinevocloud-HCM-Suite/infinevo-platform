@@ -26,10 +26,12 @@ BEGIN
     INSERT INTO core.role_action (tenant_id, role_id, action_code)
     SELECT p_tenant_id, r.id, grants.action_code
     FROM (VALUES
-        ('payroll-officer', 'payroll.tax.view'),
-        ('payroll-officer', 'payroll.tax.manage'),
+        ('platform-admin',  'payroll.tax.view'),
+        ('platform-admin',  'payroll.tax.manage'),
         ('tenant-admin',    'payroll.tax.view'),
-        ('tenant-admin',    'payroll.tax.manage')
+        ('tenant-admin',    'payroll.tax.manage'),
+        ('payroll-officer', 'payroll.tax.view'),
+        ('payroll-officer', 'payroll.tax.manage')
     ) AS grants (role_code, action_code)
     JOIN core.role r
         ON r.tenant_id = p_tenant_id
