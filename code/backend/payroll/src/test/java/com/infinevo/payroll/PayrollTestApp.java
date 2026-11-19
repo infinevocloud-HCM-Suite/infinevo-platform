@@ -1017,4 +1017,9 @@ public class PayrollTestApp {
                     }
                 }));
     }
+
+    @Bean
+    public com.infinevo.core.leave.LeaveBalanceService leaveBalanceService() {
+        return org.mockito.Mockito.mock(com.infinevo.core.leave.LeaveBalanceService.class);
+    }
 }

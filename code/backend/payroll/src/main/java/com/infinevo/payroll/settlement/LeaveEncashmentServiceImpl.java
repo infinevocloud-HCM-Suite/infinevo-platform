@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,11 +41,23 @@ public class LeaveEncashmentServiceImpl implements LeaveEncashmentService {
 
     public LeaveEncashmentServiceImpl(
             LeaveEncashmentRepository repository,
+            ObjectProvider<LeaveBalanceService> leaveBalanceServiceProvider,
+            EmployeeSalaryService salaryService,
+            EmployeeService employeeService) {
+        this.repository = Objects.requireNonNull(repository, "repository");
+        this.leaveBalanceService = Objects.requireNonNull(leaveBalanceServiceProvider, "leaveBalanceServiceProvider")
+                .getIfAvailable();
+        this.salaryService = Objects.requireNonNull(salaryService, "salaryService");
+        this.employeeService = Objects.requireNonNull(employeeService, "employeeService");
+    }
+
+    public LeaveEncashmentServiceImpl(
+            LeaveEncashmentRepository repository,
             LeaveBalanceService leaveBalanceService,
             EmployeeSalaryService salaryService,
             EmployeeService employeeService) {
         this.repository = Objects.requireNonNull(repository, "repository");
-        this.leaveBalanceService = Objects.requireNonNull(leaveBalanceService, "leaveBalanceService");
+        this.leaveBalanceService = leaveBalanceService;
         this.salaryService = Objects.requireNonNull(salaryService, "salaryService");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService");
     }
@@ -149,6 +162,9 @@ public class LeaveEncashmentServiceImpl implements LeaveEncashmentService {
         BigDecimal perDayRate = monthlyBasicAndDa.divide(BigDecimal.valueOf(dailyDivisor), 2, RoundingMode.HALF_UP);
 
         // 2. Fetch leave balance and verify encashability
+        if (leaveBalanceService == null) {
+            throw new IllegalStateException("LeaveBalanceService is not available in the current context");
+        }
         List<LeaveBalanceResponse> balances =
                 leaveBalanceService.getBalancesForEmployee(tenantId, employeeId, exitDate);
 
