@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Progress, Typography, Button, Tag, Space, Spin, Alert, List, Popconfirm, theme } from 'antd';
+import { Card, Progress, Typography, Button, Tag, Space, Spin, Alert, List, Popconfirm, Upload, theme } from 'antd';
 import {
   CheckCircleOutlined,
   CheckOutlined,
@@ -9,10 +9,16 @@ import {
   ReloadOutlined,
   UserOutlined,
   UploadOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { onboardingService } from '../../../core/onboarding/onboardingService.js';
+import {
+  documentService,
+  MAX_DOCUMENT_BYTES,
+  ACCEPTED_DOCUMENT_TYPES,
+} from '../../../core/document/documentService.js';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { formatDate } from '@shared/ui/format.js';
 
@@ -36,15 +42,18 @@ export function MyOnboarding() {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [data, setData] = useState(null);
   const [actionTaskId, setActionTaskId] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await onboardingService.getMyProgress();
       setData(res);
     } catch (err) {
+      setLoadError(err?.message || 'Failed to load onboarding checklist');
       errorMsg(err);
     } finally {
       setLoading(false);
@@ -71,11 +80,22 @@ export function MyOnboarding() {
     }
   };
 
-  const handleUploadPlaceholder = async (task) => {
+  const handleFileUpload = async (task, file) => {
+    if (!file) return;
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      await errorMsg(new Error('File exceeds maximum allowable size (10 MB).'));
+      return;
+    }
     setActionTaskId(task.id);
     try {
+      const doc = await documentService.uploadForEmployee(
+        file,
+        task.employeeId,
+        task.documentLabel || 'OTHER'
+      );
       await onboardingService.updateTask(task.employeeId, task.id, {
         status: 'SUBMITTED',
+        documentId: doc.id,
         remarks: 'Document submitted for verification',
       });
       await successMsg('Document Submitted', `"${task.title}" submitted for HR verification.`);
@@ -87,11 +107,38 @@ export function MyOnboarding() {
     }
   };
 
+  const handleViewDocument = async (documentId) => {
+    try {
+      const link = await documentService.link(documentId);
+      if (link?.url) {
+        window.open(link.url, '_blank');
+      }
+    } catch (err) {
+      errorMsg(err);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: 48 }}>
         <Spin size="large" />
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Alert
+        message="Failed to load onboarding checklist"
+        description={loadError}
+        type="error"
+        showIcon
+        action={
+          <Button icon={<ReloadOutlined />} onClick={loadData}>
+            Retry
+          </Button>
+        }
+      />
     );
   }
 
@@ -156,6 +203,7 @@ export function MyOnboarding() {
             const isSubmitted = item.status === 'SUBMITTED';
             const isOverdue =
               !isDone && item.dueDate && dayjs(item.dueDate).isBefore(dayjs(), 'day');
+            const isAssignedToOther = item.assignedRole && item.assignedRole !== 'EMPLOYEE';
 
             return (
               <List.Item>
@@ -190,20 +238,34 @@ export function MyOnboarding() {
                               Overdue
                             </Tag>
                           )}
+                          {isAssignedToOther && (
+                            <Tag color="default">Assigned to {item.assignedRole}</Tag>
+                          )}
                         </Space>
                         {item.description && (
                           <Paragraph type="secondary" style={{ margin: '4px 0 0 0', fontSize: 13 }}>
                             {item.description}
                           </Paragraph>
                         )}
-                        {item.dueDate && (
-                          <div style={{ marginTop: 6, fontSize: 12 }}>
+                        <Space size="middle" wrap style={{ marginTop: 6, fontSize: 12 }}>
+                          {item.dueDate && (
                             <Text type={isOverdue ? 'danger' : 'secondary'}>
                               <ClockCircleOutlined style={{ marginRight: 4 }} />
                               Due: {formatDate(item.dueDate)}
                             </Text>
-                          </div>
-                        )}
+                          )}
+                          {item.documentId && (
+                            <Button
+                              type="link"
+                              size="small"
+                              icon={<FileTextOutlined />}
+                              onClick={() => handleViewDocument(item.documentId)}
+                              style={{ padding: 0, height: 'auto', fontSize: 12 }}
+                            >
+                              View attached document
+                            </Button>
+                          )}
+                        </Space>
                       </div>
                     </Space>
 
@@ -216,22 +278,44 @@ export function MyOnboarding() {
                         <Tag color="blue" style={{ padding: '4px 10px', fontSize: 13 }}>
                           Submitted for Verification
                         </Tag>
+                      ) : isAssignedToOther ? (
+                        <Tag color="default" style={{ padding: '4px 10px', fontSize: 13 }}>
+                          Read-only ({item.assignedRole})
+                        </Tag>
                       ) : (
                         <Space>
                           {item.taskType === 'PROFILE_UPDATE' && (
-                            <Button size="middle" onClick={() => navigate('/me/profile')}>
-                              Go to Profile
-                            </Button>
+                            <>
+                              <Button size="middle" onClick={() => navigate('/me/profile')}>
+                                Go to Profile
+                              </Button>
+                              <Button
+                                type="primary"
+                                icon={<CheckOutlined />}
+                                loading={actionTaskId === item.id}
+                                onClick={() => handleComplete(item)}
+                              >
+                                Mark as Done
+                              </Button>
+                            </>
                           )}
                           {item.taskType === 'DOCUMENT_UPLOAD' && (
-                            <Button
-                              type="primary"
-                              icon={<UploadOutlined />}
-                              loading={actionTaskId === item.id}
-                              onClick={() => handleUploadPlaceholder(item)}
+                            <Upload
+                              beforeUpload={(file) => {
+                                handleFileUpload(item, file);
+                                return false;
+                              }}
+                              showUploadList={false}
+                              accept={ACCEPTED_DOCUMENT_TYPES}
                             >
-                              Submit Document
-                            </Button>
+                              <Button
+                                type="primary"
+                                icon={<UploadOutlined />}
+                                loading={actionTaskId === item.id}
+                              >
+                                Submit Document
+                              </Button>
+                            </Upload>
                           )}
                           {item.taskType === 'POLICY_ACKNOWLEDGEMENT' && (
                             <Popconfirm

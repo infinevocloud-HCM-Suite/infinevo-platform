@@ -5,7 +5,8 @@ public record CreateTemplateRequest(
         String description,
         OnboardingTaskType taskType,
         String documentLabel,
-        String assignedRole,
+        OnboardingAssignedRole assignedRole,
         Boolean isMandatory,
         Integer dueDaysAfterJoining,
         Integer sortOrder) {}
+

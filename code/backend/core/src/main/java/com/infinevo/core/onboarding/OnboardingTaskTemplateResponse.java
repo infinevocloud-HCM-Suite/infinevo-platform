@@ -10,7 +10,7 @@ public record OnboardingTaskTemplateResponse(
         String description,
         OnboardingTaskType taskType,
         String documentLabel,
-        String assignedRole,
+        OnboardingAssignedRole assignedRole,
         boolean isMandatory,
         int dueDaysAfterJoining,
         int sortOrder,

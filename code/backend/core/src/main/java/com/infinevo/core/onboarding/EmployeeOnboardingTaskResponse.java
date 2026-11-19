@@ -12,7 +12,7 @@ public record EmployeeOnboardingTaskResponse(
         String description,
         OnboardingTaskType taskType,
         String documentLabel,
-        String assignedRole,
+        OnboardingAssignedRole assignedRole,
         boolean isMandatory,
         LocalDate dueDate,
         OnboardingTaskStatus status,

@@ -47,8 +47,9 @@ public class OnboardingTaskTemplate {
     @Column(name = "document_label", length = 100)
     private String documentLabel;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "assigned_role", nullable = false, length = 50)
-    private String assignedRole = "EMPLOYEE";
+    private OnboardingAssignedRole assignedRole = OnboardingAssignedRole.EMPLOYEE;
 
     @Column(name = "is_mandatory", nullable = false)
     private boolean isMandatory = true;
@@ -82,7 +83,7 @@ public class OnboardingTaskTemplate {
             String description,
             OnboardingTaskType taskType,
             String documentLabel,
-            String assignedRole,
+            OnboardingAssignedRole assignedRole,
             boolean isMandatory,
             int dueDaysAfterJoining,
             int sortOrder,
@@ -92,13 +93,15 @@ public class OnboardingTaskTemplate {
         this.description = description;
         this.taskType = taskType;
         this.documentLabel = documentLabel;
-        this.assignedRole = assignedRole != null ? assignedRole : "EMPLOYEE";
+        this.assignedRole = assignedRole != null ? assignedRole : OnboardingAssignedRole.EMPLOYEE;
         this.isMandatory = isMandatory;
         this.dueDaysAfterJoining = Math.max(0, dueDaysAfterJoining);
         this.sortOrder = sortOrder;
         this.isActive = true;
         this.createdBy = actor != null ? actor : "system";
         this.updatedBy = this.createdBy;
+        this.createdAt = Instant.now();
+        this.updatedAt = this.createdAt;
     }
 
     @PrePersist
@@ -156,12 +159,12 @@ public class OnboardingTaskTemplate {
         this.documentLabel = documentLabel;
     }
 
-    public String getAssignedRole() {
+    public OnboardingAssignedRole getAssignedRole() {
         return assignedRole;
     }
 
-    public void setAssignedRole(String assignedRole) {
-        this.assignedRole = assignedRole;
+    public void setAssignedRole(OnboardingAssignedRole assignedRole) {
+        this.assignedRole = assignedRole != null ? assignedRole : OnboardingAssignedRole.EMPLOYEE;
     }
 
     public boolean isMandatory() {
@@ -204,6 +207,10 @@ public class OnboardingTaskTemplate {
         return createdBy;
     }
 
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
     public Instant getUpdatedAt() {
         return updatedAt;
     }
@@ -213,6 +220,6 @@ public class OnboardingTaskTemplate {
     }
 
     public void setUpdatedBy(String updatedBy) {
-        this.updatedBy = updatedBy != null ? updatedBy : "system";
+        this.updatedBy = updatedBy;
     }
 }

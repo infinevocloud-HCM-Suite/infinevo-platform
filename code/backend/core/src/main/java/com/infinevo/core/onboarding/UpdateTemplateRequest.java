@@ -5,8 +5,9 @@ public record UpdateTemplateRequest(
         String description,
         OnboardingTaskType taskType,
         String documentLabel,
-        String assignedRole,
+        OnboardingAssignedRole assignedRole,
         Boolean isMandatory,
         Integer dueDaysAfterJoining,
         Integer sortOrder,
         Boolean isActive) {}
+

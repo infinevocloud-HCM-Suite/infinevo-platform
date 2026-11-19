@@ -57,8 +57,9 @@ public class EmployeeOnboardingTask {
     @Column(name = "document_label", length = 100)
     private String documentLabel;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "assigned_role", nullable = false, length = 50)
-    private String assignedRole = "EMPLOYEE";
+    private OnboardingAssignedRole assignedRole = OnboardingAssignedRole.EMPLOYEE;
 
     @Column(name = "is_mandatory", nullable = false)
     private boolean isMandatory = true;
@@ -104,7 +105,7 @@ public class EmployeeOnboardingTask {
             String description,
             OnboardingTaskType taskType,
             String documentLabel,
-            String assignedRole,
+            OnboardingAssignedRole assignedRole,
             boolean isMandatory,
             LocalDate dueDate,
             String actor) {
@@ -115,7 +116,7 @@ public class EmployeeOnboardingTask {
         this.description = description;
         this.taskType = taskType;
         this.documentLabel = documentLabel;
-        this.assignedRole = assignedRole != null ? assignedRole : "EMPLOYEE";
+        this.assignedRole = assignedRole != null ? assignedRole : OnboardingAssignedRole.EMPLOYEE;
         this.isMandatory = isMandatory;
         this.dueDate = dueDate;
         this.status = OnboardingTaskStatus.PENDING;
@@ -186,12 +187,12 @@ public class EmployeeOnboardingTask {
         this.documentLabel = documentLabel;
     }
 
-    public String getAssignedRole() {
+    public OnboardingAssignedRole getAssignedRole() {
         return assignedRole;
     }
 
-    public void setAssignedRole(String assignedRole) {
-        this.assignedRole = assignedRole;
+    public void setAssignedRole(OnboardingAssignedRole assignedRole) {
+        this.assignedRole = assignedRole != null ? assignedRole : OnboardingAssignedRole.EMPLOYEE;
     }
 
     public boolean isMandatory() {

@@ -65,6 +65,7 @@ class EmployeeServiceImplTest {
     private UserProfileSyncService userProfileSyncService;
     private EmployeeEmploymentService employmentService;
     private EmployeeLimitGuard limitGuard;
+    private com.infinevo.core.onboarding.OnboardingService onboardingService;
     private EmployeeServiceImpl service;
 
     @BeforeEach
@@ -78,6 +79,7 @@ class EmployeeServiceImplTest {
         userProfileSyncService = mock(UserProfileSyncService.class);
         employmentService = mock(EmployeeEmploymentService.class);
         limitGuard = mock(EmployeeLimitGuard.class);
+        onboardingService = mock(com.infinevo.core.onboarding.OnboardingService.class);
         when(employmentService.find(any(UUID.class))).thenReturn(Optional.empty());
         service = new EmployeeServiceImpl(
                 repository,
@@ -87,7 +89,8 @@ class EmployeeServiceImplTest {
                 userAccountRepository,
                 userProfileSyncService,
                 employmentService,
-                limitGuard);
+                limitGuard,
+                onboardingService);
 
         when(repository.saveAndFlush(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
         when(repository.save(any(Employee.class))).thenAnswer(inv -> put(inv.getArgument(0)));
@@ -527,6 +530,7 @@ class EmployeeServiceImplTest {
                 userProfileSyncService,
                 employmentService,
                 limitGuard,
+                onboardingService,
                 publisher);
         UUID id = service.create(request("E-1")).id();
         service.update(id, withStatus(EmploymentStatus.SUSPENDED, null));
@@ -854,6 +858,14 @@ class EmployeeServiceImplTest {
         service.delete(id);
 
         verify(limitGuard, never()).checkRoomFor(anyInt());
+    }
+
+    @Test
+    @DisplayName("W-102: create() calls assignDefaultTasks once with the saved employee")
+    void createCallsAssignDefaultTasks() {
+        EmployeeResponse created = service.create(request("E-ONBOARDING"));
+        assertThat(created).isNotNull();
+        verify(onboardingService, times(1)).assignDefaultTasks(any(Employee.class), any());
     }
 
     private static EmployeeRequest withStatus(EmploymentStatus status, LocalDate terminationDate) {

@@ -1,19 +1,37 @@
 import { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Card, Table, Tag, Button, Progress, Typography, Space, Popconfirm, Spin, Alert, Row, Col, theme } from 'antd';
+import {
+  Card,
+  Table,
+  Tag,
+  Button,
+  Progress,
+  Typography,
+  Space,
+  Popconfirm,
+  Spin,
+  Alert,
+  Row,
+  Col,
+  Modal,
+  Input,
+  theme,
+} from 'antd';
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   FileDoneOutlined,
   ReloadOutlined,
   FileTextOutlined,
+  StopOutlined,
 } from '@ant-design/icons';
 import { onboardingService } from '../../onboarding/onboardingService.js';
+import { documentService } from '../../document/documentService.js';
 import { useCan } from '@shell/screens';
 import { successMsg, errorMsg } from '@shared/ui/msgHelper.js';
 import { formatDate } from '@shared/ui/format.js';
 
-const { Text, Title } = Typography;
+const { Text, Title, Paragraph } = Typography;
 
 const STATUS_TAGS = {
   PENDING: { color: 'default', text: 'Pending' },
@@ -33,16 +51,25 @@ export function OnboardingTab({ employeeId }) {
   const { token } = theme.useToken();
   const canManage = useCan('core.onboarding.manage');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [data, setData] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Reject modal state
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectTaskId, setRejectTaskId] = useState(null);
+  const [rejectRemarks, setRejectRemarks] = useState('');
+  const [rejectLoading, setRejectLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!employeeId) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await onboardingService.getEmployeeProgress(employeeId);
       setData(res);
     } catch (err) {
+      setLoadError(err?.message || 'Failed to load onboarding checklist');
       errorMsg(err);
     } finally {
       setLoading(false);
@@ -66,11 +93,50 @@ export function OnboardingTab({ employeeId }) {
     }
   };
 
-  const handleUpdateStatus = async (taskId, nextStatus) => {
+  const handleUpdateStatus = async (taskId, nextStatus, remarks) => {
     try {
-      await onboardingService.updateTask(employeeId, taskId, { status: nextStatus });
+      const payload = { status: nextStatus };
+      if (remarks) payload.remarks = remarks;
+      await onboardingService.updateTask(employeeId, taskId, payload);
       await successMsg('Task Updated', `Task marked as ${nextStatus.toLowerCase()}.`);
       loadData();
+    } catch (err) {
+      errorMsg(err);
+    }
+  };
+
+  const handleOpenReject = (taskId) => {
+    setRejectTaskId(taskId);
+    setRejectRemarks('');
+    setRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectRemarks.trim()) {
+      return;
+    }
+    setRejectLoading(true);
+    try {
+      await onboardingService.updateTask(employeeId, rejectTaskId, {
+        status: 'PENDING',
+        remarks: rejectRemarks.trim(),
+      });
+      await successMsg('Document Rejected', 'Task sent back to pending with remarks.');
+      setRejectModalOpen(false);
+      loadData();
+    } catch (err) {
+      errorMsg(err);
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  const handleViewDocument = async (documentId) => {
+    try {
+      const link = await documentService.link(documentId);
+      if (link?.url) {
+        window.open(link.url, '_blank');
+      }
     } catch (err) {
       errorMsg(err);
     }
@@ -81,6 +147,22 @@ export function OnboardingTab({ employeeId }) {
       <div style={{ textAlign: 'center', padding: 48 }}>
         <Spin size="large" />
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Alert
+        message="Failed to load onboarding checklist"
+        description={loadError}
+        type="error"
+        showIcon
+        action={
+          <Button icon={<ReloadOutlined />} onClick={loadData}>
+            Retry
+          </Button>
+        }
+      />
     );
   }
 
@@ -122,6 +204,13 @@ export function OnboardingTab({ employeeId }) {
       },
     },
     {
+      title: 'Assigned Role',
+      dataIndex: 'assignedRole',
+      key: 'assignedRole',
+      width: 110,
+      render: (role) => <Tag>{role || 'EMPLOYEE'}</Tag>,
+    },
+    {
       title: 'Due Date',
       dataIndex: 'dueDate',
       key: 'dueDate',
@@ -144,9 +233,15 @@ export function OnboardingTab({ employeeId }) {
       render: (_, record) => (
         <div>
           {record.documentId && (
-            <Tag icon={<FileTextOutlined />} color="blue">
-              Document attached
-            </Tag>
+            <Button
+              type="link"
+              size="small"
+              icon={<FileTextOutlined />}
+              onClick={() => handleViewDocument(record.documentId)}
+              style={{ padding: 0, height: 'auto', display: 'block', marginBottom: 4 }}
+            >
+              View document
+            </Button>
           )}
           {record.remarks && (
             <Text type="secondary" italic style={{ fontSize: 12, display: 'block' }}>
@@ -161,7 +256,7 @@ export function OnboardingTab({ employeeId }) {
           {
             title: 'Actions',
             key: 'actions',
-            width: 160,
+            width: 200,
             render: (_, record) => {
               if (record.status === 'COMPLETED' || record.status === 'WAIVED') {
                 return (
@@ -176,16 +271,50 @@ export function OnboardingTab({ employeeId }) {
                   </Popconfirm>
                 );
               }
+              if (record.status === 'SUBMITTED') {
+                return (
+                  <Space size="small" wrap>
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      onClick={() => handleUpdateStatus(record.id, 'COMPLETED')}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      icon={<CloseCircleOutlined />}
+                      onClick={() => handleOpenReject(record.id)}
+                    >
+                      Reject
+                    </Button>
+                    <Popconfirm
+                      title="Waive this onboarding requirement?"
+                      okText="Waive"
+                      onConfirm={() => handleUpdateStatus(record.id, 'WAIVED')}
+                    >
+                      <Button size="small" icon={<StopOutlined />}>
+                        Waive
+                      </Button>
+                    </Popconfirm>
+                  </Space>
+                );
+              }
+              // PENDING
               return (
                 <Space size="small">
-                  <Button
-                    size="small"
-                    type="primary"
-                    icon={<CheckCircleOutlined />}
-                    onClick={() => handleUpdateStatus(record.id, 'COMPLETED')}
-                  >
-                    Complete
-                  </Button>
+                  {record.taskType !== 'DOCUMENT_UPLOAD' && (
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      onClick={() => handleUpdateStatus(record.id, 'COMPLETED')}
+                    >
+                      Complete
+                    </Button>
+                  )}
                   <Popconfirm
                     title="Waive this onboarding requirement?"
                     okText="Waive"
@@ -205,26 +334,30 @@ export function OnboardingTab({ employeeId }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Progress Card */}
-      <Card variant="borderless" style={{ background: token.colorFillAlter }}>
+      {/* Header Summary Card */}
+      <Card variant="borderless">
         <Row gutter={[24, 16]} align="middle">
           <Col xs={24} md={16}>
-            <Title level={5} style={{ margin: 0 }}>
-              Onboarding Checklist Progress
+            <Title level={4} style={{ margin: 0 }}>
+              Onboarding Progress
             </Title>
-            <Text type="secondary">
-              {completed} of {total} tasks completed ({percent}%)
-            </Text>
-            <div style={{ marginTop: 8 }}>
+            <Paragraph type="secondary" style={{ margin: '4px 0 12px 0' }}>
+              Track onboarding checklist completion, verify submitted documents, and manage requirement waivers.
+            </Paragraph>
+            <Space size="middle" align="center" style={{ width: '100%', maxWidth: 500 }}>
               <Progress
                 percent={percent}
                 status={percent === 100 ? 'success' : 'active'}
                 strokeColor={percent === 100 ? token.colorSuccess : token.colorPrimary}
+                style={{ flex: 1 }}
               />
-            </div>
+              <Text strong>
+                {completed} of {total} tasks completed
+              </Text>
+            </Space>
           </Col>
           <Col xs={24} md={8} style={{ textAlign: 'right' }}>
-            <Space>
+            <Space wrap>
               <Button icon={<ReloadOutlined />} onClick={loadData}>
                 Refresh
               </Button>
@@ -234,7 +367,6 @@ export function OnboardingTab({ employeeId }) {
                   icon={<FileDoneOutlined />}
                   loading={actionLoading}
                   onClick={handleAssignDefaults}
-                  id="btn-assign-onboarding"
                 >
                   Assign Default Checklist
                 </Button>
@@ -247,23 +379,39 @@ export function OnboardingTab({ employeeId }) {
       {total === 0 ? (
         <Alert
           message="No Onboarding Tasks Assigned"
-          description={
-            canManage
-              ? 'This employee has no onboarding tasks assigned. Click "Assign Default Checklist" to assign standard templates.'
-              : 'No onboarding tasks have been assigned to this employee yet.'
-          }
+          description="This employee currently has no onboarding tasks assigned. You can assign the default checklist using the button above."
           type="info"
           showIcon
         />
       ) : (
         <Table
           rowKey="id"
-          columns={columns}
           dataSource={tasks}
+          columns={columns}
           pagination={false}
-          size="middle"
         />
       )}
+
+      {/* Reject Remarks Modal */}
+      <Modal
+        title="Reject Submitted Document"
+        open={rejectModalOpen}
+        onOk={handleConfirmReject}
+        onCancel={() => setRejectModalOpen(false)}
+        confirmLoading={rejectLoading}
+        okText="Reject Document"
+        okButtonProps={{ danger: true, disabled: !rejectRemarks.trim() }}
+      >
+        <Paragraph type="secondary">
+          Please provide remarks explaining why the submitted document was rejected. The task will be reset to pending for the employee to resubmit.
+        </Paragraph>
+        <Input.TextArea
+          rows={3}
+          value={rejectRemarks}
+          onChange={(e) => setRejectRemarks(e.target.value)}
+          placeholder="e.g. Document copy is blurred, please upload a clearer scan."
+        />
+      </Modal>
     </div>
   );
 }
