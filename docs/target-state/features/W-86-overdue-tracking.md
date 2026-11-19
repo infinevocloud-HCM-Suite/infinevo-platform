@@ -1,184 +1,170 @@
-# Feature: Overdue Tracking & Past Due Subscription Sweep
+# Feature: Overdue tracking — period end date and the nightly past-due sweep
 
 | Field | Value |
 |---|---|
 | **Feature ID** | `W-86` · `CORE-SUBSCRIPTION` |
-| **Promoted to** | `docs/target-state/features/W-86-overdue-tracking.md` |
 | **Owner** | krushna (`dev-krushna`) |
-| **Apps touched** | `code/backend/core`, `code/backend/worker`, `code/frontend` (`src/core/admin`) |
-| **Related gaps** | founder 2026-11-13 planned product roadmap ("Priority 1 — customer lifecycle: `W-86` Overdue tracking") |
-| **Status** | **In Review (pending manager approval)** |
-| **Approved by** | — (pending manager review) |
-| **Approved on** | — |
-| **Blocked by** | nothing (founder decision 2026-11-05: `PAST_DUE` keeps blocking nothing; access remains uninterrupted) |
+| **Apps touched** | `code/backend/core`, `code/backend/worker`, `code/backend/migration`, `code/frontend/src/core/admin` |
+| **Related gaps** | founder 2026-11-13 roadmap, "Priority 1 — customer lifecycle" |
+| **Status** | Ready — approved 2026-11-19. Not built. |
+| **Approved by** | founder |
+| **Approved on** | 2026-11-19 |
+| **Blocked by** | nothing. Founder decision 2026-11-05: `PAST_DUE` blocks nothing. |
 
----
+## What this ticket does
 
-## Size cap
+| # | Behaviour |
+|---|---|
+| 1 | The platform admin sets "Current period ends" on the Plan card. **Nothing sets this date today**, so this is the only way it gets a value. |
+| 2 | Every night a job moves each `ACTIVE` customer whose period end is before today (UTC) to `PAST_DUE`. |
+| 3 | The platform home page shows a "Past due" tile that opens the tenant list filtered to those customers. |
+
+`PAST_DUE` customers keep full access. Moving one to `SUSPENDED` stays a manual step by the
+platform admin (`W-85.1` and `W-85.2` then make it view-only).
+
+## Size
 
 | Axis | This spec | Limit | Status |
 |---|---|:---:|---|
-| Backend module | `core` (+ one scheduled worker sweep in `worker`) | 1 | **Pass (1 module + worker runtime)** |
-| Flyway migration | None (creates 0 tables; `core.subscription.current_period_end` already exists) | 1 | **Pass (0 migrations)** |
-| Externally testable behaviour | Platform admin edits `currentPeriodEnd` on the Plan card; daily worker sweep evaluates active subscriptions past their period end date, marks them `PAST_DUE`, records audit entries, and highlights overdue accounts on the `/admin` dashboard | 1 | **Pass (1 behaviour)** |
-| Frontend area | `core/admin` (`TenantDetail.jsx` Plan card date picker & `/admin` dashboard alert card) | 1 | **Pass (1 area)** |
+| Backend module | `core` (plus one job class in `worker`) | 1 | Pass |
+| Flyway migration | **1** (was wrongly "0") | 1 | Pass |
+| Testable behaviour | period end is saved; an overdue active customer becomes `PAST_DUE` overnight | 1 | Pass |
+| Frontend area | `core/admin` | 1 | Pass |
 
-Within size cap across all four axes. No split required.
-
----
-
-## 1. Problem & Decision
-
-### 1.1 The problem today
-1. **Unset period end dates**: While `core.subscription.current_period_end` was created in `V034__subscription.sql` (`code/backend/core/src/main/java/com/infinevo/core/subscription/Subscription.java:56-57`), the platform has no interface for platform administrators to set, edit, or extend this date. Today `current_period_end` is either null or statically populated at tenant creation.
-2. **No automated overdue sweep**: When a tenant's subscription period passes, no process detects expiry. The tenant remains permanently `ACTIVE`.
-3. **No overdue visibility**: Platform staff have no dashboard summary of accounts past due on renewal, preventing follow-ups before services require suspension.
-
-### 1.2 The settled decision (founder, 2026-11-05)
-- **`PAST_DUE` keeps blocking nothing**: Moving a tenant from `ACTIVE` to `PAST_DUE` does not disrupt tenant business operations. Employees can still clock in, record leaves, run payroll, and approve requests (`SubscriptionStatus.java:29-31`: `isActiveOrPastDue() == true`).
-- **Overdue tracking serves operational visibility**: The sweep alerts the platform administrator and flags the tenant record so support/sales can engage the customer to renew their contract.
-- **Manual suspension if needed**: If an account remains overdue past the grace window without payment, the platform admin manually transitions the status to `SUSPENDED` (activating `W-85` Core mutation blocking).
+Size **M**.
 
 ---
+
+## 1. Problem
+
+| # | Today | Evidence |
+|---|---|---|
+| 1 | `core.subscription.current_period_end` exists but nothing writes it; it is always null. | `code/backend/core/src/main/java/com/infinevo/core/subscription/Subscription.java:143` has no caller |
+| 2 | The plan is saved through `core.set_subscription_plan(uuid, text, text, integer)`, which has no period-end argument. | `code/backend/migration/src/main/resources/db/migration/core/V188__subscription_plan.sql:27-32`; `SubscriptionServiceImpl.java:284` |
+| 3 | No job looks for expired periods, so a customer stays `ACTIVE` for ever. | no class under `code/backend/worker` reads the subscription |
+| 4 | The platform home page shows Active and Suspended tiles but no Past due tile, though the API already returns the count. | `code/frontend/src/core/admin/PlatformHome.jsx:137-142`; `code/backend/core/src/main/java/com/infinevo/core/tenant/TenantQueryService.java:122-136` |
+| 5 | The tenant list has no status filter. | `code/frontend/src/core/admin/TenantList.jsx` |
 
 ## 2. Scope
 
-### In scope
-- **Plan card date editor (`code/frontend/src/core/admin/TenantDetail.jsx`)**:
-  - Add `currentPeriodEnd` (`DatePicker`) to the Plan card on `/admin/tenants/:id` (alongside Plan, Support plan, and Employee limit).
-  - Update `PlanUpdateRequest` and `SubscriptionService.setPlan(...)` to persist `currentPeriodEnd` in `core.subscription`.
-- **Automated Overdue Sweep (`SubscriptionOverdueJob` in `code/backend/worker`)**:
-  - Daily scheduled job (01:00 UTC / 06:30 IST) protected by ShedLock (`@SchedulerLock(name = "subscription_overdue_sweep")`).
-  - Finds all subscriptions where:
-    `status = 'ACTIVE'` AND `current_period_end IS NOT NULL` AND `current_period_end < CURRENT_DATE`.
-  - Atomically updates status to `PAST_DUE` and writes audit log entries with `actor = 'system'`, previous status `ACTIVE`, new status `PAST_DUE`.
-  - Evicts the tenant's cache entry in `PermissionCache` / `EntitlementSnapshot` so the new status takes immediate effect.
-- **Platform Admin Dashboard Overdue Alert Card (`code/frontend/src/core/admin/`)**:
-  - On `/admin` platform dashboard (`PlatformDashboard.jsx`), surface a "Past Due Subscriptions" metric tile / card.
-  - Clicking navigates to `/admin/tenants?status=PAST_DUE` with the overdue filter active.
+**In scope**
 
-### Out of scope
-- Automatic credit card charging or dunning sequences (owned by `W-94`).
-- Automatic escalation from `PAST_DUE` to `SUSPENDED` (suspension remains an explicit platform admin decision).
-- Customer-facing payment portal.
+- Period end on the plan request, the plan write function and the Plan card.
+- The nightly sweep job.
+- "Past due" tile on the platform home page.
+- Status filter on the tenant list, driven by `?status=`.
+- A warning on the tenant page when the status is `ACTIVE` and the period end is in the past.
 
----
+**Out of scope**
+
+- Email or in-app alert to the platform admin. The tile is the alert in this ticket.
+- Automatic move from `PAST_DUE` to `SUSPENDED`, or back to `ACTIVE` when the date is moved forward. Both stay manual.
+- Charging, dunning, a customer payment page — `W-94`.
 
 ## 3. Flow
 
 ```
-[Platform Admin Sets current_period_end on /admin/tenants/:id]
-                            │
-                            ▼
-[PUT /api/v1/tenants/{id}/plan { ..., currentPeriodEnd: "2026-11-15" }]
-                            │
-                            ▼
-[Saved to core.subscription.current_period_end]
+Platform admin --> TenantDetail Plan card --> PUT /api/v1/tenants/{id}/subscription/plan
+               --> SubscriptionServiceImpl.updatePlan --> core.set_subscription_plan(…, date)
 
-──────────────────────── Next Night (01:00 UTC) ────────────────────────
-
-[SubscriptionOverdueJob Fires in Worker (ShedLock: subscription_overdue_sweep)]
-                            │
-                            ▼
-[Query Subscriptions: status='ACTIVE' AND current_period_end < CURRENT_DATE]
-                            │
-            ┌───────────────┴───────────────┐
-            ▼                               ▼
-    [No Overdue Rows]            [Found N Overdue Tenants]
-            │                               │
-            ▼                               ▼
-       Sweep Ends            [Update status = 'PAST_DUE']
-                                            │
-                                            ├─► [Log to core.audit_log (actor='system')]
-                                            ├─► [Evict Tenant PermissionCache]
-                                            └─► [Alert Placed on /admin Dashboard]
+01:00 UTC --> SubscriptionOverdueJob --> core.list_overdue_subscriptions(today UTC)
+          --> for each tenant: bind TenantContext --> SubscriptionService.markPastDue
+          --> core.set_subscription_status(tenant, 'PAST_DUE') --> permissionCache.bumpVersion
 ```
 
----
-
-## 4. Architecture & Changes
-
-### 4.1 Backend changes (`code/backend/core` & `code/backend/worker`)
+## 4. Backend changes
 
 | Layer | File | Change |
 |---|---|---|
-| DTO | `com.infinevo.core.subscription.PlanUpdateRequest.java` | Add `LocalDate currentPeriodEnd` field (`record PlanUpdateRequest(..., LocalDate currentPeriodEnd)`). |
-| Service | `com.infinevo.core.subscription.SubscriptionService.java` | Support `currentPeriodEnd` in `setPlan(...)`; add `List<UUID> sweepOverdueSubscriptions(LocalDate asOfDate)`. |
-| ServiceImpl | `com.infinevo.core.subscription.SubscriptionServiceImpl.java` | In `setPlan`, update `subscription.setCurrentPeriodEnd(...)`; in `sweepOverdueSubscriptions`, find active overdue rows, batch update to `PAST_DUE`, audit, and evict cache. |
-| Query | `com.infinevo.core.subscription.SubscriptionRepository.java` | Add query: `findOverdueActive(LocalDate asOfDate)`. |
-| Worker Job | `com.infinevo.worker.subscription.SubscriptionOverdueJob.java` | **New**. ShedLock-guarded `@Scheduled` daily job calling `subscriptionService.sweepOverdueSubscriptions(LocalDate.now())`. |
-| Overview | `com.infinevo.core.tenant.TenantOverviewService.java` | Return `pastDueCount` on platform admin overview (`GET /api/v1/admin/dashboard`). |
+| DTO | `core/.../subscription/PlanUpdateRequest.java` | Add `LocalDate currentPeriodEnd`. Null clears the date, like the other three fields. |
+| Service | `core/.../subscription/SubscriptionService.java` | Add `boolean markPastDue(UUID tenantId, LocalDate asOf)`. |
+| ServiceImpl | `core/.../subscription/SubscriptionServiceImpl.java` | `updatePlan` calls the five-argument function and sets `subscription.setCurrentPeriodEnd(...)` so the audit listener records it. `markPastDue` re-reads the row; if it is still `ACTIVE` with a period end before `asOf`, it applies `PAST_DUE` through the existing `applyStatus` path (function call, cache bump, audit). Returns whether it changed anything. |
+| Job | `worker/.../subscription/SubscriptionOverdueJob.java` | **New.** Same shape as `LeaveAccrualJob` (`worker/.../leave/LeaveAccrualJob.java:40-63`): `@Scheduled(cron = "${infinevo.scheduler.subscription-overdue.cron:0 0 1 * * *}", zone = "UTC")`, `@SchedulerLock(name = "SubscriptionOverdueJob", lockAtMostFor = "PT30M")`. Reads the tenant ids from `core.list_overdue_subscriptions(?)` with `LocalDate.now(ZoneOffset.UTC)`, then binds each tenant in turn and calls `markPastDue`. One tenant's failure is logged and does not stop the rest. |
 
-### 4.2 Frontend changes (`code/frontend`)
+Why the list function: `core.subscription` has row-level security
+(`V034__subscription.sql:20-29`). A plain repository query with no tenant bound returns
+no rows, so the sweep would silently find nothing.
+
+No change to `TenantQueryService.summary()` — `byStatus` already carries `PAST_DUE`.
+
+### API contract
+
+| Method | Path | Request | Response | Auth |
+|---|---|---|---|---|
+| `PUT` | `/api/v1/tenants/{id}/subscription/plan` | `{ plan, supportPlan, employeeLimit, currentPeriodEnd }` — `currentPeriodEnd` is `YYYY-MM-DD` or null | `SubscriptionResponse` (already has `currentPeriodEnd`) | `core.tenant.provision` |
+| `GET` | `/api/v1/tenants/summary` | — | unchanged | `core.tenant.provision` |
+
+An older client that sends no `currentPeriodEnd` clears the date. The only client is
+`TenantDetail.jsx`, changed in this ticket.
+
+## 5. Frontend changes
 
 | File | Change |
 |---|---|
-| Tenant Detail | `code/frontend/src/core/admin/TenantDetail.jsx` | Add `currentPeriodEnd` `DatePicker` to Plan card (lines 275–320); hand `currentPeriodEnd` in `onSavePlan` (`file:code/frontend/src/core/admin/TenantDetail.jsx:165-175`). |
-| Tenant API | `code/frontend/src/core/admin/tenantService.js` | Include `current_period_end` in `setPlan(id, { plan, supportPlan, employeeLimit, currentPeriodEnd })`. |
-| Admin Dashboard | `code/frontend/src/core/admin/PlatformDashboard.jsx` | Add "Past Due Accounts" metric tile linking to `/admin/tenants?status=PAST_DUE`. |
+| `code/frontend/src/core/admin/TenantDetail.jsx` | Add a "Current period ends" date picker to the Plan card; include it in `planDraft`, `applyPlan` and `onSavePlan`. Show a warning under the status select when status is `ACTIVE` and the date is before today: "The period has ended. Tonight's check will mark this customer past due again." |
+| `code/frontend/src/core/admin/tenantService.js` | `setPlan(id, { plan, supportPlan, employeeLimit, currentPeriodEnd })` sends the new field. |
+| `code/frontend/src/core/admin/PlatformHome.jsx` | Add a "Past due" tile from `byStatus.PAST_DUE`, linking to `/admin/tenants?status=PAST_DUE`. |
+| `code/frontend/src/core/admin/TenantList.jsx` | Read `status` with `useSearchParams`; add a Status select above the table; filter the already-loaded rows on the client. |
 
----
+**Routes added:** none. `/admin` and `/admin/tenants` exist (`code/frontend/src/core/index.js:177-178`).
 
-## 5. Database Changes
+## 6. Database changes
 
-> **Creates no database tables and executes 0 Flyway migrations.**
+| Migration | Contents | Tenant-aware? | Reversible? |
+|---|---|---|---|
+| next free Flyway version at build time, `core/V…__subscription_period_end.sql` | See below. No table, no column. | n/a | yes — drop the two new functions and the grant |
 
-- [x] Standing rule: Reuses existing column `core.subscription.current_period_end` created in `V034__subscription.sql`.
-- [x] Standing rule: An existing index on `core.subscription (tenant_id, status)` supports overdue queries.
-- [x] Standing rule: No schema changes; purely operational lifecycle automation.
+1. `core.set_subscription_plan(uuid, text, text, integer, date)` — the V188 function plus `current_period_end = p_current_period_end`. `SECURITY DEFINER`, `REVOKE … FROM PUBLIC`, `GRANT EXECUTE … TO app_user`. **Keep the four-argument function**, so the previous release still works during a rolling deploy.
+2. `core.list_overdue_subscriptions(p_as_of date) RETURNS TABLE (tenant_id uuid)` — rows with `status = 'ACTIVE' AND current_period_end < p_as_of`. `SECURITY DEFINER`, granted to `worker_user` only, on the pattern of `core.list_tenants_for_sweep()` (`V093__reminder_rule.sql:51-61`).
+3. `GRANT EXECUTE ON FUNCTION core.set_subscription_status(uuid, text) TO worker_user` — today only `app_user` holds it (`V034__subscription.sql:246`).
 
----
+No index. `core.subscription` holds one row per customer; a scan is cheap. The first draft
+said an index on `(tenant_id, status)` exists — it does not, and none is needed.
 
-## 6. Tests
+- [x] No new table
+- [x] Expand only — nothing dropped
+
+## 7. Tests
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `com.infinevo.core.subscription.SubscriptionServiceImplTest.java` | Verifies `setPlan` sets and updates `currentPeriodEnd`; verifies `sweepOverdueSubscriptions` moves expired active tenants to `PAST_DUE`, records audit, and ignores unexpired tenants. |
-| Unit | `com.infinevo.worker.subscription.SubscriptionOverdueJobTest.java` | Verifies worker job delegates to service with current date and handles exceptions gracefully without failing task. |
-| Integration | `com.infinevo.core.subscription.SubscriptionOverdueIT.java` | Seeds tenant with `current_period_end = yesterday`, runs sweep, verifies status becomes `PAST_DUE` in database and cache is refreshed; verifies tenant remains able to access endpoints (`isActiveOrPastDue() == true`). |
-| Component | `code/frontend/src/core/admin/TenantDetail.test.jsx` | Verifies `currentPeriodEnd` date picker renders, captures date change, and submits with Plan payload. |
+| Unit | `core/src/test/.../subscription/SubscriptionServiceTest.java` (extend) | `updatePlan` saves and clears the date; `markPastDue` changes an overdue active row, and leaves alone a row that is not overdue, has no date, or is `SUSPENDED`, `CANCELLED` or already `PAST_DUE` |
+| Integration | `core/src/test/.../subscription/SubscriptionPlanIT.java` (extend) | The five-argument function writes the date; the four-argument one still works |
+| Integration | `worker/src/test/.../subscription/SubscriptionOverdueJobIT.java` | Three tenants (overdue, not overdue, no date): after `execute(asOf)` only the first is `PAST_DUE`; an audit row exists; a run with no tenant bound still finds the row (proves the list function beats RLS) |
+| Unit | `worker/src/test/.../subscription/SubscriptionOverdueJobTest.java` | One tenant throwing does not stop the next |
+| Component | `code/frontend/src/core/admin/TenantDetail.test.jsx` | Date picker shows the saved date and sends it; the warning shows for `ACTIVE` with a past date |
+| Component | `code/frontend/src/core/admin/PlatformHome.test.jsx` | Past due tile shows the count and links to the filtered list |
+| Component | `code/frontend/src/core/admin/TenantList.test.jsx` | `?status=PAST_DUE` shows only those rows |
 
----
-
-## 7. Verification
-
-Verification commands and steps:
+## 8. Verification
 
 ```bash
-# 1. Run core & worker tests for overdue sweep
-./mvnw -pl core,worker test -Dtest='SubscriptionServiceImplTest,SubscriptionOverdueJobTest,SubscriptionOverdueIT'
-
-# 2. Run frontend admin tests
-cd code/frontend
-npm test -- src/core/admin/TenantDetail.test.jsx src/core/admin/PlatformDashboard.test.jsx
-
-# 3. Frontend lint check
-npm run lint
+cd code/backend && ./mvnw -pl core,worker,migration verify
+cd code/frontend && npm test -- src/core/admin && npm run lint
 ```
 
-### Verification matrix
-
-| Check | Action | Expected Result |
+| Check | Expected | Result |
 |---|---|---|
-| Set Period End | Platform admin picks `2026-12-31` on Plan card & clicks Save plan | `core.subscription.current_period_end` set to `2026-12-31`; displayed under Overview. |
-| Overdue Sweep Execution | Tenant with `current_period_end = 2026-11-10` and `status = 'ACTIVE'` processed by sweep | Status changes to `PAST_DUE`; audit record created with `actor = 'system'`. |
-| Uninterrupted Service | Call `POST /api/v1/employees` or clock-in as user in `PAST_DUE` tenant | Operation succeeds (200/201 OK) per 2026-11-05 founder decision. |
-| Dashboard Visibility | Open `/admin` platform dashboard | "Past Due Accounts" metric increments; click navigates to filtered tenant list. |
+| Save `2026-12-31` on the Plan card | Overview shows "Current period ends 31 Dec 2026"; the audit tab shows the change | not run |
+| Clear the date and save | Column is null | not run |
+| Tenant `ACTIVE`, period end yesterday; run the job | Status `PAST_DUE`; audit row written | not run |
+| Tenant `ACTIVE`, period end today | Unchanged (overdue means before today, UTC) | not run |
+| Tenant `SUSPENDED`, period end last month | Unchanged | not run |
+| `POST /api/v1/employees` as the `PAST_DUE` tenant | 201 | not run |
+| Open `/admin` | Past due tile shows 1; click opens the list with only that tenant | not run |
+| Run the job twice | Second run changes nothing | not run |
 
----
-
-## 8. Risks & Mitigations
+## 9. Risks
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Multi-replica worker race condition running sweep concurrently | Low | Job is strictly guarded by ShedLock (`lockAtMostFor = "PT30M"`), guaranteeing single-worker execution across replicas. |
-| Premature status transition due to server timezone mismatch | Low | Use tenant locale or standardize cutoff comparison to UTC midnight (`LocalDate.now(ZoneOffset.UTC)`). |
-| Customer panic on `PAST_DUE` label | Low | Status is visible to platform admin and tenant admin; employee portal users see no billing warnings. |
+| Two worker replicas run the sweep together | Low | ShedLock, as every other nightly job |
+| A customer in India is marked overdue up to 5.5 hours late or early against its own midnight | Certain, harmless | One rule for all: the UTC date. `PAST_DUE` blocks nothing |
+| The audit row for a job run has no user | Certain | The implementer checks how the audit listener names the actor with no signed-in user and records it in the pull request; if it fails on a null actor, the job sets a fixed "system" actor |
+| Admin sets `ACTIVE` but leaves a past date, and the customer flips back overnight | Medium | The warning on the tenant page (§5) |
 
----
+## 10. Rollback
 
-## 9. Rollback
-
-1. The sweep job can be disabled in worker configuration (`worker.subscription.overdue-sweep.enabled=false`).
-2. Status can be reverted to `ACTIVE` directly via the platform admin status dropdown on `TenantDetail.jsx`.
-
+1. Stop the sweep: set `infinevo.scheduler.subscription-overdue.cron` to `-` on the worker and restart it.
+2. To put a customer back: on its tenant page **first move "Current period ends" to a future date (or clear it) and save, then set the status to `ACTIVE`**. Setting the status alone does not hold — the next night's run marks it past due again.
+3. The migration adds functions only. They can stay in place after the code is reverted.

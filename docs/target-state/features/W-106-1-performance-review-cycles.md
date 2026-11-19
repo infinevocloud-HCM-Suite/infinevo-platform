@@ -5,319 +5,284 @@
 | **Feature ID** | `W-106.1` · `HRMS-PERFORMANCE` |
 | **Promoted to** | `docs/target-state/features/W-106-1-performance-review-cycles.md` — **`W-106-1` with hyphens**, never `W-106.1` |
 | **Owner** | krushna (`dev-krushna`) |
-| **Apps touched** | `code/backend/hrms`, `code/backend/migration`, `code/frontend` (`src/hrms/performance`, `src/shell/portal`) |
-| **Related gaps** | founder 2026-11-13 planned product roadmap ("Priority 2 — competing with Keka: `W-106` Performance reviews and goals") |
-| **Status** | **Complete (`feature/krushna-specs`, 100% tests/lint green)** |
-| **Approved by** | — (pending manager review) |
-| **Approved on** | — |
+| **Apps touched** | `code/backend/hrms`, `code/backend/migration`, `code/backend/app` (one test), `code/frontend` (`src/hrms/performance`, `src/shell/portal`) |
+| **Related gaps** | founder 2026-11-13 product roadmap ("Priority 2 — competing with Keka: `W-106` Performance reviews and goals") |
+| **Status** | **Spec corrected 2026-11-19 after review. Code on `feature/krushna-specs` does not yet meet it.** |
+| **Approved by** | founder |
+| **Approved on** | 2026-11-19 |
 | **Blocked by** | nothing |
 
 ---
 
 ## Size cap — this ticket splits
 
-`W-106` as ticketed ("Performance reviews and goals: Review cycles, goals, manager ratings. Size L") spans two distinct testable capabilities:
-1. Long-term goals & OKR tracking (goal setting, quantitative metrics, periodic employee progress updates).
-2. Time-bound performance appraisal review cycles (cycle configuration, employee self-appraisal, manager ratings on a 1–5 scale, qualitative feedback, and cycle sign-off).
+| Ticket | Scope | Size |
+|---|---|:---:|
+| **`W-106.1`** (this spec) | Review cycles, self-review, manager rating on a fixed 1–5 scale, HR progress and closure | M |
+| **`W-106.2`** | Employee goals and OKRs, check-ins, link to a review cycle | M |
 
-To adhere to the size cap (at most 1 externally testable behaviour and 1 Flyway migration per spec), `W-106` splits into two focused tickets:
-
-### Proposed split
-
-| Ticket | Scope | Size | Status |
-|---|---|:---:|---|
-| **`W-106.1`** (this spec) | **Performance Review Cycles & Manager Ratings** — Review cycle definition (Q1–Q4 / Annual), automatic review instance creation for eligible employees, employee self-assessment, manager rating (1–5 scale) & feedback submission, and HR review cycle closure & progress tracking (`hrms`). | **M** | **Complete** (`feature/krushna-specs`, 100% tests/lint green) |
-| **`W-106.2`** | **Employee Goals & OKRs Tracking** — Individual and team goals, target metrics, key results progress %, status lifecycle (`DRAFT`, `IN_PROGRESS`, `ACHIEVED`, `CANCELLED`), and alignment to performance reviews (`hrms`). | **M** | **Complete** (`feature/krushna-specs`, 100% tests/lint green) |
+`W-106.2` shows an employee's linked goals on the review. Nothing in this spec depends on goals.
 
 ---
 
 ## 1. Problem
 
-Today, the platform has zero performance appraisal or review management capabilities:
-1. **No review cycle orchestration**: HR has no mechanism to initiate periodic performance appraisals (quarterly or annual reviews). Performance evaluations are tracked offline in spreadsheets or unstandardized emails.
-2. **Missing manager evaluation workflow**: While `core.reporting_line` tracks reporting managers (`code/backend/core/src/main/java/com/infinevo/core/org/ReportingLine.java`), managers cannot view evaluation forms, rate direct reports on competencies, or document feedback within the system.
-3. **No self-service appraisal portal**: Employees have no interface in self-service (`/me`) to complete self-evaluations, reflect on achievements, or view final feedback approved by management.
-4. **Competitor parity**: Leading HR platforms (Keka, Darwinbox, Lattice) provide structured review cycles with self-reviews, manager 1–5 rating scales, private feedback, and cycle completion dashboards.
-
-This ticket (`W-106.1`) delivers performance review cycles, self-appraisals, manager ratings, and review progress administration.
+| # | What is missing today |
+|---|---|
+| 1 | HR cannot start a quarterly or annual review; appraisals live in spreadsheets. |
+| 2 | Managers cannot rate their direct reports in the system, although `core.reporting_line` already knows who reports to whom. |
+| 3 | Employees have no self-service screen to write a self-review or to read their manager's rating. |
 
 ---
 
 ## 2. Scope
 
 ### In scope
-- **Review Cycle Administration (`hrms.performance_cycle`)**:
-  - HR defines review cycles: Cycle Name (e.g. "Q4 2026 Annual Performance Review"), review period (`period_start`, `period_end`), self-review deadline, and manager review deadline.
-  - Rating scale: Standardized 1–5 numerical rating scale (1 = Needs Improvement, 2 = Partially Meets, 3 = Meets Expectations, 4 = Exceeds Expectations, 5 = Outstanding).
-  - Cycle status lifecycle: `DRAFT` $\rightarrow$ `ACTIVE` $\rightarrow$ `CLOSED`.
-- **Review Instance Generation (`hrms.performance_review`)**:
-  - Activating a cycle generates review instances for all active employees linked to their primary reporting manager (derived from `core.reporting_line`).
-  - Self-review submission: Employee inputs self-rating (1–5) and qualitative achievements comments (`PENDING_SELF_REVIEW` $\rightarrow$ `PENDING_MANAGER_REVIEW`).
-  - Manager evaluation: Reporting manager inputs manager rating (1–5) and performance feedback comments (`PENDING_MANAGER_REVIEW` $\rightarrow$ `COMPLETED`).
-- **HR & Manager Screens**:
-  - HR Review Cycle Management (`/hrms/performance-cycles`): cycle list, progress meters ("42 of 50 reviews completed — 84%"), average rating metrics, and cycle closure.
-  - Manager Team Reviews (`/hrms/performance-reviews`): list of direct reports' pending and completed reviews with evaluation drawer.
-- **Employee Self-Service**:
-  - My Reviews panel in Employee Portal (`/me/reviews` or `/me` Reviews panel): displays active review prompt with self-evaluation modal and historical completed reviews.
-- **Permissions**:
-  - `hrms.performance.manage` granted to `tenant-admin` and `hr`.
-  - `hrms.performance.review_team` granted to `manager`, `tenant-admin`, and `hr`.
-  - `hrms.performance.read_own` and `hrms.performance.update_own` granted to all employee-linked roles (`employee`, `manager`, `hr`, `payroll-officer`, `finance`).
+
+| Area | What is delivered |
+|---|---|
+| Cycles | HR creates a cycle (name, period, self-review deadline, manager-review deadline), activates it, edits its deadlines, closes it. |
+| Reviews | Activation creates one review per active employee. The employee submits a self-review; then the manager rates. |
+| Rating scale | **Fixed 1–5.** 1 Needs improvement · 2 Partially meets · 3 Meets · 4 Exceeds · 5 Outstanding. There is no per-cycle scale. |
+| HR screen | `/hrms/performance-cycles`: cycle list, progress, average rating, reviews of a cycle, reassign manager, close. |
+| Manager screen | `/hrms/performance-reviews`: direct reports' reviews and the rating drawer. |
+| Employee panel | "Reviews" tab on `/me`, served by a backend panel provider. |
+| Permissions | The four `hrms.performance.*` actions seeded by `V193`. |
 
 ### Out of scope
-- Continuous goal / OKR tracking and progress percentages (owned by `W-106.2`).
-- 360-degree peer feedback and multi-rater matrix reviews (future enhancement).
-- Automated compensation / salary revision linking based on ratings (handled manually by payroll officers).
+
+- Goals and OKRs (`W-106.2`).
+- 360-degree and peer feedback.
+- Linking ratings to salary revision.
+- A separate approval step on the manager's rating. There is none.
+
+### Rules
+
+**Cycle states**
+
+| From | To | Who | Rule |
+|---|---|---|---|
+| `DRAFT` | `ACTIVE` | `hrms.performance.manage` | Creates the reviews. |
+| `ACTIVE` | `CLOSED` | `hrms.performance.manage` | Allowed at any time. Reviews not yet `COMPLETED` stay as they are and become read-only. |
+| `CLOSED` | — | — | Final. Nothing in a closed cycle can change. |
+
+**Review states**
+
+| State | Meaning | Who moves it on | Next |
+|---|---|---|---|
+| `PENDING_SELF_REVIEW` | Waiting for the employee | The employee, own review only | `PENDING_MANAGER_REVIEW` |
+| `PENDING_MANAGER_REVIEW` | Waiting for the rater | The assigned manager, or HR (see below) | `COMPLETED` |
+| `COMPLETED` | Rated | — | Final. It cannot be edited or re-rated by anyone. |
+
+**Who rates, who sees**
+
+| Rule | Detail |
+|---|---|
+| Rating needs a self-review first | `manager-submit` is refused with `409` unless the review is `PENDING_MANAGER_REVIEW`. |
+| Nobody rates themselves | `manager-submit` is refused with `403` when the caller is the review's own employee, whatever actions they hold. |
+| No manager | An employee with no primary reporting line gets a review with **no manager** (`manager_id` null). It is never set to the employee. |
+| HR rates unassigned reviews | A holder of `hrms.performance.manage` may rate any review in the tenant that is not their own. This is how a review with no manager is completed. |
+| HR reassigns | A holder of `hrms.performance.manage` sets or changes the manager of a review that is not `COMPLETED`. The new manager must be an active employee and not the review's employee. |
+| Employee sees the rating | The employee sees `managerRating` and `managerComments` once the review is `COMPLETED`, and not before. |
+| Manager sees the self-review | The manager sees `selfRating` and `selfComments` once the self-review is submitted. |
+
+**Deadlines**
+
+| Rule | Detail |
+|---|---|
+| Self-review | Refused with `409` and the message "The self-review deadline has passed" when today is after `self_review_deadline`. |
+| Manager rating | Refused with `409` and the message "The manager review deadline has passed" when today is after `manager_review_deadline`. This applies to HR too. |
+| Extending | HR edits either deadline while the cycle is `DRAFT` or `ACTIVE`. `self_review_deadline` must not be after `manager_review_deadline`. |
+| Day used | The deadline day itself is still allowed. |
 
 ---
 
 ## 3. Flow
 
 ```
-[HR Creates & Activates Performance Cycle]
-                     │
-                     ▼
-[Review Instances Generated for All Active Employees with Reporting Manager]
-                     │
-                     ▼
-[Stage 1: Employee Self-Appraisal]
-  • Employee visits /me/reviews
-  • Fills Self-Rating (1–5) & Achievements Comments
-  • Submits ──► Status becomes PENDING_MANAGER_REVIEW
-                     │
-                     ▼
-[Stage 2: Manager Evaluation]
-  • Reporting Manager visits /hrms/performance-reviews
-  • Inspects Employee's Self-Rating & Comments
-  • Inputs Manager Rating (1–5) & Performance Feedback
-  • Submits ──► Status becomes COMPLETED
-                     │
-                     ▼
-[Stage 3: Cycle Progress & Closure]
-  • HR monitors completion rate on /hrms/performance-cycles
-  • HR clicks "Close Cycle" once all reviews completed or deadline reached
+[HR] --> /hrms/performance-cycles --> POST /cycles, POST /cycles/{id}/activate
+                                          --> one hrms.performance_review per active employee
+[Employee] --> /me › Reviews --> PATCH /reviews/{id}/self-submit --> PENDING_MANAGER_REVIEW
+[Manager, or HR when unassigned] --> /hrms/performance-reviews
+                                 --> PATCH /reviews/{id}/manager-submit --> COMPLETED
+[Employee] --> /me › Reviews --> reads manager rating and comments
+[HR] --> POST /cycles/{id}/close --> CLOSED
 ```
 
 ---
 
-## 4. Architecture & Changes
+## 4. Backend changes
 
-### 4.1 Backend changes (`code/backend/hrms`)
+All classes are in `code/backend/hrms/src/main/java/com/infinevo/hrms/`.
 
 | Layer | File | Change |
 |---|---|---|
-| Entity | `com.infinevo.hrms.performance.PerformanceCycle.java` | **New**. Entity mapped to `hrms.performance_cycle`. |
-| Entity | `com.infinevo.hrms.performance.PerformanceReview.java` | **New**. Entity mapped to `hrms.performance_review`. |
-| Enum | `com.infinevo.hrms.performance.PerformanceCycleStatus.java` | **New**. `DRAFT`, `ACTIVE`, `CLOSED`. |
-| Enum | `com.infinevo.hrms.performance.PerformanceReviewStatus.java` | **New**. `PENDING_SELF_REVIEW`, `PENDING_MANAGER_REVIEW`, `COMPLETED`. |
-| Repository | `com.infinevo.hrms.performance.PerformanceCycleRepository.java` | **New**. Query review cycles by tenant and status. |
-| Repository | `com.infinevo.hrms.performance.PerformanceReviewRepository.java` | **New**. Query reviews by cycle, employee, manager, and status. |
-| Service | `com.infinevo.hrms.performance.PerformanceReviewService.java` | **New**. Interface for cycle creation, review generation, self-submission, manager rating, and summary metrics. |
-| ServiceImpl | `com.infinevo.hrms.performance.PerformanceReviewServiceImpl.java` | **New**. Service implementation enforcing deadlines, reporting line manager lookups, and score validations (1–5). |
-| Controller | `com.infinevo.hrms.performance.PerformanceCycleController.java` | **New**. Endpoints for cycle management (`/api/v1/performance/cycles`). |
-| Controller | `com.infinevo.hrms.performance.PerformanceReviewController.java` | **New**. Endpoints for self-reviews and manager evaluations (`/api/v1/performance/reviews`). |
-| Navigation | `com.infinevo.hrms.navigation.HrmsNavigation.java` | Register `hrms.performance_cycles` and `hrms.performance_reviews` in HRMS navigation feed (`file:code/backend/hrms/src/main/java/com/infinevo/hrms/navigation/HrmsNavigation.java:30-80`). |
+| Entity | `performance/PerformanceCycle.java` | Exists. Add `updateDeadlines`. Stop using `ratingScaleMax`. |
+| Entity | `performance/PerformanceReview.java` | Exists. `managerId` becomes nullable. `submitManagerReview` refuses any state except `PENDING_MANAGER_REVIEW`. `reassignManager` refuses `COMPLETED`. |
+| Enum | `performance/PerformanceCycleStatus.java`, `PerformanceReviewStatus.java` | Exist. No change. |
+| Repository | `performance/PerformanceCycleRepository.java`, `PerformanceReviewRepository.java` | Exist. Add a list of reviews by cycle, and a batch lookup used by activation. |
+| Service | `performance/PerformanceReviewService.java` / `PerformanceReviewServiceImpl.java` | Exist. Enforce every rule in §2. Activation loads reporting lines and existing reviews in batches and saves with `saveAll` — **no query per employee**. |
+| Controller | `performance/PerformanceCycleController.java` | Exists (`/api/v1/performance/cycles`). Add edit-deadlines and list-reviews. |
+| Controller | `performance/PerformanceReviewController.java` | Exists (`/api/v1/performance/reviews`). Add reassign-manager. |
+| DTO | `performance/CreateCycleRequest.java` | Remove `ratingScaleMax`. |
+| DTO | `performance/UpdateCycleDeadlinesRequest.java`, `ReassignManagerRequest.java` | **New.** |
+| DTO | `performance/PerformanceCycleResponse.java` | Remove `ratingScaleMax`. |
+| Portal | `portal/ReviewsPanelProvider.java` | **New.** `PortalPanelProvider` with code `reviews`, module `HRMS`, title "Reviews", display order 10, endpoint `/api/v1/performance/reviews/my`, action `hrms.performance.read_own`. Without it the tab never shows: `PortalLayout.jsx` draws only the panels the server returns. |
+| Navigation | `navigation/HrmsNavigation.java` | Exists: `PERFORMANCE_CYCLES`, `PERFORMANCE_REVIEWS`. No change. |
 
-### 4.2 API contract
+**API contract**
 
-| Method | Path | Request Body | Response Body | Auth / Permission |
+| Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
 | `GET` | `/api/v1/performance/cycles` | — | `List<PerformanceCycleResponse>` | `hrms.performance.manage` |
-| `POST` | `/api/v1/performance/cycles` | `CreateCycleRequest` | `PerformanceCycleResponse` | `hrms.performance.manage` |
+| `POST` | `/api/v1/performance/cycles` | `CreateCycleRequest` (name, periodStart, periodEnd, selfReviewDeadline, managerReviewDeadline) | `201` `PerformanceCycleResponse` | `hrms.performance.manage` |
+| `GET` | `/api/v1/performance/cycles/{id}` | — | `PerformanceCycleResponse` | `hrms.performance.manage` |
+| `PATCH` | `/api/v1/performance/cycles/{id}` **new** | `UpdateCycleDeadlinesRequest` (selfReviewDeadline, managerReviewDeadline) | `PerformanceCycleResponse`; `409` when `CLOSED` | `hrms.performance.manage` |
 | `POST` | `/api/v1/performance/cycles/{id}/activate` | — | `PerformanceCycleResponse` | `hrms.performance.manage` |
 | `POST` | `/api/v1/performance/cycles/{id}/close` | — | `PerformanceCycleResponse` | `hrms.performance.manage` |
-| `GET` | `/api/v1/performance/cycles/{id}/summary` | — | `CycleSummaryResponse` (total, completed %, avg rating) | `hrms.performance.manage` |
+| `GET` | `/api/v1/performance/cycles/{id}/summary` | — | `CycleSummaryResponse` (total, completed, unassigned, average rating) | `hrms.performance.manage` |
+| `GET` | `/api/v1/performance/cycles/{id}/reviews` **new** | — | `List<PerformanceReviewResponse>` | `hrms.performance.manage` |
 | `GET` | `/api/v1/performance/reviews/my` | — | `List<PerformanceReviewResponse>` | `hrms.performance.read_own` |
-| `PATCH` | `/api/v1/performance/reviews/{id}/self-submit` | `SelfReviewRequest` (selfRating 1–5, comments) | `PerformanceReviewResponse` | `hrms.performance.update_own` (own review only) |
+| `PATCH` | `/api/v1/performance/reviews/{id}/self-submit` | `SelfReviewRequest` (selfRating 1–5, comments) | `PerformanceReviewResponse` | `hrms.performance.update_own`, own review only |
 | `GET` | `/api/v1/performance/reviews/team` | — | `List<PerformanceReviewResponse>` | `hrms.performance.review_team` |
-| `PATCH` | `/api/v1/performance/reviews/{id}/manager-submit` | `ManagerReviewRequest` (managerRating 1–5, comments) | `PerformanceReviewResponse` | `hrms.performance.review_team` (assigned manager only) |
+| `PATCH` | `/api/v1/performance/reviews/{id}/manager-submit` | `ManagerReviewRequest` (managerRating 1–5, comments) | `PerformanceReviewResponse` | `hrms.performance.review_team`; the assigned manager, or a holder of `hrms.performance.manage`; never the review's own employee |
+| `PATCH` | `/api/v1/performance/reviews/{id}/manager` **new** | `ReassignManagerRequest` (managerId) | `PerformanceReviewResponse` | `hrms.performance.manage` |
 
-### 4.3 Frontend changes (`code/frontend`)
+Errors, as the controllers already map them: bad input `400`, not allowed `403`, wrong state or passed deadline `409`. A rating outside 1–5 is `400`, never `500`.
+
+---
+
+## 5. Frontend changes
 
 | File | Change |
 |---|---|
-| `src/hrms/performance/performanceService.js` | **New**. Axios API client for cycles, self-reviews, and manager reviews. |
-| `src/hrms/performance/PerformanceCyclesScreen.jsx` | **New**. HR cycle admin screen: cycle list, status tags, Create Cycle modal, progress bars, and Close Cycle button. |
-| `src/hrms/performance/TeamReviewsScreen.jsx` | **New**. Manager review screen under HRMS › Performance Reviews: table of direct reports, self-review summary, and evaluation drawer with 1–5 Star/Radio ratings. |
-| `src/shell/portal/panels/MyReviews.jsx` | **New**. Employee self-service panel on `/me`: active review banner, self-appraisal modal, and historical completed rating feedback. |
-| `src/shell/portal/PortalLayout.jsx` | Add "Reviews" tab to employee self-service portal items feed. |
+| `src/hrms/performance/performanceService.js` | Exists. Add edit-deadlines, list-reviews-of-cycle, reassign-manager. |
+| `src/hrms/performance/PerformanceCyclesScreen.jsx` | Exists. Remove the rating-scale field and column. Add "Edit deadlines". The summary drawer lists the cycle's reviews, flags those with no manager, and offers "Assign manager" and "Rate". |
+| `src/hrms/performance/TeamReviewsScreen.jsx` | Exists. "Evaluate" shows only on `PENDING_MANAGER_REVIEW`. `PENDING_SELF_REVIEW` shows "Waiting for self-review". `COMPLETED` shows a read-only view. |
+| `src/shell/portal/panels/MyReviews.jsx` | Exists. Shows the manager's rating and comments only on `COMPLETED`. |
+| `src/hrms/index.js` | Exists: `portalPanels` already maps `reviews` to `MyReviews`. No change. |
+| `src/shell/portal/PortalLayout.jsx` | Exists: icon for `reviews`. No tab is added here; tabs come from the server. |
+| `src/shell/navigation/navLabels.js` | Exists: both labels. No change. |
+
+**Every list screen:** when loading fails it shows an error state with a Retry button, not an empty table.
+
+**Routes added**
+
+| Path | Component | Guard / layout |
+|---|---|---|
+| `/hrms/performance-cycles` | `PerformanceCyclesScreen` | HRMS feed item `hrms.performance_cycles` (`hrms.performance.manage`) |
+| `/hrms/performance-reviews` | `TeamReviewsScreen` | HRMS feed item `hrms.performance_reviews` (`hrms.performance.review_team`) |
+| `/me/reviews` | `MyReviews` | Portal panel `reviews` (`hrms.performance.read_own`) |
 
 ---
 
-## 5. Database Changes
+## 6. Database changes
 
-> **Flyway script:** `code/backend/migration/src/main/resources/db/migration/hrms/V193__performance_review_cycles.sql`
+> Flyway only. Never `ddl-auto`.
 
-```sql
--- Schema: hrms
--- Version: V193
--- Feature: W-106.1 Performance review cycles and manager ratings
+| Migration | Tables | Tenant-aware? | Reversible? |
+|---|---|---|---|
+| `hrms/V193__performance_review_cycles.sql` (exists — not edited) | `hrms.performance_cycle`, `hrms.performance_review`; four `hrms.performance.*` actions; role grants and the new-tenant trigger | yes, `tenant_id` + RLS on both | forward-only |
+| `hrms/V<next>__performance_review_fixes.sql` — **new, next free Flyway version at build time** | See below | yes | forward-only |
 
-CREATE TABLE hrms.performance_cycle (
-    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id                   UUID NOT NULL REFERENCES core.tenant(tenant_id),
-    name                        VARCHAR(150) NOT NULL,
-    period_start                DATE NOT NULL,
-    period_end                  DATE NOT NULL,
-    self_review_deadline        DATE NOT NULL,
-    manager_review_deadline     DATE NOT NULL,
-    status                      VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
-    rating_scale_max            INTEGER NOT NULL DEFAULT 5,
-    created_at                  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by                  VARCHAR(100) NOT NULL DEFAULT 'system',
-    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by                  VARCHAR(100) NOT NULL DEFAULT 'system',
-    CONSTRAINT chk_perf_cycle_dates CHECK (period_end >= period_start),
-    CONSTRAINT chk_perf_cycle_status CHECK (status IN ('DRAFT', 'ACTIVE', 'CLOSED')),
-    CONSTRAINT chk_perf_cycle_scale CHECK (rating_scale_max BETWEEN 3 AND 10)
-);
+The follow-up migration does three things:
 
-CREATE INDEX idx_perf_cycle_tenant_dates 
-    ON hrms.performance_cycle (tenant_id, period_start DESC, period_end DESC);
+| Change | Why |
+|---|---|
+| `UPDATE hrms.performance_cycle SET rating_scale_max = 5`; replace `chk_perf_cycle_scale` with `CHECK (rating_scale_max = 5)` | The scale is fixed at 5. The column is pinned, not dropped, so no step is destructive. |
+| `ALTER TABLE hrms.performance_review ALTER COLUMN manager_id DROP NOT NULL` | A review may have no manager. |
+| `UPDATE hrms.performance_review SET manager_id = NULL WHERE manager_id = employee_id` | Clears self-managed reviews created by the first build. |
 
-ALTER TABLE hrms.performance_cycle ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY tenant_isolation ON hrms.performance_cycle
-    USING (
-      tenant_id = CASE
-        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
-        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
-        ELSE current_setting('app.current_tenant_id', true)::uuid
-      END
-    );
-
-CREATE TABLE hrms.performance_review (
-    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id                   UUID NOT NULL REFERENCES core.tenant(tenant_id),
-    cycle_id                    UUID NOT NULL REFERENCES hrms.performance_cycle(id) ON DELETE CASCADE,
-    employee_id                 UUID NOT NULL REFERENCES core.employee(id),
-    manager_id                  UUID NOT NULL REFERENCES core.employee(id),
-    self_rating                 INTEGER,
-    self_comments               TEXT,
-    self_submitted_at           TIMESTAMPTZ,
-    manager_rating              INTEGER,
-    manager_comments            TEXT,
-    manager_submitted_at        TIMESTAMPTZ,
-    status                      VARCHAR(30) NOT NULL DEFAULT 'PENDING_SELF_REVIEW',
-    created_at                  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by                  VARCHAR(100) NOT NULL DEFAULT 'system',
-    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by                  VARCHAR(100) NOT NULL DEFAULT 'system',
-    CONSTRAINT chk_perf_review_status CHECK (status IN ('PENDING_SELF_REVIEW', 'PENDING_MANAGER_REVIEW', 'COMPLETED')),
-    CONSTRAINT chk_perf_self_rating CHECK (self_rating IS NULL OR self_rating BETWEEN 1 AND 5),
-    CONSTRAINT chk_perf_mgr_rating CHECK (manager_rating IS NULL OR manager_rating BETWEEN 1 AND 5)
-);
-
-CREATE UNIQUE INDEX uk_perf_review_tenant_cycle_emp 
-    ON hrms.performance_review (tenant_id, cycle_id, employee_id);
-
-CREATE INDEX idx_perf_review_tenant_manager 
-    ON hrms.performance_review (tenant_id, manager_id, status);
-
-CREATE INDEX idx_perf_review_tenant_emp 
-    ON hrms.performance_review (tenant_id, employee_id, status);
-
-ALTER TABLE hrms.performance_review ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY tenant_isolation ON hrms.performance_review
-    USING (
-      tenant_id = CASE
-        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
-        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
-        ELSE current_setting('app.current_tenant_id', true)::uuid
-      END
-    );
-
--- Seed role grants
-CREATE OR REPLACE FUNCTION core.grant_performance_actions(p_tenant_id UUID)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-BEGIN
-    IF p_tenant_id = '00000000-0000-0000-0000-000000000001'::uuid THEN RETURN; END IF;
-    INSERT INTO core.role_action (tenant_id, role_id, action_code)
-    SELECT p_tenant_id, r.id, grants.action_code
-    FROM (VALUES
-        ('tenant-admin', 'hrms.performance.manage'),
-        ('tenant-admin', 'hrms.performance.review_team'),
-        ('hr', 'hrms.performance.manage'),
-        ('hr', 'hrms.performance.review_team'),
-        ('manager', 'hrms.performance.review_team'),
-        ('manager', 'hrms.performance.read_own'),
-        ('manager', 'hrms.performance.update_own'),
-        ('employee', 'hrms.performance.read_own'),
-        ('employee', 'hrms.performance.update_own'),
-        ('payroll-officer', 'hrms.performance.read_own'),
-        ('payroll-officer', 'hrms.performance.update_own'),
-        ('finance', 'hrms.performance.read_own'),
-        ('finance', 'hrms.performance.update_own')
-    ) AS grants (role_code, action_code)
-    JOIN core.role r ON r.tenant_id = p_tenant_id AND r.code = grants.role_code AND r.is_system
-    ON CONFLICT (tenant_id, role_id, action_code) DO NOTHING;
-END;
-$$;
-
-SELECT core.grant_performance_actions(t.tenant_id) FROM core.tenant t;
-```
-
-- [x] Standing rule: Schema named explicitly on every statement (`hrms.performance_cycle`, `hrms.performance_review`).
-- [x] Standing rule: `tenant_id` present as leading index column on all indexes.
-- [x] Standing rule: `ENABLE ROW LEVEL SECURITY;` + `CREATE POLICY tenant_isolation` using fail-safe `CASE` format.
-- [x] Standing rule: Money/BigDecimal rule: N/A (numerical integer rating scale 1–5).
+- [x] `tenant_id` and an RLS policy on every table (`V193`).
+- [x] `tenant_id` leads every index (`V193`).
+- [x] Money rule: not applicable — ratings are integers.
+- [x] No destructive step.
 
 ---
 
-## 6. Tests
+## 7. Tests
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `com.infinevo.hrms.performance.PerformanceReviewServiceImplTest.java` | Cycle activation generates reviews for active employees, validates rating bounds (1–5), verifies transitions from `PENDING_SELF_REVIEW` to `PENDING_MANAGER_REVIEW` to `COMPLETED`. |
-| Unit | `com.infinevo.hrms.performance.PerformanceSecurityGuardTest.java` | Employee can only submit self-review for their own record; manager can only submit ratings for direct reports; HR can manage cycles. |
-| Integration | `com.infinevo.hrms.performance.PerformanceRlsIT.java` | Verifies tenant isolation across cycles and reviews under `app_user`. |
-| Component | `src/hrms/performance/PerformanceCyclesScreen.test.jsx` | Tests cycle listing, modal submission, and Close Cycle action. |
-| Component | `src/hrms/performance/TeamReviewsScreen.test.jsx` | Tests manager evaluation drawer, rating selection (1–5), and submit button. |
-| Component | `src/shell/portal/panels/MyReviews.test.jsx` | Renders self-review prompt and tests self-rating submission. |
+| Unit | `hrms/src/test/.../performance/PerformanceReviewServiceImplTest.java` (exists, extend) | Activation; both transitions; **rating 0 and 6 are refused**; **manager rating before the self-review is refused**; **a `COMPLETED` review cannot be re-rated**; **an employee with no manager gets `managerId` null**; **both deadlines refuse a late submit**; deadlines can be extended; reassign rules; activation issues a fixed number of queries. |
+| Unit | `hrms/src/test/.../performance/PerformanceSecurityGuardTest.java` (exists, extend) | Own self-review only; assigned manager only; HR may rate an unassigned review; **nobody rates their own review, including HR**; an employee does not see the manager's rating before `COMPLETED`. |
+| Unit | `hrms/src/test/.../portal/ReviewsPanelProviderTest.java` (new) | Code, order, endpoint and action of the panel. |
+| Integration | `hrms/src/test/.../performance/PerformanceRlsIT.java` (**new — required**) | Tenant A cannot read or write tenant B's cycles and reviews as `app_user`. |
+| Integration | `app/src/test/.../portal/PortalPanelDiscoveryIT.java` (exists, update) | Provider count and code list include `reviews`. With `goals` from `W-106.2` the count is 12. |
+| Component | `src/hrms/performance/PerformanceCyclesScreen.test.jsx` (exists, extend) | No scale field; edit deadlines; assign manager; load-failure error state. |
+| Component | `src/hrms/performance/TeamReviewsScreen.test.jsx` (exists, extend) | "Evaluate" only on `PENDING_MANAGER_REVIEW`; load-failure error state. |
+| Component | `src/shell/portal/panels/MyReviews.test.jsx` (exists, extend) | Self-review submit; manager rating shown only on `COMPLETED`; load-failure error state. |
 
 ---
 
-## 7. Verification
-
-Verification commands and steps:
+## 8. Verification
 
 ```bash
-# 1. Run hrms performance unit and integration tests
-./mvnw -pl hrms test -Dtest='PerformanceReviewServiceImplTest,PerformanceSecurityGuardTest,PerformanceRlsIT'
+cd code/backend
+./mvnw -pl hrms -am verify      # unit tests and PerformanceRlsIT
+./mvnw -pl app -am verify       # PortalPanelDiscoveryIT
 
-# 2. Run frontend performance tests
-cd code/frontend
+cd ../frontend
 npm test -- src/hrms/performance/ src/shell/portal/panels/MyReviews.test.jsx
-
-# 3. Frontend lint check
 npm run lint
 ```
 
-### Verification matrix
-
-| Check | Action | Expected Result |
-|---|---|---|
-| Cycle Activation | Call `POST /api/v1/performance/cycles/{id}/activate` | Cycle status changes to `ACTIVE`, creates a `performance_review` row for every active employee with their reporting manager. |
-| Self-Review Submission | Employee submits self-rating (4) and comments | Row updates `self_rating=4`, `status='PENDING_MANAGER_REVIEW'`. |
-| Manager Rating | Manager submits rating (5) and review feedback | Row updates `manager_rating=5`, `status='COMPLETED'`. |
-| Unauthorized Access | Employee attempts to rate another peer | Endpoint rejects with `403 Forbidden`. |
-| Cycle Summary Metrics | Call `GET /api/v1/performance/cycles/{id}/summary` | Returns accurate counts of completed vs pending reviews and tenant average rating. |
+| # | Check | Expected | Result |
+|---|---|---|---|
+| 1 | Activate a cycle | One review per active employee; an employee with no reporting line has `manager_id` null | not run |
+| 2 | Open `/me` as an employee | A "Reviews" tab shows | not run |
+| 3 | Employee submits self-rating 4 | `self_rating = 4`, status `PENDING_MANAGER_REVIEW` | not run |
+| 4 | Manager calls `manager-submit` while `PENDING_SELF_REVIEW` | `409` | not run |
+| 5 | Manager submits rating 5 | `manager_rating = 5`, status `COMPLETED` | not run |
+| 6 | Manager calls `manager-submit` again | `409`; rating unchanged | not run |
+| 7 | Rating 6 on either submit | `400` | not run |
+| 8 | A user with the manager role calls `manager-submit` on their own review | `403` | not run |
+| 9 | HR rates a review that has no manager | `COMPLETED` | not run |
+| 10 | HR assigns a manager to that kind of review | The review shows in that manager's team list | not run |
+| 11 | Self-submit the day after `self_review_deadline` | `409` "The self-review deadline has passed" | not run |
+| 12 | HR moves the deadline forward, employee submits again | Accepted | not run |
+| 13 | Employee reads own review before `COMPLETED` | No manager rating or comments in the response | not run |
+| 14 | Any write in a `CLOSED` cycle | `409` | not run |
+| 15 | Employee rates a peer | `403` | not run |
+| 16 | `PerformanceRlsIT` | Passes | not run |
+| 17 | `PortalPanelDiscoveryIT` | Passes with `reviews` in the list | not run |
+| 18 | Create-cycle form | No rating-scale field | not run |
 
 ---
 
-## 8. Risks & Mitigations
+## 9. Risks
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Employee has no assigned manager when cycle activates | Medium | Fall back `manager_id` to the tenant's primary HR administrator with an alert banner on the cycle summary page. |
-| Manager fails to submit review before deadline | Medium | HR has override permissions (`hrms.performance.manage`) to complete or reassign overdue reviews. |
-| Ratings entered outside 1–5 range | Low | Enforced by both database check constraints (`CHECK (self_rating BETWEEN 1 AND 5)`) and backend validation annotations. |
+| Many employees have no reporting line | Medium | The cycle summary counts unassigned reviews; HR assigns a manager or rates them. |
+| The only HR user has no manager | Low | Their review needs a second holder of `hrms.performance.manage` to rate it, or an assigned manager. It stays pending otherwise. |
+| A manager misses the deadline | Medium | HR extends the deadline, or reassigns the review. |
+| Large tenant activation is slow | Medium | Batch reads and `saveAll`; the unit test fixes the query count. |
 
 ---
 
-## 9. Rollback
+## 10. Rollback
 
-1. Flyway script is forward-only; if rolled back prior to general adoption, cycles can be set to `CLOSED` or deleted via cascade without touching payroll or attendance tables.
-2. Frontend performance menu items can be disabled dynamically by revoking `hrms.performance.manage` and `hrms.performance.review_team` action codes in Keycloak.
+| Step | Action |
+|---|---|
+| 1 | Hide the feature: delete the `hrms.performance.*` rows from `core.role_action` for the tenant. Grants live in that table, not in Keycloak. Menu items and the portal tab disappear with the grants. |
+| 2 | Data stays. Migrations are forward-only; cycles can be closed. No payroll or attendance table is touched. |
 
+---
+
+## 11. Code gaps against this spec (2026-11-19)
+
+| Gap | Where |
+|---|---|
+| No `reviews` panel provider, so the "Reviews" tab never shows | `code/backend/hrms/src/main/java/com/infinevo/hrms/portal/` (only goals and timesheet providers); `code/frontend/src/hrms/index.js:118` |
+| An employee with no manager becomes their own manager | `PerformanceReviewServiceImpl.java:277-278` |
+| A holder of the manager role or HR can rate their own review | `PerformanceReviewServiceImpl.java:238-243` |
+| Manager submit does not check the review state: it can skip the self-review and overwrite `COMPLETED` | `PerformanceReviewServiceImpl.java:249-259`; `PerformanceReview.java:134-141` |
+| "Evaluate" is offered in every state | `TeamReviewsScreen.jsx:152-157` |
+| Scale up to 10 is accepted while the table caps ratings at 5, so 6–10 returns `500` | `PerformanceReviewServiceImpl.java:210,255,300`; `CreateCycleRequest.java`; `PerformanceCyclesScreen.jsx:160,288`; `V193__performance_review_cycles.sql:20,57-58` |
+| Deadlines are stored and never checked; no endpoint edits them | `PerformanceReviewServiceImpl.java:184-262` |
+| Activation runs queries and a save per employee | `PerformanceReviewServiceImpl.java:107-116,264-275` |
+| `reassignManager` has no endpoint | `PerformanceReview.java:143-147` |
+| `manager_id` is `NOT NULL` | `V193__performance_review_cycles.sql:44` |
+| `PerformanceRlsIT` is missing; no tests for out-of-range rating, missing manager, manager-before-self | `code/backend/hrms/src/test/java/com/infinevo/hrms/performance/` |
+| A failed list load shows a toast and an empty table | `PerformanceCyclesScreen.jsx:49-50`; `TeamReviewsScreen.jsx:39-40`; `MyReviews.jsx:40-41` |

@@ -5,12 +5,12 @@
 | **Feature ID** | `W-98.5` · `CORE-MOBILE-APPROVALS` |
 | **Promoted to** | `docs/target-state/features/W-98-5-mobile-approvals-inbox.md` — **`W-98-5` with hyphens**, never `W-98.5` |
 | **Owner** | krushna (`dev-krushna`) |
-| **Apps touched** | `code/frontend` (`src/mobile/approvals/`, `src/mobile/MobileTabBar.jsx`), `code/backend/core` |
+| **Apps touched** | `code/frontend` (`src/mobile/approvals/`, `src/mobile/MobileShell.jsx`, `src/mobile/MobileTabBar.jsx`). No backend change. |
 | **Related gaps** | founder 2026-11-13 planned product roadmap (`W-98` Mobile app slice 5: Approvals) |
-| **Status** | **Built on `feature/krushna-specs` (100% tests/lint green, pending manager review)** |
-| **Approved by** | — (pending manager review) |
-| **Approved on** | — |
-| **Blocked by** | `W-98.1` (mobile foundation & auth container) |
+| **Status** | **Spec corrected 2026-11-19 after review. Code on `feature/krushna-specs` does not yet meet it.** |
+| **Approved by** | founder |
+| **Approved on** | 2026-11-19 |
+| **Blocked by** | `W-98.1` |
 
 ---
 
@@ -18,161 +18,141 @@
 
 | Axis | This spec | Limit | Status |
 |---|---|:---:|---|
-| Backend module | `core` (approval workflow) | 1 | **Pass (1 module)** |
-| Flyway migration | None (creates 0 tables; uses existing `core.approval_instance` and `core.approval_step`) | 1 | **Pass (0 migrations)** |
-| Externally testable behaviour | Manager or HR opens mobile Approvals tab, reviews pending requests (Leave, WFH, Regularization, Overtime) with employee details, and executes 1-tap Approve or Reject with comments | 1 | **Pass (1 behaviour)** |
-| Frontend area | `mobile/approvals` (`src/mobile/approvals/`) | 1 | **Pass (1 area)** |
-
-Within size cap across all four axes. No split required.
+| Backend module | none (uses existing `core` approval endpoints) | 1 | Pass |
+| Flyway migration | none | 1 | Pass |
+| Externally testable behaviour | An approver sees pending requests on the phone and approves or rejects one | 1 | Pass |
+| Frontend area | `src/mobile/approvals/` | 1 | Pass |
 
 ---
 
 ## 1. Problem
 
-Managers and HR leaders spend significant time away from their desks and need to review time-sensitive employee requests on the go:
-1. **Desktop approvals inbox is dense**: `/approvals` (`code/frontend/src/core/approvals/`) is designed with heavy desktop data tables that require navigating to separate sub-routes for Leave, WFH, Overtime, and Regularization requests.
-2. **Delayed approvals stall employee requests**: Leave applications and WFH requests remain pending for days because managers wait until they are back at a computer to approve them.
-3. **No 1-tap mobile decision flow**: Mobile users need a unified, aggregated inbox with fast action buttons ("Approve" in green, "Reject" in red) and optional comment popovers without multi-page roundtrips.
+| # | What is missing today | Evidence |
+|---|---|---|
+| 1 | The approvals inbox is a desktop table. | `code/frontend/src/core/approvals/Inbox.jsx` |
+| 2 | Requests wait until the approver is back at a computer. | — |
 
 ---
 
 ## 2. Scope
 
-### In scope
-- **Mobile Approvals Screen (`src/mobile/approvals/MobileApprovalsScreen.jsx`)**:
-  - Mounted under the bottom navigation "Approvals" tab (`/approvals`).
-  - Conditional visibility: Rendered in `MobileTabBar.jsx` only when the authenticated user holds `core.approval.decide`.
-  - Aggregated pending badge: Displays total pending count badge on the bottom tab icon (e.g. `3`).
-  - Categorized segment filter: **All**, **Leave**, **WFH**, **Regularization**, **Overtime**.
-  - Pull-to-refresh to fetch updated pending instances.
-- **Request Card & 1-Tap Action Flow**:
-  - Each pending item card displays:
-    - Employee Name and Employee Code (e.g. `[EMP-045] Priya Sharma`).
-    - Request Type tag (Leave / WFH / Regularization / Overtime) with distinct brand colors.
-    - Date range or requested period (e.g. `24 Nov – 26 Nov (3 days)`).
-    - Employee submitted reason / comments.
-    - Inline action buttons: **Approve** (primary green) and **Reject** (subtle red).
-- **Fast Decision Handling**:
-  - Tapping **Approve**: Prompts with optional comment bottom sheet, executes `POST /api/v1/approvals/{instanceId}/decide` with `decision: "APPROVE"`, removes card with smooth animation, and increments badge count.
-  - Tapping **Reject**: Opens mandatory reason dialog, executes `POST /api/v1/approvals/{instanceId}/decide` with `decision: "REJECT"`, updates status, and refreshes list.
-- **Request Details Drawer (`MobileApprovalDetailDrawer.jsx`)**:
-  - Tapping anywhere on the card body opens a full details drawer showing multi-tier approval trail (Step 1 Manager, Step 2 HR), employee contact details, and full request history.
+**In scope**
 
-### Out of scope
-- Multi-instance bulk approval checkboxes (reserved for desktop).
-- Approval rule / workflow definition editing (desktop administrative feature).
-- Delegation configuration (covered by `W-15.3`).
+| Area | Rule |
+|---|---|
+| Screen | `MobileApprovalsScreen.jsx` on the Approvals tab (`/me/approvals`), shown only with `core.approval.decide`. |
+| Data | Pending steps from `GET /api/v1/approvals/pending` (`ApprovalStepResponse`). |
+| Card | Employee name (`subjectEmployeeName`), request type (`flowType`), `summary`, and Approve / Reject buttons. The response carries no employee code, so none is shown. |
+| Filter | All, Leave, WFH, Regularization, Overtime, Other. They map to `flowType` values `LEAVE`, `WORK_FROM_HOME`, `REGULARIZATION`, `OVERTIME`; every other value of `ApprovalFlowType` falls under Other. |
+| More than one page | The list loads 20 at a time and loads the next page when the user reaches the end. Segment counts and the tab badge use the server's `totalElements`, not the number of loaded cards. |
+| Approve | Optional comment → `POST /api/v1/approvals/steps/{stepId}/decide` with `{"decision":"APPROVED","comment":…}`. |
+| Reject | Comment is required → same call with `{"decision":"REJECTED","comment":…}`. |
+| After a decision | The card is removed and the badge goes **down** by one. |
+| Already decided | If the step was decided elsewhere the server answers **400**. The app then says "This request was already decided", reloads the list, and the stale card is gone. Any other error leaves the card in place with the server's message. |
+| Tab badge | `MobileShell.jsx` reads `pendingCount` from `approvalSlice` and passes it to `MobileTabBar` as `pendingBadgeCount`. The count is loaded when the shell mounts and after every decision, not only when the Approvals tab is open. |
+| Detail | `MobileApprovalDetailDrawer.jsx` shows the instance and its history from `GET /api/v1/approvals/{instanceId}` and `…/history`. |
+| States | Loading, empty ("Nothing to approve") and error views differ. Buttons disable while a call runs. |
+
+**Out of scope**
+
+- Bulk approve; approval definitions; delegation (`W-15.3`); reassign.
+- Changing the approved amount on reimbursement steps (desktop only).
 
 ---
 
 ## 3. Flow
 
 ```
-[Manager Logs In on Mobile App]
-                │
-                ▼
-[MobileTabBar Detects core.approval.decide ──► Approvals Tab Visible with Badge "4"]
-                │
-                ▼
-[User Taps Approvals Tab]
-                │
-                ▼
-[GET /api/v1/approvals/inbox]
-  ├── Aggregates Pending Requests across LEAVE, WFH, REGULARIZATION, OVERTIME
-  └── Renders Card Feed with Employee Monograms & Date Badges
-                │
-    ┌───────────┴───────────┐
-    ▼                       ▼
-[Tap "Approve"]         [Tap "Reject"]
-    │                       │
-    ▼                       ▼
-[Optional Note]         [Mandatory Reason]
-    │                       │
-    └───────────┬───────────┘
-                ▼
-[POST /api/v1/approvals/{id}/decide { decision, comments }]
-                │
-                ▼
-[Card Dismissed with Animation, Badge Decremented, Toast Displayed]
+Shell mounts  --> GET /api/v1/approvals/pending?page=0&size=20 --> totalElements --> tab badge
+Approvals tab --> cards (next page on scroll)
+Approve / Reject --> POST /api/v1/approvals/steps/{stepId}/decide {decision, comment}
+   200 --> remove card, badge - 1
+   400 already decided --> message, reload list
 ```
 
 ---
 
-## 4. Architecture & Changes
+## 4. Backend changes
 
-### 4.1 Backend changes (`code/backend/core`)
+None. The endpoints below exist in `code/backend/core/src/main/java/com/infinevo/core/approval/ApprovalController.java`.
 
-> No new endpoints required. Uses existing Core approval workflow engine:
-- `GET /api/v1/approvals/inbox` (`ApprovalInstanceController.java`)
-- `GET /api/v1/approvals/{instanceId}` (`ApprovalInstanceController.java`)
-- `POST /api/v1/approvals/{instanceId}/decide` (`ApprovalInstanceController.java`)
-- `GET /api/v1/approvals/{instanceId}/history` (`ApprovalInstanceController.java`)
+**API contract** (all existing)
 
-### 4.2 Frontend changes (`code/frontend`)
+| Method | Path | Request | Response | Auth |
+|---|---|---|---|---|
+| GET | `/api/v1/approvals/pending?page&size` | `size` default 20, max 100 | 200 page of `ApprovalStepResponse` | `core.approval.decide` |
+| GET | `/api/v1/approvals/{instanceId}` | — | 200 `ApprovalInstanceDetailResponse` | `core.approval.decide` |
+| GET | `/api/v1/approvals/{instanceId}/history` | — | 200 history | as on the controller |
+| POST | `/api/v1/approvals/steps/{stepId}/decide` | `ApprovalDecideRequest` `{decision: "APPROVED"\|"REJECTED", comment?, approvedAmount?}` | 200 empty · **400** already decided or bad input · 404 unknown step | `core.approval.decide` |
+
+## 5. Frontend changes
 
 | File | Change |
 |---|---|
-| Service | `code/frontend/src/mobile/approvals/mobileApprovalService.js` | **New**. Mobile wrapper for fetching inbox items and executing fast decisions. |
-| Screen | `code/frontend/src/mobile/approvals/MobileApprovalsScreen.jsx` | **New**. Mobile approvals screen with segment filter, card feed, and badge counter. |
-| Card | `code/frontend/src/mobile/approvals/ApprovalRequestCard.jsx` | **New**. Touch card with employee avatar, request dates, reason preview, and 1-tap Approve/Reject buttons. |
-| Drawer | `code/frontend/src/mobile/approvals/MobileApprovalDetailDrawer.jsx` | **New**. Full detail bottom sheet with multi-tier approval timeline (`<Timeline>`) matching `D-71`. |
-| Tab Bar | `code/frontend/src/mobile/MobileTabBar.jsx` | Render 5th "Approvals" tab conditionally when `useCan('core.approval.decide')` is true. |
+| `code/frontend/src/mobile/approvals/mobileApprovalService.js` | Paged pending list, detail, decide. |
+| `code/frontend/src/mobile/approvals/MobileApprovalsScreen.jsx` | Screen, filter, paging, already-decided handling, count dispatch. |
+| `code/frontend/src/mobile/approvals/ApprovalRequestCard.jsx` | Card. |
+| `code/frontend/src/mobile/approvals/MobileApprovalDetailDrawer.jsx` | Detail and history. |
+| `code/frontend/src/mobile/MobileShell.jsx` | Route; loads the count; passes `pendingBadgeCount`. |
+| `code/frontend/src/mobile/MobileTabBar.jsx` | Shows the badge it is given. |
 
----
+**Routes added**
 
-## 5. Database Changes
+| Path | Component | Guard / layout |
+|---|---|---|
+| `/me/approvals` | `MobileApprovalsScreen` | `MobileShell` (native only); tab hidden without `core.approval.decide` |
 
-> **Creates no database tables and executes 0 Flyway migrations.**
+## 6. Database changes
 
-- [x] Standing rule: Reuses existing `core.approval_instance`, `core.approval_step`, and `core.approval_history` tables.
-- [x] Standing rule: Multi-tenant safety enforced by tenant context filter.
-- [x] Standing rule: No cross-module database foreign keys.
+None. Uses `core.approval_instance` and `core.approval_step` through the existing endpoints.
 
----
+## 7. Tests
 
-## 6. Tests
+Tests use the real paths and the real values `APPROVED` / `REJECTED`.
 
 | Type | File | Covers |
 |---|---|---|
-| Component | `code/frontend/src/mobile/approvals/MobileApprovalsScreen.test.jsx` | Renders pending approval cards; tests segment category switching; verifies empty state when no items pending. |
-| Component | `code/frontend/src/mobile/approvals/ApprovalRequestCard.test.jsx` | Verifies clicking Approve invokes decision API with `APPROVE`; verifies Reject requires mandatory comments. |
-| Unit | `code/frontend/src/mobile/approvals/mobileApprovalService.test.js` | Tests inbox aggregation and badge count calculations. |
+| Unit | `code/frontend/src/mobile/approvals/mobileApprovalService.test.js` | Decide path uses the step id; body values; paging parameters; counts from `totalElements`. |
+| Component | `code/frontend/src/mobile/approvals/MobileApprovalsScreen.test.jsx` | Filters; next page loads; a 400 "already decided" shows the message and reloads; another error keeps the card; loading, empty, error. |
+| Component | `code/frontend/src/mobile/approvals/ApprovalRequestCard.test.jsx` | Approve sends `APPROVED`; Reject needs a comment and sends `REJECTED`. Exact-match assertions, one element expected. |
+| Component | `code/frontend/src/mobile/MobileShell.test.jsx` | The tab badge shows the pending count and drops by one after a decision. |
+| Existing backend | `code/backend/core/src/test/java/com/infinevo/core/approval/ApprovalAssigneeIT.java` | Unchanged. |
 
----
-
-## 7. Verification
+## 8. Verification
 
 ```bash
-# 1. Run core approvals backend tests
-./mvnw -pl core test -Dtest='ApprovalInstanceServiceImplTest,ApprovalEngineTest'
-
-# 2. Run mobile approvals frontend tests
-cd code/frontend
-npm test -- src/mobile/approvals/
-
-# 3. Frontend lint check
-npm run lint
+cd code/frontend && npm test -- src/mobile/approvals/ src/mobile/MobileShell.test.jsx && npm run lint
 ```
 
-| Check | Action | Expected Result |
+| Check | Expected | Result |
 |---|---|---|
-| View Inbox | Manager opens Approvals tab | Pending items displayed with formatted employee names and date ranges. |
-| Quick Approve | Tap Approve on pending Leave card | Card animates away; badge drops from 4 to 3; backend moves step to APPROVED. |
-| Reject with Reason | Tap Reject, enter "Coverage required", submit | Card removed; backend records REJECTED with comments; employee notified. |
-| Non-Manager Hidden | Log in as employee without `core.approval.decide` | Approvals tab is not rendered in bottom navigation. |
+| Frontend tests and lint | Pass, 0 warnings | not run |
+| Approver opens the app | Tab badge shows the pending total before the tab is opened | not run |
+| Approve a leave request | Card gone; badge down by one; the request is APPROVED on the web | not run |
+| Reject without a comment | Blocked on the phone | not run |
+| Decide on the web first, then tap Approve on the phone | "Already decided" message; list reloads | not run |
+| More than 20 pending | Scrolling loads the rest; badge shows the full total | not run |
+| Employee without `core.approval.decide` | No Approvals tab | not run |
 
----
-
-## 8. Risks & Mitigations
+## 9. Risks
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Concurrent approval by co-approver | Low | If request was already decided elsewhere, API returns 409 Conflict; mobile UI catches it and displays "Already decided by another approver" while removing the stale card. |
-| Accidental tap on Reject | Low | Rejection always requires entering a rejection note, preventing accidental rejection taps. |
+| Two approvers decide the same step | Low | The 400 is handled as in Scope. |
+| Accidental reject | Low | A comment is always required. |
+| Badge drifts from the real count | Low | Reloaded on mount and after each decision. |
+
+## 10. Rollback
+
+Remove the `/me/approvals` mobile route and tab; the web inbox is untouched.
 
 ---
 
-## 9. Rollback
+## Code gaps against this spec (2026-11-19)
 
-1. Additive mobile screen; desktop approvals inbox (`/approvals`) continues unaffected.
-
+| Gap | Where |
+|---|---|
+| The tab badge never shows: the shell renders the tab bar without `pendingBadgeCount` | `code/frontend/src/mobile/MobileShell.jsx:99` · `code/frontend/src/mobile/MobileTabBar.jsx:13,55` |
+| An already-decided step gives a generic error and the stale card stays | `code/frontend/src/mobile/approvals/MobileApprovalsScreen.jsx:154-157` |
+| Only the first 50 items are fetched and the counts come from that page | `code/frontend/src/mobile/approvals/mobileApprovalService.js:24-26,40-56` |
+| A card test was loosened to "at least one match" | `code/frontend/src/mobile/approvals/ApprovalRequestCard.test.jsx:37` |

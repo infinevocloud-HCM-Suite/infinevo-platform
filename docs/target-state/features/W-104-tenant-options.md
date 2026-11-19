@@ -1,261 +1,236 @@
-# Feature: Tenant Options & Selectable Rules Registry
+# Feature: Tenant options — one typed place for per-customer switches
 
 | Field | Value |
 |---|---|
 | **Feature ID** | `W-104` · `CORE-OPTIONS` |
-| **Promoted to** | `docs/target-state/features/W-104-tenant-options.md` |
 | **Owner** | krushna (`dev-krushna`) |
-| **Apps touched** | `code/backend/core`, `code/backend/migration`, `code/frontend` (`src/core/settings`) |
-| **Related gaps** | DEBT-014 (`legacy/Payroll-Bend-SBoot/.../MasterConfig.java:14-30`), founder 2026-11-13 planned product roadmap ("Priority 2 — competing with Keka: `W-104` Tenant options") |
-| **Status** | **In Review (pending manager approval)** |
-| **Approved by** | — (pending manager review) |
-| **Approved on** | — |
-| **Blocked by** | nothing |
+| **Apps touched** | `code/backend/core`, `code/backend/hrms` (one option, one check), `code/backend/migration`, `code/frontend/src/core/settings`, `code/frontend/src/shell/portal`, `code/frontend/src/shell/navigation` (one label), `code/frontend/src/hrms/attendance`, `code/frontend/src/mobile/attendance` |
+| **Related gaps** | DEBT-014 (`legacy/docs/GAP_INVENTORY.md:52`); founder 2026-11-13 roadmap, "Priority 2" |
+| **Status** | Ready — approved 2026-11-19. Not built. |
+| **Approved by** | founder |
+| **Approved on** | 2026-11-19 |
+| **Blocked by** | `W-98.2` — the third option needs clock-in location to be stored first |
 
----
+## Founder decision (2026-11-19)
 
-## Size cap
+The ticket ships with three real options, so the screen is not empty.
+
+| # | Option key | Tab | Default | What the customer gets |
+|---|---|---|---|---|
+| 1 | `core.employee.self_edit` | Portal | on | When off, employees can view their profile but cannot change it. |
+| 2 | `core.portal.panel.<code>.visible` — one per employee-portal tab | Portal | on | When off, that tab is hidden for every employee of the company. |
+| 3 | `hrms.attendance.clock_location_required` | Attendance | off | When on, a clock-in or clock-out without a location is refused. |
+
+## Size
 
 | Axis | This spec | Limit | Status |
 |---|---|:---:|---|
-| Backend module | `core` | 1 | **Pass (1 module)** |
-| Flyway migration | `V194__tenant_options.sql` (`core`) | 1 | **Pass (1 migration)** |
-| Externally testable behaviour | Tenant administrator views, searches, and updates categorized tenant options on `/settings/options`; backend services resolve typed values (`getBoolean`, `getString`, `getInteger`) with defaults and in-memory cache invalidation | 1 | **Pass (1 behaviour)** |
-| Frontend area | `core/settings` (screen at `/settings/options`) | 1 | **Pass (1 area)** |
+| Backend module | `core` and `hrms` | 1 | **Over by one** — option 3 is read in `hrms` |
+| Flyway migration | 1 — next free version at build time | 1 | Pass |
+| Testable behaviour | a tenant admin changes an option and the product behaves differently for that company | 1 | Pass |
+| Frontend area | `core/settings`, `shell/portal`, `hrms/attendance`, `mobile/attendance` | 1 | **Over** — one small change in each consumer |
 
-Within size cap across all four axes. No split required.
+Size **L** (was M): the store and screen are M, and the three options each add a small consumer.
 
 ---
 
 ## 1. Problem
 
-As different customers onboard onto the multi-tenant platform, they request variations in business rules and policies (e.g. "Can employees edit their own emergency contact details?", "Should PAN and Aadhaar be masked on payslips?", "Enforce strict IP/geofencing check on mobile attendance punches?", "Allow past-dated leave applications up to 15 days?"):
-1. **Risk of hardcoded tenant forks**: Without a common configuration mechanism, developers are tempted to introduce tenant-specific conditions in code (e.g. `if ("acme-corp".equals(tenant.getSlug())) { ... }`), violating multi-tenant cleanliness and maintainability.
-2. **Schema bloat from single-flag migrations**: Every minor customer toggle currently requires adding nullable columns across scattered tables (`core.tenant`, `payroll.tds_setting`, `core.lop_policy`).
-3. **Legacy debt (DEBT-014)**: The legacy system had an untyped, un-tenanted, and undocumented JSON blob table (`legacy/Payroll-Bend-SBoot/src/main/java/com/itsdev/payroll/entity/MasterConfig.java:14-30` and `MasterConfigRepository.java:12`) with unknown blast radius and no tenant isolation.
-4. **No unified administration interface**: Tenant administrators have no single console to inspect and toggle customer preferences; settings are scattered across disconnected screens.
-
-This ticket delivers `core.tenant_option`: a typed, validated, cached, and row-level isolated key-value options store in `core`, with a management screen under `/settings/options`.
-
----
+| # | Today | Evidence |
+|---|---|---|
+| 1 | Each small per-customer switch needs its own table or column and its own migration. | `code/backend/migration/src/main/resources/db/migration/hrms/V121__attendance_preference.sql:4`; `payroll/V190__tds_switches.sql:9` |
+| 2 | The frozen system used one untyped, un-tenanted JSON table for this; nobody knows what reads it. | DEBT-014 |
+| 3 | There is no shared way for a module to ask "is this switch on for this customer", so the easy path is tenant-specific code. | no `TenantOption` class anywhere under `code/` |
 
 ## 2. Scope
 
-### In scope
-- **Data model (`core.tenant_option`)**:
-  - `tenant_id` (UUID) + `option_key` (VARCHAR) unique composite key.
-  - Namespaced option keys (e.g. `core.employee.self_edit_contact`, `hrms.attendance.strict_geofence`, `payroll.payslip.mask_pan`, `core.security.enforce_mfa`).
-  - Supported value types: `BOOLEAN`, `STRING`, `INTEGER`, `JSON`.
-  - Categories: `GENERAL`, `SECURITY`, `ATTENDANCE`, `LEAVE`, `PAYROLL`, `PORTAL`.
-  - Secret flag: `is_secret` (masks value in API responses unless caller holds `core.tenant_option.manage`).
-- **Java Service API (`TenantOptionService`)**:
-  - `boolean getBoolean(String key, boolean defaultValue)`
-  - `String getString(String key, String defaultValue)`
-  - `int getInteger(String key, int defaultValue)`
-  - `<T> T getJson(String key, Class<T> targetClass, T defaultValue)`
-  - `void setOption(String key, String rawValue)`
-  - High-performance in-memory cache (per-tenant `ConcurrentHashMap` invalidating on `setOption` or external update).
-- **Default Seed Registry**:
-  - System-defined metadata catalogue with fallback defaults so an unset option cleanly resolves to platform default without database writes.
-- **Tenant Admin Console (`/settings/options`)**:
-  - Tabbed interface by category (`General`, `Security`, `Attendance`, `Leave`, `Payroll`).
-  - Search filter by option name / description.
-  - Form controls matching value types (Ant Design `Switch` for boolean, `InputNumber` for integer, `Input` for string).
-  - "Reset to Default" button per option.
-- **Authorization**:
-  - `core.tenant_option.read` granted to `tenant-admin`, `hr`, `payroll-officer`.
-  - `core.tenant_option.manage` restricted to `tenant-admin`.
+**In scope**
 
-### Out of scope
-- Platform-global server environment variables (managed via Azure Key Vault / Spring properties).
-- Dynamic runtime Flyway database migrations triggered from option values.
-- Tenant billing tier overrides (governed by `W-84.1` subscription plans).
+- `core.tenant_option`: one row per tenant and key, holding only the customer's override.
+- A code registry that defines every key: type, category, default, label, description, allowed range.
+- `TenantOptionService` with typed getters, backed by the shared cache.
+- Read, update and reset API; a settings screen with tabs by category.
+- Two actions and their grants, for existing and future tenants.
+- The three first options and the code that obeys them (§4.1).
 
----
+**Out of scope**
+
+- Any option beyond the three in §4.1.
+- Moving existing typed settings into options. `hrms.attendance_preference`, `payroll.tds_setting` and the rest stay as they are.
+- Secrets. An option is never a password, key or token; those live in Key Vault. The `is_secret` flag of the first draft is dropped.
+- Server-wide settings (Spring properties), plan limits (`W-84.1`).
+
+### When is a setting an option?
+
+| Use a tenant option when all of these are true | Use its own typed table when any of these is true |
+|---|---|
+| One value per customer | Rows per employee, location, leave type or any other entity |
+| On/off, a number or a short text | Money, a rate, a statutory value |
+| The value applies from now; no history needed | It needs an effective date or history |
+| Changing it needs no other data to change | It has its own screen, approval or lifecycle |
+
+A new key is added in code, in the registry, by the ticket that reads it. That ticket's spec
+names the key, type and default.
 
 ## 3. Flow
 
 ```
-[Backend Business Logic Request (e.g. Clock-In)]
-                     │
-                     ▼
-[TenantOptionService.getBoolean("hrms.attendance.strict_geofence", false)]
-  ├─── Cache Hit (Tenant Context Map) ──► Returns Boolean Instantly (< 1ms)
-  └─── Cache Miss ──► Query core.tenant_option
-                         ├── Found ──► Populate Cache & Return Value
-                         └── Not Found ──► Return Registry Default (false)
+module code --> TenantOptionService.getBoolean(key) --> CacheService.getOrCompute --> core.tenant_option --> (no row) registry default
 
-[Tenant Administrator Updates Setting]
-                     │
-                     ▼
-[PUT /api/v1/tenant-options/hrms.attendance.strict_geofence { "value": "true" }]
-                     │
-                     ▼
-[Validate Option Type & Bounds]
-                     │
-                     ▼
-[Save to core.tenant_option] ──► [Invalidate Tenant Cache] ──► [Log to core.audit_log]
+tenant admin --> /settings/options --> PUT /api/v1/tenant-options/{key} --> validate against the registry
+             --> upsert core.tenant_option --> CacheService.evict --> audit
 ```
 
----
+## 4. Backend changes
 
-## 4. Architecture & Changes
-
-### 4.1 Backend changes (`code/backend/core`)
+All under `code/backend/core/src/main/java/com/infinevo/core/option/`.
 
 | Layer | File | Change |
 |---|---|---|
-| Entity | `com.infinevo.core.option.TenantOption.java` | **New**. Entity mapped to `core.tenant_option`. |
-| Enum | `com.infinevo.core.option.OptionValueType.java` | **New**. `BOOLEAN`, `STRING`, `INTEGER`, `JSON`. |
-| Enum | `com.infinevo.core.option.OptionCategory.java` | **New**. `GENERAL`, `SECURITY`, `ATTENDANCE`, `LEAVE`, `PAYROLL`, `PORTAL`. |
-| Definition | `com.infinevo.core.option.OptionDefinition.java` | **New**. Metadata descriptor with default values, allowed regex, and descriptions. |
-| Registry | `com.infinevo.core.option.TenantOptionRegistry.java` | **New**. Pre-configured registry of known platform option keys and defaults. |
-| Repository | `com.infinevo.core.option.TenantOptionRepository.java` | **New**. Query options by tenant and key. |
-| Service | `com.infinevo.core.option.TenantOptionService.java` | **New**. Service interface exposing typed getters (`getBoolean`, etc.) and setters. |
-| ServiceImpl | `com.infinevo.core.option.TenantOptionServiceImpl.java` | **New**. Thread-safe cached implementation with validation and audit integration. |
-| Controller | `com.infinevo.core.option.TenantOptionController.java` | **New**. REST endpoints for querying and updating tenant options (`/api/v1/tenant-options`). |
+| Entity | `TenantOption.java` | **New.** `id`, `tenantId`, `optionKey`, `optionValue`, audit columns. Same audit listener as other core entities. |
+| Enum | `OptionValueType.java` | **New.** `BOOLEAN`, `STRING`, `INTEGER`, `JSON`. |
+| Enum | `OptionCategory.java` | **New.** `GENERAL`, `SECURITY`, `ATTENDANCE`, `LEAVE`, `PAYROLL`, `PORTAL`. |
+| Definition | `OptionDefinition.java` | **New.** Record: key, type, category, default, label, description, optional min/max or pattern. |
+| Registry | `TenantOptionRegistry.java` | **New.** Collects every `OptionDefinition` bean. A module registers a key by declaring a bean — `core` never names another module. Fails startup on a duplicate key or a default that does not match its type. |
+| Repository | `TenantOptionRepository.java` | **New.** `findByTenantIdAndOptionKey`, `findByTenantId`. |
+| Service | `TenantOptionService.java`, `TenantOptionServiceImpl.java` | **New.** `getBoolean(key)`, `getString(key)`, `getInteger(key)`, `getJson(key, Class)`, `set(key, rawValue)`, `reset(key)`, `list(category)`. A getter for a key not in the registry throws — a typo must fail in a test, not return a silent default. |
+| Controller | `TenantOptionController.java` | **New.** The API below, with its own `@ExceptionHandler`s: unknown key → `404 NOT_FOUND`; wrong type, out of range or bad JSON → `400 VALIDATION_FAILED`. (Handlers in this codebase are per controller; without them these return 500.) |
+| Navigation | `core/.../navigation/NavigationCatalogue.java` | Add `core.settings.options` under `core.settings`, after `core.settings.company` (line 289-295): path `/settings/options`, feed `/api/v1/tenant-options`, action `core.tenant_option.read`. |
 
-### 4.2 API contract
+### 4.1 The three first options
 
-| Method | Path | Request Body | Response Body | Auth / Permission |
+| Key | Registered by | Obeyed in | Rule |
+|---|---|---|---|
+| `core.employee.self_edit` (BOOLEAN, default `true`, `PORTAL`) | `core` | The two update endpoints of `core/.../employee/EmployeeDetailController.java` (lines 100 and 113) | When `false`, a caller who holds only `core.employee.update_own` gets `403 SELF_EDIT_DISABLED`. A caller with `core.employee.update` (HR) is not affected. |
+| `core.portal.panel.<code>.visible` (BOOLEAN, default `true`, `PORTAL`) | `core`, one definition per `PortalPanelProvider` bean, built from the provider's code — `core` names no other module | `core/.../portal/PortalPanelService.java`, next to the module and action checks (lines 67-80) | When `false`, the panel is left out of the feed. The `profile` panel gets no key and cannot be hidden. Hiding a tab hides the tab only; it does not block the API behind it. |
+| `hrms.attendance.clock_location_required` (BOOLEAN, default `false`, `ATTENDANCE`) | `hrms`, by an `OptionDefinition` bean | `hrms/.../attendance/ClockServiceImpl.java` (`clockIn`, `clockOut`) | When `true`, a request with no latitude and longitude gets `400 LOCATION_REQUIRED` and no session is written. Applies to every client, web and phone. |
+
+The label of each panel option is "Show the <panel title> tab".
+
+### Cache
+
+| Point | Rule |
+|---|---|
+| Service | The shared `CacheService` (`code/backend/shared/src/main/java/com/infinevo/shared/cache/CacheService.java`), implemented by `RedisCacheService`. No in-process map — it would go stale on the second app instance. |
+| Key | `TenantCacheKeyGenerator.tenantKey(tenantId, "tenant-option", optionKey)` |
+| Read | `getOrCompute(key, String.class, Duration.ofMinutes(10), loader)`. The loader returns the stored value or the registry default. |
+| Write | `set` and `reset` call `evict(key)` after the database write, in the same service method. |
+| Redis down | `RedisCacheService` already falls back to the loader, so the option is read from the database. |
+
+### API contract
+
+| Method | Path | Request | Response | Auth |
 |---|---|---|---|---|
-| `GET` | `/api/v1/tenant-options` | — (optional `?category=...`) | `List<TenantOptionResponse>` | `core.tenant_option.read` |
-| `GET` | `/api/v1/tenant-options/{key}` | — | `TenantOptionResponse` | `core.tenant_option.read` |
-| `PUT` | `/api/v1/tenant-options/{key}` | `UpdateOptionRequest` (`value`) | `TenantOptionResponse` | `core.tenant_option.manage` |
-| `POST` | `/api/v1/tenant-options/{key}/reset` | — | `TenantOptionResponse` (reverts to default) | `core.tenant_option.manage` |
+| `GET` | `/api/v1/tenant-options` | optional `?category=` | `List<TenantOptionResponse>` — every registry key with `key`, `category`, `valueType`, `label`, `description`, `value`, `defaultValue`, `overridden` | `core.tenant_option.read` |
+| `PUT` | `/api/v1/tenant-options/{key}` | `{ "value": "…" }` | `TenantOptionResponse` | `core.tenant_option.manage` |
+| `DELETE` | `/api/v1/tenant-options/{key}` | — | `TenantOptionResponse` with the default (the override row is removed) | `core.tenant_option.manage` |
 
-### 4.3 Frontend changes (`code/frontend`)
+## 5. Frontend changes
 
 | File | Change |
 |---|---|
-| `src/core/settings/optionService.js` | **New**. API client for listing, updating, and resetting tenant options. |
-| `src/core/settings/TenantOptionsScreen.jsx` | **New**. Screen mounted at `/settings/options`: Ant Design `Tabs` by category, search bar, switch / number inputs, and Reset buttons. |
-| `src/shell/AppShell.jsx` | Expose "Tenant Options" under Settings menu when user holds `core.tenant_option.read` (`file:code/frontend/src/shell/AppShell.jsx:105-120`). |
+| `code/frontend/src/core/settings/optionService.js` | **New.** List, update, reset. |
+| `code/frontend/src/core/settings/TenantOptionsScreen.jsx` | **New.** Tabs for **all six** categories — General, Security, Attendance, Leave, Payroll, Portal; a tab with no keys is hidden. Search by label. `Switch` for boolean, `InputNumber` for integer, `Input` for string, a text area for JSON. "Reset to default" per row. Empty state: "No options are available yet." Loading and error states; write controls shown only with `useCan('core.tenant_option.manage')`. |
+| `code/frontend/src/core/index.js` | Add the lazy import and the route (next to `/settings/company`, line 173-174). |
+| `code/frontend/src/shell/navigation/navLabels.js` | Add `'nav.settings.options': 'Options'`. |
+| `code/frontend/src/shell/portal/panels/MyProfile.jsx` | On `403 SELF_EDIT_DISABLED`, and when the profile feed says self-edit is off, hide the edit controls and show "Your company has switched off profile changes. Ask HR to update your details." |
+| `code/frontend/src/hrms/attendance/` (the web clock control) | When the option is on, ask the browser for location and send it with clock-in and clock-out; on `400 LOCATION_REQUIRED` show "Location is required to clock in." |
+| `code/frontend/src/mobile/attendance/MobileAttendanceScreen.jsx` | On `400 LOCATION_REQUIRED` show the same message and offer to open location settings. |
 
----
+The menu and the route come from the server's navigation feed. `AppShell.jsx` is **not** changed.
 
-## 5. Database Changes
+**Routes added**
 
-> **Flyway script:** `code/backend/migration/src/main/resources/db/migration/core/V194__tenant_options.sql`
+| Path | Component | Guard / layout |
+|---|---|---|
+| `/settings/options` | `TenantOptionsScreen` | mounted when the feed carries `core.settings.options` |
 
-```sql
--- Schema: core
--- Version: V194
--- Feature: W-104 Tenant options and selectable rules registry
+## 6. Database changes
 
-CREATE TABLE core.tenant_option (
-    id              BIGSERIAL PRIMARY KEY,
-    tenant_id       UUID NOT NULL REFERENCES core.tenant(tenant_id),
-    option_key      VARCHAR(100) NOT NULL,
-    option_value    TEXT NOT NULL,
-    value_type      VARCHAR(20) NOT NULL,
-    category        VARCHAR(50) NOT NULL,
-    description     TEXT,
-    is_secret       BOOLEAN NOT NULL DEFAULT false,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by      VARCHAR(100) NOT NULL DEFAULT 'system',
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by      VARCHAR(100) NOT NULL DEFAULT 'system',
-    CONSTRAINT chk_tenant_option_type CHECK (value_type IN ('BOOLEAN', 'STRING', 'INTEGER', 'JSON')),
-    CONSTRAINT chk_tenant_option_cat  CHECK (category IN ('GENERAL', 'SECURITY', 'ATTENDANCE', 'LEAVE', 'PAYROLL', 'PORTAL'))
-);
+| Migration | Tables | Tenant-aware? | Reversible? |
+|---|---|---|---|
+| next free Flyway version at build time, `core/V…__tenant_option.sql` | `core.tenant_option` | yes | yes — drop the table, trigger, functions and the two action rows |
 
-CREATE UNIQUE INDEX uk_tenant_option_tenant_key 
-    ON core.tenant_option (tenant_id, option_key);
+The migration follows `core/V192__employee_onboarding_tasks.sql` step for step:
 
-CREATE INDEX idx_tenant_option_tenant_category 
-    ON core.tenant_option (tenant_id, category);
+| # | Step | V192 lines to copy the shape from |
+|---|---|---|
+| 1 | `CREATE TABLE core.tenant_option` — `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`, `tenant_id UUID NOT NULL REFERENCES core.tenant(tenant_id) ON DELETE CASCADE`, `option_key VARCHAR(100) NOT NULL`, `option_value TEXT NOT NULL`, `created_at`, `created_by`, `updated_at`, `updated_by` | 4-22 |
+| 2 | `CREATE UNIQUE INDEX uk_tenant_option_tenant_key ON core.tenant_option (tenant_id, option_key)` | — |
+| 3 | `ENABLE ROW LEVEL SECURITY` and the fail-safe `tenant_isolation` policy | 28-37 |
+| 4 | `GRANT SELECT, INSERT, UPDATE, DELETE ON core.tenant_option TO app_user` | 39 |
+| 5 | `INSERT INTO reference.action` for `core.tenant_option.read` and `core.tenant_option.manage`, `ON CONFLICT (code) DO NOTHING` — **before** any grant, because `core.role_action.action_code` has a foreign key to it (`core/V022__role_action.sql:9`) | 87-91 |
+| 6 | `core.grant_tenant_option_actions(p_tenant_id)`, `SECURITY DEFINER`, skipping the platform tenant; then `REVOKE EXECUTE … FROM PUBLIC` | 94-153 |
+| 7 | Trigger function `core.tenant_grant_tenant_option_actions()` with `REVOKE EXECUTE … FROM PUBLIC`, and trigger `tenant_seed_system_roles_tenant_option` `AFTER INSERT ON core.tenant` — so a customer created later gets the grants. The name sorts after `tenant_seed_system_roles`, so the roles exist first. | 156-174 |
+| 8 | Backfill: `SELECT core.grant_tenant_option_actions(t.tenant_id) FROM core.tenant t` | 177 |
 
-ALTER TABLE core.tenant_option ENABLE ROW LEVEL SECURITY;
+Type, category and description are **not** columns. They live in the registry, so the table
+cannot disagree with the code.
 
-CREATE POLICY tenant_isolation ON core.tenant_option
-    USING (
-      tenant_id = CASE
-        WHEN current_setting('app.current_tenant_id', true) IS NULL THEN NULL
-        WHEN current_setting('app.current_tenant_id', true) = '' THEN NULL
-        ELSE current_setting('app.current_tenant_id', true)::uuid
-      END
-    );
+| Role | `core.tenant_option.read` | `core.tenant_option.manage` |
+|---|:---:|:---:|
+| `tenant-admin` | yes | yes |
+| `hr` | yes | — |
+| `payroll-officer` | yes | — |
 
--- Seed role grants
-CREATE OR REPLACE FUNCTION core.grant_tenant_option_actions(p_tenant_id UUID)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-BEGIN
-    IF p_tenant_id = '00000000-0000-0000-0000-000000000001'::uuid THEN RETURN; END IF;
-    INSERT INTO core.role_action (tenant_id, role_id, action_code)
-    SELECT p_tenant_id, r.id, grants.action_code
-    FROM (VALUES
-        ('tenant-admin', 'core.tenant_option.read'),
-        ('tenant-admin', 'core.tenant_option.manage'),
-        ('hr', 'core.tenant_option.read'),
-        ('payroll-officer', 'core.tenant_option.read')
-    ) AS grants (role_code, action_code)
-    JOIN core.role r ON r.tenant_id = p_tenant_id AND r.code = grants.role_code AND r.is_system
-    ON CONFLICT (tenant_id, role_id, action_code) DO NOTHING;
-END;
-$$;
+- [x] `tenant_id` on the new table, with RLS
+- [x] Unique index leads with `tenant_id`
+- [x] No money column
+- [x] Expand only
 
-SELECT core.grant_tenant_option_actions(t.tenant_id) FROM core.tenant t;
-```
-
-- [x] Standing rule: Schema named explicitly on every statement (`core.tenant_option`).
-- [x] Standing rule: `tenant_id` is leading column in unique index `uk_tenant_option_tenant_key` and secondary index.
-- [x] Standing rule: `ENABLE ROW LEVEL SECURITY;` + `CREATE POLICY tenant_isolation` using fail-safe `CASE` format.
-- [x] Standing rule: Multi-tenant safety — no hardcoded customer IDs.
-
----
-
-## 6. Tests
+## 7. Tests
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `com.infinevo.core.option.TenantOptionServiceImplTest.java` | Typed retrieval (`getBoolean`, `getInteger`, `getString`), registry default fallbacks when unset, cache hit vs database query, cache invalidation upon `setOption`. |
-| Unit | `com.infinevo.core.option.TenantOptionGuardTest.java` | Verifies `core.tenant_option.manage` is required for updates; verifies non-admin cannot update options; verifies secret options are masked. |
-| Integration | `com.infinevo.core.option.TenantOptionRlsIT.java` | Confirms tenant isolation under `app_user` (one tenant cannot read or modify another tenant's options). |
-| Component | `src/core/settings/TenantOptionsScreen.test.jsx` | Tests rendering category tabs, toggling boolean switches, typing integer limits, and resetting options. |
+| Unit | `core/src/test/.../option/TenantOptionRegistryTest.java` | Duplicate key and mistyped default fail startup |
+| Unit | `core/src/test/.../option/TenantOptionServiceImplTest.java` | Typed getters; default when no row; unknown key throws; `set` validates type and range; `set` and `reset` evict the cache |
+| Unit | `core/src/test/.../option/TenantOptionControllerTest.java` | 404 for an unknown key; 400 for a bad value; `manage` needed to write; `read` alone cannot write |
+| Integration | `core/src/test/.../option/TenantOptionRlsIT.java` | Tenant B cannot read or write tenant A's rows as `app_user` |
+| Integration | `migration/src/test/.../RoleCatalogueIT.java` (extend) | The two actions exist; the three roles hold the grants; a tenant created after the migration holds them too |
+| Unit | `core/src/test/.../employee/` (extend the detail controller or service test) | Self-edit off: own update is 403 `SELF_EDIT_DISABLED`; HR update still passes |
+| Unit | `core/src/test/.../portal/PortalPanelServiceTest.java` (extend) | A panel whose option is off is left out; `profile` always stays |
+| Unit | `hrms/src/test/.../attendance/ClockServiceTest.java` (extend) | Option on: no coordinates is 400 and nothing is written; with coordinates passes. Option off: both pass |
+| Component | `code/frontend/src/core/settings/TenantOptionsScreen.test.jsx` | Empty state; tabs incl. Portal; switch, number and reset; write controls hidden without `manage`; load error shown |
 
----
+Tests register `core.example.sample_switch` (BOOLEAN, default `false`, category `GENERAL`)
+through a test-only `OptionDefinition` bean.
 
-## 7. Verification
-
-Verification commands and steps:
+## 8. Verification
 
 ```bash
-# 1. Run core backend unit and integration tests
-./mvnw -pl core test -Dtest='TenantOptionServiceImplTest,TenantOptionGuardTest,TenantOptionRlsIT'
-
-# 2. Run frontend options screen tests
-cd code/frontend
-npm test -- src/core/settings/TenantOptionsScreen.test.jsx
-
-# 3. Frontend lint check
-npm run lint
+cd code/backend && ./mvnw -pl core,migration verify
+cd code/frontend && npm test -- src/core/settings/TenantOptionsScreen.test.jsx && npm run lint
 ```
 
-### Verification matrix
-
-| Check | Action | Expected Result |
+| Check | Expected | Result |
 |---|---|---|
-| Default Fallback | Query unset key `TenantOptionService.getBoolean("hrms.attendance.strict_geofence", false)` | Returns `false` without database query. |
-| Update & Cache Invalidation | `PUT /api/v1/tenant-options/hrms.attendance.strict_geofence` with `"true"` | Returns 200; subsequent service call returns `true` immediately from memory cache. |
-| Type Validation | `PUT /api/v1/tenant-options/...` with non-integer string on an `INTEGER` option | Rejects with HTTP 400 Bad Request. |
-| Secret Masking | Call `GET /api/v1/tenant-options/{key}` on a secret option as viewer | Value returns masked `********`. |
-| RLS Isolation | Query `core.tenant_option` from Tenant B connection | Returns 0 rows from Tenant A's configured options. |
+| Migration runs on a database that already has tenants | Table, actions, grants and trigger exist | not run |
+| Create a new tenant after the migration | Its `tenant-admin` holds both actions | not run |
+| `getBoolean("core.example.sample_switch")` with no row | `false` | not run |
+| `PUT …/core.example.sample_switch` `{ "value": "true" }` then the getter | 200, then `true` | not run |
+| `PUT` `{ "value": "maybe" }` on a boolean | 400 `VALIDATION_FAILED` | not run |
+| `PUT …/no.such.key` | 404 `NOT_FOUND` | not run |
+| `DELETE …/core.example.sample_switch` then the getter | 200, then `false`; the row is gone | not run |
+| `PUT` as `hr` | 403 | not run |
+| Tenant B lists options after tenant A set one | B sees the default | not run |
+| Open `/settings/options` as a tenant admin | Menu item "Options" shows; the Portal tab lists self-edit and one switch per portal tab; the Attendance tab lists the location switch | not run |
+| Switch self-edit off, then save a phone number as an employee | 403 `SELF_EDIT_DISABLED`; the portal shows the "ask HR" note; HR can still edit that employee | not run |
+| Switch the Payslips tab off, then open the portal as an employee | No Payslips tab; other tabs unchanged; tenant B still sees its Payslips tab | not run |
+| Switch location required on, then clock in with no coordinates | 400 `LOCATION_REQUIRED`, no session row | not run |
+| Same, with coordinates | 201 | not run |
 
----
-
-## 8. Risks & Mitigations
+## 9. Risks
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Stale cache across clustered app instances | Low (today single/double container) | Cache invalidation event published or short TTL (e.g. 5 minutes) ensures cluster convergence. |
-| Malformed JSON in JSON-type options | Low | Validate JSON syntax via `Jackson ObjectMapper` before writing to database. |
-| Option deletion breaking downstream code | Low | Options are never deleted; resetting an option simply removes the tenant override, gracefully falling back to registry default. |
+| A company hides a tab and believes the data behind it is blocked | Medium | The option's description says "hides the tab only"; access stays governed by roles |
+| Location required is switched on and web users with no browser location cannot clock in | Medium | The option's description says so; default is off |
+| Options become a dumping ground and typed tables stop being written | Medium | The rule table in §2; each new key is named in the spec of the ticket that reads it |
+| A stale value after a write on another instance | Low | Shared Redis cache with evict on write; 10-minute expiry as a backstop |
+| A module ships a key and later removes it, leaving orphan rows | Low | Orphan rows are ignored by `list` and never read; a clean-up is a one-line migration when needed |
 
----
+## 10. Rollback
 
-## 9. Rollback
-
-1. Flyway script is forward-only; if uninstalled, the service layer defaults gracefully to pre-seeded Java constants.
-2. Frontend `/settings/options` route can be disabled immediately by revoking `core.tenant_option.read` permission.
-
+1. Revert the code. The screen, the API and the menu item go with it.
+2. The table and grants can stay; nothing reads them. Removing them is a new forward migration, not a Flyway undo.
+3. No other data is touched.

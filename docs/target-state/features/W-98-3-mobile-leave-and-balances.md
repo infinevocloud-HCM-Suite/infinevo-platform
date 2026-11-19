@@ -5,12 +5,12 @@
 | **Feature ID** | `W-98.3` · `CORE-MOBILE-LEAVE` |
 | **Promoted to** | `docs/target-state/features/W-98-3-mobile-leave-and-balances.md` — **`W-98-3` with hyphens**, never `W-98.3` |
 | **Owner** | krushna (`dev-krushna`) |
-| **Apps touched** | `code/frontend` (`src/mobile/leave/`, `src/mobile/MobileTabBar.jsx`), `code/backend/core` |
+| **Apps touched** | `code/frontend` (`src/mobile/leave/`). No backend change. |
 | **Related gaps** | founder 2026-11-13 planned product roadmap (`W-98` Mobile app slice 3: Leave) |
-| **Status** | **Built — In Review (pending manager review on feature/krushna-specs)** |
-| **Approved by** | — (pending manager review) |
-| **Approved on** | — |
-| **Blocked by** | `W-98.1` (mobile foundation & auth container) |
+| **Status** | **Spec corrected 2026-11-19 after review. Code on `feature/krushna-specs` does not yet meet it.** |
+| **Approved by** | founder |
+| **Approved on** | 2026-11-19 |
+| **Blocked by** | `W-98.1` |
 
 ---
 
@@ -18,159 +18,136 @@
 
 | Axis | This spec | Limit | Status |
 |---|---|:---:|---|
-| Backend module | `core` (leave endpoints) | 1 | **Pass (1 module)** |
-| Flyway migration | None (creates 0 tables; uses existing `core.leave_request` and `core.leave_balance`) | 1 | **Pass (0 migrations)** |
-| Externally testable behaviour | Employee inspects leave balances in a mobile card carousel, views past leave requests, and submits an "Apply Leave" bottom sheet with date range and leave type | 1 | **Pass (1 behaviour)** |
-| Frontend area | `mobile/leave` (`src/mobile/leave/`) | 1 | **Pass (1 area)** |
-
-Within size cap across all four axes. No split required.
+| Backend module | none (uses existing `core` leave endpoints) | 1 | Pass |
+| Flyway migration | none | 1 | Pass |
+| Externally testable behaviour | An employee sees leave balances, applies for leave and takes back a request on the phone | 1 | Pass |
+| Frontend area | `src/mobile/leave/` | 1 | Pass |
 
 ---
 
 ## 1. Problem
 
-Employees frequently need to check available leave balances or submit urgent leave requests on their phones:
-1. **Desktop portal table does not fit mobile screens**: `MyLeave.jsx` (`code/frontend/src/shell/portal/panels/MyLeave.jsx:1-150`) uses multi-column desktop tables with dense filters, creating horizontal scroll and clipped action buttons on phone screens.
-2. **Multi-step desktop modal**: The desktop leave application drawer requires precise mouse clicks for dropdowns, date pickers, and reason inputs; on mobile, native bottom-sheet drawers with touch spinners and clear date pickers provide a much faster, error-free experience.
-3. **No offline balance snapshot**: Employees without immediate cellular connectivity cannot see their remaining leave days before making plans.
+| # | What is missing today | Evidence |
+|---|---|---|
+| 1 | The portal leave panel is a desktop table; on a phone it scrolls sideways and clips buttons. | `code/frontend/src/shell/portal/panels/MyLeave.jsx` |
+| 2 | Applying for leave uses desktop pickers that are slow to use by touch. | same |
 
 ---
 
 ## 2. Scope
 
-### In scope
-- **Mobile Leave Screen (`src/mobile/leave/MobileLeaveScreen.jsx`)**:
-  - Mounted under the bottom navigation "Leave" tab (`/me/leave`).
-  - **Swipeable balance cards carousel**: Clean horizontal card slider showing each active leave type (Casual Leave, Sick Leave, Earned Leave, Comp Off) with Available, Used, and Total Allocated days.
-  - Floating action button (FAB): Prominent "+ Apply Leave" button anchored above the bottom tab bar.
-  - Recent leave requests list: Chronological list of past applications with status tags (`PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`), date ranges, and days count.
-  - Pull-to-refresh to fetch live balances from server.
-- **Apply Leave Mobile Bottom Sheet (`src/mobile/leave/ApplyLeaveDrawer.jsx`)**:
-  - Touch-friendly drawer sliding up from the bottom of the screen.
-  - Leave type picker with remaining balance indicators.
-  - Native touch date picker for Start Date and End Date.
-  - Half-day toggle switch (First Half / Second Half).
-  - Reason textarea with character counter.
-  - Submit action calling existing `POST /api/v1/leave/requests`.
-- **Cancel Leave Action**:
-  - Allows cancelling future-dated `PENDING` or `APPROVED` requests with 1 tap and confirmation modal calling `POST /api/v1/leave/requests/{id}/cancel`.
+**In scope**
 
-### Out of scope
-- Manager leave approval actions (handled in `W-98.5` Mobile Approvals Inbox).
-- HR leave policy creation or allocation adjustments (desktop administrative features).
-- Leave encashment or year-end carry-forward processing.
+| Area | Rule |
+|---|---|
+| Screen | `MobileLeaveScreen.jsx` on the Leave tab (`/me/leave`): balance cards (one per leave type: available, used, allocated), an "Apply leave" button, and the list of the employee's requests with status, dates and days. |
+| Refresh | A refresh control reloads balances and requests. A button or a pull gesture are both acceptable. |
+| Apply | `ApplyLeaveDrawer.jsx`: leave type, from date, to date, half-day switch with First half / Second half, reason. Submits to `POST /api/v1/leave-requests`. |
+| Half-day values | `halfDayPeriod` is sent as **`first`** or **`second`** — the values `HalfDayPeriod` accepts. Never `FIRST_HALF` / `SECOND_HALF`. |
+| Server is the judge | The drawer may warn when days exceed the balance, but the server's answer decides; a 4xx message from the server is shown as it is. |
+| Take back a request | A **PENDING** request shows "Withdraw" → `POST /api/v1/leave-requests/{id}/withdraw` → status `WITHDRAWN`. A future-dated **APPROVED** request shows "Cancel" → `POST /api/v1/leave-requests/{id}/cancel` → status `CANCELLED`. No other status shows either button. Both ask for confirmation. |
+| Statuses shown | `DRAFT`, `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, `WITHDRAWN`. |
+| States | Loading, empty ("No leave requests yet") and error (message with retry) are three different views; a failed load never looks like an empty list. |
+| Double tap | Submit, Withdraw and Cancel disable themselves while the call is running. |
+
+**Out of scope**
+
+- Manager approval (`W-98.5`); leave policy and allocation (desktop).
+- Attaching documents to a request from the phone.
+- Any offline view of balances.
 
 ---
 
 ## 3. Flow
 
 ```
-[Employee Opens Leave Tab on Mobile App]
-                    │
-                    ▼
-[GET /api/v1/leave/balances/my & GET /api/v1/leave/requests/my]
-                    │
-                    ▼
-[Render Horizontal Swipeable Balance Cards & Recent History List]
-                    │
-                    ▼
-[User Taps "+ Apply Leave" Button]
-                    │
-                    ▼
-[Mobile Bottom Sheet Opens with Touch Controls]
-  ├── Selects "Casual Leave (Available: 4.5 days)"
-  ├── Picks Date: Tomorrow (Full Day)
-  └── Types Reason: "Personal appointment"
-                    │
-                    ▼
-[User Taps "Submit Leave Request"]
-                    │
-                    ▼
-[POST /api/v1/leave/requests]
-  ├── Balance & Policy Validated by Core Leave Engine
-  ├── Approval Instance Created & Routed to Manager
-  └── Returns 201 Created
-                    │
-                    ▼
-[Drawer Closes, Success Toast Displays, Recent History Refreshed]
+Leave tab --> GET /api/v1/me/leave-balances + GET /api/v1/me/leave-requests --> cards + list
+Apply     --> drawer --> POST /api/v1/leave-requests --> LeaveRequestServiceImpl --> core.leave_request --> 201
+Withdraw (PENDING)  --> POST /api/v1/leave-requests/{id}/withdraw --> WITHDRAWN
+Cancel   (APPROVED) --> POST /api/v1/leave-requests/{id}/cancel   --> CANCELLED
 ```
 
 ---
 
-## 4. Architecture & Changes
+## 4. Backend changes
 
-### 4.1 Backend changes (`code/backend/core`)
+None. The endpoints below exist in `code/backend/core/src/main/java/com/infinevo/core/leave/`.
 
-> No new endpoints required. Uses existing validated Core leave APIs:
-- `GET /api/v1/leave/balances/my` (`LeaveBalanceController.java`)
-- `GET /api/v1/leave/requests/my` (`LeaveRequestController.java`)
-- `POST /api/v1/leave/requests` (`LeaveRequestController.java`)
-- `POST /api/v1/leave/requests/{id}/cancel` (`LeaveRequestController.java`)
+**API contract** (all existing)
 
-### 4.2 Frontend changes (`code/frontend`)
+| Method | Path | Request | Response | Auth |
+|---|---|---|---|---|
+| GET | `/api/v1/me/leave-balances` | — | 200 balances (`LeaveAllocationController`) | `core.leave.read_own` |
+| GET | `/api/v1/me/leave-requests` | paging | 200 page of requests (`LeaveRequestController`) | `core.leave.read_own` |
+| POST | `/api/v1/leave-requests` | `LeaveApplyRequest`: `{leaveTypeId, fromDate, toDate, isHalfDay, halfDayPeriod: "first"\|"second"\|null, reason, submit}` | 201 `LeaveRequestResponse` | `core.leave.apply` |
+| POST | `/api/v1/leave-requests/{id}/withdraw` | `{reason?}` | 200 `LeaveRequestResponse` | `core.leave.apply` (own request) |
+| POST | `/api/v1/leave-requests/{id}/cancel` | `{reason?}` | 200 `LeaveRequestResponse`; refused unless APPROVED and before the start date | `core.leave.apply` (own request) |
+
+## 5. Frontend changes
 
 | File | Change |
 |---|---|
-| Service | `code/frontend/src/mobile/leave/mobileLeaveService.js` | **New**. Mobile client wrapping balance queries, my-requests list, and leave application dispatch. |
-| Screen | `code/frontend/src/mobile/leave/MobileLeaveScreen.jsx` | **New**. Mobile leave dashboard with carousel cards, floating "+ Apply Leave" button, and request history items. |
-| Component | `code/frontend/src/mobile/leave/LeaveBalanceCard.jsx` | **New**. Individual card displaying leave code, available days, and donut progress indicator. |
-| Drawer | `code/frontend/src/mobile/leave/ApplyLeaveDrawer.jsx` | **New**. Native-feel bottom sheet form for submitting new leave requests. |
-| Router | `code/frontend/src/mobile/MobileShell.jsx` | Route `/me/leave` to `MobileLeaveScreen` on mobile native container. |
+| `code/frontend/src/mobile/leave/mobileLeaveService.js` | Calls above; `withdrawLeave` and `cancelLeave` are two functions; half-day values as in Scope. |
+| `code/frontend/src/mobile/leave/MobileLeaveScreen.jsx` | Screen, three states, Withdraw / Cancel by status. |
+| `code/frontend/src/mobile/leave/LeaveBalanceCard.jsx` | One balance card. |
+| `code/frontend/src/mobile/leave/ApplyLeaveDrawer.jsx` | Apply form. |
+| `code/frontend/src/mobile/MobileShell.jsx` | Route. |
 
----
+**Routes added**
 
-## 5. Database Changes
+| Path | Component | Guard / layout |
+|---|---|---|
+| `/me/leave` | `MobileLeaveScreen` | `MobileShell` (native only) |
 
-> **Creates no database tables and executes 0 Flyway migrations.**
+## 6. Database changes
 
-- [x] Standing rule: Reuses existing `core.leave_request` and `core.leave_balance` tables.
-- [x] Standing rule: RLS enabled and enforced automatically by `TenantContextFilter`.
-- [x] Standing rule: No cross-module database foreign keys.
+None. Reads and writes go through existing endpoints over `core.leave_request` and `core.leave_allocation`.
 
----
+## 7. Tests
 
-## 6. Tests
+Tests must send and expect the **real contract values**. A test that mocks a success for a call the backend refuses does not count.
 
 | Type | File | Covers |
 |---|---|---|
-| Component | `code/frontend/src/mobile/leave/MobileLeaveScreen.test.jsx` | Renders balance carousel cards; displays empty state when no leaves applied; renders request history rows with proper status tags. |
-| Component | `code/frontend/src/mobile/leave/ApplyLeaveDrawer.test.jsx` | Validates date pickers; verifies submit button calls `applyLeave` with form payload; handles API rejection with inline error. |
-| Unit | `code/frontend/src/mobile/leave/mobileLeaveService.test.js` | Tests balance calculation and API error handling. |
+| Unit | `code/frontend/src/mobile/leave/mobileLeaveService.test.js` | Request body for a half day carries `first` / `second`; withdraw calls `/withdraw`; cancel calls `/cancel`; paths match the table in §4. |
+| Component | `code/frontend/src/mobile/leave/MobileLeaveScreen.test.jsx` | PENDING row shows Withdraw only; APPROVED future row shows Cancel only; loading, empty and error views differ. |
+| Component | `code/frontend/src/mobile/leave/ApplyLeaveDrawer.test.jsx` | Required fields; submit payload; server error shown inline; double tap sends one call. |
+| Component | `code/frontend/src/mobile/leave/LeaveBalanceCard.test.jsx` | Numbers rendered as given. |
+| Existing backend | `code/backend/core/src/test/java/com/infinevo/core/leave/LeaveRequestStatusTest.java` | Unchanged; proves which status allows which action. |
 
----
-
-## 7. Verification
+## 8. Verification
 
 ```bash
-# 1. Run core leave backend tests
-./mvnw -pl core test -Dtest='LeaveRequestServiceImplTest,LeaveBalanceServiceImplTest'
-
-# 2. Run mobile leave frontend tests
-cd code/frontend
-npm test -- src/mobile/leave/
-
-# 3. Frontend lint check
-npm run lint
+cd code/frontend && npm test -- src/mobile/leave/ && npm run lint
 ```
 
-| Check | Action | Expected Result |
+| Check | Expected | Result |
 |---|---|---|
-| View Balances | Open Leave tab on mobile | Balance cards display accurate numbers matching server (e.g. "CL: 5.0 Available"). |
-| Apply Leave | Submit 1-day Casual Leave in Apply Leave sheet | `POST /api/v1/leave/requests` returns 201 Created; sheet closes; item appears in history as `PENDING`. |
-| Cancel Leave | Tap Cancel on pending request in history | `POST /api/v1/leave/requests/{id}/cancel` called; request status updates to `CANCELLED`. |
+| Frontend tests and lint | Pass, 0 warnings | not run |
+| Open Leave tab | Balances equal the web portal's for the same employee | not run |
+| Apply one full day | 201; row appears as `PENDING` | not run |
+| Apply a half day, second half | 201; request stored with `second` | not run |
+| Withdraw a PENDING request | 200; status `WITHDRAWN` | not run |
+| Cancel a future APPROVED request | 200; status `CANCELLED` | not run |
+| Load with the network off | Error view with retry, not an empty list | not run |
 
----
-
-## 8. Risks & Mitigations
+## 9. Risks
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Applying for leave exceeding available balance | Low | Pre-flight validation in `ApplyLeaveDrawer` checks requested days against available balance before sending request. |
-| Double submission on slow connection | Medium | Submit button enters loading state immediately on tap and disables repeat clicks. |
+| Mobile and backend contract drift again | Medium | Tests assert real values; device checks above hit the real server. |
+| Double submission on a slow line | Medium | Buttons disable while a call runs. |
+
+## 10. Rollback
+
+Remove the `/me/leave` mobile route; the web panel `MyLeave.jsx` is untouched.
 
 ---
 
-## 9. Rollback
+## Code gaps against this spec (2026-11-19)
 
-1. Additive mobile screen; web self-service portal (`MyLeave.jsx`) remains unmodified and active.
-
+| Gap | Where |
+|---|---|
+| Half day sends `FIRST_HALF` / `SECOND_HALF`; the backend takes `first` / `second` | `code/frontend/src/mobile/leave/ApplyLeaveDrawer.jsx:201-204` · `code/frontend/src/mobile/leave/mobileLeaveService.js:73` · `code/backend/core/src/main/java/com/infinevo/core/leave/HalfDayPeriod.java:13-14` |
+| "Cancel" on a PENDING request calls `/cancel`, which the backend refuses; there is no withdraw call | `code/frontend/src/mobile/leave/MobileLeaveScreen.jsx:117-118` · `mobileLeaveService.js:87` · `code/backend/core/src/main/java/com/infinevo/core/leave/LeaveRequestServiceImpl.java:379-381` |
+| The test mocks a success for that refused call | `code/frontend/src/mobile/leave/MobileLeaveScreen.test.jsx:120-121` |
