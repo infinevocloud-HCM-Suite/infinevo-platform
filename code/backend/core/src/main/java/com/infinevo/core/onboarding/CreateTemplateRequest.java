@@ -9,4 +9,3 @@ public record CreateTemplateRequest(
         Boolean isMandatory,
         Integer dueDaysAfterJoining,
         Integer sortOrder) {}
-

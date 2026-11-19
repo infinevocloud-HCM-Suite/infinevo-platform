@@ -9,4 +9,3 @@ public enum OnboardingAssignedRole {
     MANAGER,
     IT
 }
-

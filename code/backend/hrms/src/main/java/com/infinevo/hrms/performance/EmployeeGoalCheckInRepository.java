@@ -13,4 +13,3 @@ public interface EmployeeGoalCheckInRepository extends JpaRepository<EmployeeGoa
 
     List<EmployeeGoalCheckIn> findByTenantIdAndGoalIdOrderByCreatedAtDesc(UUID tenantId, UUID goalId);
 }
-

@@ -14,4 +14,3 @@ public record UpdateGoalRequest(
         LocalDate startDate,
         LocalDate dueDate,
         UUID cycleId) {}
-

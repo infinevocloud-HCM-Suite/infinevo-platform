@@ -10,4 +10,3 @@ public record UpdateTemplateRequest(
         Integer dueDaysAfterJoining,
         Integer sortOrder,
         Boolean isActive) {}
-

@@ -69,9 +69,7 @@ public class EmployeeOnboardingController {
     @PatchMapping("/employees/{employeeId}/onboarding/{taskId}")
     @RequiresAction(value = "core.onboarding.manage", anyOf = "core.onboarding.update_own")
     public EmployeeOnboardingTaskResponse updateTask(
-            @PathVariable UUID employeeId,
-            @PathVariable UUID taskId,
-            @RequestBody UpdateTaskStatusRequest request) {
+            @PathVariable UUID employeeId, @PathVariable UUID taskId, @RequestBody UpdateTaskStatusRequest request) {
         UUID tenantId = TenantContext.require();
         assertCanAccess(tenantId, employeeId, "core.onboarding.manage");
         UUID actorUuid = currentUserId();

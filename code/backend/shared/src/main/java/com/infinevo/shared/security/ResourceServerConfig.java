@@ -51,6 +51,11 @@ public class ResourceServerConfig {
     /** Health sub-paths — {@code /actuator/health/liveness} and {@code /readiness}. */
     public static final String HEALTH_SUBPATHS = "/actuator/health/**";
 
+    public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http, ObjectProvider<JwtDecoder> jwtDecoders)
+            throws Exception {
+        return apiSecurityFilterChain(http, jwtDecoders, List.of());
+    }
+
     @Bean
     public SecurityFilterChain apiSecurityFilterChain(
             HttpSecurity http,
