@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   Steps,
@@ -67,55 +67,55 @@ export function GuidedStatutorySetup() {
     ptStates: {},
   });
 
-  useEffect(() => {
-    let active = true;
-    async function loadReadiness() {
-      try {
-        setLoading(true);
-        const data = await guidedStatutoryService.getReadiness();
-        if (!active) return;
-        setReadiness(data);
+  const loadReadiness = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await guidedStatutoryService.getReadiness();
+      setReadiness(data);
 
-        // Pre-fill default form state from readiness
-        const initialPt = {};
-        (data.operatingStates || []).forEach((st) => {
-          if (st.leviesPt) {
-            initialPt[st.stateCode] = {
-              registrationNumber: st.registrationNumber || '',
-              effectiveFrom: dayjs().startOf('year'),
-            };
-          }
-        });
+      // Pre-fill default form state from readiness
+      const initialPt = {};
+      (data.operatingStates || []).forEach((st) => {
+        if (st.leviesPt) {
+          initialPt[st.stateCode] = {
+            registrationNumber: st.registrationNumber || '',
+            effectiveFrom: dayjs().startOf('year'),
+          };
+        }
+      });
 
-        setFormData((prev) => ({
-          ...prev,
-          epf: {
-            ...prev.epf,
-            registered: data.epf?.isEnabled ?? true,
-            registrationNumber: data.epf?.registrationNumber || '',
-            restrictToWageCeiling: data.epf?.restrictEmployeeToCeiling ?? true,
-            includeEmployerInCtc: data.epf?.includeEmployerInCtc ?? true,
-          },
-          esi: {
-            ...prev.esi,
-            registered: data.esi?.isEnabled ?? false,
-            registrationNumber: data.esi?.registrationNumber || '',
-            includeEmployerInCtc: data.esi?.includeEmployerInCtc ?? true,
-          },
-          ptStates: initialPt,
-        }));
-      } catch (err) {
-        if (!active) return;
-        setError(err.response?.data?.message || err.message || 'Failed to load statutory readiness');
-      } finally {
-        if (active) setLoading(false);
-      }
+      setFormData((prev) => ({
+        ...prev,
+        epf: {
+          ...prev.epf,
+          registered: data.epf?.isEnabled ?? true,
+          registrationNumber: data.epf?.registrationNumber || '',
+          registrationDate: data.epf?.registrationDate ? dayjs(data.epf.registrationDate) : null,
+          restrictToWageCeiling: data.epf?.restrictEmployeeToCeiling ?? true,
+          includeEmployerInCtc: data.epf?.includeEmployerInCtc ?? true,
+          includeEdliInCtc: data.epf?.includeEdliInCtc ?? false,
+          includeAdminInCtc: data.epf?.includeAdminInCtc ?? false,
+        },
+        esi: {
+          ...prev.esi,
+          registered: data.esi?.isEnabled ?? false,
+          registrationNumber: data.esi?.registrationNumber || '',
+          registrationDate: data.esi?.registrationDate ? dayjs(data.esi.registrationDate) : null,
+          includeEmployerInCtc: data.esi?.includeEmployerInCtc ?? true,
+        },
+        ptStates: initialPt,
+      }));
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to load statutory readiness');
+    } finally {
+      setLoading(false);
     }
-    loadReadiness();
-    return () => {
-      active = false;
-    };
   }, []);
+
+  useEffect(() => {
+    loadReadiness();
+  }, [loadReadiness]);
 
   const handleNext = async () => {
     try {
@@ -144,6 +144,10 @@ export function GuidedStatutorySetup() {
   };
 
   const handleSubmit = async () => {
+    if (!readiness) {
+      setError('Cannot save settings before statutory readiness has successfully loaded.');
+      return;
+    }
     try {
       setSubmitting(true);
       setError(null);
@@ -204,6 +208,37 @@ export function GuidedStatutorySetup() {
       <div style={{ textAlign: 'center', padding: '60px 0' }} data-testid="guided-setup-loading">
         <Spin size="large" tip="Loading statutory readiness..." />
       </div>
+    );
+  }
+
+  if (error && !readiness) {
+    return (
+      <Card
+        className="saas-card"
+        style={{
+          borderRadius: 14,
+          background: token.colorBgContainer,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          padding: '24px 0',
+        }}
+        data-testid="guided-setup-error"
+      >
+        <Result
+          status="error"
+          title="Failed to Load Statutory Settings"
+          subTitle={error}
+          extra={[
+            <Button
+              type="primary"
+              key="retry"
+              onClick={loadReadiness}
+              data-testid="btn-retry-load"
+            >
+              Retry
+            </Button>,
+          ]}
+        />
+      </Card>
     );
   }
 

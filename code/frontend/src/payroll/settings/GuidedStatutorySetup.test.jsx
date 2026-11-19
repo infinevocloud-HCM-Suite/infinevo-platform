@@ -153,5 +153,99 @@ describe('GuidedStatutorySetup component (W-93)', () => {
     expect(screen.getByText('Statutory Setup Completed!')).toBeDefined();
     expect(screen.getByTestId('btn-to-checklist')).toBeDefined();
   });
+
+  it('displays error state with retry button when loading readiness fails, preventing saving defaults', async () => {
+    guidedStatutoryService.getReadiness.mockRejectedValueOnce(new Error('Network error loading settings'));
+
+    render(
+      <MemoryRouter>
+        <GuidedStatutorySetup />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('guided-setup-error')).toBeDefined();
+    });
+
+    expect(screen.getByText('Failed to Load Statutory Settings')).toBeDefined();
+    expect(screen.getByText('Network error loading settings')).toBeDefined();
+    expect(screen.queryByTestId('step-overview')).toBeNull();
+    expect(guidedStatutoryService.applySetup).not.toHaveBeenCalled();
+
+    // Now clicking Retry re-fetches readiness and displays wizard
+    guidedStatutoryService.getReadiness.mockResolvedValueOnce(mockReadiness);
+    fireEvent.click(screen.getByTestId('btn-retry-load'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('step-overview')).toBeDefined();
+    });
+  });
+
+  it('pre-populates existing registration dates and settings when re-running wizard', async () => {
+    const existingReadiness = {
+      ...mockReadiness,
+      epfConfigured: true,
+      epf: {
+        isEnabled: true,
+        registrationNumber: 'DLCPM1234567000',
+        registrationDate: '2020-01-15',
+        restrictEmployeeToCeiling: true,
+        includeEmployerInCtc: true,
+        includeEdliInCtc: true,
+        includeAdminInCtc: true,
+      },
+      esiConfigured: true,
+      esi: {
+        isEnabled: true,
+        registrationNumber: '31000123450000101',
+        registrationDate: '2019-05-20',
+        includeEmployerInCtc: true,
+      },
+    };
+    guidedStatutoryService.getReadiness.mockResolvedValueOnce(existingReadiness);
+    guidedStatutoryService.applySetup.mockResolvedValueOnce({
+      epf: { isEnabled: true, registrationNumber: 'DLCPM1234567000' },
+      esi: { isEnabled: true, registrationNumber: '31000123450000101' },
+      ptStates: [],
+      allStatutoryConfigured: true,
+    });
+
+    render(
+      <MemoryRouter>
+        <GuidedStatutorySetup />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('step-overview')).toBeDefined();
+    });
+
+    // Move through steps to review
+    fireEvent.click(screen.getByTestId('btn-wizard-next')); // to EPF
+    await waitFor(() => expect(screen.getByTestId('step-epf')).toBeDefined());
+
+    fireEvent.click(screen.getByTestId('btn-wizard-next')); // to ESI
+    await waitFor(() => expect(screen.getByTestId('step-esi')).toBeDefined());
+
+    fireEvent.click(screen.getByTestId('btn-wizard-next')); // to PT
+    await waitFor(() => expect(screen.getByTestId('step-pt')).toBeDefined());
+
+    fireEvent.click(screen.getByTestId('btn-wizard-next')); // to Review
+    await waitFor(() => expect(screen.getByTestId('step-review')).toBeDefined());
+
+    // Submit
+    fireEvent.click(screen.getByTestId('submit-guided-setup'));
+
+    await waitFor(() => {
+      expect(guidedStatutoryService.applySetup).toHaveBeenCalledTimes(1);
+    });
+
+    const payload = guidedStatutoryService.applySetup.mock.calls[0][0];
+    expect(payload.epf.registrationDate).toBe('2020-01-15');
+    expect(payload.epf.includeEdliInCtc).toBe(true);
+    expect(payload.epf.includeAdminInCtc).toBe(true);
+    expect(payload.esi.registrationDate).toBe('2019-05-20');
+    expect(payload.esi.registered).toBe(true);
+  });
 });
 

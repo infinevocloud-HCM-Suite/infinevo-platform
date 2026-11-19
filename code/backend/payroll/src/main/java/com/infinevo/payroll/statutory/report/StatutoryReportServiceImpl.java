@@ -10,6 +10,8 @@ import com.infinevo.payroll.payrun.EmployeePayRunLine;
 import com.infinevo.payroll.payrun.EmployeePayRunLineRepository;
 import com.infinevo.payroll.payrun.EmployeePayRunRepository;
 import com.infinevo.payroll.payrun.InclusionStatus;
+import com.infinevo.payroll.payrun.LineKind;
+import com.infinevo.payroll.payrun.LineSource;
 import com.infinevo.payroll.payrun.PayFigureNotComputedException;
 import com.infinevo.payroll.payrun.PayRun;
 import com.infinevo.payroll.payrun.PayRunNotFoundException;
@@ -18,6 +20,8 @@ import com.infinevo.payroll.payrun.PayRunStatus;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfile;
 import com.infinevo.payroll.salary.EmployeeStatutoryProfileRepository;
 import com.infinevo.payroll.statutory.pt.OrgPtOverrideRepository;
+import com.infinevo.payroll.statutory.settings.EsiSettingResponse;
+import com.infinevo.payroll.statutory.settings.StatutorySettingsService;
 import com.infinevo.shared.tenant.TenantContext;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
@@ -94,6 +98,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
     private final OrgPtOverrideRepository orgPtOverrideRepository;
     private final EmployeeService employeeService;
     private final WorkLocationService workLocationService;
+    private final StatutorySettingsService statutorySettingsService;
 
     public StatutoryReportServiceImpl(
             PayRunRepository payRunRepository,
@@ -103,6 +108,26 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
             OrgPtOverrideRepository orgPtOverrideRepository,
             EmployeeService employeeService,
             WorkLocationService workLocationService) {
+        this(
+                payRunRepository,
+                employeePayRunRepository,
+                employeePayRunLineRepository,
+                employeeStatutoryProfileRepository,
+                orgPtOverrideRepository,
+                employeeService,
+                workLocationService,
+                null);
+    }
+
+    public StatutoryReportServiceImpl(
+            PayRunRepository payRunRepository,
+            EmployeePayRunRepository employeePayRunRepository,
+            EmployeePayRunLineRepository employeePayRunLineRepository,
+            EmployeeStatutoryProfileRepository employeeStatutoryProfileRepository,
+            OrgPtOverrideRepository orgPtOverrideRepository,
+            EmployeeService employeeService,
+            WorkLocationService workLocationService,
+            StatutorySettingsService statutorySettingsService) {
         this.payRunRepository = Objects.requireNonNull(payRunRepository, "payRunRepository must not be null");
         this.employeePayRunRepository =
                 Objects.requireNonNull(employeePayRunRepository, "employeePayRunRepository must not be null");
@@ -114,6 +139,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
                 Objects.requireNonNull(orgPtOverrideRepository, "orgPtOverrideRepository must not be null");
         this.employeeService = Objects.requireNonNull(employeeService, "employeeService must not be null");
         this.workLocationService = Objects.requireNonNull(workLocationService, "workLocationService must not be null");
+        this.statutorySettingsService = statutorySettingsService;
     }
 
     @Override
@@ -215,9 +241,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
             String ipNumber = (profile != null && profile.getEsiNumber() != null) ? profile.getEsiNumber() : "";
             String ipName = formatEmployeeName(emp);
             BigDecimal paidDays = epr.getPaidDays() != null ? epr.getPaidDays() : BigDecimal.ZERO;
-            BigDecimal monthlyWages = (paidDays.compareTo(BigDecimal.ZERO) > 0 && epr.getGrossEarnings() != null)
-                    ? epr.getGrossEarnings()
-                    : BigDecimal.ZERO;
+            BigDecimal monthlyWages = computeEsiMonthlyWages(epr, empLines, paidDays, ipContrib, erContrib, tenantId);
             BigDecimal totalContrib = ipContrib.add(erContrib);
             String reasonCode = (paidDays.compareTo(BigDecimal.ZERO) == 0) ? "1" : "";
 
@@ -312,7 +336,97 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
         return summaries;
     }
 
+    private BigDecimal computeEsiMonthlyWages(
+            EmployeePayRun epr,
+            List<EmployeePayRunLine> empLines,
+            BigDecimal paidDays,
+            BigDecimal ipContrib,
+            BigDecimal erContrib,
+            UUID tenantId) {
+        if (paidDays.compareTo(BigDecimal.ZERO) == 0
+                || (ipContrib.compareTo(BigDecimal.ZERO) == 0 && erContrib.compareTo(BigDecimal.ZERO) == 0)) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal eeRate = new BigDecimal("0.7500");
+        BigDecimal erRate = new BigDecimal("3.2500");
+        if (statutorySettingsService != null) {
+            try {
+                EsiSettingResponse esiResp = statutorySettingsService.esi(tenantId);
+                if (esiResp != null) {
+                    if (esiResp.employeeRate() != null) {
+                        eeRate = esiResp.employeeRate();
+                    }
+                    if (esiResp.employerRate() != null) {
+                        erRate = esiResp.employerRate();
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Using default ESI rates for tenant {}: {}", tenantId, e.getMessage());
+            }
+        }
+
+        BigDecimal lop = sumComponent(empLines, "LOP");
+        BigDecimal baseGross = BigDecimal.ZERO;
+        for (EmployeePayRunLine l : empLines) {
+            if (l.getLineKind() == LineKind.EARNING && l.getSource() == LineSource.STRUCTURE && l.getAmount() != null) {
+                baseGross = baseGross.add(l.getAmount());
+            }
+        }
+        if (baseGross.compareTo(BigDecimal.ZERO) == 0 && epr.getGrossEarnings() != null) {
+            baseGross = epr.getGrossEarnings();
+        }
+
+        BigDecimal earnedCandidate = baseGross.subtract(lop);
+        if (epr.getUnpaidDays() != null
+                && epr.getUnpaidDays().compareTo(BigDecimal.ZERO) > 0
+                && lop.compareTo(BigDecimal.ZERO) == 0) {
+            BigDecimal totalDays = paidDays.add(epr.getUnpaidDays());
+            if (totalDays.compareTo(BigDecimal.ZERO) > 0) {
+                earnedCandidate = baseGross.multiply(paidDays).divide(totalDays, 4, RoundingMode.HALF_UP);
+            }
+        }
+        if (earnedCandidate.compareTo(BigDecimal.ZERO) < 0) {
+            earnedCandidate = BigDecimal.ZERO;
+        }
+
+        if (ipContrib.compareTo(BigDecimal.ZERO) > 0 && eeRate.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal expectedEe = earnedCandidate
+                    .multiply(eeRate)
+                    .divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
+                    .setScale(0, RoundingMode.CEILING);
+            if (expectedEe.compareTo(ipContrib.setScale(0, RoundingMode.CEILING)) == 0) {
+                return earnedCandidate.setScale(2, RoundingMode.HALF_UP);
+            }
+            BigDecimal rateFrac = eeRate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP);
+            return ipContrib.divide(rateFrac, 2, RoundingMode.HALF_UP);
+        } else if (erContrib.compareTo(BigDecimal.ZERO) > 0 && erRate.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal expectedEr = earnedCandidate
+                    .multiply(erRate)
+                    .divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
+                    .setScale(0, RoundingMode.CEILING);
+            if (expectedEr.compareTo(erContrib.setScale(0, RoundingMode.CEILING)) == 0) {
+                return earnedCandidate.setScale(2, RoundingMode.HALF_UP);
+            }
+            BigDecimal rateFrac = erRate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP);
+            return erContrib.divide(rateFrac, 2, RoundingMode.HALF_UP);
+        } else {
+            return earnedCandidate.setScale(2, RoundingMode.HALF_UP);
+        }
+    }
+
     private Map<UUID, EmployeeResponse> loadEmployees(List<UUID> empIds) {
+        if (empIds == null || empIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            Map<UUID, EmployeeResponse> map = employeeService.findByIdInIncludingDeleted(empIds);
+            if (map != null && !map.isEmpty()) {
+                return map;
+            }
+        } catch (Exception e) {
+            log.warn("Could not batch load employees: {}", e.getMessage());
+        }
         Map<UUID, EmployeeResponse> map = new HashMap<>();
         for (UUID empId : empIds) {
             try {

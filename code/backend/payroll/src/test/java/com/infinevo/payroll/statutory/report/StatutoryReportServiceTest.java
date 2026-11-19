@@ -455,6 +455,133 @@ class StatutoryReportServiceTest {
     }
 
     @Test
+    @DisplayName("ESI wages column matches contribution when employee has loss of pay")
+    void generateEsiReturn_lopWagesMatchContribution() {
+        PayRun run = mock(PayRun.class);
+        when(run.getId()).thenReturn(PAYRUN_ID);
+        when(run.getStatus()).thenReturn(PayRunStatus.COMPUTED);
+        when(run.getPeriod()).thenReturn(YearMonth.of(2026, 4));
+        when(payRunRepository.findByIdAndTenantId(PAYRUN_ID, TENANT_ID)).thenReturn(Optional.of(run));
+
+        UUID empId = UUID.randomUUID();
+        UUID eprId = UUID.randomUUID();
+
+        EmployeePayRun epr = mock(EmployeePayRun.class);
+        when(epr.getId()).thenReturn(eprId);
+        when(epr.getEmployeeId()).thenReturn(empId);
+        when(epr.getPaidDays()).thenReturn(new BigDecimal("15"));
+
+        when(employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                        TENANT_ID, PAYRUN_ID, InclusionStatus.INCLUDED))
+                .thenReturn(List.of(epr));
+
+        EmployeePayRunLine basicLine = mock(EmployeePayRunLine.class);
+        when(basicLine.getEmployeePayrunId()).thenReturn(eprId);
+        when(basicLine.getLineKind()).thenReturn(com.infinevo.payroll.payrun.LineKind.EARNING);
+        when(basicLine.getSource()).thenReturn(com.infinevo.payroll.payrun.LineSource.STRUCTURE);
+        when(basicLine.getAmount()).thenReturn(new BigDecimal("20000.00"));
+
+        EmployeePayRunLine lopLine = mock(EmployeePayRunLine.class);
+        when(lopLine.getEmployeePayrunId()).thenReturn(eprId);
+        when(lopLine.getComponentCode()).thenReturn("LOP");
+        when(lopLine.getAmount()).thenReturn(new BigDecimal("10000.00"));
+
+        EmployeePayRunLine eeEsi = mock(EmployeePayRunLine.class);
+        when(eeEsi.getEmployeePayrunId()).thenReturn(eprId);
+        when(eeEsi.getComponentCode()).thenReturn("ESI_EMPLOYEE");
+        when(eeEsi.getAmount()).thenReturn(new BigDecimal("75.00"));
+
+        EmployeePayRunLine erEsi = mock(EmployeePayRunLine.class);
+        when(erEsi.getEmployeePayrunId()).thenReturn(eprId);
+        when(erEsi.getComponentCode()).thenReturn("ESI_EMPLOYER");
+        when(erEsi.getAmount()).thenReturn(new BigDecimal("325.00"));
+
+        when(employeePayRunLineRepository.findByTenantIdAndPayrunId(TENANT_ID, PAYRUN_ID))
+                .thenReturn(List.of(basicLine, lopLine, eeEsi, erEsi));
+
+        EmployeeStatutoryProfile prof = new EmployeeStatutoryProfile(TENANT_ID, empId, "test");
+        prof.setEligibleForEsi(true);
+        prof.setEsiNumber("1234567890");
+        when(employeeStatutoryProfileRepository.findAllByTenantIdAndEmployeeIdIn(eq(TENANT_ID), any()))
+                .thenReturn(List.of(prof));
+
+        EmployeeResponse emp = mock(EmployeeResponse.class);
+        when(emp.firstName()).thenReturn("Charlie");
+        when(emp.lastName()).thenReturn("Brown");
+        when(employeeService.get(empId)).thenReturn(emp);
+
+        StatutoryReportFile result = service.generateEsiReturnFile(PAYRUN_ID, ExportFormat.CSV);
+        String csvResult = new String(result.content(), StandardCharsets.UTF_8);
+
+        // Wages must be 10000.00 (earned gross), NOT 20000.00, matching 75.00 contribution
+        assertThat(csvResult).contains("1234567890,Charlie Brown,15,10000.00,75.00,325.00,400.00");
+    }
+
+    @Test
+    @DisplayName("ESI and PT reports succeed when an employee in the run has been soft deleted")
+    void generateReports_succeedsWhenEmployeeIsDeleted() {
+        PayRun run = mock(PayRun.class);
+        when(run.getId()).thenReturn(PAYRUN_ID);
+        when(run.getStatus()).thenReturn(PayRunStatus.COMPUTED);
+        when(run.getPeriod()).thenReturn(YearMonth.of(2026, 4));
+        when(payRunRepository.findByIdAndTenantId(PAYRUN_ID, TENANT_ID)).thenReturn(Optional.of(run));
+
+        UUID empId = UUID.randomUUID();
+        UUID eprId = UUID.randomUUID();
+
+        EmployeePayRun epr = mock(EmployeePayRun.class);
+        when(epr.getId()).thenReturn(eprId);
+        when(epr.getEmployeeId()).thenReturn(empId);
+        when(epr.getPaidDays()).thenReturn(new BigDecimal("30"));
+        when(epr.getGrossEarnings()).thenReturn(new BigDecimal("20000.00"));
+
+        when(employeePayRunRepository.findAllByTenantIdAndPayrunIdAndInclusionStatus(
+                        TENANT_ID, PAYRUN_ID, InclusionStatus.INCLUDED))
+                .thenReturn(List.of(epr));
+
+        EmployeePayRunLine eeEsi = mock(EmployeePayRunLine.class);
+        when(eeEsi.getEmployeePayrunId()).thenReturn(eprId);
+        when(eeEsi.getComponentCode()).thenReturn("ESI_EMPLOYEE");
+        when(eeEsi.getAmount()).thenReturn(new BigDecimal("150.00"));
+
+        EmployeePayRunLine erEsi = mock(EmployeePayRunLine.class);
+        when(erEsi.getEmployeePayrunId()).thenReturn(eprId);
+        when(erEsi.getComponentCode()).thenReturn("ESI_EMPLOYER");
+        when(erEsi.getAmount()).thenReturn(new BigDecimal("650.00"));
+
+        EmployeePayRunLine ptLine = mock(EmployeePayRunLine.class);
+        when(ptLine.getEmployeePayrunId()).thenReturn(eprId);
+        when(ptLine.getComponentCode()).thenReturn("PROFESSIONAL_TAX");
+        when(ptLine.getAmount()).thenReturn(new BigDecimal("200.00"));
+
+        when(employeePayRunLineRepository.findByTenantIdAndPayrunId(TENANT_ID, PAYRUN_ID))
+                .thenReturn(List.of(eeEsi, erEsi, ptLine));
+
+        EmployeeStatutoryProfile prof = new EmployeeStatutoryProfile(TENANT_ID, empId, "test");
+        prof.setEligibleForEsi(true);
+        prof.setEsiNumber("1122334455");
+        when(employeeStatutoryProfileRepository.findAllByTenantIdAndEmployeeIdIn(eq(TENANT_ID), any()))
+                .thenReturn(List.of(prof));
+
+        // Deleted employee: findByIdInIncludingDeleted returns their historical record
+        EmployeeResponse deletedEmp = mock(EmployeeResponse.class);
+        when(deletedEmp.employeeNumber()).thenReturn("DEL001");
+        when(deletedEmp.firstName()).thenReturn("Deleted");
+        when(deletedEmp.lastName()).thenReturn("User");
+        when(employeeService.findByIdInIncludingDeleted(any())).thenReturn(java.util.Map.of(empId, deletedEmp));
+
+        StatutoryReportFile esiResult = service.generateEsiReturnFile(PAYRUN_ID, ExportFormat.CSV);
+        assertThat(esiResult).isNotNull();
+        String esiCsv = new String(esiResult.content(), StandardCharsets.UTF_8);
+        assertThat(esiCsv).contains("1122334455,Deleted User,30,20000.00,150.00,650.00,800.00");
+
+        StatutoryReportFile ptResult = service.generatePtReturnFile(PAYRUN_ID, ExportFormat.CSV, null);
+        assertThat(ptResult).isNotNull();
+        String ptCsv = new String(ptResult.content(), StandardCharsets.UTF_8);
+        assertThat(ptCsv).contains("DEL001,Deleted User,20000.00,200.00");
+    }
+
+    @Test
     @DisplayName("Refuses export when pay run is in DRAFT or LOCKED status with 409 Conflict exception")
     void refuses_UncomputedRun() {
         PayRun draftRun = mock(PayRun.class);

@@ -106,16 +106,19 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
         EpfReadiness epfReadiness = epfOpt.map(e -> new EpfReadiness(
                         e.isEnabled(),
                         e.getRegistrationNumber(),
+                        e.getRegistrationDate(),
                         e.isRestrictEmployeeToCeiling(),
-                        e.isIncludeEmployerInCtc()))
-                .orElseGet(() -> new EpfReadiness(false, null, false, false));
+                        e.isIncludeEmployerInCtc(),
+                        e.isIncludeEdliInCtc(),
+                        e.isIncludeAdminInCtc()))
+                .orElseGet(() -> new EpfReadiness(false, null, null, false, false, false, false));
 
         Optional<EsiSetting> esiOpt = esiSettingRepository.findByTenantId(tenantId);
         boolean esiConfigured =
                 esiOpt.isPresent() && !"TEMPLATE".equals(esiOpt.get().getUpdatedBy());
-        EsiReadiness esiReadiness = esiOpt.map(
-                        e -> new EsiReadiness(e.isEnabled(), e.getRegistrationNumber(), e.isIncludeEmployerInCtc()))
-                .orElseGet(() -> new EsiReadiness(false, null, false));
+        EsiReadiness esiReadiness = esiOpt.map(e -> new EsiReadiness(
+                        e.isEnabled(), e.getRegistrationNumber(), e.getRegistrationDate(), e.isIncludeEmployerInCtc()))
+                .orElseGet(() -> new EsiReadiness(false, null, null, false));
 
         Set<String> activeStateCodes = getActiveWorkLocationStateCodes();
         List<PtStateReadiness> operatingStates = new ArrayList<>();
@@ -162,29 +165,51 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
             boolean includeEdli = Boolean.TRUE.equals(request.epf().includeEdliInCtc());
             boolean includeAdmin = Boolean.TRUE.equals(request.epf().includeAdminInCtc());
 
+            Optional<EpfSetting> existingEpf = epfSettingRepository.findByTenantId(tenantId);
+            EpfSetting existing = existingEpf.orElse(null);
+
+            LocalDate regDate = request.epf().registrationDate() != null
+                    ? request.epf().registrationDate()
+                    : (existing != null ? existing.getRegistrationDate() : null);
+
+            DeductionCycle deductionCycle = existing != null ? existing.getDeductionCycle() : DeductionCycle.MONTHLY;
+            BigDecimal employeeRate = existing != null ? existing.getEmployeeRate() : new BigDecimal("12.0000");
+            BigDecimal employerRate = existing != null ? existing.getEmployerRate() : new BigDecimal("12.0000");
+            BigDecimal epsRate = existing != null ? existing.getEpsRate() : new BigDecimal("8.3300");
+            BigDecimal edliRate = existing != null ? existing.getEdliRate() : new BigDecimal("0.5000");
+            BigDecimal adminChargeRate = existing != null ? existing.getAdminChargeRate() : new BigDecimal("0.5000");
+            BigDecimal wageCeiling = existing != null ? existing.getWageCeiling() : new BigDecimal("15000.0000");
+            boolean prorateRestrictedWage = existing != null ? existing.isProrateRestrictedWage() : restrict;
+            boolean considerEarnedWage = existing != null ? existing.isConsiderEarnedWage() : restrict;
+            int epsSeniorAge = existing != null ? existing.getEpsSeniorAge() : 58;
+            boolean inStructure = existing != null ? existing.isIncludeEmployerInStructure() : includeCtc;
+            boolean edliInStructure = existing != null ? existing.isIncludeEdliInStructure() : includeEdli;
+            boolean adminInStructure = existing != null ? existing.isIncludeAdminInStructure() : includeAdmin;
+            boolean abry = existing != null ? existing.isAbryScheme() : false;
+
             EpfSettingRequest epfReq = new EpfSettingRequest(
                     registered,
                     registered ? request.epf().registrationNumber() : null,
-                    registered ? request.epf().registrationDate() : null,
-                    DeductionCycle.MONTHLY,
-                    new BigDecimal("12.0000"),
-                    new BigDecimal("12.0000"),
-                    new BigDecimal("8.3300"),
-                    new BigDecimal("0.5000"),
-                    new BigDecimal("0.5000"),
-                    new BigDecimal("15000.0000"),
+                    registered ? regDate : null,
+                    deductionCycle,
+                    employeeRate,
+                    employerRate,
+                    epsRate,
+                    edliRate,
+                    adminChargeRate,
+                    wageCeiling,
                     restrict,
                     restrict,
-                    restrict,
-                    true,
-                    58,
+                    prorateRestrictedWage,
+                    considerEarnedWage,
+                    epsSeniorAge,
                     includeCtc,
                     includeEdli,
                     includeAdmin,
-                    includeCtc,
-                    includeEdli,
-                    includeAdmin,
-                    false);
+                    inStructure,
+                    edliInStructure,
+                    adminInStructure,
+                    abry);
             epfResp = statutorySettingsService.saveEpf(epfReq);
         } else {
             epfResp = statutorySettingsService.epf(tenantId);
@@ -195,16 +220,29 @@ public class GuidedStatutorySetupServiceImpl implements GuidedStatutorySetupServ
             boolean registered = Boolean.TRUE.equals(request.esi().registered());
             boolean includeCtc = Boolean.TRUE.equals(request.esi().includeEmployerInCtc());
 
+            Optional<EsiSetting> existingEsi = esiSettingRepository.findByTenantId(tenantId);
+            EsiSetting existing = existingEsi.orElse(null);
+
+            LocalDate regDate = request.esi().registrationDate() != null
+                    ? request.esi().registrationDate()
+                    : (existing != null ? existing.getRegistrationDate() : null);
+
+            DeductionCycle deductionCycle = existing != null ? existing.getDeductionCycle() : DeductionCycle.MONTHLY;
+            BigDecimal employeeRate = existing != null ? existing.getEmployeeRate() : new BigDecimal("0.7500");
+            BigDecimal employerRate = existing != null ? existing.getEmployerRate() : new BigDecimal("3.2500");
+            BigDecimal wageCeiling = existing != null ? existing.getWageCeiling() : new BigDecimal("21000.0000");
+            boolean includeInStructure = existing != null ? existing.isIncludeInStructure() : includeCtc;
+
             EsiSettingRequest esiReq = new EsiSettingRequest(
                     registered,
                     registered ? request.esi().registrationNumber() : null,
-                    registered ? request.esi().registrationDate() : null,
-                    DeductionCycle.MONTHLY,
-                    new BigDecimal("0.7500"),
-                    new BigDecimal("3.2500"),
-                    new BigDecimal("21000.0000"),
+                    registered ? regDate : null,
+                    deductionCycle,
+                    employeeRate,
+                    employerRate,
+                    wageCeiling,
                     includeCtc,
-                    includeCtc);
+                    includeInStructure);
             esiResp = statutorySettingsService.saveEsi(esiReq);
         } else {
             esiResp = statutorySettingsService.esi(tenantId);

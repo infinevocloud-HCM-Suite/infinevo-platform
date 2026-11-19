@@ -23,9 +23,11 @@ import com.infinevo.payroll.statutory.pt.PtStateRepository;
 import com.infinevo.payroll.statutory.pt.ReferenceState;
 import com.infinevo.payroll.statutory.pt.ReferenceStateRepository;
 import com.infinevo.payroll.statutory.settings.DeductionCycle;
+import com.infinevo.payroll.statutory.settings.EpfSetting;
 import com.infinevo.payroll.statutory.settings.EpfSettingRepository;
 import com.infinevo.payroll.statutory.settings.EpfSettingRequest;
 import com.infinevo.payroll.statutory.settings.EpfSettingResponse;
+import com.infinevo.payroll.statutory.settings.EsiSetting;
 import com.infinevo.payroll.statutory.settings.EsiSettingRepository;
 import com.infinevo.payroll.statutory.settings.EsiSettingRequest;
 import com.infinevo.payroll.statutory.settings.EsiSettingResponse;
@@ -273,5 +275,62 @@ class GuidedStatutorySetupServiceTest {
         verify(orgPtOverrideRepository).save(any(OrgPtOverride.class));
         verify(orgPtOverrideSlabRepository).save(any(OrgPtOverrideSlab.class));
         verify(ptHistoryRepository).save(any(PtHistory.class));
+    }
+
+    @Test
+    @DisplayName("applySetup preserves existing company PF and ESI settings and registration dates when re-run")
+    void applySetup_preservesExistingSettingsAndRegistrationDates() {
+        EpfSetting existingEpf = new EpfSetting(TENANT_ID);
+        existingEpf.setEnabled(true);
+        existingEpf.setRegistrationNumber("DLCPM9999999000");
+        existingEpf.setRegistrationDate(LocalDate.of(2020, 1, 15));
+        existingEpf.setEmployeeRate(new BigDecimal("10.0000"));
+        existingEpf.setEmployerRate(new BigDecimal("10.0000"));
+        existingEpf.setEpsSeniorAge((short) 60);
+        existingEpf.setWageCeiling(new BigDecimal("20000.0000"));
+        when(epfSettingRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(existingEpf));
+
+        EsiSetting existingEsi = new EsiSetting(TENANT_ID);
+        existingEsi.setEnabled(true);
+        existingEsi.setRegistrationNumber("31000999990000101");
+        existingEsi.setRegistrationDate(LocalDate.of(2019, 5, 20));
+        existingEsi.setEmployeeRate(new BigDecimal("1.0000"));
+        existingEsi.setEmployerRate(new BigDecimal("4.0000"));
+        existingEsi.setWageCeiling(new BigDecimal("25000.0000"));
+        when(esiSettingRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(existingEsi));
+
+        EpfSettingResponse epfMock = mock(EpfSettingResponse.class);
+        when(epfMock.isEnabled()).thenReturn(true);
+        when(epfMock.registrationNumber()).thenReturn("DLCPM9999999000");
+        EsiSettingResponse esiMock = mock(EsiSettingResponse.class);
+        when(esiMock.isEnabled()).thenReturn(true);
+        when(esiMock.registrationNumber()).thenReturn("31000999990000101");
+
+        when(statutorySettingsService.saveEpf(any(EpfSettingRequest.class))).thenReturn(epfMock);
+        when(statutorySettingsService.saveEsi(any(EsiSettingRequest.class))).thenReturn(esiMock);
+
+        // Re-run wizard with null registrationDate in request
+        GuidedStatutorySetupRequest request = new GuidedStatutorySetupRequest(
+                new EpfSetupRequest(true, "DLCPM9999999000", null, true, true, false, false),
+                new EsiSetupRequest(true, "31000999990000101", null, true),
+                List.of());
+
+        service.applySetup(request);
+
+        ArgumentCaptor<EpfSettingRequest> epfCaptor = ArgumentCaptor.forClass(EpfSettingRequest.class);
+        verify(statutorySettingsService).saveEpf(epfCaptor.capture());
+        // Verify custom rates and registration date were preserved
+        assertThat(epfCaptor.getValue().registrationDate()).isEqualTo(LocalDate.of(2020, 1, 15));
+        assertThat(epfCaptor.getValue().employeeRate()).isEqualByComparingTo("10.0000");
+        assertThat(epfCaptor.getValue().epsSeniorAge()).isEqualTo(60);
+        assertThat(epfCaptor.getValue().wageCeiling()).isEqualByComparingTo("20000.0000");
+
+        ArgumentCaptor<EsiSettingRequest> esiCaptor = ArgumentCaptor.forClass(EsiSettingRequest.class);
+        verify(statutorySettingsService).saveEsi(esiCaptor.capture());
+        // Verify custom rates and registration date were preserved
+        assertThat(esiCaptor.getValue().registrationDate()).isEqualTo(LocalDate.of(2019, 5, 20));
+        assertThat(esiCaptor.getValue().employeeRate()).isEqualByComparingTo("1.0000");
+        assertThat(esiCaptor.getValue().employerRate()).isEqualByComparingTo("4.0000");
+        assertThat(esiCaptor.getValue().wageCeiling()).isEqualByComparingTo("25000.0000");
     }
 }
