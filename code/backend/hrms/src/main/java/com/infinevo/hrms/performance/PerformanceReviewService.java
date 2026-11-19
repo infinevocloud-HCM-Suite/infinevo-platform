@@ -26,5 +26,11 @@ public interface PerformanceReviewService {
 
     List<PerformanceReviewResponse> getTeamReviews();
 
+    PerformanceCycleResponse updateCycleDeadlines(UUID cycleId, UpdateCycleDeadlinesRequest request);
+
+    List<PerformanceReviewResponse> getCycleReviews(UUID cycleId);
+
+    PerformanceReviewResponse reassignManager(UUID reviewId, ReassignManagerRequest request);
+
     PerformanceReviewResponse submitManagerReview(UUID reviewId, ManagerReviewRequest request);
 }

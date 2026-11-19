@@ -14,7 +14,8 @@ import {
   Row,
   Col,
   Statistic,
-  message,
+  Alert,
+  List,
   theme,
 } from 'antd';
 import {
@@ -23,6 +24,7 @@ import {
   TrophyOutlined,
   ClockCircleOutlined,
   FlagOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { goalService } from './goalService.js';
@@ -34,7 +36,10 @@ export function TeamGoalsScreen() {
   const { token } = theme.useToken();
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [selectedGoal, setSelectedGoal] = useState(null);
+  const [checkIns, setCheckIns] = useState([]);
+  const [checkInsLoading, setCheckInsLoading] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -42,11 +47,12 @@ export function TeamGoalsScreen() {
 
   const loadTeamGoals = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await goalService.getTeamGoals();
       setGoals(Array.isArray(data) ? data : []);
     } catch (err) {
-      message.error(err?.response?.data?.message || err.message || 'Failed to load team goals');
+      setLoadError(err?.response?.data?.message || err.message || 'Failed to load team goals');
     } finally {
       setLoading(false);
     }
@@ -56,9 +62,18 @@ export function TeamGoalsScreen() {
     loadTeamGoals();
   }, []);
 
-  const openGoalDetail = (goal) => {
+  const openGoalDetail = async (goal) => {
     setSelectedGoal(goal);
     setDrawerVisible(true);
+    setCheckInsLoading(true);
+    try {
+      const history = await goalService.getCheckIns(goal.id);
+      setCheckIns(Array.isArray(history) ? history : []);
+    } catch {
+      setCheckIns([]);
+    } finally {
+      setCheckInsLoading(false);
+    }
   };
 
   const filteredGoals = goals.filter((g) => {
@@ -222,6 +237,24 @@ export function TeamGoalsScreen() {
     },
   ];
 
+  if (loadError) {
+    return (
+      <Card bordered>
+        <Alert
+          type="error"
+          showIcon
+          message="Failed to load team goals"
+          description={loadError}
+          action={
+            <Button icon={<ReloadOutlined />} onClick={loadTeamGoals}>
+              Retry
+            </Button>
+          }
+        />
+      </Card>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Overview Metric Row */}
@@ -305,15 +338,16 @@ export function TeamGoalsScreen() {
         />
       </Card>
 
-      {/* Goal Detail Drawer */}
+      {/* Goal Detail Drawer with Check-in History */}
       <Drawer
         title="Goal & OKR Details"
         placement="right"
-        width={480}
+        width={500}
         open={drawerVisible}
         onClose={() => {
           setDrawerVisible(false);
           setSelectedGoal(null);
+          setCheckIns([]);
         }}
       >
         {selectedGoal && (
@@ -359,10 +393,36 @@ export function TeamGoalsScreen() {
                 <Paragraph style={{ marginTop: 4 }}>{selectedGoal.description}</Paragraph>
               </div>
             )}
+
+            <div>
+              <Text strong>Check-in History</Text>
+              <List
+                style={{ marginTop: 8 }}
+                loading={checkInsLoading}
+                dataSource={checkIns}
+                locale={{ emptyText: 'No check-ins recorded yet.' }}
+                renderItem={(item) => (
+                  <List.Item>
+                    <List.Item.Meta
+                      title={
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Text strong>
+                            {item.currentValue} ({item.progressPercentage}%)
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                            {item.createdAt ? dayjs(item.createdAt).format('YYYY-MM-DD HH:mm') : ''}
+                          </Text>
+                        </div>
+                      }
+                      description={item.notes || 'No notes provided'}
+                    />
+                  </List.Item>
+                )}
+              />
+            </div>
           </div>
         )}
       </Drawer>
     </div>
   );
 }
-

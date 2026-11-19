@@ -63,6 +63,13 @@ public class PerformanceReviewController {
         return performanceService.submitManagerReview(id, request);
     }
 
+    @PatchMapping("/{id}/manager")
+    @RequiresAction("hrms.performance.manage")
+    public PerformanceReviewResponse reassignManager(
+            @PathVariable("id") UUID id, @Valid @RequestBody ReassignManagerRequest request) {
+        return performanceService.reassignManager(id, request);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

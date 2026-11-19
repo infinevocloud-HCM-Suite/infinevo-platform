@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.infinevo.core.employee.Employee;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Test;
 class EmployeeGoalServiceImplTest {
 
     private EmployeeGoalRepository goalRepository;
+    private EmployeeGoalCheckInRepository checkInRepository;
     private EmployeeRepository employeeRepository;
     private PerformanceCycleRepository cycleRepository;
     private ReportingLineRepository reportingLineRepository;
@@ -38,11 +40,13 @@ class EmployeeGoalServiceImplTest {
     private final UUID tenantId = UUID.randomUUID();
     private final UUID employeeId = UUID.randomUUID();
     private final UUID managerId = UUID.randomUUID();
+    private final UUID cycleId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         TenantContext.set(tenantId);
         goalRepository = mock(EmployeeGoalRepository.class);
+        checkInRepository = mock(EmployeeGoalCheckInRepository.class);
         employeeRepository = mock(EmployeeRepository.class);
         cycleRepository = mock(PerformanceCycleRepository.class);
         reportingLineRepository = mock(ReportingLineRepository.class);
@@ -51,6 +55,7 @@ class EmployeeGoalServiceImplTest {
 
         service = new EmployeeGoalServiceImpl(
                 goalRepository,
+                checkInRepository,
                 employeeRepository,
                 cycleRepository,
                 reportingLineRepository,
@@ -73,8 +78,8 @@ class EmployeeGoalServiceImplTest {
     }
 
     @Test
-    @DisplayName("Create goal validates dates, calculates initial progress, and saves")
-    void createGoalValidatesAndSaves() {
+    @DisplayName("Create goal defaults to IN_PROGRESS with 0 progress")
+    void createGoalDefaultsToInProgressAndZeroProgress() {
         EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
         when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
 
@@ -84,13 +89,11 @@ class EmployeeGoalServiceImplTest {
                 GoalCategory.INDIVIDUAL,
                 MetricType.PERCENTAGE,
                 new BigDecimal("100.00"),
-                new BigDecimal("40.00"),
                 "%",
-                null,
                 LocalDate.of(2026, 1, 1),
                 LocalDate.of(2026, 6, 30),
                 null,
-                GoalStatus.IN_PROGRESS);
+                false);
 
         when(goalRepository.save(any(EmployeeGoal.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -98,39 +101,149 @@ class EmployeeGoalServiceImplTest {
 
         assertThat(response).isNotNull();
         assertThat(response.title()).isEqualTo("Deliver Mobile App OKR");
-        assertThat(response.progressPercentage()).isEqualTo(40);
+        assertThat(response.progressPercentage()).isZero();
         assertThat(response.status()).isEqualTo(GoalStatus.IN_PROGRESS);
         assertThat(response.employeeId()).isEqualTo(employeeId);
     }
 
     @Test
-    @DisplayName("Create goal rejects due date before start date")
-    void createGoalRejectsInvalidDates() {
+    @DisplayName("Create goal with draft=true sets status to DRAFT")
+    void createGoalWithDraftTrueSetsDraft() {
         EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
         when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
 
         CreateGoalRequest request = new CreateGoalRequest(
-                "Invalid Dates Goal",
-                "Description",
+                "Draft Goal",
+                "Work in progress draft",
                 GoalCategory.INDIVIDUAL,
                 MetricType.PERCENTAGE,
                 new BigDecimal("100.00"),
-                BigDecimal.ZERO,
                 "%",
-                0,
-                LocalDate.of(2026, 6, 30),
                 LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
                 null,
-                GoalStatus.IN_PROGRESS);
+                true);
 
-        assertThatThrownBy(() -> service.createGoal(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Due date must not be before start date");
+        when(goalRepository.save(any(EmployeeGoal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EmployeeGoalResponse response = service.createGoal(request);
+
+        assertThat(response.status()).isEqualTo(GoalStatus.DRAFT);
     }
 
     @Test
-    @DisplayName("Update goal progress recalculates % and auto-transitions to ACHIEVED at 100%")
-    void updateProgressCalculatesAndTransitionsToAchieved() {
+    @DisplayName("Create goal rejects NUMERIC metric with target 0 or negative")
+    void createGoalRejectsNumericWithTargetZeroOrNegative() {
+        EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
+
+        CreateGoalRequest zeroReq = new CreateGoalRequest(
+                "Zero Target Goal",
+                "Desc",
+                GoalCategory.INDIVIDUAL,
+                MetricType.NUMERIC,
+                BigDecimal.ZERO,
+                "units",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
+                null,
+                false);
+
+        assertThatThrownBy(() -> service.createGoal(zeroReq))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("targetValue must be greater than zero for NUMERIC metric type");
+    }
+
+    @Test
+    @DisplayName("Create goal linked to a CLOSED cycle is rejected with 409 (IllegalStateException)")
+    void createGoalLinkedToClosedCycleThrowsConflict() {
+        EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
+
+        PerformanceCycle closedCycle = mock(PerformanceCycle.class);
+        when(closedCycle.getStatus()).thenReturn(PerformanceCycleStatus.CLOSED);
+        when(cycleRepository.findByIdAndTenantId(eq(cycleId), eq(tenantId))).thenReturn(Optional.of(closedCycle));
+
+        CreateGoalRequest request = new CreateGoalRequest(
+                "Linked Goal",
+                "Desc",
+                GoalCategory.INDIVIDUAL,
+                MetricType.PERCENTAGE,
+                new BigDecimal("100.00"),
+                "%",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
+                cycleId,
+                false);
+
+        assertThatThrownBy(() -> service.createGoal(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot link goal to a closed performance cycle");
+    }
+
+    @Test
+    @DisplayName("Start transitions DRAFT to IN_PROGRESS")
+    void startGoalTransitionsDraftToInProgress() {
+        EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
+
+        EmployeeGoal draftGoal = new EmployeeGoal(
+                tenantId,
+                employeeId,
+                null,
+                "Draft Goal",
+                "Desc",
+                GoalCategory.INDIVIDUAL,
+                MetricType.PERCENTAGE,
+                new BigDecimal("100.00"),
+                "%",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
+                true,
+                "alex");
+
+        UUID goalId = UUID.randomUUID();
+        when(goalRepository.findByIdAndTenantId(eq(goalId), eq(tenantId))).thenReturn(Optional.of(draftGoal));
+        when(goalRepository.save(any(EmployeeGoal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EmployeeGoalResponse response = service.startGoal(goalId);
+
+        assertThat(response.status()).isEqualTo(GoalStatus.IN_PROGRESS);
+    }
+
+    @Test
+    @DisplayName("Cancel transitions goal to CANCELLED")
+    void cancelGoalTransitionsToCancelled() {
+        EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
+
+        EmployeeGoal goal = new EmployeeGoal(
+                tenantId,
+                employeeId,
+                null,
+                "In Progress Goal",
+                "Desc",
+                GoalCategory.INDIVIDUAL,
+                MetricType.PERCENTAGE,
+                new BigDecimal("100.00"),
+                "%",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
+                false,
+                "alex");
+
+        UUID goalId = UUID.randomUUID();
+        when(goalRepository.findByIdAndTenantId(eq(goalId), eq(tenantId))).thenReturn(Optional.of(goal));
+        when(goalRepository.save(any(EmployeeGoal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        EmployeeGoalResponse response = service.cancelGoal(goalId);
+
+        assertThat(response.status()).isEqualTo(GoalStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("Check-in saves note to checkInRepository and calculates NUMERIC progress")
+    void checkInSavesNoteAndCalculatesProgress() {
         EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
         when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
 
@@ -143,26 +256,173 @@ class EmployeeGoalServiceImplTest {
                 GoalCategory.INDIVIDUAL,
                 MetricType.NUMERIC,
                 new BigDecimal("50.00"),
-                new BigDecimal("25.00"),
                 "reviews",
-                50,
                 LocalDate.of(2026, 1, 1),
                 LocalDate.of(2026, 12, 31),
-                GoalStatus.IN_PROGRESS,
+                false,
                 "alex");
 
         UUID goalId = UUID.randomUUID();
         when(goalRepository.findByIdAndTenantId(eq(goalId), eq(tenantId))).thenReturn(Optional.of(goal));
         when(goalRepository.save(any(EmployeeGoal.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UpdateGoalProgressRequest updateReq =
-                new UpdateGoalProgressRequest(new BigDecimal("50.00"), null, null, "All reviews collected!");
+        GoalCheckInRequest checkInReq = new GoalCheckInRequest(new BigDecimal("25.00"), "First 25 collected");
+        EmployeeGoalResponse response = service.checkIn(goalId, checkInReq);
 
-        EmployeeGoalResponse response = service.updateProgress(goalId, updateReq);
+        assertThat(response.progressPercentage()).isEqualTo(50);
+        assertThat(response.status()).isEqualTo(GoalStatus.IN_PROGRESS);
 
-        assertThat(response).isNotNull();
+        verify(checkInRepository).save(any(EmployeeGoalCheckIn.class));
+    }
+
+    @Test
+    @DisplayName("Check-in reaching 100% auto-transitions to ACHIEVED, and a goal at 0% cannot become ACHIEVED")
+    void checkInReaching100AutoTransitionsToAchieved() {
+        EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
+
+        EmployeeGoal goal = new EmployeeGoal(
+                tenantId,
+                employeeId,
+                null,
+                "Ship OKR",
+                "Target 50 customer reviews",
+                GoalCategory.INDIVIDUAL,
+                MetricType.NUMERIC,
+                new BigDecimal("50.00"),
+                "reviews",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 12, 31),
+                false,
+                "alex");
+
+        UUID goalId = UUID.randomUUID();
+        when(goalRepository.findByIdAndTenantId(eq(goalId), eq(tenantId))).thenReturn(Optional.of(goal));
+        when(goalRepository.save(any(EmployeeGoal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Check-in at 0: progress is 0, status stays IN_PROGRESS
+        service.checkIn(goalId, new GoalCheckInRequest(BigDecimal.ZERO, "Just starting"));
+        assertThat(goal.getProgressPercentage()).isZero();
+        assertThat(goal.getStatus()).isEqualTo(GoalStatus.IN_PROGRESS);
+
+        // Check-in reaching 50: progress is 100%, status becomes ACHIEVED
+        EmployeeGoalResponse response =
+                service.checkIn(goalId, new GoalCheckInRequest(new BigDecimal("50.00"), "Completed all 50!"));
         assertThat(response.progressPercentage()).isEqualTo(100);
         assertThat(response.status()).isEqualTo(GoalStatus.ACHIEVED);
+    }
+
+    @Test
+    @DisplayName("ACHIEVED and CANCELLED refuse every change with 409 (IllegalStateException)")
+    void finalStatesRefuseEveryChange() {
+        EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
+
+        EmployeeGoal goal = new EmployeeGoal(
+                tenantId,
+                employeeId,
+                null,
+                "Achieved Goal",
+                "Desc",
+                GoalCategory.INDIVIDUAL,
+                MetricType.PERCENTAGE,
+                new BigDecimal("100.00"),
+                "%",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
+                false,
+                "alex");
+        // Bring to achieved
+        goal.checkIn(new BigDecimal("100.00"), "alex");
+        assertThat(goal.getStatus()).isEqualTo(GoalStatus.ACHIEVED);
+
+        UUID goalId = UUID.randomUUID();
+        when(goalRepository.findByIdAndTenantId(eq(goalId), eq(tenantId))).thenReturn(Optional.of(goal));
+
+        // Check-in refused
+        assertThatThrownBy(() -> service.checkIn(goalId, new GoalCheckInRequest(new BigDecimal("100.00"), "Notes")))
+                .isInstanceOf(IllegalStateException.class);
+
+        // Edit refused
+        UpdateGoalRequest editReq = new UpdateGoalRequest("New Title", null, null, null, null, null, null, null);
+        assertThatThrownBy(() -> service.editGoal(goalId, editReq)).isInstanceOf(IllegalStateException.class);
+
+        // Cancel refused
+        assertThatThrownBy(() -> service.cancelGoal(goalId)).isInstanceOf(IllegalStateException.class);
+
+        // Start refused
+        assertThatThrownBy(() -> service.startGoal(goalId)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("Goal on a CLOSED cycle refuses every change with 409 (IllegalStateException)")
+    void goalOnClosedCycleRefusesChanges() {
+        EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
+
+        EmployeeGoal goal = new EmployeeGoal(
+                tenantId,
+                employeeId,
+                cycleId,
+                "Cycle Goal",
+                "Desc",
+                GoalCategory.INDIVIDUAL,
+                MetricType.PERCENTAGE,
+                new BigDecimal("100.00"),
+                "%",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
+                false,
+                "alex");
+
+        PerformanceCycle closedCycle = mock(PerformanceCycle.class);
+        when(closedCycle.getStatus()).thenReturn(PerformanceCycleStatus.CLOSED);
+        when(cycleRepository.findByIdAndTenantId(eq(cycleId), eq(tenantId))).thenReturn(Optional.of(closedCycle));
+
+        UUID goalId = UUID.randomUUID();
+        when(goalRepository.findByIdAndTenantId(eq(goalId), eq(tenantId))).thenReturn(Optional.of(goal));
+
+        assertThatThrownBy(() -> service.checkIn(goalId, new GoalCheckInRequest(new BigDecimal("50.00"), "note")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("closed performance cycle");
+
+        assertThatThrownBy(() -> service.cancelGoal(goalId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("closed performance cycle");
+    }
+
+    @Test
+    @DisplayName("MILESTONE metric type works as 0 or 100")
+    void milestoneMetricProgressCalculation() {
+        EmployeeResponse empResp = mockEmployee(employeeId, "EMP-001", "Alex", "Vance");
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(empResp));
+
+        EmployeeGoal goal = new EmployeeGoal(
+                tenantId,
+                employeeId,
+                null,
+                "Milestone Goal",
+                "Desc",
+                GoalCategory.INDIVIDUAL,
+                MetricType.MILESTONE,
+                BigDecimal.ONE,
+                "binary",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 6, 30),
+                false,
+                "alex");
+
+        UUID goalId = UUID.randomUUID();
+        when(goalRepository.findByIdAndTenantId(eq(goalId), eq(tenantId))).thenReturn(Optional.of(goal));
+        when(goalRepository.save(any(EmployeeGoal.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.checkIn(goalId, new GoalCheckInRequest(BigDecimal.ZERO, "Not done"));
+        assertThat(goal.getProgressPercentage()).isZero();
+        assertThat(goal.getStatus()).isEqualTo(GoalStatus.IN_PROGRESS);
+
+        service.checkIn(goalId, new GoalCheckInRequest(BigDecimal.ONE, "Done!"));
+        assertThat(goal.getProgressPercentage()).isEqualTo(100);
+        assertThat(goal.getStatus()).isEqualTo(GoalStatus.ACHIEVED);
     }
 
     @Test
@@ -192,12 +452,10 @@ class EmployeeGoalServiceImplTest {
                 GoalCategory.TEAM,
                 MetricType.PERCENTAGE,
                 new BigDecimal("100.00"),
-                new BigDecimal("75.00"),
                 "%",
-                75,
                 LocalDate.of(2026, 1, 1),
                 LocalDate.of(2026, 12, 31),
-                GoalStatus.IN_PROGRESS,
+                false,
                 "alex");
 
         when(goalRepository.findByTenantIdAndEmployeeIdInOrderByCreatedAtDesc(eq(tenantId), eq(List.of(employeeId))))

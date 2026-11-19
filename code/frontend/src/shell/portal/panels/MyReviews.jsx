@@ -26,6 +26,7 @@ export function MyReviews() {
   const { token } = theme.useToken();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [activeReview, setActiveReview] = useState(null);
@@ -34,11 +35,14 @@ export function MyReviews() {
 
   const loadMyReviews = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await performanceService.getMyReviews();
       setReviews(Array.isArray(data) ? data : []);
     } catch (err) {
-      message.error(err?.response?.data?.message || err.message || 'Failed to load your performance reviews');
+      const msg = err?.response?.data?.message || err.message || 'Failed to load your performance reviews';
+      setError(msg);
+      message.error(msg);
     } finally {
       setLoading(false);
     }
@@ -127,8 +131,8 @@ export function MyReviews() {
       title: 'Manager Rating',
       dataIndex: 'managerRating',
       key: 'managerRating',
-      render: (rating) =>
-        rating ? (
+      render: (rating, record) =>
+        record.status === 'COMPLETED' && rating ? (
           <Space>
             <Rate disabled value={rating} style={{ fontSize: 13 }} />
             <Text strong>({rating}/5)</Text>
@@ -208,6 +212,21 @@ export function MyReviews() {
           </div>
         }
       >
+        {error && (
+          <Alert
+            type="error"
+            message="Failed to load your performance reviews"
+            description={error}
+            action={
+              <Button size="small" type="primary" onClick={loadMyReviews}>
+                Retry
+              </Button>
+            }
+            showIcon
+            style={{ marginBottom: token.marginMD }}
+            data-testid="my-reviews-load-error"
+          />
+        )}
         <Table
           rowKey="id"
           columns={columns}

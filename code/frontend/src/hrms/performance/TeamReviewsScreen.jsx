@@ -18,6 +18,7 @@ import {
 } from 'antd';
 import { CheckOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons';
 import { performanceService } from './performanceService.js';
+import { goalService } from './goalService.js';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -26,18 +27,23 @@ export function TeamReviewsScreen() {
   const { token } = theme.useToken();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedReview, setSelectedReview] = useState(null);
+  const [linkedGoals, setLinkedGoals] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
 
   const loadTeamReviews = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await performanceService.getTeamReviews();
       setReviews(Array.isArray(data) ? data : []);
     } catch (err) {
-      message.error(err?.response?.data?.message || err.message || 'Failed to load team reviews');
+      const msg = err?.response?.data?.message || err.message || 'Failed to load team reviews';
+      setError(msg);
+      message.error(msg);
     } finally {
       setLoading(false);
     }
@@ -47,13 +53,23 @@ export function TeamReviewsScreen() {
     loadTeamReviews();
   }, []);
 
-  const openEvaluationDrawer = (review) => {
+  const openEvaluationDrawer = async (review) => {
     setSelectedReview(review);
     form.setFieldsValue({
       managerRating: review.managerRating || undefined,
       comments: review.managerComments || '',
     });
     setDrawerVisible(true);
+    if (review?.employeeId) {
+      try {
+        const goals = await goalService.getGoalsForEmployee(review.employeeId, review.cycleId);
+        setLinkedGoals(Array.isArray(goals) ? goals : []);
+      } catch {
+        setLinkedGoals([]);
+      }
+    } else {
+      setLinkedGoals([]);
+    }
   };
 
   const handleManagerSubmit = async (values) => {
@@ -147,16 +163,37 @@ export function TeamReviewsScreen() {
     {
       title: 'Actions',
       key: 'actions',
-      render: (_, record) => (
-        <Button
-          type={record.status === 'PENDING_MANAGER_REVIEW' ? 'primary' : 'default'}
-          size="small"
-          icon={record.status === 'COMPLETED' ? <EyeOutlined /> : <EditOutlined />}
-          onClick={() => openEvaluationDrawer(record)}
-        >
-          {record.status === 'COMPLETED' ? 'View Evaluation' : 'Evaluate'}
-        </Button>
-      ),
+      render: (_, record) => {
+        if (record.status === 'PENDING_MANAGER_REVIEW') {
+          return (
+            <Button
+              type="primary"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEvaluationDrawer(record)}
+            >
+              Evaluate
+            </Button>
+          );
+        }
+        if (record.status === 'COMPLETED') {
+          return (
+            <Button
+              type="default"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => openEvaluationDrawer(record)}
+            >
+              View Evaluation
+            </Button>
+          );
+        }
+        return (
+          <Button size="small" disabled>
+            Evaluate
+          </Button>
+        );
+      },
     },
   ];
 
@@ -175,6 +212,21 @@ export function TeamReviewsScreen() {
           </div>
         }
       >
+        {error && (
+          <Alert
+            type="error"
+            message="Failed to load team reviews"
+            description={error}
+            action={
+              <Button size="small" type="primary" onClick={loadTeamReviews}>
+                Retry
+              </Button>
+            }
+            showIcon
+            style={{ marginBottom: token.marginMD }}
+            data-testid="team-reviews-load-error"
+          />
+        )}
         <Table
           rowKey="id"
           columns={columns}
@@ -208,6 +260,43 @@ export function TeamReviewsScreen() {
                 {statusTag(selectedReview.status)}
               </Descriptions.Item>
             </Descriptions>
+
+            <Divider orientation="left" style={{ margin: `${token.marginSM}px 0` }}>
+              Linked Goals & OKRs
+            </Divider>
+            {linkedGoals.length > 0 ? (
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                {linkedGoals.map((goal) => (
+                  <Card key={goal.id} size="small" style={{ background: token.colorFillAlter }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text strong>{goal.title}</Text>
+                      <Tag
+                        color={
+                          goal.status === 'ACHIEVED'
+                            ? 'success'
+                            : goal.status === 'CANCELLED'
+                            ? 'default'
+                            : 'processing'
+                        }
+                      >
+                        {goal.status}
+                      </Tag>
+                    </div>
+                    {goal.description && (
+                      <Paragraph style={{ margin: 0, marginTop: 4 }}>{goal.description}</Paragraph>
+                    )}
+                    <div style={{ marginTop: 6 }}>
+                      <Text type="secondary">
+                        Progress: {goal.progressPercentage}% ({goal.currentValue} / {goal.targetValue}{' '}
+                        {goal.metricUnit || ''})
+                      </Text>
+                    </div>
+                  </Card>
+                ))}
+              </Space>
+            ) : (
+              <Text type="secondary">No goals linked to this review cycle.</Text>
+            )}
 
             <Divider orientation="left" style={{ margin: `${token.marginSM}px 0` }}>
               Employee Self-Appraisal

@@ -1,6 +1,7 @@
 package com.infinevo.hrms.performance;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -130,5 +131,90 @@ class PerformanceSecurityGuardTest {
         assertThatThrownBy(() -> service.submitSelfReview(reviewId, new SelfReviewRequest(4, "Too late")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Reviews can only be submitted for ACTIVE review cycles");
+    }
+
+    @Test
+    @DisplayName("Nobody rates their own review, including HR admin")
+    void nobodyRatesTheirOwnReviewIncludingHr() {
+        UUID reviewId = UUID.randomUUID();
+        PerformanceReview ownReview = new PerformanceReview(tenantId, cycleId, employeeA, null, "system");
+        ownReview.submitSelfReview(4, "my self review", "employeeA");
+
+        EmployeeResponse callerA = mock(EmployeeResponse.class);
+        when(callerA.id()).thenReturn(employeeA);
+        when(callerA.portalEnabled()).thenReturn(true);
+
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(callerA));
+        when(reviewRepository.findByIdAndTenantId(reviewId, tenantId)).thenReturn(Optional.of(ownReview));
+        when(permissionService.holds("hrms.performance.manage")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.submitManagerReview(reviewId, new ManagerReviewRequest(5, "Rating myself")))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Nobody may rate their own review");
+    }
+
+    @Test
+    @DisplayName("HR admin can rate an unassigned review of another employee")
+    void hrMayRateUnassignedReview() {
+        UUID reviewId = UUID.randomUUID();
+        PerformanceCycle cycle = new PerformanceCycle(
+                tenantId,
+                "Q4 Review",
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 12, 31),
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(10),
+                5,
+                "admin");
+        cycle.activate("admin");
+
+        PerformanceReview review = new PerformanceReview(tenantId, cycleId, employeeA, null, "system");
+        review.submitSelfReview(4, "self review", "employeeA");
+
+        EmployeeResponse hrCaller = mock(EmployeeResponse.class);
+        when(hrCaller.id()).thenReturn(employeeB);
+        when(hrCaller.portalEnabled()).thenReturn(true);
+
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(hrCaller));
+        when(reviewRepository.findByIdAndTenantId(reviewId, tenantId)).thenReturn(Optional.of(review));
+        when(cycleRepository.findByIdAndTenantId(cycleId, tenantId)).thenReturn(Optional.of(cycle));
+        when(permissionService.holds("hrms.performance.manage")).thenReturn(true);
+        when(reviewRepository.save(any(PerformanceReview.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PerformanceReviewResponse res = service.submitManagerReview(reviewId, new ManagerReviewRequest(5, "Good job"));
+        org.assertj.core.api.Assertions.assertThat(res.status()).isEqualTo(PerformanceReviewStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("Employee does not see manager rating or comments before review is COMPLETED")
+    void employeeDoesNotSeeManagerRatingBeforeCompleted() {
+        PerformanceCycle cycle = new PerformanceCycle(
+                tenantId,
+                "Q4 Review",
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 12, 31),
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(10),
+                5,
+                "admin");
+
+        PerformanceReview review = new PerformanceReview(tenantId, cycleId, employeeA, managerId, "system");
+        review.submitSelfReview(4, "self review", "employeeA");
+
+        EmployeeResponse callerA = mock(EmployeeResponse.class);
+        when(callerA.id()).thenReturn(employeeA);
+        when(callerA.portalEnabled()).thenReturn(true);
+
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(callerA));
+        when(reviewRepository.findByTenantIdAndEmployeeIdOrderByCreatedAtDesc(tenantId, employeeA))
+                .thenReturn(java.util.List.of(review));
+        when(cycleRepository.findAllById(any())).thenReturn(java.util.List.of(cycle));
+
+        java.util.List<PerformanceReviewResponse> myReviews = service.getMyReviews();
+        org.assertj.core.api.Assertions.assertThat(myReviews).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(myReviews.get(0).managerRating())
+                .isNull();
+        org.assertj.core.api.Assertions.assertThat(myReviews.get(0).managerComments())
+                .isNull();
     }
 }

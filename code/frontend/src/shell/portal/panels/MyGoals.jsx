@@ -18,18 +18,24 @@ import {
   Row,
   Col,
   Statistic,
-  Slider,
+  List,
+  Popconfirm,
   theme,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
+  PlayCircleOutlined,
+  StopOutlined,
+  HistoryOutlined,
   TrophyOutlined,
   ClockCircleOutlined,
   FlagOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { goalService } from '../../../hrms/performance/goalService.js';
+import { performanceService } from '../../../hrms/performance/performanceService.js';
 
 const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -38,31 +44,53 @@ const { Option } = Select;
 export function MyGoals() {
   const { token } = theme.useToken();
   const [goals, setGoals] = useState([]);
+  const [cycles, setCycles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [checkInModalVisible, setCheckInModalVisible] = useState(false);
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+
   const [activeGoal, setActiveGoal] = useState(null);
+  const [checkIns, setCheckIns] = useState([]);
+  const [checkInsLoading, setCheckInsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
   const [createForm] = Form.useForm();
+  const [editForm] = Form.useForm();
   const [checkInForm] = Form.useForm();
 
   const loadGoals = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await goalService.getMyGoals();
       setGoals(Array.isArray(data) ? data : []);
     } catch (err) {
-      message.error(err?.response?.data?.message || err.message || 'Failed to load your goals');
+      setLoadError(err?.response?.data?.message || err.message || 'Failed to load your goals');
     } finally {
       setLoading(false);
     }
   };
 
+  const loadCycles = async () => {
+    try {
+      const res = await performanceService.listCycles();
+      const list = Array.isArray(res) ? res : [];
+      setCycles(list.filter((c) => c.status !== 'CLOSED'));
+    } catch {
+      // Ignore cycle load failure
+    }
+  };
+
   useEffect(() => {
     loadGoals();
+    loadCycles();
   }, []);
 
-  const handleCreateGoal = async (values) => {
+  const handleCreateGoal = async (values, isDraft = false) => {
     setSubmitting(true);
     try {
       const payload = {
@@ -71,14 +99,14 @@ export function MyGoals() {
         category: values.category || 'INDIVIDUAL',
         metricType: values.metricType || 'PERCENTAGE',
         targetValue: values.targetValue != null ? values.targetValue : 100,
-        currentValue: values.currentValue != null ? values.currentValue : 0,
         metricUnit: values.metricUnit ? values.metricUnit.trim() : '%',
         startDate: values.dateRange[0].format('YYYY-MM-DD'),
         dueDate: values.dateRange[1].format('YYYY-MM-DD'),
-        status: 'IN_PROGRESS',
+        cycleId: values.cycleId || null,
+        draft: isDraft,
       };
       await goalService.createGoal(payload);
-      message.success('Goal created successfully');
+      message.success(isDraft ? 'Goal saved as draft' : 'Goal created successfully');
       setCreateModalVisible(false);
       createForm.resetFields();
       loadGoals();
@@ -89,15 +117,93 @@ export function MyGoals() {
     }
   };
 
+  const handleOpenEdit = (goal) => {
+    setActiveGoal(goal);
+    editForm.setFieldsValue({
+      title: goal.title,
+      description: goal.description,
+      category: goal.category,
+      targetValue: goal.targetValue,
+      metricUnit: goal.metricUnit,
+      dateRange: [dayjs(goal.startDate), dayjs(goal.dueDate)],
+      cycleId: goal.cycleId,
+    });
+    setEditModalVisible(true);
+  };
+
+  const handleEditGoal = async (values) => {
+    if (!activeGoal) return;
+    setSubmitting(true);
+    try {
+      const payload = {
+        title: values.title.trim(),
+        description: values.description ? values.description.trim() : null,
+        category: values.category,
+        targetValue: values.targetValue,
+        metricUnit: values.metricUnit ? values.metricUnit.trim() : '%',
+        startDate: values.dateRange[0].format('YYYY-MM-DD'),
+        dueDate: values.dateRange[1].format('YYYY-MM-DD'),
+        cycleId: values.cycleId || null,
+      };
+      await goalService.editGoal(activeGoal.id, payload);
+      message.success('Goal updated successfully');
+      setEditModalVisible(false);
+      editForm.resetFields();
+      setActiveGoal(null);
+      loadGoals();
+    } catch (err) {
+      message.error(err?.response?.data?.message || err.message || 'Failed to update goal');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStartGoal = async (goalId) => {
+    try {
+      await goalService.startGoal(goalId);
+      message.success('Goal started');
+      loadGoals();
+    } catch (err) {
+      message.error(err?.response?.data?.message || err.message || 'Failed to start goal');
+    }
+  };
+
+  const handleCancelGoal = async (goalId) => {
+    try {
+      await goalService.cancelGoal(goalId);
+      message.success('Goal cancelled');
+      loadGoals();
+    } catch (err) {
+      message.error(err?.response?.data?.message || err.message || 'Failed to cancel goal');
+    }
+  };
+
+  const loadGoalCheckIns = async (goalId) => {
+    setCheckInsLoading(true);
+    try {
+      const res = await goalService.getCheckIns(goalId);
+      setCheckIns(Array.isArray(res) ? res : []);
+    } catch {
+      setCheckIns([]);
+    } finally {
+      setCheckInsLoading(false);
+    }
+  };
+
   const handleOpenCheckIn = (goal) => {
     setActiveGoal(goal);
     checkInForm.setFieldsValue({
       currentValue: goal.currentValue,
-      progressPercentage: goal.progressPercentage,
-      status: goal.status,
-      progressNotes: '',
+      notes: '',
     });
+    loadGoalCheckIns(goal.id);
     setCheckInModalVisible(true);
+  };
+
+  const handleOpenHistory = (goal) => {
+    setActiveGoal(goal);
+    loadGoalCheckIns(goal.id);
+    setHistoryModalVisible(true);
   };
 
   const handleCheckIn = async (values) => {
@@ -106,18 +212,16 @@ export function MyGoals() {
     try {
       const payload = {
         currentValue: values.currentValue,
-        progressPercentage: values.progressPercentage,
-        status: values.status,
-        progressNotes: values.progressNotes ? values.progressNotes.trim() : null,
+        notes: values.notes ? values.notes.trim() : null,
       };
-      await goalService.updateProgress(activeGoal.id, payload);
-      message.success('Progress updated successfully');
+      await goalService.checkIn(activeGoal.id, payload);
+      message.success('Check-in recorded successfully');
       setCheckInModalVisible(false);
       checkInForm.resetFields();
       setActiveGoal(null);
       loadGoals();
     } catch (err) {
-      message.error(err?.response?.data?.message || err.message || 'Failed to update progress');
+      message.error(err?.response?.data?.message || err.message || 'Failed to record check-in');
     } finally {
       setSubmitting(false);
     }
@@ -129,6 +233,9 @@ export function MyGoals() {
     goals.length > 0
       ? Math.round(goals.reduce((acc, g) => acc + (g.progressPercentage || 0), 0) / goals.length)
       : 0;
+
+  const isReadOnly = (record) =>
+    Boolean(record.readOnly || record.status === 'ACHIEVED' || record.status === 'CANCELLED');
 
   const columns = [
     {
@@ -153,6 +260,7 @@ export function MyGoals() {
               {record.category}
             </Tag>
             {record.cycleName && <Tag color="geekblue">{record.cycleName}</Tag>}
+            {record.readOnly && <Tag color="default">Locked</Tag>}
           </Space>
         </div>
       ),
@@ -242,21 +350,84 @@ export function MyGoals() {
     {
       title: 'Action',
       key: 'action',
-      width: 110,
-      render: (_, record) => (
-        <Button
-          type="primary"
-          ghost
-          size="small"
-          icon={<EditOutlined />}
-          onClick={() => handleOpenCheckIn(record)}
-          disabled={record.status === 'CANCELLED'}
-        >
-          Check-in
-        </Button>
-      ),
+      width: 220,
+      render: (_, record) => {
+        if (isReadOnly(record)) {
+          return (
+            <Button
+              size="small"
+              icon={<HistoryOutlined />}
+              onClick={() => handleOpenHistory(record)}
+            >
+              History
+            </Button>
+          );
+        }
+
+        return (
+          <Space size={6} wrap>
+            {record.status === 'DRAFT' && (
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={() => handleStartGoal(record.id)}
+              >
+                Start
+              </Button>
+            )}
+            {record.status === 'IN_PROGRESS' && (
+              <Button
+                type="primary"
+                ghost
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => handleOpenCheckIn(record)}
+              >
+                Check-in
+              </Button>
+            )}
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleOpenEdit(record)}
+            >
+              Edit
+            </Button>
+            <Popconfirm
+              title="Cancel this goal?"
+              description="This will mark the goal as cancelled permanently."
+              onConfirm={() => handleCancelGoal(record.id)}
+              okText="Yes, Cancel"
+              cancelText="No"
+            >
+              <Button danger size="small" icon={<StopOutlined />}>
+                Cancel
+              </Button>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
+
+  if (loadError) {
+    return (
+      <Card bordered>
+        <Alert
+          type="error"
+          showIcon
+          message="Failed to load your goals"
+          description={loadError}
+          action={
+            <Button icon={<ReloadOutlined />} onClick={loadGoals}>
+              Retry
+            </Button>
+          }
+        />
+      </Card>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -332,12 +503,11 @@ export function MyGoals() {
         <Form
           form={createForm}
           layout="vertical"
-          onFinish={handleCreateGoal}
+          onFinish={(values) => handleCreateGoal(values, false)}
           initialValues={{
             category: 'INDIVIDUAL',
             metricType: 'PERCENTAGE',
             targetValue: 100,
-            currentValue: 0,
             metricUnit: '%',
           }}
         >
@@ -378,19 +548,120 @@ export function MyGoals() {
           </Row>
 
           <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="currentValue" label="Current Value">
-                <InputNumber min={0} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item name="targetValue" label="Target Value" rules={[{ required: true }]}>
                 <InputNumber min={1} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item name="metricUnit" label="Unit">
                 <Input placeholder="%, tickets, pts" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="dateRange"
+                label="Goal Period (Start & Due Date)"
+                rules={[{ required: true, message: 'Please select start and due dates' }]}
+              >
+                <DatePicker.RangePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="cycleId" label="Link to Review Cycle (Optional)">
+                <Select allowClear placeholder="Select an active cycle">
+                  {cycles.map((c) => (
+                    <Option key={c.id} value={c.id}>
+                      {c.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setCreateModalVisible(false)}>Cancel</Button>
+              <Button
+                onClick={() => {
+                  createForm.validateFields().then((vals) => handleCreateGoal(vals, true));
+                }}
+                loading={submitting}
+              >
+                Save as Draft
+              </Button>
+              <Button type="primary" htmlType="submit" loading={submitting}>
+                Save Goal
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Edit Goal Modal */}
+      <Modal
+        title={`Edit Goal: ${activeGoal?.title || ''}`}
+        open={editModalVisible}
+        onCancel={() => {
+          setEditModalVisible(false);
+          editForm.resetFields();
+          setActiveGoal(null);
+        }}
+        footer={null}
+        destroyOnHidden
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleEditGoal}>
+          <Form.Item
+            name="title"
+            label="Goal Title"
+            rules={[
+              { required: true, message: 'Please enter a goal title' },
+              { max: 200, message: 'Goal title must not exceed 200 characters' },
+            ]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item name="description" label="Description / Success Criteria">
+            <TextArea rows={3} />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="category" label="Category" rules={[{ required: true }]}>
+                <Select>
+                  <Option value="INDIVIDUAL">Individual</Option>
+                  <Option value="TEAM">Team</Option>
+                  <Option value="COMPANY">Company</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="targetValue" label="Target Value" rules={[{ required: true }]}>
+                <InputNumber min={1} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="metricUnit" label="Unit">
+                <Input placeholder="%, tickets, pts" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="cycleId" label="Link to Review Cycle">
+                <Select allowClear placeholder="Select an active cycle">
+                  {cycles.map((c) => (
+                    <Option key={c.id} value={c.id}>
+                      {c.name}
+                    </Option>
+                  ))}
+                </Select>
               </Form.Item>
             </Col>
           </Row>
@@ -405,9 +676,16 @@ export function MyGoals() {
 
           <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
             <Space>
-              <Button onClick={() => setCreateModalVisible(false)}>Cancel</Button>
+              <Button
+                onClick={() => {
+                  setEditModalVisible(false);
+                  setActiveGoal(null);
+                }}
+              >
+                Cancel
+              </Button>
               <Button type="primary" htmlType="submit" loading={submitting}>
-                Save Goal
+                Save Changes
               </Button>
             </Space>
           </Form.Item>
@@ -422,6 +700,7 @@ export function MyGoals() {
           setCheckInModalVisible(false);
           checkInForm.resetFields();
           setActiveGoal(null);
+          setCheckIns([]);
         }}
         footer={null}
         destroyOnHidden
@@ -431,58 +710,116 @@ export function MyGoals() {
             <Alert
               type="info"
               showIcon
-              message={`Target: ${activeGoal.targetValue} ${activeGoal.metricUnit} | Due: ${activeGoal.dueDate}`}
+              message={`Target: ${activeGoal.targetValue} ${activeGoal.metricUnit} | Current: ${activeGoal.currentValue} | Due: ${activeGoal.dueDate}`}
               style={{ marginBottom: 16 }}
             />
           )}
 
-          <Form.Item name="currentValue" label="Updated Value">
-            <InputNumber
-              min={0}
-              style={{ width: '100%' }}
-              onChange={(val) => {
-                if (activeGoal && activeGoal.targetValue > 0 && val != null) {
-                  const pct = Math.min(100, Math.round((val / activeGoal.targetValue) * 100));
-                  checkInForm.setFieldsValue({
-                    progressPercentage: pct,
-                    status: pct >= 100 ? 'ACHIEVED' : 'IN_PROGRESS',
-                  });
-                }
-              }}
+          <Form.Item
+            name="currentValue"
+            label="Updated Metric Value"
+            rules={[{ required: true, message: 'Please enter current value' }]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item name="notes" label="Check-in Notes / Accomplishments">
+            <TextArea
+              rows={3}
+              maxLength={2000}
+              placeholder="Add key achievements, milestones reached, or blockers encountered..."
             />
           </Form.Item>
 
-          <Form.Item name="progressPercentage" label="Progress %">
-            <Slider
-              min={0}
-              max={100}
-              marks={{ 0: '0%', 25: '25%', 50: '50%', 75: '75%', 100: '100%' }}
-            />
-          </Form.Item>
-
-          <Form.Item name="status" label="Status" rules={[{ required: true }]}>
-            <Select>
-              <Option value="IN_PROGRESS">In Progress</Option>
-              <Option value="ACHIEVED">Achieved</Option>
-              <Option value="CANCELLED">Cancelled</Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item name="progressNotes" label="Check-in Notes / Accomplishments">
-            <TextArea rows={3} placeholder="Add key achievements, milestones reached, or blockers encountered..." />
-          </Form.Item>
-
-          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+          <Form.Item style={{ marginBottom: 16, textAlign: 'right' }}>
             <Space>
-              <Button onClick={() => setCheckInModalVisible(false)}>Cancel</Button>
+              <Button
+                onClick={() => {
+                  setCheckInModalVisible(false);
+                  setActiveGoal(null);
+                }}
+              >
+                Cancel
+              </Button>
               <Button type="primary" htmlType="submit" loading={submitting}>
                 Save Check-in
               </Button>
             </Space>
           </Form.Item>
         </Form>
+
+        <div>
+          <Text strong>Past Check-ins</Text>
+          <List
+            style={{ marginTop: 8 }}
+            loading={checkInsLoading}
+            dataSource={checkIns}
+            locale={{ emptyText: 'No check-ins recorded yet.' }}
+            renderItem={(item) => (
+              <List.Item>
+                <List.Item.Meta
+                  title={
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Text strong>
+                        {item.currentValue} ({item.progressPercentage}%)
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                        {item.createdAt ? dayjs(item.createdAt).format('YYYY-MM-DD HH:mm') : ''}
+                      </Text>
+                    </div>
+                  }
+                  description={item.notes || 'No notes provided'}
+                />
+              </List.Item>
+            )}
+          />
+        </div>
+      </Modal>
+
+      {/* History Modal for Read-Only / Achieved / Cancelled Goals */}
+      <Modal
+        title={`Check-in History: ${activeGoal?.title || ''}`}
+        open={historyModalVisible}
+        onCancel={() => {
+          setHistoryModalVisible(false);
+          setActiveGoal(null);
+          setCheckIns([]);
+        }}
+        footer={[
+          <Button
+            key="close"
+            onClick={() => {
+              setHistoryModalVisible(false);
+              setActiveGoal(null);
+            }}
+          >
+            Close
+          </Button>,
+        ]}
+      >
+        <List
+          loading={checkInsLoading}
+          dataSource={checkIns}
+          locale={{ emptyText: 'No check-ins recorded yet.' }}
+          renderItem={(item) => (
+            <List.Item>
+              <List.Item.Meta
+                title={
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Text strong>
+                      {item.currentValue} ({item.progressPercentage}%)
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                      {item.createdAt ? dayjs(item.createdAt).format('YYYY-MM-DD HH:mm') : ''}
+                    </Text>
+                  </div>
+                }
+                description={item.notes || 'No notes provided'}
+              />
+            </List.Item>
+          )}
+        />
       </Modal>
     </div>
   );
 }
-

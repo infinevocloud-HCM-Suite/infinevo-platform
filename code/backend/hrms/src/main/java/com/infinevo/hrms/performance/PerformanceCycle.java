@@ -90,8 +90,7 @@ public class PerformanceCycle {
         this.selfReviewDeadline = Objects.requireNonNull(selfReviewDeadline, "selfReviewDeadline must not be null");
         this.managerReviewDeadline =
                 Objects.requireNonNull(managerReviewDeadline, "managerReviewDeadline must not be null");
-        this.ratingScaleMax =
-                (ratingScaleMax != null && ratingScaleMax >= 3 && ratingScaleMax <= 10) ? ratingScaleMax : 5;
+        this.ratingScaleMax = 5;
         this.status = PerformanceCycleStatus.DRAFT;
         this.createdBy = actor != null ? actor : "system";
         this.updatedBy = actor != null ? actor : "system";
@@ -136,6 +135,22 @@ public class PerformanceCycle {
             throw new IllegalStateException("Only ACTIVE cycles can be closed");
         }
         this.status = PerformanceCycleStatus.CLOSED;
+        this.updatedBy = actor != null ? actor : "system";
+        this.updatedAt = Instant.now();
+    }
+
+    public void updateDeadlines(LocalDate selfReviewDeadline, LocalDate managerReviewDeadline, String actor) {
+        if (this.status == PerformanceCycleStatus.CLOSED) {
+            throw new IllegalStateException("Cannot update deadlines for a CLOSED cycle");
+        }
+        if (selfReviewDeadline == null || managerReviewDeadline == null) {
+            throw new IllegalArgumentException("selfReviewDeadline and managerReviewDeadline must not be null");
+        }
+        if (selfReviewDeadline.isAfter(managerReviewDeadline)) {
+            throw new IllegalArgumentException("selfReviewDeadline must not be after managerReviewDeadline");
+        }
+        this.selfReviewDeadline = selfReviewDeadline;
+        this.managerReviewDeadline = managerReviewDeadline;
         this.updatedBy = actor != null ? actor : "system";
         this.updatedAt = Instant.now();
     }

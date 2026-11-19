@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class EmployeeGoalServiceImpl implements EmployeeGoalService {
 
     private final EmployeeGoalRepository goalRepository;
+    private final EmployeeGoalCheckInRepository checkInRepository;
     private final EmployeeRepository employeeRepository;
     private final PerformanceCycleRepository cycleRepository;
     private final ReportingLineRepository reportingLineRepository;
@@ -38,12 +39,14 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
 
     public EmployeeGoalServiceImpl(
             EmployeeGoalRepository goalRepository,
+            EmployeeGoalCheckInRepository checkInRepository,
             EmployeeRepository employeeRepository,
             PerformanceCycleRepository cycleRepository,
             ReportingLineRepository reportingLineRepository,
             EmployeeService employeeService,
             PermissionService permissionService) {
         this.goalRepository = Objects.requireNonNull(goalRepository, "goalRepository must not be null");
+        this.checkInRepository = Objects.requireNonNull(checkInRepository, "checkInRepository must not be null");
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
         this.cycleRepository = Objects.requireNonNull(cycleRepository, "cycleRepository must not be null");
         this.reportingLineRepository =
@@ -64,6 +67,9 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
                     .findByIdAndTenantId(request.cycleId(), tenantId)
                     .orElseThrow(
                             () -> new IllegalArgumentException("Performance cycle not found: " + request.cycleId()));
+            if (cycle.getStatus() == PerformanceCycleStatus.CLOSED) {
+                throw new IllegalStateException("Cannot link goal to a closed performance cycle");
+            }
             cycleName = cycle.getName();
         }
 
@@ -76,12 +82,10 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
                 request.category(),
                 request.metricType(),
                 request.targetValue(),
-                request.currentValue(),
                 request.metricUnit(),
-                request.progressPercentage(),
                 request.startDate(),
                 request.dueDate(),
-                request.status(),
+                request.draft(),
                 currentActor());
 
         EmployeeGoal saved = goalRepository.save(goal);
@@ -91,7 +95,124 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
     }
 
     @Override
-    public EmployeeGoalResponse updateProgress(UUID goalId, UpdateGoalProgressRequest request) {
+    public EmployeeGoalResponse editGoal(UUID goalId, UpdateGoalRequest request) {
+        UUID tenantId = TenantContext.require();
+        EmployeeResponse current = requireCurrentEmployee();
+
+        EmployeeGoal goal = goalRepository
+                .findByIdAndTenantId(goalId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Employee goal not found: " + goalId));
+
+        if (!goal.getEmployeeId().equals(current.id())) {
+            throw new AccessDeniedException("Only the goal owner can edit this goal");
+        }
+
+        ensureCycleNotClosed(tenantId, goal.getCycleId());
+
+        if (request != null && request.cycleId() != null && !request.cycleId().equals(goal.getCycleId())) {
+            PerformanceCycle newCycle = cycleRepository
+                    .findByIdAndTenantId(request.cycleId(), tenantId)
+                    .orElseThrow(
+                            () -> new IllegalArgumentException("Performance cycle not found: " + request.cycleId()));
+            if (newCycle.getStatus() == PerformanceCycleStatus.CLOSED) {
+                throw new IllegalStateException("Cannot link goal to a closed performance cycle");
+            }
+        }
+
+        if (request != null) {
+            goal.edit(
+                    request.title(),
+                    request.description(),
+                    request.category(),
+                    request.targetValue(),
+                    request.metricUnit(),
+                    request.startDate(),
+                    request.dueDate(),
+                    request.cycleId(),
+                    currentActor());
+        }
+
+        EmployeeGoal saved = goalRepository.save(goal);
+        return mapGoalToResponse(tenantId, saved);
+    }
+
+    @Override
+    public EmployeeGoalResponse startGoal(UUID goalId) {
+        UUID tenantId = TenantContext.require();
+        EmployeeResponse current = requireCurrentEmployee();
+
+        EmployeeGoal goal = goalRepository
+                .findByIdAndTenantId(goalId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Employee goal not found: " + goalId));
+
+        if (!goal.getEmployeeId().equals(current.id())) {
+            throw new AccessDeniedException("Only the goal owner can start this goal");
+        }
+
+        ensureCycleNotClosed(tenantId, goal.getCycleId());
+
+        goal.start(currentActor());
+        EmployeeGoal saved = goalRepository.save(goal);
+        return mapGoalToResponse(tenantId, saved);
+    }
+
+    @Override
+    public EmployeeGoalResponse cancelGoal(UUID goalId) {
+        UUID tenantId = TenantContext.require();
+        EmployeeResponse current = requireCurrentEmployee();
+
+        EmployeeGoal goal = goalRepository
+                .findByIdAndTenantId(goalId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Employee goal not found: " + goalId));
+
+        if (!goal.getEmployeeId().equals(current.id())) {
+            throw new AccessDeniedException("Only the goal owner can cancel this goal");
+        }
+
+        ensureCycleNotClosed(tenantId, goal.getCycleId());
+
+        goal.cancel(currentActor());
+        EmployeeGoal saved = goalRepository.save(goal);
+        return mapGoalToResponse(tenantId, saved);
+    }
+
+    @Override
+    public EmployeeGoalResponse checkIn(UUID goalId, GoalCheckInRequest request) {
+        UUID tenantId = TenantContext.require();
+        EmployeeResponse current = requireCurrentEmployee();
+
+        EmployeeGoal goal = goalRepository
+                .findByIdAndTenantId(goalId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Employee goal not found: " + goalId));
+
+        if (!goal.getEmployeeId().equals(current.id())) {
+            throw new AccessDeniedException("Only the goal owner can check in on this goal");
+        }
+
+        ensureCycleNotClosed(tenantId, goal.getCycleId());
+
+        if (request == null || request.currentValue() == null) {
+            throw new IllegalArgumentException("currentValue is required");
+        }
+
+        goal.checkIn(request.currentValue(), currentActor());
+
+        EmployeeGoalCheckIn checkIn = new EmployeeGoalCheckIn(
+                tenantId,
+                goal.getId() != null ? goal.getId() : goalId,
+                request.currentValue(),
+                goal.getProgressPercentage(),
+                request.notes(),
+                currentActor());
+        checkInRepository.save(checkIn);
+
+        EmployeeGoal saved = goalRepository.save(goal);
+        return mapGoalToResponse(tenantId, saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<GoalCheckInResponse> getCheckIns(UUID goalId) {
         UUID tenantId = TenantContext.require();
         EmployeeResponse current = requireCurrentEmployee();
 
@@ -104,17 +225,12 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
         boolean isManager = isManagerOf(tenantId, current.id(), goal.getEmployeeId());
 
         if (!isOwner && !isHRAdmin && !isManager) {
-            throw new AccessDeniedException("Not authorized to update this goal");
+            throw new AccessDeniedException("Not authorized to view check-ins for this goal");
         }
 
-        goal.updateProgress(
-                request != null ? request.currentValue() : null,
-                request != null ? request.progressPercentage() : null,
-                request != null ? request.status() : null,
-                currentActor());
-
-        EmployeeGoal saved = goalRepository.save(goal);
-        return mapGoalToResponse(tenantId, saved);
+        List<EmployeeGoalCheckIn> checkIns =
+                checkInRepository.findByTenantIdAndGoalIdOrderByCreatedAtDesc(tenantId, goalId);
+        return checkIns.stream().map(GoalCheckInResponse::from).toList();
     }
 
     @Override
@@ -156,7 +272,7 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<EmployeeGoalResponse> getGoalsForEmployee(UUID employeeId) {
+    public List<EmployeeGoalResponse> getGoalsForEmployee(UUID employeeId, UUID cycleId) {
         UUID tenantId = TenantContext.require();
         EmployeeResponse current = requireCurrentEmployee();
 
@@ -168,7 +284,13 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
             throw new AccessDeniedException("Not authorized to view goals for employee: " + employeeId);
         }
 
-        List<EmployeeGoal> goals = goalRepository.findByTenantIdAndEmployeeIdOrderByCreatedAtDesc(tenantId, employeeId);
+        List<EmployeeGoal> goals;
+        if (cycleId != null) {
+            goals = goalRepository.findByTenantIdAndEmployeeIdAndCycleIdOrderByCreatedAtDesc(
+                    tenantId, employeeId, cycleId);
+        } else {
+            goals = goalRepository.findByTenantIdAndEmployeeIdOrderByCreatedAtDesc(tenantId, employeeId);
+        }
         return mapGoalsToResponses(tenantId, goals);
     }
 
@@ -186,6 +308,17 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
                     tenantId, current.id(), cycleId);
         }
         return mapGoalsToResponses(tenantId, goals);
+    }
+
+    private void ensureCycleNotClosed(UUID tenantId, UUID cycleId) {
+        if (cycleId == null) {
+            return;
+        }
+        cycleRepository.findByIdAndTenantId(cycleId, tenantId).ifPresent(cycle -> {
+            if (cycle.getStatus() == PerformanceCycleStatus.CLOSED) {
+                throw new IllegalStateException("Goal belongs to a closed performance cycle and cannot be modified");
+            }
+        });
     }
 
     private boolean isManagerOf(UUID tenantId, UUID managerId, UUID employeeId) {
@@ -224,19 +357,22 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
         Map<UUID, Employee> empMap = employeeRepository.findByTenantIdAndIdIn(tenantId, empIds).stream()
                 .collect(Collectors.toMap(Employee::getId, e -> e, (a, b) -> a));
 
-        Map<UUID, String> cycleMap = cycleIds.isEmpty()
+        Map<UUID, PerformanceCycle> cycleMap = cycleIds.isEmpty()
                 ? Collections.emptyMap()
                 : cycleRepository.findAllById(cycleIds).stream()
                         .filter(c -> c.getTenantId().equals(tenantId))
-                        .collect(Collectors.toMap(PerformanceCycle::getId, PerformanceCycle::getName, (a, b) -> a));
+                        .collect(Collectors.toMap(PerformanceCycle::getId, c -> c, (a, b) -> a));
 
         return goals.stream()
                 .map(goal -> {
                     Employee emp = empMap.get(goal.getEmployeeId());
                     String empName = formatEmployeeName(emp);
                     String empNumber = emp != null ? emp.getEmployeeNumber() : "";
-                    String cycleName = goal.getCycleId() != null ? cycleMap.get(goal.getCycleId()) : null;
-                    return EmployeeGoalResponse.from(goal, empName, empNumber, cycleName);
+                    PerformanceCycle cycle = goal.getCycleId() != null ? cycleMap.get(goal.getCycleId()) : null;
+                    String cycleName = cycle != null ? cycle.getName() : null;
+                    boolean cycleClosed = cycle != null && cycle.getStatus() == PerformanceCycleStatus.CLOSED;
+                    boolean readOnly = goal.isFinal() || cycleClosed;
+                    return EmployeeGoalResponse.from(goal, empName, empNumber, cycleName, readOnly);
                 })
                 .toList();
     }
@@ -247,19 +383,29 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
                 .orElse(null);
         String empName = formatEmployeeName(emp);
         String empNumber = emp != null ? emp.getEmployeeNumber() : "";
-        String cycleName = null;
+        PerformanceCycle cycle = null;
         if (goal.getCycleId() != null) {
-            cycleName = cycleRepository
+            cycle = cycleRepository
                     .findByIdAndTenantId(goal.getCycleId(), tenantId)
-                    .map(PerformanceCycle::getName)
                     .orElse(null);
         }
-        return EmployeeGoalResponse.from(goal, empName, empNumber, cycleName);
+        String cycleName = cycle != null ? cycle.getName() : null;
+        boolean cycleClosed = cycle != null && cycle.getStatus() == PerformanceCycleStatus.CLOSED;
+        boolean readOnly = goal.isFinal() || cycleClosed;
+        return EmployeeGoalResponse.from(goal, empName, empNumber, cycleName, readOnly);
     }
 
     private EmployeeGoalResponse mapSingleGoalToResponse(
             UUID tenantId, EmployeeGoal goal, String employeeName, String employeeNumber, String cycleName) {
-        return EmployeeGoalResponse.from(goal, employeeName, employeeNumber, cycleName);
+        boolean cycleClosed = false;
+        if (goal.getCycleId() != null) {
+            cycleClosed = cycleRepository
+                    .findByIdAndTenantId(goal.getCycleId(), tenantId)
+                    .map(c -> c.getStatus() == PerformanceCycleStatus.CLOSED)
+                    .orElse(false);
+        }
+        boolean readOnly = goal.isFinal() || cycleClosed;
+        return EmployeeGoalResponse.from(goal, employeeName, employeeNumber, cycleName, readOnly);
     }
 
     private String formatEmployeeName(Employee e) {

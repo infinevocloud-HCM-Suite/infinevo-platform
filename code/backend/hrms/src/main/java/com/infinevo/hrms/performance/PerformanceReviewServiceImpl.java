@@ -6,7 +6,6 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.core.org.ReportingLine;
-import com.infinevo.core.org.ReportingLineKind;
 import com.infinevo.core.org.ReportingLineRepository;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
@@ -14,7 +13,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -104,15 +102,28 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
         List<Employee> activeEmployees =
                 employeeRepository.findByTenantIdAndDeletedFalseAndStatus(tenantId, EmploymentStatus.ACTIVE);
 
+        List<ReportingLine> lines = reportingLineRepository.findAllActivePrimaryLines(tenantId, cycle.getPeriodStart());
+        Map<UUID, UUID> managerByEmployee = lines.stream()
+                .filter(l -> l.getEmployee() != null && l.getManager() != null)
+                .collect(Collectors.toMap(
+                        l -> l.getEmployee().getId(),
+                        l -> l.getManager().getId(),
+                        (existing, replacement) -> existing));
+
+        List<PerformanceReview> existingReviews = reviewRepository.findByTenantIdAndCycleId(tenantId, cycleId);
+        Set<UUID> reviewedEmployeeIds =
+                existingReviews.stream().map(PerformanceReview::getEmployeeId).collect(Collectors.toSet());
+
+        List<PerformanceReview> toCreate = new java.util.ArrayList<>();
         for (Employee emp : activeEmployees) {
-            UUID managerId = resolveReportingManager(tenantId, emp.getId(), cycle);
-            Optional<PerformanceReview> existing =
-                    reviewRepository.findByTenantIdAndCycleIdAndEmployeeId(tenantId, cycleId, emp.getId());
-            if (existing.isEmpty()) {
-                PerformanceReview review =
-                        new PerformanceReview(tenantId, cycleId, emp.getId(), managerId, currentActor());
-                reviewRepository.save(review);
+            if (!reviewedEmployeeIds.contains(emp.getId())) {
+                UUID managerId = managerByEmployee.get(emp.getId()); // null if unassigned
+                toCreate.add(new PerformanceReview(tenantId, cycleId, emp.getId(), managerId, currentActor()));
             }
+        }
+
+        if (!toCreate.isEmpty()) {
+            reviewRepository.saveAll(toCreate);
         }
 
         PerformanceCycle saved = cycleRepository.save(cycle);
@@ -171,13 +182,71 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
     }
 
     @Override
+    public PerformanceCycleResponse updateCycleDeadlines(UUID cycleId, UpdateCycleDeadlinesRequest request) {
+        UUID tenantId = TenantContext.require();
+        if (request == null || request.selfReviewDeadline() == null || request.managerReviewDeadline() == null) {
+            throw new IllegalArgumentException("selfReviewDeadline and managerReviewDeadline are required");
+        }
+        if (request.selfReviewDeadline().isAfter(request.managerReviewDeadline())) {
+            throw new IllegalArgumentException("selfReviewDeadline must not be after managerReviewDeadline");
+        }
+        PerformanceCycle cycle = cycleRepository
+                .findByIdAndTenantId(cycleId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Performance cycle not found: " + cycleId));
+
+        cycle.updateDeadlines(request.selfReviewDeadline(), request.managerReviewDeadline(), currentActor());
+        PerformanceCycle saved = cycleRepository.save(cycle);
+        return PerformanceCycleResponse.from(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PerformanceReviewResponse> getCycleReviews(UUID cycleId) {
+        UUID tenantId = TenantContext.require();
+        PerformanceCycle cycle = cycleRepository
+                .findByIdAndTenantId(cycleId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Performance cycle not found: " + cycleId));
+        List<PerformanceReview> reviews = reviewRepository.findByTenantIdAndCycleId(tenantId, cycleId);
+        return mapReviewsToResponses(tenantId, reviews, false);
+    }
+
+    @Override
+    public PerformanceReviewResponse reassignManager(UUID reviewId, ReassignManagerRequest request) {
+        UUID tenantId = TenantContext.require();
+        if (request == null || request.managerId() == null) {
+            throw new IllegalArgumentException("managerId is required");
+        }
+        PerformanceReview review = reviewRepository
+                .findByIdAndTenantId(reviewId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Performance review not found: " + reviewId));
+        if (review.getStatus() == PerformanceReviewStatus.COMPLETED) {
+            throw new IllegalStateException("Cannot reassign manager for completed review");
+        }
+        if (request.managerId().equals(review.getEmployeeId())) {
+            throw new IllegalArgumentException("Employee cannot be assigned as their own review manager");
+        }
+        Employee newManager = employeeRepository
+                .findByIdAndTenantIdAndDeletedFalse(request.managerId(), tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Manager employee not found: " + request.managerId()));
+        if (newManager.getStatus() != EmploymentStatus.ACTIVE) {
+            throw new IllegalArgumentException("Manager must be an active employee");
+        }
+        review.reassignManager(request.managerId(), currentActor());
+        PerformanceReview saved = reviewRepository.save(review);
+        PerformanceCycle cycle = cycleRepository
+                .findByIdAndTenantId(saved.getCycleId(), tenantId)
+                .orElse(null);
+        return mapSingleReviewToResponse(tenantId, saved, cycle != null ? cycle.getName() : "Review Cycle", false);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<PerformanceReviewResponse> getMyReviews() {
         UUID tenantId = TenantContext.require();
         EmployeeResponse current = requireCurrentEmployee();
         List<PerformanceReview> reviews =
                 reviewRepository.findByTenantIdAndEmployeeIdOrderByCreatedAtDesc(tenantId, current.id());
-        return mapReviewsToResponses(tenantId, reviews);
+        return mapReviewsToResponses(tenantId, reviews, true);
     }
 
     @Override
@@ -201,19 +270,21 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
             throw new IllegalStateException("Reviews can only be submitted for ACTIVE review cycles");
         }
 
+        if (cycle.getSelfReviewDeadline() != null && java.time.LocalDate.now().isAfter(cycle.getSelfReviewDeadline())) {
+            throw new IllegalStateException("The self-review deadline has passed");
+        }
+
         if (review.getStatus() != PerformanceReviewStatus.PENDING_SELF_REVIEW) {
             throw new IllegalStateException("Self review has already been submitted for this appraisal");
         }
 
-        if (request.selfRating() == null
-                || request.selfRating() < 1
-                || request.selfRating() > cycle.getRatingScaleMax()) {
-            throw new IllegalArgumentException("Self rating must be between 1 and " + cycle.getRatingScaleMax());
+        if (request.selfRating() == null || request.selfRating() < 1 || request.selfRating() > 5) {
+            throw new IllegalArgumentException("Self rating must be between 1 and 5");
         }
 
         review.submitSelfReview(request.selfRating(), request.comments(), currentActor());
         PerformanceReview saved = reviewRepository.save(review);
-        return mapSingleReviewToResponse(tenantId, saved, cycle.getName());
+        return mapSingleReviewToResponse(tenantId, saved, cycle.getName(), true);
     }
 
     @Override
@@ -223,7 +294,7 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
         EmployeeResponse current = requireCurrentEmployee();
         List<PerformanceReview> reviews =
                 reviewRepository.findByTenantIdAndManagerIdOrderByCreatedAtDesc(tenantId, current.id());
-        return mapReviewsToResponses(tenantId, reviews);
+        return mapReviewsToResponses(tenantId, reviews, false);
     }
 
     @Override
@@ -235,7 +306,12 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
                 .findByIdAndTenantId(reviewId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Performance review not found: " + reviewId));
 
-        boolean isAssignedManager = review.getManagerId().equals(current.id());
+        if (review.getEmployeeId().equals(current.id())) {
+            throw new AccessDeniedException("Nobody may rate their own review");
+        }
+
+        boolean isAssignedManager =
+                review.getManagerId() != null && review.getManagerId().equals(current.id());
         boolean isHRAdmin = permissionService.holds("hrms.performance.manage");
         if (!isAssignedManager && !isHRAdmin) {
             throw new AccessDeniedException(
@@ -250,32 +326,22 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
             throw new IllegalStateException("Manager reviews can only be submitted for ACTIVE review cycles");
         }
 
-        if (request.managerRating() == null
-                || request.managerRating() < 1
-                || request.managerRating() > cycle.getRatingScaleMax()) {
-            throw new IllegalArgumentException("Manager rating must be between 1 and " + cycle.getRatingScaleMax());
+        if (cycle.getManagerReviewDeadline() != null
+                && java.time.LocalDate.now().isAfter(cycle.getManagerReviewDeadline())) {
+            throw new IllegalStateException("The manager review deadline has passed");
+        }
+
+        if (review.getStatus() != PerformanceReviewStatus.PENDING_MANAGER_REVIEW) {
+            throw new IllegalStateException("Cannot evaluate review in status: " + review.getStatus());
+        }
+
+        if (request.managerRating() == null || request.managerRating() < 1 || request.managerRating() > 5) {
+            throw new IllegalArgumentException("Manager rating must be between 1 and 5");
         }
 
         review.submitManagerReview(request.managerRating(), request.comments(), currentActor());
         PerformanceReview saved = reviewRepository.save(review);
-        return mapSingleReviewToResponse(tenantId, saved, cycle.getName());
-    }
-
-    private UUID resolveReportingManager(UUID tenantId, UUID employeeId, PerformanceCycle cycle) {
-        Optional<ReportingLine> openLine =
-                reportingLineRepository.findCurrentOpenLine(tenantId, employeeId, ReportingLineKind.PRIMARY);
-        if (openLine.isPresent() && openLine.get().getManager() != null) {
-            return openLine.get().getManager().getId();
-        }
-
-        List<ReportingLine> activeLines = reportingLineRepository.findActiveLines(
-                tenantId, employeeId, ReportingLineKind.PRIMARY, cycle.getPeriodStart());
-        if (!activeLines.isEmpty() && activeLines.get(0).getManager() != null) {
-            return activeLines.get(0).getManager().getId();
-        }
-
-        // Fall back to employee themself if unassigned
-        return employeeId;
+        return mapSingleReviewToResponse(tenantId, saved, cycle.getName(), false);
     }
 
     private void validateCycleRequest(CreateCycleRequest request) {
@@ -297,12 +363,13 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
         if (request.selfReviewDeadline().isAfter(request.managerReviewDeadline())) {
             throw new IllegalArgumentException("selfReviewDeadline must not be after managerReviewDeadline");
         }
-        if (request.ratingScaleMax() != null && (request.ratingScaleMax() < 3 || request.ratingScaleMax() > 10)) {
-            throw new IllegalArgumentException("ratingScaleMax must be between 3 and 10");
+        if (request.ratingScaleMax() != null && request.ratingScaleMax() != 5) {
+            throw new IllegalArgumentException("ratingScaleMax must be 5");
         }
     }
 
-    private List<PerformanceReviewResponse> mapReviewsToResponses(UUID tenantId, List<PerformanceReview> reviews) {
+    private List<PerformanceReviewResponse> mapReviewsToResponses(
+            UUID tenantId, List<PerformanceReview> reviews, boolean maskManagerFeedbackIfNotCompleted) {
         if (reviews.isEmpty()) {
             return List.of();
         }
@@ -310,7 +377,9 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
         Set<UUID> cycleIds = new HashSet<>();
         for (PerformanceReview r : reviews) {
             empIds.add(r.getEmployeeId());
-            empIds.add(r.getManagerId());
+            if (r.getManagerId() != null) {
+                empIds.add(r.getManagerId());
+            }
             cycleIds.add(r.getCycleId());
         }
         Map<UUID, Employee> empMap = employeeRepository.findByTenantIdAndIdIn(tenantId, empIds).stream()
@@ -322,28 +391,34 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
                 .map(r -> {
                     String cycleName = cycleMap.getOrDefault(r.getCycleId(), "Review Cycle");
                     Employee emp = empMap.get(r.getEmployeeId());
-                    Employee mgr = empMap.get(r.getManagerId());
+                    Employee mgr = r.getManagerId() != null ? empMap.get(r.getManagerId()) : null;
                     String empName = formatEmployeeName(emp);
                     String empNumber = emp != null ? emp.getEmployeeNumber() : "";
                     String mgrName = formatEmployeeName(mgr);
-                    return PerformanceReviewResponse.from(r, cycleName, empName, empNumber, mgrName);
+                    return PerformanceReviewResponse.from(
+                            r, cycleName, empName, empNumber, mgrName, maskManagerFeedbackIfNotCompleted);
                 })
                 .toList();
     }
 
     private PerformanceReviewResponse mapSingleReviewToResponse(
-            UUID tenantId, PerformanceReview review, String cycleName) {
-        Set<UUID> empIds = Set.of(review.getEmployeeId(), review.getManagerId());
+            UUID tenantId, PerformanceReview review, String cycleName, boolean maskManagerFeedbackIfNotCompleted) {
+        Set<UUID> empIds = new HashSet<>();
+        empIds.add(review.getEmployeeId());
+        if (review.getManagerId() != null) {
+            empIds.add(review.getManagerId());
+        }
         Map<UUID, Employee> empMap = employeeRepository.findByTenantIdAndIdIn(tenantId, empIds).stream()
                 .collect(Collectors.toMap(Employee::getId, e -> e, (a, b) -> a));
 
         Employee emp = empMap.get(review.getEmployeeId());
-        Employee mgr = empMap.get(review.getManagerId());
+        Employee mgr = review.getManagerId() != null ? empMap.get(review.getManagerId()) : null;
         String empName = formatEmployeeName(emp);
         String empNumber = emp != null ? emp.getEmployeeNumber() : "";
         String mgrName = formatEmployeeName(mgr);
 
-        return PerformanceReviewResponse.from(review, cycleName, empName, empNumber, mgrName);
+        return PerformanceReviewResponse.from(
+                review, cycleName, empName, empNumber, mgrName, maskManagerFeedbackIfNotCompleted);
     }
 
     private String formatEmployeeName(Employee e) {

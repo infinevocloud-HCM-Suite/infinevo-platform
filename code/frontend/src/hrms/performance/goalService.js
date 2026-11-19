@@ -14,8 +14,28 @@ export const goalService = {
     return res.data !== undefined ? res.data : res;
   },
 
-  async updateProgress(id, data) {
-    const res = await apiClient.patch(`/v1/hrms/goals/me/${id}/progress`, data);
+  async editGoal(id, data) {
+    const res = await apiClient.patch(`/v1/hrms/goals/me/${id}`, data);
+    return res.data !== undefined ? res.data : res;
+  },
+
+  async startGoal(id) {
+    const res = await apiClient.post(`/v1/hrms/goals/me/${id}/start`);
+    return res.data !== undefined ? res.data : res;
+  },
+
+  async cancelGoal(id) {
+    const res = await apiClient.post(`/v1/hrms/goals/me/${id}/cancel`);
+    return res.data !== undefined ? res.data : res;
+  },
+
+  async checkIn(id, data) {
+    const res = await apiClient.post(`/v1/hrms/goals/me/${id}/check-ins`, data);
+    return res.data !== undefined ? res.data : res;
+  },
+
+  async getCheckIns(id) {
+    const res = await apiClient.get(`/v1/hrms/goals/${id}/check-ins`);
     return res.data !== undefined ? res.data : res;
   },
 
@@ -24,8 +44,9 @@ export const goalService = {
     return res.data !== undefined ? res.data : res;
   },
 
-  async getGoalsForEmployee(employeeId) {
-    const res = await apiClient.get(`/v1/hrms/goals/employee/${employeeId}`);
+  async getGoalsForEmployee(employeeId, cycleId) {
+    const query = cycleId ? `?cycleId=${encodeURIComponent(cycleId)}` : '';
+    const res = await apiClient.get(`/v1/hrms/goals/employee/${employeeId}${query}`);
     return res.data !== undefined ? res.data : res;
   },
 
@@ -34,4 +55,3 @@ export const goalService = {
     return res.data !== undefined ? res.data : res;
   },
 };
-

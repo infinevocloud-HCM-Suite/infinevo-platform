@@ -26,11 +26,12 @@ public record EmployeeGoalResponse(
         LocalDate startDate,
         LocalDate dueDate,
         GoalStatus status,
+        boolean readOnly,
         Instant createdAt,
         Instant updatedAt) {
 
     public static EmployeeGoalResponse from(
-            EmployeeGoal goal, String employeeName, String employeeNumber, String cycleName) {
+            EmployeeGoal goal, String employeeName, String employeeNumber, String cycleName, boolean readOnly) {
         return new EmployeeGoalResponse(
                 goal.getId(),
                 goal.getEmployeeId(),
@@ -49,7 +50,13 @@ public record EmployeeGoalResponse(
                 goal.getStartDate(),
                 goal.getDueDate(),
                 goal.getStatus(),
+                readOnly,
                 goal.getCreatedAt(),
                 goal.getUpdatedAt());
+    }
+
+    public static EmployeeGoalResponse from(
+            EmployeeGoal goal, String employeeName, String employeeNumber, String cycleName) {
+        return from(goal, employeeName, employeeNumber, cycleName, goal.isFinal());
     }
 }

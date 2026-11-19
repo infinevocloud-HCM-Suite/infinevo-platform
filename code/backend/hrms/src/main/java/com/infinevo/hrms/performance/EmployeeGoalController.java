@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -51,11 +52,37 @@ public class EmployeeGoalController {
         return goalService.createGoal(request);
     }
 
-    @PatchMapping("/me/{id}/progress")
+    @PatchMapping("/me/{id}")
     @RequiresAction("hrms.goal.update_own")
-    public EmployeeGoalResponse updateProgress(
-            @PathVariable("id") UUID id, @RequestBody UpdateGoalProgressRequest request) {
-        return goalService.updateProgress(id, request);
+    public EmployeeGoalResponse editGoal(@PathVariable("id") UUID id, @Valid @RequestBody UpdateGoalRequest request) {
+        return goalService.editGoal(id, request);
+    }
+
+    @PostMapping("/me/{id}/start")
+    @RequiresAction("hrms.goal.update_own")
+    public EmployeeGoalResponse startGoal(@PathVariable("id") UUID id) {
+        return goalService.startGoal(id);
+    }
+
+    @PostMapping("/me/{id}/cancel")
+    @RequiresAction("hrms.goal.update_own")
+    public EmployeeGoalResponse cancelGoal(@PathVariable("id") UUID id) {
+        return goalService.cancelGoal(id);
+    }
+
+    @PostMapping("/me/{id}/check-ins")
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequiresAction("hrms.goal.update_own")
+    public EmployeeGoalResponse checkIn(@PathVariable("id") UUID id, @Valid @RequestBody GoalCheckInRequest request) {
+        return goalService.checkIn(id, request);
+    }
+
+    @GetMapping("/{id}/check-ins")
+    @RequiresAction(
+            value = "hrms.goal.read_own",
+            anyOf = {"hrms.goal.review_team", "hrms.goal.manage"})
+    public List<GoalCheckInResponse> getCheckIns(@PathVariable("id") UUID id) {
+        return goalService.getCheckIns(id);
     }
 
     @GetMapping("/team")
@@ -65,9 +92,13 @@ public class EmployeeGoalController {
     }
 
     @GetMapping("/employee/{employeeId}")
-    @RequiresAction("hrms.goal.review_team")
-    public List<EmployeeGoalResponse> getGoalsForEmployee(@PathVariable("employeeId") UUID employeeId) {
-        return goalService.getGoalsForEmployee(employeeId);
+    @RequiresAction(
+            value = "hrms.goal.review_team",
+            anyOf = {"hrms.goal.manage"})
+    public List<EmployeeGoalResponse> getGoalsForEmployee(
+            @PathVariable("employeeId") UUID employeeId,
+            @RequestParam(value = "cycleId", required = false) UUID cycleId) {
+        return goalService.getGoalsForEmployee(employeeId, cycleId);
     }
 
     @GetMapping("/cycle/{cycleId}")

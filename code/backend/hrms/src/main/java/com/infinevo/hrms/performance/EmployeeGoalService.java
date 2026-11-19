@@ -10,13 +10,25 @@ public interface EmployeeGoalService {
 
     EmployeeGoalResponse createGoal(CreateGoalRequest request);
 
-    EmployeeGoalResponse updateProgress(UUID goalId, UpdateGoalProgressRequest request);
+    EmployeeGoalResponse editGoal(UUID goalId, UpdateGoalRequest request);
+
+    EmployeeGoalResponse startGoal(UUID goalId);
+
+    EmployeeGoalResponse cancelGoal(UUID goalId);
+
+    EmployeeGoalResponse checkIn(UUID goalId, GoalCheckInRequest request);
+
+    List<GoalCheckInResponse> getCheckIns(UUID goalId);
 
     List<EmployeeGoalResponse> getMyGoals();
 
     List<EmployeeGoalResponse> getTeamGoals();
 
-    List<EmployeeGoalResponse> getGoalsForEmployee(UUID employeeId);
+    List<EmployeeGoalResponse> getGoalsForEmployee(UUID employeeId, UUID cycleId);
+
+    default List<EmployeeGoalResponse> getGoalsForEmployee(UUID employeeId) {
+        return getGoalsForEmployee(employeeId, null);
+    }
 
     List<EmployeeGoalResponse> getGoalsForCycle(UUID cycleId);
 }

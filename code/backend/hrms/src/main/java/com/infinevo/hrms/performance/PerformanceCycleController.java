@@ -17,6 +17,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,6 +54,19 @@ public class PerformanceCycleController {
     @RequiresAction("hrms.performance.manage")
     public PerformanceCycleResponse getCycle(@PathVariable("id") UUID id) {
         return performanceService.getCycle(id);
+    }
+
+    @PatchMapping("/{id}")
+    @RequiresAction("hrms.performance.manage")
+    public PerformanceCycleResponse updateCycleDeadlines(
+            @PathVariable("id") UUID id, @Valid @RequestBody UpdateCycleDeadlinesRequest request) {
+        return performanceService.updateCycleDeadlines(id, request);
+    }
+
+    @GetMapping("/{id}/reviews")
+    @RequiresAction("hrms.performance.manage")
+    public List<PerformanceReviewResponse> getCycleReviews(@PathVariable("id") UUID id) {
+        return performanceService.getCycleReviews(id);
     }
 
     @PostMapping("/{id}/activate")

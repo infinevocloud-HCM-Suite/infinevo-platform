@@ -7,12 +7,14 @@ import { goalService } from './goalService.js';
 vi.mock('./goalService.js', () => ({
   goalService: {
     getTeamGoals: vi.fn(),
+    getCheckIns: vi.fn(),
   },
 }));
 
 describe('TeamGoalsScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    goalService.getCheckIns.mockResolvedValue([]);
   });
 
   it('renders team goals list with employee name, goal title and metrics', async () => {
@@ -48,7 +50,20 @@ describe('TeamGoalsScreen', () => {
     expect(screen.getByText('Total Team Goals')).toBeDefined();
   });
 
-  it('opens goal detail drawer when View button is clicked', async () => {
+  it('shows error state with Retry button when team goals fail to load', async () => {
+    goalService.getTeamGoals.mockRejectedValueOnce(new Error('Failed to fetch'));
+
+    render(
+      <MemoryRouter>
+        <TeamGoalsScreen />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/failed to load team goals/i)).toBeDefined();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeDefined();
+  });
+
+  it('opens goal detail drawer with check-in history when View button is clicked', async () => {
     goalService.getTeamGoals.mockResolvedValueOnce([
       {
         id: 'team-goal-2',
@@ -68,6 +83,16 @@ describe('TeamGoalsScreen', () => {
         status: 'ACHIEVED',
       },
     ]);
+    goalService.getCheckIns.mockResolvedValueOnce([
+      {
+        id: 'ci-2',
+        goalId: 'team-goal-2',
+        currentValue: 50,
+        progressPercentage: 100,
+        notes: 'Reached quarterly quota of leads',
+        createdAt: '2026-04-10T12:00:00Z',
+      },
+    ]);
 
     render(
       <MemoryRouter>
@@ -80,7 +105,6 @@ describe('TeamGoalsScreen', () => {
 
     expect(await screen.findByText('Goal & OKR Details')).toBeDefined();
     expect(screen.getAllByText('Increase Sales Leads').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/50 leads/i).length).toBeGreaterThanOrEqual(1);
+    expect(await screen.findByText('Reached quarterly quota of leads')).toBeDefined();
   });
 });
-

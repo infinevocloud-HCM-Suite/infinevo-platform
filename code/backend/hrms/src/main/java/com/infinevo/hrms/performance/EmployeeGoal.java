@@ -107,12 +107,10 @@ public class EmployeeGoal {
             GoalCategory category,
             MetricType metricType,
             BigDecimal targetValue,
-            BigDecimal currentValue,
             String metricUnit,
-            Integer progressPercentage,
             LocalDate startDate,
             LocalDate dueDate,
-            GoalStatus status,
+            Boolean draft,
             String actor) {
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
         this.employeeId = Objects.requireNonNull(employeeId, "employeeId must not be null");
@@ -121,60 +119,156 @@ public class EmployeeGoal {
         this.description = description;
         this.category = category != null ? category : GoalCategory.INDIVIDUAL;
         this.metricType = metricType != null ? metricType : MetricType.PERCENTAGE;
-        this.targetValue = targetValue != null ? targetValue : new BigDecimal("100.00");
-        this.currentValue = currentValue != null ? currentValue : BigDecimal.ZERO;
-        this.metricUnit = (metricUnit != null && !metricUnit.isBlank()) ? metricUnit : "%";
+        this.targetValue = resolveDefaultTargetValue(this.metricType, targetValue);
+        this.currentValue = BigDecimal.ZERO;
+        this.metricUnit = (metricUnit != null && !metricUnit.isBlank())
+                ? metricUnit
+                : (this.metricType == MetricType.PERCENTAGE ? "%" : "");
         this.startDate = Objects.requireNonNull(startDate, "startDate must not be null");
         this.dueDate = Objects.requireNonNull(dueDate, "dueDate must not be null");
-        this.status = status != null ? status : GoalStatus.IN_PROGRESS;
 
         if (this.dueDate.isBefore(this.startDate)) {
             throw new IllegalArgumentException("dueDate must not be before startDate");
         }
-
-        this.progressPercentage =
-                calculateProgress(this.metricType, this.targetValue, this.currentValue, progressPercentage);
-        if (this.progressPercentage == 100 && this.status == GoalStatus.IN_PROGRESS) {
-            this.status = GoalStatus.ACHIEVED;
+        if (this.metricType == MetricType.NUMERIC && this.targetValue.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("targetValue must be greater than zero for NUMERIC metric type");
         }
+
+        this.status = Boolean.TRUE.equals(draft) ? GoalStatus.DRAFT : GoalStatus.IN_PROGRESS;
+        this.progressPercentage = 0;
 
         String safeActor = (actor != null && !actor.isBlank()) ? actor : "system";
         this.createdBy = safeActor.length() > 100 ? safeActor.substring(0, 100) : safeActor;
         this.updatedBy = this.createdBy;
     }
 
-    public void updateProgress(
-            BigDecimal newCurrentValue, Integer explicitPercentage, GoalStatus newStatus, String actor) {
-        if (newCurrentValue != null) {
-            this.currentValue = newCurrentValue;
+    private static BigDecimal resolveDefaultTargetValue(MetricType metricType, BigDecimal targetValue) {
+        if (targetValue != null) {
+            return targetValue;
         }
-        this.progressPercentage =
-                calculateProgress(this.metricType, this.targetValue, this.currentValue, explicitPercentage);
+        if (metricType == MetricType.MILESTONE) {
+            return BigDecimal.ONE;
+        }
+        return new BigDecimal("100.00");
+    }
 
-        if (newStatus != null) {
-            this.status = newStatus;
-        } else if (this.progressPercentage >= 100 && this.status == GoalStatus.IN_PROGRESS) {
+    public boolean isFinal() {
+        return status == GoalStatus.ACHIEVED || status == GoalStatus.CANCELLED;
+    }
+
+    public void start(String actor) {
+        if (isFinal()) {
+            throw new IllegalStateException("Cannot start goal in final status: " + status);
+        }
+        if (this.status != GoalStatus.DRAFT) {
+            throw new IllegalStateException("Cannot start goal in status: " + status);
+        }
+        this.status = GoalStatus.IN_PROGRESS;
+        touch(actor);
+    }
+
+    public void cancel(String actor) {
+        if (isFinal()) {
+            throw new IllegalStateException("Cannot cancel goal in final status: " + status);
+        }
+        this.status = GoalStatus.CANCELLED;
+        touch(actor);
+    }
+
+    public int checkIn(BigDecimal newCurrentValue, String actor) {
+        if (isFinal()) {
+            throw new IllegalStateException("Cannot check in on goal in final status: " + status);
+        }
+        if (this.status != GoalStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Cannot check in on goal in status: " + status);
+        }
+        Objects.requireNonNull(newCurrentValue, "currentValue must not be null");
+        if (newCurrentValue.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("currentValue must be non-negative");
+        }
+        this.currentValue = newCurrentValue;
+        this.progressPercentage = calculateProgress(this.metricType, this.targetValue, this.currentValue);
+        if (this.progressPercentage >= 100) {
             this.status = GoalStatus.ACHIEVED;
         }
+        touch(actor);
+        return this.progressPercentage;
+    }
 
+    public void edit(
+            String newTitle,
+            String newDescription,
+            GoalCategory newCategory,
+            BigDecimal newTargetValue,
+            String newMetricUnit,
+            LocalDate newStartDate,
+            LocalDate newDueDate,
+            UUID newCycleId,
+            String actor) {
+        if (isFinal()) {
+            throw new IllegalStateException("Cannot edit goal in final status: " + status);
+        }
+        if (newTitle != null && !newTitle.isBlank()) {
+            this.title = newTitle;
+        }
+        if (newDescription != null) {
+            this.description = newDescription;
+        }
+        if (newCategory != null) {
+            this.category = newCategory;
+        }
+        if (newStartDate != null) {
+            this.startDate = newStartDate;
+        }
+        if (newDueDate != null) {
+            this.dueDate = newDueDate;
+        }
+        if (this.dueDate.isBefore(this.startDate)) {
+            throw new IllegalArgumentException("dueDate must not be before startDate");
+        }
+        if (newMetricUnit != null) {
+            this.metricUnit = newMetricUnit;
+        }
+        if (newTargetValue != null) {
+            if (this.metricType == MetricType.NUMERIC && newTargetValue.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("targetValue must be greater than zero for NUMERIC metric type");
+            }
+            this.targetValue = newTargetValue;
+            if (this.status == GoalStatus.IN_PROGRESS) {
+                this.progressPercentage = calculateProgress(this.metricType, this.targetValue, this.currentValue);
+                if (this.progressPercentage >= 100) {
+                    this.status = GoalStatus.ACHIEVED;
+                }
+            }
+        }
+        this.cycleId = newCycleId;
+        touch(actor);
+    }
+
+    private static int calculateProgress(MetricType metricType, BigDecimal target, BigDecimal current) {
+        if (current == null) {
+            return 0;
+        }
+        if (metricType == MetricType.MILESTONE) {
+            return (current.compareTo(BigDecimal.ONE) >= 0) ? 100 : 0;
+        }
+        if (metricType == MetricType.PERCENTAGE) {
+            return Math.clamp(current.intValue(), 0, 100);
+        }
+        if (metricType == MetricType.NUMERIC) {
+            if (target != null && target.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal pct = current.divide(target, 4, RoundingMode.HALF_UP).multiply(new BigDecimal(100));
+                return Math.clamp(pct.intValue(), 0, 100);
+            }
+            return 0;
+        }
+        return 0;
+    }
+
+    private void touch(String actor) {
         String safeActor = (actor != null && !actor.isBlank()) ? actor : "system";
         this.updatedBy = safeActor.length() > 100 ? safeActor.substring(0, 100) : safeActor;
         this.updatedAt = Instant.now();
-    }
-
-    private static int calculateProgress(
-            MetricType metricType, BigDecimal target, BigDecimal current, Integer explicit) {
-        if (explicit != null) {
-            return Math.clamp(explicit, 0, 100);
-        }
-        if (metricType == MetricType.MILESTONE) {
-            return (current != null && current.compareTo(BigDecimal.ONE) >= 0) ? 100 : 0;
-        }
-        if (target != null && target.compareTo(BigDecimal.ZERO) > 0 && current != null) {
-            BigDecimal pct = current.divide(target, 4, RoundingMode.HALF_UP).multiply(new BigDecimal(100));
-            return Math.clamp(pct.intValue(), 0, 100);
-        }
-        return 0;
     }
 
     @PrePersist

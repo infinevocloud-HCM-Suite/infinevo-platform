@@ -32,6 +32,17 @@ public record PerformanceReviewResponse(
             String employeeName,
             String employeeNumber,
             String managerName) {
+        return from(review, cycleName, employeeName, employeeNumber, managerName, false);
+    }
+
+    public static PerformanceReviewResponse from(
+            PerformanceReview review,
+            String cycleName,
+            String employeeName,
+            String employeeNumber,
+            String managerName,
+            boolean maskManagerFeedbackIfNotCompleted) {
+        boolean mask = maskManagerFeedbackIfNotCompleted && review.getStatus() != PerformanceReviewStatus.COMPLETED;
         return new PerformanceReviewResponse(
                 review.getId(),
                 review.getTenantId(),
@@ -41,13 +52,13 @@ public record PerformanceReviewResponse(
                 employeeName,
                 employeeNumber,
                 review.getManagerId(),
-                managerName,
+                review.getManagerId() != null ? managerName : null,
                 review.getSelfRating(),
                 review.getSelfComments(),
                 review.getSelfSubmittedAt(),
-                review.getManagerRating(),
-                review.getManagerComments(),
-                review.getManagerSubmittedAt(),
+                mask ? null : review.getManagerRating(),
+                mask ? null : review.getManagerComments(),
+                mask ? null : review.getManagerSubmittedAt(),
                 review.getStatus(),
                 review.getCreatedAt(),
                 review.getUpdatedAt());

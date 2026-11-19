@@ -14,7 +14,6 @@ import com.infinevo.core.employee.EmployeeResponse;
 import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.core.employee.EmploymentStatus;
 import com.infinevo.core.org.ReportingLine;
-import com.infinevo.core.org.ReportingLineKind;
 import com.infinevo.core.org.ReportingLineRepository;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
@@ -141,16 +140,51 @@ class PerformanceReviewServiceImplTest {
                 .thenReturn(List.of(emp1));
 
         ReportingLine line = mock(ReportingLine.class);
+        when(line.getEmployee()).thenReturn(emp1);
         when(line.getManager()).thenReturn(mgr);
-        when(reportingLineRepository.findCurrentOpenLine(tenantId, employeeId, ReportingLineKind.PRIMARY))
-                .thenReturn(Optional.of(line));
-        when(reviewRepository.findByTenantIdAndCycleIdAndEmployeeId(tenantId, cycleId, employeeId))
-                .thenReturn(Optional.empty());
+        when(reportingLineRepository.findAllActivePrimaryLines(tenantId, cycle.getPeriodStart()))
+                .thenReturn(List.of(line));
+        when(reviewRepository.findByTenantIdAndCycleId(tenantId, cycleId)).thenReturn(List.of());
 
         PerformanceCycleResponse activated = service.activateCycle(cycleId);
 
         assertThat(activated.status()).isEqualTo(PerformanceCycleStatus.ACTIVE);
-        verify(reviewRepository).save(any(PerformanceReview.class));
+        verify(reviewRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("Activate cycle sets managerId null for employee with no primary reporting line")
+    void activateCycleUnassignedManagerIsNull() {
+        UUID cycleId = UUID.randomUUID();
+        PerformanceCycle cycle = new PerformanceCycle(
+                tenantId,
+                "Q4 Review",
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 12, 31),
+                LocalDate.of(2026, 11, 30),
+                LocalDate.of(2026, 12, 15),
+                5,
+                "system");
+
+        when(cycleRepository.findByIdAndTenantId(cycleId, tenantId)).thenReturn(Optional.of(cycle));
+        when(cycleRepository.save(any(PerformanceCycle.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Employee emp1 = mock(Employee.class);
+        when(emp1.getId()).thenReturn(employeeId);
+
+        when(employeeRepository.findByTenantIdAndDeletedFalseAndStatus(tenantId, EmploymentStatus.ACTIVE))
+                .thenReturn(List.of(emp1));
+        when(reportingLineRepository.findAllActivePrimaryLines(tenantId, cycle.getPeriodStart()))
+                .thenReturn(List.of());
+        when(reviewRepository.findByTenantIdAndCycleId(tenantId, cycleId)).thenReturn(List.of());
+
+        service.activateCycle(cycleId);
+
+        verify(reviewRepository).saveAll(org.mockito.ArgumentMatchers.argThat(iterable -> {
+            @SuppressWarnings("unchecked")
+            List<PerformanceReview> list = (List<PerformanceReview>) iterable;
+            return list.size() == 1 && list.get(0).getManagerId() == null;
+        }));
     }
 
     @Test
@@ -278,8 +312,10 @@ class PerformanceReviewServiceImplTest {
                 .thenReturn(1L);
 
         PerformanceReview r1 = new PerformanceReview(tenantId, cycleId, UUID.randomUUID(), managerId, "system");
+        r1.submitSelfReview(4, "self", "alice");
         r1.submitManagerReview(4, "Great", "mgr");
         PerformanceReview r2 = new PerformanceReview(tenantId, cycleId, UUID.randomUUID(), managerId, "system");
+        r2.submitSelfReview(5, "self", "bob");
         r2.submitManagerReview(5, "Super", "mgr");
 
         when(reviewRepository.findByTenantIdAndCycleId(tenantId, cycleId)).thenReturn(List.of(r1, r2));
@@ -290,5 +326,166 @@ class PerformanceReviewServiceImplTest {
         assertThat(summary.completedReviews()).isEqualTo(8L);
         assertThat(summary.completionPercentage()).isEqualTo(80.0);
         assertThat(summary.averageRating()).isEqualTo(4.5);
+    }
+
+    @Test
+    @DisplayName("Rating 0 and 6 are refused on self-review and manager-review")
+    void ratingsOutOfRangeRefused() {
+        UUID reviewId = UUID.randomUUID();
+        UUID cycleId = UUID.randomUUID();
+        PerformanceCycle cycle = new PerformanceCycle(
+                tenantId,
+                "Q4 Review",
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 12, 31),
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(10),
+                5,
+                "system");
+        cycle.activate("admin");
+
+        PerformanceReview review = new PerformanceReview(tenantId, cycleId, employeeId, managerId, "system");
+        EmployeeResponse currentEmp = mock(EmployeeResponse.class);
+        when(currentEmp.id()).thenReturn(employeeId);
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(currentEmp));
+        when(reviewRepository.findByIdAndTenantId(reviewId, tenantId)).thenReturn(Optional.of(review));
+        when(cycleRepository.findByIdAndTenantId(cycleId, tenantId)).thenReturn(Optional.of(cycle));
+
+        assertThatThrownBy(() -> service.submitSelfReview(reviewId, new SelfReviewRequest(0, "bad")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.submitSelfReview(reviewId, new SelfReviewRequest(6, "bad")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("Manager review is refused before self review is submitted")
+    void managerReviewBeforeSelfReviewRefused() {
+        UUID reviewId = UUID.randomUUID();
+        UUID cycleId = UUID.randomUUID();
+        PerformanceCycle cycle = new PerformanceCycle(
+                tenantId,
+                "Q4 Review",
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 12, 31),
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(10),
+                5,
+                "system");
+        cycle.activate("admin");
+
+        PerformanceReview review = new PerformanceReview(tenantId, cycleId, employeeId, managerId, "system");
+        EmployeeResponse currentMgr = mock(EmployeeResponse.class);
+        when(currentMgr.id()).thenReturn(managerId);
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(currentMgr));
+        when(reviewRepository.findByIdAndTenantId(reviewId, tenantId)).thenReturn(Optional.of(review));
+        when(cycleRepository.findByIdAndTenantId(cycleId, tenantId)).thenReturn(Optional.of(cycle));
+
+        assertThatThrownBy(() -> service.submitManagerReview(reviewId, new ManagerReviewRequest(5, "Too early")))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("Completed review cannot be re-rated")
+    void completedReviewCannotBeReRated() {
+        UUID reviewId = UUID.randomUUID();
+        UUID cycleId = UUID.randomUUID();
+        PerformanceCycle cycle = new PerformanceCycle(
+                tenantId,
+                "Q4 Review",
+                LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 12, 31),
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(10),
+                5,
+                "system");
+        cycle.activate("admin");
+
+        PerformanceReview review = new PerformanceReview(tenantId, cycleId, employeeId, managerId, "system");
+        review.submitSelfReview(4, "self", "alice");
+        review.submitManagerReview(5, "mgr", "bob");
+
+        EmployeeResponse currentMgr = mock(EmployeeResponse.class);
+        when(currentMgr.id()).thenReturn(managerId);
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(currentMgr));
+        when(reviewRepository.findByIdAndTenantId(reviewId, tenantId)).thenReturn(Optional.of(review));
+        when(cycleRepository.findByIdAndTenantId(cycleId, tenantId)).thenReturn(Optional.of(cycle));
+
+        assertThatThrownBy(() -> service.submitManagerReview(reviewId, new ManagerReviewRequest(4, "Re-rating")))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("Both deadlines refuse late submit with 409 Conflict")
+    void deadlinesRefuseLateSubmit() {
+        UUID reviewId = UUID.randomUUID();
+        UUID cycleId = UUID.randomUUID();
+        PerformanceCycle cycle = new PerformanceCycle(
+                tenantId,
+                "Q4 Review",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 3, 31),
+                LocalDate.now().minusDays(2),
+                LocalDate.now().minusDays(1),
+                5,
+                "system");
+        cycle.activate("admin");
+
+        PerformanceReview review = new PerformanceReview(tenantId, cycleId, employeeId, managerId, "system");
+        EmployeeResponse currentEmp = mock(EmployeeResponse.class);
+        when(currentEmp.id()).thenReturn(employeeId);
+        when(employeeService.currentEmployee()).thenReturn(Optional.of(currentEmp));
+        when(reviewRepository.findByIdAndTenantId(reviewId, tenantId)).thenReturn(Optional.of(review));
+        when(cycleRepository.findByIdAndTenantId(cycleId, tenantId)).thenReturn(Optional.of(cycle));
+
+        assertThatThrownBy(() -> service.submitSelfReview(reviewId, new SelfReviewRequest(4, "late")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("The self-review deadline has passed");
+    }
+
+    @Test
+    @DisplayName("Deadlines can be updated on active cycle but refused on closed cycle")
+    void updateCycleDeadlinesSuccessAndClosedRefusal() {
+        UUID cycleId = UUID.randomUUID();
+        PerformanceCycle cycle = new PerformanceCycle(
+                tenantId,
+                "Q4 Review",
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 3, 31),
+                LocalDate.of(2026, 3, 15),
+                LocalDate.of(2026, 3, 31),
+                5,
+                "system");
+        cycle.activate("admin");
+
+        when(cycleRepository.findByIdAndTenantId(cycleId, tenantId)).thenReturn(Optional.of(cycle));
+        when(cycleRepository.save(any(PerformanceCycle.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PerformanceCycleResponse res = service.updateCycleDeadlines(
+                cycleId, new UpdateCycleDeadlinesRequest(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 15)));
+        assertThat(res.selfReviewDeadline()).isEqualTo(LocalDate.of(2026, 4, 1));
+        assertThat(res.managerReviewDeadline()).isEqualTo(LocalDate.of(2026, 4, 15));
+
+        cycle.close("admin");
+        assertThatThrownBy(() -> service.updateCycleDeadlines(
+                        cycleId, new UpdateCycleDeadlinesRequest(LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 15))))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("Reassign manager rules: cannot reassign to employee themself, cannot reassign completed")
+    void reassignManagerRules() {
+        UUID reviewId = UUID.randomUUID();
+        PerformanceReview review = new PerformanceReview(tenantId, UUID.randomUUID(), employeeId, managerId, "system");
+        when(reviewRepository.findByIdAndTenantId(reviewId, tenantId)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> service.reassignManager(reviewId, new ReassignManagerRequest(employeeId)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Employee cannot be assigned as their own review manager");
+
+        review.submitSelfReview(4, "self", "alice");
+        review.submitManagerReview(5, "mgr", "bob");
+
+        assertThatThrownBy(() -> service.reassignManager(reviewId, new ReassignManagerRequest(UUID.randomUUID())))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

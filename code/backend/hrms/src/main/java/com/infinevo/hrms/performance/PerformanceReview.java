@@ -48,7 +48,7 @@ public class PerformanceReview {
     @Column(name = "employee_id", nullable = false, updatable = false)
     private UUID employeeId;
 
-    @Column(name = "manager_id", nullable = false)
+    @Column(name = "manager_id")
     private UUID managerId;
 
     @Column(name = "self_rating")
@@ -91,7 +91,7 @@ public class PerformanceReview {
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null");
         this.cycleId = Objects.requireNonNull(cycleId, "cycleId must not be null");
         this.employeeId = Objects.requireNonNull(employeeId, "employeeId must not be null");
-        this.managerId = Objects.requireNonNull(managerId, "managerId must not be null");
+        this.managerId = managerId;
         this.status = PerformanceReviewStatus.PENDING_SELF_REVIEW;
         this.createdBy = actor != null ? actor : "system";
         this.updatedBy = actor != null ? actor : "system";
@@ -123,6 +123,12 @@ public class PerformanceReview {
     }
 
     public void submitSelfReview(int rating, String comments, String actor) {
+        if (this.status != PerformanceReviewStatus.PENDING_SELF_REVIEW) {
+            throw new IllegalStateException("Self review has already been submitted for this appraisal");
+        }
+        if (rating < 1 || rating > 5) {
+            throw new IllegalArgumentException("Self rating must be between 1 and 5");
+        }
         this.selfRating = rating;
         this.selfComments = comments;
         this.selfSubmittedAt = Instant.now();
@@ -132,6 +138,12 @@ public class PerformanceReview {
     }
 
     public void submitManagerReview(int rating, String comments, String actor) {
+        if (this.status != PerformanceReviewStatus.PENDING_MANAGER_REVIEW) {
+            throw new IllegalStateException("Cannot evaluate review in status: " + this.status);
+        }
+        if (rating < 1 || rating > 5) {
+            throw new IllegalArgumentException("Manager rating must be between 1 and 5");
+        }
         this.managerRating = rating;
         this.managerComments = comments;
         this.managerSubmittedAt = Instant.now();
@@ -141,6 +153,9 @@ public class PerformanceReview {
     }
 
     public void reassignManager(UUID newManagerId, String actor) {
+        if (this.status == PerformanceReviewStatus.COMPLETED) {
+            throw new IllegalStateException("Cannot reassign manager for completed review");
+        }
         this.managerId = Objects.requireNonNull(newManagerId, "newManagerId must not be null");
         this.updatedBy = actor != null ? actor : "system";
         this.updatedAt = Instant.now();

@@ -7,7 +7,7 @@ import {
   Form,
   Input,
   DatePicker,
-  InputNumber,
+  Alert,
   Tag,
   Space,
   Typography,
@@ -35,6 +35,7 @@ export function PerformanceCyclesScreen() {
   const { token } = theme.useToken();
   const [cycles, setCycles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [summaryDrawerVisible, setSummaryDrawerVisible] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
@@ -43,11 +44,14 @@ export function PerformanceCyclesScreen() {
 
   const loadCycles = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await performanceService.listCycles();
       setCycles(Array.isArray(data) ? data : []);
     } catch (err) {
-      message.error(err?.response?.data?.message || err.message || 'Failed to load performance cycles');
+      const msg = err?.response?.data?.message || err.message || 'Failed to load performance cycles';
+      setError(msg);
+      message.error(msg);
     } finally {
       setLoading(false);
     }
@@ -65,7 +69,7 @@ export function PerformanceCyclesScreen() {
         periodEnd: values.periodRange[1].format('YYYY-MM-DD'),
         selfReviewDeadline: values.selfReviewDeadline.format('YYYY-MM-DD'),
         managerReviewDeadline: values.managerReviewDeadline.format('YYYY-MM-DD'),
-        ratingScaleMax: values.ratingScaleMax || 5,
+        ratingScaleMax: 5,
       };
       await performanceService.createCycle(payload);
       message.success('Performance review cycle created successfully');
@@ -229,6 +233,21 @@ export function PerformanceCyclesScreen() {
           </Button>
         }
       >
+        {error && (
+          <Alert
+            type="error"
+            message="Failed to load performance cycles"
+            description={error}
+            action={
+              <Button size="small" type="primary" onClick={loadCycles}>
+                Retry
+              </Button>
+            }
+            showIcon
+            style={{ marginBottom: token.marginMD }}
+            data-testid="cycles-load-error"
+          />
+        )}
         <Table
           rowKey="id"
           columns={columns}
@@ -284,13 +303,6 @@ export function PerformanceCyclesScreen() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item
-            name="ratingScaleMax"
-            label="Rating Scale Max (3–10)"
-            rules={[{ required: true, message: 'Please select rating scale' }]}
-          >
-            <InputNumber min={3} max={10} style={{ width: '100%' }} />
-          </Form.Item>
         </Form>
       </Modal>
 
