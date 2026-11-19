@@ -106,10 +106,6 @@ BEGIN
     INSERT INTO core.role_action (tenant_id, role_id, action_code)
     SELECT p_tenant_id, r.id, grants.action_code
     FROM (VALUES
-        ('platform-admin', 'core.onboarding.manage'),
-        ('platform-admin', 'core.onboarding.read_own'),
-        ('platform-admin', 'core.onboarding.update_own'),
-
         ('tenant-admin', 'core.onboarding.manage'),
         ('tenant-admin', 'core.onboarding.read_own'),
         ('tenant-admin', 'core.onboarding.update_own'),
