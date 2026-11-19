@@ -50,6 +50,7 @@ import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -119,6 +120,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
                 null);
     }
 
+    @Autowired
     public StatutoryReportServiceImpl(
             PayRunRepository payRunRepository,
             EmployeePayRunRepository employeePayRunRepository,
@@ -127,7 +129,7 @@ public class StatutoryReportServiceImpl implements StatutoryReportService {
             OrgPtOverrideRepository orgPtOverrideRepository,
             EmployeeService employeeService,
             WorkLocationService workLocationService,
-            StatutorySettingsService statutorySettingsService) {
+            @Autowired(required = false) StatutorySettingsService statutorySettingsService) {
         this.payRunRepository = Objects.requireNonNull(payRunRepository, "payRunRepository must not be null");
         this.employeePayRunRepository =
                 Objects.requireNonNull(employeePayRunRepository, "employeePayRunRepository must not be null");
