@@ -12,6 +12,7 @@ import com.infinevo.core.portal.PanelDescriptor;
 import com.infinevo.core.portal.PortalPanelProvider;
 import com.infinevo.core.portal.PortalPanelService;
 import com.infinevo.core.portal.WfhPanelProvider;
+import com.infinevo.hrms.portal.GoalsPanelProvider;
 import com.infinevo.hrms.portal.TimesheetPanelProvider;
 import com.infinevo.hrms.timesheet.TimesheetService;
 import com.infinevo.payroll.portal.FbpPanelProvider;
@@ -92,9 +93,9 @@ class PortalPanelDiscoveryIT {
     private TimesheetService timesheetService;
 
     @Test
-    @DisplayName("PortalPanelService discovers all 10 providers including module providers from payroll and hrms")
+    @DisplayName("PortalPanelService discovers all 11 providers including module providers from payroll and hrms")
     void discoversAllEightProviders() {
-        assertThat(providers).hasSize(10);
+        assertThat(providers).hasSize(11);
 
         List<String> codes = providers.stream().map(PortalPanelProvider::code).toList();
         assertThat(codes)
@@ -108,7 +109,8 @@ class PortalPanelDiscoveryIT {
                         "taxDeclaration",
                         "timesheet",
                         "claims",
-                        "fbp");
+                        "fbp",
+                        "goals");
 
         assertThat(providers.stream().anyMatch(p -> p instanceof PayslipPanelProvider))
                 .isTrue();
@@ -121,6 +123,8 @@ class PortalPanelDiscoveryIT {
         assertThat(providers.stream().anyMatch(p -> p instanceof WfhPanelProvider))
                 .isTrue();
         assertThat(providers.stream().anyMatch(p -> p instanceof OnboardingPanelProvider))
+                .isTrue();
+        assertThat(providers.stream().anyMatch(p -> p instanceof GoalsPanelProvider))
                 .isTrue();
     }
 
@@ -183,6 +187,6 @@ class PortalPanelDiscoveryIT {
                 .toList();
         assertThat(hrmsOnly)
                 .doesNotContain("claims", "payslips", "taxDeclaration", "fbp")
-                .contains("timesheet", "wfh", "onboarding");
+                .contains("timesheet", "wfh", "onboarding", "goals");
     }
 }
