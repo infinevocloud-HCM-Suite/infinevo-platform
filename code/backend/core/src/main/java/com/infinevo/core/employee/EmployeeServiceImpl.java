@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -97,6 +98,28 @@ public class EmployeeServiceImpl implements EmployeeService {
             UserAccountRepository userAccountRepository,
             UserProfileSyncService userProfileSyncService,
             EmployeeEmploymentService employmentService,
+            EmployeeLimitGuard limitGuard) {
+        this(
+                employeeRepository,
+                departmentRepository,
+                designationRepository,
+                workLocationRepository,
+                userAccountRepository,
+                userProfileSyncService,
+                employmentService,
+                limitGuard,
+                (com.infinevo.core.onboarding.OnboardingService) null,
+                null);
+    }
+
+    public EmployeeServiceImpl(
+            EmployeeRepository employeeRepository,
+            DepartmentRepository departmentRepository,
+            DesignationRepository designationRepository,
+            WorkLocationRepository workLocationRepository,
+            UserAccountRepository userAccountRepository,
+            UserProfileSyncService userProfileSyncService,
+            EmployeeEmploymentService employmentService,
             EmployeeLimitGuard limitGuard,
             com.infinevo.core.onboarding.OnboardingService onboardingService) {
         this(
@@ -112,7 +135,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 null);
     }
 
-    @Autowired
     public EmployeeServiceImpl(
             EmployeeRepository employeeRepository,
             DepartmentRepository departmentRepository,
@@ -123,7 +145,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             EmployeeEmploymentService employmentService,
             EmployeeLimitGuard limitGuard,
             com.infinevo.core.onboarding.OnboardingService onboardingService,
-            @Autowired(required = false) ApplicationEventPublisher publisher) {
+            ApplicationEventPublisher publisher) {
         this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
         this.departmentRepository =
                 Objects.requireNonNull(departmentRepository, "departmentRepository must not be null");
@@ -137,8 +159,33 @@ public class EmployeeServiceImpl implements EmployeeService {
                 Objects.requireNonNull(userProfileSyncService, "userProfileSyncService must not be null");
         this.employmentService = Objects.requireNonNull(employmentService, "employmentService must not be null");
         this.limitGuard = Objects.requireNonNull(limitGuard, "limitGuard must not be null");
-        this.onboardingService = Objects.requireNonNull(onboardingService, "onboardingService must not be null");
+        this.onboardingService = onboardingService;
         this.publisher = publisher;
+    }
+
+    @Autowired
+    public EmployeeServiceImpl(
+            EmployeeRepository employeeRepository,
+            DepartmentRepository departmentRepository,
+            DesignationRepository designationRepository,
+            WorkLocationRepository workLocationRepository,
+            UserAccountRepository userAccountRepository,
+            UserProfileSyncService userProfileSyncService,
+            EmployeeEmploymentService employmentService,
+            EmployeeLimitGuard limitGuard,
+            ObjectProvider<com.infinevo.core.onboarding.OnboardingService> onboardingServiceProvider,
+            @Autowired(required = false) ApplicationEventPublisher publisher) {
+        this(
+                employeeRepository,
+                departmentRepository,
+                designationRepository,
+                workLocationRepository,
+                userAccountRepository,
+                userProfileSyncService,
+                employmentService,
+                limitGuard,
+                onboardingServiceProvider != null ? onboardingServiceProvider.getIfAvailable() : null,
+                publisher);
     }
 
     @Override
@@ -169,7 +216,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         assign(employee, request, tenantId);
         Employee saved = save(employee, fields.employeeNumber());
         writeEmploymentTerms(saved.getId(), request);
-        onboardingService.assignDefaultTasks(saved, currentActor());
+        if (onboardingService != null) {
+            onboardingService.assignDefaultTasks(saved, currentActor());
+        }
         return EmployeeResponse.from(saved);
     }
 
