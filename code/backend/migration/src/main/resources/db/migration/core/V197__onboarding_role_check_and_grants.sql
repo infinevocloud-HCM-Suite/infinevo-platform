@@ -1,12 +1,7 @@
 -- Migration: V197__onboarding_role_check_and_grants.sql
--- Description: Remove platform-admin grants for onboarding actions, update grant function, and add assigned_role CHECK constraints (W-102)
+-- Description: Add assigned_role CHECK constraints and ensure onboarding role grants (W-102)
 
--- 1. Remove platform-admin grants from core.role_action
-DELETE FROM core.role_action
-WHERE role_id IN (SELECT id FROM core.role WHERE code = 'platform-admin')
-  AND action_code IN ('core.onboarding.manage', 'core.onboarding.read_own', 'core.onboarding.update_own');
-
--- 2. Add CHECK constraints on assigned_role
+-- 1. Add CHECK constraints on assigned_role
 ALTER TABLE core.onboarding_task_template
     ADD CONSTRAINT chk_onboarding_template_assigned_role
     CHECK (assigned_role IN ('EMPLOYEE', 'HR', 'MANAGER', 'IT'));
@@ -15,7 +10,7 @@ ALTER TABLE core.employee_onboarding_task
     ADD CONSTRAINT chk_employee_task_assigned_role
     CHECK (assigned_role IN ('EMPLOYEE', 'HR', 'MANAGER', 'IT'));
 
--- 3. Update core.grant_onboarding_actions(uuid) function without platform-admin
+-- 2. Update core.grant_onboarding_actions(uuid) function
 CREATE OR REPLACE FUNCTION core.grant_onboarding_actions(p_tenant_id UUID)
 RETURNS void
 LANGUAGE plpgsql
@@ -27,10 +22,14 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Role action grants (excluding platform-admin)
+    -- Role action grants
     INSERT INTO core.role_action (tenant_id, role_id, action_code)
     SELECT p_tenant_id, r.id, grants.action_code
     FROM (VALUES
+        ('platform-admin', 'core.onboarding.manage'),
+        ('platform-admin', 'core.onboarding.read_own'),
+        ('platform-admin', 'core.onboarding.update_own'),
+
         ('tenant-admin', 'core.onboarding.manage'),
         ('tenant-admin', 'core.onboarding.read_own'),
         ('tenant-admin', 'core.onboarding.update_own'),
@@ -137,4 +136,7 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION core.grant_onboarding_actions(UUID) FROM PUBLIC;
+
+-- 3. Backfill existing non-platform tenants
+SELECT core.grant_onboarding_actions(t.tenant_id) FROM core.tenant t;
 
