@@ -77,7 +77,6 @@ public final class ReportWorkerTestSchema {
                         "core/V026__employee_user_account.sql",
                         "core/V033__tenant_locale_columns.sql",
                         "core/V034__subscription.sql",
-                        "core/V035__subscription_module.sql",
                         "core/V037__document.sql",
                         "core/V166__document_label.sql",
                         "core/V038__notification_template.sql",
