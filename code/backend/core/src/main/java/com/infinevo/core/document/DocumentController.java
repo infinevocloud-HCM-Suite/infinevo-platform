@@ -141,7 +141,7 @@ public class DocumentController {
             }
             case EMPLOYEE_DOCUMENT -> {
                 if (!permissionService.holds("core.onboarding.update_own")) {
-                    throw new PermissionDeniedException("core.onboarding.update_own");
+                    throw new PermissionDeniedException("core.document.upload");
                 }
             }
             default -> throw new PermissionDeniedException("core.document.upload");

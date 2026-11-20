@@ -37,6 +37,11 @@ class OnboardingRlsIT extends AbstractIntegrationTest {
         TenantContext.clear();
         EmployeeTestSchema.apply();
         EmployeeTestSchema.seedTenants();
+        EmployeeTestSchema.clearEmployees();
+        try (Connection conn = EmployeeTestSchema.migrationConnection();
+                Statement stmt = conn.createStatement()) {
+            stmt.execute("DELETE FROM core.onboarding_task_template");
+        }
         employeeIdA = EmployeeTestSchema.seedEmployee(TENANT_A, "ONB-001", "Alex");
 
         templateIdA = UUID.randomUUID();
@@ -67,8 +72,13 @@ class OnboardingRlsIT extends AbstractIntegrationTest {
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
         TenantContext.clear();
+        EmployeeTestSchema.clearEmployees();
+        try (Connection conn = EmployeeTestSchema.migrationConnection();
+                Statement stmt = conn.createStatement()) {
+            stmt.execute("DELETE FROM core.onboarding_task_template");
+        }
     }
 
     @Test
