@@ -101,6 +101,9 @@ public final class EmployeeTestSchema {
             if (!columnExists(conn, "employee", "user_account_id")) {
                 executeResource(conn, "db/migration/core/V026__employee_user_account.sql");
             }
+            if (!columnExists(conn, "tenant", "country_code")) {
+                executeResource(conn, "db/migration/core/V033__tenant_locale_columns.sql");
+            }
             if (!tableExists(conn, "role")) {
                 executeResource(conn, "db/migration/reference/V020__action.sql");
                 executeResource(conn, "db/migration/core/V021__role.sql");
