@@ -111,6 +111,13 @@ public final class EmployeeTestSchema {
             if (!tableExists(conn, "reporting_line")) {
                 executeResource(conn, "db/migration/core/V028__reporting_line.sql");
             }
+            if (!tableExists(conn, "document")) {
+                executeResource(conn, "db/migration/core/V037__document.sql");
+            }
+            if (!tableExists(conn, "onboarding_task_template")) {
+                executeResource(conn, "db/migration/core/V192__employee_onboarding_tasks.sql");
+                executeResource(conn, "db/migration/core/V197__onboarding_role_check_and_grants.sql");
+            }
         }
     }
 
@@ -243,6 +250,9 @@ public final class EmployeeTestSchema {
             }
             if (tableExists(conn, "reporting_line")) {
                 stmt.execute("DELETE FROM core.reporting_line");
+            }
+            if (tableExists(conn, "employee_onboarding_task")) {
+                stmt.execute("DELETE FROM core.employee_onboarding_task");
             }
             // employee_invitation (V118) references employee without ON DELETE CASCADE — must go first
             if (tableExists(conn, "employee_invitation")) {

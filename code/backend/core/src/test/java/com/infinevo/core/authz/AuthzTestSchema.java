@@ -229,6 +229,10 @@ public final class AuthzTestSchema {
                     if (!columnExists(conn, "core", "subscription", "plan")) {
                         executeResource(conn, "db/migration/core/V188__subscription_plan.sql");
                     }
+                    if (!tableExists(conn, "core", "onboarding_task_template")) {
+                        executeResource(conn, "db/migration/core/V192__employee_onboarding_tasks.sql");
+                        executeResource(conn, "db/migration/core/V197__onboarding_role_check_and_grants.sql");
+                    }
                 }
 
             } catch (Exception e) {

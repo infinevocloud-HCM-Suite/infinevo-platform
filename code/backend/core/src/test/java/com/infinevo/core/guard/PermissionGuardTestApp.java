@@ -1,5 +1,6 @@
 package com.infinevo.core.guard;
 
+import com.infinevo.core.document.DocumentRepository;
 import com.infinevo.core.document.DocumentService;
 import com.infinevo.core.payinput.PayInputService;
 import com.infinevo.core.setup.SetupStepChecker;
@@ -62,6 +63,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.leave",
             "com.infinevo.core.lop",
             "com.infinevo.core.navigation",
+            "com.infinevo.core.onboarding",
             "com.infinevo.core.org",
             "com.infinevo.core.portal",
             "com.infinevo.core.setup",
@@ -84,6 +86,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.invitation",
             "com.infinevo.core.leave",
             "com.infinevo.core.lop",
+            "com.infinevo.core.onboarding",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
@@ -101,6 +104,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
             "com.infinevo.core.invitation",
             "com.infinevo.core.leave",
             "com.infinevo.core.lop",
+            "com.infinevo.core.onboarding",
             "com.infinevo.core.org",
             "com.infinevo.core.setup",
             "com.infinevo.core.subscription",
@@ -119,6 +123,11 @@ public class PermissionGuardTestApp {
     @Bean
     public DocumentService documentService() {
         return Mockito.mock(DocumentService.class);
+    }
+
+    @Bean
+    public DocumentRepository documentRepository() {
+        return Mockito.mock(DocumentRepository.class);
     }
 
     @Bean

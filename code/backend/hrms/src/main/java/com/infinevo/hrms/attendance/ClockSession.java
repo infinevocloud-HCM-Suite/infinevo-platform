@@ -69,22 +69,22 @@ public class ClockSession {
     @Column(name = "regularization_id", updatable = false)
     private UUID regularizationId;
 
-    @Column(name = "in_latitude", precision = 9, scale = 6)
+    @Column(name = "in_latitude")
     private Double inLatitude;
 
-    @Column(name = "in_longitude", precision = 9, scale = 6)
+    @Column(name = "in_longitude")
     private Double inLongitude;
 
-    @Column(name = "in_accuracy_m", precision = 8, scale = 2)
+    @Column(name = "in_accuracy_m")
     private Double inAccuracyM;
 
-    @Column(name = "out_latitude", precision = 9, scale = 6)
+    @Column(name = "out_latitude")
     private Double outLatitude;
 
-    @Column(name = "out_longitude", precision = 9, scale = 6)
+    @Column(name = "out_longitude")
     private Double outLongitude;
 
-    @Column(name = "out_accuracy_m", precision = 8, scale = 2)
+    @Column(name = "out_accuracy_m")
     private Double outAccuracyM;
 
     @Column(name = "created_at", nullable = false, updatable = false)
