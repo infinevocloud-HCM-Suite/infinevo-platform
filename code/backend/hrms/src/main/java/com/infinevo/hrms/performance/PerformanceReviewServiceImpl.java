@@ -9,10 +9,12 @@ import com.infinevo.core.org.ReportingLine;
 import com.infinevo.core.org.ReportingLineRepository;
 import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.tenant.TenantContext;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -291,7 +293,11 @@ public class PerformanceReviewServiceImpl implements PerformanceReviewService {
     @Transactional(readOnly = true)
     public List<PerformanceReviewResponse> getTeamReviews() {
         UUID tenantId = TenantContext.require();
-        EmployeeResponse current = requireCurrentEmployee();
+        Optional<EmployeeResponse> currentOpt = employeeService.currentEmployee();
+        if (currentOpt.isEmpty()) {
+            return Collections.emptyList();
+        }
+        EmployeeResponse current = currentOpt.get();
         List<PerformanceReview> reviews =
                 reviewRepository.findByTenantIdAndManagerIdOrderByCreatedAtDesc(tenantId, current.id());
         return mapReviewsToResponses(tenantId, reviews, false);

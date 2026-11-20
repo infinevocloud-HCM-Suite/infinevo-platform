@@ -29,7 +29,7 @@ import {
 import dayjs from 'dayjs';
 import { goalService } from './goalService.js';
 
-const { Text, Paragraph } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 
 export function TeamGoalsScreen() {
@@ -237,105 +237,119 @@ export function TeamGoalsScreen() {
     },
   ];
 
-  if (loadError) {
-    return (
-      <Card bordered>
-        <Alert
-          type="error"
-          showIcon
-          message="Failed to load team goals"
-          description={loadError}
-          action={
-            <Button icon={<ReloadOutlined />} onClick={loadTeamGoals}>
-              Retry
-            </Button>
-          }
-        />
-      </Card>
-    );
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Overview Metric Row */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={8}>
-          <Card bordered size="small">
-            <Statistic
-              title="Total Team Goals"
-              value={totalGoals}
-              prefix={<FlagOutlined style={{ color: token.colorPrimary }} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card bordered size="small">
-            <Statistic
-              title="Active Goals"
-              value={activeCount}
-              prefix={<ClockCircleOutlined style={{ color: token.colorWarning }} />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card bordered size="small">
-            <Statistic
-              title="Achieved Goals"
-              value={achievedCount}
-              prefix={<TrophyOutlined style={{ color: token.colorSuccess }} />}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Main Team Goals Table Card */}
+    <div style={{ padding: token.paddingLG }} data-testid="team-goals-screen">
       <Card
+        variant="borderless"
         title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-            <span>Team Goals & OKRs</span>
-            <Space wrap>
-              <Input
-                placeholder="Search team member or goal..."
-                prefix={<SearchOutlined />}
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                style={{ width: 220 }}
-                allowClear
-              />
-              <Select
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                style={{ width: 130 }}
-              >
-                <Option value="ALL">All Categories</Option>
-                <Option value="INDIVIDUAL">Individual</Option>
-                <Option value="TEAM">Team</Option>
-                <Option value="COMPANY">Company</Option>
-              </Select>
-              <Select
-                value={statusFilter}
-                onChange={setStatusFilter}
-                style={{ width: 120 }}
-              >
-                <Option value="ALL">All Status</Option>
-                <Option value="IN_PROGRESS">In Progress</Option>
-                <Option value="ACHIEVED">Achieved</Option>
-                <Option value="DRAFT">Draft</Option>
-                <Option value="CANCELLED">Cancelled</Option>
-              </Select>
-            </Space>
+          <div>
+            <Title level={4} style={{ margin: 0 }}>
+              Team Goals & OKRs
+            </Title>
+            <Text type="secondary">
+              Track and manage team performance goals and OKR milestones.
+            </Text>
           </div>
         }
-        bordered
       >
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={filteredGoals}
-          loading={loading}
-          pagination={{ pageSize: 10, hideOnSinglePage: true }}
-          locale={{ emptyText: 'No team goals found' }}
-        />
+        {loadError && (
+          <Alert
+            type="error"
+            message="Failed to load team goals"
+            description={loadError}
+            action={
+              <Button size="small" type="primary" icon={<ReloadOutlined />} onClick={loadTeamGoals}>
+                Retry
+              </Button>
+            }
+            showIcon
+            style={{ marginBottom: token.marginMD }}
+            data-testid="team-goals-load-error"
+          />
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Overview Metric Row */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Card bordered size="small">
+                <Statistic
+                  title="Total Team Goals"
+                  value={totalGoals}
+                  prefix={<FlagOutlined style={{ color: token.colorPrimary }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card bordered size="small">
+                <Statistic
+                  title="Active Goals"
+                  value={activeCount}
+                  prefix={<ClockCircleOutlined style={{ color: token.colorWarning }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card bordered size="small">
+                <Statistic
+                  title="Achieved Goals"
+                  value={achievedCount}
+                  prefix={<TrophyOutlined style={{ color: token.colorSuccess }} />}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Main Team Goals Table Card */}
+          <Card
+            title={
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <span>Team Goals & OKRs</span>
+                <Space wrap>
+                  <Input
+                    placeholder="Search team member or goal..."
+                    prefix={<SearchOutlined />}
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    style={{ width: 220 }}
+                    allowClear
+                  />
+                  <Select
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    style={{ width: 130 }}
+                  >
+                    <Option value="ALL">All Categories</Option>
+                    <Option value="INDIVIDUAL">Individual</Option>
+                    <Option value="TEAM">Team</Option>
+                    <Option value="COMPANY">Company</Option>
+                  </Select>
+                  <Select
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    style={{ width: 120 }}
+                  >
+                    <Option value="ALL">All Status</Option>
+                    <Option value="IN_PROGRESS">In Progress</Option>
+                    <Option value="ACHIEVED">Achieved</Option>
+                    <Option value="DRAFT">Draft</Option>
+                    <Option value="CANCELLED">Cancelled</Option>
+                  </Select>
+                </Space>
+              </div>
+            }
+            bordered
+          >
+            <Table
+              rowKey="id"
+              columns={columns}
+              dataSource={filteredGoals}
+              loading={loading}
+              pagination={{ pageSize: 10, hideOnSinglePage: true }}
+              locale={{ emptyText: 'No team goals found' }}
+            />
+          </Card>
+        </div>
       </Card>
 
       {/* Goal Detail Drawer with Check-in History */}

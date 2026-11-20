@@ -49,6 +49,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -108,9 +109,11 @@ public class PayslipReleaseIT extends AbstractIntegrationTest {
         secondEmployeeId = PayRunTestSchema.insertWorkedExampleEmployee(TENANT_A, "W-02", catalogue);
 
         mvc = MockMvcBuilders.standaloneSetup(payslipOpenController)
-                .setMessageConverters(new MappingJackson2HttpMessageConverter(new ObjectMapper()
-                        .registerModule(new JavaTimeModule())
-                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)))
+                .setMessageConverters(
+                        new ByteArrayHttpMessageConverter(),
+                        new MappingJackson2HttpMessageConverter(new ObjectMapper()
+                                .registerModule(new JavaTimeModule())
+                                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)))
                 .build();
     }
 

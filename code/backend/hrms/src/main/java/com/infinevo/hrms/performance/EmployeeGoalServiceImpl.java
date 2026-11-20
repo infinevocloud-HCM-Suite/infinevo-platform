@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -247,7 +248,11 @@ public class EmployeeGoalServiceImpl implements EmployeeGoalService {
     @Transactional(readOnly = true)
     public List<EmployeeGoalResponse> getTeamGoals() {
         UUID tenantId = TenantContext.require();
-        EmployeeResponse current = requireCurrentEmployee();
+        Optional<EmployeeResponse> currentOpt = employeeService.currentEmployee();
+        if (currentOpt.isEmpty()) {
+            return Collections.emptyList();
+        }
+        EmployeeResponse current = currentOpt.get();
 
         List<ReportingLine> directReports =
                 reportingLineRepository.findDirectReports(tenantId, current.id(), LocalDate.now());
