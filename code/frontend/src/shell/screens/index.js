@@ -6,7 +6,6 @@
  * module employee tabs the shell composes for core's employee page (D-66) - nothing else.
  * The feed itself, the Keycloak adapter, the store and the router stay inside the shell:`index.test.js` pins this list, so adding to it is a decision, not a drive-by.
  */
-export { Suspended } from './Suspended.jsx';
 export { NotEntitled } from './NotEntitled.jsx';
 export { NotFound } from './NotFound.jsx';
 export { NoModules } from './NoModules.jsx';

@@ -1,9 +1,7 @@
 import PropTypes from 'prop-types';
 import { useState, useEffect, useRef } from 'react';
-import { apiClient, setUnauthorizedHandler, setTenantSuspendedHandler } from '../shared/api/client.js';
-import { onFeedFetch } from './navigation/useNavigation.js';
+import { apiClient, setUnauthorizedHandler } from '../shared/api/client.js';
 import { keycloak } from './auth/keycloak.js';
-import { Suspended } from './screens/Suspended.jsx';
 import { AccessProblem } from './screens/AccessProblem.jsx';
 
 /**
@@ -54,7 +52,6 @@ function forgetReloginFlag() {
  * successful API reply clears it, so a later, ordinary session expiry in the same tab re-logs in again.
  */
 export function ShellBoundary({ children }) {
-  const [suspended, setSuspended] = useState(false);
   const [accessProblem, setAccessProblem] = useState(null);
   const relogged = useRef(null);
   if (relogged.current === null) {
@@ -92,30 +89,16 @@ export function ShellBoundary({ children }) {
       }
     });
 
-    setTenantSuspendedHandler(() => {
-      setSuspended(true);
-    });
-
-    const unsubscribeFeed = onFeedFetch(() => {
-      setSuspended(false);
-    });
-
     return () => {
       if (responses && successInterceptor !== null) {
         responses.eject(successInterceptor);
       }
       setUnauthorizedHandler(null);
-      setTenantSuspendedHandler(null);
-      unsubscribeFeed();
     };
   }, []);
 
   if (accessProblem) {
     return <AccessProblem kind={accessProblem} />;
-  }
-
-  if (suspended) {
-    return <Suspended />;
   }
 
   return children;

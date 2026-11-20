@@ -68,4 +68,49 @@ describe('useCan', () => {
 
     expect(screen.getByText('false')).toBeTruthy();
   });
+
+  it('W-85.2: in viewOnly mode, allows read and export actions and hides write/manage actions', () => {
+    function ViewOnlyTest() {
+      const canRead = useCan('core.employee.read');
+      const canReadOwn = useCan('core.employee.read_own');
+      const canExport = useCan('core.employee.export');
+      const canManage = useCan('core.employee.manage');
+      const canDelete = useCan('core.employee.delete');
+      return (
+        <div>
+          {canRead && <button>Read</button>}
+          {canReadOwn && <button>ReadOwn</button>}
+          {canExport && <button>Export</button>}
+          {canManage && <button>Manage</button>}
+          {canDelete && <button>Delete</button>}
+        </div>
+      );
+    }
+
+    render(
+      <NavigationProvider
+        value={{
+          items: [],
+          actions: [
+            'core.employee.read',
+            'core.employee.read_own',
+            'core.employee.export',
+            'core.employee.manage',
+            'core.employee.delete',
+          ],
+          viewOnly: true,
+          loading: false,
+          error: null,
+        }}
+      >
+        <ViewOnlyTest />
+      </NavigationProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Read' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'ReadOwn' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Manage' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
 });

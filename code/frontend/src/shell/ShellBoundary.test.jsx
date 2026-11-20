@@ -7,7 +7,6 @@ import * as keycloakModule from './auth/keycloak.js';
 
 describe('ShellBoundary component', () => {
   let capturedUnauthorizedHandler = null;
-  let capturedSuspendedHandler = null;
 
   afterEach(() => {
     window.history.replaceState(null, '', '/');
@@ -17,9 +16,6 @@ describe('ShellBoundary component', () => {
     vi.restoreAllMocks();
     vi.spyOn(clientModule, 'setUnauthorizedHandler').mockImplementation((fn) => {
       capturedUnauthorizedHandler = fn;
-    });
-    vi.spyOn(clientModule, 'setTenantSuspendedHandler').mockImplementation((fn) => {
-      capturedSuspendedHandler = fn;
     });
   });
 
@@ -33,23 +29,16 @@ describe('ShellBoundary component', () => {
     expect(screen.getByText('Normal Content')).toBeDefined();
   });
 
-  it('replaces content with Suspended screen when TENANT_SUSPENDED occurs', () => {
+  it('W-85.2: a TENANT_SUSPENDED reply no longer replaces the children', () => {
     render(
       <ShellBoundary>
         <div data-testid="child-content">Normal Content</div>
       </ShellBoundary>,
     );
 
+    expect(screen.getByTestId('child-content')).toBeDefined();
     expect(screen.getByText('Normal Content')).toBeDefined();
-
-    act(() => {
-      if (capturedSuspendedHandler) {
-        capturedSuspendedHandler();
-      }
-    });
-
-    expect(screen.queryByText('Normal Content')).toBeNull();
-    expect(screen.getByText('Subscription Suspended')).toBeDefined();
+    expect(screen.queryByText('Subscription Suspended')).toBeNull();
   });
 
   it('calls keycloak.login() when UNAUTHORIZED event occurs', () => {
@@ -170,34 +159,6 @@ describe('ShellBoundary component', () => {
     expect(screen.queryByText('We could not sign you in')).toBeNull();
   });
 
-  it('clears suspended state on the next feed fetch', async () => {
-    const { fetchNavigationFeed } = await import('./navigation/useNavigation.js');
-    const navModule = await import('./navigation/navigationService.js');
-    vi.spyOn(navModule, 'fetchNavigation').mockResolvedValue({ data: { items: [], actions: [] } });
-
-    render(
-      <ShellBoundary>
-        <div data-testid="child-content">Normal Content</div>
-      </ShellBoundary>,
-    );
-
-    act(() => {
-      if (capturedSuspendedHandler) {
-        capturedSuspendedHandler();
-      }
-    });
-
-    expect(screen.queryByText('Normal Content')).toBeNull();
-    expect(screen.getByText('Subscription Suspended')).toBeDefined();
-
-    await act(async () => {
-      await fetchNavigationFeed();
-    });
-
-    expect(screen.getByText('Normal Content')).toBeDefined();
-    expect(screen.queryByText('Subscription Suspended')).toBeNull();
-  });
-
   it('unregisters handlers on unmount', () => {
     const { unmount } = render(
       <ShellBoundary>
@@ -208,6 +169,5 @@ describe('ShellBoundary component', () => {
     unmount();
 
     expect(clientModule.setUnauthorizedHandler).toHaveBeenCalledWith(null);
-    expect(clientModule.setTenantSuspendedHandler).toHaveBeenCalledWith(null);
   });
 });

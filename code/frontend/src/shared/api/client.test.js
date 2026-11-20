@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { message } from 'antd';
 import { configureStore } from '@reduxjs/toolkit';
 import {
   apiClient,
@@ -90,9 +91,10 @@ describe('apiClient response interceptor', () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onTenantSuspended handler exactly once on TENANT_SUSPENDED code', async () => {
+  it('calls onTenantSuspended handler and shows warning toast on TENANT_SUSPENDED code (W-85.2)', async () => {
     const handler = vi.fn();
     setTenantSuspendedHandler(handler);
+    const messageSpy = vi.spyOn(message, 'warning').mockImplementation(() => {});
 
     const errorResponse = {
       response: {
@@ -110,6 +112,7 @@ describe('apiClient response interceptor', () => {
     });
 
     expect(handler).toHaveBeenCalledTimes(1);
+    expect(messageSpy).toHaveBeenCalledWith('Changes are switched off while the subscription is suspended');
   });
 });
 

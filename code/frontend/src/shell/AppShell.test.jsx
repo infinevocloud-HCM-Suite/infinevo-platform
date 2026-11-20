@@ -296,14 +296,72 @@ describe('AppShell component', () => {
     expect(await screen.findByRole('heading', { name: /Employees/i }, { timeout: 5000 })).toBeDefined();
   });
 
-  it('renders Suspended screen full-page without sidebar or clickable menu when suspended', () => {
-    let capturedSuspendedHandler;
-    vi.spyOn(clientModule, 'setTenantSuspendedHandler').mockImplementation((fn) => {
-      capturedSuspendedHandler = fn;
-    });
-
+  it('W-85.2: shows view-only banner when subscription is SUSPENDED or CANCELLED, not for ACTIVE or PAST_DUE', () => {
+    // 1. SUSPENDED shows banner
     vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
       items: [{ key: 'core', labelKey: 'Core Menu Item', path: '/core' }],
+      subscriptionStatus: 'SUSPENDED',
+      viewOnly: true,
+      loading: false,
+    });
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/core']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByText(
+        'Your subscription is suspended. You can view and export your records. Changes are switched off. Contact support to restore service.',
+      ),
+    ).toBeDefined();
+    expect(screen.getByText('Core Menu Item')).toBeDefined();
+    unmount();
+
+    // 2. CANCELLED shows banner
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [{ key: 'core', labelKey: 'Core Menu Item', path: '/core' }],
+      subscriptionStatus: 'CANCELLED',
+      viewOnly: true,
+      loading: false,
+    });
+
+    const { unmount: unmountCancelled } = render(
+      <MemoryRouter initialEntries={['/core']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByText(
+        'Your subscription is suspended. You can view and export your records. Changes are switched off. Contact support to restore service.',
+      ),
+    ).toBeDefined();
+    unmountCancelled();
+
+    // 3. ACTIVE does not show banner
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [{ key: 'core', labelKey: 'Core Menu Item', path: '/core' }],
+      subscriptionStatus: 'ACTIVE',
+      viewOnly: false,
+      loading: false,
+    });
+
+    const { unmount: unmountActive } = render(
+      <MemoryRouter initialEntries={['/core']}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText(/Your subscription is suspended/i)).toBeNull();
+    unmountActive();
+
+    // 4. PAST_DUE does not show banner
+    vi.spyOn(navigationModule, 'useNavigation').mockReturnValue({
+      items: [{ key: 'core', labelKey: 'Core Menu Item', path: '/core' }],
+      subscriptionStatus: 'PAST_DUE',
+      viewOnly: false,
       loading: false,
     });
 
@@ -313,14 +371,7 @@ describe('AppShell component', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Core Menu Item')).toBeDefined();
-
-    act(() => {
-      if (capturedSuspendedHandler) capturedSuspendedHandler();
-    });
-
-    expect(screen.getByText('Subscription Suspended')).toBeDefined();
-    expect(screen.queryByText('Core Menu Item')).toBeNull();
+    expect(screen.queryByText(/Your subscription is suspended/i)).toBeNull();
   });
 
   it('contains no hex color literals in shell JSX source files (W-45 §8)', () => {
@@ -328,7 +379,6 @@ describe('AppShell component', () => {
       'AppShell.jsx',
       'Header.jsx',
       'ShellBoundary.jsx',
-      'screens/Suspended.jsx',
       'screens/NotEntitled.jsx',
       'screens/NotFound.jsx',
       'screens/NoModules.jsx',

@@ -25,6 +25,7 @@ const EMPTY = Object.freeze({
   items: [],
   actions: [],
   modules: [],
+  subscriptionStatus: null,
   tenantName: null,
   tenantLogoUrl: null,
   tagline: null,
@@ -71,6 +72,7 @@ export async function fetchNavigationFeed() {
       items: Array.isArray(data.items) ? data.items : [],
       actions: Array.isArray(data.actions) ? data.actions : [],
       modules: Array.isArray(data.modules) ? data.modules : [],
+      subscriptionStatus: typeof data.subscriptionStatus === 'string' ? data.subscriptionStatus : null,
       tenantName: typeof data.tenantName === 'string' ? data.tenantName : null,
       tenantLogoUrl: typeof data.tenantLogoUrl === 'string' && data.tenantLogoUrl ? data.tenantLogoUrl : null,
       tagline: typeof data.tagline === 'string' && data.tagline ? data.tagline : null,
@@ -85,6 +87,7 @@ export async function fetchNavigationFeed() {
       items: [],
       actions: [],
       modules: [],
+      subscriptionStatus: null,
       tenantName: null,
       tenantLogoUrl: null,
       tagline: null,
@@ -111,6 +114,8 @@ NavigationProvider.propTypes = {
     items: PropTypes.array,
     actions: PropTypes.oneOfType([PropTypes.array, PropTypes.instanceOf(Set)]),
     modules: PropTypes.array,
+    subscriptionStatus: PropTypes.string,
+    viewOnly: PropTypes.bool,
     tenantName: PropTypes.string,
     tenantLogoUrl: PropTypes.string,
     tagline: PropTypes.string,
@@ -153,10 +158,16 @@ export function useNavigation() {
   }, [provided]);
 
   const active = provided || live;
+  const viewOnly =
+    typeof active.viewOnly === 'boolean'
+      ? active.viewOnly
+      : active.subscriptionStatus === 'SUSPENDED' || active.subscriptionStatus === 'CANCELLED';
   return {
     items: active.items || [],
     actions: active.actions || [],
     modules: active.modules || [],
+    subscriptionStatus: active.subscriptionStatus || null,
+    viewOnly,
     tenantName: active.tenantName || null,
     tenantLogoUrl: active.tenantLogoUrl || null,
     tagline: active.tagline || null,

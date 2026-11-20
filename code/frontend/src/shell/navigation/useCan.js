@@ -1,15 +1,30 @@
 import { useNavigation } from './useNavigation.js';
 
+function isReadOnlyAction(code) {
+  return (
+    code.endsWith('.read') ||
+    code.endsWith('.read_own') ||
+    code.endsWith('.read_team') ||
+    code.endsWith('.export')
+  );
+}
+
 /**
  * `useCan('core.employee.delete')` - does the signed-in user hold this action code, according
  * to the navigation feed (W-12.3 §5)? The one way a screen decides whether to show a button.
  *
  * It is a hint for the screen, not a boundary: the endpoint behind the button still refuses
  * on its own (W-12.2). Absent feed, absent code, or anything but a string: false.
+ *
+ * When viewOnly (W-85.2: tenant is SUSPENDED or CANCELLED), returns false unless the action
+ * code is a read or export action.
  */
 export function useCan(actionCode) {
-  const { actions } = useNavigation();
+  const { actions, viewOnly } = useNavigation();
   if (typeof actionCode !== 'string' || actionCode === '') {
+    return false;
+  }
+  if (viewOnly && !isReadOnlyAction(actionCode)) {
     return false;
   }
   if (Array.isArray(actions)) {

@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Layout, Menu, Skeleton, Typography, Button, Result, Drawer, Grid, theme as antdTheme } from 'antd';
+import { Layout, Menu, Skeleton, Typography, Button, Result, Drawer, Grid, Alert, theme as antdTheme } from 'antd';
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { Link, Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { useNavigation } from './navigation/useNavigation.js';
@@ -77,8 +77,19 @@ RootRedirect.propTypes = {
  * array anywhere here. An empty feed → empty sidebar and NoModules placeholder.
  */
 export function AppShell() {
-  const { items, actions, modules, tenantName, tenantLogoUrl, tagline, homePath: feedHomePath, loading, error, refetch } =
-    useNavigation();
+  const {
+    items,
+    actions,
+    modules,
+    viewOnly,
+    tenantName,
+    tenantLogoUrl,
+    tagline,
+    homePath: feedHomePath,
+    loading,
+    error,
+    refetch,
+  } = useNavigation();
   const location = useLocation();
   const { token } = antdTheme.useToken();
   const session = useImpersonationSession();
@@ -257,6 +268,15 @@ export function AppShell() {
           <Content style={{ padding: phone ? token.paddingSM : token.paddingLG, background: token.colorBgLayout, minHeight: `calc(100vh - ${headerHeight}px)` }}>
             {/* W-83.5: content stops at 1440 px so columns do not spread across a wide screen */}
             <div style={{ maxWidth: CONTENT_MAX_WIDTH, margin: '0 auto' }}>
+            {viewOnly && (
+              <Alert
+                type="warning"
+                showIcon
+                message="Your subscription is suspended. You can view and export your records. Changes are switched off. Contact support to restore service."
+                className="suspended-view-only-banner"
+                style={{ marginBottom: token.marginMD }}
+              />
+            )}
             {!loading && error ? (
               <Result
                 status="500"

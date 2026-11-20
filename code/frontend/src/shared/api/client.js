@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { message } from 'antd';
 import { config } from '../config.js';
 
 /**
@@ -108,11 +109,18 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (isTenantSuspended && typeof tenantSuspendedHandler === 'function') {
+    if (isTenantSuspended) {
       try {
-        tenantSuspendedHandler();
+        message.warning('Changes are switched off while the subscription is suspended');
       } catch (err) {
-        console.error('tenantSuspendedHandler threw error', err);
+        console.error('Failed to show tenant suspended toast', err);
+      }
+      if (typeof tenantSuspendedHandler === 'function') {
+        try {
+          tenantSuspendedHandler();
+        } catch (err) {
+          console.error('tenantSuspendedHandler threw error', err);
+        }
       }
     }
 

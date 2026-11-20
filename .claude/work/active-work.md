@@ -6,6 +6,17 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-20 — W-85.2 suspended customers view-only banner on `feature/krushna-specs`
+
+| What | Where |
+|---|---|
+| Replaced full-screen Suspended page with persistent warning banner and view-only mode when `subscriptionStatus` is `SUSPENDED` or `CANCELLED` | `shell/AppShell.jsx`, `shell/navigation/useNavigation.js` |
+| `useCan` central action gate returns `false` in `viewOnly` mode for all mutating actions while preserving read (`.read`, `.read_own`, `.read_team`) and export (`.export`) actions | `shell/navigation/useCan.js` |
+| Blocked write operations return toast "Changes are switched off while the subscription is suspended" and keep the current screen mounted | `shared/api/client.js` |
+| Removed `Suspended` full-page screen and boundary state | `shell/ShellBoundary.jsx`, `screens/Suspended.jsx` (deleted), `screens/index.js` |
+
+- Built by Krushna on `feature/krushna-specs`, verified with `useCan.test.jsx`, `AppShell.test.jsx`, `ShellBoundary.test.jsx`, `client.test.js`, full frontend shell suite (27/27 test files, 183 tests green), and 5/5 gates passed on `check-done.mjs W-85.2`.
+
 ## 2026-11-20 — W-85.1 suspended customers central write guard on `feature/krushna-specs`
 
 | What | Where |
