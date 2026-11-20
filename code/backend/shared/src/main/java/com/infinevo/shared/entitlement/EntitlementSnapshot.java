@@ -4,7 +4,11 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Snapshot of a tenant's module entitlements and subscription status (W-12.2).
+ * Snapshot of a tenant's module entitlements and subscription status (W-12.2, W-85.1).
+ *
+ * <p>{@code suspended} is true when the subscription is {@code SUSPENDED} or {@code CANCELLED}.
+ * In both states, {@code activeModules} and {@code revokedModules} are still populated for
+ * statutory retention reads and exports.
  */
 public record EntitlementSnapshot(
         Set<PlatformModule> activeModules, Set<PlatformModule> revokedModules, boolean suspended) {

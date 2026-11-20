@@ -98,10 +98,7 @@ public final class StubEntitlementSource implements EntitlementSource {
             return EntitlementSnapshot.empty();
         }
         boolean isSuspended = suspendedTenants.contains(tenantId);
-        if (isSuspended) {
-            return new EntitlementSnapshot(Set.of(), Set.of(), true);
-        }
         return new EntitlementSnapshot(
-                active.getOrDefault(tenantId, Set.of()), revoked.getOrDefault(tenantId, Set.of()), false);
+                active.getOrDefault(tenantId, Set.of()), revoked.getOrDefault(tenantId, Set.of()), isSuspended);
     }
 }

@@ -46,14 +46,8 @@ public class EntitlementReadService implements EntitlementSource {
         }
 
         Subscription subscription = subscriptionOpt.get();
-        boolean suspended = subscription.getStatus() == SubscriptionStatus.SUSPENDED;
-        if (suspended) {
-            return new EntitlementSnapshot(Set.of(), Set.of(), true);
-        }
-
-        if (!subscription.getStatus().isActiveOrPastDue()) {
-            return EntitlementSnapshot.empty();
-        }
+        SubscriptionStatus status = subscription.getStatus();
+        boolean suspended = status == SubscriptionStatus.SUSPENDED || status == SubscriptionStatus.CANCELLED;
 
         List<SubscriptionModule> modules = subscriptionModuleRepository.findByTenantId(tenantId);
         Set<PlatformModule> active = modules.stream()
@@ -65,7 +59,7 @@ public class EntitlementReadService implements EntitlementSource {
                 .map(SubscriptionModule::getModule)
                 .collect(Collectors.toUnmodifiableSet());
 
-        return new EntitlementSnapshot(active, revoked, false);
+        return new EntitlementSnapshot(active, revoked, suspended);
     }
 
     @Override

@@ -1,10 +1,22 @@
 # Active Work
 
 > Live project state. **Read this before starting any task** (root `CLAUDE.md` rule 2).
-> Last refreshed: **2026-10-08**, against `main` `861b56dc`.
+> Last refreshed: **2026-11-20**, against `feature/krushna-specs`.
 > **Layer 0 of Core is done — all three.** `W-22.1`, `W-10`, `W-13.1`. **Layer 1:**
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
+
+## 2026-11-20 — W-85.1 suspended customers central write guard on `feature/krushna-specs`
+
+| What | Where |
+|---|---|
+| Central write guard aspect intercepting mutating HTTP methods (POST, PUT, PATCH, DELETE) ordered before `RequiresModuleAspect` (`ORDER = HIGHEST_PRECEDENCE + 80`). Refuses mutating calls from `SUSPENDED` and `CANCELLED` tenants with `403 TENANT_SUSPENDED`. Safe reads (GET, HEAD, OPTIONS), unbound requests, platform tenant, and active impersonation (`ActingAs`) pass. Method-level `@AllowedWhenSuspended` permits statutory retention operations | `shared/tenant/TenantSuspensionAspect.java`, `shared/tenant/AllowedWhenSuspended.java`, `shared/entitlement/EntitlementAutoConfiguration.java` |
+| `EntitlementReadService` treats `CANCELLED` as `suspended = true` alongside `SUSPENDED`, and populates active/revoked module sets in both states so statutory records can be read and exported | `core/subscription/EntitlementReadService.java`, `shared/entitlement/EntitlementSnapshot.java` |
+| `EntitlementService.require` permits read-only requests through to module check when suspended; mutating requests throw `TENANT_SUSPENDED` | `shared/entitlement/EntitlementService.java` |
+| Navigation feed returns `subscriptionStatus` (`ACTIVE`, `PAST_DUE`, `SUSPENDED`, `CANCELLED`) for frontend readiness (`W-85.2`) | `core/navigation/NavigationResponse.java`, `core/navigation/NavigationService.java` |
+| Exempt endpoints annotated with `@AllowedWhenSuspended`: `/api/v1/exports`, `/api/v1/notifications/{id}/read`, `/api/v1/invitations/accept`, `/api/v1/invitations/decline`, `/api/v1/me/payslips/{payrunId}/link` | `ExportController.java`, `NotificationController.java`, `InvitationAcceptanceController.java`, `PayslipController.java` |
+
+- Built by Krushna on `feature/krushna-specs`, verified with `TenantSuspensionAspectTest` (10/10), `EntitlementServiceTest` (8/8), `EntitlementReadServiceTest` (4/4), `TenantSuspensionIT` (14/14), `NavigationServiceTest` (38/38), and 5/5 gates passed on `check-done.mjs W-85.1`.
 
 ## 2026-11-13 — D-142 locked-month loss of pay on `main` (`d281593f`)
 

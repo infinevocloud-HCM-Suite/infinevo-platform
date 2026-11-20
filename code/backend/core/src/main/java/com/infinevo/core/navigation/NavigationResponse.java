@@ -16,6 +16,7 @@ import java.util.Set;
  * @param tenantLogoUrl a signed link to the tenant's logo (W-73.1), valid for a day; null when the tenant has
  *     no logo, and the header then shows the company's initials
  * @param tagline the tenant's tagline (W-73.1); null when none is set, and the header then shows none
+ * @param subscriptionStatus subscription status of the tenant (W-85.1); null when no subscription exists
  */
 public record NavigationResponse(
         List<NavigationItemResponse> items,
@@ -24,7 +25,20 @@ public record NavigationResponse(
         String tenantName,
         String homePath,
         String tenantLogoUrl,
-        String tagline) {
+        String tagline,
+        String subscriptionStatus) {
+
+    /** The W-73.1 shape, with branding and no subscription status — for backward compatibility. */
+    public NavigationResponse(
+            List<NavigationItemResponse> items,
+            Set<String> actions,
+            Set<PlatformModule> modules,
+            String tenantName,
+            String homePath,
+            String tenantLogoUrl,
+            String tagline) {
+        this(items, actions, modules, tenantName, homePath, tenantLogoUrl, tagline, null);
+    }
 
     /** The W-12.3 shape, with no branding — for callers and tests that predate W-73.1. */
     public NavigationResponse(
@@ -33,6 +47,6 @@ public record NavigationResponse(
             Set<PlatformModule> modules,
             String tenantName,
             String homePath) {
-        this(items, actions, modules, tenantName, homePath, null, null);
+        this(items, actions, modules, tenantName, homePath, null, null, null);
     }
 }

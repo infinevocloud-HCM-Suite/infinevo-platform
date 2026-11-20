@@ -110,7 +110,7 @@ public class EntitlementService {
             throw new EntitlementDeniedException(ApiError.MODULE_NOT_ENTITLED, module);
         }
 
-        if (snapshot.suspended()) {
+        if (snapshot.suspended() && !isReadOnly) {
             log.info("Entitlement refused for {}: tenant {} subscription is suspended", module, tenantId.get());
             throw new EntitlementDeniedException(ApiError.TENANT_SUSPENDED, module);
         }
@@ -126,6 +126,13 @@ public class EntitlementService {
 
         log.info("Entitlement refused for {}: tenant {} does not hold it", module, tenantId.get());
         throw new EntitlementDeniedException(ApiError.MODULE_NOT_ENTITLED, module);
+    }
+
+    /**
+     * Loads the entitlement snapshot for {@code tenantId}.
+     */
+    public EntitlementSnapshot snapshotOf(UUID tenantId) {
+        return loadSnapshot(tenantId);
     }
 
     private EntitlementSnapshot loadSnapshot(UUID tenantId) {

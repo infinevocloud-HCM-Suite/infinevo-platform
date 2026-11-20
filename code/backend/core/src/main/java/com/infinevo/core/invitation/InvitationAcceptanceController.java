@@ -5,6 +5,7 @@ import com.infinevo.core.employee.EmployeeService;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
+import com.infinevo.shared.tenant.AllowedWhenSuspended;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -47,6 +48,7 @@ public class InvitationAcceptanceController {
             "This invitation cannot be used. It may have expired, been used or been withdrawn. Ask for a new invitation.";
 
     @PostMapping("/accept")
+    @AllowedWhenSuspended
     public ResponseEntity<?> accept(@RequestBody AcceptInvitationRequest request) {
         if (request == null || request.token() == null || request.token().isBlank()) {
             return badRequest("token must not be blank");
@@ -71,6 +73,7 @@ public class InvitationAcceptanceController {
     }
 
     @PostMapping("/decline")
+    @AllowedWhenSuspended
     public ResponseEntity<?> decline(@RequestBody DeclineInvitationRequest request) {
         if (request == null || request.token() == null || request.token().isBlank()) {
             return badRequest("token must not be blank");

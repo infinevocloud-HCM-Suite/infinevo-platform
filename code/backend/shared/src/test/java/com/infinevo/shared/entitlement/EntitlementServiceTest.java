@@ -61,24 +61,28 @@ class EntitlementServiceTest {
     }
 
     @Test
-    @DisplayName("A suspended subscription returns TENANT_SUSPENDED on every module endpoint")
-    void suspendedSubscriptionReturnsTenantSuspendedOnEveryModule() {
+    @DisplayName("A suspended subscription returns TENANT_SUSPENDED on write, but safe read passes if module held")
+    void suspendedSubscriptionBehavior() {
         TenantContext.set(tenant);
-        source.grant(tenant, PlatformModule.HRMS, PlatformModule.PAYROLL);
+        source.grant(tenant, PlatformModule.HRMS);
         source.setSuspended(tenant, true);
 
         assertThat(service.holds(PlatformModule.HRMS)).isFalse();
-        assertThat(service.holds(PlatformModule.PAYROLL)).isFalse();
 
-        assertThatThrownBy(() -> service.require(PlatformModule.HRMS))
+        // Suspended + write is TENANT_SUSPENDED
+        assertThatThrownBy(() -> service.require(PlatformModule.HRMS, false))
                 .isInstanceOf(EntitlementDeniedException.class)
                 .satisfies(e ->
                         assertThat(((EntitlementDeniedException) e).error()).isEqualTo(ApiError.TENANT_SUSPENDED));
 
-        assertThatThrownBy(() -> service.require(PlatformModule.PAYROLL))
+        // Suspended + read + module held passes
+        assertThatCode(() -> service.require(PlatformModule.HRMS, true)).doesNotThrowAnyException();
+
+        // Suspended + read + module not held is MODULE_NOT_ENTITLED
+        assertThatThrownBy(() -> service.require(PlatformModule.PAYROLL, true))
                 .isInstanceOf(EntitlementDeniedException.class)
                 .satisfies(e ->
-                        assertThat(((EntitlementDeniedException) e).error()).isEqualTo(ApiError.TENANT_SUSPENDED));
+                        assertThat(((EntitlementDeniedException) e).error()).isEqualTo(ApiError.MODULE_NOT_ENTITLED));
     }
 
     @Test

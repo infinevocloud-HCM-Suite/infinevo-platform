@@ -7,6 +7,7 @@ import com.infinevo.shared.authz.PermissionService;
 import com.infinevo.shared.authz.RequiresAction;
 import com.infinevo.shared.queue.QueueMessage;
 import com.infinevo.shared.queue.QueueProducer;
+import com.infinevo.shared.tenant.AllowedWhenSuspended;
 import com.infinevo.shared.tenant.TenantContext;
 import java.net.URI;
 import java.util.Map;
@@ -92,6 +93,7 @@ public class ExportController extends ReportController {
      * with the job id. Otherwise runs synchronously and returns {@code 201 Created} with download link.
      */
     @PostMapping
+    @AllowedWhenSuspended
     @RequiresAction("core.report.read")
     public ResponseEntity<?> export(
             @RequestParam(name = "async", defaultValue = "false") boolean async,

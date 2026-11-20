@@ -236,6 +236,24 @@ class NavigationServiceTest {
     }
 
     @Test
+    @DisplayName("W-85.1: navigation reply carries the tenant's subscription status")
+    void replyCarriesSubscriptionStatus() {
+        UUID tenantId = UUID.randomUUID();
+        TenantContext.set(tenantId);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.queryForList(eq("SELECT name FROM core.tenant WHERE tenant_id = ?"), eq(String.class), eq(tenantId)))
+                .thenReturn(List.of("Acme Ltd"));
+        when(jdbc.queryForList(
+                        eq("SELECT status FROM core.subscription WHERE tenant_id = ?"), eq(String.class), eq(tenantId)))
+                .thenReturn(List.of("SUSPENDED"));
+        when(permissionService.currentActions()).thenReturn(Set.of());
+
+        NavigationService withStatus = new NavigationService(entitlementService, permissionService, CATALOGUE, jdbc);
+
+        assertThat(withStatus.navigation().subscriptionStatus()).isEqualTo("SUSPENDED");
+    }
+
+    @Test
     @DisplayName("W-73.1: with a profile service the reply carries the tenant's tagline and logo link too")
     void replyCarriesBranding() {
         UUID tenantId = UUID.randomUUID();

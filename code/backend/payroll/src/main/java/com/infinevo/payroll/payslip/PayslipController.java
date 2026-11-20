@@ -6,6 +6,7 @@ import com.infinevo.shared.entitlement.RequiresModule;
 import com.infinevo.shared.error.ApiError;
 import com.infinevo.shared.error.ApiErrorResponse;
 import com.infinevo.shared.logging.MdcLoggingContext;
+import com.infinevo.shared.tenant.AllowedWhenSuspended;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.MDC;
@@ -62,6 +63,7 @@ public class PayslipController {
     }
 
     @PostMapping("/api/v1/me/payslips/{payrunId}/link")
+    @AllowedWhenSuspended
     @RequiresAction("payroll.payslip.read_own")
     public ResponseEntity<PayslipLinkService.LinkToken> linkForOwn(@PathVariable("payrunId") UUID payrunId) {
         return ResponseEntity.ok(payslipService.linkForOwn(payrunId));

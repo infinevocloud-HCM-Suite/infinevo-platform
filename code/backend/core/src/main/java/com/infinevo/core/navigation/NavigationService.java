@@ -180,7 +180,8 @@ public class NavigationService {
                 branding.name(),
                 homePath(items, actions),
                 branding.logoUrl(),
-                branding.tagline());
+                branding.tagline(),
+                readSubscriptionStatus());
     }
 
     /** The portal's own page: mounted for every signed-in user whatever the feed says, so always a safe home. */
@@ -342,6 +343,25 @@ public class NavigationService {
         List<String> names = jdbcTemplate.queryForList(
                 "SELECT name FROM core.tenant WHERE tenant_id = ?", String.class, tenantId.get());
         return names.isEmpty() ? NO_BRANDING : new TenantBranding(names.get(0), null, null, null);
+    }
+
+    /**
+     * Reads the bound tenant's subscription status (W-85.1). Returns null when no subscription exists or
+     * when jdbcTemplate is null (e.g. unit tests without a database).
+     */
+    private String readSubscriptionStatus() {
+        Optional<UUID> tenantId = TenantContext.current();
+        if (tenantId.isEmpty() || jdbcTemplate == null) {
+            return null;
+        }
+        try {
+            List<String> statuses = jdbcTemplate.queryForList(
+                    "SELECT status FROM core.subscription WHERE tenant_id = ?", String.class, tenantId.get());
+            return statuses.isEmpty() ? null : statuses.get(0);
+        } catch (RuntimeException e) {
+            log.warn("Subscription status could not be read for navigation: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

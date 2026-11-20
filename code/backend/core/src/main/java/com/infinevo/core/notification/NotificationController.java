@@ -1,5 +1,6 @@
 package com.infinevo.core.notification;
 
+import com.infinevo.shared.tenant.AllowedWhenSuspended;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -44,6 +45,7 @@ public class NotificationController extends NotificationErrors {
 
     /** {@code 200}; {@code 404} for a notification that is not the caller's. Reading twice is harmless. */
     @PostMapping("/{id}/read")
+    @AllowedWhenSuspended
     public NotificationResponse markRead(@PathVariable("id") UUID id) {
         return notificationService.markRead(id);
     }
