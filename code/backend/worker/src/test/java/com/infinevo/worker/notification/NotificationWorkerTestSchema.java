@@ -70,6 +70,9 @@ public final class NotificationWorkerTestSchema {
                         "core/V026__employee_user_account.sql",
                         "core/V033__tenant_locale_columns.sql",
                         "core/V034__subscription.sql",
+                        "core/V117__user_invitation.sql",
+                        "core/V138__subscription_status_check.sql",
+                        "core/V188__subscription_plan.sql",
                         "core/V038__notification_template.sql",
                         "core/V039__notification.sql",
                         "core/V093__reminder_rule.sql"
