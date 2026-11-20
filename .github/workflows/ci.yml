@@ -681,7 +681,8 @@ jobs:
           # XLSX (~18 MB). Both land twice, because app.jar and worker.jar are separate
           # fat jars (W-49 section 7 accepted that). Sharing one library layer between
           # the two jars would recover far more than this raise; that belongs to W-49.
-          check_size infinevo-backend:test  275
+          # W-98 (mobile PDF payslips) and W-102/W-106 raise it to 290 MB.
+          check_size infinevo-backend:test  290
           check_size infinevo-frontend:test  40
           check_size infinevo-keycloak:test 300
           exit "$failed"
