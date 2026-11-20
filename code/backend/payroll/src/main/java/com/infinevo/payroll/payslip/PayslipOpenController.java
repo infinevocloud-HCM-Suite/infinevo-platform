@@ -11,6 +11,8 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -41,11 +43,19 @@ public class PayslipOpenController {
             PayslipLinkService linkService, PayslipService payslipService, PayslipPdfWriter pdfWriter) {
         this.linkService = Objects.requireNonNull(linkService, "linkService must not be null");
         this.payslipService = Objects.requireNonNull(payslipService, "payslipService must not be null");
-        this.pdfWriter = pdfWriter;
+        this.pdfWriter = pdfWriter != null ? pdfWriter : new PayslipPdfWriter();
     }
 
     public PayslipOpenController(PayslipLinkService linkService, PayslipService payslipService) {
-        this(linkService, payslipService, new PayslipPdfWriter());
+        this(linkService, payslipService, (PayslipPdfWriter) null);
+    }
+
+    @Autowired
+    public PayslipOpenController(
+            PayslipLinkService linkService,
+            PayslipService payslipService,
+            ObjectProvider<PayslipPdfWriter> pdfWriterProvider) {
+        this(linkService, payslipService, pdfWriterProvider != null ? pdfWriterProvider.getIfAvailable() : null);
     }
 
     @GetMapping(PublicEndpoints.PAYSLIP_OPEN)
