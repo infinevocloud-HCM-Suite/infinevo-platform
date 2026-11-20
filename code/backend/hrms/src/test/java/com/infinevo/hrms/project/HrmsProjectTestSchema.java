@@ -121,6 +121,16 @@ public final class HrmsProjectTestSchema {
                         executeResource(conn, "db/migration/" + script);
                     }
                 }
+                if (!tableExists(conn, "hrms", "performance_cycle")) {
+                    for (String script : new String[] {
+                        "hrms/V193__performance_review_cycles.sql",
+                        "hrms/V194__employee_goals_and_okrs.sql",
+                        "hrms/V195__performance_review_fixes.sql",
+                        "hrms/V196__employee_goal_check_in.sql"
+                    }) {
+                        executeResource(conn, "db/migration/" + script);
+                    }
+                }
             } catch (Exception e) {
                 throw new IllegalStateException("Could not prepare " + DATABASE, e);
             }
