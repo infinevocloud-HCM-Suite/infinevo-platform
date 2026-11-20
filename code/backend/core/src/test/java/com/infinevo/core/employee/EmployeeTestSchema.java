@@ -114,6 +114,11 @@ public final class EmployeeTestSchema {
             if (!tableExists(conn, "document")) {
                 executeResource(conn, "db/migration/core/V037__document.sql");
             }
+            if (!tableExists(conn, "subscription")) {
+                executeResource(conn, "db/migration/core/V034__subscription.sql");
+                executeResource(conn, "db/migration/core/V138__subscription_status_check.sql");
+                executeResource(conn, "db/migration/core/V188__subscription_plan.sql");
+            }
             if (!tableExists(conn, "onboarding_task_template")) {
                 executeResource(conn, "db/migration/core/V192__employee_onboarding_tasks.sql");
                 executeResource(conn, "db/migration/core/V197__onboarding_role_check_and_grants.sql");

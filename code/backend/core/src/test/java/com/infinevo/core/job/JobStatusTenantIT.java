@@ -115,6 +115,12 @@ class JobStatusTenantIT extends AbstractIntegrationTest {
             if (tableExists(conn, "employee_personal")) {
                 conn.createStatement().execute("DELETE FROM core.employee_personal");
             }
+            if (tableExists(conn, "reporting_line")) {
+                conn.createStatement().execute("DELETE FROM core.reporting_line");
+            }
+            if (tableExists(conn, "employee_onboarding_task")) {
+                conn.createStatement().execute("DELETE FROM core.employee_onboarding_task");
+            }
             // employee_invitation (V118) references employee without ON DELETE CASCADE — must go first
             if (tableExists(conn, "employee_invitation")) {
                 conn.createStatement().execute("DELETE FROM core.employee_invitation");
