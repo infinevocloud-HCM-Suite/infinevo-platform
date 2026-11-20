@@ -114,6 +114,9 @@ public final class EmployeeTestSchema {
             if (!tableExists(conn, "document")) {
                 executeResource(conn, "db/migration/core/V037__document.sql");
             }
+            if (!tableExists(conn, "user_invitation")) {
+                executeResource(conn, "db/migration/core/V117__user_invitation.sql");
+            }
             if (!tableExists(conn, "subscription")) {
                 executeResource(conn, "db/migration/core/V034__subscription.sql");
                 executeResource(conn, "db/migration/core/V138__subscription_status_check.sql");
