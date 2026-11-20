@@ -387,4 +387,47 @@ describe('SalaryTab component (W-47.1a §7)', () => {
       ).toBeDefined();
     });
   });
+
+  it('D-143: Edit on the statutory card opens the statutory drawer and makes no salary call', async () => {
+    salaryService.asOf.mockResolvedValueOnce(null);
+    salaryService.versions.mockResolvedValueOnce([]);
+    statutoryProfileService.save.mockResolvedValueOnce({ id: 'p1', tdsApplicable: false });
+
+    renderTab();
+
+    await waitFor(() => expect(screen.getByTestId('statutory-edit')).toBeDefined());
+    const getsBefore = statutoryProfileService.get.mock.calls.length;
+    fireEvent.click(screen.getByTestId('statutory-edit'));
+
+    const drawer = await screen.findByTestId('statutory-profile-drawer');
+    expect(within(drawer).getByText('TDS applicable')).toBeDefined();
+    await waitFor(() => expect(document.getElementById('sp-chk-statutory-tds').checked).toBe(true));
+    fireEvent.click(document.getElementById('sp-chk-statutory-tds'));
+    fireEvent.click(screen.getByTestId('statutory-profile-save'));
+
+    await waitFor(() =>
+      expect(statutoryProfileService.save).toHaveBeenCalledWith(
+        'emp-1',
+        expect.objectContaining({ tdsApplicable: false })
+      )
+    );
+    // The card re-reads the profile after the save.
+    await waitFor(() => expect(statutoryProfileService.get.mock.calls.length).toBeGreaterThan(getsBefore));
+    expect(salaryService.create).not.toHaveBeenCalled();
+    expect(salaryService.revise).not.toHaveBeenCalled();
+    expect(salaryService.update).not.toHaveBeenCalled();
+    expect(salaryService.preview).not.toHaveBeenCalled();
+    expect(salaryService.cancel).not.toHaveBeenCalled();
+  });
+
+  it('D-143: finance (read only) sees no Edit on the statutory card', async () => {
+    salaryService.asOf.mockResolvedValueOnce(null);
+    salaryService.versions.mockResolvedValueOnce([]);
+
+    renderTab('emp-1', { canManage: false });
+
+    await waitFor(() => expect(document.getElementById('card-statutory-details')).toBeTruthy());
+    await waitFor(() => expect(statutoryProfileService.get).toHaveBeenCalled());
+    expect(screen.queryByTestId('statutory-edit')).toBeNull();
+  });
 });
