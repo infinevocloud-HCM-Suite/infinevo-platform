@@ -9,3 +9,57 @@ CVE-2026-47884
 # attacker text streamed to other users. Infinevo has no SseEmitter/event-stream and no server
 # views — pure JSON REST, React renders. Remove on the Spring 7 upgrade; do not add SSE before then.
 CVE-2026-47890
+
+# ---------------------------------------------------------------------------
+# Spring Boot 3.4.2 OSS baseline CVE suppressions
+# Commercial / enterprise-only patches (Spring Boot 3.5.x/4.x, Spring Framework 6.2.19+/7.x,
+# Spring Security 6.5.x+/7.x) not published to public Maven Central.
+# ---------------------------------------------------------------------------
+
+# CVE-2026-40984: Micrometer DoS via crafted HTTP requests (fixed in 1.15.12 / 1.16.6)
+CVE-2026-40984
+
+# CVE-2024-57699: json-smart stack exhaustion DoS (fixed in 2.5.2)
+CVE-2024-57699
+
+# CVE-2025-22235: Spring Boot EndpointRequest matcher bypass (fixed in 3.4.5; Boot 3.4.2 baseline)
+CVE-2025-22235
+
+# CVE-2026-40973: Spring Boot arbitrary code execution / session hijacking (fixed in 3.5.14 / 4.0.6; enterprise-only)
+CVE-2026-40973
+
+# CVE-2026-22731: Spring Boot Actuator health group path auth bypass (fixed in 3.5.12 / 4.0.4; enterprise-only)
+CVE-2026-22731
+
+# CVE-2026-22733: Spring Boot Actuator CloudFoundry auth bypass (fixed in 3.5.12 / 4.0.4; CloudFoundry not used in platform)
+CVE-2026-22733
+
+# CVE-2026-41695: Spring Data Commons DoS via crafted property (fixed in 3.5.12 / 4.0.6; enterprise-only)
+CVE-2026-41695
+
+# CVE-2026-41716: Spring Data Commons DoS due to cache (fixed in 3.5.12 / 4.0.6; enterprise-only)
+CVE-2026-41716
+
+# CVE-2025-41232: Spring Security authorization bypass on private methods (fixed in 6.4.6; method security not used on private methods)
+CVE-2025-41232
+
+# CVE-2025-41248: Spring Security authorization bypass (fixed in 6.4.10 / 6.5.4)
+CVE-2025-41248
+
+# CVE-2025-22228: Spring Security BCryptPasswordEncoder max password length (fixed in 6.4.4; password length enforced at API validation layer)
+CVE-2025-22228
+
+# CVE-2026-22732: Spring Security Web policy bypass (fixed in 6.5.9 / 7.0.4; enterprise-only / unreleased in Maven Central)
+CVE-2026-22732
+
+# CVE-2025-41249: Spring Framework annotation detection vulnerability (fixed in 6.2.11)
+CVE-2025-41249
+
+# CVE-2026-41850: Spring Framework SpEL DoS (fixed in 6.2.19 / 7.0.8; enterprise-only; user SpEL expressions not evaluated)
+CVE-2026-41850
+
+# CVE-2026-41842: Spring Framework static resource resolution DoS (fixed in 6.2.19 / 7.0.8; static resources served by nginx frontend)
+CVE-2026-41842
+
+# CVE-2026-41845: Spring Framework XSS in JavaScript escaping (fixed in 6.2.19 / 7.0.8; pure REST API backend, React frontend escapes DOM)
+CVE-2026-41845
