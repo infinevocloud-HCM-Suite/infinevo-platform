@@ -90,6 +90,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     /** W-102: auto-assigns onboarding task checklist on employee create. */
     private final com.infinevo.core.onboarding.OnboardingService onboardingService;
 
+    private final ObjectProvider<com.infinevo.core.onboarding.OnboardingService> onboardingServiceProvider;
+
     public EmployeeServiceImpl(
             EmployeeRepository employeeRepository,
             DepartmentRepository departmentRepository,
@@ -160,6 +162,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         this.employmentService = Objects.requireNonNull(employmentService, "employmentService must not be null");
         this.limitGuard = Objects.requireNonNull(limitGuard, "limitGuard must not be null");
         this.onboardingService = onboardingService;
+        this.onboardingServiceProvider = null;
         this.publisher = publisher;
     }
 
@@ -175,17 +178,29 @@ public class EmployeeServiceImpl implements EmployeeService {
             EmployeeLimitGuard limitGuard,
             ObjectProvider<com.infinevo.core.onboarding.OnboardingService> onboardingServiceProvider,
             @Autowired(required = false) ApplicationEventPublisher publisher) {
-        this(
-                employeeRepository,
-                departmentRepository,
-                designationRepository,
-                workLocationRepository,
-                userAccountRepository,
-                userProfileSyncService,
-                employmentService,
-                limitGuard,
-                onboardingServiceProvider != null ? onboardingServiceProvider.getIfAvailable() : null,
-                publisher);
+        this.employeeRepository = Objects.requireNonNull(employeeRepository, "employeeRepository must not be null");
+        this.departmentRepository =
+                Objects.requireNonNull(departmentRepository, "departmentRepository must not be null");
+        this.designationRepository =
+                Objects.requireNonNull(designationRepository, "designationRepository must not be null");
+        this.workLocationRepository =
+                Objects.requireNonNull(workLocationRepository, "workLocationRepository must not be null");
+        this.userAccountRepository =
+                Objects.requireNonNull(userAccountRepository, "userAccountRepository must not be null");
+        this.userProfileSyncService =
+                Objects.requireNonNull(userProfileSyncService, "userProfileSyncService must not be null");
+        this.employmentService = Objects.requireNonNull(employmentService, "employmentService must not be null");
+        this.limitGuard = Objects.requireNonNull(limitGuard, "limitGuard must not be null");
+        this.onboardingService = null;
+        this.onboardingServiceProvider = onboardingServiceProvider;
+        this.publisher = publisher;
+    }
+
+    private com.infinevo.core.onboarding.OnboardingService getOnboardingService() {
+        if (onboardingService != null) {
+            return onboardingService;
+        }
+        return onboardingServiceProvider != null ? onboardingServiceProvider.getIfAvailable() : null;
     }
 
     @Override
@@ -216,8 +231,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         assign(employee, request, tenantId);
         Employee saved = save(employee, fields.employeeNumber());
         writeEmploymentTerms(saved.getId(), request);
-        if (onboardingService != null) {
-            onboardingService.assignDefaultTasks(saved, currentActor());
+        com.infinevo.core.onboarding.OnboardingService obs = getOnboardingService();
+        if (obs != null) {
+            obs.assignDefaultTasks(saved, currentActor());
         }
         return EmployeeResponse.from(saved);
     }

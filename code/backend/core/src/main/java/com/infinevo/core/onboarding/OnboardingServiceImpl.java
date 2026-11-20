@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +40,7 @@ public class OnboardingServiceImpl implements OnboardingService {
             EmployeeRepository employeeRepository,
             DocumentRepository documentRepository,
             ReportingLineRepository reportingLineRepository,
-            EmployeeService employeeService,
+            @Lazy EmployeeService employeeService,
             PermissionService permissionService) {
         this.templateRepository = Objects.requireNonNull(templateRepository, "templateRepository must not be null");
         this.taskRepository = Objects.requireNonNull(taskRepository, "taskRepository must not be null");
