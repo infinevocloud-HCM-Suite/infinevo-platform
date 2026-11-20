@@ -37,17 +37,18 @@ public class OnboardingPanelProvider implements PortalPanelProvider {
 
     @Override
     public PanelDescriptor panel(UUID employeeId) {
-        if (employeeId == null || taskRepository == null) {
+        if (employeeId == null) {
             return null;
         }
-        UUID tenantId = TenantContext.current().orElse(null);
-        if (tenantId == null) {
-            return null;
+        if (taskRepository != null) {
+            UUID tenantId = TenantContext.current().orElse(null);
+            if (tenantId != null) {
+                long count = taskRepository.countByTenantIdAndEmployeeId(tenantId, employeeId);
+                if (count == 0) {
+                    return null;
+                }
+            }
         }
-        long count = taskRepository.countByTenantIdAndEmployeeId(tenantId, employeeId);
-        if (count == 0) {
-            return null;
-        }
-        return new PanelDescriptor("onboarding", "Onboarding", 9, "/api/v1/me/onboarding", "core.onboarding.read_own");
+        return new PanelDescriptor("onboarding", "Onboarding", 4, "/api/v1/me/onboarding", "core.onboarding.read_own");
     }
 }

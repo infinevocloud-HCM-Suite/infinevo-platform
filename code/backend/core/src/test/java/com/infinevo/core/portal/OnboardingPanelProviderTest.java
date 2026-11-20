@@ -50,7 +50,7 @@ class OnboardingPanelProviderTest {
     }
 
     @Test
-    @DisplayName("panel() returns descriptor with order 9 when employee has one or more tasks")
+    @DisplayName("panel() returns descriptor with order 4 when employee has one or more tasks")
     void returnsDescriptorWhenHasTasks() {
         when(taskRepository.countByTenantIdAndEmployeeId(tenantId, employeeId)).thenReturn(3L);
 
@@ -59,7 +59,7 @@ class OnboardingPanelProviderTest {
         assertThat(descriptor).isNotNull();
         assertThat(descriptor.code()).isEqualTo("onboarding");
         assertThat(descriptor.title()).isEqualTo("Onboarding");
-        assertThat(descriptor.displayOrder()).isEqualTo(9);
+        assertThat(descriptor.displayOrder()).isEqualTo(4);
         assertThat(descriptor.endpoint()).isEqualTo("/api/v1/me/onboarding");
         assertThat(descriptor.requiredAction()).isEqualTo("core.onboarding.read_own");
     }
