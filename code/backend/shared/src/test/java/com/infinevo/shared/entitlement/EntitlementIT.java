@@ -27,13 +27,13 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Integration test for entitlement enforcement (W-12.2, spec section 7 & 8).
+ * Integration test for entitlement enforcement (W-12.2, W-85.1).
  *
  * <p>Verifies:
  * <ul>
  *   <li>Acme (Payroll only) gets 403 MODULE_NOT_ENTITLED on HRMS test endpoint.
  *   <li>Globex gets 200 on the same endpoint.
- *   <li>Globex with status suspended gets 403 TENANT_SUSPENDED.
+ *   <li>Globex with status suspended gets 200 on GET (statutory retention) and 403 TENANT_SUSPENDED on POST (W-85.1).
  *   <li>A module change through W-12.1 is seen on the next request without waiting for TTL.
  *   <li>A revoked module returns 200 on GET and 403 MODULE_NOT_ENTITLED on POST.
  * </ul>
@@ -88,13 +88,19 @@ class EntitlementIT {
     }
 
     @Test
-    @DisplayName("Globex with status suspended gets 403 TENANT_SUSPENDED")
+    @DisplayName("Globex with status suspended: GET passes for retention, POST gets 403 TENANT_SUSPENDED")
     void globexSuspendedGets403TenantSuspended() throws Exception {
         source.setSuspended(globexTenant, true);
         permissionCache.bumpVersion(globexTenant);
         TenantContext.set(globexTenant);
 
+        // Under W-85.1, reads pass for statutory retention
         mvc.perform(get("/api/v1/test/hrms-guard"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
+
+        // Mutation is refused with TENANT_SUSPENDED under W-85.1
+        mvc.perform(post("/api/v1/test/hrms-guard"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("TENANT_SUSPENDED"));
     }
