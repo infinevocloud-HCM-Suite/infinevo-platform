@@ -74,6 +74,10 @@ CREATE POLICY tenant_isolation ON core.ai_usage
 
 -- 7. The customer's own request adds to its count.
 GRANT SELECT, INSERT, UPDATE ON core.ai_usage TO app_user;
+-- A REVOKE, not only the narrower GRANT above: ALTER DEFAULT PRIVILEGES already gave app_user every
+-- DML right on new core tables (as V008 notes for audit_log). A tenant that could delete its usage rows
+-- could reset its own monthly cap.
+REVOKE DELETE, TRUNCATE ON core.ai_usage FROM app_user;
 
 -- 8. The tenant list reports the switch, the cap and this month's usage. The OUT columns change, which
 --    CREATE OR REPLACE cannot do, so each function is dropped first, as V188 did. Rebuilt from V188, the newest
