@@ -26,7 +26,7 @@ switch and the cap and counts usage. It calls no AI model and shows no chat.
 | Part | What | Area |
 |---|---|---|
 | **`W-114.1`** | **Switch, monthly cap and usage count — this spec** | `core` |
-| `W-114.2` | Claude on Azure (Microsoft Foundry), private endpoint, Key Vault secret | `infra` |
+| `W-114.2` | A GPT model on Azure OpenAI, private endpoint, managed identity | `infra` |
 | `W-114.3` | Chat session tables and the tool plug-in point | `core` |
 | `W-114.4` | Model gateway with masking of PAN, Aadhaar and bank numbers; Core questions | `core` |
 | `W-114.5` | Plain chat drawer | frontend `shell` |
@@ -60,7 +60,7 @@ understand (`.11` to `.16`, then `.22`), then do (`.17` to `.21`).
 | 2026-11-23 | Pay run | Summary and step guidance only. The officer presses every button on the pay run screen |
 | 2026-11-23 | Order of the new parts | Understand first, then do |
 | 2026-11-23 | Migration numbers | No number is fixed in a spec; the developer takes the next free version when building |
-| 2026-11-23 | AI model | Claude on Microsoft Foundry, not `gpt-4o`. Processing outside India is accepted: PAN, Aadhaar and bank account numbers are masked before sending; salary and leave figures are sent. Region and price are confirmed in `W-114.2` |
+| 2026-11-23 | AI model | A GPT model on Azure OpenAI (the founder first chose Claude on Microsoft Foundry and changed it the same day). The newest GPT model with tool calling that the region offers at build time, not `gpt-4o` by name. The resource stays in India where the model is offered there; processing outside India is accepted: PAN, Aadhaar and bank account numbers are masked before sending; salary and leave figures are sent. Region and price are confirmed in `W-114.2` |
 | 2026-11-23 | Chat deletion is the last part | The order stays. **The helper is not switched on for any real customer until `W-114.10` is on `main`.** Only the test company uses it before then |
 | 2026-11-16 | Default | Off for every customer. Only the platform admin switches it on and sets the cap |
 | 2026-11-16 | Off or over the cap | Off answers `403`; over the cap answers `429` |
@@ -152,7 +152,7 @@ All paths are under `code/backend/core/src/main/java/com/infinevo/core/`.
 | Repository | `ai/AiUsageRepository.java` | **New.** `findByTenantIdAndUsageMonth`; and `countOne(tenantId, month, cap)` — one native statement: `INSERT … VALUES (…, 1) ON CONFLICT (tenant_id, usage_month) DO UPDATE SET request_count = core.ai_usage.request_count + 1, updated_at = now() WHERE core.ai_usage.request_count < :cap RETURNING request_count`. No row returned means the cap is reached |
 | Service | `ai/AiAccessGate.java`, `AiAccessGateImpl.java` | **New.** `status()` returns `AiStatus(enabled, monthlyRequestCap, usedThisMonth, month)` for the bound tenant; a tenant with no subscription row is `enabled = false`. `consume()` throws `AiDisabledException` when off, else runs `countOne` and throws `AiCapReachedException` when it returns no row |
 | Exceptions | `ai/AiDisabledException.java`, `ai/AiCapReachedException.java` | **New.** |
-| Controller | `ai/AiStatusController.java` | **New.** `GET /api/v1/ai/status`, any signed-in user. Its own handlers: `AiDisabledException` → `403 AI_DISABLED`, `AiCapReachedException` → `429 AI_CAP_REACHED` — written here so `W-114.4` reuses them |
+| Controller | `ai/AiStatusController.java` | **New.** `GET /api/v1/ai/status`, any signed-in user. Its own handlers: `AiDisabledException` → `403 AI_DISABLED`, `AiCapReachedException` → `429 AI_CAP_REACHED`. `ApiError` is an enum in `shared` (`code/backend/shared/src/main/java/com/infinevo/shared/error/ApiError.java`) and has neither code; to stay inside `core`, the handlers build `ApiErrorResponse` through its record constructor with the code as text, from one helper `ai/AiErrorResponses.java`. Handlers in this codebase are per controller, so `W-114.4`'s controller declares the same two handlers and calls the same helper |
 
 `countOne` is the whole cap check. It is one statement, so two requests at the same moment
 cannot both take the last place.

@@ -18,3 +18,14 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+
+  # Base images in infra/docker. The backend runtime image is pinned by digest; this
+  # proposes the new digest so a base-image change arrives as a reviewed change, with
+  # the images job measuring its size, rather than silently on the next build.
+  - package-ecosystem: "docker"
+    directory: "/infra/docker"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
