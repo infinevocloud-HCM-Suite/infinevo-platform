@@ -25,9 +25,11 @@ import com.infinevo.shared.logging.MdcLoggingContext;
 import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -89,14 +91,15 @@ public class EmployeeDetailController {
         this(personalService, contactService, identificationService, employmentService, bankService, null, null);
     }
 
+    @Autowired
     public EmployeeDetailController(
             EmployeePersonalService personalService,
             EmployeeContactService contactService,
             EmployeeIdentificationService identificationService,
             EmployeeEmploymentService employmentService,
             EmployeeBankService bankService,
-            PermissionService permissionService,
-            TenantOptionService tenantOptionService) {
+            @Autowired(required = false) @Nullable PermissionService permissionService,
+            @Autowired(required = false) @Nullable TenantOptionService tenantOptionService) {
         this.personalService = Objects.requireNonNull(personalService, "personalService must not be null");
         this.contactService = Objects.requireNonNull(contactService, "contactService must not be null");
         this.identificationService =
