@@ -98,6 +98,15 @@ azure:
       endpoint: ${AZURE_STORAGE_QUEUE_ENDPOINT:}
       managed-identity-client-id: ${AZURE_CLIENT_ID:}
 
+# W-114.4 AI helper model (AiModelConfig). An empty endpoint means the stub model client:
+# every laptop and CI run. W-114.2 sets the endpoint and deployment on the container app.
+infinevo:
+  ai:
+    endpoint: ${INFINEVO_AI_ENDPOINT:}
+    deployment: ${INFINEVO_AI_DEPLOYMENT:}
+    managed-identity-client-id: ${INFINEVO_AI_MANAGED_IDENTITY_CLIENT_ID:}
+    token-scope: ${INFINEVO_AI_TOKEN_SCOPE:https://cognitiveservices.azure.com/.default}
+
 server:
   port: 8080
   shutdown: graceful

@@ -25,7 +25,11 @@ import org.springframework.stereotype.Component;
  *
  * <p>Startup fails on a tool with no name, a name that is not {@code module.verb_noun} (lower case, one dot, the
  * module first), a module other than {@code core}, {@code hrms} or {@code payroll}, two tools of one name, or a tool
- * with no {@code requiredAction}.
+ * with no {@code requiredAction}. From W-114.4 it also fails on a name holding {@code __}, or longer than 64 once its
+ * dot is {@code __}, because that is how {@link AzureOpenAiModelClient} sends the name.
+ *
+ * <p>A tool that {@linkplain AiTool#needsEmployee() needs an employee record} is neither offered nor run for a caller
+ * with none (W-114.4, rule 4).
  *
  * <p>The name's module is also the licence the tool needs: an {@code hrms.} or {@code payroll.} tool is offered and run
  * only while the customer holds that module ({@link EntitlementService}), as {@code PortalPanelService} gates a panel
@@ -45,6 +49,9 @@ public class AiToolRegistry {
 
     /** The modules a tool name may start with. */
     static final List<String> MODULES = List.of("core", "hrms", "payroll");
+
+    /** OpenAI's limit on a function name, which a tool name must meet once its dot is sent as {@code __} (W-114.4). */
+    static final int MAX_WIRE_NAME = 64;
 
     private static final Logger log = LoggerFactory.getLogger(AiToolRegistry.class);
 
@@ -81,6 +88,7 @@ public class AiToolRegistry {
             return List.of();
         }
         return tools.values().stream()
+                .filter(tool -> hasEmployeeIfNeeded(tool, caller))
                 .filter(this::mayUse)
                 .map(AiToolDescriptor::of)
                 .toList();
@@ -100,6 +108,10 @@ public class AiToolRegistry {
             log.warn("AI tool {} refused: the context is not the bound tenant and signed-in user", name);
             return AiToolResult.failure("Not permitted");
         }
+        if (!hasEmployeeIfNeeded(tool, ctx)) {
+            log.warn("AI tool {} refused: it needs an employee record and the caller has none", name);
+            return AiToolResult.failure("Not available: the signed-in user has no employee record");
+        }
         if (!mayUse(tool)) {
             log.warn(
                     "AI tool {} refused: module not held, or caller holds neither {} nor any of {}",
@@ -109,6 +121,10 @@ public class AiToolRegistry {
             return AiToolResult.failure("Not permitted");
         }
         return tool.execute(ctx, input);
+    }
+
+    private static boolean hasEmployeeIfNeeded(AiTool tool, AiToolContext ctx) {
+        return !tool.needsEmployee() || ctx.employeeId() != null;
     }
 
     private boolean mayUse(AiTool tool) {
@@ -160,6 +176,16 @@ public class AiToolRegistry {
                     throw new IllegalStateException("AI tool name '" + name + "' from "
                             + tool.getClass().getName()
                             + " is not module.verb_noun (lower case, one dot, the module first)");
+                }
+                if (name.contains("__")) {
+                    throw new IllegalStateException("AI tool name '" + name + "' from "
+                            + tool.getClass().getName()
+                            + " holds '__', which the model client uses for the dot");
+                }
+                if (name.replace(".", "__").length() > MAX_WIRE_NAME) {
+                    throw new IllegalStateException("AI tool name '" + name + "' from "
+                            + tool.getClass().getName()
+                            + " is longer than " + MAX_WIRE_NAME + " characters once its dot is sent as '__'");
                 }
                 String prefix = name.substring(0, name.indexOf('.'));
                 if (!MODULES.contains(prefix)) {

@@ -203,6 +203,48 @@ class AiToolRegistryTest {
                 .isTrue();
     }
 
+    @Test
+    @DisplayName("W-114.4: a name holding __ fails startup, since the model client sends the dot as __")
+    void doubleUnderscore_failsStartup() {
+        assertThatThrownBy(() -> registry(() -> List.of(new FakeTool("core.my__leave", "core.leave.read_own"))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("core.my__leave")
+                .hasMessageContaining("__");
+    }
+
+    @Test
+    @DisplayName("W-114.4: a name longer than 64 once the dot is __ fails startup; exactly 64 starts")
+    void tooLongWireName_failsStartup() {
+        String ok = "core." + "a".repeat(64 - "core__".length());
+        String tooLong = ok + "b";
+        assertThat(names(registry(() -> List.of(new FakeTool(ok, "core.x.y"))).toolsFor(caller)))
+                .isEmpty(); // starts; not offered only because the caller holds nothing
+        assertThatThrownBy(() -> registry(() -> List.of(new FakeTool(tooLong, "core.x.y"))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("64");
+    }
+
+    @Test
+    @DisplayName("W-114.4 rule 4: no employee record hides the own-data tools and refuses running them")
+    void noEmployee_hidesAndRefusesOwnDataTools() {
+        EmployeeFakeTool balances = new EmployeeFakeTool("core.my_leave_balances", "core.leave.read_own");
+        FakeTool holidays = new FakeTool("core.holidays", "core.holiday.read");
+        AiToolRegistry registry = registry(() -> List.of(balances, holidays));
+        granted.add("core.leave.read_own");
+        granted.add("core.holiday.read");
+
+        assertThat(names(registry.toolsFor(caller))).containsExactly("core.holidays");
+        AiToolResult refused = registry.execute("core.my_leave_balances", caller, null);
+        assertThat(refused.ok()).isFalse();
+        assertThat(balances.runs.get()).isZero();
+
+        AiToolContext withEmployee = new AiToolContext(tenantId, userId, UUID.randomUUID());
+        assertThat(names(registry.toolsFor(withEmployee))).containsExactly("core.my_leave_balances", "core.holidays");
+        assertThat(registry.execute("core.my_leave_balances", withEmployee, null).ok())
+                .isTrue();
+        assertThat(balances.runs.get()).isEqualTo(1);
+    }
+
     private static List<String> names(List<AiToolDescriptor> tools) {
         return tools.stream().map(AiToolDescriptor::name).toList();
     }
@@ -256,6 +298,17 @@ class AiToolRegistryTest {
         public AiToolResult execute(AiToolContext ctx, JsonNode input) {
             runs.incrementAndGet();
             return AiToolResult.success(JsonNodeFactory.instance.objectNode().put("ran", true));
+        }
+    }
+
+    private static class EmployeeFakeTool extends FakeTool {
+        EmployeeFakeTool(String name, String requiredAction) {
+            super(name, requiredAction);
+        }
+
+        @Override
+        public boolean needsEmployee() {
+            return true;
         }
     }
 
