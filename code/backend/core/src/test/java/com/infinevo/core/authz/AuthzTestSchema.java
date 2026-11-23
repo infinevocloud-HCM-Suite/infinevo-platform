@@ -236,6 +236,9 @@ public final class AuthzTestSchema {
                     if (!functionExists(conn, "core", "list_overdue_subscriptions")) {
                         executeResource(conn, "db/migration/core/V199__subscription_period_end.sql");
                     }
+                    if (!tableExists(conn, "core", "tenant_option")) {
+                        executeResource(conn, "db/migration/core/V200__tenant_option.sql");
+                    }
                 }
 
             } catch (Exception e) {
