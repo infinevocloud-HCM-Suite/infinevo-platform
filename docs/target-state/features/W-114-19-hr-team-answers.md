@@ -98,6 +98,15 @@ Every row is built by the tool from named fields; it never passes an entity or a
 record through. Ids are dropped, department and designation come back as names. Pending leave is
 not listed — "on leave" means approved.
 
+**Text written by other people (Added 2026-11-23, research review).** Founder 2026-11-23:
+the rule of `W-114.18` (T1) applies here.
+
+| Field | Who wrote it | Handling |
+|---|---|---|
+| Leave reason, leave type, any comment or note | The employee or an approver | **Not returned at all** (Decisions above). This is stronger than marking |
+| Employee name, department, designation, location name | HR, or whoever created the record | Short labels, not free text. Each is cut to 100 characters and line breaks are removed before it goes in a row, so a name cannot carry a paragraph |
+| Any free-text field a later change adds | — | Must go through `AiUntrustedText.wrap` (`W-114.18`). The unit test fails on a row field that is a bare string and is not on the fixed list of label fields |
+
 `core.team_on_leave` is one tool for both audiences. `W-114.3`'s `requiredAnyOf` lets the
 registry offer it to a caller holding `core.leave.read_team` or `core.leave.read`, so an HR role
 that holds `read` without `read_team` does not lose it.
@@ -119,7 +128,7 @@ None. The three reads use existing columns. `idx_employee_tenant_status` exists
 
 | Type | File | Covers |
 |---|---|---|
-| Unit | `core/src/test/.../ai/TeamAiToolProviderTest.java` | Each tool's `requiredAction` equals the screen's guard; no row carries an id, an email, a mobile, a reason or a leave type (the row type has no such field, and the test seeds a leave type named "Maternity" and asserts the word is in no tool result, for an HR caller and for a manager); 51 matches return 50 rows and "1 more"; a 60-day range is refused |
+| Unit | `core/src/test/.../ai/TeamAiToolProviderTest.java` | Each tool's `requiredAction` equals the screen's guard; no row carries an id, an email, a mobile, a reason or a leave type (the row type has no such field, and the test seeds a leave type named "Maternity" and asserts the word is in no tool result, for an HR caller and for a manager); 51 matches return 50 rows and "1 more"; a 60-day range is refused. **(Added 2026-11-23)** An employee whose name is 300 characters with a line break and the words "ignore your rules" comes back as one line of 100 characters; every string field of every row is on the fixed label list (name, employee number, department, designation, location, dates) |
 | Integration | `core/src/test/.../ai/TeamAiToolsIT.java` | HR sees every employee on approved leave today; a manager sees only self and direct reports; a manager cannot call `core.joiners`; an employee with only own-data actions is offered none of the four; tenant B never sees tenant A; a soft-deleted employee is in no answer; headcount equals the limit guard's count |
 
 ## Verification
@@ -147,7 +156,7 @@ cd code/backend && ./mvnw -B -pl core -am verify
 | A tool shows more than the screen does | Low | Same service, same action, and a unit test that pins each tool's action to the controller annotation |
 | Third-party names reach the model | Certain, by design | Stated above; limited to callers who already see them; only name, number, department and dates |
 | Leave type reveals something private ("Maternity", "Sick") | Closed | Founder 2026-11-23: the tool returns no leave type at all; a test proves it |
-| A prompt hidden in an employee's name or a department name | Low | `W-114.4` treats tool results as data; these tools change nothing |
+| A prompt hidden in an employee's name or a department name | Low | Changed 2026-11-23: the prompt line is not a control (`W-114.4` rule 9). Names are cut to 100 characters on one line, no free text is returned, and these tools change nothing |
 
 ## Rollback
 

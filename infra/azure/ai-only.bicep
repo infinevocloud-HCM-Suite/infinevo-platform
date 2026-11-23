@@ -35,7 +35,7 @@ param aiModelName string = 'gpt-4.1-mini'
 param aiModelVersion string = '2025-04-14'
 @allowed(['Standard', 'GlobalStandard', 'DataZoneStandard'])
 param aiDeploymentSku string = 'Standard'
-param aiCapacity int = 10
+param aiCapacity int = 100
 param aiMonthlyBudget int = 5000
 param aiBudgetStartDate string = '2026-12-01'
 param alertEmail string = 'kmohapatra@infinevocloud.com'

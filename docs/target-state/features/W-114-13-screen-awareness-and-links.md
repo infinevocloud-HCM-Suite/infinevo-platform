@@ -119,8 +119,10 @@ All under `code/backend/core/src/main/java/com/infinevo/core/ai/`.
 | `/payroll/settings/epf` | `/payroll/settings` | `W-114.16` step `EPF` | `payroll/index.js:100` |
 | `/payroll/settings/esi` | `/payroll/settings` | `W-114.16` step `ESI` | `payroll/index.js:104` |
 | `/payroll/settings/professional-tax` | `/payroll/settings` | `W-114.16` step `PROFESSIONAL_TAX` | `payroll/index.js:108` |
+| `/payroll/settings/tax-declaration` | `/payroll/settings` | `W-114.13` — the payroll officer's "take me to tax declaration" (founder 2026-11-23). Opens the declaration window screen (`TaxWindowScreen`); the per-employee page `/employees/:employeeId/tax-declaration/:fy` carries an id and is never a link | `payroll/index.js:120` |
 
-`W-114.11` ships the first six with its articles; `W-114.16` adds the last four. A later part
+`W-114.11` ships the first six with its articles; `W-114.16` adds the four setup entries;
+`W-114.13` adds `/payroll/settings/tax-declaration` to `help/sub-routes.json` itself. A later part
 that needs another adds one line to the file and one row here. The four `/me/…` entries open a
 portal tab: when the caller does not have that tab, the portal shows its first tab, so the link is
 harmless; the article that carries it is already hidden from such a caller by its `action`.
