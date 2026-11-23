@@ -43,12 +43,12 @@ This feature delivers **PF ECR File Generation**:
 ## 3. Scope
 
 ### In Scope
-1. **EPFO ECR 2.0 Text File Export (`GET /api/v1/payroll/runs/{id}/statutory/pf-ecr/export?format=TXT`):**
+1. **EPFO ECR 2.0 Text File Export (`GET /api/v1/payroll/payruns/{id}/statutory/pf-ecr/export?format=TXT`):**
    - Strictly conforms to EPFO's official 11-column format delimited with `#~#` without header rows.
    - Text file download named `ECR_{ESTABLISHMENT_CODE}_{YYYY-MM}.txt`.
-2. **Tabular Audit Export (`GET /api/v1/payroll/runs/{id}/statutory/pf-ecr/export?format=XLSX|CSV`):**
+2. **Tabular Audit Export (`GET /api/v1/payroll/payruns/{id}/statutory/pf-ecr/export?format=XLSX|CSV`):**
    - Human-readable workbook with formatted columns, employee details, and grand totals row for financial reconciliation.
-3. **In-App Preview API (`GET /api/v1/payroll/runs/{id}/statutory/pf-ecr/preview`):**
+3. **In-App Preview API (`GET /api/v1/payroll/payruns/{id}/statutory/pf-ecr/preview`):**
    - Aggregates contribution totals across EPFO accounts:
      - Account 01: Employee PF (12%) + Employer PF (3.67%)
      - Account 02: EPFO Admin Charges (0.50%)
@@ -122,7 +122,7 @@ The official EPFO Electronic Challan cum Return (ECR 2.0) file structure consist
 
 #### 1. In-App Preview API
 ```http
-GET /api/v1/payroll/runs/{payrunId}/statutory/pf-ecr/preview
+GET /api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr/preview
 ```
 * **Authorization:** `@RequiresAction("payroll.statutory_report.read")`
 * **Module Guard:** `@RequiresModule(PlatformModule.PAYROLL)`
@@ -176,7 +176,7 @@ GET /api/v1/payroll/runs/{payrunId}/statutory/pf-ecr/preview
 
 #### 2. ECR File Export API
 ```http
-GET /api/v1/payroll/runs/{payrunId}/statutory/pf-ecr/export?format=TXT
+GET /api/v1/payroll/payruns/{payrunId}/statutory/pf-ecr/export?format=TXT
 ```
 * **Parameters:** `format=TXT` (default), `format=XLSX`, `format=CSV`.
 * **Headers:**
@@ -204,7 +204,7 @@ GET /api/v1/payroll/runs/{payrunId}/statutory/pf-ecr/export?format=TXT
   - Secondary button: **"Export Excel (.xlsx)"** / **"Export CSV"** (for accounting and audit).
 
 ### File: `code/frontend/src/payroll/payrun/pfEcrService.js`
-- `getPreview(payrunId)`: calls `GET /api/v1/payroll/runs/{id}/statutory/pf-ecr/preview`.
+- `getPreview(payrunId)`: calls `GET /api/v1/payroll/payruns/{id}/statutory/pf-ecr/preview`.
 - `downloadFile(payrunId, format)`: triggers blob download with proper filename.
 
 ### Integration in `RunPage.jsx`
@@ -225,7 +225,7 @@ GET /api/v1/payroll/runs/{payrunId}/statutory/pf-ecr/export?format=TXT
 - **Tenant Isolation:** Enforces `UUID tenantId = TenantContext.require()`. Cross-tenant queries are structurally impossible.
 - **Permissions:**
   - Preview endpoint: requires `payroll.statutory_report.read` (granted to `payroll-officer`, `finance`, and `tenant-admin`).
-  - Export endpoint: requires `payroll.statutory_report.export` (granted to `payroll-officer`, `finance`, and `tenant-admin`).
+  - Export endpoint: requires `payroll.statutory_report.read` (granted to `payroll-officer`, `finance`, and `tenant-admin`).
 - **Audit Logging:** Export action triggers a statutory export audit log entry via `@Audited` / logger with tenant, payrun ID, actor, and format.
 
 ---

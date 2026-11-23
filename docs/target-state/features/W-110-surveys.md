@@ -32,7 +32,7 @@ This feature delivers **Surveys and Polls** in `hrms`:
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `hrms` (reads `core.employee`, `core.department`, `core.work_location`) | 1 |
-| Flyway migration | `hrms/V194__surveys.sql` (tables for survey definition, questions, and responses) | 1 |
+| Flyway migration | 1 migration (next free version at build time; e.g. `hrms/V<N>__surveys.sql`) | 1 |
 | Externally testable behaviour | HR publishes a survey, eligible employees submit answers via `/me/surveys`, and HR views aggregated results | 1 |
 | Frontend area | `src/hrms/surveys` (admin builder & analytics) and `src/shell/portal` (`MySurveys.jsx`) | 1 |
 
@@ -73,10 +73,10 @@ This feature delivers **Surveys and Polls** in `hrms`:
 
 ## 4. Domain Model & Database Schema
 
-### Migration: `hrms/V194__surveys.sql`
+### Migration: `hrms/V<N>__surveys.sql` (next free version at build time)
 
 ```sql
--- Migration: V194__surveys.sql
+-- Migration: V<N>__surveys.sql (next free version at build time)
 -- Description: W-110 Surveys and polls management with PostgreSQL RLS isolation
 
 -- 1. Survey Definition
@@ -219,7 +219,7 @@ CREATE INDEX idx_survey_answer_question ON hrms.survey_answer(tenant_id, questio
 ## 7. Impact on Standing Rules
 
 - **`tenant_id` & RLS:** All 4 tables carry `tenant_id` and strict PostgreSQL Row Level Security policies.
-- **Flyway Migrations:** Exactly 1 migration (`hrms/V194__surveys.sql`). Schema names explicitly qualified.
+- **Flyway Migrations:** Exactly 1 migration (next free version at build time, e.g. `hrms/V<N>__surveys.sql`). Schema names explicitly qualified.
 - **Precision & Data Safety:** Options and multi-select choices stored as valid JSONB arrays. Anti-tampering submission tokens guarantee single-vote integrity.
 - **Indexes:** Indexed on `(tenant_id, status)` and `(tenant_id, survey_id)`.
 - **Expand / Contract:** Creates new tables; zero alterations to existing tables.

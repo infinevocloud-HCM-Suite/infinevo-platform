@@ -39,7 +39,7 @@ This ticket delivers **complete Labour Welfare Fund calculation, tenant configur
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` (reuses `core.org` work locations and `payroll.payrun`) | 1 |
-| Flyway migration | `payroll/V192__org_lwf_setting.sql` (tenant state configuration table) | 1 |
+| Flyway migration | 1 migration (next free version at build time; e.g. `payroll/V<N>__org_lwf_setting.sql`) | 1 |
 | Externally testable behaviour | When an employee is eligible for LWF, their pay run automatically includes employee deduction (`LWF_EMPLOYEE`) and employer contribution (`LWF_EMPLOYER`) during applicable deduction months based on their work location state | 1 |
 | Frontend area | `code/frontend/src/payroll/settings` (`LwfSetting.jsx`, route `/payroll/settings/lwf`) and `src/payroll/payrun` (statutory schedule export) | 1 |
 
@@ -265,10 +265,10 @@ if (profile != null && profile.isEligibleForLwf()) {
 
 ## 8. Database Changes
 
-### Migration: `payroll/V192__org_lwf_setting.sql`
+### Migration: `payroll/V<N>__org_lwf_setting.sql` (next free version at build time)
 
 ```sql
--- Migration: V192__org_lwf_setting.sql
+-- Migration: V<N>__org_lwf_setting.sql (next free version at build time)
 -- Description: W-92 payroll.org_lwf_setting — tenant state Labour Welfare Fund configuration and registration
 
 CREATE TABLE payroll.org_lwf_setting (
@@ -306,7 +306,7 @@ CREATE INDEX idx_org_lwf_setting_tenant_state ON payroll.org_lwf_setting(tenant_
 ## 9. Impact on Standing Rules
 
 - **`tenant_id` & RLS:** `payroll.org_lwf_setting` contains `tenant_id` and strict PostgreSQL Row Level Security (RLS) policy using `app.current_tenant_id`.
-- **Flyway Migrations:** Exactly 1 migration (`V192__org_lwf_setting.sql`). Schema names are explicitly qualified (`payroll.`).
+- **Flyway Migrations:** Exactly 1 migration (next free version at build time, e.g. `V<N>__org_lwf_setting.sql`). Schema names are explicitly qualified (`payroll.`).
 - **Precision:** All monetary rates use `NUMERIC(19,4)` in database and `BigDecimal` / `Money` with explicit `RoundingMode.HALF_UP` in Java. Floating point types are prohibited.
 - **Indexes:** Indexed on `(tenant_id, state_code)`.
 - **Expand / Contract:** Creates new table with safe defaults; fully non-destructive.

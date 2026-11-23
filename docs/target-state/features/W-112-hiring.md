@@ -32,7 +32,7 @@ This feature delivers the **Hiring & Recruitment Management** module inside `hrm
 | Axis | Whole Module | Sub-Phase 1 (`W-112.1`) | Limit |
 |---|:---:|:---:|:---:|
 | Backend module | `hrms` | `hrms` | 1 |
-| Flyway migration | 1 aggregate script (`V193__hiring_schema.sql`) | 1 script (`V193__job_openings.sql`) | 1 |
+| Flyway migration | 1 aggregate script (`V<N>__hiring_schema.sql`, next free version at build time) | 1 script (`V<N>__job_openings.sql`, next free version at build time) | 1 |
 | Externally testable behaviour | HR manages job openings, candidate pipeline, interviews, and converts hired candidates to employees | HR creates, publishes, and tracks job openings with required headcount | 1 |
 | Frontend area | `src/hrms/hiring` | `src/hrms/hiring/openings` | 1 |
 
@@ -116,10 +116,10 @@ To ensure incremental delivery and strict adherence to the size cap during devel
                                   └──────────────────────┘
 ```
 
-### Migration: `hrms/V193__hiring_schema.sql`
+### Migration: `hrms/V<N>__hiring_schema.sql` (next free version at build time)
 
 ```sql
--- Migration: V193__hiring_schema.sql
+-- Migration: V<N>__hiring_schema.sql (next free version at build time)
 -- Description: W-112 Recruitment and hiring management tables with strict RLS isolation
 
 -- 1. Job Openings
