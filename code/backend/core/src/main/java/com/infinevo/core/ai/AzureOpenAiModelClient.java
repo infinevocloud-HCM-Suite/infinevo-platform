@@ -245,7 +245,7 @@ public class AzureOpenAiModelClient implements AiModelClient {
     public static final class CachedToken implements Supplier<String> {
 
         static final Duration REFRESH_BEFORE_EXPIRY = Duration.ofMinutes(5);
-        private static final Duration FETCH_TIMEOUT = Duration.ofSeconds(20);
+        private static final Duration FETCH_TIMEOUT = Duration.ofSeconds(10);
 
         private final TokenCredential credential;
         private final TokenRequestContext context;

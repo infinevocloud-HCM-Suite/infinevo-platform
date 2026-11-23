@@ -28,6 +28,8 @@ class AiMaskingFilterTest {
                 "abcde1234f | [PAN]",
                 "Aadhaar 2345 6789 0123 | Aadhaar [AADHAAR]",
                 "234567890123 | [AADHAAR]",
+                "Aadhaar 2345 6789 0124 | Aadhaar [AADHAAR]",
+                "Aadhaar 2345 6789 0125 | Aadhaar [AADHAAR]",
                 "'A/c 50100123456789, HDFC0001234' | 'A/c [NUMBER], [IFSC]'",
                 "'Net pay 125000.00 for 2026-10, 4.5 days leave' | 'Net pay 125000.00 for 2026-10, 4.5 days leave'"
             })

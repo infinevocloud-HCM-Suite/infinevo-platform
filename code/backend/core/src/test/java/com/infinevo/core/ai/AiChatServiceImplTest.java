@@ -142,7 +142,7 @@ class AiChatServiceImplTest {
         AiToolRegistry registry = new AiToolRegistry(permissions, entitlements, List.of(provider));
         granted.add("core.leave.read_own");
 
-        model = new StubAiModelClient();
+        model = new StubAiModelClient().recording();
         clock = new MovableClock(base);
         service = new AiChatServiceImpl(
                 sessions,

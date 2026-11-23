@@ -104,7 +104,9 @@ infinevo:
   ai:
     endpoint: ${INFINEVO_AI_ENDPOINT:}
     deployment: ${INFINEVO_AI_DEPLOYMENT:}
-    managed-identity-client-id: ${INFINEVO_AI_MANAGED_IDENTITY_CLIENT_ID:}
+    # Falls back to AZURE_CLIENT_ID, which containerapps.bicep sets to id-app's client id: the SDK
+    # cannot guess a user-assigned identity, and a blank id asks for a system identity the app lacks.
+    managed-identity-client-id: ${INFINEVO_AI_MANAGED_IDENTITY_CLIENT_ID:${AZURE_CLIENT_ID:}}
     token-scope: ${INFINEVO_AI_TOKEN_SCOPE:https://cognitiveservices.azure.com/.default}
     rate:
       per-minute: ${INFINEVO_AI_RATE_PER_MINUTE:10}

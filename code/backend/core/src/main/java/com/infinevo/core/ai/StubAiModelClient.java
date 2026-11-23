@@ -13,7 +13,8 @@ import java.util.function.Function;
  *
  * <p>A test scripts replies in order with {@link #script}; each one is used once, then the default answer returns. A
  * scripted step is a function of the request, so it can answer, or throw {@link AiModelException} to play a failed
- * call. Every request received is kept for {@link #requests()}, so a test can read exactly what the model was sent.
+ * call. Requests are kept for {@link #requests()} only after a test calls {@link #reset()} or {@link #recording()}:
+ * the stub is also what the live app runs while no model is configured, and must not hold users' messages in memory.
  */
 public class StubAiModelClient implements AiModelClient {
 
@@ -21,10 +22,13 @@ public class StubAiModelClient implements AiModelClient {
 
     private final Deque<Function<AiModelRequest, AiModelResponse>> script = new ArrayDeque<>();
     private final List<AiModelRequest> received = new ArrayList<>();
+    private boolean recording;
 
     @Override
     public synchronized AiModelResponse send(AiModelRequest request) {
-        received.add(request);
+        if (recording) {
+            received.add(request);
+        }
         Function<AiModelRequest, AiModelResponse> next = script.pollFirst();
         return next == null ? AiModelResponse.text(NOT_CONNECTED) : next.apply(request);
     }
@@ -51,14 +55,21 @@ public class StubAiModelClient implements AiModelClient {
         });
     }
 
+    /** Starts keeping the requests received, for a test. */
+    public synchronized StubAiModelClient recording() {
+        recording = true;
+        return this;
+    }
+
     /** Every request received since the last {@link #reset()}, oldest first. */
     public synchronized List<AiModelRequest> requests() {
         return List.copyOf(received);
     }
 
-    /** Clears the script and the received requests. */
+    /** Clears the script and the received requests, and starts keeping requests (tests only). */
     public synchronized void reset() {
         script.clear();
         received.clear();
+        recording = true;
     }
 }
