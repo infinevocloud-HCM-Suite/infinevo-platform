@@ -77,6 +77,13 @@ const DashboardPage = lazy(() =>
   import('./dashboard/DashboardPage.jsx').then((m) => ({ default: m.DashboardPage }))
 );
 
+const FnfListPage = lazy(() =>
+  import('./settlement/FnfListPage.jsx').then((m) => ({ default: m.FnfListPage }))
+);
+const FnfStatementPage = lazy(() =>
+  import('./settlement/FnfStatementPage.jsx').then((m) => ({ default: m.FnfStatementPage }))
+);
+
 const ComponentsScreen = lazy(() =>
   import('./salary/ComponentsScreen.jsx').then((m) => ({ default: m.ComponentsScreen }))
 );
@@ -164,6 +171,16 @@ export const routes = [
   {
     path: '/payroll/settings/form-24q',
     element: React.createElement(Navigate, { to: '/payroll/form24q', replace: true }),
+    mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
+  {
+    path: '/payroll/settlements',
+    element: React.createElement(FnfListPage),
+    mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
+  },
+  {
+    path: '/payroll/settlements/:id',
+    element: React.createElement(FnfStatementPage),
     mountWith: ['/payroll/runs', '/payroll/dashboard', '/payroll/settings'],
   },
 ];

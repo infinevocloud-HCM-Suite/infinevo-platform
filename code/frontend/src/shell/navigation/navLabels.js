@@ -46,6 +46,7 @@ export const NAV_LABELS = {
   'nav.payroll.prior_payroll': 'Prior payroll',
   'nav.payroll.runs': 'Payroll runs',
   'nav.payroll.settings': 'Payroll settings',
+  'nav.payroll.settlements': 'Exit settlements',
   'nav.people': 'People',
   'nav.roles': 'Roles',
   'nav.settings': 'Settings',

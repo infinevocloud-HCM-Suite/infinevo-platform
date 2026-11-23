@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` | 1 |
-| Flyway migration | `V193__fnf_settlement.sql` | 1 |
+| Flyway migration | `V195__fnf_settlement.sql` (renumbered from V193 to sequence after V193 Leave Encashment and V194 Notice Period) | 1 |
 | Externally testable behaviour | Aggregates final salary, leave encashment, gratuity, notice pay, deductions, and executes final exit settlement | 1 |
 | Frontend area | none (UI in `W-90.4`) | 1 |
 
@@ -76,7 +76,7 @@ Payroll Officer --> POST /api/v1/payroll/fnf/{id}/pay
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `payroll/V193__fnf_settlement.sql` | Create `payroll.fnf_settlement` and `payroll.fnf_settlement_item` with RLS | yes | yes |
+| `payroll/V195__fnf_settlement.sql` | Create `payroll.fnf_settlement` with RLS | yes | yes |
 
 ### Table: `payroll.fnf_settlement`
 ```sql
@@ -129,16 +129,16 @@ CREATE UNIQUE INDEX uk_fnf_settlement_employee
 | DTO | `payroll/settlement/FnfSettlementResponse.java` | Full DTO with all earnings, deductions, and net figures |
 | Service | `payroll/settlement/FnfSettlementService.java` | Orchestrates salary pro-rating, leave, gratuity, notice, and tax |
 | ServiceImpl | `payroll/settlement/FnfSettlementServiceImpl.java` | Implements aggregation, final TDS compute, and employee status update |
-| Controller | `payroll/settlement/FnfSettlementController.java` | REST endpoints guarded by `@RequiresAction("payroll.settlement.manage")` |
+| Controller | `payroll/settlement/FnfSettlementController.java` | REST endpoints guarded by `@RequiresAction("payroll.salary.manage")` (initiate, approve, pay) and `@RequiresAction("payroll.salary.read")` (get/list) matching seeded platform roles |
 
 ### API Contract
 
 | Method | Path | Request Body | Response Body | Auth |
 |---|---|---|---|---|
-| `POST` | `/api/v1/payroll/fnf/initiate` | `FnfInitiateRequest` | `FnfSettlementResponse` (`201`) | `payroll.settlement.manage` |
-| `GET` | `/api/v1/payroll/fnf/{id}` | — | `FnfSettlementResponse` | `payroll.settlement.view` |
-| `POST` | `/api/v1/payroll/fnf/{id}/approve` | — | `FnfSettlementResponse` | `payroll.settlement.approve` |
-| `POST` | `/api/v1/payroll/fnf/{id}/pay` | — | `FnfSettlementResponse` | `payroll.settlement.pay` |
+| `POST` | `/api/v1/payroll/fnf/initiate` | `FnfInitiateRequest` | `FnfSettlementResponse` (`201`) | `payroll.salary.manage` |
+| `GET` | `/api/v1/payroll/fnf/{id}` | — | `FnfSettlementResponse` | `payroll.salary.read` |
+| `POST` | `/api/v1/payroll/fnf/{id}/approve` | — | `FnfSettlementResponse` | `payroll.salary.manage` |
+| `POST` | `/api/v1/payroll/fnf/{id}/pay` | — | `FnfSettlementResponse` | `payroll.salary.manage` |
 
 ---
 

@@ -91,7 +91,7 @@ lane so two lanes never collide on a version.
 | mohit | `dev-mohit` | `W-88` → `W-89` → `W-90` → `W-91` → `W-103` → `W-94` → `W-107` → `W-108` |
 | sayeed | `dev-sayeed` | `W-95` → `W-93` → `W-87` → `W-92` → `W-112` → `W-110` → `W-111` |
 
-Blocked today: `W-87`, `W-89`, `W-90`, `W-91`, `W-92` (CA review) · `W-85` (decision on viewing and export while suspended) · `W-86` (`PAST_DUE` decision) · `W-94` (final prices) · `W-103` (after `W-90`). First to start: karma `W-114`, krushna `W-98`, mohit `W-88`, sayeed `W-95`.
+Under review: `W-88` built on `dev-mohit` (ready for merge review) · `W-89`, `W-90`, `W-91`, `W-92` (CA review) · `W-85` (decision on viewing and export while suspended) · `W-86` (`PAST_DUE` decision) · `W-94` (final prices) · `W-103` (after `W-90`). In progress: karma `W-114`, krushna `W-98`, mohit `W-90`, sayeed `W-95`.
 
 **2026-09-25.** sayeed holds every open defect (D-2, D-3, D-6, D-7, D-8, D-9) and follows
 them with the employee chain, since `W-13.4` and `W-13.3` both touch `core.employee`. No
@@ -910,13 +910,13 @@ Logged for later building. **Each has an owner since 2026-11-13 (see Assignments
 | #— | `W-85` Block Core for suspended customers | One central check stops Core changes when suspended or cancelled; today no Core controller checks subscription status. Size M | Not specced. **Assigned to krushna 2026-11-13** (`dev-krushna`, no. 4 in their order). Waits on the decision on viewing and export while suspended |
 | #— | `W-86` Overdue tracking | Daily job moves overdue customers to `PAST_DUE` and alerts the platform admin; nothing sets `current_period_end` today. Size M | Not specced. **Assigned to krushna 2026-11-13** (`dev-krushna`, no. 5 in their order). Waits on the `PAST_DUE` decision |
 | #— | `W-87` PF ECR file | Generate the monthly PF upload file from the pay run. Size M | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 3 in their order). Waits on CA review |
-| #— | `W-88` Bank salary file | Generate the salary payment file for banks. Size M | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 1 in their order). |
-| #— | `W-89` Form 24Q | Quarterly TDS return data and export. Size L | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 2 in their order). Waits on CA review |
-| #— | `W-90` Full and final settlement | Final pay on exit: dues, leave encashment, recoveries. Size L | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 3 in their order). Waits on CA review |
-| #— | `W-91` Gratuity | Eligibility, calculation and payout on exit. Size M | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 4 in their order). Waits on CA review |
+| #— | `W-88` Bank salary file | Generate the salary payment file for banks. Size M | **Built on `dev-mohit` (commit `49c4c2d7`)** — 10 backend tests, 3 vitest, CSV export (RFC 4180 BOM). Ready for merge review (confirm bank format). |
+| #— | `W-89` Form 24Q | Quarterly TDS return data and export. Split into `W-89.1`–`W-89.4`. Size L | **Built on `feature/mohit-branch-2-w89-specs`** (`V192` challans, quarterly deductee mapping, Annexure-I, Annexure-II, UI screens). Awaits CA review on unallocated TDS. |
+| #— | `W-90` Full and final settlement | Final pay on exit: dues, leave encashment, recoveries. Split into `W-90.1`–`W-90.4`. Size L | **Built on `feature/mohit-branch-3-w90-fnf`** (`V193` leave encashment, `V194` notice period recovery, `V195` F&F compute, screens; 32 tests passing). Awaits CA review on notice recovery taxability. |
+| #— | `W-91` Gratuity | Eligibility, calculation and payout on exit. Size M | **Specced (`W-91-gratuity.md`)**. Awaits CA review on gratuity rounding and tenure formulas. |
 | #— | `W-92` Labour Welfare Fund | Calculate LWF in the pay run by state; only the employee tick exists today. Size M | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 4 in their order). Waits on CA review |
 | #— | `W-93` Guided statutory setup | Setup questions for the tenant admin that turn on the right rules. Size M | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 2 in their order). |
-| #— | `W-94` Billing and GST invoices | Generate GST invoices and record payments. Size L | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 6 in their order). After `W-84.1`; waits on final prices |
+| #— | `W-94` Billing and GST invoices | Generate GST invoices and record payments. Size L | **Specced (`W-94-1`, `W-94-2`)**. After `W-84.1`; waits on final pricing tables. |
 | #— | `W-95` ESI and PT return reports | Monthly and periodic statutory reports; check first what already exists. Size M | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 1 in their order). |
 | #— | `W-115` Customer support tickets | Tenant admin, HR and payroll officer raise and track tickets to Infinevo support, with category, urgency, attachments, replies and status; platform admin works one queue across tenants; email on each update; first response measured against the tenant's support plan. Size M | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 6 in their order). Response timer needs the support plan from `W-84.1` |
 | #— | `W-116` Company locale on the tenant admin's Company profile | Country, timezone and leave year start move from the platform admin's one-time setup (`TenantDetail.jsx`, read-only after creation) to the tenant admin's Company profile (`core/settings/CompanyProfile.jsx`, today tagline and logo only). Timezone and leave year editable any time. Country editable only until the first pay run exists, then locked and platform admin only, because statutory setup, tax year and the pay run compute are keyed to India. Every country offered from `reference.country` (V003); timezones from Java's zone list filtered by the chosen country with "show all" beneath. Size M | Not specced. **Assigned to krushna 2026-11-13** (`dev-krushna`, no. 7 in their order). Logged 2026-11-05 (founder, during `W-84`). **For a country outside India, the real work is three things, none in this ticket:** EPF, ESI, PT, TDS and LWF are hard-coded in the payroll compute and must switch off by country; the tax year is fixed to April–March; amounts are INR throughout. Smaller: PAN, Aadhaar, UAN, ESI number are India-only fields; only the India country template exists (`W-73.9`); date and number formats; monthly-only pay frequency; Saturday–Sunday working week |
@@ -931,7 +931,7 @@ Logged for later building. **Each has an owner since 2026-11-13 (see Assignments
 | #— | `W-100` Geo-fencing and selfie clock-in | Clock in only near the office, with an optional selfie. Size M | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 2 in their order). |
 | #— | `W-101` Shift rosters | Shift types, rosters, and late or early rules; only start and end times per employee exist today. Size L | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 3 in their order). |
 | #— | `W-102` Employee onboarding tasks | New-joiner checklist, documents, assigned tasks. Size M | Not specced. **Assigned to krushna 2026-11-13** (`dev-krushna`, no. 2 in their order). |
-| #— | `W-103` Exit process | Resignation, notice period, clearance, link to final settlement. Size M | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 5 in their order). After `W-90` |
+| #— | `W-103` Exit process | Resignation, notice period, clearance, link to final settlement. Size M | **Specced (`W-103-exit-process.md`)**. After `W-90`; clearance and payroll hand-off design in review. |
 | #— | `W-104` Tenant options | Common way to store per-customer settings and selectable rules, so there is no tenant-specific code. Size M | Not specced. **Assigned to krushna 2026-11-13** (`dev-krushna`, no. 6 in their order). |
 
 ### Priority 3 — after paying customers
@@ -939,8 +939,8 @@ Logged for later building. **Each has an owner since 2026-11-13 (see Assignments
 | # | Ticket | What it is | Status |
 |---|---|---|---|
 | #— | `W-106` Performance reviews and goals | Review cycles, goals, manager ratings. Size L | Not specced. **Assigned to krushna 2026-11-13** (`dev-krushna`, no. 3 in their order). |
-| #— | `W-107` Accounting integration | Export or sync payroll entries to Tally and Zoho Books. Size M | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 7 in their order). |
-| #— | `W-108` Customer API and webhooks | Secure access for customers' own systems. Size L | Not specced. **Assigned to mohit 2026-11-13** (`dev-mohit`, no. 8 in their order). |
+| #— | `W-107` Accounting integration | Export or sync payroll entries to Tally and Zoho Books. Size M | **Specced (`W-107-accounting-integration.md`)**. API contract in review. |
+| #— | `W-108` Customer API and webhooks | Secure access for customers' own systems. Size L | **Specced (`W-108-1`, `W-108-2`)**. Scoping and security review in progress. |
 | #— | `W-109` Helpdesk | Employee queries raised to HR and tracked. Size M | Not specced. **Assigned to karma 2026-11-13** (`dev-karma`, no. 5 in their order). |
 | #— | `W-110` Surveys | Polls and employee feedback. Size S | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 6 in their order). |
 | #— | `W-111` Asset tracking | Laptops and other items assigned to employees. Size S | Not specced. **Assigned to sayeed 2026-11-13** (`dev-sayeed`, no. 7 in their order). |

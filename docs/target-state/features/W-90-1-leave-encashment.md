@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` | 1 |
-| Flyway migration | `V191__leave_encashment.sql` | 1 |
+| Flyway migration | `V193__leave_encashment.sql` (renumbered from V191 as V190-V192 were reserved) | 1 |
 | Externally testable behaviour | Calculates accrued privilege/earned leave encashment at exit, applies Section 10(10AA) exemption cap (₹25,00,000), and records settlement | 1 |
 | Frontend area | none (UI in `W-90.4`) | 1 |
 
@@ -66,7 +66,7 @@ Payroll Officer --> POST /api/v1/payroll/leave-encashment/estimate?employeeId={i
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `payroll/V191__leave_encashment.sql` | Create `payroll.leave_encashment_settlement` with RLS and foreign keys | yes | yes |
+| `payroll/V193__leave_encashment.sql` | Create `payroll.leave_encashment_settlement` with RLS and foreign keys | yes | yes |
 
 ### Table: `payroll.leave_encashment_settlement`
 ```sql
@@ -105,7 +105,7 @@ CREATE UNIQUE INDEX uk_leave_encashment_emp_type
 | DTO | `payroll/settlement/LeaveEncashmentResponse.java` | DTO: days, rate, gross amount, exempt amount, taxable amount |
 | Service | `payroll/settlement/LeaveEncashmentService.java` | Interface for estimation, calculation, and recording |
 | ServiceImpl | `payroll/settlement/LeaveEncashmentServiceImpl.java` | Implements divisor math, leave type checks, and Section 10(10AA) limit |
-| Controller | `payroll/settlement/LeaveEncashmentController.java` | REST endpoints guarded by `@RequiresAction("payroll.settlement.manage")` |
+| Controller | `payroll/settlement/LeaveEncashmentController.java` | REST endpoints guarded by `@RequiresAction("payroll.salary.manage")` (`/record`) and `@RequiresAction("payroll.salary.read")` (`/estimate`, `/{employeeId}`) matching seeded platform roles |
 
 ---
 

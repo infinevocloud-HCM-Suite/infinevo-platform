@@ -14,7 +14,7 @@
 | Axis | This spec | Limit |
 |---|---|---|
 | Backend module | `payroll` | 1 |
-| Flyway migration | `V192__notice_period_settlement.sql` | 1 |
+| Flyway migration | `V194__notice_period_settlement.sql` (renumbered from V192 to sequence after TDS V192 and Leave Encashment V193) | 1 |
 | Externally testable behaviour | Calculates notice pay payout (buyout by employer) or notice shortfall recovery (deduction from exiting employee) | 1 |
 | Frontend area | none (UI in `W-90.4`) | 1 |
 
@@ -67,7 +67,7 @@ HR / Payroll Officer --> POST /api/v1/payroll/notice-period/calculate
 
 | Migration | Change | Tenant-aware? | Reversible? |
 |---|---|---|---|
-| `payroll/V192__notice_period_settlement.sql` | Create `payroll.notice_period_settlement` with RLS | yes | yes |
+| `payroll/V194__notice_period_settlement.sql` | Create `payroll.notice_period_settlement` with RLS | yes | yes |
 
 ### Table: `payroll.notice_period_settlement`
 ```sql
@@ -111,7 +111,7 @@ CREATE UNIQUE INDEX uk_notice_settlement_employee
 | DTO | `payroll/settlement/NoticePeriodResponse.java` | DTO: shortfall days, rate, settlement type, total amount |
 | Service | `payroll/settlement/NoticePeriodService.java` | Interface for notice shortfall math and settlement |
 | ServiceImpl | `payroll/settlement/NoticePeriodServiceImpl.java` | Implements calendar day delta, daily rate basis, and waiver handling |
-| Controller | `payroll/settlement/NoticePeriodController.java` | REST endpoints guarded by `@RequiresAction("payroll.settlement.manage")` |
+| Controller | `payroll/settlement/NoticePeriodController.java` | REST endpoints guarded by `@RequiresAction("payroll.salary.manage")` (`/calculate`, `/waive`) and `@RequiresAction("payroll.salary.read")` (`/{employeeId}`) matching seeded platform roles |
 
 ---
 

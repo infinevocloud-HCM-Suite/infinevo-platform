@@ -34,8 +34,20 @@ describe('payroll module entry (W-45 §5, W-47.1a §5, W-47.1b §5, §5a, W-47.2
       '/payroll/form24q',
       '/payroll/tax/form-24q',
       '/payroll/settings/form-24q',
+      '/payroll/settlements',
+      '/payroll/settlements/:id',
     ]);
     routes.forEach((r) => expect(r.element).toBeTruthy());
+  });
+
+  it('W-90.4: registers /payroll/settlements and /payroll/settlements/:id routes', () => {
+    const listRoute = routes.find((r) => r.path === '/payroll/settlements');
+    expect(listRoute).toBeDefined();
+    expect(listRoute.element).toBeTruthy();
+
+    const detailRoute = routes.find((r) => r.path === '/payroll/settlements/:id');
+    expect(detailRoute).toBeDefined();
+    expect(detailRoute.element).toBeTruthy();
   });
 
   it('D-64: /payroll/settings — the menu item path — redirects to the pay schedule screen', () => {
