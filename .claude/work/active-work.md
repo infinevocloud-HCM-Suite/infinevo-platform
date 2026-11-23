@@ -6,6 +6,13 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-23 — D-143 statutory flags editable from the Salary tab on `main` (`75216f54`)
+
+- The statutory card on an employee's Salary tab has an Edit action that saves PF, ESI, PT, LWF, EPS, director and TDS applicable alone; no salary version is touched. Frontend only, `payroll/salary/`.
+- Built by Claude on `dev-claude-d143`, CI green on `22a6752f`.
+- **Also on `main` since 2026-11-19 (`954fcba3`):** krushna's 13 specs, corrected and approved; `W-85` split into `W-85.1` and `W-85.2`. Code for them is on `feature/krushna-specs`, not merged.
+- **Branches:** `dev-claude-d143` reset to `main`; it can be deleted.
+
 ## 2026-11-13 — D-142 locked-month loss of pay on `main` (`d281593f`)
 
 - A loss of pay entry for a locked month is stored under the next open month. The screen now says so in a dialog and shows that month. Frontend only, `hrms/lossofpay/`.
