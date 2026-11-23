@@ -301,17 +301,27 @@ else
   echo "Infrastructure-only deploy: no --image-tag, so no app changes image and no weight moves."
 fi
 
-# ── Read the live Front Door hostname, so this deployment keeps the apps' Front Door settings ──
-# containerapps.bicep declares KEYCLOAK_JWK_SET_URI, KC_WEB_ORIGIN, API_BASE_URL and the
-# rest from this hostname - the same values deploy.yml sets. Without it a Bicep run writes
-# the containers without them: on 2026-10-19 that left the worker crash-looping for two
-# days. Read the same way deploy.yml reads it. On a first deployment the endpoint does
-# not exist yet, the value stays empty, and deploy.yml supplies the settings.
-FRONT_DOOR_HOST=$(az afd endpoint show \
-  -g "$SHARED_RG" \
-  --profile-name afd-infinevo-shared \
-  --endpoint-name "ep-infinevo-${ENV}" \
-  --query hostName -o tsv 2>/dev/null || true)
+# ── Read the live public hostname, so this deployment keeps the apps' Front Door settings ──
+# containerapps.bicep declares KC_HOSTNAME, KEYCLOAK_ISSUER_URI, API_BASE_URL and the rest
+# from this hostname - the same values deploy.yml sets. Without it a Bicep run writes the
+# containers without them: on 2026-10-19 that left the worker crash-looping for two days.
+#
+# Resolved in the same order as deploy.yml's "Resolve Front Door hostname" step: the
+# CUSTOM_DOMAIN environment variable, then the Front Door profile's custom domain, then the
+# endpoint's own azurefd.net name. Until 2026-11-23 this script read only the endpoint name,
+# so a full run would have moved sign-in and the web app off the customer-facing domain
+# onto azurefd.net - caught by the W-114.2 what-if. On a first deployment nothing exists
+# yet, the value stays empty, and deploy.yml supplies the settings.
+FRONT_DOOR_HOST="${CUSTOM_DOMAIN:-}"
+if [[ -z "$FRONT_DOOR_HOST" ]]; then
+  FRONT_DOOR_HOST=$(az afd custom-domain list     -g "$SHARED_RG"     --profile-name afd-infinevo-shared     --query "[0].hostName" -o tsv 2>/dev/null || true)
+  [[ "$FRONT_DOOR_HOST" == "None" ]] && FRONT_DOOR_HOST=""
+fi
+if [[ -z "$FRONT_DOOR_HOST" ]]; then
+  FRONT_DOOR_HOST=$(az afd endpoint show     -g "$SHARED_RG"     --profile-name afd-infinevo-shared     --endpoint-name "ep-infinevo-${ENV}"     --query hostName -o tsv 2>/dev/null || true)
+fi
+# Lower case, as every setting carries it.
+FRONT_DOOR_HOST=$(printf '%s' "$FRONT_DOOR_HOST" | tr '[:upper:]' '[:lower:]')
 if [[ -n "$FRONT_DOOR_HOST" ]]; then
   echo "Front Door: ${FRONT_DOOR_HOST} - the apps keep their Front Door settings."
 elif [[ "$CURRENT_IMAGES_JSON" != "{}" ]]; then
