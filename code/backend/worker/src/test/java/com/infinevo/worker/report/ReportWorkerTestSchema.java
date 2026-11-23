@@ -80,6 +80,7 @@ public final class ReportWorkerTestSchema {
                         "core/V117__user_invitation.sql",
                         "core/V138__subscription_status_check.sql",
                         "core/V188__subscription_plan.sql",
+                        "core/V199__subscription_period_end.sql",
                         "core/V037__document.sql",
                         "core/V166__document_label.sql",
                         "core/V038__notification_template.sql",

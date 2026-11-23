@@ -58,14 +58,22 @@ describe('PlatformHome', () => {
     tenantService.resendAdminInvitation.mockResolvedValue(undefined);
   });
 
-  it('renders the four tiles from the summary counts', async () => {
+  it('renders the tiles from the summary counts including Past due tile linking to filtered list', async () => {
+    tenantService.getSummary.mockResolvedValue({
+      ...summary,
+      byStatus: { ACTIVE: 5, PAST_DUE: 1, SUSPENDED: 2, CANCELLED: 0 },
+    });
     renderPage();
     await screen.findByText('Needs attention');
     expect(within(tile('total')).getByText('7')).toBeDefined();
     expect(within(tile('active')).getByText('5')).toBeDefined();
+    expect(within(tile('past_due')).getByText('1')).toBeDefined();
     expect(within(tile('suspended')).getByText('2')).toBeDefined();
     expect(within(tile('waiting')).getByText('1')).toBeDefined();
     expect(screen.getByText('3 created in the last 30 days')).toBeDefined();
+
+    const pastDueLink = within(tile('past_due')).getByRole('link');
+    expect(pastDueLink.getAttribute('href')).toBe('/admin/tenants?status=PAST_DUE');
   });
 
   it('lists waiting admins and recent tenants, linking to the tenant page', async () => {

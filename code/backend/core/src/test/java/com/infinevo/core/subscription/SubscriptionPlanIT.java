@@ -123,6 +123,40 @@ class SubscriptionPlanIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("W-86: Platform staff set currentPeriodEnd: 200, column holds it, GET echoes it")
+    void platformStaffSetPeriodEnd_writesColumn() throws Exception {
+        mvc.perform(as(PLATFORM, staffSub, put("/api/v1/tenants/{id}/subscription/plan", customer))
+                        .content("{\"plan\":\"GROWTH\",\"currentPeriodEnd\":\"2026-12-31\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.plan").value("GROWTH"))
+                .andExpect(jsonPath("$.currentPeriodEnd").value("2026-12-31"));
+
+        assertThat(storedPeriodEnd(customer)).isEqualTo("2026-12-31");
+
+        // Clear it
+        mvc.perform(as(PLATFORM, staffSub, put("/api/v1/tenants/{id}/subscription/plan", customer))
+                        .content("{\"plan\":\"GROWTH\",\"currentPeriodEnd\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentPeriodEnd").doesNotExist());
+
+        assertThat(storedPeriodEnd(customer)).isNull();
+    }
+
+    @Test
+    @DisplayName("W-86: The four-argument function still works")
+    void fourArgumentFunction_stillWorks() throws Exception {
+        try (Connection conn = AuthzTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement("SELECT core.set_subscription_plan(?, ?, ?, ?)")) {
+            ps.setObject(1, customer);
+            ps.setString(2, "STARTER");
+            ps.setString(3, "STANDARD");
+            ps.setObject(4, 15, java.sql.Types.INTEGER);
+            ps.execute();
+        }
+        assertThat(storedPlan(customer)).containsExactly("STARTER", "STANDARD", "15");
+    }
+
+    @Test
     @DisplayName("A customer tenant's administrator gets 403 and nothing is written")
     void customerTenant_forbidden() throws Exception {
         mvc.perform(as(customer, customerAdminSub, put("/api/v1/tenants/{id}/subscription/plan", customer))
@@ -235,6 +269,18 @@ class SubscriptionPlanIT extends AbstractIntegrationTest {
             try (ResultSet rs = ps.executeQuery()) {
                 assertThat(rs.next()).isTrue();
                 return Arrays.asList(rs.getString(1), rs.getString(2), rs.getString(3));
+            }
+        }
+    }
+
+    private static String storedPeriodEnd(UUID tenantId) throws SQLException {
+        try (Connection conn = AuthzTestSchema.migrationConnection();
+                PreparedStatement ps = conn.prepareStatement(
+                        "SELECT current_period_end::text FROM core.subscription WHERE tenant_id = ?")) {
+            ps.setObject(1, tenantId);
+            try (ResultSet rs = ps.executeQuery()) {
+                assertThat(rs.next()).isTrue();
+                return rs.getString(1);
             }
         }
     }

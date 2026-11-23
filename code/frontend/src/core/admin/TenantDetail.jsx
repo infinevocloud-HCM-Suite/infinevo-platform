@@ -4,8 +4,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Card, Descriptions, Switch, Select, Form, Input, Button, Tabs, Tag, Typography, Space, Skeleton,
-  Modal, Alert, InputNumber, theme,
+  Modal, Alert, InputNumber, DatePicker, theme,
 } from 'antd';
+import dayjs from 'dayjs';
 import { NotFound, useCan } from '@shell/screens';
 import { errorMsg } from '@shared/ui/msgHelper.js';
 import { LoadError } from '@shared/ui/LoadError.jsx';
@@ -59,8 +60,8 @@ export function TenantDetail() {
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [templateResult, setTemplateResult] = useState(null);
   const [form] = Form.useForm();
-  // The Plan card's draft, reset from the overview on every load (W-84.1).
-  const [planDraft, setPlanDraft] = useState({ plan: null, supportPlan: null, employeeLimit: null });
+  // The Plan card's draft, reset from the overview on every load (W-84.1, W-86).
+  const [planDraft, setPlanDraft] = useState({ plan: null, supportPlan: null, employeeLimit: null, currentPeriodEnd: null });
 
   const load = useCallback(async () => {
     try {
@@ -70,6 +71,7 @@ export function TenantDetail() {
         plan: res?.plan ?? null,
         supportPlan: res?.support_plan ?? null,
         employeeLimit: res?.employee_limit ?? null,
+        currentPeriodEnd: res?.current_period_end ?? null,
       });
       shown.current = true;
       setMissing(false);
@@ -162,13 +164,14 @@ export function TenantDetail() {
   const hasLimit = typeof tenant.employee_limit === 'number';
   const overSavedLimit = hasLimit && employeeCount > tenant.employee_limit;
 
-  const applyPlan = async ({ plan, supportPlan, employeeLimit }) => {
+  const applyPlan = async ({ plan, supportPlan, employeeLimit, currentPeriodEnd }) => {
     setBusy(true);
     try {
       await tenantService.setPlan(tenant.tenant_id, {
         plan: plan || null,
         supportPlan: supportPlan || null,
         employeeLimit: employeeLimit ?? null,
+        currentPeriodEnd: currentPeriodEnd || null,
       });
       await load();
     } catch (err) {
@@ -310,6 +313,20 @@ export function TenantDetail() {
                 }
               />
             </Form.Item>
+            <Form.Item label="Current period ends">
+              <DatePicker
+                aria-label="Current period ends"
+                style={{ width: '100%' }}
+                value={planDraft.currentPeriodEnd ? dayjs(planDraft.currentPeriodEnd) : null}
+                disabled={busy}
+                onChange={(d) =>
+                  setPlanDraft((prev) => ({
+                    ...prev,
+                    currentPeriodEnd: d ? d.format('YYYY-MM-DD') : null,
+                  }))
+                }
+              />
+            </Form.Item>
             <Space direction="vertical">
               <Typography.Text type={overSavedLimit ? 'danger' : undefined}>
                 {hasLimit
@@ -334,6 +351,16 @@ export function TenantDetail() {
             onChange={onStatusChange}
             options={STATUSES.map((s) => ({ value: s, label: s }))}
           />
+          {tenant.status === 'ACTIVE' &&
+            tenant.current_period_end &&
+            dayjs(tenant.current_period_end).isBefore(dayjs(), 'day') && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginTop: 8 }}
+                message="The period has ended. Tonight's check will mark this customer past due again."
+              />
+            )}
         </Card>
       )}
 

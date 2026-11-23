@@ -310,6 +310,7 @@ describe('TenantDetail', () => {
         plan: 'GROWTH',
         supportPlan: 'PRIORITY',
         employeeLimit: 50,
+        currentPeriodEnd: null,
       }),
     );
     expect(confirmDialog()).toBeNull();
@@ -327,6 +328,7 @@ describe('TenantDetail', () => {
         plan: null,
         supportPlan: null,
         employeeLimit: null,
+        currentPeriodEnd: null,
       }),
     );
   });
@@ -351,8 +353,32 @@ describe('TenantDetail', () => {
         plan: null,
         supportPlan: null,
         employeeLimit: 10,
+        currentPeriodEnd: null,
       }),
     );
+  });
+
+  it('W-86: date picker shows the saved date and sends it on save', async () => {
+    setup({ overview: { ...globex, current_period_end: '2026-12-31' } });
+    const dateInput = await screen.findByRole('textbox', { name: 'Current period ends' });
+    expect(dateInput.value).toBe('2026-12-31');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+    await waitFor(() =>
+      expect(tenantService.setPlan).toHaveBeenCalledWith('tenant-globex', {
+        plan: null,
+        supportPlan: null,
+        employeeLimit: 50,
+        currentPeriodEnd: '2026-12-31',
+      }),
+    );
+  });
+
+  it('W-86: warning shows for ACTIVE with a past date under status select', async () => {
+    setup({ overview: { ...globex, status: 'ACTIVE', current_period_end: '2020-01-01' } });
+    expect(
+      await screen.findByText("The period has ended. Tonight's check will mark this customer past due again."),
+    ).toBeDefined();
   });
 
   it('shows NotFound only for a 404 (D-85)', async () => {

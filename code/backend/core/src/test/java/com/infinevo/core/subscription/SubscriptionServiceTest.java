@@ -223,11 +223,12 @@ class SubscriptionServiceTest {
         SubscriptionResponse response = subscriptionService.updatePlan(
                 TENANT_ID, new PlanUpdateRequest(SubscriptionPlan.ENTERPRISE, SupportPlan.STANDARD, 25));
 
-        PreparedStatement ps = runCapturedCallback("SELECT core.set_subscription_plan(?, ?, ?, ?)");
+        PreparedStatement ps = runCapturedCallback("SELECT core.set_subscription_plan(?, ?, ?, ?, ?)");
         verify(ps).setObject(1, TENANT_ID);
         verify(ps).setString(2, "ENTERPRISE");
         verify(ps).setString(3, "STANDARD");
         verify(ps).setObject(4, 25, Types.INTEGER);
+        verify(ps).setNull(5, Types.DATE);
         verify(ps).execute();
 
         assertThat(sub.getPlan()).isEqualTo(SubscriptionPlan.ENTERPRISE);
@@ -236,6 +237,28 @@ class SubscriptionServiceTest {
         assertThat(response.employeeLimit()).isEqualTo(25);
         // Nothing permission-related changes.
         verify(permissionCache, never()).bumpVersion(any());
+    }
+
+    @Test
+    @DisplayName("W-86: a changed plan saves currentPeriodEnd to core.set_subscription_plan")
+    void updatePlan_withPeriodEnd_callsSetterFunctionWithDate() throws Exception {
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.now());
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+        LocalDate periodEnd = LocalDate.of(2026, 12, 31);
+
+        SubscriptionResponse response = subscriptionService.updatePlan(
+                TENANT_ID, new PlanUpdateRequest(SubscriptionPlan.GROWTH, SupportPlan.STANDARD, 50, periodEnd));
+
+        PreparedStatement ps = runCapturedCallback("SELECT core.set_subscription_plan(?, ?, ?, ?, ?)");
+        verify(ps).setObject(1, TENANT_ID);
+        verify(ps).setString(2, "GROWTH");
+        verify(ps).setString(3, "STANDARD");
+        verify(ps).setObject(4, 50, Types.INTEGER);
+        verify(ps).setDate(5, java.sql.Date.valueOf(periodEnd));
+        verify(ps).execute();
+
+        assertThat(sub.getCurrentPeriodEnd()).isEqualTo(periodEnd);
+        assertThat(response.currentPeriodEnd()).isEqualTo(periodEnd);
     }
 
     @Test
@@ -248,10 +271,11 @@ class SubscriptionServiceTest {
         SubscriptionResponse response =
                 subscriptionService.updatePlan(TENANT_ID, new PlanUpdateRequest(null, null, null));
 
-        PreparedStatement ps = runCapturedCallback("SELECT core.set_subscription_plan(?, ?, ?, ?)");
+        PreparedStatement ps = runCapturedCallback("SELECT core.set_subscription_plan(?, ?, ?, ?, ?)");
         verify(ps).setString(2, null);
         verify(ps).setString(3, null);
         verify(ps).setNull(4, Types.INTEGER);
+        verify(ps).setNull(5, Types.DATE);
         assertThat(sub.getEmployeeLimit()).isNull();
         assertThat(response.employeeLimit()).isNull();
     }
@@ -302,5 +326,68 @@ class SubscriptionServiceTest {
 
         assertThatThrownBy(() -> subscriptionService.getSubscription(TENANT_ID))
                 .isInstanceOf(SubscriptionNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("W-86: markPastDue changes an overdue active row to PAST_DUE and returns true")
+    void markPastDue_whenActiveAndOverdue_marksPastDue() throws Exception {
+        LocalDate today = LocalDate.of(2026, 11, 23);
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.of(2026, 1, 1));
+        sub.setCurrentPeriodEnd(today.minusDays(1));
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+
+        boolean changed = subscriptionService.markPastDue(TENANT_ID, today);
+
+        assertThat(changed).isTrue();
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.PAST_DUE);
+        verify(permissionCache, times(1)).bumpVersion(TENANT_ID);
+    }
+
+    @Test
+    @DisplayName("W-86: markPastDue leaves alone a row whose period end is today or in the future")
+    void markPastDue_whenNotOverdue_returnsFalse() {
+        LocalDate today = LocalDate.of(2026, 11, 23);
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.of(2026, 1, 1));
+        sub.setCurrentPeriodEnd(today);
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+
+        boolean changed = subscriptionService.markPastDue(TENANT_ID, today);
+
+        assertThat(changed).isFalse();
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        verify(permissionCache, never()).bumpVersion(any());
+    }
+
+    @Test
+    @DisplayName("W-86: markPastDue leaves alone a row that has no period end date")
+    void markPastDue_whenNoDate_returnsFalse() {
+        LocalDate today = LocalDate.of(2026, 11, 23);
+        Subscription sub = new Subscription(TENANT_ID, SubscriptionStatus.ACTIVE, LocalDate.of(2026, 1, 1));
+        sub.setCurrentPeriodEnd(null);
+        when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+
+        boolean changed = subscriptionService.markPastDue(TENANT_ID, today);
+
+        assertThat(changed).isFalse();
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        verify(permissionCache, never()).bumpVersion(any());
+    }
+
+    @Test
+    @DisplayName("W-86: markPastDue leaves alone a row that is SUSPENDED, CANCELLED or already PAST_DUE")
+    void markPastDue_whenNotActive_returnsFalse() {
+        LocalDate today = LocalDate.of(2026, 11, 23);
+        for (SubscriptionStatus status :
+                List.of(SubscriptionStatus.SUSPENDED, SubscriptionStatus.CANCELLED, SubscriptionStatus.PAST_DUE)) {
+            Subscription sub = new Subscription(TENANT_ID, status, LocalDate.of(2026, 1, 1));
+            sub.setCurrentPeriodEnd(today.minusDays(5));
+            when(subscriptionRepository.findByTenantId(TENANT_ID)).thenReturn(Optional.of(sub));
+
+            boolean changed = subscriptionService.markPastDue(TENANT_ID, today);
+
+            assertThat(changed).isFalse();
+            assertThat(sub.getStatus()).isEqualTo(status);
+        }
+        verify(permissionCache, never()).bumpVersion(any());
     }
 }

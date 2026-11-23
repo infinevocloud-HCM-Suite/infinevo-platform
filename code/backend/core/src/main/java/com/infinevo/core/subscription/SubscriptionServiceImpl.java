@@ -274,14 +274,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         // 2. No-op check: nothing differs, nothing is written
         if (subscription.getPlan() == request.plan()
                 && subscription.getSupportPlan() == request.supportPlan()
-                && Objects.equals(subscription.getEmployeeLimit(), request.employeeLimit())) {
+                && Objects.equals(subscription.getEmployeeLimit(), request.employeeLimit())
+                && Objects.equals(subscription.getCurrentPeriodEnd(), request.currentPeriodEnd())) {
             log.debug("No plan change for tenant {}; skipping write", tenantId);
             return toResponse(subscription, activeModules);
         }
 
-        // 3. Cross-tenant write through the SECURITY DEFINER setter (V188), called as set_subscription_status is
+        // 3. Cross-tenant write through the SECURITY DEFINER setter (V188/V199), called as set_subscription_status is
         jdbcTemplate.execute((Connection conn) -> {
-            try (PreparedStatement ps = conn.prepareStatement("SELECT core.set_subscription_plan(?, ?, ?, ?)")) {
+            try (PreparedStatement ps = conn.prepareStatement("SELECT core.set_subscription_plan(?, ?, ?, ?, ?)")) {
                 ps.setObject(1, tenantId);
                 ps.setString(2, request.plan() != null ? request.plan().name() : null);
                 ps.setString(
@@ -290,6 +291,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                     ps.setObject(4, request.employeeLimit(), Types.INTEGER);
                 } else {
                     ps.setNull(4, Types.INTEGER);
+                }
+                if (request.currentPeriodEnd() != null) {
+                    ps.setDate(5, java.sql.Date.valueOf(request.currentPeriodEnd()));
+                } else {
+                    ps.setNull(5, Types.DATE);
                 }
                 ps.execute();
                 return null;
@@ -301,8 +307,28 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         subscription.setPlan(request.plan());
         subscription.setSupportPlan(request.supportPlan());
         subscription.setEmployeeLimit(request.employeeLimit());
+        subscription.setCurrentPeriodEnd(request.currentPeriodEnd());
 
         return toResponse(subscription, activeModules);
+    }
+
+    @Override
+    @Transactional
+    public boolean markPastDue(UUID tenantId, java.time.LocalDate asOf) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(asOf, "asOf must not be null");
+        return asTenant(tenantId, () -> {
+            Subscription subscription = subscriptionRepository
+                    .findByTenantId(tenantId)
+                    .orElseThrow(() -> new SubscriptionNotFoundException(tenantId));
+            if (subscription.getStatus() == SubscriptionStatus.ACTIVE
+                    && subscription.getCurrentPeriodEnd() != null
+                    && subscription.getCurrentPeriodEnd().isBefore(asOf)) {
+                applyStatus(tenantId, SubscriptionStatus.PAST_DUE);
+                return true;
+            }
+            return false;
+        });
     }
 
     /**

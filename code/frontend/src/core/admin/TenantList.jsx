@@ -1,7 +1,7 @@
 import { PageHeader } from '@shared/ui/PageHeader.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Table, Tag, Button, Space, Typography, Card } from 'antd';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Table, Tag, Button, Space, Typography, Card, Select } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { LoadError } from '@shared/ui/LoadError.jsx';
 import { tenantService } from './tenantService.js';
@@ -19,6 +19,14 @@ export function adminInvitationLabel(invitation) {
   return '—';
 }
 
+const STATUS_FILTER_OPTIONS = [
+  { value: 'ALL', label: 'All statuses' },
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'PAST_DUE', label: 'Past due' },
+  { value: 'SUSPENDED', label: 'Suspended' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
+
 /**
  * Every tenant on the platform, for platform staff (W-65.3 §5). Reached from the `core.tenants`
  * menu item, which only `platform-admin` in the Infinevo tenant is shown (W-65.1 §4).
@@ -31,12 +39,29 @@ export function adminInvitationLabel(invitation) {
  */
 export function TenantList() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   // A failed read shows an error with Retry and no rows, never an empty list (D-85).
   const [loadError, setLoadError] = useState(null);
   const alive = useRef(true);
+
+  const statusParam = searchParams.get('status') || 'ALL';
+
+  const onStatusFilterChange = (val) => {
+    const next = new URLSearchParams(searchParams);
+    if (!val || val === 'ALL') {
+      next.delete('status');
+    } else {
+      next.set('status', val);
+    }
+    setSearchParams(next);
+  };
+
+  const filteredRows = statusParam && statusParam !== 'ALL'
+    ? rows.filter((r) => r.status === statusParam)
+    : rows;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -148,13 +173,25 @@ export function TenantList() {
       {loadError ? (
         <LoadError title="Could not load tenants" error={loadError} onRetry={load} />
       ) : (
-        <Table
-          rowKey="tenant_id"
-          columns={columns}
-          dataSource={rows}
-          loading={loading}
-          pagination={false}
-        />
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <Select
+              aria-label="Filter by status"
+              placeholder="Filter by status"
+              style={{ width: 160 }}
+              value={statusParam}
+              onChange={onStatusFilterChange}
+              options={STATUS_FILTER_OPTIONS}
+            />
+          </div>
+          <Table
+            rowKey="tenant_id"
+            columns={columns}
+            dataSource={filteredRows}
+            loading={loading}
+            pagination={false}
+          />
+        </>
       )}
     </Card>
   );

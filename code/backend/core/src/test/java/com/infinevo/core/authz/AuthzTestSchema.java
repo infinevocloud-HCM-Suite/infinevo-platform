@@ -233,6 +233,9 @@ public final class AuthzTestSchema {
                         executeResource(conn, "db/migration/core/V192__employee_onboarding_tasks.sql");
                         executeResource(conn, "db/migration/core/V197__onboarding_role_check_and_grants.sql");
                     }
+                    if (!functionExists(conn, "core", "list_overdue_subscriptions")) {
+                        executeResource(conn, "db/migration/core/V199__subscription_period_end.sql");
+                    }
                 }
 
             } catch (Exception e) {

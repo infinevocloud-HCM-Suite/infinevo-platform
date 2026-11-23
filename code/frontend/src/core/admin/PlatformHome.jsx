@@ -137,6 +137,12 @@ export function PlatformHome() {
   const tiles = [
     { key: 'total', title: 'Tenants', value: total },
     { key: 'active', title: 'Active', value: byStatus.ACTIVE ?? 0 },
+    {
+      key: 'past_due',
+      title: 'Past due',
+      value: byStatus.PAST_DUE ?? 0,
+      link: '/admin/tenants?status=PAST_DUE',
+    },
     { key: 'suspended', title: 'Suspended', value: byStatus.SUSPENDED ?? 0 },
     { key: 'waiting', title: 'Waiting for admin', value: waiting.length },
   ];
@@ -204,9 +210,15 @@ export function PlatformHome() {
         {header}
         <Row gutter={[token.marginMD, token.marginMD]}>
           {tiles.map((tile) => (
-            <Col key={tile.key} xs={24} sm={12} lg={6}>
+            <Col key={tile.key} xs={24} sm={12} lg={tile.key === 'waiting' ? 8 : 4}>
               <Card size="small" variant="borderless" data-testid={`tile-${tile.key}`}>
-                <Statistic title={tile.title} value={tile.value} />
+                {tile.link ? (
+                  <Link to={tile.link} style={{ display: 'block' }}>
+                    <Statistic title={tile.title} value={tile.value} />
+                  </Link>
+                ) : (
+                  <Statistic title={tile.title} value={tile.value} />
+                )}
               </Card>
             </Col>
           ))}

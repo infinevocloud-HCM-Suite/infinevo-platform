@@ -6,7 +6,7 @@
 | **Owner** | krushna (`dev-krushna`) |
 | **Apps touched** | `code/backend/core`, `code/backend/worker`, `code/backend/migration`, `code/frontend/src/core/admin` |
 | **Related gaps** | founder 2026-11-13 roadmap, "Priority 1 — customer lifecycle" |
-| **Status** | Ready — approved 2026-11-19. Not built. |
+| **Status** | Built on `feature/krushna-specs` (`V199`, 100% tests/lint green). |
 | **Approved by** | founder |
 | **Approved on** | 2026-11-19 |
 | **Blocked by** | nothing. Founder decision 2026-11-05: `PAST_DUE` blocks nothing. |

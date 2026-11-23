@@ -140,4 +140,32 @@ describe('TenantList', () => {
     expect(await screen.findByText('Acme')).toBeDefined();
     expect(tenantService.list).toHaveBeenCalledTimes(2);
   });
+
+  it('W-86: ?status=PAST_DUE shows only those rows', async () => {
+    const mixedRows = [
+      ...rows,
+      {
+        tenant_id: 'tenant-pastdue',
+        name: 'OverdueCorp',
+        status: 'PAST_DUE',
+        modules: ['HRMS'],
+        created_at: '2026-09-01T00:00:00Z',
+        user_count: 2,
+        employee_count: 5,
+        employee_limit: null,
+      },
+    ];
+    tenantService.list.mockResolvedValue(mixedRows);
+
+    render(
+      <MemoryRouter initialEntries={['/admin/tenants?status=PAST_DUE']}>
+        <TenantList />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('OverdueCorp');
+    expect(screen.queryByText('Acme')).toBeNull();
+    expect(screen.queryByText('Globex')).toBeNull();
+    expect(screen.getByText('OverdueCorp')).toBeDefined();
+  });
 });

@@ -106,13 +106,13 @@ export const tenantService = {
   },
 
   /**
-   * `PUT /v1/tenants/{id}/subscription/plan` with `{ plan, supportPlan, employeeLimit }` (W-84.1).
+   * `PUT /v1/tenants/{id}/subscription/plan` with `{ plan, supportPlan, employeeLimit, currentPeriodEnd }` (W-84.1, W-86).
    * Any field may be null; a null `employeeLimit` means no limit.
    */
-  async setPlan(id, { plan, supportPlan, employeeLimit }) {
+  async setPlan(id, { plan, supportPlan, employeeLimit, currentPeriodEnd }) {
     const res = await apiClient.put(
       `/v1/tenants/${id}/subscription/plan`,
-      { plan, supportPlan, employeeLimit },
+      { plan, supportPlan, employeeLimit, currentPeriodEnd },
       PLATFORM_ONLY,
     );
     return res?.data !== undefined ? res.data : res;

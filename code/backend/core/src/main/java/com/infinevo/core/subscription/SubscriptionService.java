@@ -16,8 +16,14 @@ public interface SubscriptionService {
     SubscriptionResponse updateStatus(UUID tenantId, SubscriptionStatus status);
 
     /**
-     * Sets the tenant's plan, support plan and employee limit (W-84.1). Each value is written as given; {@code null}
+     * Sets the tenant's plan, support plan and employee limit (W-84.1, W-86). Each value is written as given; {@code null}
      * clears it, and a {@code null} limit means unlimited. Refused for the platform tenant.
      */
     SubscriptionResponse updatePlan(UUID tenantId, PlanUpdateRequest request);
+
+    /**
+     * Sweeps the tenant and marks it PAST_DUE if it is currently ACTIVE and has an expired period end before
+     * {@code asOf} (W-86). Returns {@code true} if the status was changed to PAST_DUE, {@code false} otherwise.
+     */
+    boolean markPastDue(UUID tenantId, java.time.LocalDate asOf);
 }
