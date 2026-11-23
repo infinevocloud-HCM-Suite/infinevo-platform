@@ -6,6 +6,17 @@
 > `W-11.1`, `W-11.2`, `W-13.2`, `W-14.1` and now `W-13.3` are merged; `W-14.2` is in too.
 > Tracked, not gitignored — it is how everyone sees where the project stands.
 
+## 2026-11-23 — W-114.3 AI chat sessions and tool registry on `main`; W-114.2 AI resources deployed
+
+| What | Where |
+|---|---|
+| `core.ai_session`, `ai_message`, `ai_action_intent` with RLS; `core.ai.use` granted to every system role (backfill + trigger for new customers). Own-chat API: `POST/GET /api/v1/ai/sessions`, `GET …/{id}/messages`, `DELETE …/{id}` — another user's chat is 404 | `V200`, `core/ai/AiSession*` |
+| `AiToolProvider`/`AiTool`/`AiToolRegistry`: a tool's name prefix (`core`/`hrms`/`payroll`) is its module licence; hidden and refused without the action or the licence; registry hands out descriptors only | `core/ai/AiTool*` |
+| Azure OpenAI `oai-infinevo-dev` (South India, `gpt-4.1-mini` Standard, private endpoint only, keys off, ₹5,000 budget) deployed through `infra/azure/ai-only.bicep` | `infra/azure/` |
+
+- Built by Claude, one independent read each, CI green. **Do not run the full `deploy.sh` on the live environment** until the hand-made Front Door custom domain, WAF link and storage lockdown are in Bicep.
+- **Next:** `W-114.4` model gateway with masking.
+
 ## 2026-11-23 — W-114.1 AI helper switch and monthly cap on `main` (`47c316c4`)
 
 | What | Where |

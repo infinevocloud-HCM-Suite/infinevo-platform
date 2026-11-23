@@ -43,24 +43,40 @@ class RoleCatalogueIT {
     private static final UUID TENANT_A = UUID.randomUUID();
     private static final UUID TENANT_B = UUID.randomUUID();
 
+    /** W-114.3: created before {@code V200__ai_chat.sql}, so only the script's backfill can grant it core.ai.use. */
+    private static final UUID TENANT_BEFORE_AI = UUID.randomUUID();
+
+    private static final String AI_USE = "core.ai.use";
+
     private static String jdbcUrl;
 
     @BeforeAll
     static void applyShippedMigrationsAndCreateTenants() throws SQLException {
         jdbcUrl = PostgresTestContainerInitializer.provisionAdditionalDatabase(DATABASE);
+        // Stop short of V200 (W-114.3), insert one tenant, then apply the rest - the PreExistingTenantCatalogueIT
+        // pattern - so the backfill of core.ai.use is exercised, not only its trigger.
+        MigrationApplication.launch(
+                "--DB_URL=" + jdbcUrl,
+                "--DB_MIGRATION_USERNAME=" + PostgresTestContainerInitializer.MIGRATION_USER,
+                "--DB_MIGRATION_PASSWORD=" + PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD,
+                "--spring.flyway.target=192");
+        insertTenant(TENANT_BEFORE_AI, "Roles Before AI");
+
         MigrationApplication.launch(
                 "--DB_URL=" + jdbcUrl,
                 "--DB_MIGRATION_USERNAME=" + PostgresTestContainerInitializer.MIGRATION_USER,
                 "--DB_MIGRATION_PASSWORD=" + PostgresTestContainerInitializer.MIGRATION_USER_PASSWORD);
 
+        insertTenant(TENANT_A, "Roles Alpha");
+        insertTenant(TENANT_B, "Roles Beta");
+    }
+
+    private static void insertTenant(UUID tenant, String name) throws SQLException {
         try (Connection conn = migrationUserConnection();
                 PreparedStatement ps =
                         conn.prepareStatement("INSERT INTO core.tenant (tenant_id, name) VALUES (?, ?)")) {
-            ps.setObject(1, TENANT_A);
-            ps.setString(2, "Roles Alpha");
-            ps.executeUpdate();
-            ps.setObject(1, TENANT_B);
-            ps.setString(2, "Roles Beta");
+            ps.setObject(1, tenant);
+            ps.setString(2, name);
             ps.executeUpdate();
         }
     }
@@ -210,8 +226,9 @@ class RoleCatalogueIT {
                     .containsAll(NEW_CORE_CODES);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE code LIKE 'core.%'"))
                     .as(
-                            "23 original + 14 renamed + 24 added (spec §8) + core.tenant.impersonate (W-65.2) + 7 wfh (W-74)")
-                    .isEqualTo(69);
+                            "23 original + 14 renamed + 24 added (spec §8) + core.tenant.impersonate (W-65.2) + 7 wfh (W-74)"
+                                    + " + core.ai.use (W-114.3)")
+                    .isEqualTo(70);
             assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE split_part(code, '.', 1) <> module"))
                     .isZero();
         }
@@ -287,6 +304,47 @@ class RoleCatalogueIT {
                     .isInstanceOf(PSQLException.class)
                     .extracting(e -> ((PSQLException) e).getSQLState())
                     .isEqualTo(INSUFFICIENT_PRIVILEGE);
+        }
+    }
+
+    // ── W-114.3 core.ai.use (V200__ai_chat.sql)
+
+    @Test
+    void aiUse_isInTheCatalogue() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            assertThat(count(conn, "SELECT count(*) FROM reference.action WHERE code = '" + AI_USE + "'"))
+                    .isEqualTo(1);
+        }
+    }
+
+    @Test
+    void aiUse_heldByEverySystemRole_ofATenantThatExistedBeforeTheScript() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            assertThat(systemRolesHolding(conn, TENANT_BEFORE_AI, AI_USE))
+                    .as("V200 backfill: every system role of a pre-existing tenant holds core.ai.use")
+                    .containsExactlyInAnyOrderElementsOf(SYSTEM_ROLES);
+        }
+    }
+
+    @Test
+    void aiUse_heldByEverySystemRole_ofATenantCreatedAfterTheScript() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            for (UUID tenant : List.of(TENANT_A, TENANT_B)) {
+                assertThat(systemRolesHolding(conn, tenant, AI_USE))
+                        .as("V200 trigger tenant_seed_system_roles_ai: tenant %s", tenant)
+                        .containsExactlyInAnyOrderElementsOf(SYSTEM_ROLES);
+            }
+        }
+    }
+
+    @Test
+    void aiUse_notGrantedInThePlatformTenant() throws SQLException {
+        try (Connection conn = migrationUserConnection()) {
+            assertThat(count(
+                            conn,
+                            "SELECT count(*) FROM core.role_action WHERE action_code = '" + AI_USE + "'"
+                                    + " AND tenant_id = '00000000-0000-0000-0000-000000000001'"))
+                    .isZero();
         }
     }
 
@@ -390,6 +448,22 @@ class RoleCatalogueIT {
                 return rs.getInt(1) == 1;
             }
         }
+    }
+
+    private static List<String> systemRolesHolding(Connection conn, UUID tenant, String action) throws SQLException {
+        List<String> roles = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement("SELECT r.code FROM core.role r"
+                + " JOIN core.role_action ra ON ra.role_id = r.id AND ra.tenant_id = r.tenant_id"
+                + " WHERE r.tenant_id = ? AND r.is_system AND ra.action_code = ? ORDER BY r.code")) {
+            ps.setObject(1, tenant);
+            ps.setString(2, action);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    roles.add(rs.getString(1));
+                }
+            }
+        }
+        return roles;
     }
 
     private static UUID roleId(Connection conn, UUID tenant, String code) throws SQLException {
